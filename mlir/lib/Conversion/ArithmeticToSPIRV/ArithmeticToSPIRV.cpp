@@ -35,7 +35,7 @@ using namespace mlir;
 
 namespace {
 
-/// Converts composite arith.constant operation to spv.Constant.
+/// Converts composite arith.constant operation to spirv.Constant.
 struct ConstantCompositeOpPattern final
     : public OpConversionPattern<arith::ConstantOp> {
   using OpConversionPattern<arith::ConstantOp>::OpConversionPattern;
@@ -45,7 +45,7 @@ struct ConstantCompositeOpPattern final
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts scalar arith.constant operation to spv.Constant.
+/// Converts scalar arith.constant operation to spirv.Constant.
 struct ConstantScalarOpPattern final
     : public OpConversionPattern<arith::ConstantOp> {
   using OpConversionPattern<arith::ConstantOp>::OpConversionPattern;
@@ -58,7 +58,7 @@ struct ConstantScalarOpPattern final
 /// Converts arith.remsi to GLSL SPIR-V ops.
 ///
 /// This cannot be merged into the template unary/binary pattern due to Vulkan
-/// restrictions over spv.SRem and spv.SMod.
+/// restrictions over spirv.SRem and spirv.SMod.
 struct RemSIOpGLPattern final : public OpConversionPattern<arith::RemSIOp> {
   using OpConversionPattern<arith::RemSIOp>::OpConversionPattern;
 
@@ -108,8 +108,8 @@ struct XOrIOpBooleanPattern final : public OpConversionPattern<arith::XOrIOp> {
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts arith.uitofp to spv.Select if the type of source is i1 or vector of
-/// i1.
+/// Converts arith.uitofp to spirv.Select if the type of source is i1 or vector
+/// of i1.
 struct UIToFPI1Pattern final : public OpConversionPattern<arith::UIToFPOp> {
   using OpConversionPattern<arith::UIToFPOp>::OpConversionPattern;
 
@@ -118,8 +118,8 @@ struct UIToFPI1Pattern final : public OpConversionPattern<arith::UIToFPOp> {
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts arith.extui to spv.Select if the type of source is i1 or vector of
-/// i1.
+/// Converts arith.extui to spirv.Select if the type of source is i1 or vector
+/// of i1.
 struct ExtUII1Pattern final : public OpConversionPattern<arith::ExtUIOp> {
   using OpConversionPattern<arith::ExtUIOp>::OpConversionPattern;
 
@@ -128,8 +128,8 @@ struct ExtUII1Pattern final : public OpConversionPattern<arith::ExtUIOp> {
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts arith.trunci to spv.Select if the type of result is i1 or vector of
-/// i1.
+/// Converts arith.trunci to spirv.Select if the type of result is i1 or vector
+/// of i1.
 struct TruncII1Pattern final : public OpConversionPattern<arith::TruncIOp> {
   using OpConversionPattern<arith::TruncIOp>::OpConversionPattern;
 
@@ -200,7 +200,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts arith.addui_carry to spv.IAddCarry.
+/// Converts arith.addui_carry to spirv.IAddCarry.
 class AddICarryOpPattern final
     : public OpConversionPattern<arith::AddUICarryOp> {
 public:
@@ -210,12 +210,22 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-/// Converts arith.select to spv.Select.
+/// Converts arith.select to spirv.Select.
 class SelectOpPattern final : public OpConversionPattern<arith::SelectOp> {
 public:
   using OpConversionPattern<arith::SelectOp>::OpConversionPattern;
   LogicalResult
   matchAndRewrite(arith::SelectOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
+/// Converts arith.maxf to spirv.GL.FMax or spirv.CL.fmax.
+template <typename Op, typename SPIRVOp>
+class MinMaxFOpPattern final : public OpConversionPattern<Op> {
+public:
+  using OpConversionPattern<Op>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(Op op, typename Op::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -468,8 +478,8 @@ LogicalResult ConstantScalarOpPattern::matchAndRewrite(
 ///
 /// Note that this is needed for Vulkan. Per the Vulkan's SPIR-V environment
 /// spec, "for the OpSRem and OpSMod instructions, if either operand is negative
-/// the result is undefined."  So we cannot directly use spv.SRem/spv.SMod
-/// if either operand can be negative. Emulate it via spv.UMod.
+/// the result is undefined."  So we cannot directly use spirv.SRem/spirv.SMod
+/// if either operand can be negative. Emulate it via spirv.UMod.
 template <typename SignedAbsOp>
 static Value emulateSignedRemainder(Location loc, Value lhs, Value rhs,
                                     Value signOperand, OpBuilder &builder) {
@@ -478,7 +488,7 @@ static Value emulateSignedRemainder(Location loc, Value lhs, Value rhs,
 
   Type type = lhs.getType();
 
-  // Calculate the remainder with spv.UMod.
+  // Calculate the remainder with spirv.UMod.
   Value lhsAbs = builder.create<SignedAbsOp>(loc, type, lhs);
   Value rhsAbs = builder.create<SignedAbsOp>(loc, type, rhs);
   Value abs = builder.create<spirv::UModOp>(loc, lhsAbs, rhsAbs);
@@ -839,13 +849,25 @@ LogicalResult CmpFOpNanNonePattern::matchAndRewrite(
     return failure();
 
   Location loc = op.getLoc();
+  auto *converter = getTypeConverter<SPIRVTypeConverter>();
 
-  Value lhsIsNan = rewriter.create<spirv::IsNanOp>(loc, adaptor.getLhs());
-  Value rhsIsNan = rewriter.create<spirv::IsNanOp>(loc, adaptor.getRhs());
+  Value replace;
+  if (converter->getOptions().enableFastMathMode) {
+    if (op.getPredicate() == arith::CmpFPredicate::ORD) {
+      // Ordered comparsion checks if neither operand is NaN.
+      replace = spirv::ConstantOp::getOne(op.getType(), loc, rewriter);
+    } else {
+      // Unordered comparsion checks if either operand is NaN.
+      replace = spirv::ConstantOp::getZero(op.getType(), loc, rewriter);
+    }
+  } else {
+    Value lhsIsNan = rewriter.create<spirv::IsNanOp>(loc, adaptor.getLhs());
+    Value rhsIsNan = rewriter.create<spirv::IsNanOp>(loc, adaptor.getRhs());
 
-  Value replace = rewriter.create<spirv::LogicalOrOp>(loc, lhsIsNan, rhsIsNan);
-  if (op.getPredicate() == arith::CmpFPredicate::ORD)
-    replace = rewriter.create<spirv::LogicalNotOp>(loc, replace);
+    replace = rewriter.create<spirv::LogicalOrOp>(loc, lhsIsNan, rhsIsNan);
+    if (op.getPredicate() == arith::CmpFPredicate::ORD)
+      replace = rewriter.create<spirv::LogicalNotOp>(loc, replace);
+  }
 
   rewriter.replaceOp(op, replace);
   return success();
@@ -886,6 +908,47 @@ SelectOpPattern::matchAndRewrite(arith::SelectOp op, OpAdaptor adaptor,
   rewriter.replaceOpWithNewOp<spirv::SelectOp>(op, adaptor.getCondition(),
                                                adaptor.getTrueValue(),
                                                adaptor.getFalseValue());
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// MaxFOpPattern
+//===----------------------------------------------------------------------===//
+
+template <typename Op, typename SPIRVOp>
+LogicalResult MinMaxFOpPattern<Op, SPIRVOp>::matchAndRewrite(
+    Op op, typename Op::Adaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto *converter = this->template getTypeConverter<SPIRVTypeConverter>();
+  auto dstType = converter->convertType(op.getType());
+  if (!dstType)
+    return failure();
+
+  // arith.maxf/minf:
+  //   "if one of the arguments is NaN, then the result is also NaN."
+  // spirv.GL.FMax/FMin
+  //   "which operand is the result is undefined if one of the operands
+  //   is a NaN."
+  // spirv.CL.fmax/fmin:
+  //   "If one argument is a NaN, Fmin returns the other argument."
+
+  Location loc = op.getLoc();
+  Value spirvOp = rewriter.create<SPIRVOp>(loc, dstType, adaptor.getOperands());
+
+  if (converter->getOptions().enableFastMathMode) {
+    rewriter.replaceOp(op, spirvOp);
+    return success();
+  }
+
+  Value lhsIsNan = rewriter.create<spirv::IsNanOp>(loc, adaptor.getLhs());
+  Value rhsIsNan = rewriter.create<spirv::IsNanOp>(loc, adaptor.getRhs());
+
+  Value select1 = rewriter.create<spirv::SelectOp>(loc, dstType, lhsIsNan,
+                                                   adaptor.getLhs(), spirvOp);
+  Value select2 = rewriter.create<spirv::SelectOp>(loc, dstType, rhsIsNan,
+                                                   adaptor.getRhs(), select1);
+
+  rewriter.replaceOp(op, select2);
   return success();
 }
 
@@ -932,12 +995,19 @@ void mlir::arith::populateArithmeticToSPIRVPatterns(
     CmpFOpNanNonePattern, CmpFOpPattern,
     AddICarryOpPattern, SelectOpPattern,
 
-    spirv::ElementwiseOpPattern<arith::MaxFOp, spirv::GLFMaxOp>,
+    MinMaxFOpPattern<arith::MaxFOp, spirv::GLFMaxOp>,
+    MinMaxFOpPattern<arith::MinFOp, spirv::GLFMinOp>,
     spirv::ElementwiseOpPattern<arith::MaxSIOp, spirv::GLSMaxOp>,
     spirv::ElementwiseOpPattern<arith::MaxUIOp, spirv::GLUMaxOp>,
-    spirv::ElementwiseOpPattern<arith::MinFOp, spirv::GLFMinOp>,
     spirv::ElementwiseOpPattern<arith::MinSIOp, spirv::GLSMinOp>,
-    spirv::ElementwiseOpPattern<arith::MinUIOp, spirv::GLUMinOp>
+    spirv::ElementwiseOpPattern<arith::MinUIOp, spirv::GLUMinOp>,
+
+    MinMaxFOpPattern<arith::MaxFOp, spirv::CLFMaxOp>,
+    MinMaxFOpPattern<arith::MinFOp, spirv::CLFMinOp>,
+    spirv::ElementwiseOpPattern<arith::MaxSIOp, spirv::CLSMaxOp>,
+    spirv::ElementwiseOpPattern<arith::MaxUIOp, spirv::CLUMaxOp>,
+    spirv::ElementwiseOpPattern<arith::MinSIOp, spirv::CLSMinOp>,
+    spirv::ElementwiseOpPattern<arith::MinUIOp, spirv::CLUMinOp>
   >(typeConverter, patterns.getContext());
   // clang-format on
 
@@ -959,8 +1029,9 @@ struct ConvertArithmeticToSPIRVPass
     auto targetAttr = spirv::lookupTargetEnvOrDefault(op);
     auto target = SPIRVConversionTarget::get(targetAttr);
 
-    SPIRVTypeConverter::Options options;
+    SPIRVConversionOptions options;
     options.emulateNon32BitScalarTypes = this->emulateNon32BitScalarTypes;
+    options.enableFastMathMode = this->enableFastMath;
     SPIRVTypeConverter typeConverter(targetAttr, options);
 
     // Use UnrealizedConversionCast as the bridge so that we don't need to pull

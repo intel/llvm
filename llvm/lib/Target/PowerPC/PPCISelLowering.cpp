@@ -4179,13 +4179,13 @@ SDValue PPCTargetLowering::LowerFormalArguments_32SVR4(
       PPC::R3, PPC::R4, PPC::R5, PPC::R6,
       PPC::R7, PPC::R8, PPC::R9, PPC::R10,
     };
-    const unsigned NumGPArgRegs = array_lengthof(GPArgRegs);
+    const unsigned NumGPArgRegs = std::size(GPArgRegs);
 
     static const MCPhysReg FPArgRegs[] = {
       PPC::F1, PPC::F2, PPC::F3, PPC::F4, PPC::F5, PPC::F6, PPC::F7,
       PPC::F8
     };
-    unsigned NumFPArgRegs = array_lengthof(FPArgRegs);
+    unsigned NumFPArgRegs = std::size(FPArgRegs);
 
     if (useSoftFloat() || hasSPE())
        NumFPArgRegs = 0;
@@ -4297,9 +4297,9 @@ SDValue PPCTargetLowering::LowerFormalArguments_64SVR4(
     PPC::V9, PPC::V10, PPC::V11, PPC::V12, PPC::V13
   };
 
-  const unsigned Num_GPR_Regs = array_lengthof(GPR);
+  const unsigned Num_GPR_Regs = std::size(GPR);
   const unsigned Num_FPR_Regs = useSoftFloat() ? 0 : 13;
-  const unsigned Num_VR_Regs  = array_lengthof(VR);
+  const unsigned Num_VR_Regs = std::size(VR);
 
   // Do a first pass over the arguments to determine whether the ABI
   // guarantees that our caller has allocated the parameter save area
@@ -4757,9 +4757,9 @@ needStackSlotPassParameters(const PPCSubtarget &Subtarget,
     PPC::V9, PPC::V10, PPC::V11, PPC::V12, PPC::V13
   };
 
-  const unsigned NumGPRs = array_lengthof(GPR);
+  const unsigned NumGPRs = std::size(GPR);
   const unsigned NumFPRs = 13;
-  const unsigned NumVRs = array_lengthof(VR);
+  const unsigned NumVRs = std::size(VR);
   const unsigned ParamAreaSize = NumGPRs * PtrByteSize;
 
   unsigned NumBytes = LinkageSize;
@@ -5109,8 +5109,7 @@ PrepareTailCall(SelectionDAG &DAG, SDValue &InFlag, SDValue &Chain,
   Chain = EmitTailCallStoreFPAndRetAddr(DAG, Chain, LROp, FPOp, SPDiff, dl);
 
   // Emit callseq_end just before tailcall node.
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, dl, true),
-                             DAG.getIntPtrConstant(0, dl, true), InFlag, dl);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InFlag, dl);
   InFlag = Chain.getValue(1);
 }
 
@@ -5621,9 +5620,7 @@ SDValue PPCTargetLowering::FinishCall(
                             ? NumBytes
                             : 0;
 
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, dl, true),
-                             DAG.getIntPtrConstant(BytesCalleePops, dl, true),
-                             Glue, dl);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, BytesCalleePops, Glue, dl);
   Glue = Chain.getValue(1);
 
   return LowerCallResult(Chain, Glue, CFlags.CallConv, CFlags.IsVarArg, Ins, dl,
@@ -6010,9 +6007,9 @@ SDValue PPCTargetLowering::LowerCall_64SVR4(
     PPC::V9, PPC::V10, PPC::V11, PPC::V12, PPC::V13
   };
 
-  const unsigned NumGPRs = array_lengthof(GPR);
+  const unsigned NumGPRs = std::size(GPR);
   const unsigned NumFPRs = useSoftFloat() ? 0 : 13;
-  const unsigned NumVRs  = array_lengthof(VR);
+  const unsigned NumVRs = std::size(VR);
 
   // On ELFv2, we can avoid allocating the parameter area if all the arguments
   // can be passed to the callee in registers.
@@ -7183,7 +7180,7 @@ SDValue PPCTargetLowering::LowerFormalArguments_AIX(
 
     static const MCPhysReg GPR_64[] = {PPC::X3, PPC::X4, PPC::X5, PPC::X6,
                                        PPC::X7, PPC::X8, PPC::X9, PPC::X10};
-    const unsigned NumGPArgRegs = array_lengthof(IsPPC64 ? GPR_64 : GPR_32);
+    const unsigned NumGPArgRegs = std::size(IsPPC64 ? GPR_64 : GPR_32);
 
     // The fixed integer arguments of a variadic function are stored to the
     // VarArgsFrameIndex on the stack so that they may be loaded by
@@ -9396,7 +9393,7 @@ SDValue PPCTargetLowering::LowerBUILD_VECTOR(SDValue Op,
     -8, 8, -9, 9, -10, 10, -11, 11, -12, 12, -13, 13, 14, -14, 15, -15, -16
   };
 
-  for (unsigned idx = 0; idx < array_lengthof(SplatCsts); ++idx) {
+  for (unsigned idx = 0; idx < std::size(SplatCsts); ++idx) {
     // Indirect through the SplatCsts array so that we favor 'vsplti -1' for
     // cases which are ambiguous (e.g. formation of 0x8000_0000).  'vsplti -1'
     int i = SplatCsts[idx];
@@ -12001,7 +11998,7 @@ PPCTargetLowering::emitEHSjLjLongJmp(MachineInstr &MI,
   return MBB;
 }
 
-bool PPCTargetLowering::hasInlineStackProbe(MachineFunction &MF) const {
+bool PPCTargetLowering::hasInlineStackProbe(const MachineFunction &MF) const {
   // If the function specifically requests inline stack probes, emit them.
   if (MF.getFunction().hasFnAttribute("probe-stack"))
     return MF.getFunction().getFnAttribute("probe-stack").getValueAsString() ==
@@ -12009,7 +12006,7 @@ bool PPCTargetLowering::hasInlineStackProbe(MachineFunction &MF) const {
   return false;
 }
 
-unsigned PPCTargetLowering::getStackProbeSize(MachineFunction &MF) const {
+unsigned PPCTargetLowering::getStackProbeSize(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = Subtarget.getFrameLowering();
   unsigned StackAlign = TFI->getStackAlignment();
   assert(StackAlign >= 1 && isPowerOf2_32(StackAlign) &&
@@ -16228,6 +16225,24 @@ void PPCTargetLowering::LowerAsmOperandForConstraint(SDValue Op,
 
   // Handle standard constraint letters.
   TargetLowering::LowerAsmOperandForConstraint(Op, Constraint, Ops, DAG);
+}
+
+void PPCTargetLowering::CollectTargetIntrinsicOperands(const CallInst &I,
+                                              SmallVectorImpl<SDValue> &Ops,
+                                              SelectionDAG &DAG) const {
+  if (I.getNumOperands() <= 1)
+    return;
+  if (!isa<ConstantSDNode>(Ops[1].getNode()))
+    return;
+  auto IntrinsicID = cast<ConstantSDNode>(Ops[1].getNode())->getZExtValue();
+  if (IntrinsicID != Intrinsic::ppc_tdw && IntrinsicID != Intrinsic::ppc_tw &&
+      IntrinsicID != Intrinsic::ppc_trapd && IntrinsicID != Intrinsic::ppc_trap)
+    return;
+
+  if (I.hasMetadata("annotation")) {
+    MDNode *MDN = I.getMetadata("annotation");
+    Ops.push_back(DAG.getMDNode(MDN));
+  }
 }
 
 // isLegalAddressingMode - Return true if the addressing mode represented

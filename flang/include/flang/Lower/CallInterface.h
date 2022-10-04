@@ -159,6 +159,10 @@ public:
     bool mayBeModifiedByCall() const;
     /// Can the argument be read by the callee ?
     bool mayBeReadByCall() const;
+    /// Is the argument INTENT(OUT)
+    bool isIntentOut() const;
+    /// Does the argument have the CONTIGUOUS attribute or have explicit shape ?
+    bool mustBeMadeContiguous() const;
     /// How entity is passed by.
     PassEntityBy passBy;
     /// What is the entity (SymbolRef for callee/ActualArgument* for caller)
