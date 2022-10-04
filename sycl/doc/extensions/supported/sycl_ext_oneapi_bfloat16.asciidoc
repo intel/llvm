@@ -61,7 +61,8 @@ tolerate lower precision. Some implementations may still perform operations
 [NOTE]
 The bfloat16 type is supported on all devices. DPC++ currently supports this
 type natively on Intel Xe HP GPUs and Nvidia GPUs with
-Compute Capability >= SM80. On other devices it is emulated in software.
+Compute Capability >= SM80. On other devices, and in host code, it is emulated
+in software.
 
 == Specification
 

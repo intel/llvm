@@ -130,9 +130,7 @@ public:
     return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #endif
 #else
-    (void)lhs;
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 unary minus is not supported on host device"};
+    return -to_float(lhs.value);
 #endif
   }
 
