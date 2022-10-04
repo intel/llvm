@@ -65,10 +65,12 @@ constexpr char MODE[] = "LSC";
 #endif // USE_DWORD_ATOMICS
 
 #ifndef USE_DWORD_ATOMICS
+#if USE_FULL_BARRIER
 uint32_t atomic_load(uint32_t *addr) {
   auto v = atomic_update<LSCAtomicOp::load, uint32_t, 1>(addr, 0, 1);
   return v[0];
 }
+#endif // USE_FULL_BARRIER
 #endif // USE_DWORD_ATOMICS
 
 template <class, int, template <class, int> class> class TestID;
@@ -240,7 +242,7 @@ bool test(queue q, const Config &cfg) {
                 // is not endless:
                 for (auto old_val =
                          atomic_update<op>(arr, offsets, new_val, exp_val, m);
-                     any(old_val != exp_val, !m);
+                     any(old_val < exp_val, !m);
                      old_val =
                          atomic_update<op>(arr, offsets, new_val, exp_val, m))
                   ;
