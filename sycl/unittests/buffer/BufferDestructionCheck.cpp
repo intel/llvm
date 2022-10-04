@@ -376,21 +376,17 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
     return PI_ERROR_INVALID_OPERATION;
 }
 
-class MockCmdWithRelTracking : public MockCommand
-{
-  public:
+class MockCmdWithRelTracking : public MockCommand {
+public:
   MockCmdWithRelTracking(
-    sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
-    sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-    : MockCommand(Queue, Req, Type) {};
+      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
+      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
+      : MockCommand(Queue, Req, Type){};
   MockCmdWithRelTracking(
-    sycl::detail::QueueImplPtr Queue,
-    sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-    : MockCommand(Queue, Type) {};
-  ~MockCmdWithRelTracking()
-  {
-    Release();
-  }
+      sycl::detail::QueueImplPtr Queue,
+      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
+      : MockCommand(Queue, Type){};
+  ~MockCmdWithRelTracking() { Release(); }
   MOCK_METHOD0(Release, void());
 };
 
@@ -406,10 +402,12 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
           sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
   MockCmdWithRelTracking *ReadCmd = nullptr;
   MockCmdWithRelTracking *WriteCmd = nullptr;
-  ReadCmd = new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
+  ReadCmd =
+      new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   ReadCmd->getEvent()->getHandleRef() = reinterpret_cast<sycl::RT::PiEvent>(
       0x01); // just assign to be able to use mock
-  WriteCmd = new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
+  WriteCmd =
+      new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   WriteCmd->getEvent()->getHandleRef() =
       reinterpret_cast<sycl::RT::PiEvent>(0x02);
 
