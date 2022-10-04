@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s -S | FileCheck %s
+// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s | FileCheck %s
 
 #include <sycl/sycl.hpp>
 

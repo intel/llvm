@@ -1,4 +1,4 @@
-// RUN: sycl-clang.py %s -S -emit-llvm -o %t.ll
+// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.ll
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -verify -disable-output < %t.ll
 // Verify that LLVMIR generated is translatable to SPIRV.

@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s -S | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: sycl-clang.py %s -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s 2> /dev/null| FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -18,13 +18,13 @@
 // CHECK-MLIR: !sycl_item_1_1_ = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>)>
 // CHECK-MLIR: !sycl_range_1_ = !sycl.range<1>
 
-// CHECK-LLVM: %"class.cl::sycl::accessor.1" = type { %"class.cl::sycl::detail::AccessorImplDevice.1", { i32 addrspace(1)* }, { i32 addrspace(1)* } }
-// CHECK-LLVM: %"class.cl::sycl::detail::AccessorImplDevice.1" = type { %"class.cl::sycl::id.1", %"class.cl::sycl::range.1", %"class.cl::sycl::range.1" }
-// CHECK-LLVM: %"class.cl::sycl::id.1" = type { %"class.cl::sycl::detail::array.1" }
-// CHECK-LLVM: %"class.cl::sycl::detail::array.1" = type { [1 x i64] }
-// CHECK-LLVM: %"class.cl::sycl::range.1" = type { %"class.cl::sycl::detail::array.1" }
-// CHECK-LLVM: %"class.cl::sycl::item.1.true" = type { %"class.cl::sycl::detail::ItemBase.1.true" }
-// CHECK-LLVM: %"class.cl::sycl::detail::ItemBase.1.true" = type { %"class.cl::sycl::range.1", %"class.cl::sycl::id.1", %"class.cl::sycl::id.1" }
+// CHECK-LLVM-DAG: %"class.cl::sycl::accessor.1" = type { %"class.cl::sycl::detail::AccessorImplDevice.1", { i32 addrspace(1)* }, { i32 addrspace(1)* } }
+// CHECK-LLVM-DAG: %"class.cl::sycl::detail::AccessorImplDevice.1" = type { %"class.cl::sycl::id.1", %"class.cl::sycl::range.1", %"class.cl::sycl::range.1" }
+// CHECK-LLVM-DAG: %"class.cl::sycl::id.1" = type { %"class.cl::sycl::detail::array.1" }
+// CHECK-LLVM-DAG: %"class.cl::sycl::detail::array.1" = type { [1 x i64] }
+// CHECK-LLVM-DAG: %"class.cl::sycl::range.1" = type { %"class.cl::sycl::detail::array.1" }
+// CHECK-LLVM-DAG: %"class.cl::sycl::item.1.true" = type { %"class.cl::sycl::detail::ItemBase.1.true" }
+// CHECK-LLVM-DAG: %"class.cl::sycl::detail::ItemBase.1.true" = type { %"class.cl::sycl::range.1", %"class.cl::sycl::id.1", %"class.cl::sycl::id.1" }
 
 // CHECK-MLIR: gpu.module @device_functions
 // CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
