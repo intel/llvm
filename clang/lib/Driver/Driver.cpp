@@ -5106,48 +5106,61 @@ class OffloadingActionBuilder final {
     }
 
     // Return whether to use native bfloat16 library.
-    bool selectBfloatLibs(const ToolChain *TC, bool &useNative) {
-      // bfloat16 libraries are added only for Gen AOT
-      if (!(TC->getTriple().getArch() == llvm::Triple::spir64 &&
-            TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen))
-        return false;
+    bool selectBfloatLibs(const ToolChain* TC, bool& useNative) {
+      bool needLibs = false;
 
-      const OptTable &Opts = C.getDriver().getOpts();
-      const char *DeviceOpt = nullptr;
-      for (auto *A : Args) {
-        llvm::Triple *TargetBE = nullptr;
+      const OptTable& Opts = C.getDriver().getOpts();
+      const char* TargetOpt = nullptr;
+      const char* DeviceOpt = nullptr;
+      for (auto* A : Args) {
+        llvm::Triple* TargetBE = nullptr;
 
         auto GetTripleIt = [&, this](llvm::StringRef Triple) {
-          llvm::Triple TargetTriple{Triple};
-          auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
+          llvm::Triple TargetTriple{ Triple };
+          auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto& SYCLTriple) {
             return SYCLTriple == TargetTriple;
-          });
+            });
           return TripleIt != SYCLTripleList.end() ? &*TripleIt : nullptr;
         };
 
-        if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+        if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
+          // Passing arg: -fsycl-targets=<targets>.
+          needLibs =
+              TC->getTriple().getSubArch() != llvm::Triple::SPIRSubArch_fpga;
+          TargetBE = GetTripleIt(A->getValue(0));
+          if (TargetBE)
+            TargetOpt = A->getValue(0);
+          else
+            continue;
+        }
+        else if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
           // Passing device args: -Xsycl-target-backend=<triple> <opt>
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             DeviceOpt = A->getValue(1);
           else
             continue;
-        } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
+        }
+        else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
           // Passing device args: -Xsycl-target-backend <opt>
           TargetBE = &SYCLTripleList.front();
           DeviceOpt = A->getValue(0);
-        } else if (A->getOption().matches(options::OPT_Xs_separate)) {
+        }
+        else if (A->getOption().matches(options::OPT_Xs_separate)) {
           // Passing device args: -Xs <opt>
           DeviceOpt = A->getValue(0);
-        } else {
-          continue;
         }
+        else {
+          continue;
+        };
       }
       useNative = false;
-      if (DeviceOpt) {
+      if (needLibs && TC->getTriple().getArch() == llvm::Triple::spir64 &&
+        TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+        TargetOpt && DeviceOpt) {
         useNative = strstr(DeviceOpt, "pvc") || strstr(DeviceOpt, "ats");
       }
-      return true;
+      return needLibs;
     }
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
