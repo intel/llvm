@@ -5255,8 +5255,7 @@ class OffloadingActionBuilder final {
 
       bool nativeBfloatLibs;
       bool needBfloatLibs = selectBfloatLibs(TC, nativeBfloatLibs);
-      if (needBfloatLibs &&
-          TC->getTriple().getSubArch() != llvm::Triple::SPIRSubArch_fpga) {
+      if (needBfloatLibs) {
         // Add native or fallback bfloat16 library.
         if (nativeBfloatLibs)
           addInputs(sycl_device_bfloat16_native_lib);

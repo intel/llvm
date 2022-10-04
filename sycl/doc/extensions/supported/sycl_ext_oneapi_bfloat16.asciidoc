@@ -90,6 +90,9 @@ The `bfloat16` type represents a 16-bit floating point value.
 Conversions from `float` to `bfloat16` are done with round to
 nearest even (RTE) rounding mode.
 
+The bfloat16 type and its operations are available in both device code and
+host code.
+
 [source]
 ----
 namespace sycl {
