@@ -266,7 +266,11 @@ using Vec8StorageT = half_vec<8>;
 using Vec16StorageT = half_vec<16>;
 #endif
 
+#ifndef __SYCL_DEVICE_ONLY__
+class half {
+#else
 class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
+#endif
 public:
   half() = default;
   constexpr half(const half &) = default;

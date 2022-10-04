@@ -190,9 +190,6 @@ public:
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
-  const PropertyRange &getDeviceRequirements() const {
-    return DeviceRequirements;
-  }
 
 protected:
   void init(pi_device_binary Bin);
@@ -210,7 +207,6 @@ protected:
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
-  RTDeviceBinaryImage::PropertyRange DeviceRequirements;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
