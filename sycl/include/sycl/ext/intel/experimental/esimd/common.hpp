@@ -191,7 +191,7 @@ template <typename T> struct lsc_expand_type {
 
 template <typename T> struct lsc_bitcast_type {
 public:
-  using type = typename std::conditional_t<
+  using type = std::conditional_t<
       sizeof(T) == 1, int8_t,
       std::conditional_t<
           sizeof(T) == 2, int16_t,
