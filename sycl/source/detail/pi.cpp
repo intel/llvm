@@ -312,10 +312,10 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       if (!EsimdCpuFound && Backend == backend::ext_intel_esimd_emulator) {
           // for ESIMD_EMULATOR device we require the backend to be set explicitly to ext_intel_esimd_emulator and not just backend:all
           // and the if statement condition above reflects this
-          PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
-                             backend::ext_intel_esimd_emulator);
-          EsimdCpuFound = true;
-        }
+        PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME, 
+                                 backend::ext_intel_esimd_emulator);
+        EsimdCpuFound = true;
+      }
       if (!HIPFound &&
           (Backend == backend::ext_oneapi_hip || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME,
