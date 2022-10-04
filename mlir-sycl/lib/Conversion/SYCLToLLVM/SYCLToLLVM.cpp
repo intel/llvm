@@ -354,6 +354,43 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// MethodPattern - Converts SYCLMethodOpInterface to LLVM.
+//===----------------------------------------------------------------------===//
+
+static LogicalResult convertMethod(SYCLMethodOpInterface op,
+                                   ConversionPatternRewriter &rewriter) {
+  LLVM_DEBUG(llvm::dbgs() << "MethodPattern: Rewriting op: "; op.dump();
+             llvm::dbgs() << "\n");
+
+  SmallVector<mlir::Value> MethodArgs(op->getOperands());
+
+  if (op.getBaseType() != MethodArgs[0].getType()) {
+    auto Cast = rewriter.create<SYCLCastOp>(op.getLoc(), op.getBaseType(),
+                                            op->getOperand(0));
+    MethodArgs[0] = Cast;
+  }
+
+  rewriter.replaceOpWithNewOp<SYCLCallOp>(
+      op, op->getResult(0).getType(), op.getType(), op.getFunctionName(),
+      op.getMangledFunctionName(), MethodArgs);
+
+  return success();
+}
+
+template <typename T, typename = std::enable_if_t<isSYCLMethod<T>::value>>
+class MethodPattern final : public ConvertOpToLLVMPattern<T> {
+public:
+  using ConvertOpToLLVMPattern<T>::ConvertOpToLLVMPattern;
+  using OpAdaptor = typename T::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(T op, OpAdaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    return convertMethod(op, rewriter);
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern population
 //===----------------------------------------------------------------------===//
 
@@ -390,6 +427,27 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
 }
 
+// If the operation is a method, add the SYCLMethod pattern for that
+// operation.
+template <typename T>
+static typename std::enable_if_t<isSYCLMethod<T>::value>
+addSYCLMethodPattern(LLVMTypeConverter &typeConverter,
+                     RewritePatternSet &patterns) {
+  patterns.add<MethodPattern<T>>(typeConverter);
+}
+
+// If the operation is not a method, do nothing.
+template <typename T>
+static typename std::enable_if_t<!isSYCLMethod<T>::value>
+addSYCLMethodPattern(LLVMTypeConverter &, RewritePatternSet &) {}
+
+template <typename... Args>
+static void addSYCLMethodPatterns(LLVMTypeConverter &typeConverter,
+                                  RewritePatternSet &patterns) {
+  (void)std::initializer_list<int>{
+      0, (addSYCLMethodPattern<Args>(typeConverter, patterns), 0)...};
+}
+
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
   populateSYCLToLLVMTypeConversion(typeConverter);
@@ -397,6 +455,10 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<CallPattern>(typeConverter);
   patterns.add<CastPattern>(typeConverter);
   patterns.add<ConstructorPattern>(typeConverter);
+  addSYCLMethodPatterns<
+#define GET_OP_LIST
+#include "mlir/Dialect/SYCL/IR/SYCLOps.cpp.inc"
+      >(typeConverter, patterns);
 }
 
 bool mlir::sycl::isSYCLType(Type type) {
