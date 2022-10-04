@@ -2557,24 +2557,45 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
       // Additionally we need to cache all sub-devices too, such that they
       // are readily visible to the piextDeviceCreateWithNativeHandle.
       //
+      std::vector<pi_device> PiSubDevices;
       pi_uint32 SubDevicesCount = 0;
       ZE_CALL(zeDeviceGetSubDevices,
               (Device->ZeDevice, &SubDevicesCount, nullptr));
 
-      auto ZeSubdevices = new ze_device_handle_t[SubDevicesCount];
-      ZE_CALL(zeDeviceGetSubDevices,
-              (Device->ZeDevice, &SubDevicesCount, ZeSubdevices));
+      if (SubDevicesCount) {
+        auto ZeSubdevices = new ze_device_handle_t[SubDevicesCount];
+        ZE_CALL(zeDeviceGetSubDevices,
+                (Device->ZeDevice, &SubDevicesCount, ZeSubdevices));
 
-      // Wrap the Level Zero sub-devices into PI sub-devices, and add them to
-      // cache.
-      for (uint32_t I = 0; I < SubDevicesCount; ++I) {
-        std::unique_ptr<_pi_device> PiSubDevice(
-            new _pi_device(ZeSubdevices[I], this, Device.get()));
-        pi_result Result = PiSubDevice->initialize();
-        if (Result != PI_SUCCESS) {
-          delete[] ZeSubdevices;
-          return Result;
+        // Wrap the Level Zero sub-devices into PI sub-devices
+        // and add them to cache.
+        for (uint32_t I = 0; I < SubDevicesCount; ++I) {
+          std::unique_ptr<_pi_device> PiSubDevice(
+              new _pi_device(ZeSubdevices[I], this, Device.get()));
+          pi_result Result = PiSubDevice->initialize();
+          if (Result != PI_SUCCESS) {
+            delete[] ZeSubdevices;
+            return Result;
+          }
+          // save pointers to sub-devices for quick retrieval in the future.
+          Device->SubDevices.push_back(PiSubDevice.get());
+          PiDevicesCache.push_back(std::move(PiSubDevice));
         }
+        delete[] ZeSubdevices;
+        PiSubDevices = Device->SubDevices;
+      } else {
+        // Level Zero will not report the sub-device on a single tile
+        // machine, but we still want that to be partitionable into
+        // multiple CCS-s. In this case the loop below will find out
+        // the CCS-s and report them as sub-devices of the root
+        // device.
+        SubDevicesCount = 1;
+        PiSubDevices.push_back(Device.get());
+      }
+
+      // Find out CCCs.
+      for (uint32_t I = 0; I < SubDevicesCount; ++I) {
+        auto PiSubDevice = PiSubDevices[I];
 
         // collect all the ordinals for the sub-sub-devices
         std::vector<int> Ordinals;
@@ -2611,7 +2632,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           for (uint32_t K = 0; K < QueueGroupProperties[Ordinals[J]].numQueues;
                ++K) {
             std::unique_ptr<_pi_device> PiSubSubDevice(
-                new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
+                new _pi_device(PiSubDevice->ZeDevice, this, PiSubDevice));
             pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
             if (Result != PI_SUCCESS) {
               return Result;
@@ -2623,13 +2644,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
             PiDevicesCache.push_back(std::move(PiSubSubDevice));
           }
         }
-
-        // save pointers to sub-devices for quick retrieval in the future.
-        Device->SubDevices.push_back(PiSubDevice.get());
-        PiDevicesCache.push_back(std::move(PiSubDevice));
       }
-      delete[] ZeSubdevices;
-
       // Save the root device in the cache for future uses.
       PiDevicesCache.push_back(std::move(Device));
     }
