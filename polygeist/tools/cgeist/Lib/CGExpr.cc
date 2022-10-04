@@ -1309,47 +1309,6 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
           field->getType()->getUnqualifiedDesugaredType()));
 }
 
-static mlir::Type getElementType(mlir::Type ty) {
-  if (auto memRef = ty.dyn_cast<MemRefType>())
-    return memRef.getElementType();
-
-  return ty.cast<LLVM::LLVMPointerType>().getElementType();
-}
-
-static unsigned getAddressSpace(mlir::Type ty) {
-  if (auto memRef = ty.dyn_cast<MemRefType>())
-    return memRef.getMemorySpaceAsInt();
-
-  return ty.cast<LLVM::LLVMPointerType>().getAddressSpace();
-}
-
-Value MLIRScanner::performAddrSpaceCast(Value val, mlir::Type postTy) {
-  assert((val.getType().isa<MemRefType>() ||
-          val.getType().isa<LLVM::LLVMPointerType>()) &&
-         "Expecting memref or pointer val");
-  assert((postTy.isa<MemRefType>() || postTy.isa<LLVM::LLVMPointerType>()) &&
-         "Expecting memref or pointer type postTy");
-  mlir::Type elemTy = getElementType(val.getType());
-  assert(elemTy == getElementType(postTy) && "Element types mismatch");
-
-  unsigned valAddrSpace = getAddressSpace(val.getType());
-  unsigned postAddrSpace = getAddressSpace(postTy);
-  if (valAddrSpace == postAddrSpace)
-    return val;
-
-  if (auto valMemRefType = val.getType().dyn_cast<MemRefType>())
-    val = builder.create<polygeist::Memref2PointerOp>(
-        loc, LLVM::LLVMPointerType::get(elemTy, valAddrSpace), val);
-
-  val = builder.create<LLVM::AddrSpaceCastOp>(
-      loc, LLVM::LLVMPointerType::get(elemTy, postAddrSpace), val);
-
-  if (auto postMemRefType = postTy.dyn_cast<MemRefType>())
-    val = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, val);
-
-  return val;
-}
-
 ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   auto loc = getMLIRLocation(E->getExprLoc());
   switch (E->getCastKind()) {
@@ -1375,7 +1334,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     // JLE_QUEL::TODO (II-201)
     // assert(scalar.isReference);
     auto postTy = returnVal.getType().cast<MemRefType>().getElementType();
-    return ValueCategory(performAddrSpaceCast(scalar.val, postTy),
+    return ValueCategory(castToMemSpaceOfType(scalar.val, postTy),
                          scalar.isReference);
   }
   case clang::CastKind::CK_Dynamic: {

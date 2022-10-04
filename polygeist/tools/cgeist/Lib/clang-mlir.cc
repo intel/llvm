@@ -38,6 +38,7 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaDiagnostic.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -101,11 +102,11 @@ bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   return false;
 }
 
-mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
-  if (memorySpace == 0)
-    return nullptr;
-
-  return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
+mlir::IntegerAttr wrapIntegerMemorySpace(unsigned memorySpace,
+                                         MLIRContext *ctx) {
+  return memorySpace ? mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64),
+                                              memorySpace)
+                     : nullptr;
 }
 
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
@@ -789,6 +790,55 @@ mlir::Value MLIRScanner::castToIndex(mlir::Location loc, mlir::Value val) {
 
   return builder.create<arith::IndexCastOp>(
       loc, mlir::IndexType::get(val.getContext()), val);
+}
+
+mlir::Value MLIRScanner::castToMemSpace(mlir::Value val, unsigned memSpace) {
+  assert(val && "Expect non-null value");
+
+  return mlir::TypeSwitch<mlir::Type, mlir::Value>(val.getType())
+      .Case<mlir::MemRefType>([&](mlir::MemRefType valType) -> mlir::Value {
+        if (valType.getMemorySpaceAsInt() == memSpace)
+          return val;
+
+        mlir::Value newVal = builder.create<polygeist::Memref2PointerOp>(
+            loc,
+            LLVM::LLVMPointerType::get(valType.getElementType(),
+                                       valType.getMemorySpaceAsInt()),
+            val);
+        newVal = builder.create<LLVM::AddrSpaceCastOp>(
+            loc, LLVM::LLVMPointerType::get(valType.getElementType(), memSpace),
+            newVal);
+        return builder.create<polygeist::Pointer2MemrefOp>(
+            loc,
+            mlir::MemRefType::get(
+                valType.getShape(), valType.getElementType(),
+                MemRefLayoutAttrInterface(),
+                wrapIntegerMemorySpace(memSpace, valType.getContext())),
+            newVal);
+      })
+      .Case<LLVM::LLVMPointerType>(
+          [&](LLVM::LLVMPointerType valType) -> mlir::Value {
+            if (valType.getAddressSpace() == memSpace)
+              return val;
+
+            return builder.create<LLVM::AddrSpaceCastOp>(
+                loc,
+                LLVM::LLVMPointerType::get(valType.getElementType(), memSpace),
+                val);
+          })
+      .Default([&](mlir::Type valType) {
+        llvm_unreachable("unimplemented");
+        return val;
+      });
+}
+
+mlir::Value MLIRScanner::castToMemSpaceOfType(mlir::Value val, mlir::Type t) {
+  assert((t.isa<mlir::MemRefType>() || t.isa<LLVM::LLVMPointerType>()) &&
+         "Unexpected type");
+  unsigned memSpace = t.isa<mlir::MemRefType>()
+                          ? t.cast<mlir::MemRefType>().getMemorySpaceAsInt()
+                          : t.cast<LLVM::LLVMPointerType>().getAddressSpace();
+  return castToMemSpace(val, memSpace);
 }
 
 ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
@@ -2208,10 +2258,9 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                                    getConstantIndex(fnum));
   } else if (auto AT = mt.getElementType().dyn_cast<mlir::sycl::ArrayType>()) {
     assert(fnum < AT.getBody().size() && "ERROR");
-    const auto ElementType = AT.getBody()[fnum];
-    auto memRef = ElementType.cast<MemRefType>();
+    const auto elemType = AT.getBody()[fnum].cast<MemRefType>();
     const auto ResultType =
-        mlir::MemRefType::get(memRef.getShape(), memRef.getElementType(),
+        mlir::MemRefType::get(elemType.getShape(), elemType.getElementType(),
                               MemRefLayoutAttrInterface(), mt.getMemorySpace());
     Result = builder.create<polygeist::SubIndexOp>(loc, ResultType, val,
                                                    getConstantIndex(fnum));
@@ -3739,7 +3788,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
   }
 
   if (isa<clang::PointerType, clang::ReferenceType>(t)) {
-    int64_t outer = (isa<clang::PointerType>(t)) ? -1 : -1;
+    int64_t outer = -1;
     auto pointeeType = isa<clang::PointerType>(t)
                            ? cast<clang::PointerType>(t)->getPointeeType()
                            : cast<clang::ReferenceType>(t)->getPointeeType();
@@ -3775,10 +3824,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
         }
       }
 
-      if (!InnerSYCL) {
+      if (!InnerSYCL)
         return LLVM::LLVMPointerType::get(
             subType, CGM.getContext().getTargetAddressSpace(pointeeType));
-      }
     }
 
     if (isa<clang::ArrayType>(PTT)) {

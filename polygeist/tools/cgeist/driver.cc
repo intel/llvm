@@ -983,7 +983,7 @@ int main(int argc, char **argv) {
     eraseHostCode(*module);
     module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
-  } else
+  } else if (!deviceModule.body().empty())
     deviceModule.erase();
 
   LLVM_DEBUG({

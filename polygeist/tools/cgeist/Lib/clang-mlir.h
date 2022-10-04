@@ -280,6 +280,14 @@ private:
 
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
+  /// Converts the \p val to the memory space \p memSpace and returns the
+  /// converted value.
+  mlir::Value castToMemSpace(mlir::Value val, unsigned memSpace);
+
+  /// Converts the \p val to the memory space of \p t and returns the converted
+  /// value.
+  mlir::Value castToMemSpaceOfType(mlir::Value val, mlir::Type targetType);
+
   bool isTrivialAffineLoop(clang::ForStmt *fors,
                            mlirclang::AffineLoopDescriptor &descr);
 
@@ -298,8 +306,6 @@ private:
   void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                            mlir::Value lb, mlir::Value ub,
                            const mlirclang::AffineLoopDescriptor &descr);
-
-  mlir::Value performAddrSpaceCast(mlir::Value val, mlir::Type postTy);
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
