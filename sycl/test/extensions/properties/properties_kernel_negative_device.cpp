@@ -33,7 +33,7 @@ template <uint32_t I> struct KernelFunctorWithSGSizeWithAttr {
 void check_work_group_size() {
   sycl::queue Q;
 
-  // expected-warning@+2 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1>},
@@ -50,7 +50,7 @@ void check_work_group_size() {
 void check_sub_group_size() {
   sycl::queue Q;
 
-  // expected-warning@+2 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::sub_group_size<1>},
