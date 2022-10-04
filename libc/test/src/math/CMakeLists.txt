@@ -612,6 +612,21 @@ add_fp_unittest(
 )
 
 add_fp_unittest(
+  exp10f_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    exp10f_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.src.errno.errno
+    libc.include.math
+    libc.src.math.exp10f
+    libc.src.__support.FPUtil.fp_bits
+)
+
+add_fp_unittest(
   copysign_test
   SUITE
     libc_math_unittests
@@ -1434,6 +1449,34 @@ add_fp_unittest(
     libc.include.errno
     libc.src.errno.errno
     libc.src.math.atanhf
+    libc.src.__support.FPUtil.fp_bits
+)
+
+add_fp_unittest(
+  asinf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    asinf_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.src.errno.errno
+    libc.src.math.asinf
+    libc.src.__support.FPUtil.fp_bits
+)
+
+add_fp_unittest(
+  acosf_test
+  NEED_MPFR
+  SUITE
+    libc_math_unittests
+  SRCS
+    acosf_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.src.errno.errno
+    libc.src.math.acosf
     libc.src.__support.FPUtil.fp_bits
 )
 

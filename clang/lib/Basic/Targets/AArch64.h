@@ -54,6 +54,7 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   bool HasLSE;
   bool HasFlagM;
   bool HasMOPS;
+  bool HasRCPC;
 
   llvm::AArch64::ArchKind ArchKind;
 
@@ -113,6 +114,8 @@ public:
   getVScaleRange(const LangOptions &LangOpts) const override;
 
   bool hasFeature(StringRef Feature) const override;
+  void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
+                         bool Enabled) const override;
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) override;
 

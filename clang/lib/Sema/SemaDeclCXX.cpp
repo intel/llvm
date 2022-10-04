@@ -11102,6 +11102,7 @@ void Sema::CheckDeductionGuideDeclarator(Declarator &D, QualType &R,
 
     // Check that the return type is written as a specialization of
     // the template specified as the deduction-guide's name.
+    // The template name may not be qualified. [temp.deduct.guide]
     ParsedType TrailingReturnType = Chunk.Fun.getTrailingReturnType();
     TypeSourceInfo *TSI = nullptr;
     QualType RetTy = GetTypeFromParser(TrailingReturnType, &TSI);
@@ -11113,9 +11114,13 @@ void Sema::CheckDeductionGuideDeclarator(Declarator &D, QualType &R,
       TemplateName SpecifiedName = RetTST.getTypePtr()->getTemplateName();
       bool TemplateMatches =
           Context.hasSameTemplateName(SpecifiedName, GuidedTemplate);
-      // FIXME: We should consider other template kinds (using, qualified),
-      // otherwise we will emit bogus diagnostics.
-      if (SpecifiedName.getKind() == TemplateName::Template && TemplateMatches)
+      auto TKind = SpecifiedName.getKind();
+      // A Using TemplateName can't actually be valid (either it's qualified, or
+      // we're in the wrong scope). But we have diagnosed these problems
+      // already.
+      bool SimplyWritten = TKind == TemplateName::Template ||
+                           TKind == TemplateName::UsingTemplate;
+      if (SimplyWritten && TemplateMatches)
         AcceptableReturnType = true;
       else {
         // This could still instantiate to the right type, unless we know it
@@ -11628,7 +11633,9 @@ QualType Sema::BuildStdInitializerList(QualType Element, SourceLocation Loc) {
   Args.addArgument(TemplateArgumentLoc(TemplateArgument(Element),
                                        Context.getTrivialTypeSourceInfo(Element,
                                                                         Loc)));
-  return Context.getCanonicalType(
+  return Context.getElaboratedType(
+      ElaboratedTypeKeyword::ETK_None,
+      NestedNameSpecifier::Create(Context, nullptr, getStdNamespace()),
       CheckTemplateIdType(TemplateName(StdInitializerList), Loc, Args));
 }
 
@@ -13053,7 +13060,7 @@ Decl *Sema::ActOnAliasDeclaration(Scope *S, AccessSpecifier AS,
     Previous.clear();
   }
 
-  assert(Name.Kind == UnqualifiedIdKind::IK_Identifier &&
+  assert(Name.getKind() == UnqualifiedIdKind::IK_Identifier &&
          "name in alias declaration must be an identifier");
   TypeAliasDecl *NewTD = TypeAliasDecl::Create(Context, CurContext, UsingLoc,
                                                Name.StartLocation,
@@ -14475,13 +14482,10 @@ static void diagnoseDeprecatedCopyOperation(Sema &S, CXXMethodDecl *CopyOp) {
   CXXRecordDecl *RD = CopyOp->getParent();
   CXXMethodDecl *UserDeclaredOperation = nullptr;
 
-  // In Microsoft mode, assignment operations don't affect constructors and
-  // vice versa.
   if (RD->hasUserDeclaredDestructor()) {
     UserDeclaredOperation = RD->getDestructor();
   } else if (!isa<CXXConstructorDecl>(CopyOp) &&
-             RD->hasUserDeclaredCopyConstructor() &&
-             !S.getLangOpts().MSVCCompat) {
+             RD->hasUserDeclaredCopyConstructor()) {
     // Find any user-declared copy constructor.
     for (auto *I : RD->ctors()) {
       if (I->isCopyConstructor()) {
@@ -14491,8 +14495,7 @@ static void diagnoseDeprecatedCopyOperation(Sema &S, CXXMethodDecl *CopyOp) {
     }
     assert(UserDeclaredOperation);
   } else if (isa<CXXConstructorDecl>(CopyOp) &&
-             RD->hasUserDeclaredCopyAssignment() &&
-             !S.getLangOpts().MSVCCompat) {
+             RD->hasUserDeclaredCopyAssignment()) {
     // Find any user-declared move assignment operator.
     for (auto *I : RD->methods()) {
       if (I->isCopyAssignmentOperator()) {

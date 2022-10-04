@@ -22,11 +22,6 @@ endif()
 # as of rocm-3.7, hsa is installed with cmake packages and kmt is found via hsa
 find_package(hsa-runtime64 QUIET 1.2.0 HINTS ${CMAKE_INSTALL_PREFIX} PATHS /opt/rocm)
 
-if(NOT LIBOMPTARGET_DEP_LIBELF_FOUND)
-  libomptarget_say("Not building AMDGPU plugin: LIBELF not found")
-  return()
-endif()
-
 if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(ppc64le)|(aarch64)$" AND CMAKE_SYSTEM_NAME MATCHES "Linux")
   libomptarget_say("Not building AMDGPU plugin: only support AMDGPU in Linux x86_64, ppc64le, or aarch64 hosts")
   return()
@@ -80,11 +75,14 @@ add_llvm_library(omptarget.rtl.amdgpu SHARED
   ${LIBOMPTARGET_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/impl
 
+  LINK_COMPONENTS
+  Support
+  Object
+
   LINK_LIBS 
   PRIVATE
   elf_common
   ${LIBOMPTARGET_DEP_LIBRARIES}
-  ${LIBOMPTARGET_DEP_LIBELF_LIBRARIES}
   ${OPENMP_PTHREAD_LIB}
   "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../exports"
   ${LDFLAGS_UNDEFINED}

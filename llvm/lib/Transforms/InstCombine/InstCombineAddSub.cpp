@@ -576,8 +576,7 @@ Value *FAddCombine::simplifyFAdd(AddendVect& Addends, unsigned InstrQuota) {
     }
   }
 
-  assert((NextTmpIdx <= array_lengthof(TmpResult) + 1) &&
-         "out-of-bound access");
+  assert((NextTmpIdx <= std::size(TmpResult) + 1) && "out-of-bound access");
 
   Value *Result;
   if (!SimpVect.empty())
@@ -1397,6 +1396,18 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
     return &I;
   }
 
+  // (add A (or A, -A)) --> (and (add A, -1) A)
+  // (add A (or -A, A)) --> (and (add A, -1) A)
+  // (add (or A, -A) A) --> (and (add A, -1) A)
+  // (add (or -A, A) A) --> (and (add A, -1) A)
+  if (match(&I, m_c_BinOp(m_Value(A), m_OneUse(m_c_Or(m_Neg(m_Deferred(A)),
+                                                      m_Deferred(A)))))) {
+    Value *Add =
+        Builder.CreateAdd(A, Constant::getAllOnesValue(A->getType()), "",
+                          I.hasNoUnsignedWrap(), I.hasNoSignedWrap());
+    return BinaryOperator::CreateAnd(Add, A);
+  }
+
   // Canonicalize ((A & -A) - 1) --> ((A - 1) & ~A)
   // Forms all commutable operations, and simplifies ctpop -> cttz folds.
   if (match(&I,
@@ -1420,6 +1431,15 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
     Constant *NewMulC = ConstantInt::get(Ty, 1 - *C1);
     Value *NewMul = Builder.CreateMul(A, NewMulC);
     return BinaryOperator::CreateAdd(NewMul, ConstantInt::getAllOnesValue(Ty));
+  }
+
+  // (A * -2**C) + B --> B - (A << C)
+  const APInt *NegPow2C;
+  if (match(&I, m_c_Add(m_OneUse(m_Mul(m_Value(A), m_NegatedPower2(NegPow2C))),
+                        m_Value(B)))) {
+    Constant *ShiftAmtC = ConstantInt::get(Ty, NegPow2C->countTrailingZeros());
+    Value *Shl = Builder.CreateShl(A, ShiftAmtC);
+    return BinaryOperator::CreateSub(B, Shl);
   }
 
   // TODO(jingyue): Consider willNotOverflowSignedAdd and
