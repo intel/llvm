@@ -33,11 +33,11 @@ public:
     if (!ptrToIntOp)
       return failure();
 
-    auto gepOp = ptrToIntOp.getArg().getDefiningOp<LLVM::GEPOp>();      
+    auto gepOp = ptrToIntOp.getArg().getDefiningOp<LLVM::GEPOp>();
     if (!gepOp)
       return failure();
 
-    Value nullOp = gepOp.getBase().getDefiningOp<LLVM::NullOp>();      
+    Value nullOp = gepOp.getBase().getDefiningOp<LLVM::NullOp>();
     if (!nullOp)
       return failure();
 
@@ -63,7 +63,7 @@ struct LegalizeForSPIRVPass final
     : public mlir::polygeist::LLVMLegalizeForSPIRVBase<LegalizeForSPIRVPass> {
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.add<AllocaOpOfPtrToIntFolder>(patterns.getContext());    
+    patterns.add<AllocaOpOfPtrToIntFolder>(patterns.getContext());
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
