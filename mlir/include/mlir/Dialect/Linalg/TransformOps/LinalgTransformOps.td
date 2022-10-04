@@ -199,6 +199,7 @@ def MatchOp : Op<Transform_Dialect, "structured.match",
         names.
       - attribute: the matched op must have all specified attributes (with their
         specified values).
+      - filter_result_type: the matched op must return exactly this one type.
       
     Note: Only ops that satisfy all specified constraints are matched.
 
@@ -219,7 +220,8 @@ def MatchOp : Op<Transform_Dialect, "structured.match",
   let arguments = (ins PDL_Operation:$target,
                        OptionalAttr<StrArrayAttr>:$ops,
                        OptionalAttr<MatchInterfaceEnum>:$interface,
-                       OptionalAttr<DictionaryAttr>:$op_attrs);
+                       OptionalAttr<DictionaryAttr>:$op_attrs,
+                       OptionalAttr<TypeAttr>:$filter_result_type);
   // TODO: variadic results when needed.
   let results = (outs PDL_Operation:$results);
 
@@ -227,6 +229,7 @@ def MatchOp : Op<Transform_Dialect, "structured.match",
     (`ops` `{` $ops^ `}`)?
     (`interface` `{` $interface^ `}`)?
     (`attributes` $op_attrs^)?
+    (`filter_result_type` `=` $filter_result_type^)?
     `in` $target attr-dict
   }];
 }
@@ -745,6 +748,162 @@ def TileToForeachThreadOp :
   }];
 }
 
+def MapNestedForeachThreadToGpuThreads : 
+  Op<Transform_Dialect, "structured.map_nested_foreach_thread_to_gpu_threads",
+    [FunctionalStyleTransformOpTrait, 
+     MemoryEffectsOpInterface,
+     TransformEachOpTrait,
+     TransformOpInterface]> {
+  let description = [{
+      Target the gpu_launch op and rewrite all scf.foreach_thread
+      to distributed gpu.thread_id attribute.
+
+      The operation searches `scf.foreach_thread` ops nested under `target` 
+      and maps each such op to GPU threads. Mapping is one-to-one and the 
+      induction variables of `scf.foreach_thread` are rewritten to 
+      gpu.thread_id according to the thread_dim_apping attribute. 
+      
+      Sibling `scf.foreach_thread` are supported in which case, the union of 
+      the number of threads is computed and may result in predication.
+
+      Multiple scf.foreach_thread are supported per function in which case, the
+      max of all the threads is computed and taken for the global gpu.thread_id.
+      If necessary, scf.foreach_thread that do not use the whole thread range 
+      result in predicated computations.
+
+      Dynamic, `scf.foreach_thread` trip counts are currently not supported. 
+      Dynamic block dim sizes are currently not supported.
+
+      Only **bufferized** scf.foreach_thread are currently supported.
+      Only scf.foreach_thread distributed to **at most 3 dimensions** are 
+      currently supported.
+    
+      Barriers are inserted after each scf.foreach_thread op for now.
+
+      The operation alters the block size of the given gpu_launch using 
+      blockDim argument.
+
+      Return modes:
+      =============
+      This operation ignores non-gpu_launch ops and drops them in the return.
+
+      If any scf.foreach_thread with tensors is found, the transform definitely 
+      fails.    
+
+      If all the scf.foreach_thread operations contained within the LaunchOp 
+      referred to by the `target` PDLOperation lower to GPU properly, the 
+      transform succeeds. Otherwise the transform definitely fails.
+      
+      The returned handle points to the same LaunchOp operand, consuming it and
+      producing a new SSA value to satisfy chaining and linearity of the IR 
+      properties.
+
+      Example:
+      ========
+
+      ```
+      gpu.launch blocks(%bx, %by, %bz) in (%x = %0, %y = %1, %z = %2)
+                 threads(%tx, %ty, %tz) in (%tx = %3, %ty = %4, %tz = %5) {
+        scf.foreach_thread (%i, %j) in (7, 9) {
+          ... // body 1
+        } {thread_dim_mapping = [1, 0, 2]}
+        scf.foreach_thread (%i) in (12) {
+          ... // body 2
+        }
+        gpu.terminator
+      }
+      ```
+      is translated to:
+
+      ```
+      %bdimX = arith.constant 12 : index
+      %bdimY = arith.constant 9 : index
+      gpu.launch blocks(%bx, %by, %bz) in (%x = %0, %y = %1, %z = %2)
+             threads(%tx, %ty, %tz) in (%tx = %bdimX, %ty = %bdimY, %tz = %5) {
+        if (threadIdx.x < 9 && threadIdx.y < 7) {
+          ... // body 1
+        }
+        gpu.barrier
+        if (threadIdx.y < 1) {
+          ... // body 2
+        }
+        gpu.barrier
+        gpu.terminator
+      }      
+      ```
+    }];
+
+  let arguments = (ins PDL_Operation:$target,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$blockDim,
+                   DefaultValuedAttr<BoolAttr, "true">:$syncAfterDistribute);
+  let results = (outs PDL_Operation:$result);
+
+  let assemblyFormat = "$target attr-dict";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def MapNestedForeachThreadToGpuBlocks : Op<Transform_Dialect, 
+    "structured.map_nested_foreach_thread_to_gpu_blocks",
+    [FunctionalStyleTransformOpTrait,
+     MemoryEffectsOpInterface,
+     TransformOpInterface,
+     TransformEachOpTrait]> {
+  let description = [{
+    Target the gpu_launch op and rewrite the top level `scf.foreach_thread`
+    to distributed gpu.block_id attribute. If `generate_gpu_launch` attribute 
+    is set, then first generates `gpu_launch` and moves the top level 
+    `scf.foreach_thread` inside.
+
+    The operation searches top level `scf.foreach_thread` ops under 
+    `gpu_launch` and maps each such op to GPU blocks. Mapping is 
+    one-to-one and the induction variables of `scf.foreach_thread` are 
+    rewritten to gpu.block_id according to the `thread_dim_apping` attribute.
+
+    Dynamic, `scf.foreach_thread` trip counts are currently not supported. 
+    Dynamic block dim sizes are currently not supported.
+
+    Only **bufferized** scf.foreach_thread are currently supported.
+    Only scf.foreach_thread distributed to **at most 3 dimensions** are 
+    currently supported.
+
+    The operation alters the block size of the given gpu_launch using 
+    gridDim argument.
+
+    #### Return modes:
+    
+    This operation ignores non-gpu_launch ops and drops them in the return.
+
+    If any scf.foreach_thread with tensors is found, the transform definitely 
+    fails.    
+
+    If all the scf.foreach_thread operations contained within the LaunchOp 
+    referred to by the `target` PDLOperation lower to GPU properly, the 
+    transform succeeds. Otherwise the transform definitely fails.
+
+    The returned handle points to the same LaunchOp operand, consuming it and
+    producing a new SSA value to satisfy chaining and linearity of the IR 
+    properties.
+  }];
+
+  let arguments = (ins PDL_Operation:$target,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$gridDim,
+                   UnitAttr:$generate_gpu_launch);
+  let results = (outs PDL_Operation:$result);
+
+  let assemblyFormat = "$target attr-dict";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
 def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
     [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
      TransformEachOpTrait, TransformOpInterface]> {
@@ -764,6 +923,18 @@ def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
     Note that this transformation is invalidating the handles to any payload IR
     operation that is contained inside the vectorization target.
 
+    This transformation supports the following attributes:
+      - `vectorize_padding`: a UnitAttr to activate the vectorization of 
+      `tensor.pad` ops. Different pipelines may prefer to lower such ops to 
+      loops.
+      - `disable_multi_reduction_to_contract_patterns`: a UnitAttr to deactivate
+      the rewrite of `vector.multi_reduction` to `vector.contract`. This is 
+      intended to be used in tests only.
+      - `disable_transfer_permutation_map_lowering_patterns`: a UnitAttr to
+      deactivate the rewrite of `vector.transfer` with permutation maps into
+      explicit `vector.transpose` operations. This is intended to be used in
+      tests only but may be promotoed to a first class attribute in the future.
+
     #### Return modes:
     
     This operation produces `definiteFailure` if vectorization fails for any
@@ -773,11 +944,12 @@ def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
   }];
 
   let arguments = (ins PDL_Operation:$target,
-                   DefaultValuedAttr<BoolAttr, "false">:$vectorize_padding);
+                   UnitAttr:$vectorize_padding,                   
+                   UnitAttr:$disable_multi_reduction_to_contract_patterns,                   
+                   UnitAttr:$disable_transfer_permutation_map_lowering_patterns);
   let results = (outs PDL_Operation:$transformed);
 
   let assemblyFormat = "$target attr-dict";
-
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::Operation *target, 

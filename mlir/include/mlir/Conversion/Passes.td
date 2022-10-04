@@ -122,7 +122,11 @@ def ConvertArithmeticToSPIRV : Pass<"convert-arith-to-spirv"> {
     Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
            "bool", /*default=*/"true",
            "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">
+           "missing native support">,
+    Option<"enableFastMath", "enable-fast-math",
+           "bool", /*default=*/"false",
+           "Enable fast math mode (assuming no NaN and infinity for floating "
+           "point values) when performing conversion">
   ];
 }
 
@@ -150,6 +154,7 @@ def ConvertAsyncToLLVM : Pass<"convert-async-to-llvm", "ModuleOp"> {
   let constructor = "mlir::createConvertAsyncToLLVMPass()";
   let dependentDialects = [
     "arith::ArithmeticDialect",
+    "async::AsyncDialect",
     "LLVM::LLVMDialect",
   ];
 }
@@ -403,7 +408,7 @@ def ConvertGPUToSPIRV : Pass<"convert-gpu-to-spirv", "ModuleOp"> {
     resources. By default, parameters to a `gpu.func` op will be converted to
     global variables. These global variables will be assigned sequential binding
     numbers following their order in the original `gpu.func` op, starting from
-    0, in set 0. One can attach `spv.interface_var_abi` to those parameters
+    0, in set 0. One can attach `spirv.interface_var_abi` to those parameters
     to control the set and binding if wanted.
   }];
   let constructor = "mlir::createConvertGPUToSPIRVPass()";
@@ -536,10 +541,9 @@ def ConvertMathToFuncs : Pass<"convert-math-to-funcs", "ModuleOp"> {
 // MemRefToLLVM
 //===----------------------------------------------------------------------===//
 
-def ConvertMemRefToLLVM : Pass<"convert-memref-to-llvm", "ModuleOp"> {
+def MemRefToLLVMConversionPass : Pass<"convert-memref-to-llvm", "ModuleOp"> {
   let summary = "Convert operations from the MemRef dialect to the LLVM "
                 "dialect";
-  let constructor = "mlir::createMemRefToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
   let options = [
     Option<"useAlignedAlloc", "use-aligned-alloc", "bool", /*default=*/"false",

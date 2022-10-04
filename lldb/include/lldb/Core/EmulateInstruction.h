@@ -183,7 +183,12 @@ public:
 
   struct Context {
     ContextType type = eContextInvalid;
+
+  private:
     enum InfoType info_type = eInfoTypeNoArgs;
+
+  public:
+    enum InfoType GetInfoType() const { return info_type; }
     union {
       struct RegisterPlusOffset {
         RegisterInfo reg;      // base register
@@ -370,8 +375,11 @@ public:
   virtual bool TestEmulation(Stream *out_stream, ArchSpec &arch,
                              OptionValueDictionary *test_data) = 0;
 
-  virtual bool GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num,
-                               RegisterInfo &reg_info) = 0;
+  bool GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num,
+                       RegisterInfo &reg_info);
+
+  virtual llvm::Optional<RegisterInfo>
+  GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num) = 0;
 
   // Optional overrides
   virtual bool SetInstruction(const Opcode &insn_opcode,

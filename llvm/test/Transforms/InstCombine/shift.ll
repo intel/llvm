@@ -1750,11 +1750,12 @@ define void @ashr_out_of_range_1(i177* %A) {
 define void @ossfuzz_38078(i32 %arg, i32 %arg1, i32* %ptr, i1* %ptr2, i32* %ptr3, i1* %ptr4, i32* %ptr5, i32* %ptr6, i1* %ptr7) {
 ; CHECK-LABEL: @ossfuzz_38078(
 ; CHECK-NEXT:  bb:
+; CHECK-NEXT:    [[I2:%.*]] = add nsw i32 [[ARG:%.*]], [[ARG1:%.*]]
+; CHECK-NEXT:    [[B3:%.*]] = or i32 [[I2]], 2147483647
 ; CHECK-NEXT:    [[G1:%.*]] = getelementptr i32, i32* [[PTR:%.*]], i64 -1
-; CHECK-NEXT:    [[I2:%.*]] = sub i32 0, [[ARG1:%.*]]
-; CHECK-NEXT:    [[I5:%.*]] = icmp eq i32 [[I2]], [[ARG:%.*]]
+; CHECK-NEXT:    [[I5:%.*]] = icmp eq i32 [[I2]], 0
 ; CHECK-NEXT:    call void @llvm.assume(i1 [[I5]])
-; CHECK-NEXT:    store volatile i32 2147483647, i32* [[G1]], align 4
+; CHECK-NEXT:    store volatile i32 [[B3]], i32* [[G1]], align 4
 ; CHECK-NEXT:    br label [[BB:%.*]]
 ; CHECK:       BB:
 ; CHECK-NEXT:    unreachable
@@ -1900,4 +1901,88 @@ define i64 @lshr_mul_negpow2_extra_use(i64 %x) {
   %b = lshr i64 %a, 32
   call void @use(i64 %a)
   ret i64 %b
+}
+
+define i8 @ashr_sdiv_pos(i8 %x) {
+; CHECK-LABEL: @ashr_sdiv_pos(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i8 [[X:%.*]], -41
+; CHECK-NEXT:    [[R:%.*]] = sext i1 [[TMP1]] to i8
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %d = sdiv i8 %x, 42
+  %r = ashr i8 %d, 7
+  ret i8 %r
+}
+
+define <2 x i8> @ashr_sdiv_neg_splat_vec(<2 x i8> %x) {
+; CHECK-LABEL: @ashr_sdiv_neg_splat_vec(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp sgt <2 x i8> [[X:%.*]], <i8 41, i8 41>
+; CHECK-NEXT:    [[R:%.*]] = sext <2 x i1> [[TMP1]] to <2 x i8>
+; CHECK-NEXT:    ret <2 x i8> [[R]]
+;
+  %d = sdiv <2 x i8> %x, <i8 -42, i8 -42>
+  %r = ashr <2 x i8> %d, <i8 7, i8 7>
+  ret <2 x i8> %r
+}
+
+define <2 x i8> @ashr_sdiv_neg_splat_vec_poison(<2 x i8> %x) {
+; CHECK-LABEL: @ashr_sdiv_neg_splat_vec_poison(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq <2 x i8> [[X:%.*]], <i8 127, i8 127>
+; CHECK-NEXT:    [[R:%.*]] = sext <2 x i1> [[TMP1]] to <2 x i8>
+; CHECK-NEXT:    ret <2 x i8> [[R]]
+;
+  %d = sdiv <2 x i8> %x, <i8 -127, i8 -127>
+  %r = ashr <2 x i8> %d, <i8 7, i8 poison>
+  ret <2 x i8> %r
+}
+
+define i8 @lshr_sdiv_pos(i8 %x) {
+; CHECK-LABEL: @lshr_sdiv_pos(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i8 [[X:%.*]], -11
+; CHECK-NEXT:    [[R:%.*]] = zext i1 [[TMP1]] to i8
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %d = sdiv i8 %x, 12
+  %r = lshr i8 %d, 7
+  ret i8 %r
+}
+
+define i18 @lshr_sdiv_neg(i18 %x) {
+; CHECK-LABEL: @lshr_sdiv_neg(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp sgt i18 [[X:%.*]], 11
+; CHECK-NEXT:    [[R:%.*]] = zext i1 [[TMP1]] to i18
+; CHECK-NEXT:    ret i18 [[R]]
+;
+  %d = sdiv i18 %x, -12
+  %r = lshr i18 %d, 17
+  ret i18 %r
+}
+
+; negative test
+
+define i8 @ashr_sdiv_not_full_shift(i8 %x) {
+; CHECK-LABEL: @ashr_sdiv_not_full_shift(
+; CHECK-NEXT:    [[D:%.*]] = sdiv i8 [[X:%.*]], 42
+; CHECK-NEXT:    [[R:%.*]] = ashr i8 [[D]], 6
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %d = sdiv i8 %x, 42
+  %r = ashr i8 %d, 6
+  ret i8 %r
+}
+
+; negative test
+
+define i32 @ashr_sdiv_extra_use(i32 %x) {
+; CHECK-LABEL: @ashr_sdiv_extra_use(
+; CHECK-NEXT:    [[D:%.*]] = sdiv i32 [[X:%.*]], 42
+; CHECK-NEXT:    call void @use_i32(i32 [[D]])
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i32 [[X]], -41
+; CHECK-NEXT:    [[R:%.*]] = sext i1 [[TMP1]] to i32
+; CHECK-NEXT:    ret i32 [[R]]
+;
+  %d = sdiv i32 %x, 42
+  call void @use_i32(i32 %d)
+  %r = ashr i32 %d, 31
+  ret i32 %r
 }

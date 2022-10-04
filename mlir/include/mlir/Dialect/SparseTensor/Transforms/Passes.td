@@ -97,7 +97,9 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
     Option<"enableSIMDIndex32", "enable-simd-index32", "bool", "false",
            "Enable i32 indexing into vectors (for efficiency)">,
     Option<"enableVLAVectorization", "enable-vla-vectorization", "bool",
-           "false", "Enable vector length agnostic vectorization">
+           "false", "Enable vector length agnostic vectorization">,
+    Option<"enableRuntimeLibrary", "enable-runtime-library", "bool",
+           "true", "Enable runtime library for manipulating sparse tensors">
   ];
 }
 
@@ -169,45 +171,11 @@ def SparseTensorCodegen : Pass<"sparse-tensor-codegen", "ModuleOp"> {
   let dependentDialects = [
     "arith::ArithmeticDialect",
     "bufferization::BufferizationDialect",
+    "linalg::LinalgDialect",
     "memref::MemRefDialect",
     "scf::SCFDialect",
     "sparse_tensor::SparseTensorDialect",
   ];
 }
-
-def SparseTensorStorageExpansion : Pass<"sparse-tensor-storage-expansion", "ModuleOp"> {
-  let summary = "Expand compounded sparse tensor storage into individual SSA values";
-  let description = [{
-    A pass that expands sparse tensor storage (aggregated by tuple) into
-    individual SSA values. It also lowers sparse tensor storage operations,
-    e.g., sparse_tensor.storage_get and sparse_tensor.storage_set.
-
-    Example of the conversion:
-
-    ```mlir
-    Before:
-      func.func @sparse_storage_set(%arg0: tuple<memref<?xf64>,
-                                                 memref<?xf64>,
-                                                 f64>)
-                                        -> tuple<memref<?xf64>,
-                                                 memref<?xf64>,
-                                                 f64> {
-        return %arg0 : tuple<memref<?xf64>, memref<?xf64>, f64>
-      }
-    After:
-      func.func @sparse_storage_set(%arg0: memref<?xf64>,
-                                    %arg1: memref<?xf64>,
-                                    %arg2: f64)
-                                    -> (memref<?xf64>, memref<?xf64>, f64) {
-        return %arg0, %arg1, %arg2 : memref<?xf64>, memref<?xf64>, f64
-      }
-    ```
-  }];
-  let constructor = "mlir::createSparseTensorStorageExpansionPass()";
-  let dependentDialects = [
-    "sparse_tensor::SparseTensorDialect",
-  ];
-}
-
 
 #endif // MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_PASSES

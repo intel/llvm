@@ -27,9 +27,9 @@ auto f_normal = [](float x) -> bool {
 
 TEST(LlvmLibcExpxfTest, InFloatRange) {
   auto fx = [](float x) -> float {
-    auto result = __llvm_libc::exp_eval<-1>(x);
-    return static_cast<float>(2 * result.mult_exp * result.r +
-                              2 * result.mult_exp);
+    auto result = __llvm_libc::exp_b_range_reduc<__llvm_libc::ExpBase>(x);
+    double r = __llvm_libc::ExpBase::powb_lo(result.lo);
+    return static_cast<float>(result.mh * r);
   };
   auto f_check = [](float x) -> bool {
     return !(
@@ -37,15 +37,6 @@ TEST(LlvmLibcExpxfTest, InFloatRange) {
   };
   CHECK_DATA(0.0f, neg_inf, mpfr::Operation::Exp, fx, f_check, def_count,
              def_prec);
-}
-
-TEST(LlvmLibcExp2xfTest, InFloatRange) {
-  auto f_check = [](float x) -> bool {
-    return !(
-        (isnan(x) || isinf(x) || x < -130 || x > 130 || fabsf(x) < 0x1.0p-10));
-  };
-  CHECK_DATA(0.0f, neg_inf, mpfr::Operation::Exp2, __llvm_libc::exp2_eval,
-             f_check, def_count, def_prec);
 }
 
 TEST(LlvmLibcLog2xfTest, InFloatRange) {

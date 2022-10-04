@@ -149,6 +149,8 @@ def : PatFprFpr<fsub, FSUB_D, FPR64>;
 def : PatFprFpr<fmul, FMUL_D, FPR64>;
 def : PatFprFpr<fdiv, FDIV_D, FPR64>;
 def : PatFprFpr<fcopysign, FCOPYSIGN_D, FPR64>;
+def : PatFprFpr<fmaxnum_ieee, FMAX_D, FPR64>;
+def : PatFprFpr<fminnum_ieee, FMIN_D, FPR64>;
 def : PatFpr<fneg, FNEG_D, FPR64>;
 def : PatFpr<fabs, FABS_D, FPR64>;
 def : PatFpr<fsqrt, FSQRT_D, FPR64>;
@@ -160,13 +162,11 @@ def : Pat<(fcopysign FPR64:$fj, FPR32:$fk),
 def : Pat<(fcopysign FPR32:$fj, FPR64:$fk),
           (FCOPYSIGN_S FPR32:$fj, (FCVT_S_D FPR64:$fk))>;
 
+def : Pat<(fcanonicalize FPR64:$fj), (FMAX_D $fj, $fj)>;
+
 /// Setcc
 
 // Match non-signaling comparison
-
-// TODO: Change setcc to any_fsetcc after call is supported because
-// we need to call llvm.experimental.constrained.fcmp.f64 in testcase.
-// See RISCV float-fcmp-strict.ll for reference.
 
 // SETOGT/SETOGE/SETUGT/SETUGE will expand into SETOLT/SETOLE/SETULT/SETULE.
 def : PatFPSetcc<SETOEQ, FCMP_CEQ_D,  FPR64>;
@@ -193,7 +193,19 @@ defm : PatFPBrcond<SETUNE, FCMP_CUNE_D, FPR64>;
 defm : PatFPBrcond<SETUO,  FCMP_CUN_D, FPR64>;
 defm : PatFPBrcond<SETLT,  FCMP_CLT_D, FPR64>;
 
-// TODO: Match signaling comparison strict_fsetccs with FCMP_S*_D instructions.
+// Match signaling comparison
+
+def : PatStrictFsetccs<SETOEQ, FCMP_SEQ_D,  FPR64>;
+def : PatStrictFsetccs<SETOLT, FCMP_SLT_D,  FPR64>;
+def : PatStrictFsetccs<SETOLE, FCMP_SLE_D,  FPR64>;
+def : PatStrictFsetccs<SETONE, FCMP_SNE_D,  FPR64>;
+def : PatStrictFsetccs<SETO,   FCMP_SOR_D,  FPR64>;
+def : PatStrictFsetccs<SETUEQ, FCMP_SUEQ_D, FPR64>;
+def : PatStrictFsetccs<SETULT, FCMP_SULT_D, FPR64>;
+def : PatStrictFsetccs<SETULE, FCMP_SULE_D, FPR64>;
+def : PatStrictFsetccs<SETUNE, FCMP_SUNE_D, FPR64>;
+def : PatStrictFsetccs<SETUO,  FCMP_SUN_D,  FPR64>;
+def : PatStrictFsetccs<SETLT,  FCMP_SLT_D,  FPR64>;
 
 /// Select
 
@@ -236,6 +248,25 @@ def : Pat<(f64 (fpextend FPR32:$src)), (FCVT_D_S FPR32:$src)>;
 
 // FP reciprocal operation
 def : Pat<(fdiv fpimm1, FPR64:$src), (FRECIP_D $src)>;
+
+// fmadd.d: fj * fk + fa
+def : Pat<(fma FPR64:$fj, FPR64:$fk, FPR64:$fa), (FMADD_D $fj, $fk, $fa)>;
+
+// fmsub.d: fj * fk - fa
+def : Pat<(fma FPR64:$fj, FPR64:$fk, (fneg FPR64:$fa)),
+          (FMSUB_D FPR64:$fj, FPR64:$fk, FPR64:$fa)>;
+
+// fnmadd.d: -(fj * fk + fa)
+def : Pat<(fneg (fma FPR64:$fj, FPR64:$fk, FPR64:$fa)),
+          (FNMADD_D FPR64:$fj, FPR64:$fk, FPR64:$fa)>;
+
+// fnmadd.d: -fj * fk - fa (the nsz flag on the FMA)
+def : Pat<(fma_nsz (fneg FPR64:$fj), FPR64:$fk, (fneg FPR64:$fa)),
+          (FNMADD_D FPR64:$fj, FPR64:$fk, FPR64:$fa)>;
+
+// fnmsub.d: -(fj * fk - fa)
+def : Pat<(fma (fneg FPR64:$fj), FPR64:$fk, FPR64:$fa),
+          (FNMSUB_D FPR64:$fj, FPR64:$fk, FPR64:$fa)>;
 } // Predicates = [HasBasicD]
 
 /// Floating point constants
@@ -244,8 +275,16 @@ let Predicates = [HasBasicD, IsLA64] in {
 def : Pat<(f64 fpimm0), (MOVGR2FR_D R0)>;
 def : Pat<(f64 fpimm0neg), (FNEG_D (MOVGR2FR_D R0))>;
 def : Pat<(f64 fpimm1), (FFINT_D_L (MOVGR2FR_D (ADDI_D R0, 1)))>;
+} // Predicates = [HasBasicD, IsLA64]
+let Predicates = [HasBasicD, IsLA32] in {
+def : Pat<(f64 fpimm0), (MOVGR2FRH_W (MOVGR2FR_W_64 R0), R0)>;
+def : Pat<(f64 fpimm0neg), (FNEG_D (MOVGR2FRH_W (MOVGR2FR_W_64 R0), R0))>;
+def : Pat<(f64 fpimm1), (FCVT_D_S (FFINT_S_W (MOVGR2FR_W (ADDI_W R0, 1))))>;
+} // Predicates = [HasBasicD, IsLA32]
 
-// Convert int to FP
+/// Convert int to FP
+
+let Predicates = [HasBasicD, IsLA64] in {
 def : Pat<(f64 (sint_to_fp (i64 (sexti32 (i64 GPR:$src))))),
           (FFINT_D_W (MOVGR2FR_W GPR:$src))>;
 def : Pat<(f64 (sint_to_fp GPR:$src)), (FFINT_D_L (MOVGR2FR_D GPR:$src))>;
@@ -254,16 +293,17 @@ def : Pat<(f64 (uint_to_fp (i64 (zexti32 (i64 GPR:$src))))),
           (FFINT_D_W (MOVGR2FR_W GPR:$src))>;
 
 def : Pat<(bitconvert GPR:$src), (MOVGR2FR_D GPR:$src)>;
+} // Predicates = [HasBasicD, IsLA64]
+let Predicates = [HasBasicD, IsLA32] in {
+def : Pat<(f64 (sint_to_fp (i32 GPR:$src))), (FFINT_D_W (MOVGR2FR_W GPR:$src))>;
+} // Predicates = [HasBasicD, IsLA32]
 
 // Convert FP to int
+let Predicates = [HasBasicD, IsLA64] in {
 def : Pat<(bitconvert FPR64:$src), (MOVFR2GR_D FPR64:$src)>;
 } // Predicates = [HasBasicD, IsLA64]
 
-let Predicates = [HasBasicD, IsLA32] in {
-def : Pat<(f64 fpimm0), (MOVGR2FRH_W (MOVGR2FR_W_64 R0), R0)>;
-def : Pat<(f64 fpimm0neg), (FNEG_D (MOVGR2FRH_W (MOVGR2FR_W_64 R0), R0))>;
-def : Pat<(f64 fpimm1), (FCVT_D_S (FFINT_S_W (MOVGR2FR_W (ADDI_W R0, 1))))>;
-
-// Convert int to FP
-def : Pat<(f64 (sint_to_fp (i32 GPR:$src))), (FFINT_D_W (MOVGR2FR_W GPR:$src))>;
-} // Predicates = [HasBasicD, IsLA32]
+// FP Rounding
+let Predicates = [HasBasicD, IsLA64] in {
+def : PatFpr<frint, FRINT_D, FPR64>;
+} // Predicates = [HasBasicD, IsLA64]
