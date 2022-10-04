@@ -32,7 +32,7 @@ def SYCL_Dialect : Dialect {
     /// Register a SYCL operation as a method
     ///
     /// Calls to `findMethod(TypeID, name)` (being name present in
-    /// `MethodNames`), will return `Opname`.
+    /// `MethodNames`), will return `OpName`.
     void addSYCLMethod(
         mlir::TypeID TypeID, llvm::ArrayRef<llvm::StringLiteral> MethodNames,
         llvm::StringRef OpName);
