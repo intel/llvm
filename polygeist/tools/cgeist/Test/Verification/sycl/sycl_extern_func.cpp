@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 // RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s 2> /dev/null | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -target x86_64-unknown-linux-gnu -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
