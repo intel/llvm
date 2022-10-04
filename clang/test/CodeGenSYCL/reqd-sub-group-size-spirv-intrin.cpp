@@ -20,7 +20,7 @@ int main() {
   return 0;
 }
 
-// CHECK: define dso_local spir_kernel void @{{.*}}main{{.*}}kernel_class() {{.*}} !intel_reqd_sub_group_size ![[SUBGROUPSIZE:[0-9]+]]
+// CHECK: define dso_local spir_kernel void @{{.*}}main{{.*}}kernel_class() {{.*}} !sycl_reqd_sub_group_size ![[SUBGROUPSIZE:[0-9]+]]
 // CHECK: tail call spir_func void @{{.*}}__spirv_ControlBarrier{{.*}}({{.*}})
 
 // CHECK: declare spir_func void @{{.*}}__spirv_ControlBarrier{{.*}}({{.*}})

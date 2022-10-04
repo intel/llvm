@@ -40,7 +40,7 @@ using namespace llvm::esimd;
 namespace {
 
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
-constexpr char REQD_SUB_GROUP_SIZE_MD[] = "intel_reqd_sub_group_size";
+constexpr char REQD_SUB_GROUP_SIZE_MD[] = "sycl_reqd_sub_group_size";
 
 class SYCLLowerInvokeSimdLegacyPass : public ModulePass {
 public:

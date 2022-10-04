@@ -577,7 +577,7 @@ each target device.  The implementation looks for functions that have either
 from these metadata to the allowed list in the configuration file.  If any
 aspect is not on the allowed list, the implementation issues a warning.  In
 addition, the implementation looks for device functions that have
-`!intel_reqd_sub_group_size` or `!reqd_work_group_size`.  If the required
+`!sycl_reqd_sub_group_size` or `!reqd_work_group_size`.  If the required
 sub-group size or the required work-group size is not allowed for the target
 devices according to the configuration file, the implementation issues a
 warning.
@@ -767,7 +767,7 @@ If the image contains kernels that were *not* compiled with
     `!sycl_declared_aspects` metadata and one of the aspects in that metadata
     is not in the image's *UsedAspects* set, issue a warning and add that
     aspect to the *FinalUsedAspects* set.
-  - If the function has `!intel_reqd_sub_group_size` metadata and the size is
+  - If the function has `!sycl_reqd_sub_group_size` metadata and the size is
     not the same as the image's required sub-group size, issue a warning and
     add that sub-group size to the *FinalSubGroup* set.
   - (Since the `[[sycl::reqd_work_group_size()]]` attribute cannot be specified

@@ -226,15 +226,15 @@ int main() {
     h.single_task<class kernel_name16>(
         []() { foo3(); });
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name17() #0 !kernel_arg_buffer_location ![[NUM]] !intel_reqd_sub_group_size ![[NUM16:[0-9]+]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name17() #0 !kernel_arg_buffer_location ![[NUM]] !sycl_reqd_sub_group_size ![[NUM16:[0-9]+]]
     Foo4 boo4;
     h.single_task<class kernel_name17>(boo4);
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name18() #0 !kernel_arg_buffer_location ![[NUM]] !intel_reqd_sub_group_size ![[NUM1]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name18() #0 !kernel_arg_buffer_location ![[NUM]] !sycl_reqd_sub_group_size ![[NUM1]]
     h.single_task<class kernel_name18>(
         []() [[sycl::reqd_sub_group_size(1)]]{});
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name19() #0 !kernel_arg_buffer_location ![[NUM]] !intel_reqd_sub_group_size ![[NUM2]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name19() #0 !kernel_arg_buffer_location ![[NUM]] !sycl_reqd_sub_group_size ![[NUM2]]
     Functor5<2> f5;
     h.single_task<class kernel_name19>(f5);
 
@@ -294,11 +294,11 @@ int main() {
     h.single_task<class kernel_name29>(
         []() { foo7(); });
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name30() #0 !intel_reqd_sub_group_size ![[NUM1]] !sycl_explicit_simd ![[NUM]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name30() #0 !sycl_reqd_sub_group_size ![[NUM1]] !sycl_explicit_simd ![[NUM]]
     Foo7 boo7;
     h.single_task<class kernel_name30>(boo7);
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name31() #0 !intel_reqd_sub_group_size ![[NUM1]] !sycl_explicit_simd ![[NUM]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name31() #0 !sycl_reqd_sub_group_size ![[NUM1]] !sycl_explicit_simd ![[NUM]]
     h.single_task<class kernel_name31>(
         []() [[intel::sycl_explicit_simd]]{});
 

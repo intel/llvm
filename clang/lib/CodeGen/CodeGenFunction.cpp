@@ -642,14 +642,14 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()))};
-    Fn->setMetadata("intel_reqd_sub_group_size",
+    Fn->setMetadata("sycl_reqd_sub_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   } else if (IsKernelOrDevice &&
              CGM.getLangOpts().getDefaultSubGroupSizeType() ==
                  LangOptions::SubGroupSizeType::Integer) {
     llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
         Builder.getInt32(CGM.getLangOpts().DefaultSubGroupSize))};
-    Fn->setMetadata("intel_reqd_sub_group_size",
+    Fn->setMetadata("sycl_reqd_sub_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
@@ -661,18 +661,18 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
           Context, A->getType() == IntelNamedSubGroupSizeAttr::Primary
                        ? "primary"
                        : "automatic")};
-      Fn->setMetadata("intel_reqd_sub_group_size",
+      Fn->setMetadata("sycl_reqd_sub_group_size",
                       llvm::MDNode::get(Context, AttrMDArgs));
     } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
                LangOptions::SubGroupSizeType::Auto) {
       llvm::Metadata *AttrMDArgs[] = {
           llvm::MDString::get(Context, "automatic")};
-      Fn->setMetadata("intel_reqd_sub_group_size",
+      Fn->setMetadata("sycl_reqd_sub_group_size",
                       llvm::MDNode::get(Context, AttrMDArgs));
     } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
                LangOptions::SubGroupSizeType::Primary) {
       llvm::Metadata *AttrMDArgs[] = {llvm::MDString::get(Context, "primary")};
-      Fn->setMetadata("intel_reqd_sub_group_size",
+      Fn->setMetadata("sycl_reqd_sub_group_size",
                       llvm::MDNode::get(Context, AttrMDArgs));
     }
   }
@@ -681,7 +681,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("sycl_explicit_simd", llvm::MDNode::get(Context, {}));
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("intel_reqd_sub_group_size",
+    Fn->setMetadata("sycl_reqd_sub_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 

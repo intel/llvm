@@ -42,8 +42,8 @@ int main() {
   return 0;
 }
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0 {{.*}} !reqd_work_group_size ![[WGSIZE:[0-9]+]] !intel_reqd_sub_group_size ![[SGSIZE:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1:[0-9]+]] !intel_reqd_sub_group_size ![[SGSIZE1:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0 {{.*}} !reqd_work_group_size ![[WGSIZE:[0-9]+]] !sycl_reqd_sub_group_size ![[SGSIZE:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0 {{.*}} !reqd_work_group_size ![[WGSIZE1:[0-9]+]] !sycl_reqd_sub_group_size ![[SGSIZE1:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3() #0 {{.*}} !reqd_work_group_size ![[WGSIZE2:[0-9]+]]
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0 {{.*}} !reqd_work_group_size ![[WGSIZE3:[0-9]+]]
 // CHECK: ![[WGSIZE]] = !{i32 16, i32 16, i32 32}
