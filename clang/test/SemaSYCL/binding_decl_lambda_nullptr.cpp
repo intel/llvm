@@ -6,19 +6,10 @@
 
 // CHECK: expected-no-diagnostics
 
-template <typename T>
-struct P {
-  P(T t) : t(t) {}
-  T t;
-};
-
 int main() {
-  auto usm = [=](float *ptr) {
-    return P{ptr};
-  };
-
-  auto [in] = usm(new float());
-  auto L = [=]() { *in = 42.f; };
-  L();
+  int a[2] = {1, 2};
+  auto [x, y] = a;
+  auto Lambda = [=]() {x = 10;};
+  Lambda();
   return 0;
 }
