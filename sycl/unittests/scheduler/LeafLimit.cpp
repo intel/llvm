@@ -9,6 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -87,4 +88,8 @@ TEST_F(SchedulerTest, LeafLimit) {
   EXPECT_TRUE(std::any_of(
       NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
       [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));
+  MS.cleanupCommandsForRecord(Rec);
+  auto MemObj = static_cast<sycl::detail::SYCLMemObjI *>(
+      detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(MemObj);
 }
