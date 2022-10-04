@@ -1194,7 +1194,6 @@ public:
   using value_type = DataT;
   using reference = DataT &;
   using const_reference = const DataT &;
-  using difference_type = size_t;
 
   using iterator = typename detail::__accessor_iterator<DataT, Dimensions>;
   using const_iterator =
