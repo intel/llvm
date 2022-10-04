@@ -3,10 +3,6 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  std::vector<size_t> res(5);
-  sycl::buffer<size_t> bufRes(res.data(), res.size());
-  sycl::queue testQueue;
-
   sycl::accessor<int, 0, sycl::access::mode::read_write, sycl::target::device>
       B;
   assert(B.empty());
