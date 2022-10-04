@@ -1022,16 +1022,10 @@ void RISCVInsertVSETVLI::transferBefore(VSETVLIInfo &Info, const MachineInstr &M
     return;
   }
 
-  // Two cases involving an AVL resulting from a previous vsetvli.
-  // 1) If the AVL is the result of a previous vsetvli which has the
-  //    same AVL and VLMAX as our current state, we can reuse the AVL
-  //    from the current state for the new one.  This allows us to
-  //    generate 'vsetvli x0, x0, vtype" or possible skip the transition
-  //    entirely.
-  // 2) If AVL is defined by a vsetvli with the same VLMAX, we can
-  //    replace the AVL operand with the AVL of the defining vsetvli.
-  //    We avoid general register AVLs to avoid extending live ranges
-  //    without being sure we can kill the original source reg entirely.
+  // If AVL is defined by a vsetvli with the same VLMAX, we can
+  // replace the AVL operand with the AVL of the defining vsetvli.
+  // We avoid general register AVLs to avoid extending live ranges
+  // without being sure we can kill the original source reg entirely.
   if (!Info.hasAVLReg() || !Info.getAVLReg().isVirtual())
     return;
   MachineInstr *DefMI = MRI->getVRegDef(Info.getAVLReg());
@@ -1039,17 +1033,6 @@ void RISCVInsertVSETVLI::transferBefore(VSETVLIInfo &Info, const MachineInstr &M
     return;
 
   VSETVLIInfo DefInfo = getInfoForVSETVLI(*DefMI);
-  // case 1
-  if (PrevInfo.isValid() && !PrevInfo.isUnknown() &&
-      DefInfo.hasSameAVL(PrevInfo) &&
-      DefInfo.hasSameVLMAX(PrevInfo)) {
-    if (PrevInfo.hasAVLImm())
-      Info.setAVLImm(PrevInfo.getAVLImm());
-    else
-      Info.setAVLReg(PrevInfo.getAVLReg());
-    return;
-  }
-  // case 2
   if (DefInfo.hasSameVLMAX(Info) &&
       (DefInfo.hasAVLImm() || DefInfo.getAVLReg() == RISCV::X0)) {
     if (DefInfo.hasAVLImm())
@@ -1105,7 +1088,9 @@ void RISCVInsertVSETVLI::computeIncomingVLVTYPE(const MachineBasicBlock &MBB) {
 
   BBInfo.InQueue = false;
 
-  VSETVLIInfo InInfo;
+  // Start with the previous entry so that we keep the most conservative state
+  // we have ever found.
+  VSETVLIInfo InInfo = BBInfo.Pred;
   if (MBB.pred_empty()) {
     // There are no predecessors, so use the default starting status.
     InInfo.setUnknown();
@@ -1145,8 +1130,10 @@ void RISCVInsertVSETVLI::computeIncomingVLVTYPE(const MachineBasicBlock &MBB) {
   // Add the successors to the work list so we can propagate the changed exit
   // status.
   for (MachineBasicBlock *S : MBB.successors())
-    if (!BlockInfo[S->getNumber()].InQueue)
+    if (!BlockInfo[S->getNumber()].InQueue) {
+      BlockInfo[S->getNumber()].InQueue = true;
       WorkList.push(S);
+    }
 }
 
 // If we weren't able to prove a vsetvli was directly unneeded, it might still

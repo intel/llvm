@@ -205,7 +205,7 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
   if (!Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
                     true))
     return;
-  for (auto A : Args.filtered(options::OPT_fsanitize_EQ)) {
+  for (auto *A : Args.filtered(options::OPT_fsanitize_EQ)) {
     SanitizerMask K = parseSanitizerValue(A->getValue(), /*AllowGroups=*/false);
     if (K != SanitizerKind::Address)
       D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
@@ -250,7 +250,7 @@ void HIPAMDToolChain::addClangTargetOptions(
   // supported for the foreseeable future.
   if (!DriverArgs.hasArg(options::OPT_fvisibility_EQ,
                          options::OPT_fvisibility_ms_compat)) {
-    CC1Args.append({"-fvisibility", "hidden"});
+    CC1Args.append({"-fvisibility=hidden"});
     CC1Args.push_back("-fapply-global-visibility-to-externs");
   }
 
@@ -306,7 +306,7 @@ void HIPAMDToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
-  for (auto BCFile : getHIPDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
+  for (auto BCFile : getDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
@@ -406,7 +406,7 @@ VersionTuple HIPAMDToolChain::computeMSVCVersion(const Driver *D,
 }
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-HIPAMDToolChain::getHIPDeviceLibs(
+HIPAMDToolChain::getDeviceLibs(
     const llvm::opt::ArgList &DriverArgs,
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;

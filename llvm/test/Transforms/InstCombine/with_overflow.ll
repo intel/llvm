@@ -254,11 +254,10 @@ define i32 @umultest3(i32 %n) nounwind {
 
 define i32 @umultest4(i32 %n) nounwind {
 ; CHECK-LABEL: @umultest4(
-; CHECK-NEXT:    [[SHR:%.*]] = lshr i32 [[N:%.*]], 1
-; CHECK-NEXT:    [[MUL:%.*]] = call { i32, i1 } @llvm.umul.with.overflow.i32(i32 [[SHR]], i32 4)
-; CHECK-NEXT:    [[OV:%.*]] = extractvalue { i32, i1 } [[MUL]], 1
-; CHECK-NEXT:    [[RES:%.*]] = extractvalue { i32, i1 } [[MUL]], 0
-; CHECK-NEXT:    [[RET:%.*]] = select i1 [[OV]], i32 -1, i32 [[RES]]
+; CHECK-NEXT:    [[TMP1:%.*]] = shl i32 [[N:%.*]], 1
+; CHECK-NEXT:    [[RES:%.*]] = and i32 [[TMP1]], -4
+; CHECK-NEXT:    [[OV_INV:%.*]] = icmp sgt i32 [[N]], -1
+; CHECK-NEXT:    [[RET:%.*]] = select i1 [[OV_INV]], i32 [[RES]], i32 -1
 ; CHECK-NEXT:    ret i32 [[RET]]
 ;
   %shr = lshr i32 %n, 1
@@ -793,13 +792,10 @@ define <4 x i8> @smul_neg1_vec(<4 x i8> %x, <4 x i1>* %p) {
   ret <4 x i8> %r
 }
 
-; TODO: partly failed to match vector constant with poison element
-
 define <4 x i8> @smul_neg1_vec_poison(<4 x i8> %x, <4 x i1>* %p) {
 ; CHECK-LABEL: @smul_neg1_vec_poison(
-; CHECK-NEXT:    [[M:%.*]] = tail call { <4 x i8>, <4 x i1> } @llvm.smul.with.overflow.v4i8(<4 x i8> [[X:%.*]], <4 x i8> <i8 -1, i8 -1, i8 poison, i8 -1>)
-; CHECK-NEXT:    [[R:%.*]] = sub <4 x i8> zeroinitializer, [[X]]
-; CHECK-NEXT:    [[OV:%.*]] = extractvalue { <4 x i8>, <4 x i1> } [[M]], 1
+; CHECK-NEXT:    [[R:%.*]] = sub <4 x i8> zeroinitializer, [[X:%.*]]
+; CHECK-NEXT:    [[OV:%.*]] = icmp eq <4 x i8> [[X]], <i8 -128, i8 -128, i8 -128, i8 -128>
 ; CHECK-NEXT:    store <4 x i1> [[OV]], <4 x i1>* [[P:%.*]], align 1
 ; CHECK-NEXT:    ret <4 x i8> [[R]]
 ;
@@ -853,13 +849,10 @@ define <4 x i8> @umul_neg1_vec(<4 x i8> %x, <4 x i1>* %p) {
   ret <4 x i8> %r
 }
 
-; TODO: partly failed to match vector constant with poison element
-
 define <4 x i8> @umul_neg1_vec_poison(<4 x i8> %x, <4 x i1>* %p) {
 ; CHECK-LABEL: @umul_neg1_vec_poison(
-; CHECK-NEXT:    [[M:%.*]] = tail call { <4 x i8>, <4 x i1> } @llvm.umul.with.overflow.v4i8(<4 x i8> [[X:%.*]], <4 x i8> <i8 poison, i8 -1, i8 -1, i8 poison>)
-; CHECK-NEXT:    [[R:%.*]] = sub <4 x i8> zeroinitializer, [[X]]
-; CHECK-NEXT:    [[OV:%.*]] = extractvalue { <4 x i8>, <4 x i1> } [[M]], 1
+; CHECK-NEXT:    [[R:%.*]] = sub <4 x i8> zeroinitializer, [[X:%.*]]
+; CHECK-NEXT:    [[OV:%.*]] = icmp ugt <4 x i8> [[X]], <i8 1, i8 1, i8 1, i8 1>
 ; CHECK-NEXT:    store <4 x i1> [[OV]], <4 x i1>* [[P:%.*]], align 1
 ; CHECK-NEXT:    ret <4 x i8> [[R]]
 ;
@@ -870,21 +863,15 @@ define <4 x i8> @umul_neg1_vec_poison(<4 x i8> %x, <4 x i1>* %p) {
   ret <4 x i8> %r
 }
 
-; TODO: this could be 'shl' and 'icmp'
-
-define i8 @umul_2(i8 %x, i1* %p) {
-; CHECK-LABEL: @umul_2(
-; CHECK-NEXT:    [[M:%.*]] = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 [[X:%.*]], i8 2)
-; CHECK-NEXT:    [[R:%.*]] = extractvalue { i8, i1 } [[M]], 0
-; CHECK-NEXT:    [[OV:%.*]] = extractvalue { i8, i1 } [[M]], 1
-; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
-; CHECK-NEXT:    ret i8 [[R]]
+define <4 x i1> @smul_not_neg1_vec(<4 x i8> %x) {
+; CHECK-LABEL: @smul_not_neg1_vec(
+; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i8> [[X:%.*]], <i8 -43, i8 -43, i8 -43, i8 -43>
+; CHECK-NEXT:    [[OV:%.*]] = icmp ult <4 x i8> [[TMP1]], <i8 -85, i8 -85, i8 -85, i8 -85>
+; CHECK-NEXT:    ret <4 x i1> [[OV]]
 ;
-  %m = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %x, i8 2)
-  %r = extractvalue { i8, i1 } %m, 0
-  %ov = extractvalue { i8, i1 } %m, 1
-  store i1 %ov, i1* %p
-  ret i8 %r
+  %m = call { <4 x i8>, <4 x i1> } @llvm.smul.with.overflow.v4i8(<4 x i8> %x, <4 x i8> <i8 -3, i8 -3, i8 poison, i8 -3>)
+  %ov = extractvalue { <4 x i8>, <4 x i1> } %m, 1
+  ret <4 x i1> %ov
 }
 
 ; issue #54053
@@ -899,5 +886,181 @@ define i8 @umul_neg1_select(i8 %x) {
   %m0 = extractvalue { i8, i1 } %m, 0
   %m1 = extractvalue { i8, i1 } %m, 1
   %r = select i1 %m1, i8 -1, i8 %m0
+  ret i8 %r
+}
+
+define i8 @umul_2(i8 %x, i1* %p) {
+; CHECK-LABEL: @umul_2(
+; CHECK-NEXT:    [[R:%.*]] = shl i8 [[X:%.*]], 1
+; CHECK-NEXT:    [[OV:%.*]] = icmp slt i8 [[X]], 0
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %x, i8 2)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define i8 @umul_8(i8 %x, i1* %p) {
+; CHECK-LABEL: @umul_8(
+; CHECK-NEXT:    [[R:%.*]] = shl i8 [[X:%.*]], 3
+; CHECK-NEXT:    [[OV:%.*]] = icmp ugt i8 [[X]], 31
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %x, i8 8)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define i8 @umul_64(i8 %x, i1* %p) {
+; CHECK-LABEL: @umul_64(
+; CHECK-NEXT:    [[R:%.*]] = shl i8 [[X:%.*]], 6
+; CHECK-NEXT:    [[OV:%.*]] = icmp ugt i8 [[X]], 3
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %x, i8 64)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define i8 @umul_256(i8 %x, i1* %p) {
+; CHECK-LABEL: @umul_256(
+; CHECK-NEXT:    store i1 false, i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 0
+;
+  %m = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %x, i8 256)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define <4 x i8> @umul_4_vec_poison(<4 x i8> %x, <4 x i1>* %p) {
+; CHECK-LABEL: @umul_4_vec_poison(
+; CHECK-NEXT:    [[R:%.*]] = shl <4 x i8> [[X:%.*]], <i8 2, i8 2, i8 2, i8 2>
+; CHECK-NEXT:    [[OV:%.*]] = icmp ugt <4 x i8> [[X]], <i8 63, i8 63, i8 63, i8 63>
+; CHECK-NEXT:    store <4 x i1> [[OV]], <4 x i1>* [[P:%.*]], align 1
+; CHECK-NEXT:    ret <4 x i8> [[R]]
+;
+  %m = tail call { <4 x i8>, <4 x i1> } @llvm.umul.with.overflow.v4i8(<4 x i8> %x, <4 x i8> <i8 poison, i8 4, i8 4, i8 poison>)
+  %r = extractvalue { <4 x i8>, <4 x i1> } %m, 0
+  %ov = extractvalue { <4 x i8>, <4 x i1> } %m, 1
+  store <4 x i1> %ov, <4 x i1>* %p
+  ret <4 x i8> %r
+}
+
+; Negative test: not PowerOf2
+
+define i8 @umul_3(i8 %x, i1* %p) {
+; CHECK-LABEL: @umul_3(
+; CHECK-NEXT:    [[M:%.*]] = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 [[X:%.*]], i8 3)
+; CHECK-NEXT:    [[R:%.*]] = extractvalue { i8, i1 } [[M]], 0
+; CHECK-NEXT:    [[OV:%.*]] = extractvalue { i8, i1 } [[M]], 1
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %x, i8 3)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define i8 @smul_4(i8 %x, i1* %p) {
+; CHECK-LABEL: @smul_4(
+; CHECK-NEXT:    [[R:%.*]] = shl i8 [[X:%.*]], 2
+; CHECK-NEXT:    [[TMP1:%.*]] = add i8 [[X]], -32
+; CHECK-NEXT:    [[OV:%.*]] = icmp ult i8 [[TMP1]], -64
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.smul.with.overflow.i8(i8 %x, i8 4)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define i8 @smul_16(i8 %x, i1* %p) {
+; CHECK-LABEL: @smul_16(
+; CHECK-NEXT:    [[R:%.*]] = shl i8 [[X:%.*]], 4
+; CHECK-NEXT:    [[TMP1:%.*]] = add i8 [[X]], -8
+; CHECK-NEXT:    [[OV:%.*]] = icmp ult i8 [[TMP1]], -16
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.smul.with.overflow.i8(i8 %x, i8 16)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define i8 @smul_32(i8 %x, i1* %p) {
+; CHECK-LABEL: @smul_32(
+; CHECK-NEXT:    [[R:%.*]] = shl i8 [[X:%.*]], 5
+; CHECK-NEXT:    [[TMP1:%.*]] = add i8 [[X]], -4
+; CHECK-NEXT:    [[OV:%.*]] = icmp ult i8 [[TMP1]], -8
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.smul.with.overflow.i8(i8 %x, i8 32)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define i8 @smul_128(i8 %x, i1* %p) {
+; CHECK-LABEL: @smul_128(
+; CHECK-NEXT:    [[R:%.*]] = shl i8 [[X:%.*]], 7
+; CHECK-NEXT:    [[OV:%.*]] = icmp ugt i8 [[X]], 1
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.smul.with.overflow.i8(i8 %x, i8 128)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
+  ret i8 %r
+}
+
+define <4 x i8> @smul_2_vec_poison(<4 x i8> %x, <4 x i1>* %p) {
+; CHECK-LABEL: @smul_2_vec_poison(
+; CHECK-NEXT:    [[R:%.*]] = shl <4 x i8> [[X:%.*]], <i8 1, i8 1, i8 1, i8 1>
+; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i8> [[X]], <i8 64, i8 64, i8 64, i8 64>
+; CHECK-NEXT:    [[OV:%.*]] = icmp slt <4 x i8> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    store <4 x i1> [[OV]], <4 x i1>* [[P:%.*]], align 1
+; CHECK-NEXT:    ret <4 x i8> [[R]]
+;
+  %m = tail call { <4 x i8>, <4 x i1> } @llvm.smul.with.overflow.v4i8(<4 x i8> %x, <4 x i8> <i8 poison, i8 2, i8 2, i8 poison>)
+  %r = extractvalue { <4 x i8>, <4 x i1> } %m, 0
+  %ov = extractvalue { <4 x i8>, <4 x i1> } %m, 1
+  store <4 x i1> %ov, <4 x i1>* %p
+  ret <4 x i8> %r
+}
+
+; Negative test: not PowerOf2
+
+define i8 @smul_7(i8 %x, i1* %p) {
+; CHECK-LABEL: @smul_7(
+; CHECK-NEXT:    [[M:%.*]] = tail call { i8, i1 } @llvm.smul.with.overflow.i8(i8 [[X:%.*]], i8 7)
+; CHECK-NEXT:    [[R:%.*]] = extractvalue { i8, i1 } [[M]], 0
+; CHECK-NEXT:    [[OV:%.*]] = extractvalue { i8, i1 } [[M]], 1
+; CHECK-NEXT:    store i1 [[OV]], i1* [[P:%.*]], align 1
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %m = tail call { i8, i1 } @llvm.smul.with.overflow.i8(i8 %x, i8 7)
+  %r = extractvalue { i8, i1 } %m, 0
+  %ov = extractvalue { i8, i1 } %m, 1
+  store i1 %ov, i1* %p
   ret i8 %r
 }

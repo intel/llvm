@@ -18,7 +18,6 @@
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/ConvertUTF.h"
@@ -125,20 +124,24 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles) &&
       !C.getDriver().IsCLMode() && !C.getDriver().IsFlangMode()) {
     if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl))
-      CmdArgs.push_back("-defaultlib:msvcrt");
+      if (Args.hasArg(options::OPT_g_Flag))
+        CmdArgs.push_back("-defaultlib:msvcrtd");
+      else
+        CmdArgs.push_back("-defaultlib:msvcrt");
     else
       CmdArgs.push_back("-defaultlib:libcmt");
     CmdArgs.push_back("-defaultlib:oldnames");
   }
 
-  if ((!C.getDriver().IsCLMode() && !Args.hasArg(options::OPT_nostdlib) &&
-       Args.hasArg(options::OPT_fsycl) &&
+  if ((!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_fsycl) &&
        !Args.hasArg(options::OPT_nolibsycl)) ||
       Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
-    if (Args.hasArg(options::OPT__SLASH_MDd))
-      CmdArgs.push_back("-defaultlib:sycld.lib");
+    CmdArgs.push_back(Args.MakeArgString(std::string("-libpath:") +
+                                         TC.getDriver().Dir + "/../lib"));
+    if (Args.hasArg(options::OPT_g_Flag))
+      CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     else
-      CmdArgs.push_back("-defaultlib:sycl.lib");
+      CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 
@@ -533,16 +536,20 @@ bool MSVCToolChain::IsIntegratedAssemblerDefault() const {
   return true;
 }
 
-bool MSVCToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
+ToolChain::UnwindTableLevel
+MSVCToolChain::getDefaultUnwindTableLevel(const ArgList &Args) const {
   // Don't emit unwind tables by default for MachO targets.
   if (getTriple().isOSBinFormatMachO())
-    return false;
+    return UnwindTableLevel::None;
 
   // All non-x86_32 Windows targets require unwind tables. However, LLVM
   // doesn't know how to generate them for all targets, so only enable
   // the ones that are actually implemented.
-  return getArch() == llvm::Triple::x86_64 || getArch() == llvm::Triple::arm ||
-         getArch() == llvm::Triple::thumb || getArch() == llvm::Triple::aarch64;
+  if (getArch() == llvm::Triple::x86_64 || getArch() == llvm::Triple::arm ||
+      getArch() == llvm::Triple::thumb || getArch() == llvm::Triple::aarch64)
+    return UnwindTableLevel::Asynchronous;
+
+  return UnwindTableLevel::None;
 }
 
 bool MSVCToolChain::isPICDefault() const {

@@ -51,13 +51,10 @@ Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
                                  bool isPrivateExtern, bool isThumb,
                                  bool isReferencedDynamically, bool noDeadStrip,
                                  bool isWeakDefCanBeHidden) {
-  Symbol *s;
-  bool wasInserted;
   bool overridesWeakDef = false;
-  std::tie(s, wasInserted) = insert(name, file);
+  auto [s, wasInserted] = insert(name, file);
 
-  assert(!isWeakDef || (isa<BitcodeFile>(file) && !isec) ||
-         (isa<ObjFile>(file) && file == isec->getFile()));
+  assert(!file || !isa<BitcodeFile>(file) || !isec);
 
   if (!wasInserted) {
     if (auto *defined = dyn_cast<Defined>(s)) {
@@ -117,18 +114,18 @@ Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
   return defined;
 }
 
-Defined *SymbolTable::aliasDefined(Defined *src, StringRef target) {
-  return addDefined(target, src->getFile(), src->isec, src->value, src->size,
-                    src->isWeakDef(), src->privateExtern, src->thumb,
+Defined *SymbolTable::aliasDefined(Defined *src, StringRef target,
+                                   InputFile *newFile, bool makePrivateExtern) {
+  bool isPrivateExtern = makePrivateExtern || src->privateExtern;
+  return addDefined(target, newFile, src->isec, src->value, src->size,
+                    src->isWeakDef(), isPrivateExtern, src->thumb,
                     src->referencedDynamically, src->noDeadStrip,
                     src->weakDefCanBeHidden);
 }
 
 Symbol *SymbolTable::addUndefined(StringRef name, InputFile *file,
                                   bool isWeakRef) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name, file);
+  auto [s, wasInserted] = insert(name, file);
 
   RefState refState = isWeakRef ? RefState::Weak : RefState::Strong;
 
@@ -147,9 +144,7 @@ Symbol *SymbolTable::addUndefined(StringRef name, InputFile *file,
 
 Symbol *SymbolTable::addCommon(StringRef name, InputFile *file, uint64_t size,
                                uint32_t align, bool isPrivateExtern) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name, file);
+  auto [s, wasInserted] = insert(name, file);
 
   if (!wasInserted) {
     if (auto *common = dyn_cast<CommonSymbol>(s)) {
@@ -168,9 +163,7 @@ Symbol *SymbolTable::addCommon(StringRef name, InputFile *file, uint64_t size,
 
 Symbol *SymbolTable::addDylib(StringRef name, DylibFile *file, bool isWeakDef,
                               bool isTlv) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name, file);
+  auto [s, wasInserted] = insert(name, file);
 
   RefState refState = RefState::Unreferenced;
   if (!wasInserted) {
@@ -203,9 +196,7 @@ Symbol *SymbolTable::addDynamicLookup(StringRef name) {
 
 Symbol *SymbolTable::addLazyArchive(StringRef name, ArchiveFile *file,
                                     const object::Archive::Symbol &sym) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name, file);
+  auto [s, wasInserted] = insert(name, file);
 
   if (wasInserted) {
     replaceSymbol<LazyArchive>(s, file, sym);
@@ -223,9 +214,7 @@ Symbol *SymbolTable::addLazyArchive(StringRef name, ArchiveFile *file,
 }
 
 Symbol *SymbolTable::addLazyObject(StringRef name, InputFile &file) {
-  Symbol *s;
-  bool wasInserted;
-  std::tie(s, wasInserted) = insert(name, &file);
+  auto [s, wasInserted] = insert(name, &file);
 
   if (wasInserted) {
     replaceSymbol<LazyObject>(s, file, name);
@@ -269,8 +258,7 @@ static Defined *createBoundarySymbol(const Undefined &sym) {
 
 static void handleSectionBoundarySymbol(const Undefined &sym, StringRef segSect,
                                         Boundary which) {
-  StringRef segName, sectName;
-  std::tie(segName, sectName) = segSect.split('$');
+  auto [segName, sectName] = segSect.split('$');
 
   // Attach the symbol to any InputSection that will end up in the right
   // OutputSection -- it doesn't matter which one we pick.

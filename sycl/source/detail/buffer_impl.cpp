@@ -28,8 +28,9 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
-      std::move(Context), this, HostPtr, HostPtrReadOnly, BaseT::getSize(),
-      BaseT::MInteropEvent, BaseT::MInteropContext, MProps, OutEventToWait);
+      std::move(Context), this, HostPtr, HostPtrReadOnly,
+      BaseT::getSizeInBytes(), BaseT::MInteropEvent, BaseT::MInteropContext,
+      MProps, OutEventToWait);
 }
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj, const void *HostObj,

@@ -620,7 +620,9 @@ public:
   /// \param Loop    The loop to simd-ize.
   /// \param IfCond  The value which corresponds to the if clause condition.
   /// \param Simdlen The Simdlen length to apply to the simd loop.
-  void applySimd(CanonicalLoopInfo *Loop, Value *IfCond, ConstantInt *Simdlen);
+  /// \param Safelen The Safelen length to apply to the simd loop.
+  void applySimd(CanonicalLoopInfo *Loop, Value *IfCond, ConstantInt *Simdlen,
+                 ConstantInt *Safelen);
 
   /// Generator for '#omp flush'
   ///
@@ -645,9 +647,16 @@ public:
   /// \param Tied True if the task is tied, false if the task is untied.
   /// \param Final i1 value which is `true` if the task is final, `false` if the
   ///              task is not final.
+  /// \param IfCondition i1 value. If it evaluates to `false`, an undeferred
+  ///                    task is generated, and the encountering thread must
+  ///                    suspend the current task region, for which execution
+  ///                    cannot be resumed until execution of the structured
+  ///                    block that is associated with the generated task is
+  ///                    completed.
   InsertPointTy createTask(const LocationDescription &Loc,
                            InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
-                           bool Tied = true, Value *Final = nullptr);
+                           bool Tied = true, Value *Final = nullptr,
+                           Value *IfCondition = nullptr);
 
   /// Generator for the taskgroup construct
   ///

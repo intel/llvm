@@ -119,7 +119,7 @@ void buffer_plain::addOrReplaceAccessorProperties(
   impl->addOrReplaceAccessorProperties(PropertyList);
 }
 
-size_t buffer_plain::getSize() const { return impl->getSize(); }
+size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

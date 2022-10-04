@@ -8,11 +8,10 @@
 
 #include "TraceIntelPT.h"
 
-#include "TraceCursorIntelPT.h"
-
 #include "../common/ThreadPostMortemTrace.h"
 #include "CommandObjectTraceStartIntelPT.h"
 #include "DecodedThread.h"
+#include "TraceCursorIntelPT.h"
 #include "TraceIntelPTBundleLoader.h"
 #include "TraceIntelPTBundleSaver.h"
 #include "TraceIntelPTConstants.h"
@@ -79,12 +78,14 @@ TraceIntelPTSP TraceIntelPT::GetSharedPtr() {
   return std::static_pointer_cast<TraceIntelPT>(shared_from_this());
 }
 
+TraceIntelPT::TraceMode TraceIntelPT::GetTraceMode() { return trace_mode; }
+
 TraceIntelPTSP TraceIntelPT::CreateInstanceForPostmortemTrace(
     JSONTraceBundleDescription &bundle_description,
     ArrayRef<ProcessSP> traced_processes,
-    ArrayRef<ThreadPostMortemTraceSP> traced_threads) {
+    ArrayRef<ThreadPostMortemTraceSP> traced_threads, TraceMode trace_mode) {
   TraceIntelPTSP trace_sp(
-      new TraceIntelPT(bundle_description, traced_processes));
+      new TraceIntelPT(bundle_description, traced_processes, trace_mode));
   trace_sp->m_storage.tsc_conversion =
       bundle_description.tsc_perf_zero_conversion;
 
@@ -100,11 +101,6 @@ TraceIntelPTSP TraceIntelPT::CreateInstanceForPostmortemTrace(
           FileSpec(cpu.context_switch_trace));
       cpus.push_back(cpu.id);
     }
-
-    std::vector<tid_t> tids;
-    for (const JSONProcess &process : bundle_description.processes)
-      for (const JSONThread &thread : process.threads)
-        tids.push_back(thread.tid);
 
     trace_sp->m_storage.multicpu_decoder.emplace(trace_sp);
   } else {
@@ -124,9 +120,10 @@ TraceIntelPTSP TraceIntelPT::CreateInstanceForPostmortemTrace(
 }
 
 TraceIntelPT::TraceIntelPT(JSONTraceBundleDescription &bundle_description,
-                           ArrayRef<ProcessSP> traced_processes)
+                           ArrayRef<ProcessSP> traced_processes,
+                           TraceMode trace_mode)
     : Trace(traced_processes, bundle_description.GetCpuIds()),
-      m_cpu_info(bundle_description.cpu_info) {}
+      m_cpu_info(bundle_description.cpu_info), trace_mode(trace_mode) {}
 
 Expected<DecodedThreadSP> TraceIntelPT::Decode(Thread &thread) {
   if (const char *error = RefreshLiveProcessState())
@@ -287,20 +284,6 @@ void TraceIntelPT::DumpTraceInfo(Thread &thread, Stream &s, bool verbose,
     s.Format("    Total number of unattributed PSB blocks found: {0}\n",
              storage.multicpu_decoder->GetUnattributedPSBBlocksCount());
   }
-
-  // Errors
-  {
-    s << "\n  Errors:\n";
-    const DecodedThread::LibiptErrorsStats &tsc_errors_stats =
-        decoded_thread_sp->GetTscErrorsStats();
-    s.Format("    Number of TSC decoding errors: {0}\n",
-             tsc_errors_stats.total_count);
-    for (const auto &error_message_to_count :
-         tsc_errors_stats.libipt_errors_counts) {
-      s.Format("      {0}: {1}\n", error_message_to_count.first,
-               error_message_to_count.second);
-    }
-  }
 }
 
 void TraceIntelPT::DumpTraceInfoAsJson(Thread &thread, Stream &s,
@@ -375,21 +358,8 @@ void TraceIntelPT::DumpTraceInfoAsJson(Thread &thread, Stream &s,
             "PSBBlocks",
             storage.multicpu_decoder->GePSBBlocksCountForThread(tid));
       }
-
-      // Errors
-      const DecodedThread::LibiptErrorsStats &tsc_errors_stats =
-          decoded_thread_sp->GetTscErrorsStats();
-      json_str.attributeObject("errorItems", [&] {
-        json_str.attribute("total", tsc_errors_stats.total_count);
-        json_str.attributeObject("individualErrors", [&] {
-          for (const auto &error_message_to_count :
-               tsc_errors_stats.libipt_errors_counts) {
-            json_str.attribute(error_message_to_count.first,
-                               error_message_to_count.second);
-          }
-        });
-      });
     });
+
     json_str.attributeObject("globalStats", [&] {
       json_str.attributeObject("timingInSeconds", [&] {
         GetTimer().ForGlobal().ForEachTimedTask(

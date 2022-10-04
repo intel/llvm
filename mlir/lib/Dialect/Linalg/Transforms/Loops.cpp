@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/Linalg/Passes.h"
+
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/Transforms/Transforms.h"
@@ -23,6 +25,13 @@
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_LINALGLOWERTOAFFINELOOPS
+#define GEN_PASS_DEF_LINALGLOWERTOLOOPS
+#define GEN_PASS_DEF_LINALGLOWERTOPARALLELLOOPS
+#include "mlir/Dialect/Linalg/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -189,19 +198,17 @@ static void replaceIndexOpsByInductionVariables(LinalgOp linalgOp,
     LoopLikeOpInterface loopOp = loopOps.back();
     for (IndexOp indexOp :
          llvm::make_early_inc_range(loopOp.getLoopBody().getOps<IndexOp>()))
-      rewriter.replaceOp(indexOp, allIvs[indexOp.dim()]);
+      rewriter.replaceOp(indexOp, allIvs[indexOp.getDim()]);
   }
 }
 
 template <typename LoopTy>
 static FailureOr<LinalgLoops> linalgOpToLoopsImpl(PatternRewriter &rewriter,
                                                   LinalgOp linalgOp) {
-  using LoadOpTy =
-      typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
-                                AffineLoadOp, memref::LoadOp>::type;
-  using StoreOpTy =
-      typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
-                                AffineStoreOp, memref::StoreOp>::type;
+  using LoadOpTy = std::conditional_t<std::is_same<LoopTy, AffineForOp>::value,
+                                      AffineLoadOp, memref::LoadOp>;
+  using StoreOpTy = std::conditional_t<std::is_same<LoopTy, AffineForOp>::value,
+                                       AffineStoreOp, memref::StoreOp>;
 
   // The flattened loopToOperandRangesMaps is expected to be an invertible
   // permutation map (which is asserted in the inverse calculation).
@@ -311,7 +318,7 @@ static void lowerLinalgToLoopsImpl(func::FuncOp funcOp) {
 }
 
 struct LowerToAffineLoops
-    : public LinalgLowerToAffineLoopsBase<LowerToAffineLoops> {
+    : public impl::LinalgLowerToAffineLoopsBase<LowerToAffineLoops> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();
   }
@@ -320,7 +327,7 @@ struct LowerToAffineLoops
   }
 };
 
-struct LowerToLoops : public LinalgLowerToLoopsBase<LowerToLoops> {
+struct LowerToLoops : public impl::LinalgLowerToLoopsBase<LowerToLoops> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect, scf::SCFDialect>();
   }
@@ -330,7 +337,7 @@ struct LowerToLoops : public LinalgLowerToLoopsBase<LowerToLoops> {
 };
 
 struct LowerToParallelLoops
-    : public LinalgLowerToParallelLoopsBase<LowerToParallelLoops> {
+    : public impl::LinalgLowerToParallelLoopsBase<LowerToParallelLoops> {
   void runOnOperation() override {
     lowerLinalgToLoopsImpl<scf::ParallelOp>(getOperation());
   }

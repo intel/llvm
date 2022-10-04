@@ -158,10 +158,12 @@ Parser::TPResult Parser::TryConsumeDeclarationSpecifier() {
       ConsumeToken();
       break;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::kw_typeof:
   case tok::kw___attribute:
-  case tok::kw___underlying_type: {
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
+  {
     ConsumeToken();
     if (Tok.isNot(tok::l_paren))
       return TPResult::Error;
@@ -203,7 +205,7 @@ Parser::TPResult Parser::TryConsumeDeclarationSpecifier() {
 
   case tok::annot_cxxscope:
     ConsumeAnnotationToken();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   default:
     ConsumeAnyToken();
 
@@ -1334,7 +1336,7 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
     if (Next.isOneOf(tok::kw_new,       // ::new
                      tok::kw_delete))   // ::delete
       return TPResult::False;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case tok::kw___super:
   case tok::kw_decltype:
@@ -1401,7 +1403,7 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
   case tok::kw_private:
     if (!getLangOpts().OpenCL)
       return TPResult::False;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::kw___private:
   case tok::kw___local:
   case tok::kw___global:
@@ -1573,7 +1575,7 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
       return TPResult::False;
     }
     // If that succeeded, fallthrough into the generic simple-type-id case.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
     // The ambiguity resides in a simple-type-specifier/typename-specifier
     // followed by a '('. The '(' could either be the start of:
@@ -1616,7 +1618,7 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
 
       return TPResult::True;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case tok::kw_char:
   case tok::kw_wchar_t:
@@ -1682,8 +1684,8 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
     return TPResult::True;
   }
 
-  // C++0x type traits support
-  case tok::kw___underlying_type:
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
     return TPResult::True;
 
   // C11 _Atomic
@@ -1721,7 +1723,8 @@ bool Parser::isCXXDeclarationSpecifierAType() {
   case tok::annot_template_id:
   case tok::annot_typename:
   case tok::kw_typeof:
-  case tok::kw___underlying_type:
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
     return true;
 
     // elaborated-type-specifier

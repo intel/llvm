@@ -316,7 +316,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
   case LibFunc_strcpy:
   case LibFunc_strncpy:
     Changed |= setReturnedArg(F, 0);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LibFunc_stpcpy:
   case LibFunc_stpncpy:
     Changed |= setOnlyAccessesArgMemory(F);
@@ -386,7 +386,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
     break;
   case LibFunc_strndup:
     Changed |= setArgNoUndef(F, 1);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LibFunc_strdup:
     Changed |= setAllocFamily(F, "malloc");
     Changed |= setOnlyAccessesInaccessibleMemOrArgMem(F);
@@ -448,7 +448,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
     Changed |= setAlignedAllocParam(F, 0);
     Changed |= setAllocSize(F, 1, None);
     Changed |= setAllocKind(F, AllocFnKind::Alloc | AllocFnKind::Uninitialized | AllocFnKind::Aligned);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LibFunc_valloc:
   case LibFunc_malloc:
   case LibFunc_vec_malloc:
@@ -507,7 +507,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
   case LibFunc_mempcpy:
   case LibFunc_memccpy:
     Changed |= setWillReturn(F);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LibFunc_memcpy_chk:
     Changed |= setDoesNotThrow(F);
     Changed |= setOnlyAccessesArgMemory(F);
@@ -985,7 +985,7 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
     break;
   case LibFunc_dunder_strndup:
     Changed |= setArgNoUndef(F, 1);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LibFunc_dunder_strdup:
     Changed |= setDoesNotThrow(F);
     Changed |= setRetDoesNotAlias(F);
@@ -1078,10 +1078,10 @@ bool llvm::inferNonMandatoryLibFuncAttrs(Function &F,
     Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LibFunc_memset:
     Changed |= setWillReturn(F);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case LibFunc_memset_chk:
     Changed |= setOnlyAccessesArgMemory(F);
     Changed |= setOnlyWritesMemory(F, 0);
@@ -1756,22 +1756,19 @@ Value *llvm::emitBinaryFloatFnCall(Value *Op1, Value *Op2,
   return emitBinaryFloatFnCallHelper(Op1, Op2, TheLibFunc, Name, B, Attrs, TLI);
 }
 
+// Emit a call to putchar(int) with Char as the argument.  Char must have
+// the same precision as int, which need not be 32 bits.
 Value *llvm::emitPutChar(Value *Char, IRBuilderBase &B,
                          const TargetLibraryInfo *TLI) {
   Module *M = B.GetInsertBlock()->getModule();
   if (!isLibFuncEmittable(M, TLI, LibFunc_putchar))
     return nullptr;
 
+  Type *Ty = Char->getType();
   StringRef PutCharName = TLI->getName(LibFunc_putchar);
-  FunctionCallee PutChar = getOrInsertLibFunc(M, *TLI, LibFunc_putchar,
-                                              B.getInt32Ty(), B.getInt32Ty());
+  FunctionCallee PutChar = getOrInsertLibFunc(M, *TLI, LibFunc_putchar, Ty, Ty);
   inferNonMandatoryLibFuncAttrs(M, PutCharName, *TLI);
-  CallInst *CI = B.CreateCall(PutChar,
-                              B.CreateIntCast(Char,
-                              B.getInt32Ty(),
-                              /*isSigned*/true,
-                              "chari"),
-                              PutCharName);
+  CallInst *CI = B.CreateCall(PutChar, Char, PutCharName);
 
   if (const Function *F =
           dyn_cast<Function>(PutChar.getCallee()->stripPointerCasts()))

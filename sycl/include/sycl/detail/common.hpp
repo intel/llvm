@@ -238,6 +238,7 @@ namespace detail {
 //   template <class T>
 //   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
 template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
+  assert(SyclObject.impl && "every constructor should create an impl");
   return SyclObject.impl;
 }
 

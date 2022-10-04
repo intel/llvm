@@ -472,6 +472,7 @@ public:
   Symbol *specific() { return specific_; }
   const Symbol *specific() const { return specific_; }
   void set_specific(Symbol &specific);
+  void clear_specific();
   Symbol *derivedType() { return derivedType_; }
   const Symbol *derivedType() const { return derivedType_; }
   void set_derivedType(Symbol &derivedType);
@@ -628,6 +629,10 @@ public:
                              },
                              [](const HostAssocDetails &x) {
                                return x.symbol().HasExplicitInterface();
+                             },
+                             [](const GenericDetails &x) {
+                               return x.specific() &&
+                                   x.specific()->HasExplicitInterface();
                              },
                              [](const auto &) { return false; },
                          },

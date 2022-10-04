@@ -4,9 +4,9 @@
 // - Parent operand of DebugFunction is DebugCompileUnit, not an OpString, even
 //   if in LLVM IR it points to a DIFile instead of DICompileUnit.
 
-// RUN: %clang_cc1 %s -cl-std=clc++ -emit-llvm-bc -triple spir -debug-info-kind=line-tables-only -O0 -o - -no-opaque-pointers | llvm-spirv -o %t.spv
+// RUN: %clang_cc1 %s -cl-std=clc++ -emit-llvm-bc -triple spir -debug-info-kind=line-tables-only -O0 -o - | llvm-spirv -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 float foo(int i) {
     return i * 3.14;

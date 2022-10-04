@@ -120,9 +120,7 @@ public:
     }
     if (!MHostQueue) {
       const QueueOrder QOrder =
-          MPropList.has_property<property::queue::in_order>()
-              ? QueueOrder::Ordered
-              : QueueOrder::OOO;
+          MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
     }
   }
@@ -201,6 +199,8 @@ public:
 
   /// \return true if this queue has discard_events support.
   bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
+
+  bool isInOrder() const { return MIsInorder; }
 
   /// Queries SYCL queue for information.
   ///
@@ -530,7 +530,8 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    event Event;
+    event Event = detail::createSyclObjFromImpl<event>(
+        std::make_shared<detail::event_impl>());
 
     if (PostProcess) {
       bool IsKernel = Type == CG::Kernel;

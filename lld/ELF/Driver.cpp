@@ -591,11 +591,6 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     if (errorCount())
       return;
 
-    // The Target instance handles target-specific stuff, such as applying
-    // relocations or writing a PLT section. It also contains target-dependent
-    // values such as a default image base address.
-    target = getTarget();
-
     link(args);
   }
 
@@ -952,15 +947,21 @@ template <class ELFT> static void readCallGraphsFromObjectFiles() {
   }
 }
 
-static bool getCompressDebugSections(opt::InputArgList &args) {
+static DebugCompressionType getCompressDebugSections(opt::InputArgList &args) {
   StringRef s = args.getLastArgValue(OPT_compress_debug_sections, "none");
-  if (s == "none")
-    return false;
-  if (s != "zlib")
+  if (s == "zlib") {
+    if (!compression::zlib::isAvailable())
+      error("--compress-debug-sections: zlib is not available");
+    return DebugCompressionType::Zlib;
+  }
+  if (s == "zstd") {
+    if (!compression::zstd::isAvailable())
+      error("--compress-debug-sections: zstd is not available");
+    return DebugCompressionType::Zstd;
+  }
+  if (s != "none")
     error("unknown --compress-debug-sections value: " + s);
-  if (!compression::zlib::isAvailable())
-    error("--compress-debug-sections: zlib is not available");
-  return true;
+  return DebugCompressionType::None;
 }
 
 static StringRef getAliasSpelling(opt::Arg *arg) {
@@ -1156,6 +1157,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->optimize = args::getInteger(args, OPT_O, 1);
   config->orphanHandling = getOrphanHandling(args);
   config->outputFile = args.getLastArgValue(OPT_o);
+  config->packageMetadata = args.getLastArgValue(OPT_package_metadata);
   config->pie = args.hasFlag(OPT_pie, OPT_no_pie, false);
   config->printIcfSections =
       args.hasFlag(OPT_print_icf_sections, OPT_no_print_icf_sections, false);
@@ -1350,8 +1352,10 @@ static void readConfigs(opt::InputArgList &args) {
   config->passPlugins = args::getStrings(args, OPT_load_pass_plugins);
 
   // Parse -mllvm options.
-  for (auto *arg : args.filtered(OPT_mllvm))
+  for (auto *arg : args.filtered(OPT_mllvm)) {
     parseClangOption(arg->getValue(), arg->getSpelling());
+    config->mllvmOpts.emplace_back(arg->getValue());
+  }
 
   // --threads= takes a positive integer and provides the default value for
   // --thinlto-jobs=.
@@ -1366,6 +1370,7 @@ static void readConfigs(opt::InputArgList &args) {
   }
   if (auto *arg = args.getLastArg(OPT_thinlto_jobs))
     config->thinLTOJobs = arg->getValue();
+  config->threadCount = parallel::strategy.compute_thread_count();
 
   if (config->ltoo > 3)
     error("invalid optimization level for LTO: " + Twine(config->ltoo));
@@ -1819,7 +1824,7 @@ static void handleUndefinedGlob(StringRef arg) {
   // Calling sym->extract() in the loop is not safe because it may add new
   // symbols to the symbol table, invalidating the current iterator.
   SmallVector<Symbol *, 0> syms;
-  for (Symbol *sym : symtab->symbols())
+  for (Symbol *sym : symtab->getSymbols())
     if (!sym->isPlaceholder() && pat->match(sym->getName()))
       syms.push_back(sym);
 
@@ -2005,7 +2010,7 @@ static void replaceCommonSymbols() {
 // --no-allow-shlib-undefined diagnostics. Similarly, demote lazy symbols.
 static void demoteSharedAndLazySymbols() {
   llvm::TimeTraceScope timeScope("Demote shared and lazy symbols");
-  for (Symbol *sym : symtab->symbols()) {
+  for (Symbol *sym : symtab->getSymbols()) {
     auto *s = dyn_cast<SharedSymbol>(sym);
     if (!(s && !cast<SharedFile>(s->file)->isNeeded) && !sym->isLazy())
       continue;
@@ -2052,7 +2057,7 @@ static void findKeepUniqueSections(opt::InputArgList &args) {
 
   // Symbols in the dynsym could be address-significant in other executables
   // or DSOs, so we conservatively mark them as address-significant.
-  for (Symbol *sym : symtab->symbols())
+  for (Symbol *sym : symtab->getSymbols())
     if (sym->includeInDynsym())
       markAddrsig(sym);
 
@@ -2310,7 +2315,7 @@ static void redirectSymbols(ArrayRef<WrappedSymbol> wrapped) {
   // symbols with a non-default version (foo@v1) and check whether it should be
   // combined with foo or foo@@v1.
   if (config->versionDefinitions.size() > 2)
-    for (Symbol *sym : symtab->symbols())
+    for (Symbol *sym : symtab->getSymbols())
       if (sym->hasVersionSuffix)
         combineVersionedSymbol(*sym, map);
 
@@ -2398,19 +2403,19 @@ static uint32_t getAndFeatures() {
   return ret;
 }
 
-static void initializeLocalSymbols(ELFFileBase *file) {
+static void initSectionsAndLocalSyms(ELFFileBase *file, bool ignoreComdats) {
   switch (config->ekind) {
   case ELF32LEKind:
-    cast<ObjFile<ELF32LE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF32LE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   case ELF32BEKind:
-    cast<ObjFile<ELF32BE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF32BE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   case ELF64LEKind:
-    cast<ObjFile<ELF64LE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF64LE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   case ELF64BEKind:
-    cast<ObjFile<ELF64BE>>(file)->initializeLocalSymbols();
+    cast<ObjFile<ELF64BE>>(file)->initSectionsAndLocalSyms(ignoreComdats);
     break;
   default:
     llvm_unreachable("");
@@ -2561,7 +2566,9 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // No more lazy bitcode can be extracted at this point. Do post parse work
   // like checking duplicate symbols.
-  parallelForEach(ctx->objectFiles, initializeLocalSymbols);
+  parallelForEach(ctx->objectFiles, [](ELFFileBase *file) {
+    initSectionsAndLocalSyms(file, /*ignoreComdats=*/false);
+  });
   parallelForEach(ctx->objectFiles, postParseObjectFile);
   parallelForEach(ctx->bitcodeFiles,
                   [](BitcodeFile *file) { file->postParse(); });
@@ -2645,7 +2652,9 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // compileBitcodeFiles may have produced lto.tmp object files. After this, no
   // more file will be added.
   auto newObjectFiles = makeArrayRef(ctx->objectFiles).slice(numObjsBeforeLTO);
-  parallelForEach(newObjectFiles, initializeLocalSymbols);
+  parallelForEach(newObjectFiles, [](ELFFileBase *file) {
+    initSectionsAndLocalSyms(file, /*ignoreComdats=*/true);
+  });
   parallelForEach(newObjectFiles, postParseObjectFile);
   for (const DuplicateSymbol &d : ctx->duplicates)
     reportDuplicate(*d.sym, d.file, d.section, d.value);

@@ -654,7 +654,8 @@ public:
         {"test_src_tmpl_arg",
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
-    };
+        {"bf_cvt", {"bf.cvt", {a(0)}}},
+        {"tf32_cvt", {"tf32.cvt", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -974,6 +975,8 @@ static void translateSLMInit(CallInst &CI) {
   assert(NewVal != 0 && "zero slm bytes being requested");
   UpdateUint64MetaDataToMaxValue SetMaxSLMSize{
       *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
+  // TODO: Keep track of traversed functions (use 4-argument version of
+  // traverseCallgraphUp) to avoid repeating traversals over same function.
   esimd::traverseCallgraphUp(F, SetMaxSLMSize);
 }
 
@@ -990,6 +993,8 @@ static void translateNbarrierInit(CallInst &CI) {
   assert(NewVal != 0 && "zero named barrier count being requested");
   UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
       *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
+  // TODO: Keep track of traversed functions to avoid repeating traversals
+  // over same function.
   esimd::traverseCallgraphUp(F, SetMaxNBarrierCnt);
 }
 
@@ -1215,6 +1220,7 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   // TODO: Implement support for the following intrinsics:
   // uint32_t __spirv_BuiltIn NumSubgroups;
   // uint32_t __spirv_BuiltIn SubgroupId;
+  // uint32_t __spirv_BuiltIn GlobalLinearId
 
   // Translate those loads from _scalar_ SPIRV globals that can be replaced with
   // a const value here.
@@ -1227,6 +1233,8 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
              SpirvGlobalName == "SubgroupMaxSize") {
     NewInst = llvm::Constant::getIntegerValue(LI->getType(),
                                               llvm::APInt(32, 1, true));
+  } else if (SpirvGlobalName == "GlobalLinearId") {
+    NewInst = llvm::Constant::getNullValue(LI->getType());
   }
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
@@ -1685,7 +1693,11 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         auto TmpTy = llvm::FixedVectorType::get(
             llvm::Type::getInt32Ty(DstTy->getContext()),
             cast<FixedVectorType>(DstTy)->getNumElements());
-        Src = Builder.CreateFPToSI(Src, TmpTy);
+        if (CastOpcode == llvm::Instruction::FPToUI) {
+          Src = Builder.CreateFPToUI(Src, TmpTy);
+        } else {
+          Src = Builder.CreateFPToSI(Src, TmpTy);
+        }
 
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;
         llvm::Value *NewDst = Builder.CreateCast(TruncOp, Src, DstTy);

@@ -39,6 +39,20 @@ class Undefined;
 class LazyObject;
 class InputFile;
 
+enum {
+  NEEDS_GOT = 1 << 0,
+  NEEDS_PLT = 1 << 1,
+  HAS_DIRECT_RELOC = 1 << 2,
+  // True if this symbol needs a canonical PLT entry, or (during
+  // postScanRelocations) a copy relocation.
+  NEEDS_COPY = 1 << 3,
+  NEEDS_TLSDESC = 1 << 4,
+  NEEDS_TLSGD = 1 << 5,
+  NEEDS_TLSGD_TO_IE = 1 << 6,
+  NEEDS_GOT_DTPREL = 1 << 7,
+  NEEDS_TLSIE = 1 << 8,
+};
+
 // Some index properties of a symbol are stored separately in this auxiliary
 // struct to decrease sizeof(SymbolUnion) in the majority of cases.
 struct SymbolAux {
@@ -67,6 +81,10 @@ public:
   // The file from which this symbol was created.
   InputFile *file;
 
+  // The default copy constructor is deleted due to atomic flags. Define one for
+  // places where no atomic is needed.
+  Symbol(const Symbol &o) { memcpy(this, &o, sizeof(o)); }
+
 protected:
   const char *nameData;
   // 32-bit size saves space.
@@ -92,10 +110,6 @@ public:
 
   // The partition whose dynamic symbol table contains this symbol's definition.
   uint8_t partition = 1;
-
-  // Symbol visibility. This is the computed minimum visibility of all
-  // observed non-DSO symbols.
-  uint8_t visibility : 2;
 
   // True if this symbol is preemptible at load time.
   uint8_t isPreemptible : 1;
@@ -145,6 +159,13 @@ public:
   uint8_t hasVersionSuffix : 1;
 
   inline void replace(const Symbol &other);
+
+  // Symbol visibility. This is the computed minimum visibility of all
+  // observed non-DSO symbols.
+  uint8_t visibility() const { return stOther & 3; }
+  void setVisibility(uint8_t visibility) {
+    stOther = (stOther & ~3) | visibility;
+  }
 
   bool includeInDynsym() const;
   uint8_t computeBinding() const;
@@ -244,16 +265,12 @@ protected:
   Symbol(Kind k, InputFile *file, StringRef name, uint8_t binding,
          uint8_t stOther, uint8_t type)
       : file(file), nameData(name.data()), nameSize(name.size()), type(type),
-        binding(binding), stOther(stOther), symbolKind(k),
-        visibility(stOther & 3), isPreemptible(false),
+        binding(binding), stOther(stOther), symbolKind(k), isPreemptible(false),
         isUsedInRegularObj(false), used(false), exportDynamic(false),
         inDynamicList(false), referenced(false), referencedAfterWrap(false),
         traced(false), hasVersionSuffix(false), isInIplt(false),
         gotInIgot(false), folded(false), needsTocRestore(false),
-        scriptDefined(false), needsCopy(false), needsGot(false),
-        needsPlt(false), needsTlsDesc(false), needsTlsGd(false),
-        needsTlsGdToIe(false), needsGotDtprel(false), needsTlsIe(false),
-        hasDirectReloc(false) {}
+        scriptDefined(false), dsoProtected(false) {}
 
 public:
   // True if this symbol is in the Iplt sub-section of the Plt and the Igot
@@ -277,20 +294,12 @@ public:
   // of the symbol.
   uint8_t scriptDefined : 1;
 
-  // True if this symbol needs a canonical PLT entry, or (during
-  // postScanRelocations) a copy relocation.
-  uint8_t needsCopy : 1;
+  // True if defined in a DSO as protected visibility.
+  uint8_t dsoProtected : 1;
 
   // Temporary flags used to communicate which symbol entries need PLT and GOT
   // entries during postScanRelocations();
-  uint8_t needsGot : 1;
-  uint8_t needsPlt : 1;
-  uint8_t needsTlsDesc : 1;
-  uint8_t needsTlsGd : 1;
-  uint8_t needsTlsGdToIe : 1;
-  uint8_t needsGotDtprel : 1;
-  uint8_t needsTlsIe : 1;
-  uint8_t hasDirectReloc : 1;
+  std::atomic<uint16_t> flags = 0;
 
   // A symAux index used to access GOT/PLT entry indexes. This is allocated in
   // postScanRelocations().
@@ -303,9 +312,18 @@ public:
   // Version definition index.
   uint16_t versionId;
 
+  void setFlags(uint16_t bits) {
+    flags.fetch_or(bits, std::memory_order_relaxed);
+  }
+  bool hasFlag(uint16_t bit) const {
+    assert(bit && (bit & (bit - 1)) == 0 && "bit must be a power of 2");
+    return flags.load(std::memory_order_relaxed) & bit;
+  }
+
   bool needsDynReloc() const {
-    return needsCopy || needsGot || needsPlt || needsTlsDesc || needsTlsGd ||
-           needsTlsGdToIe || needsGotDtprel || needsTlsIe;
+    return flags.load(std::memory_order_relaxed) &
+           (NEEDS_COPY | NEEDS_GOT | NEEDS_PLT | NEEDS_TLSDESC | NEEDS_TLSGD |
+            NEEDS_TLSGD_TO_IE | NEEDS_GOT_DTPREL | NEEDS_TLSIE);
   }
   void allocateAux() {
     assert(auxIdx == uint32_t(-1));
@@ -398,6 +416,7 @@ public:
       : Symbol(SharedKind, &file, name, binding, stOther, type), value(value),
         size(size), alignment(alignment) {
     exportDynamic = true;
+    dsoProtected = visibility() == llvm::ELF::STV_PROTECTED;
     // GNU ifunc is a mechanism to allow user-supplied functions to
     // resolve PLT slot values at load-time. This is contrary to the
     // regular symbol resolution scheme in which symbols are resolved just
@@ -527,7 +546,7 @@ void Symbol::replace(const Symbol &other) {
   nameData = old.nameData;
   nameSize = old.nameSize;
   partition = old.partition;
-  visibility = old.visibility;
+  setVisibility(old.visibility());
   isPreemptible = old.isPreemptible;
   isUsedInRegularObj = old.isUsedInRegularObj;
   exportDynamic = old.exportDynamic;

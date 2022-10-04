@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/StackSafetyAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -423,9 +424,15 @@ PreservedAnalyses HWAddressSanitizerPass::run(Module &M,
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M)
     Modified |= HWASan.sanitizeFunction(F, FAM);
-  if (Modified)
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
+  if (!Modified)
+    return PreservedAnalyses::all();
+
+  PreservedAnalyses PA = PreservedAnalyses::none();
+  // GlobalsAA is considered stateless and does not get invalidated unless
+  // explicitly invalidated; PreservedAnalyses::none() is not enough. Sanitizers
+  // make changes that require GlobalsAA to be invalidated.
+  PA.abandon<GlobalsAA>();
+  return PA;
 }
 void HWAddressSanitizerPass::printPipeline(
     raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
@@ -708,7 +715,7 @@ Value *HWAddressSanitizer::getShadowNonTls(IRBuilder<> &IRB) {
 }
 
 bool HWAddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
-  // Do not instrument acesses from different address spaces; we cannot deal
+  // Do not instrument accesses from different address spaces; we cannot deal
   // with them.
   Type *PtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
   if (PtrTy->getPointerAddressSpace() != 0)
@@ -1495,7 +1502,7 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F,
     instrumentMemAccess(Operand);
 
   if (ClInstrumentMemIntrinsics && !IntrinToInstrument.empty()) {
-    for (auto Inst : IntrinToInstrument)
+    for (auto *Inst : IntrinToInstrument)
       instrumentMemIntrinsic(cast<MemIntrinsic>(Inst));
   }
 

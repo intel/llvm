@@ -197,21 +197,22 @@ def MatchOp : Op<Transform_Dialect, "structured.match",
       - ops: an optional StrArrayAttr specifying the concrete name of an op.
         Multiple names can be specified. Matched ops must have one of specified
         names.
-      - attribute: an optional Str specifying the name of an attribute that
-        matched ops must have.
+      - attribute: the matched op must have all specified attributes (with their
+        specified values).
+      - filter_result_type: the matched op must return exactly this one type.
       
     Note: Only ops that satisfy all specified constraints are matched.
 
     TODO: Extend with regions to allow a limited form of constraints.
 
     #### Return modes
-    
+
     This op traverses the ops nested under `target` and returns the handles to
     all the operations that match the requirements.
 
     This op fails if the target is not a handle to exactly one operation. 
     Otherwise it succeeds.
-  
+
     This operation does not consume the target handle and produces new handles:
     it is a navigation op.
   }];
@@ -219,14 +220,16 @@ def MatchOp : Op<Transform_Dialect, "structured.match",
   let arguments = (ins PDL_Operation:$target,
                        OptionalAttr<StrArrayAttr>:$ops,
                        OptionalAttr<MatchInterfaceEnum>:$interface,
-                       OptionalAttr<StrAttr>:$attribute);
+                       OptionalAttr<DictionaryAttr>:$op_attrs,
+                       OptionalAttr<TypeAttr>:$filter_result_type);
   // TODO: variadic results when needed.
   let results = (outs PDL_Operation:$results);
 
   let assemblyFormat = [{
-    (`ops` `{` $ops^ `}`)? 
-    (`interface` `{` $interface^ `}`)? 
-    (`attribute` `{` $attribute^ `}`)? 
+    (`ops` `{` $ops^ `}`)?
+    (`interface` `{` $interface^ `}`)?
+    (`attributes` $op_attrs^)?
+    (`filter_result_type` `=` $filter_result_type^)?
     `in` $target attr-dict
   }];
 }
@@ -660,25 +663,31 @@ def TileOp : Op<Transform_Dialect, "structured.tile",
 
 def TileToForeachThreadOp :
     Op<Transform_Dialect, "structured.tile_to_foreach_thread_op",
-      [FunctionalStyleTransformOpTrait,
-       MemoryEffectsOpInterface,
-       TransformEachOpTrait,
+      [AttrSizedOperandSegments,
+       DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
        TransformOpInterface]> {
   let description = [{
-    Tile a TilingInterface op to a tiled `scf.foreach_thread`. Tiling is
-    applied by either specifying `num_threads` or `tile_size`. If `num_threads`
-    is specified, then the tile size for each dimension `i` is calculated
-    dynamically via `ceilDiv(dimSize[i], num_threads[i])`.
-    If non-empty, the `thread_dim_mapping` is added as an attribute to the
-    resulting `scf.foreach_thread`.
-    Zero tile sizes indicate that the dimension is not tiled and can be
+    Tile a TilingInterface op to a tiled `scf.foreach_thread`.
+
+    Tiling is applied by either specifying `num_threads` or `tile_size`. If
+    `num_threads` is specified, then the tile size for each dimension `i` is
+    calculated dynamically via `ceilDiv(dimSize[i], num_threads[i])`.
+    `num_threads` and `tile_size` can be either static index attributes or SSA
+    values of PDL operation handle type (or a mix thereof). Operation handles
+    must be mapped to exactly one op that has exactly one result of index type.
+
+    Static zero tile sizes indicate that the dimension is not tiled and can be
     thought of as tiling by the full size of data.
+
     It is the user's responsibility to ensure that `num_threads/tile_sizes` is
     a valid tiling specification (i.e. that only tiles parallel dimensions, 
     e.g. in the Linalg case).
-    
+
+    If non-empty, the `thread_dim_mapping` is added as an attribute to the
+    resulting `scf.foreach_thread`.
+
     #### Return modes
-    
+
     This operation ignores ops that do not implement the TilingInterface and
     drops them in the return.
 
@@ -696,34 +705,200 @@ def TileToForeachThreadOp :
     ### Example using `num_threads`
 
     ```
-    %0 = pdl_match @match_matmul in %arg1    
+    %0 = pdl_match @match_matmul in %arg1
     %3:2 = transform.structured.tile_to_foreach_thread_op %0 num_threads [10, 20]
     ```
 
     ### Example using `tile_sizes`
-    
+
     ```
-    %0 = pdl_match @match_matmul in %arg1    
-    %3:2 = transform.structured.tile_to_foreach_thread_op %0 tile_sizes [10, 20, 0]
+    %0 = pdl_match @match_matmul in %arg1
+    %sz = pdl_match @match_size_op in %arg1
+    %3:2 = transform.structured.tile_to_foreach_thread_op %0 tile_sizes [0, %sz, 20]
     ```
   }];
 
   let arguments = (ins PDL_Operation:$target,
-                   // TODO: dynamic number of threads.
-                   OptionalAttr<DefaultValuedAttr<I64ArrayAttr, "{}">>:$num_threads,
-                   OptionalAttr<DefaultValuedAttr<I64ArrayAttr, "{}">>:$tile_sizes,
+                   Variadic<PDL_Operation>:$num_threads,
+                   Variadic<PDL_Operation>:$tile_sizes,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$static_num_threads,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$static_tile_sizes,
                    OptionalAttr<I64ArrayAttr>:$thread_dim_mapping);
   let results = (outs PDL_Operation:$foreach_thread_op,
                       PDL_Operation:$tiled_op);
-
   let assemblyFormat = [{
-    $target  (`num_threads` $num_threads^) : (`tile_sizes` $tile_sizes)?
-      (`(` `mapped` `to` `dims` $thread_dim_mapping^ `)`)? attr-dict
+    $target oilist(
+        `num_threads` custom<DynamicIndexList>($num_threads,
+                                               $static_num_threads,
+                                               "ShapedType::kDynamicSize") |
+         `tile_sizes` custom<DynamicIndexList>($tile_sizes,
+                                               $static_tile_sizes,
+                                               "ShapedType::kDynamicSize"))
+    (`(` `mapped` `to` `dims` $thread_dim_mapping^ `)`)? attr-dict
   }];
+  let hasVerifier = 1;
 
   let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure apply(
+        ::mlir::transform::TransformResults &transformResults,
+        ::mlir::transform::TransformState &state);
+
+    ::llvm::SmallVector<::mlir::OpFoldResult> getMixedNumThreads();
+    ::llvm::SmallVector<::mlir::OpFoldResult> getMixedTileSizes();
+  }];
+}
+
+def MapNestedForeachThreadToGpuThreads : 
+  Op<Transform_Dialect, "structured.map_nested_foreach_thread_to_gpu_threads",
+    [FunctionalStyleTransformOpTrait, 
+     MemoryEffectsOpInterface,
+     TransformEachOpTrait,
+     TransformOpInterface]> {
+  let description = [{
+      Target the gpu_launch op and rewrite all scf.foreach_thread
+      to distributed gpu.thread_id attribute.
+
+      The operation searches `scf.foreach_thread` ops nested under `target` 
+      and maps each such op to GPU threads. Mapping is one-to-one and the 
+      induction variables of `scf.foreach_thread` are rewritten to 
+      gpu.thread_id according to the thread_dim_apping attribute. 
+      
+      Sibling `scf.foreach_thread` are supported in which case, the union of 
+      the number of threads is computed and may result in predication.
+
+      Multiple scf.foreach_thread are supported per function in which case, the
+      max of all the threads is computed and taken for the global gpu.thread_id.
+      If necessary, scf.foreach_thread that do not use the whole thread range 
+      result in predicated computations.
+
+      Dynamic, `scf.foreach_thread` trip counts are currently not supported. 
+      Dynamic block dim sizes are currently not supported.
+
+      Only **bufferized** scf.foreach_thread are currently supported.
+      Only scf.foreach_thread distributed to **at most 3 dimensions** are 
+      currently supported.
+    
+      Barriers are inserted after each scf.foreach_thread op for now.
+
+      The operation alters the block size of the given gpu_launch using 
+      blockDim argument.
+
+      Return modes:
+      =============
+      This operation ignores non-gpu_launch ops and drops them in the return.
+
+      If any scf.foreach_thread with tensors is found, the transform definitely 
+      fails.    
+
+      If all the scf.foreach_thread operations contained within the LaunchOp 
+      referred to by the `target` PDLOperation lower to GPU properly, the 
+      transform succeeds. Otherwise the transform definitely fails.
+      
+      The returned handle points to the same LaunchOp operand, consuming it and
+      producing a new SSA value to satisfy chaining and linearity of the IR 
+      properties.
+
+      Example:
+      ========
+
+      ```
+      gpu.launch blocks(%bx, %by, %bz) in (%x = %0, %y = %1, %z = %2)
+                 threads(%tx, %ty, %tz) in (%tx = %3, %ty = %4, %tz = %5) {
+        scf.foreach_thread (%i, %j) in (7, 9) {
+          ... // body 1
+        } {thread_dim_mapping = [1, 0, 2]}
+        scf.foreach_thread (%i) in (12) {
+          ... // body 2
+        }
+        gpu.terminator
+      }
+      ```
+      is translated to:
+
+      ```
+      %bdimX = arith.constant 12 : index
+      %bdimY = arith.constant 9 : index
+      gpu.launch blocks(%bx, %by, %bz) in (%x = %0, %y = %1, %z = %2)
+             threads(%tx, %ty, %tz) in (%tx = %bdimX, %ty = %bdimY, %tz = %5) {
+        if (threadIdx.x < 9 && threadIdx.y < 7) {
+          ... // body 1
+        }
+        gpu.barrier
+        if (threadIdx.y < 1) {
+          ... // body 2
+        }
+        gpu.barrier
+        gpu.terminator
+      }      
+      ```
+    }];
+
+  let arguments = (ins PDL_Operation:$target,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$blockDim,
+                   DefaultValuedAttr<BoolAttr, "true">:$syncAfterDistribute);
+  let results = (outs PDL_Operation:$result);
+
+  let assemblyFormat = "$target attr-dict";
+  let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
-        ::mlir::TilingInterface target, 
+        ::mlir::Operation *target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def MapNestedForeachThreadToGpuBlocks : Op<Transform_Dialect, 
+    "structured.map_nested_foreach_thread_to_gpu_blocks",
+    [FunctionalStyleTransformOpTrait,
+     MemoryEffectsOpInterface,
+     TransformOpInterface,
+     TransformEachOpTrait]> {
+  let description = [{
+    Target the gpu_launch op and rewrite the top level `scf.foreach_thread`
+    to distributed gpu.block_id attribute. If `generate_gpu_launch` attribute 
+    is set, then first generates `gpu_launch` and moves the top level 
+    `scf.foreach_thread` inside.
+
+    The operation searches top level `scf.foreach_thread` ops under 
+    `gpu_launch` and maps each such op to GPU blocks. Mapping is 
+    one-to-one and the induction variables of `scf.foreach_thread` are 
+    rewritten to gpu.block_id according to the `thread_dim_apping` attribute.
+
+    Dynamic, `scf.foreach_thread` trip counts are currently not supported. 
+    Dynamic block dim sizes are currently not supported.
+
+    Only **bufferized** scf.foreach_thread are currently supported.
+    Only scf.foreach_thread distributed to **at most 3 dimensions** are 
+    currently supported.
+
+    The operation alters the block size of the given gpu_launch using 
+    gridDim argument.
+
+    #### Return modes:
+    
+    This operation ignores non-gpu_launch ops and drops them in the return.
+
+    If any scf.foreach_thread with tensors is found, the transform definitely 
+    fails.    
+
+    If all the scf.foreach_thread operations contained within the LaunchOp 
+    referred to by the `target` PDLOperation lower to GPU properly, the 
+    transform succeeds. Otherwise the transform definitely fails.
+
+    The returned handle points to the same LaunchOp operand, consuming it and
+    producing a new SSA value to satisfy chaining and linearity of the IR 
+    properties.
+  }];
+
+  let arguments = (ins PDL_Operation:$target,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$gridDim,
+                   UnitAttr:$generate_gpu_launch);
+  let results = (outs PDL_Operation:$result);
+
+  let assemblyFormat = "$target attr-dict";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation *target, 
         ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
         ::mlir::transform::TransformState &state);
   }];
@@ -748,6 +923,18 @@ def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
     Note that this transformation is invalidating the handles to any payload IR
     operation that is contained inside the vectorization target.
 
+    This transformation supports the following attributes:
+      - `vectorize_padding`: a UnitAttr to activate the vectorization of 
+      `tensor.pad` ops. Different pipelines may prefer to lower such ops to 
+      loops.
+      - `disable_multi_reduction_to_contract_patterns`: a UnitAttr to deactivate
+      the rewrite of `vector.multi_reduction` to `vector.contract`. This is 
+      intended to be used in tests only.
+      - `disable_transfer_permutation_map_lowering_patterns`: a UnitAttr to
+      deactivate the rewrite of `vector.transfer` with permutation maps into
+      explicit `vector.transpose` operations. This is intended to be used in
+      tests only but may be promotoed to a first class attribute in the future.
+
     #### Return modes:
     
     This operation produces `definiteFailure` if vectorization fails for any
@@ -757,11 +944,12 @@ def VectorizeOp : Op<Transform_Dialect, "structured.vectorize",
   }];
 
   let arguments = (ins PDL_Operation:$target,
-                   DefaultValuedAttr<BoolAttr, "false">:$vectorize_padding);
+                   UnitAttr:$vectorize_padding,                   
+                   UnitAttr:$disable_multi_reduction_to_contract_patterns,                   
+                   UnitAttr:$disable_transfer_permutation_map_lowering_patterns);
   let results = (outs PDL_Operation:$transformed);
 
   let assemblyFormat = "$target attr-dict";
-
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::Operation *target, 

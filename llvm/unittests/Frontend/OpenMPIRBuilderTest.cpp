@@ -1771,7 +1771,8 @@ TEST_F(OpenMPIRBuilderTest, ApplySimd) {
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop.
-  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr, /* Simdlen */ nullptr);
+  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr, /* Simdlen */ nullptr,
+                       /* Safelen */ nullptr);
 
   OMPBuilder.finalize();
   EXPECT_FALSE(verifyModule(*M, &errs()));
@@ -1802,8 +1803,9 @@ TEST_F(OpenMPIRBuilderTest, ApplySimdlen) {
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop.
-  OMPBuilder.applySimd(CLI, /*IfCond */ nullptr,
-                       ConstantInt::get(Type::getInt32Ty(Ctx), 3));
+  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr,
+                       ConstantInt::get(Type::getInt32Ty(Ctx), 3),
+                       /* Safelen */ nullptr);
 
   OMPBuilder.finalize();
   EXPECT_FALSE(verifyModule(*M, &errs()));
@@ -1829,6 +1831,74 @@ TEST_F(OpenMPIRBuilderTest, ApplySimdlen) {
   }));
 }
 
+TEST_F(OpenMPIRBuilderTest, ApplySafelen) {
+  OpenMPIRBuilder OMPBuilder(*M);
+
+  CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
+
+  // Simd-ize the loop.
+  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr,
+                       /* Simdlen */ nullptr,
+                       ConstantInt::get(Type::getInt32Ty(Ctx), 3));
+
+  OMPBuilder.finalize();
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  PassBuilder PB;
+  FunctionAnalysisManager FAM;
+  PB.registerFunctionAnalyses(FAM);
+  LoopInfo &LI = FAM.getResult<LoopAnalysis>(*F);
+
+  const std::vector<Loop *> &TopLvl = LI.getTopLevelLoops();
+  EXPECT_EQ(TopLvl.size(), 1u);
+
+  Loop *L = TopLvl.front();
+  EXPECT_FALSE(findStringMetadataForLoop(L, "llvm.loop.parallel_accesses"));
+  EXPECT_TRUE(getBooleanLoopAttribute(L, "llvm.loop.vectorize.enable"));
+  EXPECT_EQ(getIntLoopAttribute(L, "llvm.loop.vectorize.width"), 3);
+
+  // Check for llvm.access.group metadata attached to the printf
+  // function in the loop body.
+  BasicBlock *LoopBody = CLI->getBody();
+  EXPECT_FALSE(any_of(*LoopBody, [](Instruction &I) {
+    return I.getMetadata("llvm.access.group") != nullptr;
+  }));
+}
+
+TEST_F(OpenMPIRBuilderTest, ApplySimdlenSafelen) {
+  OpenMPIRBuilder OMPBuilder(*M);
+
+  CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
+
+  // Simd-ize the loop.
+  OMPBuilder.applySimd(CLI, /* IfCond */ nullptr,
+                       ConstantInt::get(Type::getInt32Ty(Ctx), 2),
+                       ConstantInt::get(Type::getInt32Ty(Ctx), 3));
+
+  OMPBuilder.finalize();
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  PassBuilder PB;
+  FunctionAnalysisManager FAM;
+  PB.registerFunctionAnalyses(FAM);
+  LoopInfo &LI = FAM.getResult<LoopAnalysis>(*F);
+
+  const std::vector<Loop *> &TopLvl = LI.getTopLevelLoops();
+  EXPECT_EQ(TopLvl.size(), 1u);
+
+  Loop *L = TopLvl.front();
+  EXPECT_FALSE(findStringMetadataForLoop(L, "llvm.loop.parallel_accesses"));
+  EXPECT_TRUE(getBooleanLoopAttribute(L, "llvm.loop.vectorize.enable"));
+  EXPECT_EQ(getIntLoopAttribute(L, "llvm.loop.vectorize.width"), 2);
+
+  // Check for llvm.access.group metadata attached to the printf
+  // function in the loop body.
+  BasicBlock *LoopBody = CLI->getBody();
+  EXPECT_FALSE(any_of(*LoopBody, [](Instruction &I) {
+    return I.getMetadata("llvm.access.group") != nullptr;
+  }));
+}
+
 TEST_F(OpenMPIRBuilderTest, ApplySimdLoopIf) {
   OpenMPIRBuilder OMPBuilder(*M);
   IRBuilder<> Builder(BB);
@@ -1846,7 +1916,8 @@ TEST_F(OpenMPIRBuilderTest, ApplySimdLoopIf) {
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop with if condition
-  OMPBuilder.applySimd(CLI, IfCmp, ConstantInt::get(Type::getInt32Ty(Ctx), 3));
+  OMPBuilder.applySimd(CLI, IfCmp, ConstantInt::get(Type::getInt32Ty(Ctx), 3),
+                       /* Safelen */ nullptr);
 
   OMPBuilder.finalize();
   EXPECT_FALSE(verifyModule(*M, &errs()));
@@ -4967,6 +5038,71 @@ TEST_F(OpenMPIRBuilderTest, CreateTaskFinal) {
   }));
 
   EXPECT_FALSE(verifyModule(*M, &errs()));
+}
+
+TEST_F(OpenMPIRBuilderTest, CreateTaskIfCondition) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {};
+  IRBuilderBase::InsertPoint AllocaIP = Builder.saveIP();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  Builder.SetInsertPoint(BodyBB);
+  Value *IfCondition = Builder.CreateICmp(
+      CmpInst::Predicate::ICMP_EQ, F->getArg(0),
+      ConstantInt::get(Type::getInt32Ty(M->getContext()), 0U));
+  OpenMPIRBuilder::LocationDescription Loc(Builder.saveIP(), DL);
+  Builder.restoreIP(OMPBuilder.createTask(Loc, AllocaIP, BodyGenCB,
+                                          /*Tied=*/false, /*Final=*/nullptr,
+                                          IfCondition));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  CallInst *TaskAllocCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_alloc)
+          ->user_back());
+  ASSERT_NE(TaskAllocCall, nullptr);
+
+  // Check the branching is based on the if condition argument.
+  BranchInst *IfConditionBranchInst =
+      dyn_cast<BranchInst>(TaskAllocCall->getParent()->getTerminator());
+  ASSERT_NE(IfConditionBranchInst, nullptr);
+  ASSERT_TRUE(IfConditionBranchInst->isConditional());
+  EXPECT_EQ(IfConditionBranchInst->getCondition(), IfCondition);
+
+  // Check that the `__kmpc_omp_task` executes only in the then branch.
+  CallInst *TaskCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task)
+          ->user_back());
+  ASSERT_NE(TaskCall, nullptr);
+  EXPECT_EQ(TaskCall->getParent(), IfConditionBranchInst->getSuccessor(0));
+
+  // Check that the OpenMP Runtime Functions specific to `if` clause execute
+  // only in the else branch. Also check that the function call is between the
+  // `__kmpc_omp_task_begin_if0` and `__kmpc_omp_task_complete_if0` calls.
+  CallInst *TaskBeginIfCall = dyn_cast<CallInst>(
+      OMPBuilder
+          .getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_begin_if0)
+          ->user_back());
+  CallInst *TaskCompleteCall = dyn_cast<CallInst>(
+      OMPBuilder
+          .getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_complete_if0)
+          ->user_back());
+  ASSERT_NE(TaskBeginIfCall, nullptr);
+  ASSERT_NE(TaskCompleteCall, nullptr);
+  Function *WrapperFunc =
+      dyn_cast<Function>(TaskAllocCall->getArgOperand(5)->stripPointerCasts());
+  ASSERT_NE(WrapperFunc, nullptr);
+  CallInst *WrapperFuncCall = dyn_cast<CallInst>(WrapperFunc->user_back());
+  ASSERT_NE(WrapperFuncCall, nullptr);
+  EXPECT_EQ(TaskBeginIfCall->getParent(),
+            IfConditionBranchInst->getSuccessor(1));
+  EXPECT_EQ(TaskBeginIfCall->getNextNonDebugInstruction(), WrapperFuncCall);
+  EXPECT_EQ(WrapperFuncCall->getNextNonDebugInstruction(), TaskCompleteCall);
 }
 
 TEST_F(OpenMPIRBuilderTest, CreateTaskgroup) {

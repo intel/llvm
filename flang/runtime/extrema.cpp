@@ -250,8 +250,12 @@ inline void TypedPartialMaxOrMinLoc(const char *intrinsic, Descriptor &result,
       maskToUse = nullptr;
     } else {
       // For scalar MASK arguments that are .FALSE., return all zeroes
-      CreatePartialReductionResult(result, x, dim, terminator, intrinsic,
-          TypeCode{TypeCategory::Integer, kind});
+
+      // Element size of the destination descriptor is the size
+      // of {TypeCategory::Integer, kind}.
+      CreatePartialReductionResult(result, x,
+          Descriptor::BytesFor(TypeCategory::Integer, kind), dim, terminator,
+          intrinsic, TypeCode{TypeCategory::Integer, kind});
       std::memset(
           result.OffsetElement(), 0, result.Elements() * result.ElementBytes());
       return;
@@ -360,6 +364,9 @@ static void DoMaxMinNorm2(Descriptor &result, const Descriptor &x, int dim,
   ACCUMULATOR accumulator{x};
   if (dim == 0 || x.rank() == 1) {
     // Total reduction
+
+    // Element size of the destination descriptor is the same
+    // as the element size of the source.
     result.Establish(x.type(), x.ElementBytes(), nullptr, 0, nullptr,
         CFI_attribute_allocatable);
     if (int stat{result.Allocate()}) {
@@ -370,8 +377,11 @@ static void DoMaxMinNorm2(Descriptor &result, const Descriptor &x, int dim,
     accumulator.GetResult(result.OffsetElement<Type>());
   } else {
     // Partial reduction
-    PartialReduction<ACCUMULATOR, CAT, KIND>(
-        result, x, dim, mask, terminator, intrinsic, accumulator);
+
+    // Element size of the destination descriptor is the same
+    // as the element size of the source.
+    PartialReduction<ACCUMULATOR, CAT, KIND>(result, x, x.ElementBytes(), dim,
+        mask, terminator, intrinsic, accumulator);
   }
 }
 
@@ -419,11 +429,14 @@ public:
   void Reinitialize() { extremum_ = nullptr; }
   template <typename A> void GetResult(A *p, int /*zeroBasedDim*/ = -1) const {
     static_assert(std::is_same_v<A, Type>);
+    std::size_t byteSize{array_.ElementBytes()};
     if (extremum_) {
-      std::memcpy(p, extremum_, charLen_);
+      std::memcpy(p, extremum_, byteSize);
     } else {
-      // empty array: result is all zero-valued characters
-      std::memset(p, 0, charLen_);
+      // Empty array; fill with character 0 for MAXVAL.
+      // For MINVAL, fill with 127 if ASCII as required
+      // by the standard, otherwise set all of the bits.
+      std::memset(p, IS_MAXVAL ? 0 : KIND == 1 ? 127 : 255, byteSize);
     }
   }
   bool Accumulate(const Type *x) {
@@ -626,8 +639,8 @@ public:
     8
 #endif
   };
-  using AccumType = CppTypeFor<TypeCategory::Real,
-      std::max(std::min(largestLDKind, KIND), 8)>;
+  using AccumType =
+      CppTypeFor<TypeCategory::Real, std::clamp(KIND, 8, largestLDKind)>;
   explicit Norm2Accumulator(const Descriptor &array) : array_{array} {}
   void Reinitialize() { max_ = sum_ = 0; }
   template <typename A> void GetResult(A *p, int /*zeroBasedDim*/ = -1) const {

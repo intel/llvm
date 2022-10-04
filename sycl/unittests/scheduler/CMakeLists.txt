@@ -22,4 +22,5 @@ add_sycl_unittest(SchedulerTests OBJECT
     LeafLimitDiffContexts.cpp
     InOrderQueueSyncCheck.cpp
     RunOnHostIntelCG.cpp
+    EnqueueWithDependsOnDeps.cpp
 )

@@ -1,4 +1,3 @@
-; RUN: opt -flattencfg -S < %s -enable-new-pm=0 | FileCheck %s
 ; RUN: opt -passes=flattencfg -S < %s | FileCheck %s
 
 
@@ -215,4 +214,21 @@ if.else.y:
 
 exit:
   ret void
+}
+
+; This would crash.
+
+declare i1 @llvm.smax.i1(i1, i1) #0
+
+; CHECK-LABEL: @PR56875
+define void @PR56875(i1 %val_i1_5) {
+entry_1:
+  ret void
+
+bb_2:                                             ; preds = %bb_4
+  br label %bb_4
+
+bb_4:                                             ; preds = %bb_4, %bb_2
+  %val_i1_46 = call i1 @llvm.smax.i1(i1 %val_i1_5, i1 %val_i1_5)
+  br i1 %val_i1_46, label %bb_4, label %bb_2
 }

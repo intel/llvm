@@ -64,6 +64,7 @@ void registerMemRefBoundCheck();
 void registerPatternsTestPass();
 void registerSimpleParametricTilingPass();
 void registerTestAffineLoopParametricTilingPass();
+void registerTestArithmeticEmulateWideIntPass();
 void registerTestAliasAnalysisPass();
 void registerTestBuiltinAttributeInterfaces();
 void registerTestCallGraphPass();
@@ -111,6 +112,7 @@ void registerTestSCFUtilsPass();
 void registerTestSliceAnalysisPass();
 void registerTestTensorTransforms();
 void registerTestTilingInterface();
+void registerTestTopologicalSortAnalysisPass();
 void registerTestTransformDialectInterpreterPass();
 void registerTestVectorLowerings();
 void registerTestNvgpuLowerings();
@@ -120,6 +122,7 @@ void registerTestNvgpuLowerings();
 namespace test {
 void registerTestDialect(DialectRegistry &);
 void registerTestTransformDialectExtension(DialectRegistry &);
+void registerTestDynDialect(DialectRegistry &);
 } // namespace test
 
 #ifdef MLIR_INCLUDE_TESTS
@@ -159,6 +162,7 @@ void registerTestPasses() {
   mlir::test::registerSimpleParametricTilingPass();
   mlir::test::registerTestAffineLoopParametricTilingPass();
   mlir::test::registerTestAliasAnalysisPass();
+  mlir::test::registerTestArithmeticEmulateWideIntPass();
   mlir::test::registerTestBuiltinAttributeInterfaces();
   mlir::test::registerTestCallGraphPass();
   mlir::test::registerTestConstantFold();
@@ -207,6 +211,7 @@ void registerTestPasses() {
   mlir::test::registerTestSliceAnalysisPass();
   mlir::test::registerTestTensorTransforms();
   mlir::test::registerTestTilingInterface();
+  mlir::test::registerTestTopologicalSortAnalysisPass();
   mlir::test::registerTestTransformDialectInterpreterPass();
   mlir::test::registerTestVectorLowerings();
   mlir::test::registerTestNvgpuLowerings();
@@ -223,6 +228,7 @@ int main(int argc, char **argv) {
 #ifdef MLIR_INCLUDE_TESTS
   ::test::registerTestDialect(registry);
   ::test::registerTestTransformDialectExtension(registry);
+  ::test::registerTestDynDialect(registry);
 #endif
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,

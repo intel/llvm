@@ -197,6 +197,10 @@ public:
 
   void emitXCOFFRefDirective(StringRef Name) override;
 
+  void emitXCOFFExceptDirective(const MCSymbol *Symbol, MCSymbol *Trap,
+                                unsigned Lang, unsigned Reason,
+                                unsigned FunctionSize, bool hasDebug) override;
+
   void emitELFSize(MCSymbol *Symbol, const MCExpr *Value) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                         unsigned ByteAlignment) override;
@@ -244,6 +248,9 @@ public:
 
   void emitFill(const MCExpr &NumValues, int64_t Size, int64_t Expr,
                 SMLoc Loc = SMLoc()) override;
+
+  void emitAlignmentDirective(unsigned ByteAlignment, Optional<int64_t> Value,
+                              unsigned ValueSize, unsigned MaxBytesToEmit);
 
   void emitValueToAlignment(unsigned ByteAlignment, int64_t Value = 0,
                             unsigned ValueSize = 1,
@@ -939,6 +946,17 @@ void MCAsmStreamer::emitXCOFFRefDirective(StringRef Name) {
   EmitEOL();
 }
 
+void MCAsmStreamer::emitXCOFFExceptDirective(const MCSymbol *Symbol,
+                                             MCSymbol *Trap, unsigned Lang,
+                                             unsigned Reason,
+                                             unsigned FunctionSize,
+                                             bool hasDebug) {
+  OS << "\t.except\t";
+  Symbol->print(OS, MAI);
+  OS << ", " << Lang << ", " << Reason;
+  EmitEOL();
+}
+
 void MCAsmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
   assert(MAI->hasDotTypeDotSizeDirective());
   OS << "\t.size\t";
@@ -1394,9 +1412,10 @@ void MCAsmStreamer::emitFill(const MCExpr &NumValues, int64_t Size,
   EmitEOL();
 }
 
-void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
-                                         unsigned ValueSize,
-                                         unsigned MaxBytesToEmit) {
+void MCAsmStreamer::emitAlignmentDirective(unsigned ByteAlignment,
+                                           Optional<int64_t> Value,
+                                           unsigned ValueSize,
+                                           unsigned MaxBytesToEmit) {
   if (MAI->useDotAlignForAlignment()) {
     if (!isPowerOf2_32(ByteAlignment))
       report_fatal_error("Only power-of-two alignments are supported "
@@ -1428,9 +1447,13 @@ void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
 
     OS << Log2_32(ByteAlignment);
 
-    if (Value || MaxBytesToEmit) {
-      OS << ", 0x";
-      OS.write_hex(truncateToSize(Value, ValueSize));
+    if (Value.has_value() || MaxBytesToEmit) {
+      if (Value.has_value()) {
+        OS << ", 0x";
+        OS.write_hex(truncateToSize(Value.value(), ValueSize));
+      } else {
+        OS << ", ";
+      }
 
       if (MaxBytesToEmit)
         OS << ", " << MaxBytesToEmit;
@@ -1450,18 +1473,30 @@ void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
   }
 
   OS << ' ' << ByteAlignment;
-  OS << ", " << truncateToSize(Value, ValueSize);
+  if (Value.has_value())
+    OS << ", " << truncateToSize(Value.value(), ValueSize);
+  else if (MaxBytesToEmit)
+    OS << ", ";
   if (MaxBytesToEmit)
     OS << ", " << MaxBytesToEmit;
   EmitEOL();
+}
+
+void MCAsmStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
+                                         unsigned ValueSize,
+                                         unsigned MaxBytesToEmit) {
+  emitAlignmentDirective(ByteAlignment, Value, ValueSize, MaxBytesToEmit);
 }
 
 void MCAsmStreamer::emitCodeAlignment(unsigned ByteAlignment,
                                       const MCSubtargetInfo *STI,
                                       unsigned MaxBytesToEmit) {
   // Emit with a text fill value.
-  emitValueToAlignment(ByteAlignment, MAI->getTextAlignFillValue(),
-                       1, MaxBytesToEmit);
+  if (MAI->getTextAlignFillValue())
+    emitAlignmentDirective(ByteAlignment, MAI->getTextAlignFillValue(), 1,
+                           MaxBytesToEmit);
+  else
+    emitAlignmentDirective(ByteAlignment, None, 1, MaxBytesToEmit);
 }
 
 void MCAsmStreamer::emitValueToOffset(const MCExpr *Offset,

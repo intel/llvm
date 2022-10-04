@@ -571,7 +571,7 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
 
   // These map to conversion instructions for scalar FP types.
   for (const auto &Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FNEARBYINT, ISD::FRINT,
-                         ISD::FTRUNC}) {
+                         ISD::FROUNDEVEN, ISD::FTRUNC}) {
     setOperationAction(Op, MVT::f16, Legal);
     setOperationAction(Op, MVT::f32, Legal);
     setOperationAction(Op, MVT::f64, Legal);
@@ -1891,9 +1891,8 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
   }
 
-  Chain = DAG.getCALLSEQ_END(
-      Chain, DAG.getIntPtrConstant(UniqueCallSite, dl, true),
-      DAG.getIntPtrConstant(UniqueCallSite + 1, dl, true), InFlag, dl);
+  Chain =
+      DAG.getCALLSEQ_END(Chain, UniqueCallSite, UniqueCallSite + 1, InFlag, dl);
   InFlag = Chain.getValue(1);
 
   // Append ProxyReg instructions to the chain to make sure that `callseq_end`

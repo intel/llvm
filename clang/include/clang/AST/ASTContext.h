@@ -1371,6 +1371,9 @@ public:
   CanQualType getDecayedType(CanQualType T) const {
     return CanQualType::CreateUnsafe(getDecayedType((QualType) T));
   }
+  /// Return the uniqued reference to a specified decay from the original
+  /// type to the decayed type.
+  QualType getDecayedType(QualType Orig, QualType Decayed) const;
 
   /// Return the uniqued reference to the atomic type for the specified
   /// type.
@@ -1619,10 +1622,11 @@ public:
                                    QualType Wrapped);
 
   QualType getSubstTemplateTypeParmType(const TemplateTypeParmType *Replaced,
-                                        QualType Replacement) const;
-  QualType getSubstTemplateTypeParmPackType(
-                                          const TemplateTypeParmType *Replaced,
-                                            const TemplateArgument &ArgPack);
+                                        QualType Replacement,
+                                        Optional<unsigned> PackIndex) const;
+  QualType
+  getSubstTemplateTypeParmPackType(const TemplateTypeParmType *Replaced,
+                                   const TemplateArgument &ArgPack);
 
   QualType
   getTemplateTypeParmType(unsigned Depth, unsigned Index,
@@ -1638,7 +1642,7 @@ public:
                                          ArrayRef<TemplateArgument> Args) const;
 
   QualType getTemplateSpecializationType(TemplateName T,
-                                         const TemplateArgumentListInfo &Args,
+                                         ArrayRef<TemplateArgumentLoc> Args,
                                          QualType Canon = QualType()) const;
 
   TypeSourceInfo *
@@ -2542,6 +2546,9 @@ public:
     return getCanonicalType(T1) == getCanonicalType(T2);
   }
 
+  /// Determine whether the given expressions \p X and \p Y are equivalent.
+  bool hasSameExpr(const Expr *X, const Expr *Y) const;
+
   /// Return this type as a completely-unqualified array type,
   /// capturing the qualifiers in \p Quals.
   ///
@@ -2667,6 +2674,11 @@ public:
   /// template.
   bool hasSameTemplateName(const TemplateName &X, const TemplateName &Y) const;
 
+  /// Determine whether two Friend functions are different because constraints
+  /// that refer to an enclosing template, according to [temp.friend] p9.
+  bool FriendsDifferByConstraints(const FunctionDecl *X,
+                                  const FunctionDecl *Y) const;
+
   /// Determine whether the two declarations refer to the same entity.
   bool isSameEntity(const NamedDecl *X, const NamedDecl *Y) const;
 
@@ -2734,6 +2746,10 @@ public:
 
   /// Return number of constant array elements.
   uint64_t getConstantArrayElementCount(const ConstantArrayType *CA) const;
+
+  /// Return number of elements initialized in an ArrayInitLoopExpr.
+  uint64_t
+  getArrayInitLoopExprElementCount(const ArrayInitLoopExpr *AILE) const;
 
   /// Perform adjustment on the parameter type of a function.
   ///
@@ -2807,6 +2823,23 @@ public:
   bool addressSpaceMapManglingFor(LangAS AS) const {
     return AddrSpaceMapMangling || isTargetAddressSpace(AS);
   }
+
+  // Merges two exception specifications, such that the resulting
+  // exception spec is the union of both. For example, if either
+  // of them can throw something, the result can throw it as well.
+  FunctionProtoType::ExceptionSpecInfo
+  mergeExceptionSpecs(FunctionProtoType::ExceptionSpecInfo ESI1,
+                      FunctionProtoType::ExceptionSpecInfo ESI2,
+                      SmallVectorImpl<QualType> &ExceptionTypeStorage,
+                      bool AcceptDependent);
+
+  // For two "same" types, return a type which has
+  // the common sugar between them. If Unqualified is true,
+  // both types need only be the same unqualified type.
+  // The result will drop the qualifiers which do not occur
+  // in both types.
+  QualType getCommonSugaredType(QualType X, QualType Y,
+                                bool Unqualified = false);
 
 private:
   // Helper for integer ordering
@@ -3207,11 +3240,11 @@ OPT_LIST(V)
 
 #undef OPT_LIST
 
-    LLVM_NODISCARD ObjCEncOptions keepingOnly(ObjCEncOptions Mask) const {
+    [[nodiscard]] ObjCEncOptions keepingOnly(ObjCEncOptions Mask) const {
       return Bits & Mask.Bits;
     }
 
-    LLVM_NODISCARD ObjCEncOptions forComponentType() const {
+    [[nodiscard]] ObjCEncOptions forComponentType() const {
       ObjCEncOptions Mask = ObjCEncOptions()
                                 .setIsOutermostType()
                                 .setIsStructField();

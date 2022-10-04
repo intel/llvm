@@ -327,8 +327,8 @@ This field may any of the following values:
 * `kEmitAccessorPrefix_Both`
   - Emit with **and** without prefix.
 
-All new dialects are strongly encouraged to use the `kEmitAccessorPrefix_Prefixed` value, as
-the `Raw` form is deprecated and in the process of being removed.
+All new dialects are strongly encouraged to use the default `kEmitAccessorPrefix_Prefixed`
+value, as the `Raw` form is deprecated and in the process of being removed.
 
 Note: Remove this section when all dialects have been switched to the new accessor form.
 
@@ -370,6 +370,30 @@ An extensible `Dialect` can be casted back to `ExtensibleDialect` using
 if (auto extensibleDialect = llvm::dyn_cast<ExtensibleDialect>(dialect)) {
     ...
 }
+```
+
+### Defining a dynamic dialect
+
+Dynamic dialects are extensible dialects that can be defined at runtime. They
+are only populated with dynamic operations, types, and attributes. They can be
+registered in a `DialectRegistry` with `insertDynamic`.
+
+```c++
+auto populateDialect = [](MLIRContext *ctx, DynamicDialect* dialect) {
+  // Code that will be ran when the dynamic dialect is created and loaded.
+  // For instance, this is where we register the dynamic operations, types, and
+  // attributes of the dialect.
+  ...
+}
+
+registry.insertDynamic("dialectName", populateDialect);
+```
+
+Once a dynamic dialect is registered in the `MLIRContext`, it can be retrieved
+with `getOrLoadDialect`.
+
+```c++
+Dialect *dialect = ctx->getOrLoadDialect("dialectName");
 ```
 
 ### Defining an operation at runtime
@@ -528,7 +552,7 @@ Type MyDialect::parseType(DialectAsmParser &parser) const {
     // Try to parse a dynamic type with 'typeTag' name.
     Type dynType;
     auto parseResult = parseOptionalDynamicType(typeTag, parser, dynType);
-    if (parseResult.hasValue()) {
+    if (parseResult.has_value()) {
         if (succeeded(parseResult.getValue()))
             return dynType;
          return Type();
@@ -628,8 +652,8 @@ Attribute MyDialect::parseAttribute(DialectAsmParser &parser,
     // Try to parse a dynamic attribute with 'attrTag' name.
     Attribute dynAttr;
     auto parseResult = parseOptionalDynamicAttr(attrTag, parser, dynAttr);
-    if (parseResult.hasValue()) {
-        if (succeeded(parseResult.getValue()))
+    if (parseResult.has_value()) {
+        if (succeeded(*parseResult))
             return dynAttr;
          return Attribute();
     }

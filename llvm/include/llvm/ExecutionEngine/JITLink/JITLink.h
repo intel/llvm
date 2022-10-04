@@ -405,7 +405,7 @@ private:
   Symbol(Addressable &Base, orc::ExecutorAddrDiff Offset, StringRef Name,
          orc::ExecutorAddrDiff Size, Linkage L, Scope S, bool IsLive,
          bool IsCallable)
-      : Name(Name), Base(&Base), Offset(Offset), Size(Size) {
+      : Name(Name), Base(&Base), Offset(Offset), WeakRef(0), Size(Size) {
     assert(Offset <= MaxOffset && "Offset out of range");
     setLinkage(L);
     setScope(S);
@@ -413,65 +413,63 @@ private:
     setCallable(IsCallable);
   }
 
-  static Symbol &constructCommon(void *SymStorage, Block &Base, StringRef Name,
-                                 orc::ExecutorAddrDiff Size, Scope S,
-                                 bool IsLive) {
-    assert(SymStorage && "Storage cannot be null");
+  static Symbol &constructCommon(BumpPtrAllocator &Allocator, Block &Base,
+                                 StringRef Name, orc::ExecutorAddrDiff Size,
+                                 Scope S, bool IsLive) {
     assert(!Name.empty() && "Common symbol name cannot be empty");
     assert(Base.isDefined() &&
            "Cannot create common symbol from undefined block");
     assert(static_cast<Block &>(Base).getSize() == Size &&
            "Common symbol size should match underlying block size");
-    auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
+    auto *Sym = Allocator.Allocate<Symbol>();
     new (Sym) Symbol(Base, 0, Name, Size, Linkage::Weak, S, IsLive, false);
     return *Sym;
   }
 
-  static Symbol &constructExternal(void *SymStorage, Addressable &Base,
-                                   StringRef Name, orc::ExecutorAddrDiff Size,
-                                   Linkage L) {
-    assert(SymStorage && "Storage cannot be null");
+  static Symbol &constructExternal(BumpPtrAllocator &Allocator,
+                                   Addressable &Base, StringRef Name,
+                                   orc::ExecutorAddrDiff Size, Linkage L,
+                                   bool WeaklyReferenced) {
     assert(!Base.isDefined() &&
            "Cannot create external symbol from defined block");
     assert(!Name.empty() && "External symbol name cannot be empty");
-    auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
+    auto *Sym = Allocator.Allocate<Symbol>();
     new (Sym) Symbol(Base, 0, Name, Size, L, Scope::Default, false, false);
+    Sym->setWeaklyReferenced(WeaklyReferenced);
     return *Sym;
   }
 
-  static Symbol &constructAbsolute(void *SymStorage, Addressable &Base,
-                                   StringRef Name, orc::ExecutorAddrDiff Size,
-                                   Linkage L, Scope S, bool IsLive) {
-    assert(SymStorage && "Storage cannot be null");
+  static Symbol &constructAbsolute(BumpPtrAllocator &Allocator,
+                                   Addressable &Base, StringRef Name,
+                                   orc::ExecutorAddrDiff Size, Linkage L,
+                                   Scope S, bool IsLive) {
     assert(!Base.isDefined() &&
            "Cannot create absolute symbol from a defined block");
-    auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
+    auto *Sym = Allocator.Allocate<Symbol>();
     new (Sym) Symbol(Base, 0, Name, Size, L, S, IsLive, false);
     return *Sym;
   }
 
-  static Symbol &constructAnonDef(void *SymStorage, Block &Base,
+  static Symbol &constructAnonDef(BumpPtrAllocator &Allocator, Block &Base,
                                   orc::ExecutorAddrDiff Offset,
                                   orc::ExecutorAddrDiff Size, bool IsCallable,
                                   bool IsLive) {
-    assert(SymStorage && "Storage cannot be null");
     assert((Offset + Size) <= Base.getSize() &&
            "Symbol extends past end of block");
-    auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
+    auto *Sym = Allocator.Allocate<Symbol>();
     new (Sym) Symbol(Base, Offset, StringRef(), Size, Linkage::Strong,
                      Scope::Local, IsLive, IsCallable);
     return *Sym;
   }
 
-  static Symbol &constructNamedDef(void *SymStorage, Block &Base,
+  static Symbol &constructNamedDef(BumpPtrAllocator &Allocator, Block &Base,
                                    orc::ExecutorAddrDiff Offset, StringRef Name,
                                    orc::ExecutorAddrDiff Size, Linkage L,
                                    Scope S, bool IsLive, bool IsCallable) {
-    assert(SymStorage && "Storage cannot be null");
     assert((Offset + Size) <= Base.getSize() &&
            "Symbol extends past end of block");
     assert(!Name.empty() && "Name cannot be empty");
-    auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
+    auto *Sym = Allocator.Allocate<Symbol>();
     new (Sym) Symbol(Base, Offset, Name, Size, L, S, IsLive, IsCallable);
     return *Sym;
   }
@@ -619,6 +617,20 @@ public:
     this->S = static_cast<uint8_t>(S);
   }
 
+  /// Returns true if this is a weakly referenced external symbol.
+  /// This method may only be called on external symbols.
+  bool isWeaklyReferenced() const {
+    assert(isExternal() && "isWeaklyReferenced called on non-external");
+    return WeakRef;
+  }
+
+  /// Set the WeaklyReferenced value for this symbol.
+  /// This method may only be called on external symbols.
+  void setWeaklyReferenced(bool WeakRef) {
+    assert(isExternal() && "setWeaklyReferenced called on non-external");
+    this->WeakRef = WeakRef;
+  }
+
 private:
   void makeExternal(Addressable &A) {
     assert(!A.isDefined() && !A.isAbsolute() &&
@@ -649,12 +661,13 @@ private:
   // FIXME: A char* or SymbolStringPtr may pack better.
   StringRef Name;
   Addressable *Base = nullptr;
-  uint64_t Offset : 59;
+  uint64_t Offset : 58;
   uint64_t L : 1;
   uint64_t S : 2;
   uint64_t IsLive : 1;
   uint64_t IsCallable : 1;
-  orc::ExecutorAddrDiff Size = 0;
+  uint64_t WeakRef : 1;
+  size_t Size = 0;
 };
 
 raw_ostream &operator<<(raw_ostream &OS, const Symbol &A);
@@ -778,7 +791,7 @@ class SectionRange {
 public:
   SectionRange() = default;
   SectionRange(const Section &Sec) {
-    if (llvm::empty(Sec.blocks()))
+    if (Sec.blocks().empty())
       return;
     First = Last = *Sec.blocks().begin();
     for (auto *B : Sec.blocks()) {
@@ -1004,10 +1017,10 @@ public:
 
   /// Create a section with the given name, protection flags, and alignment.
   Section &createSection(StringRef Name, MemProt Prot) {
-    assert(llvm::find_if(Sections,
+    assert(llvm::none_of(Sections,
                          [&](std::unique_ptr<Section> &Sec) {
                            return Sec->getName() == Name;
-                         }) == Sections.end() &&
+                         }) &&
            "Duplicate section name");
     std::unique_ptr<Section> Sec(new Section(Name, Prot, Sections.size()));
     Sections.push_back(std::move(Sec));
@@ -1080,20 +1093,21 @@ public:
   /// Add an external symbol.
   /// Some formats (e.g. ELF) allow Symbols to have sizes. For Symbols whose
   /// size is not known, you should substitute '0'.
-  /// For external symbols Linkage determines whether the symbol must be
-  /// present during lookup: Externals with strong linkage must be found or
-  /// an error will be emitted. Externals with weak linkage are permitted to
-  /// be undefined, in which case they are assigned a value of 0.
+  /// The IsWeaklyReferenced argument determines whether the symbol must be
+  /// present during lookup: Externals that are strongly referenced must be
+  /// found or an error will be emitted. Externals that are weakly referenced
+  /// are permitted to be undefined, in which case they are assigned an address
+  /// of 0.
   Symbol &addExternalSymbol(StringRef Name, orc::ExecutorAddrDiff Size,
-                            Linkage L) {
+                            bool IsWeaklyReferenced) {
     assert(llvm::count_if(ExternalSymbols,
                           [&](const Symbol *Sym) {
                             return Sym->getName() == Name;
                           }) == 0 &&
            "Duplicate external symbol");
     auto &Sym = Symbol::constructExternal(
-        Allocator.Allocate<Symbol>(),
-        createAddressable(orc::ExecutorAddr(), false), Name, Size, L);
+        Allocator, createAddressable(orc::ExecutorAddr(), false), Name, Size,
+        Linkage::Strong, IsWeaklyReferenced);
     ExternalSymbols.insert(&Sym);
     return Sym;
   }
@@ -1102,14 +1116,13 @@ public:
   Symbol &addAbsoluteSymbol(StringRef Name, orc::ExecutorAddr Address,
                             orc::ExecutorAddrDiff Size, Linkage L, Scope S,
                             bool IsLive) {
-    assert(llvm::count_if(AbsoluteSymbols,
-                          [&](const Symbol *Sym) {
-                            return Sym->getName() == Name;
-                          }) == 0 &&
-           "Duplicate absolute symbol");
-    auto &Sym = Symbol::constructAbsolute(Allocator.Allocate<Symbol>(),
-                                          createAddressable(Address), Name,
-                                          Size, L, S, IsLive);
+    assert((S == Scope::Local || llvm::count_if(AbsoluteSymbols,
+                                               [&](const Symbol *Sym) {
+                                                 return Sym->getName() == Name;
+                                               }) == 0) &&
+                                    "Duplicate absolute symbol");
+    auto &Sym = Symbol::constructAbsolute(Allocator, createAddressable(Address),
+                                          Name, Size, L, S, IsLive);
     AbsoluteSymbols.insert(&Sym);
     return Sym;
   }
@@ -1124,9 +1137,8 @@ public:
                           }) == 0 &&
            "Duplicate defined symbol");
     auto &Sym = Symbol::constructCommon(
-        Allocator.Allocate<Symbol>(),
-        createBlock(Section, Size, Address, Alignment, 0), Name, Size, S,
-        IsLive);
+        Allocator, createBlock(Section, Size, Address, Alignment, 0), Name,
+        Size, S, IsLive);
     Section.addSymbol(Sym);
     return Sym;
   }
@@ -1135,8 +1147,8 @@ public:
   Symbol &addAnonymousSymbol(Block &Content, orc::ExecutorAddrDiff Offset,
                              orc::ExecutorAddrDiff Size, bool IsCallable,
                              bool IsLive) {
-    auto &Sym = Symbol::constructAnonDef(Allocator.Allocate<Symbol>(), Content,
-                                         Offset, Size, IsCallable, IsLive);
+    auto &Sym = Symbol::constructAnonDef(Allocator, Content, Offset, Size,
+                                         IsCallable, IsLive);
     Content.getSection().addSymbol(Sym);
     return Sym;
   }
@@ -1150,9 +1162,8 @@ public:
                                                   return Sym->getName() == Name;
                                                 }) == 0) &&
            "Duplicate defined symbol");
-    auto &Sym =
-        Symbol::constructNamedDef(Allocator.Allocate<Symbol>(), Content, Offset,
-                                  Name, Size, L, S, IsLive, IsCallable);
+    auto &Sym = Symbol::constructNamedDef(Allocator, Content, Offset, Name,
+                                          Size, L, S, IsLive, IsCallable);
     Content.getSection().addSymbol(Sym);
     return Sym;
   }
@@ -1213,7 +1224,9 @@ public:
              "Sym is not in the absolute symbols set");
       assert(Sym.getOffset() == 0 && "Absolute not at offset 0");
       AbsoluteSymbols.erase(&Sym);
-      Sym.getAddressable().setAbsolute(false);
+      auto &A = Sym.getAddressable();
+      A.setAbsolute(false);
+      A.setAddress(orc::ExecutorAddr());
     } else {
       assert(Sym.isDefined() && "Sym is not a defined symbol");
       Section &Sec = Sym.getBlock().getSection();
@@ -1238,7 +1251,9 @@ public:
              "Sym is not in the absolute symbols set");
       assert(Sym.getOffset() == 0 && "External is not at offset 0");
       ExternalSymbols.erase(&Sym);
-      Sym.getAddressable().setAbsolute(true);
+      auto &A = Sym.getAddressable();
+      A.setAbsolute(true);
+      A.setAddress(Address);
       Sym.setScope(Scope::Local);
     } else {
       assert(Sym.isDefined() && "Sym is not a defined symbol");
@@ -1349,9 +1364,8 @@ public:
     assert(ExternalSymbols.count(&Sym) && "Symbol is not in the externals set");
     ExternalSymbols.erase(&Sym);
     Addressable &Base = *Sym.Base;
-    assert(llvm::find_if(ExternalSymbols,
-                         [&](Symbol *AS) { return AS->Base == &Base; }) ==
-               ExternalSymbols.end() &&
+    assert(llvm::none_of(ExternalSymbols,
+                         [&](Symbol *AS) { return AS->Base == &Base; }) &&
            "Base addressable still in use");
     destroySymbol(Sym);
     destroyAddressable(Base);
@@ -1365,9 +1379,8 @@ public:
            "Symbol is not in the absolute symbols set");
     AbsoluteSymbols.erase(&Sym);
     Addressable &Base = *Sym.Base;
-    assert(llvm::find_if(ExternalSymbols,
-                         [&](Symbol *AS) { return AS->Base == &Base; }) ==
-               ExternalSymbols.end() &&
+    assert(llvm::none_of(ExternalSymbols,
+                         [&](Symbol *AS) { return AS->Base == &Base; }) &&
            "Base addressable still in use");
     destroySymbol(Sym);
     destroyAddressable(Base);

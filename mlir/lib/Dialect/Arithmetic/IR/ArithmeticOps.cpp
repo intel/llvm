@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cassert>
 #include <utility>
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -15,9 +16,9 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "llvm/ADT/SmallString.h"
 
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/SmallString.h"
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -217,6 +218,82 @@ void arith::AddIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AddUICarryOp
+//===----------------------------------------------------------------------===//
+
+Optional<SmallVector<int64_t, 4>> arith::AddUICarryOp::getShapeForUnroll() {
+  if (auto vt = getType(0).dyn_cast<VectorType>())
+    return llvm::to_vector<4>(vt.getShape());
+  return None;
+}
+
+// Returns the carry bit, assuming that `sum` is the result of addition of
+// `operand` and another number.
+static APInt calculateCarry(const APInt &sum, const APInt &operand) {
+  return sum.ult(operand) ? APInt::getAllOnes(1) : APInt::getZero(1);
+}
+
+LogicalResult
+arith::AddUICarryOp::fold(ArrayRef<Attribute> operands,
+                          SmallVectorImpl<OpFoldResult> &results) {
+  auto carryTy = getCarry().getType();
+  // addui_carry(x, 0) -> x, false
+  if (matchPattern(getRhs(), m_Zero())) {
+    auto carryZero = APInt::getZero(1);
+    Builder builder(getContext());
+    auto falseValue = builder.getZeroAttr(carryTy);
+
+    results.push_back(getLhs());
+    results.push_back(falseValue);
+    return success();
+  }
+
+  // addui_carry(constant_a, constant_b) -> constant_sum, constant_carry
+  // Let the `constFoldBinaryOp` utility attempt to fold the sum of both
+  // operands. If that succeeds, calculate the carry boolean based on the sum
+  // and the first (constant) operand, `lhs`. Note that we cannot simply call
+  // `constFoldBinaryOp` again to calculate the carry (bit) because the
+  // constructed attribute is of the same element type as both operands.
+  if (Attribute sumAttr = constFoldBinaryOp<IntegerAttr>(
+          operands, [](APInt a, const APInt &b) { return std::move(a) + b; })) {
+    Attribute carryAttr;
+    if (auto lhs = operands[0].dyn_cast<IntegerAttr>()) {
+      // Both arguments are scalars, calculate the scalar carry value.
+      auto sum = sumAttr.cast<IntegerAttr>();
+      carryAttr = IntegerAttr::get(
+          carryTy, calculateCarry(sum.getValue(), lhs.getValue()));
+    } else if (auto lhs = operands[0].dyn_cast<SplatElementsAttr>()) {
+      // Both arguments are splats, calculate the splat carry value.
+      auto sum = sumAttr.cast<SplatElementsAttr>();
+      APInt carry = calculateCarry(sum.getSplatValue<APInt>(),
+                                   lhs.getSplatValue<APInt>());
+      carryAttr = SplatElementsAttr::get(carryTy, carry);
+    } else if (auto lhs = operands[0].dyn_cast<ElementsAttr>()) {
+      // Othwerwise calculate element-wise carry values.
+      auto sum = sumAttr.cast<ElementsAttr>();
+      const auto numElems = static_cast<size_t>(sum.getNumElements());
+      SmallVector<APInt> carryValues;
+      carryValues.reserve(numElems);
+
+      auto sumIt = sum.value_begin<APInt>();
+      auto lhsIt = lhs.value_begin<APInt>();
+      for (size_t i = 0, e = numElems; i != e; ++i, ++sumIt, ++lhsIt)
+        carryValues.push_back(calculateCarry(*sumIt, *lhsIt));
+
+      carryAttr = DenseElementsAttr::get(carryTy, carryValues);
+    } else {
+      return failure();
+    }
+
+    results.push_back(sumAttr);
+    results.push_back(carryAttr);
+    return success();
+  }
+
+  return failure();
+}
+
+//===----------------------------------------------------------------------===//
 // SubIOp
 //===----------------------------------------------------------------------===//
 
@@ -228,16 +305,24 @@ OpFoldResult arith::SubIOp::fold(ArrayRef<Attribute> operands) {
   if (matchPattern(getRhs(), m_Zero()))
     return getLhs();
 
+  if (auto add = getLhs().getDefiningOp<AddIOp>()) {
+    // subi(addi(a, b), b) -> a
+    if (getRhs() == add.getRhs())
+      return add.getLhs();
+    // subi(addi(a, b), a) -> b
+    if (getRhs() == add.getLhs())
+      return add.getRhs();
+  }
+
   return constFoldBinaryOp<IntegerAttr>(
       operands, [](APInt a, const APInt &b) { return std::move(a) - b; });
 }
 
 void arith::SubIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                 MLIRContext *context) {
-  patterns
-      .add<SubIRHSAddConstant, SubILHSAddConstant, SubIRHSSubConstantRHS,
-           SubIRHSSubConstantLHS, SubILHSSubConstantRHS, SubILHSSubConstantLHS>(
-          context);
+  patterns.add<SubIRHSAddConstant, SubILHSAddConstant, SubIRHSSubConstantRHS,
+               SubIRHSSubConstantLHS, SubILHSSubConstantRHS,
+               SubILHSSubConstantLHS, SubISubILHSRHSLHS>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -498,6 +583,16 @@ OpFoldResult arith::AndIOp::fold(ArrayRef<Attribute> operands) {
   APInt intValue;
   if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isAllOnes())
     return getLhs();
+  /// and(x, not(x)) -> 0
+  if (matchPattern(getRhs(), m_Op<XOrIOp>(matchers::m_Val(getLhs()),
+                                          m_ConstantInt(&intValue))) &&
+      intValue.isAllOnes())
+    return IntegerAttr::get(getType(), 0);
+  /// and(not(x), x) -> 0
+  if (matchPattern(getLhs(), m_Op<XOrIOp>(matchers::m_Val(getRhs()),
+                                          m_ConstantInt(&intValue))) &&
+      intValue.isAllOnes())
+    return IntegerAttr::get(getType(), 0);
 
   return constFoldBinaryOp<IntegerAttr>(
       operands, [](APInt a, const APInt &b) { return std::move(a) & b; });
@@ -532,9 +627,21 @@ OpFoldResult arith::XOrIOp::fold(ArrayRef<Attribute> operands) {
   if (getLhs() == getRhs())
     return Builder(getContext()).getZeroAttr(getType());
   /// xor(xor(x, a), a) -> x
-  if (arith::XOrIOp prev = getLhs().getDefiningOp<arith::XOrIOp>())
+  /// xor(xor(a, x), a) -> x
+  if (arith::XOrIOp prev = getLhs().getDefiningOp<arith::XOrIOp>()) {
     if (prev.getRhs() == getRhs())
       return prev.getLhs();
+    if (prev.getLhs() == getRhs())
+      return prev.getRhs();
+  }
+  /// xor(a, xor(x, a)) -> x
+  /// xor(a, xor(a, x)) -> x
+  if (arith::XOrIOp prev = getRhs().getDefiningOp<arith::XOrIOp>()) {
+    if (prev.getRhs() == getLhs())
+      return prev.getLhs();
+    if (prev.getLhs() == getLhs())
+      return prev.getRhs();
+  }
 
   return constFoldBinaryOp<IntegerAttr>(
       operands, [](APInt a, const APInt &b) { return std::move(a) ^ b; });

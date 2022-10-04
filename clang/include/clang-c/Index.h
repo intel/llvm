@@ -3605,8 +3605,8 @@ enum CXTemplateArgumentKind {
 };
 
 /**
- *Returns the number of template args of a function decl representing a
- * template specialization.
+ * Returns the number of template args of a function, struct, or class decl
+ * representing a template specialization.
  *
  * If the argument cursor cannot be converted into a template function
  * declaration, -1 is returned.
@@ -3625,8 +3625,9 @@ CINDEX_LINKAGE int clang_Cursor_getNumTemplateArguments(CXCursor C);
 /**
  * Retrieve the kind of the I'th template argument of the CXCursor C.
  *
- * If the argument CXCursor does not represent a FunctionDecl, an invalid
- * template argument kind is returned.
+ * If the argument CXCursor does not represent a FunctionDecl, StructDecl, or
+ * ClassTemplatePartialSpecialization, an invalid template argument kind is
+ * returned.
  *
  * For example, for the following declaration and specialization:
  *   template <typename T, int kInt, bool kBool>
@@ -3645,9 +3646,9 @@ clang_Cursor_getTemplateArgumentKind(CXCursor C, unsigned I);
  * Retrieve a CXType representing the type of a TemplateArgument of a
  *  function decl representing a template specialization.
  *
- * If the argument CXCursor does not represent a FunctionDecl whose I'th
- * template argument has a kind of CXTemplateArgKind_Integral, an invalid type
- * is returned.
+ * If the argument CXCursor does not represent a FunctionDecl, StructDecl,
+ * ClassDecl or ClassTemplatePartialSpecialization whose I'th template argument
+ * has a kind of CXTemplateArgKind_Integral, an invalid type is returned.
  *
  * For example, for the following declaration and specialization:
  *   template <typename T, int kInt, bool kBool>
@@ -3667,7 +3668,8 @@ CINDEX_LINKAGE CXType clang_Cursor_getTemplateArgumentType(CXCursor C,
  *  decl representing a template specialization) as a signed long long.
  *
  * It is undefined to call this function on a CXCursor that does not represent a
- * FunctionDecl or whose I'th template argument is not an integral value.
+ * FunctionDecl, StructDecl, ClassDecl or ClassTemplatePartialSpecialization
+ * whose I'th template argument is not an integral value.
  *
  * For example, for the following declaration and specialization:
  *   template <typename T, int kInt, bool kBool>
@@ -3687,7 +3689,8 @@ CINDEX_LINKAGE long long clang_Cursor_getTemplateArgumentValue(CXCursor C,
  *  decl representing a template specialization) as an unsigned long long.
  *
  * It is undefined to call this function on a CXCursor that does not represent a
- * FunctionDecl or whose I'th template argument is not an integral value.
+ * FunctionDecl, StructDecl, ClassDecl or ClassTemplatePartialSpecialization or
+ * whose I'th template argument is not an integral value.
  *
  * For example, for the following declaration and specialization:
  *   template <typename T, int kInt, bool kBool>
@@ -3773,6 +3776,54 @@ CINDEX_LINKAGE CXString clang_getTypedefName(CXType CT);
  * For pointer types, returns the type of the pointee.
  */
 CINDEX_LINKAGE CXType clang_getPointeeType(CXType T);
+
+/**
+ * Retrieve the unqualified variant of the given type, removing as
+ * little sugar as possible.
+ *
+ * For example, given the following series of typedefs:
+ *
+ * \code
+ * typedef int Integer;
+ * typedef const Integer CInteger;
+ * typedef CInteger DifferenceType;
+ * \endcode
+ *
+ * Executing \c clang_getUnqualifiedType() on a \c CXType that
+ * represents \c DifferenceType, will desugar to a type representing
+ * \c Integer, that has no qualifiers.
+ *
+ * And, executing \c clang_getUnqualifiedType() on the type of the
+ * first argument of the following function declaration:
+ *
+ * \code
+ * void foo(const int);
+ * \endcode
+ *
+ * Will return a type representing \c int, removing the \c const
+ * qualifier.
+ *
+ * Sugar over array types is not desugared.
+ *
+ * A type can be checked for qualifiers with \c
+ * clang_isConstQualifiedType(), \c clang_isVolatileQualifiedType()
+ * and \c clang_isRestrictQualifiedType().
+ *
+ * A type that resulted from a call to \c clang_getUnqualifiedType
+ * will return \c false for all of the above calls.
+ */
+CINDEX_LINKAGE CXType clang_getUnqualifiedType(CXType CT);
+
+/**
+ * For reference types (e.g., "const int&"), returns the type that the
+ * reference refers to (e.g "const int").
+ *
+ * Otherwise, returns the type itself.
+ *
+ * A type that has kind \c CXType_LValueReference or
+ * \c CXType_RValueReference is a reference type.
+ */
+CINDEX_LINKAGE CXType clang_getNonReferenceType(CXType CT);
 
 /**
  * Return the cursor for the declaration of the given type.
@@ -4889,6 +4940,11 @@ CINDEX_LINKAGE unsigned clang_CXXField_isMutable(CXCursor C);
  * Determine if a C++ method is declared '= default'.
  */
 CINDEX_LINKAGE unsigned clang_CXXMethod_isDefaulted(CXCursor C);
+
+/**
+ * Determine if a C++ method is declared '= delete'.
+ */
+CINDEX_LINKAGE unsigned clang_CXXMethod_isDeleted(CXCursor C);
 
 /**
  * Determine if a C++ member function or member function template is

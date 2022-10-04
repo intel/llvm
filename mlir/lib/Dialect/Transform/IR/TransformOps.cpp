@@ -387,6 +387,36 @@ DiagnosedSilenceableFailure transform::GetClosestIsolatedParentOp::apply(
 }
 
 //===----------------------------------------------------------------------===//
+// GetProducerOfOperand
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::GetProducerOfOperand::apply(transform::TransformResults &results,
+                                       transform::TransformState &state) {
+  int64_t operandNumber = getOperandNumber();
+  SmallVector<Operation *> producers;
+  for (Operation *target : state.getPayloadOps(getTarget())) {
+    Operation *producer =
+        target->getNumOperands() <= operandNumber
+            ? nullptr
+            : target->getOperand(operandNumber).getDefiningOp();
+    if (!producer) {
+      DiagnosedSilenceableFailure diag =
+          emitSilenceableError()
+          << "could not find a producer for operand number: " << operandNumber
+          << " of " << *target;
+      diag.attachNote(target->getLoc()) << "target op";
+      results.set(getResult().cast<OpResult>(),
+                  SmallVector<mlir::Operation *>{});
+      return diag;
+    }
+    producers.push_back(producer);
+  }
+  results.set(getResult().cast<OpResult>(), producers);
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
 // MergeHandlesOp
 //===----------------------------------------------------------------------===//
 
@@ -489,8 +519,14 @@ transform::SequenceOp::apply(transform::TransformResults &results,
   for (Operation &transform : getBodyBlock()->without_terminator()) {
     DiagnosedSilenceableFailure result =
         state.applyTransform(cast<TransformOpInterface>(transform));
-    if (!result.succeeded())
+    if (result.isDefiniteFailure())
       return result;
+
+    if (result.isSilenceableFailure()) {
+      if (getFailurePropagationMode() == FailurePropagationMode::Propagate)
+        return result;
+      (void)result.silence();
+    }
   }
 
   // Forward the operation mapping for values yielded from the sequence to the

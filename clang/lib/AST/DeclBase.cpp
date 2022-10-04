@@ -750,6 +750,7 @@ unsigned Decl::getIdentifierNamespaceForKind(Kind DeclKind) {
     case ObjCMethod:
     case ObjCProperty:
     case MSProperty:
+    case HLSLBuffer:
       return IDNS_Ordinary;
     case Label:
       return IDNS_Label;
@@ -1032,6 +1033,11 @@ const FunctionType *Decl::getFunctionType(bool BlocksToo) const {
   return Ty->getAs<FunctionType>();
 }
 
+DeclContext *Decl::getNonTransparentDeclContext() {
+  assert(getDeclContext());
+  return getDeclContext()->getNonTransparentContext();
+}
+
 /// Starting at a given context (a Decl or DeclContext), look for a
 /// code context that is not a closure (a lambda, block, etc.).
 template <class T> static Decl *getNonClosureContext(T *D) {
@@ -1188,7 +1194,7 @@ bool DeclContext::isTransparentContext() const {
   if (getDeclKind() == Decl::Enum)
     return !cast<EnumDecl>(this)->isScoped();
 
-  return getDeclKind() == Decl::LinkageSpec || getDeclKind() == Decl::Export;
+  return isa<LinkageSpecDecl, ExportDecl, HLSLBufferDecl>(this);
 }
 
 static bool isLinkageSpecContext(const DeclContext *DC,
@@ -1251,6 +1257,15 @@ DeclContext *DeclContext::getPrimaryContext() {
   case Decl::OMPDeclareMapper:
   case Decl::RequiresExprBody:
     // There is only one DeclContext for these entities.
+    return this;
+
+  case Decl::HLSLBuffer:
+    // Each buffer, even with the same name, is a distinct construct.
+    // Multiple buffers with the same name are allowed for backward
+    // compatibility.
+    // As long as buffers have unique resource bindings the names don't matter.
+    // The names get exposed via the CPU-side reflection API which
+    // supports querying bindings, so we cannot remove them.
     return this;
 
   case Decl::TranslationUnit:
@@ -1766,7 +1781,8 @@ void DeclContext::localUncachedLookup(DeclarationName Name,
   if (!hasExternalVisibleStorage() && !hasExternalLexicalStorage() && Name) {
     lookup_result LookupResults = lookup(Name);
     Results.insert(Results.end(), LookupResults.begin(), LookupResults.end());
-    return;
+    if (!Results.empty())
+      return;
   }
 
   // If we have a lookup table, check there first. Maybe we'll get lucky.

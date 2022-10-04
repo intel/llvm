@@ -42,7 +42,8 @@ LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionARM, InstructionARM)
 // ITSession implementation
 //
 
-static bool GetARMDWARFRegisterInfo(unsigned reg_num, RegisterInfo &reg_info) {
+static llvm::Optional<RegisterInfo> GetARMDWARFRegisterInfo(unsigned reg_num) {
+  RegisterInfo reg_info;
   ::memset(&reg_info, 0, sizeof(RegisterInfo));
   ::memset(reg_info.kinds, LLDB_INVALID_REGNUM, sizeof(reg_info.kinds));
 
@@ -594,9 +595,9 @@ static bool GetARMDWARFRegisterInfo(unsigned reg_num, RegisterInfo &reg_info) {
     break;
 
   default:
-    return false;
+    return {};
   }
-  return true;
+  return reg_info;
 }
 
 // A8.6.50
@@ -782,9 +783,9 @@ bool EmulateInstructionARM::WriteBits32Unknown(int n) {
   return true;
 }
 
-bool EmulateInstructionARM::GetRegisterInfo(lldb::RegisterKind reg_kind,
-                                            uint32_t reg_num,
-                                            RegisterInfo &reg_info) {
+llvm::Optional<RegisterInfo>
+EmulateInstructionARM::GetRegisterInfo(lldb::RegisterKind reg_kind,
+                                       uint32_t reg_num) {
   if (reg_kind == eRegisterKindGeneric) {
     switch (reg_num) {
     case LLDB_REGNUM_GENERIC_PC:
@@ -808,13 +809,13 @@ bool EmulateInstructionARM::GetRegisterInfo(lldb::RegisterKind reg_kind,
       reg_num = dwarf_cpsr;
       break;
     default:
-      return false;
+      return {};
     }
   }
 
   if (reg_kind == eRegisterKindDWARF)
-    return GetARMDWARFRegisterInfo(reg_num, reg_info);
-  return false;
+    return GetARMDWARFRegisterInfo(reg_num);
+  return {};
 }
 
 uint32_t EmulateInstructionARM::GetFramePointerRegisterNumber() const {
@@ -3769,10 +3770,6 @@ bool EmulateInstructionARM::EmulateShiftImm(const uint32_t opcode,
 
     switch (use_encoding) {
     case eEncodingT1:
-      // Due to the above special case handling!
-      if (shift_type == SRType_ROR)
-        return false;
-
       Rd = Bits32(opcode, 2, 0);
       Rm = Bits32(opcode, 5, 3);
       setflags = !InITBlock();
@@ -4139,8 +4136,6 @@ bool EmulateInstructionARM::EmulateLDMDA(const uint32_t opcode,
 
     // if wback && registers<n> == '0' then R[n] = R[n] - 4*BitCount(registers);
     if (wback && BitIsClear(registers, n)) {
-      if (!success)
-        return false;
 
       offset = (addr_byte_size * BitCount(registers)) * -1;
       context.type = EmulateInstruction::eContextAdjustBaseRegister;
@@ -4277,8 +4272,6 @@ bool EmulateInstructionARM::EmulateLDMDB(const uint32_t opcode,
 
     // if wback && registers<n> == '0' then R[n] = R[n] - 4*BitCount(registers);
     if (wback && BitIsClear(registers, n)) {
-      if (!success)
-        return false;
 
       offset = (addr_byte_size * BitCount(registers)) * -1;
       context.type = EmulateInstruction::eContextAdjustBaseRegister;
@@ -4391,8 +4384,6 @@ bool EmulateInstructionARM::EmulateLDMIB(const uint32_t opcode,
 
     // if wback && registers<n> == '0' then R[n] = R[n] + 4*BitCount(registers);
     if (wback && BitIsClear(registers, n)) {
-      if (!success)
-        return false;
 
       offset = addr_byte_size * BitCount(registers);
       context.type = EmulateInstruction::eContextAdjustBaseRegister;
@@ -13198,7 +13189,7 @@ EmulateInstructionARM::GetARMOpcodeForInstruction(const uint32_t opcode,
        &EmulateInstructionARM::EmulateRFE, "rfe{<amode>} <Rn>{!}"}
 
   };
-  static const size_t k_num_arm_opcodes = llvm::array_lengthof(g_arm_opcodes);
+  static const size_t k_num_arm_opcodes = std::size(g_arm_opcodes);
 
   for (size_t i = 0; i < k_num_arm_opcodes; ++i) {
     if ((g_arm_opcodes[i].mask & opcode) == g_arm_opcodes[i].value &&
@@ -13749,7 +13740,7 @@ EmulateInstructionARM::GetThumbOpcodeForInstruction(const uint32_t opcode,
        &EmulateInstructionARM::EmulateUXTH, "uxth<c>.w <Rd>,<Rm>{,<rotation>}"},
   };
 
-  const size_t k_num_thumb_opcodes = llvm::array_lengthof(g_thumb_opcodes);
+  const size_t k_num_thumb_opcodes = std::size(g_thumb_opcodes);
   for (size_t i = 0; i < k_num_thumb_opcodes; ++i) {
     if ((g_thumb_opcodes[i].mask & opcode) == g_thumb_opcodes[i].value &&
         (g_thumb_opcodes[i].variants & arm_isa) != 0)

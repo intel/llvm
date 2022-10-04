@@ -11,11 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Async/Passes.h"
+
 #include "PassDetail.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Async/IR/Async.h"
-#include "mlir/Dialect/Async/Passes.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -27,6 +28,11 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
 
+namespace mlir {
+#define GEN_PASS_DEF_ASYNCTOASYNCRUNTIME
+#include "mlir/Dialect/Async/Passes.h.inc"
+} // namespace mlir
+
 using namespace mlir;
 using namespace mlir::async;
 
@@ -37,7 +43,7 @@ static constexpr const char kAsyncFnPrefix[] = "async_execute_fn";
 namespace {
 
 class AsyncToAsyncRuntimePass
-    : public AsyncToAsyncRuntimeBase<AsyncToAsyncRuntimePass> {
+    : public impl::AsyncToAsyncRuntimeBase<AsyncToAsyncRuntimePass> {
 public:
   AsyncToAsyncRuntimePass() = default;
   void runOnOperation() override;
@@ -244,13 +250,14 @@ outlineExecuteOp(SymbolTable &symbolTable, ExecuteOp execute) {
 
   // Make sure that all constants will be inside the outlined async function to
   // reduce the number of function arguments.
-  cloneConstantsIntoTheRegion(execute.body());
+  cloneConstantsIntoTheRegion(execute.bodyRegion());
 
   // Collect all outlined function inputs.
   SetVector<mlir::Value> functionInputs(execute.dependencies().begin(),
                                         execute.dependencies().end());
-  functionInputs.insert(execute.operands().begin(), execute.operands().end());
-  getUsedValuesDefinedAbove(execute.body(), functionInputs);
+  functionInputs.insert(execute.bodyOperands().begin(),
+                        execute.bodyOperands().end());
+  getUsedValuesDefinedAbove(execute.bodyRegion(), functionInputs);
 
   // Collect types for the outlined function inputs and outputs.
   auto typesRange = llvm::map_range(
@@ -273,7 +280,7 @@ outlineExecuteOp(SymbolTable &symbolTable, ExecuteOp execute) {
   // Prepare for coroutine conversion by creating the body of the function.
   {
     size_t numDependencies = execute.dependencies().size();
-    size_t numOperands = execute.operands().size();
+    size_t numOperands = execute.bodyOperands().size();
 
     // Await on all dependencies before starting to execute the body region.
     for (size_t i = 0; i < numDependencies; ++i)
@@ -290,11 +297,11 @@ outlineExecuteOp(SymbolTable &symbolTable, ExecuteOp execute) {
     // arguments.
     BlockAndValueMapping valueMapping;
     valueMapping.map(functionInputs, func.getArguments());
-    valueMapping.map(execute.body().getArguments(), unwrappedOperands);
+    valueMapping.map(execute.bodyRegion().getArguments(), unwrappedOperands);
 
     // Clone all operations from the execute operation body into the outlined
     // function body.
-    for (Operation &op : execute.body().getOps())
+    for (Operation &op : execute.bodyRegion().getOps())
       builder.clone(op, valueMapping);
   }
 
@@ -681,7 +688,7 @@ static LogicalResult funcsToCoroutines(
     if (isAllowedToBlock(func) ||
         outlinedFunctions.find(func) == outlinedFunctions.end()) {
       for (Operation &op : func.getBody().getOps()) {
-        if (dyn_cast<AwaitOp>(op) || dyn_cast<AwaitAllOp>(op)) {
+        if (isa<AwaitOp, AwaitAllOp>(op)) {
           funcWorklist.push_back(func);
           break;
         }

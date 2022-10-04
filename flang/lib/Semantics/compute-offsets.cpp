@@ -118,9 +118,12 @@ void ComputeOffsetsHelper::Compute(Scope &scope) {
   }
   scope.set_size(offset_);
   scope.SetAlignment(alignment_);
-  // Assign offsets in COMMON blocks.
-  for (auto &pair : scope.commonBlocks()) {
-    DoCommonBlock(*pair.second);
+  // Assign offsets in COMMON blocks, unless this scope is a BLOCK construct,
+  // where COMMON blocks are illegal (C1107 and C1108).
+  if (scope.kind() != Scope::Kind::BlockConstruct) {
+    for (auto &pair : scope.commonBlocks()) {
+      DoCommonBlock(*pair.second);
+    }
   }
   for (auto &[symbol, dep] : dependents_) {
     symbol->set_offset(dep.symbol->offset() + dep.offset);
@@ -170,9 +173,13 @@ void ComputeOffsetsHelper::DoCommonBlock(Symbol &commonBlock) {
       Symbol &base{*dep.symbol};
       if (const auto *baseBlock{FindCommonBlockContaining(base)}) {
         if (baseBlock == &commonBlock) {
-          context_.Say(errorSite,
-              "'%s' is storage associated with '%s' by EQUIVALENCE elsewhere in COMMON block /%s/"_err_en_US,
-              symbol.name(), base.name(), commonBlock.name());
+          if (base.offset() != symbol.offset() - dep.offset ||
+              std::find(details.objects().begin(), details.objects().end(),
+                  base) != details.objects().end()) {
+            context_.Say(errorSite,
+                "'%s' is storage associated with '%s' by EQUIVALENCE elsewhere in COMMON block /%s/"_err_en_US,
+                symbol.name(), base.name(), commonBlock.name());
+          }
         } else { // 8.10.3(1)
           context_.Say(errorSite,
               "'%s' in COMMON block /%s/ must not be storage associated with '%s' in COMMON block /%s/ by EQUIVALENCE"_err_en_US,

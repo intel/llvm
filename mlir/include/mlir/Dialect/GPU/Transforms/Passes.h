@@ -27,6 +27,12 @@ namespace func {
 class FuncOp;
 } // namespace func
 
+#define GEN_PASS_DECL_GPULAUNCHSINKINDEXCOMPUTATIONS
+#define GEN_PASS_DECL_GPUKERNELOUTLINING
+#define GEN_PASS_DECL_GPUASYNCREGION
+#define GEN_PASS_DECL_GPUMAPPARALLELLOOPS
+#include "mlir/Dialect/GPU/Transforms/Passes.h.inc"
+
 /// Pass that moves ops which are likely an index computation into gpu.launch
 /// body.
 std::unique_ptr<Pass> createGpuLauchSinkIndexComputationsPass();
@@ -116,6 +122,12 @@ void registerGpuSerializeToCubinPass();
 /// Register pass to serialize GPU kernel functions to a HSAco binary
 /// annotation.
 void registerGpuSerializeToHsacoPass();
+
+/// Create an instance of the GPU kernel function to CUBIN binary serialization
+/// pass.
+std::unique_ptr<Pass> createGpuSerializeToCubinPass(StringRef triple,
+                                                    StringRef chip,
+                                                    StringRef features);
 
 /// Create an instance of the GPU kernel function to HSAco binary serialization
 /// pass.

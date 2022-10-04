@@ -50,9 +50,6 @@ def Tensor_Dialect : Dialect {
     "arith::ArithmeticDialect",
     "complex::ComplexDialect",
   ];
-
-  // TODO: flip post changing ViewLike interface.
-  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
 }
 
 #endif // TENSOR_BASE

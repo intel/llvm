@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+#include "sycl/detail/defines_elementary.hpp"
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 
 namespace sycl {
@@ -764,7 +765,7 @@ joint_matrix_mad(
 
 // This function rounds the bottom 13 bits up or down, and then zeros out the
 // bottom bits
-float round_to_tf32(float a) {
+inline __SYCL_ALWAYS_INLINE float round_to_tf32(float a) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
   return __nvvm_bitcast_i2f(tmp_int);

@@ -386,7 +386,7 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
     case tok::semi:
       if (HasFlagsSet(Flags, StopAtSemi))
         return false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       // Skip this token.
       ConsumeAnyToken();
@@ -932,7 +932,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
     }
     // This must be 'export template'. Parse it so we can diagnose our lack
     // of support.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::kw_using:
   case tok::kw_namespace:
   case tok::kw_typedef:
@@ -946,6 +946,16 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
       return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
                               EmptyDeclSpecAttrs);
     }
+
+  case tok::kw_cbuffer:
+  case tok::kw_tbuffer:
+    if (getLangOpts().HLSL) {
+      SourceLocation DeclEnd;
+      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
+      return ParseDeclaration(DeclaratorContext::File, DeclEnd, Attrs,
+                              EmptyDeclSpecAttrs);
+    }
+    goto dont_know;
 
   case tok::kw_static:
     // Parse (then ignore) 'static' prior to a template instantiation. This is
@@ -1830,7 +1840,7 @@ Parser::TryAnnotateName(CorrectionCandidateCallback *CCC) {
         AnnotateScopeToken(SS, !WasScopeAnnotation);
       return ANK_TemplateName;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Sema::NC_VarTemplate:
   case Sema::NC_FunctionTemplate:
   case Sema::NC_UndeclaredTemplate: {
@@ -2167,7 +2177,7 @@ bool Parser::isTokenEqualOrEqualTypo() {
     Diag(Tok, diag::err_invalid_token_after_declarator_suggest_equal)
         << Kind
         << FixItHint::CreateReplacement(SourceRange(Tok.getLocation()), "=");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::equal:
     return true;
   }

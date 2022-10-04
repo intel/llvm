@@ -80,6 +80,26 @@ void ExtractInfosFromCodeWithArgs(StringRef Code, size_t NumExpectedInfos,
   ASSERT_EQ(NumExpectedInfos, EmittedInfos.size());
 }
 
+// Constructs a comment definition as the parser would for one comment line.
+/* TODO uncomment this when the missing comment is fixed in emitRecordInfo and
+   the code that calls this is re-enabled.
+CommentInfo MakeOneLineCommentInfo(const std::string &Text) {
+  CommentInfo TopComment;
+  TopComment.Kind = "FullComment";
+  TopComment.Children.emplace_back(std::make_unique<CommentInfo>());
+
+  CommentInfo *Brief = TopComment.Children.back().get();
+  Brief->Kind = "ParagraphComment";
+
+  Brief->Children.emplace_back(std::make_unique<CommentInfo>());
+  Brief->Children.back()->Kind = "TextComment";
+  Brief->Children.back()->Name = "ParagraphComment";
+  Brief->Children.back()->Text = Text;
+
+  return TopComment;
+}
+*/
+
 // Test serialization of namespace declarations.
 TEST(SerializeTest, emitNamespaceInfo) {
   EmittedInfoList Infos;
@@ -124,6 +144,9 @@ TEST(SerializeTest, emitRecordInfo) {
   ExtractInfosFromCode(R"raw(class E {
 public:
   E() {}
+
+  // Some docs.
+  int value;
 protected:
   void ProtectedMethod();
 };
@@ -142,6 +165,9 @@ typedef struct {} G;)raw",
                                    InfoType::IT_namespace);
   ExpectedE.TagType = TagTypeKind::TTK_Class;
   ExpectedE.DefLoc = Location(0, llvm::SmallString<16>{"test.cpp"});
+  ExpectedE.Members.emplace_back("int", "value", AccessSpecifier::AS_public);
+  // TODO the data member should have the docstring on it:
+  //ExpectedE.Members.back().Description.push_back(MakeOneLineCommentInfo(" Some docs"));
   CheckRecordInfo(&ExpectedE, E);
 
   RecordInfo *RecordWithEConstructor = InfoAsRecord(Infos[2].get());
@@ -240,8 +266,8 @@ TEST(SerializeTest, emitEnumInfo) {
   EnumInfo E;
   E.Name = "E";
   E.DefLoc = Location(0, llvm::SmallString<16>{"test.cpp"});
-  E.Members.emplace_back("X");
-  E.Members.emplace_back("Y");
+  E.Members.emplace_back("X", "0");
+  E.Members.emplace_back("Y", "1");
   ExpectedNamespaceWithEnum.ChildEnums.emplace_back(std::move(E));
   CheckNamespaceInfo(&ExpectedNamespaceWithEnum, NamespaceWithEnum);
 
@@ -251,8 +277,8 @@ TEST(SerializeTest, emitEnumInfo) {
   G.Name = "G";
   G.Scoped = true;
   G.DefLoc = Location(0, llvm::SmallString<16>{"test.cpp"});
-  G.Members.emplace_back("A");
-  G.Members.emplace_back("B");
+  G.Members.emplace_back("A", "0");
+  G.Members.emplace_back("B", "1");
   ExpectedNamespaceWithScopedEnum.ChildEnums.emplace_back(std::move(G));
   CheckNamespaceInfo(&ExpectedNamespaceWithScopedEnum, NamespaceWithScopedEnum);
 }
@@ -485,7 +511,7 @@ TEST(SerializeTest, emitModulePublicLFunctions) {
   std::vector<std::string> Args;
   Args.push_back("-fmodules-ts");
   ExtractInfosFromCodeWithArgs(R"raw(export module M;
-int moduleFunction(int x);
+int moduleFunction(int x, double d = 3.2 - 1.0);
 static int staticModuleFunction(int x);
 export double exportedModuleFunction(double y);)raw",
                                2, /*Public=*/true, Infos, Args);
@@ -497,6 +523,8 @@ export double exportedModuleFunction(double y);)raw",
   F.ReturnType = TypeInfo(EmptySID, "int", InfoType::IT_default);
   F.Loc.emplace_back(0, llvm::SmallString<16>{"test.cpp"});
   F.Params.emplace_back("int", "x");
+  F.Params.emplace_back("double", "d");
+  F.Params.back().DefaultValue = "3.2 - 1.0";
   F.Access = AccessSpecifier::AS_none;
   ExpectedBWithFunction.ChildFunctions.emplace_back(std::move(F));
   CheckNamespaceInfo(&ExpectedBWithFunction, BWithFunction);

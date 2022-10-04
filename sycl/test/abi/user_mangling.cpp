@@ -16,6 +16,9 @@ SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::ac
 // CHK-DEVICE: define dso_local spir_func void @_Z3accN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::local>) {} 
 
+// CHK_DEVICE: define dso_local void @_Z3accN4sycl3_V114local_accessorIiLi1EEE({{.*}})
+SYCL_EXTERNAL void acc(sycl::local_accessor<int, 1>) {}
+
 // CHK-DEVICE: define dso_local spir_func void @_Z3accN4sycl3_V18accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 SYCL_EXTERNAL void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::image>) {} 
 
@@ -45,6 +48,9 @@ void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::
 
 // CHK-HOST: define dso_local void @_Z3accN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::local>) {} 
+
+// CHK-HOST: define dso_local void @_Z3accN4sycl3_V114local_accessorIiLi1EEE({{.*}})
+void acc(sycl::local_accessor<int, 1>) {}
 
 // CHK-HOST: define dso_local void @_Z3accN4sycl3_V18accessorINS0_3vecIiLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2019ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 void acc(sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read, sycl::access::target::host_image>) {} 
@@ -90,9 +96,6 @@ void sampler(sycl::sampler) {}
 
 // CHK-HOST: define dso_local void @_Z5queueN4sycl3_V15queueE({{.*}})
 void queue(sycl::queue) {}
-
-// CHK-HOST: define dso_local void @_Z7programN4sycl3_V17programE({{.*}})
-void program(sycl::program) {}
 
 // CHK-HOST: define dso_local void @_Z6kernelN4sycl3_V16kernelE({{.*}})
 void kernel(sycl::kernel) {}

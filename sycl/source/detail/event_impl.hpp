@@ -212,6 +212,28 @@ public:
   }
   bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
 
+  /// Returns worker queue for command.
+  ///
+  /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
+  /// pointer
+  QueueImplPtr getWorkerQueue() { return MWorkerQueue.lock(); };
+
+  /// Sets worker queue for command.
+  ///
+  /// @return
+  void setWorkerQueue(const QueueImplPtr &WorkerQueue) {
+    MWorkerQueue = WorkerQueue;
+  };
+
+  /// Checks if an event is in a fully intialized state. Default-constructed
+  /// events will return true only after having initialized its native event,
+  /// while other events will assume that they are fully initialized at
+  /// construction, relying on external sources to supply member data.
+  ///
+  /// \return true if the event is considered to be in a fully initialized
+  /// state.
+  bool isInitialized() const noexcept { return MIsInitialized; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -233,6 +255,8 @@ private:
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
+
+  std::weak_ptr<queue_impl> MWorkerQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;

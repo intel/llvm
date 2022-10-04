@@ -62,23 +62,12 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 }
 
 //----------------------------------------------------------------------------
-// Implementation of level_zero::make<program>
-__SYCL_EXPORT program make_program(const context &Context,
-                                   pi_native_handle NativeHandle) {
-  // Construct the SYCL program from native program.
-  // TODO: move here the code that creates PI program, and remove the
-  // native interop constructor.
-  return detail::createSyclObjFromImpl<program>(
-      std::make_shared<program_impl>(getSyclObjImpl(Context), NativeHandle));
-}
-
-//----------------------------------------------------------------------------
 // Implementation of level_zero::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, KeepOwnership,
+  return detail::make_queue(NativeHandle, Context, nullptr, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
 }
@@ -87,7 +76,7 @@ __SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, Device, KeepOwnership,
+  return detail::make_queue(NativeHandle, Context, &Device, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
 }

@@ -452,50 +452,6 @@ The behavior of the SYCL buffer destructor depends on the Ownership flag. As wit
 * If the ownership is keep (i.e. the application retains ownership of the Level Zero memory allocation), then the SYCL buffer destructor blocks until all work in queues on the buffer have completed. The buffer's contents is not copied back to the Level Zero memory allocation.
 * If the ownership is transfer (i.e. the SYCL runtime has ownership of the Level Zero memory allocation), then the SYCL buffer destructor does not need to block even if work on the buffer has not completed. The SYCL runtime frees the Level Zero memory allocation asynchronously when it is no longer in use in queues.
 
-## 5 Level-Zero additional functionality
-
-### 5.1 Device Information Descriptors
-The Level Zero backend provides the following device information descriptors
-that an application can use to query information about a Level Zero device.
-Applications use these queries via the `device::get_backend_info<>()` member
-function as shown in the example below (which illustrates the `free_memory`
-query):
-
-``` C++
-sycl::queue Queue;
-auto Device = Queue.get_device();
-
-size_t freeMemory =
-  Device.get_backend_info<sycl::ext::oneapi::level_zero::info::device::free_memory>();
-```
-
-New descriptors added as part of this specification are described in the table below and in the subsequent synopsis.
-
-| Descriptor | Description |
-| ---------- | ----------- |
-| `sycl::ext::oneapi::level_zero::info::device::free_memory` | Returns the number of bytes of free memory for the device. |
-
-
-``` C++
-namespace sycl{
-namespace ext {
-namespace oneapi {
-namespace level_zero {
-namespace info {
-namespace device {
-
-struct free_memory {
-    using return_type = size_t;
-};
-
-} // namespace device;
-} // namespace info
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-```
-
 ## Revision History
 |Rev|Date|Author|Changes|
 |-------------|:------------|:------------|:------------|
@@ -508,3 +464,4 @@ struct free_memory {
 |7|2021-09-13|Sergey Maslov|Updated according to SYCL 2020 standard
 |8|2022-01-06|Artur Gainullin|Introduced make_buffer() API
 |9|2022-05-12|Steffen Larsen|Added device member to queue input type
+|10|2022-08-18|Sergey Maslov|Moved free_memory device info query to be sycl_ext_intel_device_info extension

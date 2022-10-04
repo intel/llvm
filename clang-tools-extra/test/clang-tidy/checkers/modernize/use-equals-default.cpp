@@ -33,6 +33,26 @@ public:
   ~NE() { f(); }
 };
 
+// Skip unions.
+union NU {
+  NU() {}
+  // CHECK-FIXES: NU() {}
+  ~NU() {}
+  // CHECK-FIXES: ~NU() {}
+  NE Field;
+};
+
+// Skip structs/classes containing anonymous unions.
+struct SU {
+  SU() {}
+  // CHECK-FIXES: SU() {}
+  ~SU() {}
+  // CHECK-FIXES: ~SU() {}
+  union {
+    NE Field;
+  };
+};
+
 // Initializer or arguments.
 class IA {
 public:

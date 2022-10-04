@@ -213,7 +213,7 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
     // Ignore launch ops with missing attributes here. The errors will be
     // reported by the verifiers of those ops.
     if (!launchOp->getAttrOfType<SymbolRefAttr>(
-            LaunchFuncOp::getKernelAttrName()))
+            LaunchFuncOp::getKernelAttrName(launchOp->getName())))
       return success();
 
     // Check that `launch_func` refers to a well-formed GPU kernel module.
@@ -374,15 +374,15 @@ void gpu::addAsyncDependency(Operation *op, Value token) {
     return;
   auto attrName =
       OpTrait::AttrSizedOperandSegments<void>::getOperandSegmentSizeAttr();
-  auto sizeAttr = op->template getAttrOfType<DenseIntElementsAttr>(attrName);
+  auto sizeAttr = op->template getAttrOfType<DenseI32ArrayAttr>(attrName);
 
   // Async dependencies is the only variadic operand.
   if (!sizeAttr)
     return;
 
-  SmallVector<int32_t, 8> sizes(sizeAttr.getValues<int32_t>());
+  SmallVector<int32_t, 8> sizes(sizeAttr.asArrayRef());
   ++sizes.front();
-  op->setAttr(attrName, Builder(op->getContext()).getI32VectorAttr(sizes));
+  op->setAttr(attrName, Builder(op->getContext()).getDenseI32ArrayAttr(sizes));
 }
 
 //===----------------------------------------------------------------------===//
@@ -416,7 +416,7 @@ void LaunchOp::build(OpBuilder &builder, OperationState &result,
   segmentSizes.front() = asyncDependencies.size();
   segmentSizes.back() = dynamicSharedMemorySize ? 1 : 0;
   result.addAttribute(getOperandSegmentSizeAttr(),
-                      builder.getI32VectorAttr(segmentSizes));
+                      builder.getDenseI32ArrayAttr(segmentSizes));
 }
 
 KernelDim3 LaunchOp::getBlockIds() {
@@ -636,7 +636,7 @@ ParseResult LaunchOp::parse(OpAsmParser &parser, OperationState &result) {
   segmentSizes.front() = asyncDependencies.size();
   segmentSizes.back() = hasDynamicSharedMemorySize ? 1 : 0;
   result.addAttribute(LaunchOp::getOperandSegmentSizeAttr(),
-                      parser.getBuilder().getI32VectorAttr(segmentSizes));
+                      parser.getBuilder().getDenseI32ArrayAttr(segmentSizes));
   return success();
 }
 
@@ -703,13 +703,13 @@ void LaunchFuncOp::build(OpBuilder &builder, OperationState &result,
   auto kernelSymbol =
       SymbolRefAttr::get(kernelModule.getNameAttr(),
                          {SymbolRefAttr::get(kernelFunc.getNameAttr())});
-  result.addAttribute(getKernelAttrName(), kernelSymbol);
+  result.addAttribute(getKernelAttrName(result.name), kernelSymbol);
   SmallVector<int32_t, 9> segmentSizes(9, 1);
   segmentSizes.front() = asyncDependencies.size();
   segmentSizes[segmentSizes.size() - 2] = dynamicSharedMemorySize ? 1 : 0;
   segmentSizes.back() = static_cast<int32_t>(kernelOperands.size());
   result.addAttribute(getOperandSegmentSizeAttr(),
-                      builder.getI32VectorAttr(segmentSizes));
+                      builder.getDenseI32ArrayAttr(segmentSizes));
 }
 
 StringAttr LaunchFuncOp::getKernelModuleName() {
@@ -718,9 +718,11 @@ StringAttr LaunchFuncOp::getKernelModuleName() {
 
 StringAttr LaunchFuncOp::getKernelName() { return kernel().getLeafReference(); }
 
-unsigned LaunchFuncOp::getNumKernelOperands() { return operands().size(); }
+unsigned LaunchFuncOp::getNumKernelOperands() {
+  return kernelOperands().size();
+}
 
-Value LaunchFuncOp::getKernelOperand(unsigned i) { return operands()[i]; }
+Value LaunchFuncOp::getKernelOperand(unsigned i) { return kernelOperands()[i]; }
 
 KernelDim3 LaunchFuncOp::getGridSizeOperandValues() {
   auto operands = getOperands().drop_front(asyncDependencies().size());
@@ -742,11 +744,6 @@ LogicalResult LaunchFuncOp::verify() {
     return emitOpError("expected the closest surrounding module to have the '" +
                        GPUDialect::getContainerModuleAttrName() +
                        "' attribute");
-
-  auto kernelAttr = (*this)->getAttrOfType<SymbolRefAttr>(getKernelAttrName());
-  if (!kernelAttr)
-    return emitOpError("symbol reference attribute '" + getKernelAttrName() +
-                       "' must be specified");
 
   return success();
 }
@@ -997,6 +994,8 @@ static LogicalResult verifyAttributions(Operation *op,
 
 /// Verifies the body of the function.
 LogicalResult GPUFuncOp::verifyBody() {
+  if (empty())
+    return emitOpError() << "expected body with at least one block";
   unsigned numFuncArguments = getNumArguments();
   unsigned numWorkgroupAttributions = getNumWorkgroupAttributions();
   unsigned numBlockArguments = front().getNumArguments();
@@ -1040,9 +1039,7 @@ LogicalResult gpu::ReturnOp::verify() {
 
   for (const auto &pair : llvm::enumerate(
            llvm::zip(function.getFunctionType().getResults(), operands()))) {
-    Type type;
-    Value operand;
-    std::tie(type, operand) = pair.value();
+    auto [type, operand] = pair.value();
     if (type != operand.getType())
       return emitOpError() << "unexpected type `" << operand.getType()
                            << "' for operand #" << pair.index();

@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_variable_length_array
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -22,7 +22,7 @@ newFuncRoot:
   br label %fallthru
 
 ; CHECK-LABEL: bb269
-; CHECK-LLVM: %1 = getelementptr inbounds i32, i32* %"ascastB$val41", i64 %0
+; CHECK-LLVM: %1 = getelementptr inbounds i32, ptr %"ascastB$val41", i64 %0
 bb269:                                            ; preds = %bb269.preheader, %bb269
   %"var$102_fetch.202" = load i64, i64* %"var$102", align 1
   %0 = sub nsw i64 %"var$102_fetch.202", 1
@@ -50,7 +50,7 @@ loop_test315:                                     ; preds = ,loop_body316, %bb27
   br i1 %rel.42, label %loop_body316, label %loop_exit317
 
 ; CHECK-LABEL: loop_body316
-; CHECK-LLVM: %3 = getelementptr inbounds i32, i32* %"ascastB$val41", i64 %2
+; CHECK-LLVM: %3 = getelementptr inbounds i32, ptr %"ascastB$val41", i64 %2
 loop_body316:                                     ; preds = %loop_test315
   %"$loop_ctr_fetch.206" = load i64, i64* %"$loop_ctr38", align 1
   %2 = sub nsw i64 %"$loop_ctr_fetch.206", 1

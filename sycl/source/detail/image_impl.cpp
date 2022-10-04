@@ -311,9 +311,9 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
          "The check an image format failed.");
 
   return MemoryManager::allocateMemImage(
-      std::move(Context), this, HostPtr, HostPtrReadOnly, BaseT::getSize(),
-      Desc, Format, BaseT::MInteropEvent, BaseT::MInteropContext, MProps,
-      OutEventToWait);
+      std::move(Context), this, HostPtr, HostPtrReadOnly,
+      BaseT::getSizeInBytes(), Desc, Format, BaseT::MInteropEvent,
+      BaseT::MInteropContext, MProps, OutEventToWait);
 }
 
 bool image_impl::checkImageDesc(const RT::PiMemImageDesc &Desc,

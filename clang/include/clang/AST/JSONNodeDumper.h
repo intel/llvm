@@ -220,6 +220,7 @@ public:
   void VisitUnaryTransformType(const UnaryTransformType *UTT);
   void VisitTagType(const TagType *TT);
   void VisitTemplateTypeParmType(const TemplateTypeParmType *TTPT);
+  void VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *STTPT);
   void VisitAutoType(const AutoType *AT);
   void VisitTemplateSpecializationType(const TemplateSpecializationType *TST);
   void VisitInjectedClassNameType(const InjectedClassNameType *ICNT);
@@ -245,6 +246,7 @@ public:
   void VisitEnumConstantDecl(const EnumConstantDecl *ECD);
   void VisitRecordDecl(const RecordDecl *RD);
   void VisitCXXRecordDecl(const CXXRecordDecl *RD);
+  void VisitHLSLBufferDecl(const HLSLBufferDecl *D);
   void VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D);
   void VisitNonTypeTemplateParmDecl(const NonTypeTemplateParmDecl *D);
   void VisitTemplateTemplateParmDecl(const TemplateTemplateParmDecl *D);
@@ -381,7 +383,7 @@ class JSONDumper : public ASTNodeTraverser<JSONDumper, JSONNodeDumper> {
       case TSK_ExplicitInstantiationDefinition:
         if (!DumpExplicitInst)
           break;
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case TSK_Undeclared:
       case TSK_ImplicitInstantiation:
         if (DumpRefOnly)

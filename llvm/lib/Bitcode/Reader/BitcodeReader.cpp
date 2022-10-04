@@ -1385,10 +1385,15 @@ static bool isConstExprSupported(uint8_t Opcode) {
   if (Opcode >= BitcodeConstant::FirstSpecialOpcode)
     return true;
 
+  // If -expand-constant-exprs is set, we want to consider all expressions
+  // as unsupported.
+  if (ExpandConstantExprs)
+    return false;
+
   if (Instruction::isBinaryOp(Opcode))
     return ConstantExpr::isSupportedBinOp(Opcode);
 
-  return !ExpandConstantExprs;
+  return Opcode != Instruction::FNeg;
 }
 
 Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
@@ -1449,8 +1454,6 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
         C = UpgradeBitCastExpr(BC->Opcode, ConstOps[0], BC->getType());
         if (!C)
           C = ConstantExpr::getCast(BC->Opcode, ConstOps[0], BC->getType());
-      } else if (Instruction::isUnaryOp(BC->Opcode)) {
-        C = ConstantExpr::get(BC->Opcode, ConstOps[0], BC->Flags);
       } else if (Instruction::isBinaryOp(BC->Opcode)) {
         C = ConstantExpr::get(BC->Opcode, ConstOps[0], ConstOps[1], BC->Flags);
       } else {
@@ -1577,8 +1580,6 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
         I->setIsExact();
     } else {
       switch (BC->Opcode) {
-      case BitcodeConstant::ConstantStructOpcode:
-      case BitcodeConstant::ConstantArrayOpcode:
       case BitcodeConstant::ConstantVectorOpcode: {
         Type *IdxTy = Type::getInt32Ty(BC->getContext());
         Value *V = PoisonValue::get(BC->getType());
@@ -1587,6 +1588,15 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
           V = InsertElementInst::Create(V, Pair.value(), Idx, "constexpr.ins",
                                         InsertBB);
         }
+        I = cast<Instruction>(V);
+        break;
+      }
+      case BitcodeConstant::ConstantStructOpcode:
+      case BitcodeConstant::ConstantArrayOpcode: {
+        Value *V = PoisonValue::get(BC->getType());
+        for (auto Pair : enumerate(Ops))
+          V = InsertValueInst::Create(V, Pair.value(), Pair.index(),
+                                      "constexpr.ins", InsertBB);
         I = cast<Instruction>(V);
         break;
       }
@@ -1919,6 +1929,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::NoCfCheck;
   case bitc::ATTR_KIND_NO_PROFILE:
     return Attribute::NoProfile;
+  case bitc::ATTR_KIND_SKIP_PROFILE:
+    return Attribute::SkipProfile;
   case bitc::ATTR_KIND_NO_UNWIND:
     return Attribute::NoUnwind;
   case bitc::ATTR_KIND_NO_SANITIZE_BOUNDS:
@@ -2778,7 +2790,7 @@ Error BitcodeReader::resolveGlobalAndIndirectSymbolInits() {
       } else if (auto *GI = dyn_cast<GlobalIFunc>(GV)) {
         Type *ResolverFTy =
             GlobalIFunc::getResolverFunctionType(GI->getValueType());
-        // Transparently fix up the type for compatiblity with older bitcode
+        // Transparently fix up the type for compatibility with older bitcode
         GI->setResolver(
             ConstantExpr::getBitCast(C, ResolverFTy->getPointerTo()));
       } else {
@@ -3443,7 +3455,7 @@ Error BitcodeReader::parseUseLists() {
       break;
     case bitc::USELIST_CODE_BB:
       IsBB = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case bitc::USELIST_CODE_DEFAULT: {
       unsigned RecordLength = Record.size();
       if (RecordLength < 3)

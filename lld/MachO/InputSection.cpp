@@ -29,8 +29,8 @@ using namespace lld::macho;
 // Verify ConcatInputSection's size on 64-bit builds. The size of std::vector
 // can differ based on STL debug levels (e.g. iterator debugging on MSVC's STL),
 // so account for that.
-static_assert(sizeof(void *) != 8 || sizeof(ConcatInputSection) ==
-                                         sizeof(std::vector<Reloc>) + 104,
+static_assert(sizeof(void *) != 8 ||
+                  sizeof(ConcatInputSection) == sizeof(std::vector<Reloc>) + 88,
               "Try to minimize ConcatInputSection's size, we create many "
               "instances of it");
 
@@ -177,10 +177,6 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
 
   memcpy(buf, data.data(), data.size());
 
-  std::vector<uint64_t> relocTargets;
-  if (!optimizationHints.empty())
-    relocTargets.reserve(relocs.size());
-
   for (size_t i = 0; i < relocs.size(); i++) {
     const Reloc &r = relocs[i];
     uint8_t *loc = buf + r.offset;
@@ -222,13 +218,7 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
       referentVA = referentIsec->getVA(r.addend);
     }
     target->relocateOne(loc, r, referentVA, getVA() + r.offset);
-
-    if (!optimizationHints.empty())
-      relocTargets.push_back(referentVA);
   }
-
-  if (!optimizationHints.empty())
-    target->applyOptimizationHints(buf, this, relocTargets);
 }
 
 ConcatInputSection *macho::makeSyntheticInputSection(StringRef segName,
@@ -250,9 +240,9 @@ void CStringInputSection::splitIntoPieces() {
     size_t end = s.find(0);
     if (end == StringRef::npos)
       fatal(getLocation(off) + ": string is not null terminated");
-    size_t size = end + 1;
-    uint32_t hash = config->dedupLiterals ? xxHash64(s.substr(0, size)) : 0;
+    uint32_t hash = deduplicateLiterals ? xxHash64(s.take_front(end)) : 0;
     pieces.emplace_back(off, hash);
+    size_t size = end + 1; // include null terminator
     s = s.substr(size);
     off += size;
   }
@@ -337,6 +327,11 @@ bool macho::isCfStringSection(const InputSection *isec) {
 
 bool macho::isClassRefsSection(const InputSection *isec) {
   return isec->getName() == section_names::objcClassRefs &&
+         isec->getSegName() == segment_names::data;
+}
+
+bool macho::isSelRefsSection(const InputSection *isec) {
+  return isec->getName() == section_names::objcSelrefs &&
          isec->getSegName() == segment_names::data;
 }
 

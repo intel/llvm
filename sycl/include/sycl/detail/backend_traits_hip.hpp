@@ -54,12 +54,6 @@ template <> struct interop<backend::ext_oneapi_hip, queue> {
   using type = HIPstream;
 };
 
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_hip, program> {
-  using type = HIPmodule;
-};
-#endif
-
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
 template <typename DataT, int Dimensions, access::mode AccessMode>
@@ -120,16 +114,6 @@ template <> struct BackendInput<backend::ext_oneapi_hip, queue> {
 template <> struct BackendReturn<backend::ext_oneapi_hip, queue> {
   using type = HIPstream;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::ext_oneapi_hip, program> {
-  using type = HIPmodule;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_hip, program> {
-  using type = HIPmodule;
-};
-#endif
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

@@ -5,7 +5,7 @@
 
 ; Translation cycle should be successfull:
 ; RUN: llvm-spirv %t.regulzarized.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 
 ; CHECK: %[[#Base:]] = load i1, i1 addrspace(4)*{{.*}}, align 1
 ; CHECK: %[[#LoadShift:]] = load i32, i32 addrspace(4)*{{.*}} align 4

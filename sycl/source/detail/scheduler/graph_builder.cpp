@@ -638,7 +638,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
-      Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
+      Res &= TmpReq->MSYCLMemObj->getSizeInBytes() ==
+             Req->MSYCLMemObj->getSizeInBytes();
       Res &= AllowConst || !AllocaCmd->MIsConst;
     }
     return Res;
@@ -678,7 +679,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     if (IsSuitableSubReq(Req)) {
       // Get parent requirement. It's hard to get right parents' range
       // so full parent requirement has range represented in bytes
-      range<3> ParentRange{Req->MSYCLMemObj->getSize(), 1, 1};
+      range<3> ParentRange{Req->MSYCLMemObj->getSizeInBytes(), 1, 1};
       Requirement ParentRequirement(/*Offset*/ {0, 0, 0}, ParentRange,
                                     ParentRange, access::mode::read_write,
                                     Req->MSYCLMemObj, /*Dims*/ 1,

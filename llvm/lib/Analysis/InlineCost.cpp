@@ -126,6 +126,10 @@ static cl::opt<int>
     InstrCost("inline-instr-cost", cl::Hidden, cl::init(5),
               cl::desc("Cost of a single instruction when inlining"));
 
+static cl::opt<int>
+    MemAccessCost("inline-memaccess-cost", cl::Hidden, cl::init(0),
+                  cl::desc("Cost of load/store instruction when inlining"));
+
 static cl::opt<int> CallPenalty(
     "inline-call-penalty", cl::Hidden, cl::init(25),
     cl::desc("Call penalty that is applied per callsite when inlining"));
@@ -157,12 +161,21 @@ static cl::opt<bool> DisableGEPConstOperand(
     cl::desc("Disables evaluation of GetElementPtr with constant operands"));
 
 namespace llvm {
+Optional<int> getStringFnAttrAsInt(const Attribute &Attr) {
+  if (Attr.isValid()) {
+    int AttrValue = 0;
+    if (!Attr.getValueAsString().getAsInteger(10, AttrValue))
+      return AttrValue;
+  }
+  return None;
+}
+
 Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind) {
-  Attribute Attr = CB.getFnAttr(AttrKind);
-  int AttrValue;
-  if (Attr.getValueAsString().getAsInteger(10, AttrValue))
-    return None;
-  return AttrValue;
+  return getStringFnAttrAsInt(CB.getFnAttr(AttrKind));
+}
+
+Optional<int> getStringFnAttrAsInt(Function *F, StringRef AttrKind) {
+  return getStringFnAttrAsInt(F->getFnAttribute(AttrKind));
 }
 
 namespace InlineConstants {
@@ -281,6 +294,9 @@ protected:
 
   /// Called to account for a call.
   virtual void onCallPenalty() {}
+
+  /// Called to account for a load or store.
+  virtual void onMemAccess(){};
 
   /// Called to account for the expectation the inlining would result in a load
   /// elimination.
@@ -533,6 +549,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   /// for speculative "expected profit" of the inlining decision.
   int Threshold = 0;
 
+  /// The amount of StaticBonus applied.
+  int StaticBonusApplied = 0;
+
   /// Attempt to evaluate indirect calls to boost its inline cost.
   const bool BoostIndirectCalls;
 
@@ -625,6 +644,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   }
 
   void onCallPenalty() override { addCost(CallPenalty); }
+
+  void onMemAccess() override { addCost(MemAccessCost); }
+
   void onCallArgumentSetup(const CallBase &Call) override {
     // Pay the price of the argument setup. We account for the average 1
     // instruction per call argument setup here.
@@ -1039,10 +1061,18 @@ public:
   virtual ~InlineCostCallAnalyzer() = default;
   int getThreshold() const { return Threshold; }
   int getCost() const { return Cost; }
+  int getStaticBonusApplied() const { return StaticBonusApplied; }
   Optional<CostBenefitPair> getCostBenefitPair() { return CostBenefit; }
   bool wasDecidedByCostBenefit() const { return DecidedByCostBenefit; }
   bool wasDecidedByCostThreshold() const { return DecidedByCostThreshold; }
 };
+
+// Return true if CB is the sole call to local function Callee.
+static bool isSoleCallToLocalFunction(const CallBase &CB,
+                                      const Function &Callee) {
+  return Callee.hasLocalLinkage() && Callee.hasOneLiveUse() &&
+         &Callee == CB.getCalledFunction();
+}
 
 class InlineCostFeaturesAnalyzer final : public CallAnalyzer {
 private:
@@ -1217,8 +1247,7 @@ private:
         (F.getCallingConv() == CallingConv::Cold));
 
     set(InlineCostFeatureIndex::LastCallToStaticBonus,
-        (F.hasLocalLinkage() && F.hasOneLiveUse() &&
-         &F == CandidateCall.getCalledFunction()));
+        isSoleCallToLocalFunction(CandidateCall, F));
 
     // FIXME: we shouldn't repeat this logic in both the Features and Cost
     // analyzer - instead, we should abstract it to a common method in the
@@ -1342,8 +1371,8 @@ bool CallAnalyzer::isGEPFree(GetElementPtrInst &GEP) {
       Operands.push_back(SimpleOp);
     else
       Operands.push_back(Op);
-  return TTI.getUserCost(&GEP, Operands,
-                         TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&GEP, Operands,
+                                TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -1620,7 +1649,7 @@ bool CallAnalyzer::visitPtrToInt(PtrToIntInst &I) {
   if (auto *SROAArg = getSROAArgForValueOrNull(I.getOperand(0)))
     SROAArgValues[&I] = SROAArg;
 
-  return TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -1643,7 +1672,7 @@ bool CallAnalyzer::visitIntToPtr(IntToPtrInst &I) {
   if (auto *SROAArg = getSROAArgForValueOrNull(Op))
     SROAArgValues[&I] = SROAArg;
 
-  return TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -1673,7 +1702,7 @@ bool CallAnalyzer::visitCastInst(CastInst &I) {
     break;
   }
 
-  return TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  return TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
          TargetTransformInfo::TCC_Free;
 }
 
@@ -1894,13 +1923,13 @@ void InlineCostCallAnalyzer::updateThreshold(CallBase &Call, Function &Callee) {
   SingleBBBonus = Threshold * SingleBBBonusPercent / 100;
   VectorBonus = Threshold * VectorBonusPercent / 100;
 
-  bool OnlyOneCallAndLocalLinkage = F.hasLocalLinkage() && F.hasOneLiveUse() &&
-                                    &F == Call.getCalledFunction();
   // If there is only one call of the function, and it has internal linkage,
   // the cost of inlining it drops dramatically. It may seem odd to update
   // Cost in updateThreshold, but the bonus depends on the logic in this method.
-  if (OnlyOneCallAndLocalLinkage)
+  if (isSoleCallToLocalFunction(Call, F)) {
     Cost -= LastCallToStaticBonus;
+    StaticBonusApplied = LastCallToStaticBonus;
+  }
 }
 
 bool CallAnalyzer::visitCmpInst(CmpInst &I) {
@@ -2044,6 +2073,7 @@ bool CallAnalyzer::visitLoad(LoadInst &I) {
     return true;
   }
 
+  onMemAccess();
   return false;
 }
 
@@ -2060,6 +2090,8 @@ bool CallAnalyzer::visitStore(StoreInst &I) {
   // 2. We should probably at some point thread MemorySSA for the callee into
   // this and then use that to actually compute *really* precise savings.
   disableLoadElimination();
+
+  onMemAccess();
   return false;
 }
 
@@ -2368,7 +2400,7 @@ bool CallAnalyzer::visitUnreachableInst(UnreachableInst &I) {
 bool CallAnalyzer::visitInstruction(Instruction &I) {
   // Some instructions are free. All of the free intrinsics can also be
   // handled by SROA, etc.
-  if (TTI.getUserCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
+  if (TTI.getInstructionCost(&I, TargetTransformInfo::TCK_SizeAndLatency) ==
       TargetTransformInfo::TCC_Free)
     return true;
 
@@ -2690,17 +2722,21 @@ InlineResult CallAnalyzer::analyze() {
     onBlockAnalyzed(BB);
   }
 
-  bool OnlyOneCallAndLocalLinkage = F.hasLocalLinkage() && F.hasOneLiveUse() &&
-                                    &F == CandidateCall.getCalledFunction();
   // If this is a noduplicate call, we can still inline as long as
   // inlining this would cause the removal of the caller (so the instruction
   // is not actually duplicated, just moved).
-  if (!OnlyOneCallAndLocalLinkage && ContainsNoDuplicateCall)
+  if (!isSoleCallToLocalFunction(CandidateCall, F) && ContainsNoDuplicateCall)
     return InlineResult::failure("noduplicate");
 
   // If the callee's stack size exceeds the user-specified threshold,
   // do not let it be inlined.
-  if (AllocatedSize > StackSizeThreshold)
+  // The command line option overrides a limit set in the function attributes.
+  size_t FinalStackSizeThreshold = StackSizeThreshold;
+  if (!StackSizeThreshold.getNumOccurrences())
+    if (Optional<int> AttrMaxStackSize = getStringFnAttrAsInt(
+            Caller, InlineConstants::MaxInlineStackSizeAttributeName))
+      FinalStackSizeThreshold = *AttrMaxStackSize;
+  if (AllocatedSize > FinalStackSizeThreshold)
     return InlineResult::failure("stacksize");
 
   return finalizeAnalysis();
@@ -2940,7 +2976,8 @@ InlineCost llvm::getInlineCost(
   }
 
   if (CA.wasDecidedByCostThreshold())
-    return InlineCost::get(CA.getCost(), CA.getThreshold());
+    return InlineCost::get(CA.getCost(), CA.getThreshold(),
+                           CA.getStaticBonusApplied());
 
   // No details on how the decision was made, simply return always or never.
   return ShouldInline.isSuccess()

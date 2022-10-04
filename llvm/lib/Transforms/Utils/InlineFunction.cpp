@@ -1064,10 +1064,10 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
           FunctionModRefBehavior MRB = CalleeAAR->getModRefBehavior(Call);
 
           // We'll retain this knowledge without additional metadata.
-          if (AAResults::onlyAccessesInaccessibleMem(MRB))
+          if (MRB.onlyAccessesInaccessibleMem())
             continue;
 
-          if (AAResults::onlyAccessesArgPointees(MRB))
+          if (MRB.onlyAccessesArgPointees())
             IsArgMemOnlyCall = true;
         }
 
@@ -1784,6 +1784,7 @@ inlineRetainOrClaimRVCalls(CallBase &CB, objcarc::ARCInstKind RVCallKind,
 /// exists in the instruction stream.  Similarly this will inline a recursive
 /// function by one level.
 llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
+                                        bool MergeAttributes,
                                         AAResults *CalleeAAR,
                                         bool InsertLifetime,
                                         Function *ForwardVarArgsTo) {
@@ -1813,6 +1814,8 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
       if (Tag == LLVMContext::OB_funclet)
         continue;
       if (Tag == LLVMContext::OB_clang_arc_attachedcall)
+        continue;
+      if (Tag == LLVMContext::OB_kcfi)
         continue;
 
       return InlineResult::failure("unsupported operand bundle");
@@ -2507,6 +2510,9 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     // Since we are now done with the return instruction, delete it also.
     Returns[0]->eraseFromParent();
 
+    if (MergeAttributes)
+      AttributeFuncs::mergeAttributesForInlining(*Caller, *CalledFunc);
+
     // We are now done with the inlining.
     return InlineResult::success();
   }
@@ -2669,6 +2675,9 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
       PHI->eraseFromParent();
     }
   }
+
+  if (MergeAttributes)
+    AttributeFuncs::mergeAttributesForInlining(*Caller, *CalledFunc);
 
   return InlineResult::success();
 }

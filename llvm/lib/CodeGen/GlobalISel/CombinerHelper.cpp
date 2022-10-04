@@ -2019,12 +2019,6 @@ void CombinerHelper::applyCombineI2PToP2I(MachineInstr &MI, Register &Reg) {
   MI.eraseFromParent();
 }
 
-bool CombinerHelper::matchCombineP2IToI2P(MachineInstr &MI, Register &Reg) {
-  assert(MI.getOpcode() == TargetOpcode::G_PTRTOINT && "Expected a G_PTRTOINT");
-  Register SrcReg = MI.getOperand(1).getReg();
-  return mi_match(SrcReg, MRI, m_GIntToPtr(m_Reg(Reg)));
-}
-
 void CombinerHelper::applyCombineP2IToI2P(MachineInstr &MI, Register &Reg) {
   assert(MI.getOpcode() == TargetOpcode::G_PTRTOINT && "Expected a G_PTRTOINT");
   Register DstReg = MI.getOperand(0).getReg();
@@ -2195,19 +2189,6 @@ void CombinerHelper::applyCombineMulByNegativeOne(MachineInstr &MI) {
   MI.eraseFromParent();
 }
 
-bool CombinerHelper::matchCombineFNegOfFNeg(MachineInstr &MI, Register &Reg) {
-  assert(MI.getOpcode() == TargetOpcode::G_FNEG && "Expected a G_FNEG");
-  Register SrcReg = MI.getOperand(1).getReg();
-  return mi_match(SrcReg, MRI, m_GFNeg(m_Reg(Reg)));
-}
-
-bool CombinerHelper::matchCombineFAbsOfFAbs(MachineInstr &MI, Register &Src) {
-  assert(MI.getOpcode() == TargetOpcode::G_FABS && "Expected a G_FABS");
-  Src = MI.getOperand(1).getReg();
-  Register AbsSrc;
-  return mi_match(Src, MRI, m_GFabs(m_Reg(AbsSrc)));
-}
-
 bool CombinerHelper::matchCombineFAbsOfFNeg(MachineInstr &MI,
                                             BuildFnTy &MatchInfo) {
   assert(MI.getOpcode() == TargetOpcode::G_FABS && "Expected a G_FABS");
@@ -2330,6 +2311,19 @@ bool CombinerHelper::matchUndefSelectCmp(MachineInstr &MI) {
   assert(MI.getOpcode() == TargetOpcode::G_SELECT);
   return getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF, MI.getOperand(1).getReg(),
                       MRI);
+}
+
+bool CombinerHelper::matchInsertExtractVecEltOutOfBounds(MachineInstr &MI) {
+  assert((MI.getOpcode() == TargetOpcode::G_INSERT_VECTOR_ELT ||
+          MI.getOpcode() == TargetOpcode::G_EXTRACT_VECTOR_ELT) &&
+         "Expected an insert/extract element op");
+  LLT VecTy = MRI.getType(MI.getOperand(1).getReg());
+  unsigned IdxIdx =
+      MI.getOpcode() == TargetOpcode::G_EXTRACT_VECTOR_ELT ? 2 : 3;
+  auto Idx = getIConstantVRegVal(MI.getOperand(IdxIdx).getReg(), MRI);
+  if (!Idx)
+    return false;
+  return Idx->getZExtValue() >= VecTy.getNumElements();
 }
 
 bool CombinerHelper::matchConstantSelectCmp(MachineInstr &MI, unsigned &OpIdx) {
@@ -2579,7 +2573,7 @@ bool CombinerHelper::matchCombineInsertVecElts(
   while (mi_match(
       CurrInst->getOperand(0).getReg(), MRI,
       m_GInsertVecElt(m_MInstr(TmpInst), m_Reg(TmpReg), m_ICst(IntImm)))) {
-    if (IntImm >= NumElts)
+    if (IntImm >= NumElts || IntImm < 0)
       return false;
     if (!MatchInfo[IntImm])
       MatchInfo[IntImm] = TmpReg;
@@ -4781,6 +4775,39 @@ bool CombinerHelper::matchAddOBy0(MachineInstr &MI, BuildFnTy &MatchInfo) {
   return true;
 }
 
+bool CombinerHelper::matchAddEToAddO(MachineInstr &MI, BuildFnTy &MatchInfo) {
+  // (G_*ADDE x, y, 0) -> (G_*ADDO x, y)
+  // (G_*SUBE x, y, 0) -> (G_*SUBO x, y)
+  assert(MI.getOpcode() == TargetOpcode::G_UADDE ||
+         MI.getOpcode() == TargetOpcode::G_SADDE ||
+         MI.getOpcode() == TargetOpcode::G_USUBE ||
+         MI.getOpcode() == TargetOpcode::G_SSUBE);
+  if (!mi_match(MI.getOperand(4).getReg(), MRI, m_SpecificICstOrSplat(0)))
+    return false;
+  MatchInfo = [&](MachineIRBuilder &B) {
+    unsigned NewOpcode;
+    switch (MI.getOpcode()) {
+    case TargetOpcode::G_UADDE:
+      NewOpcode = TargetOpcode::G_UADDO;
+      break;
+    case TargetOpcode::G_SADDE:
+      NewOpcode = TargetOpcode::G_SADDO;
+      break;
+    case TargetOpcode::G_USUBE:
+      NewOpcode = TargetOpcode::G_USUBO;
+      break;
+    case TargetOpcode::G_SSUBE:
+      NewOpcode = TargetOpcode::G_SSUBO;
+      break;
+    }
+    Observer.changingInstr(MI);
+    MI.setDesc(B.getTII().get(NewOpcode));
+    MI.removeOperand(4);
+    Observer.changedInstr(MI);
+  };
+  return true;
+}
+
 MachineInstr *CombinerHelper::buildUDivUsingMul(MachineInstr &MI) {
   assert(MI.getOpcode() == TargetOpcode::G_UDIV);
   auto &UDiv = cast<GenericMachineInstr>(MI);
@@ -4933,6 +4960,108 @@ bool CombinerHelper::matchUDivByConst(MachineInstr &MI) {
 void CombinerHelper::applyUDivByConst(MachineInstr &MI) {
   auto *NewMI = buildUDivUsingMul(MI);
   replaceSingleDefInstWithReg(MI, NewMI->getOperand(0).getReg());
+}
+
+bool CombinerHelper::matchSDivByConst(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_SDIV && "Expected SDIV");
+  Register Dst = MI.getOperand(0).getReg();
+  Register RHS = MI.getOperand(2).getReg();
+  LLT DstTy = MRI.getType(Dst);
+
+  auto &MF = *MI.getMF();
+  AttributeList Attr = MF.getFunction().getAttributes();
+  const auto &TLI = getTargetLowering();
+  LLVMContext &Ctx = MF.getFunction().getContext();
+  auto &DL = MF.getDataLayout();
+  if (TLI.isIntDivCheap(getApproximateEVTForLLT(DstTy, DL, Ctx), Attr))
+    return false;
+
+  // Don't do this for minsize because the instruction sequence is usually
+  // larger.
+  if (MF.getFunction().hasMinSize())
+    return false;
+
+  // If the sdiv has an 'exact' flag we can use a simpler lowering.
+  if (MI.getFlag(MachineInstr::MIFlag::IsExact)) {
+    return matchUnaryPredicate(
+        MRI, RHS, [](const Constant *C) { return C && !C->isZeroValue(); });
+  }
+
+  // Don't support the general case for now.
+  return false;
+}
+
+void CombinerHelper::applySDivByConst(MachineInstr &MI) {
+  auto *NewMI = buildSDivUsingMul(MI);
+  replaceSingleDefInstWithReg(MI, NewMI->getOperand(0).getReg());
+}
+
+MachineInstr *CombinerHelper::buildSDivUsingMul(MachineInstr &MI) {
+  assert(MI.getOpcode() == TargetOpcode::G_SDIV && "Expected SDIV");
+  auto &SDiv = cast<GenericMachineInstr>(MI);
+  Register Dst = SDiv.getReg(0);
+  Register LHS = SDiv.getReg(1);
+  Register RHS = SDiv.getReg(2);
+  LLT Ty = MRI.getType(Dst);
+  LLT ScalarTy = Ty.getScalarType();
+  LLT ShiftAmtTy = getTargetLowering().getPreferredShiftAmountTy(Ty);
+  LLT ScalarShiftAmtTy = ShiftAmtTy.getScalarType();
+  auto &MIB = Builder;
+  MIB.setInstrAndDebugLoc(MI);
+
+  bool UseSRA = false;
+  SmallVector<Register, 16> Shifts, Factors;
+
+  auto *RHSDef = cast<GenericMachineInstr>(getDefIgnoringCopies(RHS, MRI));
+  bool IsSplat = getIConstantSplatVal(*RHSDef, MRI).has_value();
+
+  auto BuildSDIVPattern = [&](const Constant *C) {
+    // Don't recompute inverses for each splat element.
+    if (IsSplat && !Factors.empty()) {
+      Shifts.push_back(Shifts[0]);
+      Factors.push_back(Factors[0]);
+      return true;
+    }
+
+    auto *CI = cast<ConstantInt>(C);
+    APInt Divisor = CI->getValue();
+    unsigned Shift = Divisor.countTrailingZeros();
+    if (Shift) {
+      Divisor.ashrInPlace(Shift);
+      UseSRA = true;
+    }
+
+    // Calculate the multiplicative inverse modulo BW.
+    // 2^W requires W + 1 bits, so we have to extend and then truncate.
+    unsigned W = Divisor.getBitWidth();
+    APInt Factor = Divisor.zext(W + 1)
+                       .multiplicativeInverse(APInt::getSignedMinValue(W + 1))
+                       .trunc(W);
+    Shifts.push_back(MIB.buildConstant(ScalarShiftAmtTy, Shift).getReg(0));
+    Factors.push_back(MIB.buildConstant(ScalarTy, Factor).getReg(0));
+    return true;
+  };
+
+  // Collect all magic values from the build vector.
+  bool Matched = matchUnaryPredicate(MRI, RHS, BuildSDIVPattern);
+  (void)Matched;
+  assert(Matched && "Expected unary predicate match to succeed");
+
+  Register Shift, Factor;
+  if (Ty.isVector()) {
+    Shift = MIB.buildBuildVector(ShiftAmtTy, Shifts).getReg(0);
+    Factor = MIB.buildBuildVector(Ty, Factors).getReg(0);
+  } else {
+    Shift = Shifts[0];
+    Factor = Factors[0];
+  }
+
+  Register Res = LHS;
+
+  if (UseSRA)
+    Res = MIB.buildAShr(Ty, Res, Shift, MachineInstr::IsExact).getReg(0);
+
+  return MIB.buildMul(Ty, Res, Factor);
 }
 
 bool CombinerHelper::matchUMulHToLShr(MachineInstr &MI) {
@@ -5668,6 +5797,138 @@ bool CombinerHelper::matchAddSubSameReg(MachineInstr &MI, Register &Src) {
            Reg == MaybeSameReg;
   };
   return CheckFold(LHS, RHS) || CheckFold(RHS, LHS);
+}
+
+unsigned CombinerHelper::getFPMinMaxOpcForSelect(
+    CmpInst::Predicate Pred, LLT DstTy,
+    SelectPatternNaNBehaviour VsNaNRetVal) const {
+  assert(VsNaNRetVal != SelectPatternNaNBehaviour::NOT_APPLICABLE &&
+         "Expected a NaN behaviour?");
+  // Choose an opcode based off of legality or the behaviour when one of the
+  // LHS/RHS may be NaN.
+  switch (Pred) {
+  default:
+    return 0;
+  case CmpInst::FCMP_UGT:
+  case CmpInst::FCMP_UGE:
+  case CmpInst::FCMP_OGT:
+  case CmpInst::FCMP_OGE:
+    if (VsNaNRetVal == SelectPatternNaNBehaviour::RETURNS_OTHER)
+      return TargetOpcode::G_FMAXNUM;
+    if (VsNaNRetVal == SelectPatternNaNBehaviour::RETURNS_NAN)
+      return TargetOpcode::G_FMAXIMUM;
+    if (isLegal({TargetOpcode::G_FMAXNUM, {DstTy}}))
+      return TargetOpcode::G_FMAXNUM;
+    if (isLegal({TargetOpcode::G_FMAXIMUM, {DstTy}}))
+      return TargetOpcode::G_FMAXIMUM;
+    return 0;
+  case CmpInst::FCMP_ULT:
+  case CmpInst::FCMP_ULE:
+  case CmpInst::FCMP_OLT:
+  case CmpInst::FCMP_OLE:
+    if (VsNaNRetVal == SelectPatternNaNBehaviour::RETURNS_OTHER)
+      return TargetOpcode::G_FMINNUM;
+    if (VsNaNRetVal == SelectPatternNaNBehaviour::RETURNS_NAN)
+      return TargetOpcode::G_FMINIMUM;
+    if (isLegal({TargetOpcode::G_FMINNUM, {DstTy}}))
+      return TargetOpcode::G_FMINNUM;
+    if (!isLegal({TargetOpcode::G_FMINIMUM, {DstTy}}))
+      return 0;
+    return TargetOpcode::G_FMINIMUM;
+  }
+}
+
+CombinerHelper::SelectPatternNaNBehaviour
+CombinerHelper::computeRetValAgainstNaN(Register LHS, Register RHS,
+                                        bool IsOrderedComparison) const {
+  bool LHSSafe = isKnownNeverNaN(LHS, MRI);
+  bool RHSSafe = isKnownNeverNaN(RHS, MRI);
+  // Completely unsafe.
+  if (!LHSSafe && !RHSSafe)
+    return SelectPatternNaNBehaviour::NOT_APPLICABLE;
+  if (LHSSafe && RHSSafe)
+    return SelectPatternNaNBehaviour::RETURNS_ANY;
+  // An ordered comparison will return false when given a NaN, so it
+  // returns the RHS.
+  if (IsOrderedComparison)
+    return LHSSafe ? SelectPatternNaNBehaviour::RETURNS_NAN
+                   : SelectPatternNaNBehaviour::RETURNS_OTHER;
+  // An unordered comparison will return true when given a NaN, so it
+  // returns the LHS.
+  return LHSSafe ? SelectPatternNaNBehaviour::RETURNS_OTHER
+                 : SelectPatternNaNBehaviour::RETURNS_NAN;
+}
+
+bool CombinerHelper::matchFPSelectToMinMax(Register Dst, Register Cond,
+                                           Register TrueVal, Register FalseVal,
+                                           BuildFnTy &MatchInfo) {
+  // Match: select (fcmp cond x, y) x, y
+  //        select (fcmp cond x, y) y, x
+  // And turn it into fminnum/fmaxnum or fmin/fmax based off of the condition.
+  LLT DstTy = MRI.getType(Dst);
+  // Bail out early on pointers, since we'll never want to fold to a min/max.
+  // TODO: Handle vectors.
+  if (DstTy.isPointer() || DstTy.isVector())
+    return false;
+  // Match a floating point compare with a less-than/greater-than predicate.
+  // TODO: Allow multiple users of the compare if they are all selects.
+  CmpInst::Predicate Pred;
+  Register CmpLHS, CmpRHS;
+  if (!mi_match(Cond, MRI,
+                m_OneNonDBGUse(
+                    m_GFCmp(m_Pred(Pred), m_Reg(CmpLHS), m_Reg(CmpRHS)))) ||
+      CmpInst::isEquality(Pred))
+    return false;
+  SelectPatternNaNBehaviour ResWithKnownNaNInfo =
+      computeRetValAgainstNaN(CmpLHS, CmpRHS, CmpInst::isOrdered(Pred));
+  if (ResWithKnownNaNInfo == SelectPatternNaNBehaviour::NOT_APPLICABLE)
+    return false;
+  if (TrueVal == CmpRHS && FalseVal == CmpLHS) {
+    std::swap(CmpLHS, CmpRHS);
+    Pred = CmpInst::getSwappedPredicate(Pred);
+    if (ResWithKnownNaNInfo == SelectPatternNaNBehaviour::RETURNS_NAN)
+      ResWithKnownNaNInfo = SelectPatternNaNBehaviour::RETURNS_OTHER;
+    else if (ResWithKnownNaNInfo == SelectPatternNaNBehaviour::RETURNS_OTHER)
+      ResWithKnownNaNInfo = SelectPatternNaNBehaviour::RETURNS_NAN;
+  }
+  if (TrueVal != CmpLHS || FalseVal != CmpRHS)
+    return false;
+  // Decide what type of max/min this should be based off of the predicate.
+  unsigned Opc = getFPMinMaxOpcForSelect(Pred, DstTy, ResWithKnownNaNInfo);
+  if (!Opc || !isLegal({Opc, {DstTy}}))
+    return false;
+  // Comparisons between signed zero and zero may have different results...
+  // unless we have fmaximum/fminimum. In that case, we know -0 < 0.
+  if (Opc != TargetOpcode::G_FMAXIMUM && Opc != TargetOpcode::G_FMINIMUM) {
+    // We don't know if a comparison between two 0s will give us a consistent
+    // result. Be conservative and only proceed if at least one side is
+    // non-zero.
+    auto KnownNonZeroSide = getFConstantVRegValWithLookThrough(CmpLHS, MRI);
+    if (!KnownNonZeroSide || !KnownNonZeroSide->Value.isNonZero()) {
+      KnownNonZeroSide = getFConstantVRegValWithLookThrough(CmpRHS, MRI);
+      if (!KnownNonZeroSide || !KnownNonZeroSide->Value.isNonZero())
+        return false;
+    }
+  }
+  MatchInfo = [=](MachineIRBuilder &B) {
+    B.buildInstr(Opc, {Dst}, {CmpLHS, CmpRHS});
+  };
+  return true;
+}
+
+bool CombinerHelper::matchSimplifySelectToMinMax(MachineInstr &MI,
+                                                 BuildFnTy &MatchInfo) {
+  // TODO: Handle integer cases.
+  assert(MI.getOpcode() == TargetOpcode::G_SELECT);
+  // Condition may be fed by a truncated compare.
+  Register Cond = MI.getOperand(1).getReg();
+  Register MaybeTrunc;
+  if (mi_match(Cond, MRI, m_OneNonDBGUse(m_GTrunc(m_Reg(MaybeTrunc)))))
+    Cond = MaybeTrunc;
+  Register Dst = MI.getOperand(0).getReg();
+  Register TrueVal = MI.getOperand(2).getReg();
+  Register FalseVal = MI.getOperand(3).getReg();
+  return matchFPSelectToMinMax(Dst, Cond, TrueVal, FalseVal, MatchInfo);
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {

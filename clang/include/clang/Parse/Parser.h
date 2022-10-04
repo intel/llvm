@@ -194,6 +194,7 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> MSConstSeg;
   std::unique_ptr<PragmaHandler> MSCodeSeg;
   std::unique_ptr<PragmaHandler> MSSection;
+  std::unique_ptr<PragmaHandler> MSStrictGuardStackCheck;
   std::unique_ptr<PragmaHandler> MSRuntimeChecks;
   std::unique_ptr<PragmaHandler> MSIntrinsic;
   std::unique_ptr<PragmaHandler> MSFunction;
@@ -725,6 +726,8 @@ private:
                              SourceLocation PragmaLocation);
   bool HandlePragmaMSInitSeg(StringRef PragmaName,
                              SourceLocation PragmaLocation);
+  bool HandlePragmaMSStrictGuardStackCheck(StringRef PragmaName,
+                                           SourceLocation PragmaLocation);
   bool HandlePragmaMSFunction(StringRef PragmaName,
                               SourceLocation PragmaLocation);
   bool HandlePragmaMSAllocText(StringRef PragmaName,
@@ -2092,6 +2095,7 @@ private:
   StmtResult ParseCompoundStatement(bool isStmtExpr,
                                     unsigned ScopeFlags);
   void ParseCompoundStatementLeadingPragmas();
+  void DiagnoseLabelAtEndOfCompoundStatement();
   bool ConsumeNullStmt(StmtVector &Stmts);
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
@@ -2819,6 +2823,7 @@ private:
 
   void ParseHLSLSemantics(ParsedAttributes &Attrs,
                           SourceLocation *EndLoc = nullptr);
+  Decl *ParseHLSLBuffer(SourceLocation &DeclEnd);
 
   void MaybeParseMicrosoftAttributes(ParsedAttributes &Attrs) {
     if ((getLangOpts().MicrosoftExt || getLangOpts().HLSL) &&
@@ -2907,7 +2912,6 @@ private:
   void AnnotateExistingDecltypeSpecifier(const DeclSpec &DS,
                                          SourceLocation StartLoc,
                                          SourceLocation EndLoc);
-  void ParseUnderlyingTypeSpecifier(DeclSpec &DS);
   void ParseAtomicSpecifier(DeclSpec &DS);
 
   ExprResult ParseAlignArgument(SourceLocation Start,
@@ -3005,6 +3009,8 @@ private:
          SourceLocation &EllipsisLoc);
   void ParseBracketDeclarator(Declarator &D);
   void ParseMisplacedBracketDeclarator(Declarator &D);
+  bool MaybeParseTypeTransformTypeSpecifier(DeclSpec &DS);
+  DeclSpec::TST TypeTransformTokToDeclSpec();
 
   //===--------------------------------------------------------------------===//
   // C++ 7: Declarations [dcl.dcl]
@@ -3180,8 +3186,7 @@ private:
   bool parseOMPContextSelectors(SourceLocation Loc, OMPTraitInfo &TI);
 
   /// Parse an 'append_args' clause for '#pragma omp declare variant'.
-  bool parseOpenMPAppendArgs(
-      SmallVectorImpl<OMPDeclareVariantAttr::InteropType> &InterOpTypes);
+  bool parseOpenMPAppendArgs(SmallVectorImpl<OMPInteropInfo> &InteropInfos);
 
   /// Parse a `match` clause for an '#pragma omp declare variant'. Return true
   /// if there was an error.
@@ -3332,6 +3337,9 @@ private:
   /// Expected format:
   /// '(' { <allocator> [ '(' <allocator_traits> ')' ] }+ ')'
   OMPClause *ParseOpenMPUsesAllocatorClause(OpenMPDirectiveKind DKind);
+
+  /// Parses the 'interop' parts of the 'append_args' and 'init' clauses.
+  bool ParseOMPInteropInfo(OMPInteropInfo &InteropInfo, OpenMPClauseKind Kind);
 
   /// Parses clause with an interop variable of kind \a Kind.
   ///
