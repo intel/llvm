@@ -2011,7 +2011,7 @@ static pi_result SetKernelParamsAndLaunch(
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
-                                                sizeof(RT::PiMem), &MemArg);
+                                               sizeof(RT::PiMem), &MemArg);
       } else {
         Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
                                                         &MemArg);
