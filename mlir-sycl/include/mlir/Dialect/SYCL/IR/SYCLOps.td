@@ -38,7 +38,7 @@ def SYCL_Dialect : Dialect {
         llvm::StringRef OpName);
 
     /// If T implements the SYCLMethodOpInterface interface, it will
-    /// be registered as a method. Do nmothing otherwise.
+    /// be registered as a method. Do nothing otherwise.
     template <typename T> void addSYCLMethod();
 
     /// Each operation will be registered as usual in an MLIR dialect
