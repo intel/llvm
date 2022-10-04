@@ -386,10 +386,12 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
   }
 
   if (is_overflow) {
-    // According to IEEE-754 standards(Ch 7.4), RTE and RTP carry all overflows
+    // According to IEEE-754 standards(Ch 7.4), RTE carries all overflows
     // to infinity with sign, RTZ carries all overflows to format's largest
     // finite number with sign, RTN carries positive overflows to format's
     // largest finite number and carries negative overflows to -infinity.
+    // RTP carries negative overflows to the format's most negative finite
+    // number and carries positive overflow to +infinity.
     if (__IML_RTZ == rounding_mode || __IML_RTN == rounding_mode)
       return 0x7BFF;
     else
@@ -454,13 +456,17 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
   }
 
   if (is_overflow) {
-    // According to IEEE-754 standards(Ch 7.4), RTE and RTP carry all overflows
+    // According to IEEE-754 standards(Ch 7.4), RTE carries all overflows
     // to infinity with sign, RTZ carries all overflows to format's largest
     // finite number with sign, RTN carries positive overflows to format's
     // largest finite number and carries negative overflows to -infinity.
-    if (__IML_RTE == rounding_mode || __IML_RTP == rounding_mode)
+    // RTP carries negative overflows to the format's most negative finite
+    // number and carries positive overflow to +infinity.
+    if (__IML_RTE == rounding_mode || ((__IML_RTP == rounding_mode) && !h_sign))
       return h_sign ? 0xFC00 : 0x7C00;
-    if (__IML_RTZ == rounding_mode || ((__IML_RTN == rounding_mode) && !h_sign))
+    if (__IML_RTZ == rounding_mode ||
+        ((__IML_RTN == rounding_mode) && !h_sign) ||
+        ((__IML_RTP == rounding_mode) && h_sign))
       return h_sign ? 0xFBFF : 0x7BFF;
     return 0xFC00;
   }
