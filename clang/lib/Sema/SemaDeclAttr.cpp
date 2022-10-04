@@ -7808,20 +7808,13 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
     return;
 
   // If there are potentially conflicting attributes, we issue a warning.
-  if (const auto *ReqdWGSizeAttr = D->getAttr<ReqdWorkGroupSizeAttr>())
-    Diag(ReqdWGSizeAttr->getLoc(),
-         diag::warn_sycl_old_and_new_kernel_attributes)
-        << ReqdWGSizeAttr;
-
-  if (const auto *ReqdSGSizeAttr = D->getAttr<IntelReqdSubGroupSizeAttr>())
-    Diag(ReqdSGSizeAttr->getLoc(),
-         diag::warn_sycl_old_and_new_kernel_attributes)
-        << ReqdSGSizeAttr;
-
-  if (const auto *WGSizeHintAttr = D->getAttr<WorkGroupSizeHintAttr>())
-    Diag(WGSizeHintAttr->getLoc(),
-         diag::warn_sycl_old_and_new_kernel_attributes)
-        << WGSizeHintAttr;
+  for (const auto *Attr : std::vector<AttributeCommonInfo *>{
+           D->getAttr<ReqdWorkGroupSizeAttr>(),
+           D->getAttr<IntelReqdSubGroupSizeAttr>(),
+           D->getAttr<WorkGroupSizeHintAttr>()})
+    if (Attr)
+      Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
+          << Attr;
 }
 
 SYCLAddIRAttributesFunctionAttr *Sema::MergeSYCLAddIRAttributesFunctionAttr(
@@ -7853,7 +7846,6 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
   if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), *this,
                                   CI))
     return;
-
   D->addAttr(Attr);
 }
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 
 // Tests that add_ir_attributes_function causes a warning when appearing with
 // potentially conflicting SYCL attributes.
