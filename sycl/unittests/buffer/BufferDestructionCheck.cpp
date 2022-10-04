@@ -108,6 +108,19 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   }
 }
 
+TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultSetFinalData) {
+  sycl::context Context{Plt};
+  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+  {
+    int FinalData = 0;
+    sycl::buffer<int, 1> Buf(1);
+    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
+        sycl::detail::getSyclObjImpl(Buf);
+    Buf.set_final_data(&FinalData);
+    CheckBufferDestruction(BufImpl, false);
+  }
+}
+
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyNonDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};

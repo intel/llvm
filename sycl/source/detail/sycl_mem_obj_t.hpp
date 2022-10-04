@@ -126,7 +126,10 @@ public:
 
   void set_write_back(bool NeedWriteBack) { MNeedWriteBack = NeedWriteBack; }
 
-  void set_final_data(std::nullptr_t) { MUploadDataFunctor = nullptr; }
+  void set_final_data(std::nullptr_t) {
+    MUploadDataFunctor = nullptr;
+    MNoHostPtrProvided &= true;
+  }
 
   void set_final_data_from_storage() {
     MUploadDataFunctor = [this]() {
@@ -135,6 +138,7 @@ public:
         updateHostMemory(FinalData);
       }
     };
+    MNoHostPtrProvided &= false;
   }
 
   void set_final_data(
@@ -145,6 +149,7 @@ public:
     MUploadDataFunctor = [FinalDataFunc, UpdateFunc]() {
       FinalDataFunc(UpdateFunc);
     };
+    MNoHostPtrProvided &= false;
   }
 
 protected:
