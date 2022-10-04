@@ -35,14 +35,14 @@ int main() {
 
 // CHECK: %[[WRAPPER_F1:[a-zA-Z0-9_.]+]] = type { ptr addrspace(1) }
 // CHECK: %[[WRAPPER_F2:[a-zA-Z0-9_.]+]] = type { ptr addrspace(1) }
-// CHECK: %[[WRAPPER_F:[a-zA-Z0-9_.]+]] = type { ptr addrspace(1) }
+// CHECK: %[[GENERATED_A:[a-zA-Z0-9_.]+]] = type { ptr addrspace(1) }
 // CHECK: %[[WRAPPER_F4_1:[a-zA-Z0-9_.]+]] = type { ptr addrspace(1) }
 // CHECK: %[[WRAPPER_F4_2:[a-zA-Z0-9_.]+]] = type { ptr addrspace(1) }
 // CHECK: %[[WRAPPER_LAMBDA_PTR:[a-zA-Z0-9_.]+]] = type { ptr addrspace(1) }
 // CHECK: define {{.*}}spir_kernel void @{{.*}}structs
 // CHECK-SAME: ptr noundef byval(%[[WRAPPER_F1]]) align 8 %_arg_F1,
 // CHECK-SAME: ptr noundef byval(%[[WRAPPER_F2]]) align 8 %_arg_F2,
-// CHECK-SAME: ptr noundef byval(%[[WRAPPER_F]]) align 8 %_arg_F,
+// CHECK-SAME: ptr noundef byval(%[[GENERATED_A]]) align 8 %_arg_F3,
 // CHECK-SAME: ptr noundef byval(%[[WRAPPER_F4_1]]) align 8 %_arg_F4
 // CHECK-SAME: ptr noundef byval(%[[WRAPPER_F4_2]]) align 8 %_arg_F41
-// CHECK: define {{.*}}spir_kernel void @{{.*}}lambdas{{.*}}(ptr noundef byval(%[[WRAPPER_LAMBDA_PTR]]) align 8 %_arg_Ptr)
+// CHECK: define {{.*}}spir_kernel void @{{.*}}lambdas{{.*}}(ptr noundef byval(%[[WRAPPER_LAMBDA_PTR]]) align 8 %_arg_Lambda)

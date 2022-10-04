@@ -44,6 +44,8 @@ void processSetKernelPropertiesCall(CallInst &CI) {
 
   switch (PropID) {
   case property_ids::use_double_grf:
+    // TODO: Keep track of traversed functions to avoid repeating traversals
+    // over same function.
     llvm::esimd::traverseCallgraphUp(F, [](Function *GraphNode) {
       if (llvm::esimd::isESIMDKernel(*GraphNode)) {
         GraphNode->addFnAttr(llvm::esimd::ATTR_DOUBLE_GRF);

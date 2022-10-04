@@ -233,6 +233,8 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   return reinterpret_cast<OSModuleHandle>(Res.dli_fbase);
 }
 
+std::string OSUtil::getCurrentDSODir() { return ""; }
+
 #endif // __SYCL_RT_OS
 
 size_t OSUtil::getOSMemSize() {
@@ -288,7 +290,7 @@ int OSUtil::makeDir(const char *Dir) {
   do {
     pos = Path.find_first_of("/\\", ++pos);
     CurPath = Path.substr(0, pos);
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
     auto Res = mkdir(CurPath.c_str(), 0777);
 #else
     auto Res = _mkdir(CurPath.c_str());
