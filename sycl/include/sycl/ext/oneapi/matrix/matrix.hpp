@@ -16,16 +16,14 @@
 
 #include <sycl/feature_test.hpp>
 
-// the default is matrix-jit-use but existing tests in llvm-test-suite won't
-// fail because we have the "unnecessary" use value
-#if (SYCL_EXT_ONEAPI_MATRIX == 1)
-#include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
-#include <sycl/ext/oneapi/matrix/static-query.hpp>
+#if (SYCL_EXT_ONEAPI_MATRIX == 3)
+#include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
 #endif
-#if (SYCL_EXT_ONEAPI_MATRIX == 2)
+#elif (SYCL_EXT_ONEAPI_MATRIX == 2 || __SYCL_EXT_ONEAPI_MATRIX_USE__)
 #include <sycl/ext/oneapi/matrix/matrix-jit-use.hpp>
 #include <sycl/ext/oneapi/matrix/static-query-use.hpp>
 #endif
-#if (SYCL_EXT_ONEAPI_MATRIX == 3)
-#include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
+#elif (SYCL_EXT_ONEAPI_MATRIX == 1)
+#include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
+#include <sycl/ext/oneapi/matrix/static-query.hpp>
 #endif

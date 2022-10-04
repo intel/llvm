@@ -137,6 +137,7 @@ enum class MatrixUse : uint32_t {
 // information to SPIRV translator.
 // The long term solution would be to introduce a matrix type in Clang and use
 // it instead of this member.
+#ifdef __SYCL_EXT_ONEAPI_MATRIX_USE__
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup,
           MatrixUse U = MatrixUse::Unnecessary>
@@ -145,6 +146,14 @@ struct __spirv_JointMatrixINTEL {
   [R][C][static_cast<size_t>(L) + 1][static_cast<size_t>(S) + 1]
      [static_cast<size_t>(U) + 1];
 };
+#else
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
+          Scope::Flag S = Scope::Flag::Subgroup>
+struct __spirv_JointMatrixINTEL {
+  T(*Value)
+  [R][C][static_cast<size_t>(L) + 1][static_cast<size_t>(S) + 1];
+};
+#endif // __SYCL_EXT_ONEAPI_MATRIX_USE__
 
 } // namespace __spv
 
