@@ -347,32 +347,34 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
   // Unsigned integral value can be represented by 1.mant * (2^msb_pos),
   // msb_pos is also the bit number of mantissa, 0 < msb_pos < sizeof(Ty) * 8,
   // exponent of half precision value range is [-14, 15].
-  if (msb_pos > 15) {
-    return 0x7C00; // return +infinity for overflow values.
-  }
+  bool is_overflow = false;
+  if (msb_pos > 15)
+    is_overflow = true;
 
   uint16_t h_exp = msb_pos;
   uint16_t h_mant;
-  if (msb_pos <= 10) {
-    mant <<= (10 - msb_pos);
-    h_mant = (uint16_t)mant;
-  } else {
-    h_mant = (uint16_t)(mant >> (msb_pos - 10));
-    Ty mant_discard = mant & (((Ty)1 << (msb_pos - 10)) - 1);
-    Ty mid = (Ty)1 << (msb_pos - 11);
-    switch (rounding_mode) {
-    case __IML_RTE:
-      if ((mant_discard > mid) ||
-          ((mant_discard == mid) && ((h_mant & 0x1) == 0x1)))
-        h_mant++;
-      break;
-    case __IML_RTP:
-      if (mant_discard)
-        h_mant++;
-      break;
-    case __IML_RTN:
-    case __IML_RTZ:
-      break;
+  if (!is_overflow) {
+    if (msb_pos <= 10) {
+      mant <<= (10 - msb_pos);
+      h_mant = (uint16_t)mant;
+    } else {
+      h_mant = (uint16_t)(mant >> (msb_pos - 10));
+      Ty mant_discard = mant & (((Ty)1 << (msb_pos - 10)) - 1);
+      Ty mid = (Ty)1 << (msb_pos - 11);
+      switch (rounding_mode) {
+      case __IML_RTE:
+        if ((mant_discard > mid) ||
+            ((mant_discard == mid) && ((h_mant & 0x1) == 0x1)))
+          h_mant++;
+        break;
+      case __IML_RTP:
+        if (mant_discard)
+          h_mant++;
+        break;
+      case __IML_RTN:
+      case __IML_RTZ:
+        break;
+      }
     }
   }
 
@@ -380,6 +382,17 @@ static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
     h_exp++;
     h_mant = 0;
     if (h_exp > 15)
+      is_overflow = true;
+  }
+
+  if (is_overflow) {
+    // According to IEEE-754 standards(Ch 7.4), RTE and RTP carry all overflows
+    // to infinity with sign, RTZ carries all overflows to format's largest
+    // finite number with sign, RTN carries positive overflows to format's
+    // largest finite number and carries negative overflows to -infinity.
+    if (__IML_RTZ == rounding_mode || __IML_RTN == rounding_mode)
+      return 0x7BFF;
+    else
       return 0x7C00;
   }
   h_exp += 15;
@@ -400,45 +413,57 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
   if (msb_pos == 0)
     return h_sign ? 0xBC00 : 0x3C00;
   UTy mant = ui & (((UTy)1 << msb_pos) - 1);
-  if (msb_pos > 15) {
-    return (h_sign) ? 0xFC00
-                    : 0x7C00; // return +/-infinity for overflow values.
-  }
+  bool is_overflow = false;
+  if (msb_pos > 15)
+    is_overflow = true;
 
   uint16_t h_exp = msb_pos;
   uint16_t h_mant;
-
-  if (msb_pos <= 10) {
-    mant <<= (10 - msb_pos);
-    h_mant = (uint16_t)mant;
-  } else {
-    h_mant = (uint16_t)(mant >> (msb_pos - 10));
-    Ty mant_discard = mant & ((1 << (msb_pos - 10)) - 1);
-    Ty mid = 1 << (msb_pos - 11);
-    switch (rounding_mode) {
-    case __IML_RTE:
-      if ((mant_discard > mid) ||
-          ((mant_discard == mid) && ((h_mant & 0x1) == 0x1)))
-        h_mant++;
-      break;
-    case __IML_RTP:
-      if (mant_discard && !h_sign)
-        h_mant++;
-      break;
-    case __IML_RTN:
-      if (mant_discard && h_sign)
-        h_mant++;
-    case __IML_RTZ:
-      break;
+  if (!is_overflow) {
+    if (msb_pos <= 10) {
+      mant <<= (10 - msb_pos);
+      h_mant = (uint16_t)mant;
+    } else {
+      h_mant = (uint16_t)(mant >> (msb_pos - 10));
+      Ty mant_discard = mant & ((1 << (msb_pos - 10)) - 1);
+      Ty mid = 1 << (msb_pos - 11);
+      switch (rounding_mode) {
+      case __IML_RTE:
+        if ((mant_discard > mid) ||
+            ((mant_discard == mid) && ((h_mant & 0x1) == 0x1)))
+          h_mant++;
+        break;
+      case __IML_RTP:
+        if (mant_discard && !h_sign)
+          h_mant++;
+        break;
+      case __IML_RTN:
+        if (mant_discard && h_sign)
+          h_mant++;
+      case __IML_RTZ:
+        break;
+      }
     }
   }
+
   if (h_mant == 0x400) {
     h_exp++;
     h_mant = 0;
     if (h_exp > 15)
-      return h_sign ? 0xBC00 : 0x7C00;
+      is_overflow = true;
   }
 
+  if (is_overflow) {
+    // According to IEEE-754 standards(Ch 7.4), RTE and RTP carry all overflows
+    // to infinity with sign, RTZ carries all overflows to format's largest
+    // finite number with sign, RTN carries positive overflows to format's
+    // largest finite number and carries negative overflows to -infinity.
+    if (__IML_RTE == rounding_mode || __IML_RTP == rounding_mode)
+      return h_sign ? 0xFC00 : 0x7C00;
+    if (__IML_RTZ == rounding_mode || ((__IML_RTN == rounding_mode) && !h_sign))
+      return h_sign ? 0xFBFF : 0x7BFF;
+    return 0xFC00;
+  }
   h_exp += 15;
   return h_sign | (h_exp << 10) | h_mant;
 }
