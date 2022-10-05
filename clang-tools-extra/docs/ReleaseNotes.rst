@@ -99,6 +99,12 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-suspicious-realloc-usage
+  <clang-tidy/checks/bugprone/suspicious-realloc-usage>` check.
+
+  Finds usages of ``realloc`` where the return value is assigned to the
+  same expression as passed to the first argument.
+
 - New :doc:`cppcoreguidelines-avoid-const-or-ref-data-members
   <clang-tidy/checks/cppcoreguidelines/avoid-const-or-ref-data-members>` check.
 
@@ -145,9 +151,13 @@ Changes in existing checks
   check.
 
   The check now skips unions/union-like classes since in this case a default constructor
-  with empty body is not equivalent to the explicitly defaulted one. The check also skips
-  copy assignment operators with nonstandard return types. The check is restricted to
-  c++11-or-later.
+  with empty body is not equivalent to the explicitly defaulted one, variadic constructors
+  since they cannot be explicitly defaulted. The check also skips copy assignment operators
+  with nonstandard return types. The check is restricted to c++11-or-later.
+
+- Change the default behavior of :doc:`readability-avoid-const-params-in-decls
+  <clang-tidy/checks/readability/avoid-const-params-in-decls>` to not
+  warn about `const` value parameters of declarations inside macros.
 
 Removed checks
 ^^^^^^^^^^^^^^
