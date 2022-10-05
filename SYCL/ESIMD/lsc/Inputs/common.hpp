@@ -7,12 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include <stdlib.h>
+#include <sycl/bit_cast.hpp>
 
 template <int case_num> class KernelID;
 
 template <typename T> T get_rand() {
-  T v = rand();
-  if constexpr (sizeof(T) > 4)
+  using Tuint = std::conditional_t<
+      sizeof(T) == 1, uint8_t,
+      std::conditional_t<
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
+  Tuint v = rand();
+  if constexpr (sizeof(Tuint) > 4)
     v = (v << 32) | rand();
-  return v;
+  return sycl::bit_cast<T>(v);
 }

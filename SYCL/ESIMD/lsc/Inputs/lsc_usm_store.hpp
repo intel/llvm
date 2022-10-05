@@ -37,8 +37,9 @@ bool test(uint32_t pmask = 0xffffffff) {
   }
 
   uint16_t Size = Groups * Threads * VL * VS;
+  using Tuint = sycl::_V1::ext::intel::esimd::detail::uint_type_t<sizeof(T)>;
 
-  T vmask = (T)-1;
+  Tuint vmask = (Tuint)-1;
   if constexpr (DS == lsc_data_size::u8u32)
     vmask = (T)0xff;
   if constexpr (DS == lsc_data_size::u16u32)
@@ -103,22 +104,29 @@ bool test(uint32_t pmask = 0xffffffff) {
 
   if constexpr (transpose) {
     for (int i = 0; i < Size; i++) {
-      T e = new_val + i;
-      if (out[i] != e) {
+      T expected_value = new_val + i;
+      Tuint e = sycl::bit_cast<Tuint>(expected_value);
+      Tuint out_val = sycl::bit_cast<Tuint>(out[i]);
+      if (out_val != e) {
         passed = false;
-        std::cout << "out[" << i << "] = 0x" << std::hex << (uint64_t)out[i]
-                  << " vs etalon = 0x" << (uint64_t)e << std::dec << std::endl;
+        std::cout << "out[" << i << "] = 0x" << std::hex << out_val
+                  << " vs etalon = 0x" << e << std::dec << std::endl;
       }
     }
   } else {
     for (int i = 0; i < Size; i++) {
-      T e = (pmask >> ((i / VS) % VL)) & 1
-                ? ((new_val + i) & vmask) | (old_val & ~vmask)
-                : old_val;
-      if (out[i] != e) {
+      T expected_value = new_val + i;
+      Tuint in_val = sycl::bit_cast<Tuint>(expected_value);
+      Tuint out_val = sycl::bit_cast<Tuint>(out[i]);
+
+      Tuint e =
+          (pmask >> ((i / VS) % VL)) & 1
+              ? (in_val & vmask) | (sycl::bit_cast<Tuint>(old_val) & ~vmask)
+              : sycl::bit_cast<Tuint>(old_val);
+      if (out_val != e) {
         passed = false;
-        std::cout << "out[" << i << "] = 0x" << std::hex << (uint64_t)out[i]
-                  << " vs etalon = 0x" << (uint64_t)e << std::dec << std::endl;
+        std::cout << "out[" << i << "] = 0x" << std::hex << out_val
+                  << " vs etalon = 0x" << e << std::dec << std::endl;
       }
     }
   }

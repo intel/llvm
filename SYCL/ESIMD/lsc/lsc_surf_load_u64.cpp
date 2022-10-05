@@ -13,26 +13,32 @@
 #include "Inputs/lsc_surf_load.hpp"
 
 constexpr uint32_t seed = 198;
+template <int TestCastNum, typename T> bool tests() {
+  bool passed = true;
 
+  // non transpose
+  passed &= test<TestCastNum, T, 1, 4, 32, 1, false>(rand());
+  passed &= test<TestCastNum + 1, T, 1, 4, 32, 2, false>(rand());
+  passed &= test<TestCastNum + 2, T, 1, 4, 16, 2, false>(rand());
+  passed &= test<TestCastNum + 3, T, 1, 4, 4, 1, false>(rand());
+  passed &= test<TestCastNum + 4, T, 1, 1, 1, 1, false>(1);
+  passed &= test<TestCastNum + 5, T, 2, 1, 1, 1, false>(1);
+
+  // passed &= test<TestCastNum+6, T, 1, 4, 8, 2, false>(rand());
+  // passed &= test<TestCastNum+7, T, 1, 4, 8, 3, false>(rand());
+
+  // transpose
+  passed &= test<TestCastNum + 8, T, 1, 4, 1, 32, true>();
+  passed &= test<TestCastNum + 9, T, 2, 2, 1, 16, true>();
+  passed &= test<TestCastNum + 10, T, 4, 4, 1, 4, true>();
+  return passed;
+}
 int main(void) {
   srand(seed);
   bool passed = true;
 
-  // non transpose
-  passed &= test<0, uint64_t, 1, 4, 32, 1, false>(rand());
-  passed &= test<1, uint64_t, 1, 4, 32, 2, false>(rand());
-  passed &= test<2, uint64_t, 1, 4, 16, 2, false>(rand());
-  passed &= test<3, uint64_t, 1, 4, 4, 1, false>(rand());
-  passed &= test<4, uint64_t, 1, 1, 1, 1, false>(1);
-  passed &= test<5, uint64_t, 2, 1, 1, 1, false>(1);
-
-  // passed &= test<6, uint64_t, 1, 4, 8, 2, false>(rand());
-  // passed &= test<7, uint64_t, 1, 4, 8, 3, false>(rand());
-
-  // transpose
-  passed &= test<8, uint64_t, 1, 4, 1, 32, true>();
-  passed &= test<9, uint64_t, 2, 2, 1, 16, true>();
-  passed &= test<10, uint64_t, 4, 4, 1, 4, true>();
+  passed &= tests<0, uint64_t>();
+  passed &= tests<11, double>();
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
