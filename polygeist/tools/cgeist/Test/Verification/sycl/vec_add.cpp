@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s -S | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: sycl-clang.py %s -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -S -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: clang++ -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -S -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 #define N 32
