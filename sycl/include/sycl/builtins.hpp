@@ -1870,6 +1870,7 @@ extern SYCL_EXTERNAL _Float16 __imf_ushort2half_rn(unsigned short x);
 extern SYCL_EXTERNAL _Float16 __imf_ushort2half_ru(unsigned short x);
 extern SYCL_EXTERNAL _Float16 __imf_ushort2half_rz(unsigned short x);
 extern SYCL_EXTERNAL _Float16 __imf_ushort_as_half(unsigned short x);
+extern SYCL_EXTERNAL _Float16 __imf_double2half(double x);
 
 extern SYCL_EXTERNAL _Float16 __imf_fmaf16(_Float16 x, _Float16 y, _Float16 z);
 extern SYCL_EXTERNAL _Float16 __imf_fabsf16(_Float16 x);

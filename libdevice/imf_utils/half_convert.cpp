@@ -21,7 +21,7 @@ _iml_half_internal __devicelib_imf_float2half_rd(float x) {
 #if defined(__SPIR__)
   return __spirv_FConvert_Rhalf_rtn(x);
 #else
-  return __iml_half2fp(x, __IML_RTN);
+  return __iml_fp2half(x, __IML_RTN);
 #endif
 }
 
@@ -30,7 +30,7 @@ _iml_half_internal __devicelib_imf_float2half_rn(float x) {
 #if defined(__SPIR__)
   return __spirv_FConvert_Rhalf_rte(x);
 #else
-  return __iml_half2fp(x, __IML_RTE);
+  return __iml_fp2half(x, __IML_RTE);
 #endif
 }
 
@@ -39,7 +39,7 @@ _iml_half_internal __devicelib_imf_float2half_ru(float x) {
 #if defined(__SPIR__)
   return __spirv_FConvert_Rhalf_rtp(x);
 #else
-  return __iml_half2fp(x, __IML_RTP);
+  return __iml_fp2half(x, __IML_RTP);
 #endif
 }
 
@@ -48,7 +48,7 @@ _iml_half_internal __devicelib_imf_float2half_rz(float x) {
 #if defined(__SPIR__)
   return __spirv_FConvert_Rhalf_rtz(x);
 #else
-  return __iml_half2fp(x, __IML_RTZ);
+  return __iml_fp2half(x, __IML_RTZ);
 #endif
 }
 

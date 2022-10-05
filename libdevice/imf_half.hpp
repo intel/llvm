@@ -89,7 +89,7 @@ static uint16_t __iml_half_underflow_handle(__iml_rounding_mode rounding_mode,
 }
 
 template <typename Ty>
-static uint16_t __iml_half2fp(Ty x, __iml_rounding_mode rounding_mode) {
+static uint16_t __iml_fp2half(Ty x, __iml_rounding_mode rounding_mode) {
   typedef typename __iml_fp_config<Ty>::utype UTy;
   typedef typename __iml_fp_config<Ty>::stype STy;
   union {
@@ -474,11 +474,9 @@ static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
   return h_sign | (h_exp << 10) | h_mant;
 }
 
-// TODO: need to support float to half conversion with different
-// rounding mode.
 static inline _iml_half_internal __float2half(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
-  return __iml_half2fp<float>(x, __IML_RTE);
+  return __iml_fp2half<float>(x, __IML_RTE);
 #elif defined(__SPIR__)
   return __spirv_FConvert_Rhalf_rte(x);
 #endif
