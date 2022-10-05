@@ -1714,7 +1714,9 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
 
   TypeSourceInfo *TSI = nullptr;
   if (Capture.isVariableCapture()) {
-    const auto *Var = dyn_cast_or_null<VarDecl>(Capture.getVariable());
+    ValueDecl *Val = Capture.getVariable();
+    const auto *Var = dyn_cast_or_null<VarDecl>(Val);
+
     if (Var && Var->isInitCapture())
       TSI = Var->getTypeSourceInfo();
 
@@ -1723,7 +1725,11 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
     // For SYCL compilations, save user specified names for
     // lambda capture.
     if (getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost) {
-      StringRef CaptureName = Var ? Var->getName() : "";
+      BindingDecl *BD = nullptr;
+      if (!Var)
+        BD = dyn_cast_or_null<BindingDecl>(Val);
+
+      StringRef CaptureName = Var ? Var->getName() : BD ? BD->getName() : "";
       if (!CaptureName.empty())
         Id = &Context.Idents.get(CaptureName.str());
     }
