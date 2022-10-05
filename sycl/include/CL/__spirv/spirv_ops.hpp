@@ -23,13 +23,13 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#ifdef __SYCL_EXT_ONEAPI_MATRIX_USE__
+#if (SYCL_EXT_ONEAPI_MATRIX_USE || SYCL_EXT_ONEAPI_MATRIX_CUDA)
 #define JOINT_MATRIX_INTEL(T, R, C, L, S, U)                                   \
   __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U>
 #else
 #define JOINT_MATRIX_INTEL(T, R, C, L, S, U)                                   \
   __spv::__spirv_JointMatrixINTEL<T, R, C, L, S>
-#endif // __SYCL_EXT_ONEAPI_MATRIX_USE__
+#endif // SYCL_EXT_ONEAPI_MATRIX_USE || SYCL_EXT_ONEAPI_MATRIX_CUDA
 
 template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,

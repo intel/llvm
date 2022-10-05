@@ -16,12 +16,12 @@
 
 #include <sycl/feature_test.hpp>
 
-#if (SYCL_EXT_ONEAPI_MATRIX == 3)
+#if SYCL_EXT_ONEAPI_MATRIX_CUDA
 #include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
-#elif (SYCL_EXT_ONEAPI_MATRIX == 2 || __SYCL_EXT_ONEAPI_MATRIX_USE__)
+#elif SYCL_EXT_ONEAPI_MATRIX_USE
 #include <sycl/ext/oneapi/matrix/matrix-jit-use.hpp>
 #include <sycl/ext/oneapi/matrix/static-query-use.hpp>
-#elif (SYCL_EXT_ONEAPI_MATRIX == 1)
+#else
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
 #include <sycl/ext/oneapi/matrix/static-query.hpp>
 #endif
