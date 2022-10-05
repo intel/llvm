@@ -74,14 +74,14 @@ static mlir::Value reifyConstantDim(Attribute attr,
 // H = ((IH+pad_top+pad_bottom-(dilation_y*(KH-1)+1))/stride_y)+1
 // W = ((IW+pad_left+pad_right-(dilation_x*(KW-1)+1))/stride_x)+1
 static mlir::Value
-getConvOutputDim(Location loc, Value initDim, Attribute padBeforeAttr,
+getConvOutputDim(Location loc, Value inputDim, Attribute padBeforeAttr,
                  Attribute padAfterAttr, Value kernelDim, Attribute strideAttr,
                  Attribute dilationAttr, Type inputETy, OpBuilder &rewriter) {
   ImplicitLocOpBuilder builder(loc, rewriter);
   auto one = rewriter.create<arith::ConstantOp>(
-      loc, IntegerAttr::get(initDim.getType(), 1));
+      loc, IntegerAttr::get(inputDim.getType(), 1));
   Value padBefore = reifyConstantDim(padBeforeAttr, builder);
-  Value paddedBefore = builder.create<arith::AddIOp>(initDim, padBefore);
+  Value paddedBefore = builder.create<arith::AddIOp>(inputDim, padBefore);
   Value padAfter = reifyConstantDim(padAfterAttr, builder);
   Value paddedAfter = builder.create<arith::AddIOp>(paddedBefore, padAfter);
 
@@ -93,7 +93,7 @@ getConvOutputDim(Location loc, Value initDim, Attribute padBeforeAttr,
   Value subtract = builder.create<arith::SubIOp>(paddedAfter, addOne);
   Value stride = reifyConstantDim(strideAttr, builder);
   Value divide = builder.create<arith::DivUIOp>(subtract, stride);
-  return builder.create<arith::SubIOp>(divide, one);
+  return builder.create<arith::AddIOp>(divide, one);
 }
 
 // Creates a vector of the dynamic output dims for Conv2D and Depthwise_Conv2D

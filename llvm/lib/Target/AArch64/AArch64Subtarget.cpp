@@ -160,6 +160,8 @@ void AArch64Subtarget::initializeProperties() {
   case AppleA12:
   case AppleA13:
   case AppleA14:
+  case AppleA15:
+  case AppleA16:
     CacheLineSize = 64;
     PrefetchDistance = 280;
     MinPrefetchStride = 2048;
@@ -199,6 +201,7 @@ void AArch64Subtarget::initializeProperties() {
     MaxBytesForLoopAlignment = 16;
     break;
   case NeoverseN2:
+  case NeoverseV2:
     PrefFunctionLogAlignment = 4;
     PrefLoopLogAlignment = 5;
     MaxBytesForLoopAlignment = 16;

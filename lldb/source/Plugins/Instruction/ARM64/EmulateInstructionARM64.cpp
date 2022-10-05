@@ -51,11 +51,10 @@ using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionARM64, InstructionARM64)
 
-static bool LLDBTableGetRegisterInfo(uint32_t reg_num, RegisterInfo &reg_info) {
-  if (reg_num >= llvm::array_lengthof(g_register_infos_arm64_le))
-    return false;
-  reg_info = g_register_infos_arm64_le[reg_num];
-  return true;
+static llvm::Optional<RegisterInfo> LLDBTableGetRegisterInfo(uint32_t reg_num) {
+  if (reg_num >= std::size(g_register_infos_arm64_le))
+    return {};
+  return g_register_infos_arm64_le[reg_num];
 }
 
 #define No_VFP 0
@@ -144,9 +143,9 @@ bool EmulateInstructionARM64::SetTargetTriple(const ArchSpec &arch) {
   return false;
 }
 
-bool EmulateInstructionARM64::GetRegisterInfo(RegisterKind reg_kind,
-                                              uint32_t reg_num,
-                                              RegisterInfo &reg_info) {
+llvm::Optional<RegisterInfo>
+EmulateInstructionARM64::GetRegisterInfo(RegisterKind reg_kind,
+                                         uint32_t reg_num) {
   if (reg_kind == eRegisterKindGeneric) {
     switch (reg_num) {
     case LLDB_REGNUM_GENERIC_PC:
@@ -171,13 +170,13 @@ bool EmulateInstructionARM64::GetRegisterInfo(RegisterKind reg_kind,
       break;
 
     default:
-      return false;
+      return {};
     }
   }
 
   if (reg_kind == eRegisterKindLLDB)
-    return LLDBTableGetRegisterInfo(reg_num, reg_info);
-  return false;
+    return LLDBTableGetRegisterInfo(reg_num);
+  return {};
 }
 
 EmulateInstructionARM64::Opcode *
@@ -360,7 +359,7 @@ EmulateInstructionARM64::GetOpcodeForInstruction(const uint32_t opcode) {
        "TBNZ <R><t>, #<imm>, <label>"},
 
   };
-  static const size_t k_num_arm_opcodes = llvm::array_lengthof(g_opcodes);
+  static const size_t k_num_arm_opcodes = std::size(g_opcodes);
 
   for (size_t i = 0; i < k_num_arm_opcodes; ++i) {
     if ((g_opcodes[i].mask & opcode) == g_opcodes[i].value)
