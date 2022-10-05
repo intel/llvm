@@ -551,11 +551,11 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
   __ESIMD_DNS::vector_type_t<TmpAccEl, SIMDSize> simdAcc;
 
-  for (__ESIMD_NS::uint r = 0; r < repeat_count; r++) {
+  for (unsigned r = 0; r < repeat_count; r++) {
     V = r;
     k = 0;
 
-    for (__ESIMD_NS::uint n = 0; n < SIMDSize; n++) {
+    for (unsigned n = 0; n < SIMDSize; n++) {
       if (src0 != nullptr) {
         auto src0El = src0[0][r * SIMDSize + n];
 
@@ -570,13 +570,13 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
         simdAcc[n] = 0;
     }
 
-    for (__ESIMD_NS::uint s = 0; s < systolic_depth; s++) {
+    for (unsigned s = 0; s < systolic_depth; s++) {
       src1_ops_per_dword = 32 / (ops_per_chan * src1_el_bits);
       // U = s / src1_ops_per_dword;
-      U = s >> __ESIMD_NS::uint(log2(src1_ops_per_dword));
+      U = s >> unsigned(log2(src1_ops_per_dword));
 
-      for (__ESIMD_NS::uint n = 0; n < SIMDSize; n++) {
-        for (__ESIMD_NS::uint d = 0; d < ops_per_chan; d++) {
+      for (unsigned n = 0; n < SIMDSize; n++) {
+        for (unsigned d = 0; d < ops_per_chan; d++) {
           p = d + (s % src1_ops_per_dword) * ops_per_chan;
           uint32_t extension_temp = false;
 
@@ -618,7 +618,7 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
     } // Systolic phase.
 
-    for (__ESIMD_NS::uint n = 0; n < SIMDSize; n++) {
+    for (unsigned n = 0; n < SIMDSize; n++) {
       if constexpr (pvcBfDest) {
         // TODO: make abstraction, support saturation, review rounding algo for
         // corner cases.

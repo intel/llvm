@@ -14,9 +14,6 @@
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/intel/esimd/xmx/dpas.hpp>
-#include <sycl/ext/intel/experimental/esimd/math.hpp>
-#include <sycl/ext/intel/experimental/esimd/memory.hpp>
 
 class Kernel;
 
