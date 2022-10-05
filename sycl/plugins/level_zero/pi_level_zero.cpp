@@ -3214,6 +3214,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // currently not supported in level zero runtime
     return PI_ERROR_INVALID_VALUE;
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16: {
+    // bfloat16 conversions are supported on Intel GPUs.
+    return ReturnValue(bool{true});
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
     return ReturnValue(bool{false});
   }

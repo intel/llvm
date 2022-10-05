@@ -296,6 +296,12 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     return PI_SUCCESS;
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16: {
+    // bfloat16 conversions are supported on Intel GPUs.
+    cl_bool result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     // bfloat16 math functions are not yet supported on Intel GPUs.
     cl_bool result = false;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
