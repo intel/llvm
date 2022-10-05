@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // clang-format off
-// RUN: sycl-clang.py %s -S 2> /dev/null | FileCheck %s --check-prefixes=CHECK
-// RUN: sycl-clang.py %s -S -emit-llvm | FileCheck %s --check-prefixes=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s 2> /dev/null | FileCheck %s --check-prefixes=CHECK
+// RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s | FileCheck %s --check-prefixes=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
