@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || esimd_emulator
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -DESIMD_XE_HPC %s -DVER1 -o %t.out1
-// RUN: %clangxx -fsycl -DESIMD_XE_HPC %s -DVER2 -o %t.out2
+// RUN: %clangxx -fsycl %s -DVER1 -o %t.out1
+// RUN: %clangxx -fsycl %s -DVER2 -o %t.out2
 // RUN: %GPU_RUN_PLACEHOLDER %t.out1
 // RUN: %GPU_RUN_PLACEHOLDER %t.out2
 

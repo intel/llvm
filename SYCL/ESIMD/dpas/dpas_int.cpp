@@ -16,6 +16,8 @@
 
 int main(int argc, const char *argv[]) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  auto Dev = Q.get_device();
+  std::cout << "Running on " << Dev.get_info<info::device::name>() << std::endl;
 
   bool Print = argc > 1 && std::string(argv[1]) == "-debug";
   bool Passed = true;
@@ -25,16 +27,12 @@ int main(int argc, const char *argv[]) {
   // Test unsigned 2-bit integers.
   Passed &= tests<8, 8, u2, u2>(Q, Print);
   Passed &= tests<8, 4, u2, u2>(Q, Print);
-  // TODO: enable this case when the problem with simd constructor
-  // is resolved.
-  // Passed &= tests<8, 3, u2, u2>(Q, Print);
+  Passed &= tests<8, 3, u2, u2>(Q, Print);
   Passed &= tests<8, 1, u2, u2>(Q, Print);
 
   // Test signed 2-bit integers.
   Passed &= tests<8, 8, s2, s2>(Q, Print);
-  // TODO: enable this case when the problem with simd constructor
-  // is resolved.
-  // Passed &= tests<8, 5, s2, s2>(Q, Print);
+  Passed &= tests<8, 5, s2, s2>(Q, Print);
   Passed &= tests<8, 2, s2, s2>(Q, Print);
   Passed &= tests<8, 1, s2, s2>(Q, Print);
 

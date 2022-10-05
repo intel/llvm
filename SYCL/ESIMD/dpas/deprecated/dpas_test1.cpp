@@ -10,7 +10,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-#include "../esimd_test_utils.hpp"
+#include "../../esimd_test_utils.hpp"
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>

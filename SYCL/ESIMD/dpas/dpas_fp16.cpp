@@ -16,6 +16,8 @@
 
 int main(int argc, const char *argv[]) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  auto Dev = Q.get_device();
+  std::cout << "Running on " << Dev.get_info<info::device::name>() << std::endl;
 
   bool Print = argc > 1 && std::string(argv[1]) == "-debug";
   bool Passed = true;
@@ -25,9 +27,8 @@ int main(int argc, const char *argv[]) {
   Passed &= tests<8, 4, fp16, fp16, LetDeduceArgs>(Q, Print);
   Passed &= tests<8, 1, fp16, fp16, LetDeduceArgs>(Q, Print);
 
-  // TODO: Enable these cases when esimd::simd(ptr) constructor is fixed.
-  // Passed &= tests<8, 5, fp16, fp16, LetDeduceArgs>(Q, Print);
-  // Passed &= tests<8, 3, fp16, fp16, LetDeduceArgs>(Q, Print);
+  Passed &= tests<8, 5, fp16, fp16, LetDeduceArgs>(Q, Print);
+  Passed &= tests<8, 3, fp16, fp16, LetDeduceArgs>(Q, Print);
 
   std::cout << (Passed ? "Test Passed\n" : "Test FAILED\n");
   return Passed ? 0 : 1;

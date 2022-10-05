@@ -29,6 +29,7 @@ constexpr dpas_argument_type u8 = dpas_argument_type::u8;
 
 constexpr dpas_argument_type fp16 = dpas_argument_type::fp16;
 constexpr dpas_argument_type bf16 = dpas_argument_type::bf16;
+constexpr dpas_argument_type tf32 = dpas_argument_type::tf32;
 
 std::string toString(dpas_argument_type T) {
   switch (T) {
@@ -101,7 +102,10 @@ template <dpas_argument_type T> struct DpasNaturalOperandType {
           std::conditional_t<
               is_fp16, sycl::half,
               std::conditional_t<
-                  is_bf16, sycl::ext::oneapi::experimental::bfloat16, void>>>>;
+                  is_bf16, sycl::ext::oneapi::experimental::bfloat16,
+                  std::conditional_t<
+                      is_tf32, sycl::ext::intel::experimental::esimd::tfloat32,
+                      void>>>>>;
 };
 
 template <dpas_argument_type T> constexpr int getBitSize() {
@@ -308,10 +312,8 @@ bool test(queue &Q, bool Print) {
   constexpr int K = SystolicDepth * OpsPerChannel;
   constexpr int N = ExecSize; // 16 for PVC, 8 for DG2.
 
-  auto Dev = Q.get_device();
-  std::cout << "Running on " << Dev.get_info<info::device::name>()
-            << " (ExecSize = " << ExecSize << "): " << toString(BPrec, APrec)
-            << ", UseSrc0 = " << UseSrc0
+  std::cout << "dpas.8x" << RepeatCount << ": (ExecSize = " << ExecSize
+            << "): " << toString(BPrec, APrec) << ", UseSrc0 = " << UseSrc0
             << ", LetDeduceArgs = " << LetDeduceArgs << std::endl;
 
   using ANaturalType = typename DpasNaturalOperandType<APrec>::type;
@@ -415,7 +417,8 @@ bool test(queue &Q, bool Print) {
 }
 
 template <int SystolicDepth, int RepeatCount, dpas_argument_type T1,
-          dpas_argument_type T2, bool LetDeduceArgs = false>
+          dpas_argument_type T2, bool LetDeduceArgs = false,
+          bool ExecSize16Only = false>
 bool tests(queue Q, bool Print) {
   bool Passed = true;
   constexpr bool UseSrc0 = true;
@@ -442,12 +445,14 @@ bool tests(queue Q, bool Print) {
             Q, Print);
   }
   if (ExecSize == 8 || IsEmulator) {
-    Passed &=
-        test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 8, LetDeduceArgs>(
-            Q, Print);
-    Passed &=
-        test<SystolicDepth, RepeatCount, T1, T2, !UseSrc0, 8, LetDeduceArgs>(
-            Q, Print);
+    if constexpr (!ExecSize16Only) {
+      Passed &=
+          test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 8, LetDeduceArgs>(
+              Q, Print);
+      Passed &=
+          test<SystolicDepth, RepeatCount, T1, T2, !UseSrc0, 8, LetDeduceArgs>(
+              Q, Print);
+    }
   }
 
   return Passed;
