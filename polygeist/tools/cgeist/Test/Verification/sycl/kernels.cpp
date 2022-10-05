@@ -18,13 +18,13 @@
 // CHECK-MLIR: !sycl_item_1_1_ = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>)>
 // CHECK-MLIR: !sycl_range_1_ = !sycl.range<1>
 
-// CHECK-LLVM-DAG: %"class.cl::sycl::accessor.1" = type { %"class.cl::sycl::detail::AccessorImplDevice.1", { i32 addrspace(1)* }, { i32 addrspace(1)* } }
-// CHECK-LLVM-DAG: %"class.cl::sycl::detail::AccessorImplDevice.1" = type { %"class.cl::sycl::id.1", %"class.cl::sycl::range.1", %"class.cl::sycl::range.1" }
-// CHECK-LLVM-DAG: %"class.cl::sycl::id.1" = type { %"class.cl::sycl::detail::array.1" }
-// CHECK-LLVM-DAG: %"class.cl::sycl::detail::array.1" = type { [1 x i64] }
-// CHECK-LLVM-DAG: %"class.cl::sycl::range.1" = type { %"class.cl::sycl::detail::array.1" }
-// CHECK-LLVM-DAG: %"class.cl::sycl::item.1.true" = type { %"class.cl::sycl::detail::ItemBase.1.true" }
-// CHECK-LLVM-DAG: %"class.cl::sycl::detail::ItemBase.1.true" = type { %"class.cl::sycl::range.1", %"class.cl::sycl::id.1", %"class.cl::sycl::id.1" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { i32 addrspace(1)* } }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.1" = type { %"class.sycl::_V1::id.1", %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::id.1" = type { %"class.sycl::_V1::detail::array.1" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::detail::array.1" = type { [1 x i64] }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::range.1" = type { %"class.sycl::_V1::detail::array.1" }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::item.1.true" = type { %"struct.sycl::_V1::detail::ItemBase.1.true" }
+// CHECK-LLVM-DAG: %"struct.sycl::_V1::detail::ItemBase.1.true" = type { %"class.sycl::_V1::range.1", %"class.sycl::_V1::id.1", %"class.sycl::_V1::id.1" }
 
 // CHECK-MLIR: gpu.module @device_functions
 // CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
