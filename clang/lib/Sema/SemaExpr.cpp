@@ -236,9 +236,13 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
           VD->getStorageClass() == SC_Static &&
           !VD->hasAttr<SYCLGlobalVarAttr>() &&
           !isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
-              VD->getType()))
+              VD->getType())) {
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
+        if (getLangOpts().IntelFPGA)
+          SYCLDiagIfDeviceCode(*Locs.begin(),
+                               diag::note_intel_fpga_future_support);
+      }
       // Non-const globals are not allowed in SYCL except for ESIMD or with the
       // SYCLGlobalVar or SYCLGlobalVariableAllowed attribute.
       else if (IsRuntimeEvaluated && !IsEsimdPrivateGlobal && !IsConst &&

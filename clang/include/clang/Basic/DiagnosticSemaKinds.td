@@ -163,6 +163,9 @@ def err_intel_fpga_mem_arg_mismatch
     : Error<"builtin parameter must be %select{"
             "a pointer"
             "|a non-negative integer constant}0">;
+def note_intel_fpga_future_support
+    : Note<"in the future, Intel FPGA compilations will support 'device_global'"
+           " variables that retain state between invocations">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
