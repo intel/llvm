@@ -19,13 +19,14 @@
 
 namespace mlir {
 namespace sycl {
+/// Table in which operations implementing SYCL methods should registered.
 class MethodRegistry {
 public:
   /// Register the methods in \p MethodNames for the SYCL type identified by
   /// \p TypeID, being \p OpName the name of the SYCL operation representing
   /// this method.
   ///
-  /// Calls to `findMethod(TypeID, name)` (being name present in
+  /// Calls to `lookupMethod(TypeID, name)` (being name present in
   /// `MethodNames`), will return `OpName`.
   void registerMethod(mlir::TypeID typeID, llvm::StringRef methodName,
                       llvm::StringRef opName);
@@ -43,6 +44,8 @@ private:
       methods;
 };
 
+/// Class containing relevant MLIR SYCL-related information during the
+/// translation process.
 class SYCLContext {
 public:
   /// Register the methods in \p MethodNames for the SYCL type identified by
