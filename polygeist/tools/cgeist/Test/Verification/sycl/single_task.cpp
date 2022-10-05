@@ -5,6 +5,8 @@
 // RUN: llvm-as %t.ll
 // RUN: llvm-spirv %t.bc
 // RUN: cat %t.ll | FileCheck %s
+// BUG: clang++ -o doesn't redirect the output to the file specified.
+// XFAIL: *
 
 // Test that the kernel named `kernel_single_task` is generated.
 // CHECK: define weak_odr spir_kernel void {{.*}}kernel_single_task
