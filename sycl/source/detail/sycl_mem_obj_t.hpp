@@ -58,7 +58,7 @@ public:
         MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr),
-        MNoHostPtrProvided(true) {}
+        MHostPtrProvided(false) {}
 
   SYCLMemObjT(const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
@@ -126,10 +126,7 @@ public:
 
   void set_write_back(bool NeedWriteBack) { MNeedWriteBack = NeedWriteBack; }
 
-  void set_final_data(std::nullptr_t) {
-    MUploadDataFunctor = nullptr;
-    MNoHostPtrProvided &= true;
-  }
+  void set_final_data(std::nullptr_t) { MUploadDataFunctor = nullptr; }
 
   void set_final_data_from_storage() {
     MUploadDataFunctor = [this]() {
@@ -138,7 +135,7 @@ public:
         updateHostMemory(FinalData);
       }
     };
-    MNoHostPtrProvided &= false;
+    MHostPtrProvided = true;
   }
 
   void set_final_data(
@@ -149,7 +146,7 @@ public:
     MUploadDataFunctor = [FinalDataFunc, UpdateFunc]() {
       FinalDataFunc(UpdateFunc);
     };
-    MNoHostPtrProvided &= false;
+    MHostPtrProvided = true;
   }
 
 protected:
@@ -175,7 +172,7 @@ public:
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
-    MNoHostPtrProvided = false;
+    MHostPtrProvided = true;
     if (!MHostPtrReadOnly && HostPtr) {
       set_final_data([HostPtr](const std::function<void(void *const Ptr)> &F) {
         F(HostPtr);
@@ -199,7 +196,7 @@ public:
 
   void handleHostData(const std::shared_ptr<void> &HostPtr,
                       const size_t RequiredAlign, bool IsConstPtr) {
-    MNoHostPtrProvided = false;
+    MHostPtrProvided = true;
     MSharedPtrStorage = HostPtr;
     MHostPtrReadOnly = IsConstPtr;
     if (HostPtr) {
@@ -302,9 +299,8 @@ protected:
   // check for MUploadDataFunctor is not enough to define it since for case when
   // we have read only HostPtr - MUploadDataFunctor is empty but delayed release
   // must be not allowed.
-  bool MNoHostPtrProvided;
+  bool MHostPtrProvided;
 };
-
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -31,7 +31,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr), MNoHostPtrProvided(false) {
+      MSharedPtrStorage(nullptr), MHostPtrProvided(true) {
   if (MInteropContext->is_host())
     throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -150,7 +150,7 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
 
 void SYCLMemObjT::detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &self,
                                      bool DefaultAllocator) const {
-  if (MNoHostPtrProvided && DefaultAllocator)
+  if (!MHostPtrProvided && DefaultAllocator)
     Scheduler::getInstance().deferMemObjRelease(self);
 }
 
