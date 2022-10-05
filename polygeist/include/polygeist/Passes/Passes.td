@@ -42,6 +42,12 @@ def InnerSerialization : Pass<"inner-serialize"> {
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
 }
 
+def LLVMLegalizeForSPIRV : Pass<"legalize-for-spirv"> {
+  let summary = "Legalize dialect to be convertible to SPIRV IR";
+  let constructor = "::mlir::polygeist::createLegalizeForSPIRVPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];  
+}
+
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";

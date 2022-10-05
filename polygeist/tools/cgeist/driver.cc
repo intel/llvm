@@ -643,6 +643,8 @@ static int finalize(mlir::MLIRContext &context,
       // options.useBarePtrCallConv = true;
       pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
       // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
+      pm3.addPass(polygeist::createLegalizeForSPIRVPass());
+
       pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (mlir::failed(pm3.run(module.get()))) {
         llvm::errs() << "*** Finalize failed (phase 3). Module: ***\n";
