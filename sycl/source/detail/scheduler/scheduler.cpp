@@ -548,7 +548,7 @@ void Scheduler::cleanupDeferredMemObjects(bool Blocking) {
     ReadLockT Lock = Blocking ? ReadLockT(MGraphLock)
                               : ReadLockT(MGraphLock, std::try_to_lock);
     if (Lock.owns_lock()) {
-      // Not expected that Blocking == true with be used in parallel with
+      // Not expected that Blocking == true will be used in parallel with
       // adding MemObj to storage, no such scenario.
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       auto MemObjIt = MDeferredMemObjRelease.begin();
