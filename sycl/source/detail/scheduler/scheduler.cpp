@@ -26,49 +26,42 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+inline bool Scheduler::checkLeavesCompletion(LeavesCollection &Leaves,
+                                             ReadLockT &GraphReadLock,
+                                             bool Blocking) {
+  std::vector<Command *> ToCleanUp;
+  for (Command *Cmd : Leaves) {
+    // Expect that mem object release is not responsible for dependency commands
+    // enqueue
+    if (Cmd->getEvent()->isCompleted())
+      continue;
+
+    if (Blocking)
+      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    else
+      return false;
+  }
+  return true;
+}
+
 bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock, bool Blocking) {
   assert(Record);
+  if (!checkLeavesCompletion(Record->MReadLeaves, GraphReadLock, Blocking))
+    return false;
+  if (!checkLeavesCompletion(Record->MWriteLeaves, GraphReadLock, Blocking))
+    return false;
+
   std::vector<Command *> ToCleanUp;
-  for (Command *Cmd : Record->MReadLeaves) {
-    if (Cmd->getEvent()->isCompleted())
-      continue;
-
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.",
-                          PI_ERROR_INVALID_OPERATION);
-    if (Blocking) {
-      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
-    } else
-      return false;
-  }
-  for (Command *Cmd : Record->MWriteLeaves) {
-    if (Cmd->getEvent()->isCompleted())
-      continue;
-
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.",
-                          PI_ERROR_INVALID_OPERATION);
-    if (Blocking) {
-      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
-    } else
-      return false;
-  }
-  // all dependencies is completed and we can enqueue all ReleaseCmds in advance
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
-    if (ReleaseCmd->isSuccessfullyEnqueued())
-      continue;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Will contain the list of dependencies for the Release Command
     std::set<Command *> DepCommands;
     // Capture the read dependencies
     for (Command *Cmd : Record->MWriteLeaves)
       DepCommands.insert(Cmd);
+    // Capture the write dependencies
     for (Command *Cmd : Record->MReadLeaves)
       DepCommands.insert(Cmd);
     // Report these dependencies to the Command so these dependencies can be
@@ -80,17 +73,11 @@ bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
+    // Unconditionally wait for completion
+    GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
+                                 ToCleanUp);
   }
-  // enqueue is fully done and we can check if ReleaseCmd is completed
-  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
-    Command *Cmd = AllocaCmd->getReleaseCmd();
-    if (Cmd->getEvent()->isCompleted())
-      continue;
-    if (Blocking)
-      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
-    else
-      return false;
-  }
+
   return true;
 }
 
@@ -304,21 +291,17 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
 
   {
-    MemObjRecord *Record = nullptr;
+    MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
+    if (!Record)
+      // No operations were performed on the mem object
+      return;
 
     {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
       ReadLockT Lock(MGraphLock);
-
-      Record = MGraphBuilder.getMemObjRecord(MemObj);
-      if (!Record)
-        // No operations were performed on the mem object
-        return;
-
       waitForRecordToFinish(Record, Lock, true);
     }
-
     {
       WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
@@ -464,7 +447,7 @@ void Scheduler::releaseResources() {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
-  while (!isNoDeferredMemObjects())
+  while (!isDeferredMemObjectsEmpty())
     cleanupDeferredMemObjects(true);
 }
 
@@ -532,21 +515,28 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
   cleanupDeferredMemObjects(false);
 }
 
-inline bool Scheduler::isNoDeferredMemObjects() {
+inline bool Scheduler::isDeferredMemObjectsEmpty() {
   std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
   return MDeferredMemObjRelease.empty();
 }
 
 void Scheduler::cleanupDeferredMemObjects(bool Blocking) {
-  if (isNoDeferredMemObjects())
+  if (isDeferredMemObjectsEmpty())
     return;
+  if (Blocking) {
+    std::list<std::shared_ptr<SYCLMemObjI>> MTempStorage;
+    {
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      MDeferredMemObjRelease.swap(MTempStorage);
+    }
+    // if any objects in MTempStorage exist - it is leaving scope and being
+    // deleted
+  }
 
-  // Need to aggregate ready to release object to acquire write lock once.
   std::list<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
   {
-    // if we need blocking mode - force lock waiting
-    ReadLockT Lock = Blocking ? ReadLockT(MGraphLock)
-                              : ReadLockT(MGraphLock, std::try_to_lock);
+
+    ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
     if (Lock.owns_lock()) {
       // Not expected that Blocking == true will be used in parallel with
       // adding MemObj to storage, no such scenario.
@@ -554,12 +544,6 @@ void Scheduler::cleanupDeferredMemObjects(bool Blocking) {
       auto MemObjIt = MDeferredMemObjRelease.begin();
       while (MemObjIt != MDeferredMemObjRelease.end()) {
         MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
-        if (!Record) {
-          // Just trigger delete since no operations on object was perfromed and
-          // no commands and other to wait for
-          MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
-          continue;
-        }
         if (!waitForRecordToFinish(Record, Lock, Blocking)) {
           MemObjIt++;
           continue;
@@ -569,28 +553,7 @@ void Scheduler::cleanupDeferredMemObjects(bool Blocking) {
       }
     }
   }
-  if (ObjsReadyToRelease.empty())
-    return;
-
-  std::vector<std::shared_ptr<stream_impl>> StreamsToDeallocate;
-  std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
-  {
-    WriteLockT Lock(MGraphLock, std::try_to_lock);
-    // if we need blocking mode - force lock waiting
-    if (!Lock.owns_lock() && Blocking)
-      acquireWriteLock(Lock);
-    if (Lock.owns_lock()) {
-      for (std::shared_ptr<SYCLMemObjI> &MemObj : ObjsReadyToRelease)
-        releaseMemObjRecord(MemObj.get(), StreamsToDeallocate,
-                            AuxResourcesToDeallocate);
-    } else {
-      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
-      MDeferredMemObjRelease.splice(MDeferredMemObjRelease.end(),
-                                    ObjsReadyToRelease);
-    }
-  }
-  deallocateStreams(StreamsToDeallocate);
-  // ObjsReadyToRelease leaving scope and being deleted
+  // if any ObjsReadyToRelease found - it is leaving scope and being deleted
 }
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

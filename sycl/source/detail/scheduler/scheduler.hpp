@@ -449,7 +449,7 @@ public:
   Scheduler();
   virtual ~Scheduler();
   void releaseResources();
-  inline bool isNoDeferredMemObjects();
+  inline bool isDeferredMemObjectsEmpty();
 
 protected:
   // TODO: after switching to C++17, change std::shared_timed_mutex to
@@ -469,6 +469,7 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
 
+  // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(bool Blocking);
   inline void releaseMemObjRecord(
       detail::SYCLMemObjI *MemObj,
@@ -778,7 +779,9 @@ protected:
   /// completed, otherwise - false. Must always return true if ForceWait ==
   /// true.
   bool waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock,
-                             bool ForceWait);
+                             bool Blocking);
+  inline bool checkLeavesCompletion(LeavesCollection &Leaves,
+                                    ReadLockT &GraphReadLock, bool Blocking);
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;

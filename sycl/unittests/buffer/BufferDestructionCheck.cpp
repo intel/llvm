@@ -80,7 +80,7 @@ protected:
       // those buffers also created with size only so it also to be deferred on
       // deletion.
       EXPECT_CALL(*MockSchedulerPtr, deferMemObjRelease(testing::_))
-          .Times(/*testing::AnyNumber()*/ 2)
+          .Times(testing::AnyNumber())
           .InSequence(S);
     } else {
       // buffer created above should not be deferred on deletion because has non
@@ -91,11 +91,31 @@ protected:
     }
   }
 
+  template <typename Buffer>
+  void SubmitWorkload(sycl::queue &Queue, Buffer *Buf) {
+    Queue.submit([&](sycl::handler &CGH) {
+      // Just need to imitate task dependency on buffer
+      auto acc = Buf->get_access(CGH, sycl::read_only);
+      CGH.host_task([] {});
+    });
+  }
+
 protected:
   sycl::unittest::PiMock Mock;
   sycl::platform Plt;
   testing::NiceMock<FairMockScheduler> *MockSchedulerPtr;
 };
+
+TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultNoRecord) {
+  sycl::context Context{Plt};
+  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+  {
+    sycl::buffer<int, 1> Buf(1);
+    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
+        sycl::detail::getSyclObjImpl(Buf);
+    CheckBufferDestruction(BufImpl, false);
+  }
+}
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   sycl::context Context{Plt};
@@ -104,6 +124,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
     sycl::buffer<int, 1> Buf(1);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, true);
   }
 }
@@ -117,6 +138,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultSetFinalData) {
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
     Buf.set_final_data(&FinalData);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -131,6 +153,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyNonDefaultAllocator) {
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -144,6 +167,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, true);
   }
 }
@@ -156,6 +180,7 @@ TEST_F(BufferDestructionCheck, BufferWithRawHostPtr) {
     sycl::buffer<int, 1> Buf(&InitialVal, 1);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -171,6 +196,7 @@ TEST_F(BufferDestructionCheck, BufferWithRawHostPtrWithNonDefaultAllocator) {
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(&InitialVal, 1, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -183,6 +209,7 @@ TEST_F(BufferDestructionCheck, BufferWithConstRawHostPtr) {
     sycl::buffer<int, 1> Buf(&InitialVal, 1);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -199,6 +226,7 @@ TEST_F(BufferDestructionCheck,
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(&InitialVal, 1, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -211,6 +239,7 @@ TEST_F(BufferDestructionCheck, BufferWithContainer) {
     sycl::buffer<int, 1> Buf(data);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -226,6 +255,7 @@ TEST_F(BufferDestructionCheck, BufferWithContainerWithNonDefaultAllocator) {
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(data, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -238,6 +268,7 @@ TEST_F(BufferDestructionCheck, BufferWithSharedPtr) {
     sycl::buffer<int, 1> Buf(InitialVal, 1);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -253,6 +284,7 @@ TEST_F(BufferDestructionCheck, BufferWithSharedPtrWithNonDefaultAllocator) {
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(InitialVal, 1, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -265,6 +297,7 @@ TEST_F(BufferDestructionCheck, BufferWithSharedPtrArray) {
     sycl::buffer<int, 1> Buf(InitialVal, 1);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -281,6 +314,7 @@ TEST_F(BufferDestructionCheck,
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(InitialVal, 2, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, false);
   }
 }
@@ -293,6 +327,7 @@ TEST_F(BufferDestructionCheck, BufferWithIterators) {
     sycl::buffer<int, 1> Buf(data.begin(), data.end());
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
+    SubmitWorkload(Q, &Buf);
     CheckBufferDestruction(BufImpl, true);
   }
 }
@@ -307,6 +342,7 @@ TEST_F(BufferDestructionCheck, BufferWithIterators) {
 //     sycl::buffer<int, 1, AllocatorTypeTest> Buf(data.begin(), data.end(),
 //     allocator); std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
 //         sycl::detail::getSyclObjImpl(Buf);
+//     //needs workload
 //     CheckBufferDestruction(BufImpl, false);
 //   }
 // }
@@ -322,6 +358,7 @@ TEST_F(BufferDestructionCheck, BufferDeferringCheckWriteLock) {
                                                    std::defer_lock);
     {
       sycl::buffer<int, 1> Buf(1);
+      SubmitWorkload(Q, &Buf);
       {
         std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
             sycl::detail::getSyclObjImpl(Buf);
@@ -348,32 +385,6 @@ TEST_F(BufferDestructionCheck, BufferDeferringCheckWriteLock) {
   }
 }
 
-TEST_F(BufferDestructionCheck, BufferDeferringCheckReadLock) {
-  sycl::context Context{Plt};
-  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-  {
-    testing::Sequence S;
-    EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-    std::shared_lock<std::shared_timed_mutex> Lock(MockSchedulerPtr->MGraphLock,
-                                                   std::defer_lock);
-    {
-      sycl::buffer<int, 1> Buf(1);
-      Lock.lock();
-      // gmock warning will be generated - simply tell gtest that now we do not
-      // want to mock the function
-      ON_CALL(*MockSchedulerPtr, deferMemObjRelease)
-          .WillByDefault(
-              [this](const std::shared_ptr<sycl::detail::SYCLMemObjI> &MemObj) {
-                return MockSchedulerPtr
-                    ->sycl::detail::Scheduler::deferMemObjRelease(MemObj);
-              });
-    }
-    // Record is empty and read lock do not prevent from being deleted
-    ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-    Lock.unlock();
-  }
-}
-
 std::map<pi_event, pi_int32> ExpectedEventStatus;
 pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
                            void *PV, size_t *PVSizeRet) {
@@ -389,17 +400,17 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
     return PI_ERROR_INVALID_OPERATION;
 }
 
-class MockCmdWithRelTracking : public MockCommand {
+class MockCmdWithReleaseTracking : public MockCommand {
 public:
-  MockCmdWithRelTracking(
+  MockCmdWithReleaseTracking(
       sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : MockCommand(Queue, Req, Type){};
-  MockCmdWithRelTracking(
+  MockCmdWithReleaseTracking(
       sycl::detail::QueueImplPtr Queue,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : MockCommand(Queue, Type){};
-  ~MockCmdWithRelTracking() { Release(); }
+  ~MockCmdWithReleaseTracking() { Release(); }
   MOCK_METHOD0(Release, void());
 };
 
@@ -413,16 +424,18 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   sycl::detail::MemObjRecord *Rec =
       MockSchedulerPtr->MGraphBuilder.getOrInsertMemObjRecord(
           sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
-  MockCmdWithRelTracking *ReadCmd = nullptr;
-  MockCmdWithRelTracking *WriteCmd = nullptr;
+  MockCmdWithReleaseTracking *ReadCmd = nullptr;
+  MockCmdWithReleaseTracking *WriteCmd = nullptr;
   ReadCmd =
-      new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
+      new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   ReadCmd->getEvent()->getHandleRef() = reinterpret_cast<sycl::RT::PiEvent>(
       0x01); // just assign to be able to use mock
   WriteCmd =
-      new MockCmdWithRelTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
+      new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   WriteCmd->getEvent()->getHandleRef() =
       reinterpret_cast<sycl::RT::PiEvent>(0x02);
+  ReadCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
+  WriteCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
 
   std::vector<sycl::detail::Command *> ToCleanUp;
   std::vector<sycl::detail::Command *> ToEnqueue;
@@ -439,17 +452,13 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
       PI_EVENT_SUBMITTED;
 
-  EXPECT_CALL(*ReadCmd, enqueue).Times(1).RetiresOnSaturation();
   EXPECT_FALSE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, false));
-  EXPECT_CALL(*ReadCmd, enqueue).Times(0);
 
   ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
   ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
       PI_EVENT_SUBMITTED;
 
-  EXPECT_CALL(*WriteCmd, enqueue).Times(1).RetiresOnSaturation();
   EXPECT_FALSE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, false));
-  EXPECT_CALL(*WriteCmd, enqueue).Times(0);
 
   ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
   ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
