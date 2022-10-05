@@ -2179,16 +2179,21 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
       llvm::errs() << " val: " << val << " - pt: " << PT << " fn: " << fnum
                    << " ST: " << *ST << "\n";
     }
-    mlir::Type ET;
-    if (auto ST = PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>())
-      ET = ST.getBody()[fnum];
-    else if (auto AT =
-                 PT.getElementType().dyn_cast<mlir::LLVM::LLVMArrayType>())
-      ET = AT.getElementType();
-    else if (auto MT = PT.getElementType().dyn_cast<MemRefType>())
-      ET = MT.getElementType();
-    else
-      llvm_unreachable("not implemented");
+    mlir::Type ET =
+        mlir::TypeSwitch<mlir::Type, mlir::Type>(PT.getElementType())
+            .Case<mlir::LLVM::LLVMStructType>(
+                [&](mlir::LLVM::LLVMStructType ST) {
+                  return ST.getBody()[fnum];
+                })
+            .Case<mlir::LLVM::LLVMArrayType>([&](mlir::LLVM::LLVMArrayType AT) {
+              return AT.getElementType();
+            })
+            .Case<MemRefType>(
+                [&](MemRefType MT) { return MT.getElementType(); })
+            .Default([&](mlir::Type T) {
+              llvm_unreachable("not implemented");
+              return T;
+            });
 
     mlir::Value commonGEP = builder.create<mlir::LLVM::GEPOp>(
         loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), val,
@@ -2471,18 +2476,24 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
             builder.create<arith::ConstantIntOp>(loc, 0, 32),
             builder.create<arith::ConstantIntOp>(loc, fnum, 32)};
         auto PT = value.getType().cast<LLVM::LLVMPointerType>();
-        mlir::Type ET;
-        if (auto ST =
-                PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>())
-          ET = ST.getBody()[fnum];
-        else if (auto AT =
-                     PT.getElementType().dyn_cast<mlir::LLVM::LLVMArrayType>())
-          ET = AT.getElementType();
-        else if (auto AT =
-                     PT.getElementType().dyn_cast<mlir::sycl::AccessorType>())
-          ET = AT.getBody()[fnum];
-        else
-          llvm_unreachable("not implemented");
+        mlir::Type ET =
+            mlir::TypeSwitch<mlir::Type, mlir::Type>(PT.getElementType())
+                .Case<mlir::LLVM::LLVMStructType>(
+                    [&](mlir::LLVM::LLVMStructType ST) {
+                      return ST.getBody()[fnum];
+                    })
+                .Case<mlir::LLVM::LLVMArrayType>(
+                    [&](mlir::LLVM::LLVMArrayType AT) {
+                      return AT.getElementType();
+                    })
+                .Case<mlir::sycl::AccessorType>(
+                    [&](mlir::sycl::AccessorType AT) {
+                      return AT.getBody()[fnum];
+                    })
+                .Default([&](mlir::Type T) {
+                  llvm_unreachable("not implemented");
+                  return T;
+                });
 
         value = builder.create<LLVM::GEPOp>(
             loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), value,
