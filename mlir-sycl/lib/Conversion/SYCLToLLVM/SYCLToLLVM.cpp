@@ -61,7 +61,7 @@ static Optional<Type> getArrayTy(MLIRContext &context, unsigned dimNum,
   assert((dimNum == 1 || dimNum == 2 || dimNum == 3) &&
          "Expecting number of dimensions to be 1, 2, or 3.");
   auto structTy = LLVM::LLVMStructType::getIdentified(
-      &context, "class.cl::sycl::detail::array." + std::to_string(dimNum));
+      &context, "class.sycl::_V1::detail::array." + std::to_string(dimNum));
   if (!structTy.isInitialized()) {
     auto arrayTy = LLVM::LLVMArrayType::get(type, dimNum);
     if (failed(structTy.setBody(arrayTy, /*isPacked=*/false)))
@@ -97,7 +97,7 @@ static Optional<Type> convertBodyType(StringRef name,
 static Optional<Type>
 convertAccessorImplDeviceType(sycl::AccessorImplDeviceType type,
                               LLVMTypeConverter &converter) {
-  return convertBodyType("class.cl::sycl::detail::AccessorImplDevice." +
+  return convertBodyType("class.sycl::_V1::detail::AccessorImplDevice." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
@@ -117,25 +117,9 @@ static Optional<Type> convertAccessorCommonType(sycl::AccessorCommonType type,
 /// Converts SYCL accessor type to LLVM type.
 static Optional<Type> convertAccessorType(sycl::AccessorType type,
                                           LLVMTypeConverter &converter) {
-  auto convertedTy = LLVM::LLVMStructType::getIdentified(
-      &converter.getContext(),
-      "class.cl::sycl::accessor." + std::to_string(type.getDimension()));
-  if (!convertedTy.isInitialized()) {
-    SmallVector<Type> convertedElemTypes;
-    convertedElemTypes.reserve(type.getBody().size());
-    if (failed(converter.convertTypes(type.getBody(), convertedElemTypes)))
-      return llvm::None;
-
-    auto ptrTy = LLVM::LLVMPointerType::get(type.getType(), /*addressSpace=*/1);
-    auto structTy =
-        LLVM::LLVMStructType::getLiteral(&converter.getContext(), ptrTy);
-    convertedElemTypes.push_back(structTy);
-
-    if (failed(convertedTy.setBody(convertedElemTypes, /*isPacked=*/false)))
-      return llvm::None;
-  }
-
-  return convertedTy;
+  return convertBodyType("class.sycl::_V1::accessor." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
 }
 
 /// Converts SYCL array type to LLVM type.
@@ -155,7 +139,7 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
 /// Converts SYCL group type to LLVM type.
 static Optional<Type> convertGroupType(sycl::GroupType type,
                                        LLVMTypeConverter &converter) {
-  return convertBodyType("class.cl::sycl::group." +
+  return convertBodyType("class.sycl::_V1::group." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
@@ -181,14 +165,14 @@ static Optional<Type> convertRangeOrIDTy(unsigned dimNum, StringRef name,
 /// Converts SYCL id type to LLVM type.
 static Optional<Type> convertIDType(sycl::IDType type,
                                     LLVMTypeConverter &converter) {
-  return convertRangeOrIDTy(type.getDimension(), "class.cl::sycl::id",
+  return convertRangeOrIDTy(type.getDimension(), "class.sycl::_V1::id",
                             converter);
 }
 
 /// Converts SYCL item base type to LLVM type.
 static Optional<Type> convertItemBaseType(sycl::ItemBaseType type,
                                           LLVMTypeConverter &converter) {
-  return convertBodyType("class.cl::sycl::detail::ItemBase." +
+  return convertBodyType("struct.sycl::_V1::detail::ItemBase." +
                              std::to_string(type.getDimension()) +
                              (type.getWithOffset() ? ".true" : ".false"),
                          type.getBody(), converter);
@@ -197,7 +181,7 @@ static Optional<Type> convertItemBaseType(sycl::ItemBaseType type,
 /// Converts SYCL item type to LLVM type.
 static Optional<Type> convertItemType(sycl::ItemType type,
                                       LLVMTypeConverter &converter) {
-  return convertBodyType("class.cl::sycl::item." +
+  return convertBodyType("class.sycl::_V1::item." +
                              std::to_string(type.getDimension()) +
                              (type.getWithOffset() ? ".true" : ".false"),
                          type.getBody(), converter);
@@ -206,7 +190,7 @@ static Optional<Type> convertItemType(sycl::ItemType type,
 /// Converts SYCL nd item type to LLVM type.
 static Optional<Type> convertNdItemType(sycl::NdItemType type,
                                         LLVMTypeConverter &converter) {
-  return convertBodyType("class.cl::sycl::nd_item." +
+  return convertBodyType("class.sycl::_V1::nd_item." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
@@ -214,7 +198,7 @@ static Optional<Type> convertNdItemType(sycl::NdItemType type,
 /// Converts SYCL range type to LLVM type.
 static Optional<Type> convertRangeType(sycl::RangeType type,
                                        LLVMTypeConverter &converter) {
-  return convertRangeOrIDTy(type.getDimension(), "class.cl::sycl::range",
+  return convertRangeOrIDTy(type.getDimension(), "class.sycl::_V1::range",
                             converter);
 }
 
