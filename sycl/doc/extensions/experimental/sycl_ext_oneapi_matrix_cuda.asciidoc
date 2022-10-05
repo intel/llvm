@@ -1,0 +1,145 @@
+# Additional CUDA only features matrix extension for DPC++ : sycl_ext_oneapi_matrix_cuda
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2022-2022 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+**_NOTE:_** _This document describes the current design and API for the additional CUDA only features matrix
+extension to {dpcpp}. This is an initial experimental version to try out functionality
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**.
+
+## Introduction
+This document presents some supplementary CUDA backend features not contained within the sycl_ext_oneapi_matrix extension. The additional features are built on top of the sycl_ext_oneapi_matrix extension but are only supported by the CUDA backend.
+
+## Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_MATRIX_CUDA` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[frame="none",options="header"]
+|======================
+|Value |Description
+|1     |Initial version supporting joint_matrix_bmad and marray wi_data.
+ interface are supported 
+|======================
+
+#### Binary Multiply and Add - `joint_matrix_bmad`
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+template <typename Group, std::size_t M,
+          std::size_t K, std::size_t N, matrix_layout LayoutC, class BinaryOperation>
+joint_matrix<precision::b1, matrix_use::accumulator, M, N, LayoutC, Group>
+joint_matrix_bmad(
+    Group sg, joint_matrix<precision::b1, matrix_use::a, M, K, matrix_layout::row_major, Group> A,
+    joint_matrix<precision::b1, matrix_use::b, K, N, matrix_layout::col_major, Group> B,
+    joint_matrix<int32_t, matrix_use::accumulator, M, N, LayoutC, Group> C, BinaryOperation Op);
+}
+```
+
+Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (`matrix_use::a` with shape M by K) with a column of matrix B (`matrix_use::b` with shape K by N). Instead, a sequence of logical operations are performed. There are two available logical operations, "AND" and "XOR". The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
+The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the matrix C (`matrix_use::accumulator`). Currently only the shape M = 8, N = 8, K = 128 is supported.
+An important difference with respect to the `joint_matrix_mad` interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
+
+`sycl::bit_and<precision::b1>()`
+
+or
+
+`sycl::bit_xor<precision::b1>()`
+
+The A, B, and C `joint_matrix` objects are constructed and loaded/stored in the normal way, using the `joint_matrix`, `joint_matrix_load`, and `joint_matrix_store` interfaces that are defined in the sycl_ext_oneapi_matrix extension document.
+The C matrix must be loaded from an array of 32 bit signed integers, and the A, B single bit `joint_matrix` structs must be loaded from an array of unsigned 32-bit integers storing the packed binary matrix.
+Each element of the array of unsigned 32-bit integers, from which a `joint_matrix` of type `matrix_use::a` or `matrix_use::b` is loaded, should contain 32 elements of a matrix row in packed format.
+
+IMPORTANT: When using Binary Multiply and Add, a `joint_matrix` of type `matrix_use::a` must have `matrix_layout::row_major`, and a `joint_matrix` of type `matrix_use::b` must have `matrix_layout::col_major`. In both cases the first template parameter of `joint_matrix` must be `precision::b1`.
+
+IMPORTANT: Binary Multiply and Add operations are an experimental hardware feature and all implementation details are subject to change.
+
+##### Example using bitwise operations with `joint_matrix_bmad`
+
+```c++
+using namespace sycl::ext::oneapi::experimental::matrix::cuda;
+
+queue q;
+  q.submit([&](handler &cgh) {
+    auto accC = bufC.template get_access<access::mode::read_write>(cgh);
+    auto accA = bufA.template get_access<access::mode::read_write>(cgh);
+    auto accB = bufB.template get_access<access::mode::read_write>(cgh);
+    auto accD = bufD.template get_access<access::mode::read_write>(cgh);
+    range<2> LocalRange = {1, N_THREADS_PER_MATRIX_OP};
+    range<2> GlobalRange = {Sub_Tiles_M, Sub_Tiles_N * N_THREADS_PER_MATRIX_OP};
+    cgh.parallel_for<KernelName<M, K, N, BinaryOperation>>(
+        nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) {
+          sycl::sub_group sg = item.get_sub_group();
+          const auto m = item.get_group().get_id()[0]; // row id of current submatrix of BIG C matrix
+          const auto n = item.get_group().get_id()[1]; // column id of current submatrix of BIG C matrix
+          joint_matrix<precision::b1, matrix_use::a, M, K, matrix_layout::row_major> sub_a;
+          joint_matrix<precision::b1, matrix_use::b, K, N, matrix_layout::col_major> sub_b;
+          joint_matrix<int32_t, matrix_use::accumulator, M, N, matrix_layout::row_major> sub_c;
+          joint_matrix_load(sg, sub_c, accC.get_pointer() + (m * M) * Big_N + n * N, Big_N);
+          for (int k = 0; k < Sub_Tiles_K; k++) { // row/col id of current submatrix of BIG A/B matrices
+            joint_matrix_load(sg, sub_a, accA.get_pointer() + (k * (K / 32)) + (m * M * (Big_K / 32)), Big_K);
+            joint_matrix_load(sg, sub_b, accB.get_pointer() + (n * N * (Big_K / 32)) + (k * (K / 32)), Big_K);
+            sub_c = joint_matrix_bmad(sg, sub_a, sub_b, sub_c, Op);
+          }
+          joint_matrix_store(sg, sub_c, accD.get_pointer() + (m * M) * Big_N + n * N, Big_N);
+        });});
+```
+
+##### `wi_data` as an `marray`
+
+In the Nvidia® Tensor Cores case it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member, `joint_matrix.wi_marray`, to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables operations to be identically performed on every element of the `joint_matrix` without requiring a loop. In DPC++ some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the `joint_matrix` context is given in the following code snippet:
+
+```c++
+joint_matrix<T, matrix_use::a, M, K> sub_a;
+joint_matrix<T, matrix_use::b, K, N> sub_b;
+joint_matrix<T, matrix_use::accumulator, M, N> sub_c;
+joint_matrix<T, matrix_use::accumulator, M, N> sub_d;
+joint_matrix_fill(sg, sub_a, -1);
+joint_matrix_fill(sg, sub_b, -1);
+joint_matrix_fill(sg, sub_c, -1);
+sub_d.wi_marray = fma(sub_a.wi_marray, sub_b.wi_marray, sub_c.wi_marray);
+```
+
+IMPORTANT: `wi_marray` is not available for `precision::b1`.
+
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author     |Changes
+|1   |2022-10-5 |Jack Kirk |Initial public working draft.
+|======================
