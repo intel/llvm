@@ -137,6 +137,8 @@ void GlobalHandler::unloadPlugins() {
       Plugin.unload();
     }
   }
+  // Clear after unload to avoid uses after unload.
+  GlobalHandler::instance().getPlugins().clear();
 }
 
 void shutdown() {

@@ -604,6 +604,7 @@ private:
   llvm::DenseMap<const llvm::Constant *, llvm::GlobalVariable *> RTTIProxyMap;
 
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
+  const EnumDecl *AspectsEnumDecl = nullptr;
 
 public:
   CodeGenModule(ASTContext &C, IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
@@ -1097,6 +1098,8 @@ public:
   void addTypeWithAspects(StringRef TypeName, const RecordDecl *RD) {
     TypesWithAspects[TypeName] = RD;
   }
+
+  void setAspectsEnumDecl(const EnumDecl *ED);
 
   void generateIntelFPGAAnnotation(const Decl *D,
                                      llvm::SmallString<256> &AnnotStr);

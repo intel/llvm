@@ -10,6 +10,7 @@ set(LLVM_LINK_COMPONENTS
   ScalarOpts
   Linker
   Passes
+  Analysis
   )
 
 get_property(LLVMGenXIntrinsics_SOURCE_DIR GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP)

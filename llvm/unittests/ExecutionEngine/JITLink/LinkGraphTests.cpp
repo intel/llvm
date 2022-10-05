@@ -64,10 +64,10 @@ TEST(LinkGraphTest, Construction) {
   EXPECT_EQ(G.getTargetTriple().str(), "x86_64-apple-darwin");
   EXPECT_EQ(G.getPointerSize(), 8U);
   EXPECT_EQ(G.getEndianness(), support::little);
-  EXPECT_TRUE(llvm::empty(G.external_symbols()));
-  EXPECT_TRUE(llvm::empty(G.absolute_symbols()));
-  EXPECT_TRUE(llvm::empty(G.defined_symbols()));
-  EXPECT_TRUE(llvm::empty(G.blocks()));
+  EXPECT_TRUE(G.external_symbols().empty());
+  EXPECT_TRUE(G.absolute_symbols().empty());
+  EXPECT_TRUE(G.defined_symbols().empty());
+  EXPECT_TRUE(G.blocks().empty());
 }
 
 TEST(LinkGraphTest, AddressAccess) {
@@ -307,7 +307,7 @@ TEST(LinkGraphTest, MakeAbsolute) {
       << "Unexpected number of external symbols";
 
   // Add an external symbol.
-  auto &S2 = G.addExternalSymbol("S2", 0, Linkage::Strong);
+  auto &S2 = G.addExternalSymbol("S2", 0, true);
 
   EXPECT_TRUE(S2.isExternal()) << "Symbol should be external";
   EXPECT_EQ(
@@ -356,7 +356,7 @@ TEST(LinkGraphTest, MakeDefined) {
   auto &B1 = G.createContentBlock(Sec, BlockContent, B1Addr, 8, 0);
 
   // Add an external symbol.
-  auto &S1 = G.addExternalSymbol("S1", 4, Linkage::Strong);
+  auto &S1 = G.addExternalSymbol("S1", 4, true);
 
   EXPECT_FALSE(S1.isDefined()) << "Symbol should not be defined";
   EXPECT_TRUE(S1.isExternal()) << "Symbol should be external";

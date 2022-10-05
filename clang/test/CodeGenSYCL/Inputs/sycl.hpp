@@ -70,7 +70,7 @@ enum class address_space : int {
 } // namespace access
 
 // Dummy aspect enum with limited enumerators
-enum class __SYCL_TYPE(aspect) aspect {
+enum class __SYCL_TYPE(aspect) aspect { // #AspectEnum
   host = 0,
   cpu = 1,
   gpu = 2,
