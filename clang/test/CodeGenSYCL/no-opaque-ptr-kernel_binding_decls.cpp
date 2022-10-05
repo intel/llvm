@@ -19,25 +19,25 @@ void foo() {
 // CHECK: %class.anon = type { i32, float }
 
 // Check the sycl kernel arguments - one int and one float parameter
-// CHECK: define {{.*}} spir_kernel void @{{.*}}foov{{.*}}(i32 {{.*}} %_arg_, float {{.*}} %_arg_1)
+// CHECK: define {{.*}} spir_kernel void @{{.*}}foov{{.*}}(i32 {{.*}} %_arg_x, float {{.*}} %_arg_f2)
 // CHECK: entry:
 
 // Check alloca of the captured types
-// CHECK: %_arg_.addr = alloca i32, align 4
-// CHECK: %_arg_.addr2 = alloca float, align 4
+// CHECK: %_arg_x.addr = alloca i32, align 4
+// CHECK: %_arg_f2.addr = alloca float, align 4
 // CHECK: %__SYCLKernel = alloca %class.anon, align 4
 
 // Copy the parameters into the alloca-ed addresses
-// CHECK: store i32 %_arg_, i32 addrspace(4)* %_arg_.addr
-// CHECK: store float %_arg_1, float addrspace(4)* %_arg_.addr2
+// CHECK: store i32 %_arg_x, i32 addrspace(4)* %_arg_x.addr
+// CHECK: store float %_arg_f2, float addrspace(4)* %_arg_f2.addr
 
 // Store the int and the float into the struct created
-// CHECK: %1 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 0
-// CHECK: %2 = load i32, i32 addrspace(4)* %_arg_.addr
-// CHECK: store i32 %2, i32 addrspace(4)* %1
-// CHECK: %3 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 1
-// CHECK: %4 = load float, float addrspace(4)* %_arg_.addr2
-// CHECK: store float %4, float addrspace(4)* %3
+// CHECK: %x = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 0
+// CHECK: %1 = load i32, i32 addrspace(4)* %_arg_x.addr
+// CHECK: store i32 %1, i32 addrspace(4)* %x
+// CHECK: %f2 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 1
+// CHECK: %2 = load float, float addrspace(4)* %_arg_f2.addr
+// CHECK: store float %2, float addrspace(4)* %f2
 
 // Call the lambda
 // CHECK: call spir_func void @{{.*}}foo{{.*}}(%class.anon addrspace(4)* {{.*}} %__SYCLKernel{{.*}})
@@ -52,10 +52,10 @@ void foo() {
 // CHECK:  %this1 = load %class.anon addrspace(4)*, %class.anon addrspace(4)* addrspace(4)* %this.addr.ascast
 
 // Check the store of 10 into the int value
-// CHECK:  %0 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %this1, i32 0, i32 0
-// CHECK:  store i32 10, i32 addrspace(4)* %0
+// CHECK:  %x = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %this1, i32 0, i32 0
+// CHECK:  store i32 10, i32 addrspace(4)* %x
 
 // Check the store of 2.3f into the float value
-// CHECK:  %1 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %this1, i32 0, i32 1
-// CHECK:  store float 0x4002666660000000, float addrspace(4)* %1
+// CHECK:  %f2 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %this1, i32 0, i32 1
+// CHECK:  store float 0x4002666660000000, float addrspace(4)* %f2
 // CHECK:  ret void
