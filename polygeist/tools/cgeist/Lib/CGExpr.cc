@@ -1333,7 +1333,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     auto scalar = Visit(E->getSubExpr());
     // JLE_QUEL::TODO (II-201)
     // assert(scalar.isReference);
-    return ValueCategory(scalar.val, scalar.isReference);
+    auto postTy = returnVal.getType().cast<MemRefType>().getElementType();
+    return ValueCategory(castToMemSpaceOfType(scalar.val, postTy),
+                         scalar.isReference);
   }
   case clang::CastKind::CK_Dynamic: {
     E->dump();

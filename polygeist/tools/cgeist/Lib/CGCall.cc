@@ -93,11 +93,13 @@ ValueCategory MLIRScanner::CallHelper(
   for (auto pair : arguments) {
 
     ValueCategory arg = std::get<0>(pair);
-    auto *a = std::get<1>(pair);
+    clang::Expr *a = std::get<1>(pair);
+#ifdef DEBUG
     if (!arg.val) {
       expr->dump();
       a->dump();
     }
+#endif
     assert(arg.val && "expect not null");
 
     if (auto *ice = dyn_cast_or_null<ImplicitCastExpr>(a))
@@ -106,14 +108,17 @@ ValueCategory MLIRScanner::CallHelper(
             make_pair(dre->getDecl()->getName().str(), arg.val));
 
     if (i >= fnType.getInputs().size() || (i != 0 && a == nullptr)) {
+#ifdef DEBUG
       expr->dump();
       tocall.dump();
       fnType.dump();
       for (auto a : arguments) {
         std::get<1>(a)->dump();
       }
+#endif
       assert(0 && "too many arguments in calls");
     }
+
     bool isReference =
         (i == 0 && a == nullptr) || a->isLValue() || a->isXValue();
 
@@ -130,11 +135,13 @@ ValueCategory MLIRScanner::CallHelper(
     mlir::Value val = nullptr;
     if (!isReference) {
       if (isArray) {
+#ifdef DEBUG
         if (!arg.isReference) {
           expr->dump();
           a->dump();
           llvm::errs() << " v: " << arg.val << "\n";
         }
+#endif
         assert(arg.isReference);
 
         auto mt =
@@ -183,11 +190,12 @@ ValueCategory MLIRScanner::CallHelper(
           Glob.getCGM().getContext().getLValueReferenceType(aType));
 
       val = arg.val;
-      if (arg.val.getType().isa<LLVM::LLVMPointerType>() &&
-          expectedType.isa<MemRefType>()) {
+      if (val.getType().isa<LLVM::LLVMPointerType>() &&
+          expectedType.isa<MemRefType>())
         val =
             builder.create<polygeist::Pointer2MemrefOp>(loc, expectedType, val);
-      }
+
+      val = castToMemSpaceOfType(val, expectedType);
     }
     assert(val);
     args.push_back(val);

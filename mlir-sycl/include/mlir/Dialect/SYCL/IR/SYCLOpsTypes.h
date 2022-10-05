@@ -11,6 +11,7 @@
 #ifndef MLIR_SYCL_OPS_TYPES_H_
 #define MLIR_SYCL_OPS_TYPES_H_
 
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -299,7 +300,8 @@ namespace sycl {
 
 class ArrayType
     : public Type::TypeBase<ArrayType, Type, detail::ArrayTypeStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 
@@ -311,10 +313,12 @@ public:
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
-class IDType : public Type::TypeBase<IDType, Type, detail::IDTypeStorage,
-                                     mlir::MemRefElementTypeInterface::Trait,
-                                     mlir::sycl::SYCLInheritanceTypeInterface<
-                                         mlir::sycl::ArrayType>::Trait> {
+class IDType
+    : public Type::TypeBase<IDType, Type, detail::IDTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait,
+                            mlir::sycl::SYCLInheritanceTypeInterface<
+                                mlir::sycl::ArrayType>::Trait> {
 public:
   using Base::Base;
 
@@ -338,6 +342,7 @@ public:
 class AccessorType
     : public Type::TypeBase<AccessorType, Type, detail::AccessorTypeStorage,
                             mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait,
                             mlir::sycl::SYCLInheritanceTypeInterface<
                                 mlir::sycl::AccessorCommonType>::Trait> {
 public:
@@ -362,6 +367,7 @@ public:
 class RangeType
     : public Type::TypeBase<RangeType, Type, detail::RangeTypeStorage,
                             mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait,
                             mlir::sycl::SYCLInheritanceTypeInterface<
                                 mlir::sycl::ArrayType>::Trait> {
 public:
@@ -392,7 +398,8 @@ public:
 
 class ItemType
     : public Type::TypeBase<ItemType, Type, detail::ItemTypeStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 

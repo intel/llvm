@@ -20,6 +20,7 @@ else()
     MLIRIR
     MLIRSideEffectInterfaces
     MLIRVectorInterfaces
+    MLIRLLVMDialect
     MLIRMemRefDialect
     MLIRSCFDialect
     )
