@@ -3,7 +3,6 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/StringSwitch.h"
 
 using namespace clang;
 
@@ -683,6 +682,12 @@ void JSONNodeDumper::VisitTemplateTypeParmType(
   JOS.attribute("decl", createBareDeclRef(TTPT->getDecl()));
 }
 
+void JSONNodeDumper::VisitSubstTemplateTypeParmType(
+    const SubstTemplateTypeParmType *STTPT) {
+  if (auto PackIndex = STTPT->getPackIndex())
+    JOS.attribute("pack_index", *PackIndex);
+}
+
 void JSONNodeDumper::VisitAutoType(const AutoType *AT) {
   JOS.attribute("undeduced", !AT->isDeduced());
   switch (AT->getKeyword()) {
@@ -894,6 +899,11 @@ void JSONNodeDumper::VisitCXXRecordDecl(const CXXRecordDecl *RD) {
         JOS.value(createCXXBaseSpecifier(Spec));
     });
   }
+}
+
+void JSONNodeDumper::VisitHLSLBufferDecl(const HLSLBufferDecl *D) {
+  VisitNamedDecl(D);
+  JOS.attribute("bufferKind", D->isCBuffer() ? "cbuffer" : "tbuffer");
 }
 
 void JSONNodeDumper::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D) {

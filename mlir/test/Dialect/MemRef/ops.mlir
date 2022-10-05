@@ -104,10 +104,10 @@ func.func @expand_collapse_shape_static(
     %arg1: tensor<3x4x5xf32>,
     %arg2: tensor<3x?x5xf32>,
     %arg3: memref<30x20xf32, strided<[4000, 2], offset: 100>>,
-    %arg4: memref<1x5xf32, affine_map<(d0, d1)[s0] -> (d0 * 5 + s0 + d1)>>,
+    %arg4: memref<1x5xf32, strided<[5, 1], offset: ?>>,
     %arg5: memref<f32>,
     %arg6: memref<3x4x5xf32, strided<[240, 60, 10], offset: 0>>,
-    %arg7: memref<1x2049xi64, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>>) {
+    %arg7: memref<1x2049xi64, strided<[?, ?], offset: ?>>) {
   // Reshapes that collapse and expand back a contiguous buffer.
 //       CHECK:   memref.collapse_shape {{.*}} {{\[}}[0, 1], [2]]
 //  CHECK-SAME:     memref<3x4x5xf32> into memref<12x5xf32>
@@ -157,8 +157,8 @@ func.func @expand_collapse_shape_static(
 
 //       CHECK:   memref.expand_shape {{.*}} {{\[}}[0], [1, 2]]
   %r4 = memref.expand_shape %arg4 [[0], [1, 2]] :
-      memref<1x5xf32, affine_map<(d0, d1)[s0] -> (d0 * 5 + s0 + d1)>> into
-      memref<1x1x5xf32, affine_map<(d0, d1, d2)[s0] -> (d0 * 5 + s0 + d2 + d1 * 5)>>
+      memref<1x5xf32, strided<[5, 1], offset: ?>> into
+      memref<1x1x5xf32, strided<[5, 5, 1], offset: ?>>
 
   // Note: Only the collapsed two shapes are contiguous in the follow test case.
 //       CHECK:   memref.collapse_shape {{.*}} {{\[}}[0, 1], [2]]
@@ -168,8 +168,8 @@ func.func @expand_collapse_shape_static(
 
 //       CHECK:   memref.collapse_shape {{.*}} {{\[}}[0, 1]]
   %r7 = memref.collapse_shape %arg7 [[0, 1]] :
-      memref<1x2049xi64, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>> into
-      memref<2049xi64, affine_map<(d0)[s0, s1] -> (d0 * s1 + s0)>>
+      memref<1x2049xi64, strided<[?, ?], offset: ?>> into
+      memref<2049xi64, strided<[?], offset: ?>>
 
   // Reshapes that expand and collapse back a contiguous buffer with some 1's.
 //       CHECK:   memref.expand_shape {{.*}} {{\[}}[0, 1], [2], [3, 4]]
@@ -241,15 +241,15 @@ func.func @expand_collapse_shape_dynamic(%arg0: memref<?x?x?xf32>,
     memref<?x4x?xf32, strided<[?, ?, 1], offset: ?>>
 
 //       CHECK:   memref.collapse_shape {{.*}} {{\[}}[0, 1]]
-//  CHECK-SAME:     memref<?x42xf32, strided<[42, 1]>> into memref<?xf32>
+//  CHECK-SAME:     memref<?x42xf32, strided<[42, 1]>> into memref<?xf32, strided<[1]>>
   %3 = memref.collapse_shape %arg3 [[0, 1]] :
     memref<?x42xf32, strided<[42, 1], offset: 0>> into
-    memref<?xf32>
+    memref<?xf32, strided<[1]>>
 
 //       CHECK:   memref.expand_shape {{.*}} {{\[}}[0, 1]]
-//  CHECK-SAME:     memref<?xf32> into memref<?x42xf32>
+//  CHECK-SAME:     memref<?xf32, strided<[1]>> into memref<?x42xf32>
   %r3 = memref.expand_shape %3 [[0, 1]] :
-    memref<?xf32> into memref<?x42xf32>
+    memref<?xf32, strided<[1]>> into memref<?x42xf32>
   return
 }
 
@@ -346,4 +346,37 @@ func.func @extract_strided_metadata(%memref : memref<10x?xf32>)
     : memref<f32> to memref<?x?xf32, strided<[?, ?], offset: ?>>
 
   return %m2: memref<?x?xf32, strided<[?, ?], offset: ?>>
+}
+
+// -----
+
+// CHECK-LABEL: func @memref_realloc_ss
+func.func @memref_realloc_ss(%src : memref<2xf32>) -> memref<4xf32>{
+  %0 = memref.realloc %src : memref<2xf32> to memref<4xf32>
+  return %0 : memref<4xf32>
+}
+
+// CHECK-LABEL: func @memref_realloc_sd
+func.func @memref_realloc_sd(%src : memref<2xf32>, %d : index) -> memref<?xf32>{
+  %0 = memref.realloc %src(%d) : memref<2xf32> to memref<?xf32>
+  return %0 : memref<?xf32>
+}
+
+// CHECK-LABEL: func @memref_realloc_ds
+func.func @memref_realloc_ds(%src : memref<?xf32>) -> memref<4xf32>{
+  %0 = memref.realloc %src: memref<?xf32> to memref<4xf32>
+  return %0 : memref<4xf32>
+}
+
+// CHECK-LABEL: func @memref_realloc_dd
+func.func @memref_realloc_dd(%src : memref<?xf32>, %d: index)
+  -> memref<?xf32>{
+  %0 = memref.realloc %src(%d) : memref<?xf32> to memref<?xf32>
+  return %0 : memref<?xf32>
+}
+
+// CHECK-LABEL: func @memref_extract_aligned_pointer
+func.func @memref_extract_aligned_pointer(%src : memref<?xf32>) -> index {
+  %0 = memref.extract_aligned_pointer_as_index %src : memref<?xf32> -> index
+  return %0 : index
 }

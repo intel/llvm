@@ -856,17 +856,18 @@ of the assembly format can be marked as `optional` based on the presence of this
 information. An optional group is defined as follows:
 
 ```
-optional-group: `(` elements `)` (`:` `(` else-elements `)`)? `?`
+optional-group: `(` then-elements `)` (`:` `(` else-elements `)`)? `?`
 ```
 
-The `elements` of an optional group have the following requirements:
+The elements of an optional group have the following requirements:
 
-*   The first element of the group must either be a attribute, literal, operand,
-    or region.
+*   The first element of `then-elements` must either be a attribute, literal,
+    operand, or region.
     -   This is because the first element must be optionally parsable.
-*   Exactly one argument variable or type directive within the group must be
-    marked as the anchor of the group.
-    -   The anchor is the element whose presence controls whether the group
+*   Exactly one argument variable or type directive within either
+    `then-elements` or `else-elements` must be marked as the anchor of the
+    group.
+    -   The anchor is the element whose presence controls which elements
         should be printed/parsed.
     -   An element is marked as the anchor by adding a trailing `^`.
     -   The first element is *not* required to be the anchor of the group.
@@ -1403,11 +1404,11 @@ llvm::Optional<MyIntEnum> symbolizeMyIntEnum(uint32_t value) {
 Similarly for the following `BitEnumAttr` definition:
 
 ```tablegen
-def None: BitEnumAttrCaseNone<"None">;
-def Bit0: BitEnumAttrCaseBit<"Bit0", 0>;
-def Bit1: BitEnumAttrCaseBit<"Bit1", 1>;
-def Bit2: BitEnumAttrCaseBit<"Bit2", 2>;
-def Bit3: BitEnumAttrCaseBit<"Bit3", 3>;
+def None: I32BitEnumAttrCaseNone<"None">;
+def Bit0: I32BitEnumAttrCaseBit<"Bit0", 0, "tagged">;
+def Bit1: I32BitEnumAttrCaseBit<"Bit1", 1>;
+def Bit2: I32BitEnumAttrCaseBit<"Bit2", 2>;
+def Bit3: I32BitEnumAttrCaseBit<"Bit3", 3>;
 
 def MyBitEnum: BitEnumAttr<"MyBitEnum", "An example bit enum",
                            [None, Bit0, Bit1, Bit2, Bit3]>;
@@ -1428,14 +1429,40 @@ enum class MyBitEnum : uint32_t {
 llvm::Optional<MyBitEnum> symbolizeMyBitEnum(uint32_t);
 std::string stringifyMyBitEnum(MyBitEnum);
 llvm::Optional<MyBitEnum> symbolizeMyBitEnum(llvm::StringRef);
-inline MyBitEnum operator|(MyBitEnum lhs, MyBitEnum rhs) {
-  return static_cast<MyBitEnum>(static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs));
+
+inline constexpr MyBitEnum operator|(MyBitEnum a, MyBitEnum b) {
+  return static_cast<MyBitEnum>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
 }
-inline MyBitEnum operator&(MyBitEnum lhs, MyBitEnum rhs) {
-  return static_cast<MyBitEnum>(static_cast<uint32_t>(lhs) & static_cast<uint32_t>(rhs));
+inline constexpr MyBitEnum operator&(MyBitEnum a, MyBitEnum b) {
+  return static_cast<MyBitEnum>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
 }
-inline bool bitEnumContains(MyBitEnum bits, MyBitEnum bit) {
+inline constexpr MyBitEnum operator^(MyBitEnum a, MyBitEnum b) {
+  return static_cast<MyBitEnum>(static_cast<uint32_t>(a) ^ static_cast<uint32_t>(b));
+}
+inline constexpr MyBitEnum operator~(MyBitEnum bits) {
+  // Ensure only bits that can be present in the enum are set
+  return static_cast<MyBitEnum>(~static_cast<uint32_t>(bits) & static_cast<uint32_t>(15u));
+}
+inline constexpr bool bitEnumContainsAll(MyBitEnum bits, MyBitEnum bit) {
+  return (bits & bit) == bit;
+}
+inline constexpr bool bitEnumContainsAny(MyBitEnum bits, MyBitEnum bit) {
   return (static_cast<uint32_t>(bits) & static_cast<uint32_t>(bit)) != 0;
+}
+inline constexpr MyBitEnum bitEnumClear(MyBitEnum bits, MyBitEnum bit) {
+  return bits & ~bit;
+}
+
+inline std::string stringifyEnum(MyBitEnum enumValue) {
+  return stringifyMyBitEnum(enumValue);
+}
+
+template <typename EnumType>
+::llvm::Optional<EnumType> symbolizeEnum(::llvm::StringRef);
+
+template <>
+inline ::llvm::Optional<MyBitEnum> symbolizeEnum<MyBitEnum>(::llvm::StringRef str) {
+  return symbolizeMyBitEnum(str);
 }
 
 namespace llvm {
@@ -1467,7 +1494,7 @@ std::string stringifyMyBitEnum(MyBitEnum symbol) {
   // Special case for all bits unset.
   if (val == 0) return "None";
   llvm::SmallVector<llvm::StringRef, 2> strs;
-  if (1u == (1u & val)) { strs.push_back("Bit0"); }
+  if (1u == (1u & val)) { strs.push_back("tagged"); }
   if (2u == (2u & val)) { strs.push_back("Bit1"); }
   if (4u == (4u & val)) { strs.push_back("Bit2"); }
   if (8u == (8u & val)) { strs.push_back("Bit3"); }
@@ -1485,7 +1512,7 @@ llvm::Optional<MyBitEnum> symbolizeMyBitEnum(llvm::StringRef str) {
   uint32_t val = 0;
   for (auto symbol : symbols) {
     auto bit = llvm::StringSwitch<llvm::Optional<uint32_t>>(symbol)
-      .Case("Bit0", 1)
+      .Case("tagged", 1)
       .Case("Bit1", 2)
       .Case("Bit2", 4)
       .Case("Bit3", 8)
@@ -1499,7 +1526,7 @@ llvm::Optional<MyBitEnum> symbolizeMyBitEnum(uint32_t value) {
   // Special case for all bits unset.
   if (value == 0) return MyBitEnum::None;
 
-  if (value & ~(1u | 2u | 4u | 8u)) return llvm::None;
+  if (value & ~static_cast<uint32_t>(15u)) return llvm::None;
   return static_cast<MyBitEnum>(value);
 }
 ```

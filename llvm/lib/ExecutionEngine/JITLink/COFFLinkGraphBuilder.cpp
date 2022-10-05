@@ -227,17 +227,7 @@ Error COFFLinkGraphBuilder::graphifySymbols() {
                << " (index: " << SectionIndex << ") \n";
       });
     else if (Sym->isUndefined()) {
-      if (SymbolName.startswith(getDLLImportStubPrefix())) {
-        if (Sym->getValue() != 0)
-          return make_error<JITLinkError>(
-              "DLL import symbol has non-zero offset");
-
-        auto ExternalSym = createExternalSymbol(
-            SymIndex, SymbolName.drop_front(getDLLImportStubPrefix().size()),
-            *Sym, Sec);
-        GSym = &createDLLImportEntry(SymbolName, *ExternalSym);
-      } else
-        GSym = createExternalSymbol(SymIndex, SymbolName, *Sym, Sec);
+      GSym = createExternalSymbol(SymIndex, SymbolName, *Sym, Sec);
     } else if (Sym->isWeakExternal()) {
       auto *WeakExternal = Sym->getAux<object::coff_aux_weak_external>();
       COFFSymbolIndex TagIndex = WeakExternal->TagIndex;
@@ -299,8 +289,7 @@ Error COFFLinkGraphBuilder::handleDirectiveSection(StringRef Str) {
     case COFF_OPT_incl: {
       auto DataCopy = G->allocateString(S);
       StringRef StrCopy(DataCopy.data(), DataCopy.size());
-      ExternalSymbols[StrCopy] =
-          &G->addExternalSymbol(StrCopy, 0, Linkage::Strong);
+      ExternalSymbols[StrCopy] = &G->addExternalSymbol(StrCopy, 0, false);
       ExternalSymbols[StrCopy]->setLive(true);
       break;
     }
@@ -371,7 +360,7 @@ Symbol *COFFLinkGraphBuilder::createExternalSymbol(
     object::COFFSymbolRef Symbol, const object::coff_section *Section) {
   if (!ExternalSymbols.count(SymbolName))
     ExternalSymbols[SymbolName] =
-        &G->addExternalSymbol(SymbolName, Symbol.getValue(), Linkage::Strong);
+        &G->addExternalSymbol(SymbolName, Symbol.getValue(), false);
 
   LLVM_DEBUG({
     dbgs() << "    " << SymIndex

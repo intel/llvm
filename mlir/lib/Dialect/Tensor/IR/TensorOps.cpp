@@ -1210,6 +1210,15 @@ void ExtractSliceOp::build(OpBuilder &b, OperationState &result, Value source,
   build(b, result, RankedTensorType(), source, offsets, sizes, strides, attrs);
 }
 
+/// Build an ExtractSliceOp with mixed static and dynamic entries packed into a
+/// Range vector.
+void ExtractSliceOp::build(OpBuilder &b, OperationState &result, Value source,
+                           ArrayRef<Range> ranges,
+                           ArrayRef<NamedAttribute> attrs) {
+  auto [offsets, sizes, strides] = getOffsetsSizesAndStrides(ranges);
+  build(b, result, RankedTensorType(), source, offsets, sizes, strides, attrs);
+}
+
 /// Build an ExtractSliceOp with dynamic entries and custom result type. If the
 /// type passed is nullptr, it is inferred.
 void ExtractSliceOp::build(OpBuilder &b, OperationState &result,
@@ -1597,6 +1606,15 @@ void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
   result.addAttributes(attrs);
 }
 
+/// Build an InsertSliceOp with mixed static and dynamic entries packed into a
+/// Range vector.
+void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
+                          Value dest, ArrayRef<Range> ranges,
+                          ArrayRef<NamedAttribute> attrs) {
+  auto [offsets, sizes, strides] = getOffsetsSizesAndStrides(ranges);
+  build(b, result, source, dest, offsets, sizes, strides, attrs);
+}
+
 // Build a InsertSliceOp with dynamic entries.
 void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
                           Value dest, ValueRange offsets, ValueRange sizes,
@@ -1666,6 +1684,24 @@ static LogicalResult foldInsertAfterInsertSlice(InsertSliceOp insertOp) {
   return success();
 }
 
+/// Folds round-trip extract/insert slice op pairs.
+/// Example:
+/// ```mlir
+/// %0 = tensor.extract_slice %val[0, 0, 0, 0] [1, 1, 2, 4] [1, 1, 1, 1]
+/// %1 = tensor.insert_slice %0 into %val[0, 0, 0, 0] [1, 1, 2, 4] [1, 1, 1, 1]
+/// ```
+/// can be folded into %val.
+static Value foldInsertAfterExtractSlice(InsertSliceOp insertOp) {
+  auto extractOp = insertOp.getSource().getDefiningOp<ExtractSliceOp>();
+
+  auto isSame = [](OpFoldResult a, OpFoldResult b) { return a == b; };
+  if (!extractOp || extractOp.getSource() != insertOp.getDest() ||
+      !extractOp.isSameAs(insertOp, isSame))
+    return nullptr;
+
+  return extractOp.getSource();
+}
+
 OpFoldResult InsertSliceOp::fold(ArrayRef<Attribute>) {
   if (getSourceType().hasStaticShape() && getType().hasStaticShape() &&
       getSourceType() == getType() &&
@@ -1673,6 +1709,8 @@ OpFoldResult InsertSliceOp::fold(ArrayRef<Attribute>) {
     return this->getSource();
   if (succeeded(foldInsertAfterInsertSlice(*this)))
     return getResult();
+  if (auto result = foldInsertAfterExtractSlice(*this))
+    return result;
   return OpFoldResult();
 }
 
@@ -2357,6 +2395,16 @@ void ParallelInsertSliceOp::build(OpBuilder &b, OperationState &result,
         dynamicStrides, b.getI64ArrayAttr(staticOffsets),
         b.getI64ArrayAttr(staticSizes), b.getI64ArrayAttr(staticStrides));
   result.addAttributes(attrs);
+}
+
+/// Build an ParallelInsertSliceOp with mixed static and dynamic entries packed
+/// into a Range vector.
+void ParallelInsertSliceOp::build(OpBuilder &b, OperationState &result,
+                                  Value source, Value dest,
+                                  ArrayRef<Range> ranges,
+                                  ArrayRef<NamedAttribute> attrs) {
+  auto [offsets, sizes, strides] = getOffsetsSizesAndStrides(ranges);
+  build(b, result, source, dest, offsets, sizes, strides, attrs);
 }
 
 // Build a ParallelInsertSliceOp with dynamic entries.
