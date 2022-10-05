@@ -7,7 +7,7 @@ compiler and runtime.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like LevelZero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
+| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
 | `SYCL_BE` (deprecated) | `PI_OPENCL`, `PI_LEVEL_ZERO`, `PI_CUDA` | Force SYCL RT to consider only devices of the specified backend during the device selection.  The `SYCL_BE` environment variable is deprecated and will be removed soon. Please use the new env var `ONEAPI_DEVICE_SELECTOR` instead. |
 | `SYCL_DEVICE_TYPE` (deprecated) | CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. The `SYCL_DEVICE_TYPE` environment variable is deprecated and will be removed soon. Please use the new env var `ONEAPI_DEVICE_SELECTOR` instead. |
 | `SYCL_DEVICE_FILTER` | `backend:device_type:device_num` | See Section [`SYCL_DEVICE_FILTER`](#sycl_device_filter)  below. |
@@ -31,7 +31,7 @@ compiler and runtime.
 
 ### `ONEAPI_DEVICE_SELECTOR`
 
-With no environment variables set to say otherwise, all platforms and devices presently on the machine are available. The default choice will be one of these devices, usually preferring a LevelZero GPU device, if available. The `ONEAPI_DEVICE_SELECTOR` can be used to limit that choice of devices, and to expose GPU sub-devices or sub-sub-devices as individual devices.  
+With no environment variables set to say otherwise, all platforms and devices presently on the machine are available. The default choice will be one of these devices, usually preferring a Level Zero GPU device, if available. The `ONEAPI_DEVICE_SELECTOR` can be used to limit that choice of devices, and to expose GPU sub-devices or sub-sub-devices as individual devices.  
 
 The syntax of this environment variable follows this BNF grammar:
 ```
@@ -60,7 +60,7 @@ The following examples further illustrate the usage of this environment variable
 | Example | Result |
 -----------|---------
 | `ONEAPI_DEVICE_SELECTOR=opencl:*` | Only the OpenCL devices are available |
-| `ONEAPI_DEVICE_SELECTOR=level_zero:gpu` | Only GPU devices on the LevelZero platform are available.|
+| `ONEAPI_DEVICE_SELECTOR=level_zero:gpu` | Only GPU devices on the Level Zero platform are available.|
 | `ONEAPI_DEVICE_SELECTOR="opencl:gpu;level_zero:gpu"` | GPU devices from both Level Zero and OpenCL are available. Note that escaping (like quotation marks) will likely be needed when using semi-colon separated entries. |
 | `ONEAPI_DEVICE_SELECTOR=opencl:gpu,cpu` | Only CPU and GPU devices on the OpenCL platform are available.|
 | `ONEAPI_DEVICE_SELECTOR=opencl:0` | Only the device with index 0 on the OpenCL backend is available. |
