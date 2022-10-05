@@ -8,11 +8,11 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/aspects.hpp>
 
 #include <functional>
 #include <limits>
