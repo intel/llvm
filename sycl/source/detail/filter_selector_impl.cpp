@@ -86,16 +86,6 @@ filter create_filter(const std::string &Input) {
     } else if (Token == "esimd_emulator" && !Result.HasBackend) {
       Result.Backend = backend::ext_intel_esimd_emulator;
       Result.HasBackend = true;
-    } else if (Token == "host") {
-      if (!Result.HasBackend) {
-        Result.Backend = backend::host;
-        Result.HasBackend = true;
-      } else if (!Result.HasDeviceType && Result.Backend != backend::host) {
-        // We already set everything earlier or it's an error.
-        throw sycl::runtime_error(
-            "Cannot specify host device with non-host backend.",
-            PI_ERROR_INVALID_VALUE);
-      }
     } else if (std::regex_match(Token, IntegerExpr) && !Result.HasDeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);

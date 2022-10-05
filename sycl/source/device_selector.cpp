@@ -78,6 +78,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
 
   for (const auto &dev : Devices) {
     int dev_score = DeviceSelectorInvocable(dev);
+
     traceDeviceSelection(dev, dev_score, false);
 
     // A negative score means that a device must not be selected.
