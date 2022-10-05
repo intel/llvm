@@ -2182,15 +2182,14 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     mlir::Type ET =
         mlir::TypeSwitch<mlir::Type, mlir::Type>(PT.getElementType())
             .Case<mlir::LLVM::LLVMStructType>(
-                [&](mlir::LLVM::LLVMStructType ST) {
+                [fnum](mlir::LLVM::LLVMStructType ST) {
                   return ST.getBody()[fnum];
                 })
-            .Case<mlir::LLVM::LLVMArrayType>([&](mlir::LLVM::LLVMArrayType AT) {
+            .Case<mlir::LLVM::LLVMArrayType>([](mlir::LLVM::LLVMArrayType AT) {
               return AT.getElementType();
             })
-            .Case<MemRefType>(
-                [&](MemRefType MT) { return MT.getElementType(); })
-            .Default([&](mlir::Type T) {
+            .Case<MemRefType>([](MemRefType MT) { return MT.getElementType(); })
+            .Default([](mlir::Type T) {
               llvm_unreachable("not implemented");
               return T;
             });
@@ -2479,18 +2478,18 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
         mlir::Type ET =
             mlir::TypeSwitch<mlir::Type, mlir::Type>(PT.getElementType())
                 .Case<mlir::LLVM::LLVMStructType>(
-                    [&](mlir::LLVM::LLVMStructType ST) {
+                    [fnum](mlir::LLVM::LLVMStructType ST) {
                       return ST.getBody()[fnum];
                     })
                 .Case<mlir::LLVM::LLVMArrayType>(
-                    [&](mlir::LLVM::LLVMArrayType AT) {
+                    [](mlir::LLVM::LLVMArrayType AT) {
                       return AT.getElementType();
                     })
                 .Case<mlir::sycl::AccessorType>(
-                    [&](mlir::sycl::AccessorType AT) {
+                    [fnum](mlir::sycl::AccessorType AT) {
                       return AT.getBody()[fnum];
                     })
-                .Default([&](mlir::Type T) {
+                .Default([](mlir::Type T) {
                   llvm_unreachable("not implemented");
                   return T;
                 });
