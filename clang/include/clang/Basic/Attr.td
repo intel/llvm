@@ -1651,7 +1651,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
           C = static_cast<char>(CharacterVal->getValue());
         else if (const auto *IntegerVal =
               dyn_cast<IntegerLiteral>(InitNoImpCastE))
-          C = static_cast<char>(IntegerVal->getValue().getZExtValue());
+          C = static_cast<char>(IntegerVal->getValue().getSExtValue());
         else
           return None;
 
