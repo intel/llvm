@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -O2 %s -o %t.out
+// RUN: %clangxx -fsycl -O2 -D__SYCL_EXT_ONEAPI_MATRIX_USE__ %s -o %t.out
 #include <iostream>
 #include <sycl/sycl.hpp>
 
