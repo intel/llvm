@@ -164,7 +164,8 @@ static void traceDeviceSelector(const std::string &DeviceType) {
   bool ShouldTrace = false;
   ShouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
   if (ShouldTrace) {
-    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType << std::endl;
+    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType
+              << std::endl;
   }
 }
 
@@ -172,8 +173,9 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
   // The default selector doesn't reject any devices.
   int Score = 0;
 
-  // we give the esimd_emulator device a score of zero to prevent it from being chosen among other devices.
-  // The same thing is done for gpu_selector_v below.
+  // we give the esimd_emulator device a score of zero to prevent it from being
+  // chosen among other devices. The same thing is done for gpu_selector_v
+  // below.
   if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
     return 0;
   }
