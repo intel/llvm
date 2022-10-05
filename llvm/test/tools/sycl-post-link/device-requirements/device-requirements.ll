@@ -11,7 +11,7 @@
 ;   });
 ; }
 
-; RUN: sycl-post-link -split=auto -o %s -o %t.files.table
+; RUN: sycl-post-link -split=auto %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
 
 ; CHECK-PROP: [SYCL/device requirements]
