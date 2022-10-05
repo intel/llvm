@@ -122,6 +122,8 @@ void buffer_plain::addOrReplaceAccessorProperties(
 size_t buffer_plain::getSize() const { return impl->getSizeInBytes(); }
 
 void buffer_plain::handleRelease(bool DefaultAllocator) const {
+  // Try to detach memory object only if impl is going to be released.
+  // Buffer copy will have pointer to the same impl.
   if (impl.use_count() == 1)
     impl->detachMemoryObject(impl, DefaultAllocator);
 }

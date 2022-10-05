@@ -27,8 +27,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
-                                      ReadLockT &GraphReadLock,
-                                      bool ForceWait) {
+                                      ReadLockT &GraphReadLock, bool Blocking) {
   assert(Record);
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
@@ -40,7 +39,7 @@ bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
-    if (ForceWait) {
+    if (Blocking) {
       GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
     } else
       return false;
@@ -54,7 +53,7 @@ bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
-    if (ForceWait) {
+    if (Blocking) {
       GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
     } else
       return false;
@@ -87,7 +86,7 @@ bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     Command *Cmd = AllocaCmd->getReleaseCmd();
     if (Cmd->getEvent()->isCompleted())
       continue;
-    if (ForceWait)
+    if (Blocking)
       GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
     else
       return false;
@@ -431,7 +430,7 @@ Scheduler::~Scheduler() {
   // Scheduler. Otherwise there can be the case when objects Scheduler keeps as
   // fields may need Scheduler for their release and they work with Scheduler
   // via GlobalHandler::getScheduler that will create new Scheduler object.
-  // Still keep it here but it should no almost nothing if releaseResources
+  // Still keep it here but it should do almost nothing if releaseResources
   // called before.
   releaseResources();
 }
@@ -538,19 +537,18 @@ inline bool Scheduler::isNoDeferredMemObjects() {
   return MDeferredMemObjRelease.empty();
 }
 
-void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
+void Scheduler::cleanupDeferredMemObjects(bool Blocking) {
   if (isNoDeferredMemObjects())
     return;
 
   // Need to aggregate ready to release object to acquire write lock once.
   std::list<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
   {
-    ReadLockT Lock(MGraphLock, std::try_to_lock);
     // if we need blocking mode - force lock waiting
-    if (!Lock.owns_lock() && ForceWait)
-      Lock.lock();
+    ReadLockT Lock = Blocking ? ReadLockT(MGraphLock)
+                              : ReadLockT(MGraphLock, std::try_to_lock);
     if (Lock.owns_lock()) {
-      // Not expected that ForceWait == true with be used in parallel with
+      // Not expected that Blocking == true with be used in parallel with
       // adding MemObj to storage, no such scenario.
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       auto MemObjIt = MDeferredMemObjRelease.begin();
@@ -562,7 +560,7 @@ void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
           MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
           continue;
         }
-        if (!waitForRecordToFinish(Record, Lock, ForceWait)) {
+        if (!waitForRecordToFinish(Record, Lock, Blocking)) {
           MemObjIt++;
           continue;
         }
@@ -579,10 +577,10 @@ void Scheduler::cleanupDeferredMemObjects(bool ForceWait) {
   {
     WriteLockT Lock(MGraphLock, std::try_to_lock);
     // if we need blocking mode - force lock waiting
-    if (!Lock.owns_lock() && ForceWait)
+    if (!Lock.owns_lock() && Blocking)
       acquireWriteLock(Lock);
     if (Lock.owns_lock()) {
-      for (auto &MemObj : ObjsReadyToRelease)
+      for (std::shared_ptr<SYCLMemObjI> &MemObj : ObjsReadyToRelease)
         releaseMemObjRecord(MemObj.get(), StreamsToDeallocate,
                             AuxResourcesToDeallocate);
     } else {

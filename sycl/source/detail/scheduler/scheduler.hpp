@@ -469,7 +469,7 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
 
-  void cleanupDeferredMemObjects(bool ForceWait);
+  void cleanupDeferredMemObjects(bool Blocking);
   inline void releaseMemObjRecord(
       detail::SYCLMemObjI *MemObj,
       std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
