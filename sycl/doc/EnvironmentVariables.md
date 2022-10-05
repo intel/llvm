@@ -31,7 +31,7 @@ compiler and runtime.
 
 ### `ONEAPI_DEVICE_SELECTOR`
 
-With no environment variables set to say otherwise, all platforms and devices presently on the machine are available. The default choice will be one of these devices, usually preferring a LevelZero GPU device, if available. The `ONEAPI_DEVICE_SELECTOR` can be used to limit that choice of devices, and to expose GPU sub-devices (aka "tiles") as individual devices.  
+With no environment variables set to say otherwise, all platforms and devices presently on the machine are available. The default choice will be one of these devices, usually preferring a LevelZero GPU device, if available. The `ONEAPI_DEVICE_SELECTOR` can be used to limit that choice of devices, and to expose GPU sub-devices or sub-sub-devices as individual devices.  
 
 The syntax of this environment variable follows this BNF grammar:
 ```
@@ -40,37 +40,19 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <term> ::= <backend>:<devices>
 <backend> ::= { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
 <devices> ::= <device>[,<device>...]
-<device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* }  // case insensitive
+<device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
 
-Each term in the grammar selects a collection of devices from a particular backend. The device names cpu, gpu, and fpga select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using * which selects all devices in the backend.
+Each term in the grammar selects a collection of devices from a particular backend. The device names cpu, gpu, and fpga select all devices from that backend with the corresponding type. A backend's device can also be selected by its numeric index (zero-based) or by using `*` which selects all devices in the backend.
 
-The dot syntax (e.g. `<num>.<num>`) causes one or more GPU sub-devices (aka tiles) to be exposed to the application as SYCL root devices. For example, `1.0` exposes the first tile of the second device as a SYCL root device. The syntax `<num>.*` exposes all sub-devices of the give device as SYCL root devices. The syntax `*.*` exposes all sub-devices of all GPU devices as SYCL root devices.
+The dot syntax (e.g. `<num>.<num>`) causes one or more GPU sub-devices to be exposed to the application as SYCL root devices. For example, `1.0` exposes the first sub-device of the second device as a SYCL root device. The syntax `<num>.*` exposes all sub-devices of the give device as SYCL root devices. The syntax `*.*` exposes all sub-devices of all GPU devices as SYCL root devices.
 
 In general, a term with one or more asterisks ( `*` ) matches all backends, devices, or sub-devices with the given pattern. However, a warning is generated if the term does not match anything. For example, `*:gpu` matches all GPU devices in all backends (ignoring backends with no GPU devices), but it generates a warning if there are no GPU devices in any backend. Likewise, `level_zero:*.*` matches all sub-devices of partitionable GPUs in the Level Zero backend, but it generates a warning if there are no Level Zero GPU devices that are partitionable into sub-devices.
 
 The device indices are zero-based and are unique only within a backend. Therefore, `level_zero:0` is a different device from `cuda:0`. To see the indices of all available devices, run the `sycl-ls` tool. Note that different backends sometimes expose the same hardware as different "devices". For example, the level_zero and opencl backends both expose the Intel GPU devices.
 
 
-Additionally, if a sub-device is chosen (via numeric index or wildcard), then an additional layer of partitioning can be specified. In other words, a sub-sub-device can be selected. Like sub-devices, this is done with a period ( `.` ) and a sub-sub-device specifier which is a wildcard symbol ( `*` ) or a numeric index.  Example `ONEAPI_DEVICE_SELECTOR=level_zero.0.*.*` would partition device 0 into sub-devices and then partition each of those into sub-sub-devices. The range of grandchild sub-sub-devices would be the final devices available to the app, neither device 0, nor its child partitions would be in that list. 
-
-
-Possible values of `backend` are:
-- `level_zero`
-- `opencl`
-- `cuda`
-- `hip`
-- `esimd_emulator`
-- `*`
-
-Possible named device types are:
-- `cpu`
-- `gpu`
-- `fpga`
-- `*`
-
-To see the exact numeric device id of each of the available devices, simply run `sycl-ls`.
-
+Additionally, if a sub-device is chosen (via numeric index or wildcard), then an additional layer of partitioning can be specified. In other words, a sub-sub-device can be selected. Like sub-devices, this is done with a period ( `.` ) and a sub-sub-device specifier which is a wildcard symbol ( `*` ) or a numeric index.  Example `ONEAPI_DEVICE_SELECTOR=level_zero:0.*.*` would partition device 0 into sub-devices and then partition each of those into sub-sub-devices. The range of grandchild sub-sub-devices would be the final devices available to the app, neither device 0, nor its child partitions would be in that list. 
 
 
 The following examples further illustrate the usage of this environment variable:
@@ -83,16 +65,16 @@ The following examples further illustrate the usage of this environment variable
 | `ONEAPI_DEVICE_SELECTOR=opencl:gpu,cpu` | Only CPU and GPU devices on the OpenCL platform are available.|
 | `ONEAPI_DEVICE_SELECTOR=opencl:0` | Only the device with index 0 on the OpenCL backend is available. |
 | `ONEAPI_DEVICE_SELECTOR=hip:0,2` | Only devices with indices of 0 and 2 from the HIP backend are available. |
-| `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices (aka tiles) from the OpenCL device with index 0 are exposed as SYCL root devices. No other devices are available. |
-| `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third tile (2 in zero-based counting) of the OpenCL device with index 0 will be the sole device available.  |
-| `ONEAPI_DEVICE_SELECTOR=level_zero:*,*.*` | Exposes Level Zero devices to the application in two different ways. Each device (aka "card") is exposed as a SYCL root device and each sub-device (aka "tile") is also exposed as a SYCL root device.|
+| `ONEAPI_DEVICE_SELECTOR=opencl:0.*` | All the sub-devices from the OpenCL device with index 0 are exposed as SYCL root devices. No other devices are available. |
+| `ONEAPI_DEVICE_SELECTOR=opencl:0.2` | The third sub-device (2 in zero-based counting) of the OpenCL device with index 0 will be the sole device available.  |
+| `ONEAPI_DEVICE_SELECTOR=level_zero:*,*.*` | Exposes Level Zero devices to the application in two different ways. Each device (aka "card") is exposed as a SYCL root device and each sub-device is also exposed as a SYCL root device.|
 
 
 Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
-- Additionally, the backend MUST be followed by colon ( : ) and at least one device specifier of some sort, else an error is thrown.
-- For sub-devices/tiles, the parent device must support partitioning ( see`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.)
-- The semi-colon character ( ; ) is treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains this character. 
+- Additionally, the backend MUST be followed by colon ( `:` ) and at least one device specifier of some sort, else an error is thrown.
+- For sub-devices and sub-sub-devices, the parent device must support partitioning (`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.) For Intel GPUs, the sub-device and sub-sub-device syntax can be used to expose tiles or CCSs to the SYCL application as root devices.  The exact mapping between sub-device, sub-sub-device, tiles, and CCSs is specific to the hardware.
+- The semi-colon character ( `;` ) is treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains this character. 
 
 
 
