@@ -17,6 +17,57 @@
 #include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
+namespace mlir {
+namespace sycl {
+class MethodRegistry {
+public:
+  /// Register the methods in \p MethodNames for the SYCL type identified by
+  /// \p TypeID, being \p OpName the name of the SYCL operation representing
+  /// this method.
+  ///
+  /// Calls to `findMethod(TypeID, name)` (being name present in
+  /// `MethodNames`), will return `OpName`.
+  void registerMethod(mlir::TypeID typeID, llvm::StringRef methodName,
+                      llvm::StringRef opName);
+
+  /// Returns the name of the operation implementing the queried
+  /// method, if present.
+  ///
+  /// For a method to be queried, it must have been registered
+  /// first.
+  llvm::Optional<llvm::StringRef> lookupMethod(::mlir::TypeID Type,
+                                               llvm::StringRef Name) const;
+
+private:
+  llvm::DenseMap<std::pair<mlir::TypeID, llvm::StringRef>, llvm::StringRef>
+      methods;
+};
+
+class SYCLContext {
+public:
+  /// Register the methods in \p MethodNames for the SYCL type identified by
+  /// \p TypeID, being \p OpName the name of the SYCL operation representing
+  /// this method.
+  ///
+  /// Calls to `findMethod(TypeID, name)` (being name present in
+  /// `MethodNames`), will return `OpName`.
+  void addMethod(mlir::TypeID typeID, llvm::StringRef methodName,
+                 llvm::StringRef opName);
+
+  /// Returns the name of the operation implementing the queried
+  /// method, if present.
+  ///
+  /// For a method to be queried, it must have been registered
+  /// first.
+  llvm::Optional<llvm::StringRef> findMethod(::mlir::TypeID Type,
+                                             llvm::StringRef Name) const;
+
+private:
+  MethodRegistry methodRegistry;
+};
+} // namespace sycl
+} // namespace mlir
+
 /// Include the auto-generated header file containing the declaration of the
 /// sycl dialect.
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"

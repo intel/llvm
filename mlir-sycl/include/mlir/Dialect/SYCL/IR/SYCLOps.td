@@ -26,22 +26,7 @@ def SYCL_Dialect : Dialect {
   let cppNamespace = "::mlir::sycl";
   let useDefaultTypePrinterParser = 1;
   let extraClassDeclaration = [{
-    llvm::DenseMap<std::pair<::mlir::TypeID, llvm::StringRef>, llvm::StringRef>
-        Methods;
-
-    /// Register the methods in \p MethodNames for the SYCL type identified by
-    /// \p TypeID, being \p OpName the name of the SYCL operation representing
-    /// this method.
-    ///
-    /// Calls to `findMethod(TypeID, name)` (being name present in
-    /// `MethodNames`), will return `OpName`.
-    void addSYCLMethod(
-        mlir::TypeID TypeID, llvm::ArrayRef<llvm::StringLiteral> MethodNames,
-        llvm::StringRef OpName);
-
-    /// If T implements the SYCLMethodOpInterface interface, it will
-    /// be registered as a method. Do nothing otherwise.
-    template <typename T> void addSYCLMethod();
+    SYCLContext syclCtx;
 
     /// Each operation will be registered as usual in an MLIR dialect
     /// and also will be registered as a SYCL method if it implements one.

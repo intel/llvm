@@ -9,10 +9,7 @@
 #include "clang-mlir.h"
 #include "utils.h"
 
-#define GET_OP_CLASSES
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
 #define DEBUG_TYPE "CGExpr"
 

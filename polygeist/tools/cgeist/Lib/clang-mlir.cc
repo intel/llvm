@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Target/LLVMIR/Import.h"
 #include "utils.h"
 #include "clang/AST/Attr.h"
@@ -40,11 +41,6 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-
-#define GET_OP_CLASSES
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 
 using namespace clang;
 using namespace llvm;
