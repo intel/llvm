@@ -27,10 +27,10 @@ llvm::getSYCLDeviceRequirements(const Module &M) {
   };
   std::set<uint32_t> Aspects;
   for (const Function &F : M) {
-    if (!F.hasMetadata("intel_used_aspects"))
+    if (!F.hasMetadata("sycl_used_aspects"))
       continue;
 
-    const MDNode *MD = F.getMetadata("intel_used_aspects");
+    const MDNode *MD = F.getMetadata("sycl_used_aspects");
     for (size_t I = 0, E = MD->getNumOperands(); I < E; ++I) {
       Aspects.insert(ExtractIntegerFromMDNodeOperand(MD, I));
     }

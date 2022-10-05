@@ -46,14 +46,14 @@ entry:
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define dso_local spir_func void @_Z3barv() #1 !intel_used_aspects !7 {
+define dso_local spir_func void @_Z3barv() #1 !sycl_used_aspects !7 {
 entry:
   call spir_func void @_Z3foov() #3
   ret void
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
-define dso_local spir_func void @_Z3foov() #2 !intel_used_aspects !8 {
+define dso_local spir_func void @_Z3foov() #2 !sycl_used_aspects !8 {
 entry:
   ret void
 }
