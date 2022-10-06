@@ -1182,6 +1182,15 @@ public:
       return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
   }
 
+public:
+  accessor()
+      : AccessorBaseHost(
+            /*Offset=*/{0, 0, 0}, /*AccessRange=*/{0, 0, 0},
+            /*MemoryRange=*/{0, 0, 0},
+            /*AccessMode=*/getAdjustedMode({}),
+            /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
+            /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
+
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
@@ -1937,7 +1946,7 @@ public:
   size_t byte_size() const noexcept { return size() * sizeof(DataT); }
 
   size_t max_size() const noexcept {
-    return (std::numeric_limits<difference_type>::max)();
+    return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
   bool empty() const noexcept { return size() == 0; }
