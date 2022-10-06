@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu && !gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -26,11 +26,12 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using tfloat32 = sycl::ext::intel::experimental::esimd::tfloat32;
 
 template <class T> class TestID;
 
 template <class T> bool test(queue &q) {
-  std::cout << "Testing T=" << typeid(T).name() << "...\n";
+  std::cout << "Testing T=" << esimd_test::type_name<T>() << "...\n";
   constexpr unsigned VL = 16;
 
   T A[VL];
@@ -105,7 +106,9 @@ int main(int argc, char **argv) {
   passed &= test<int>(q);
   passed &= test<half>(q);
   passed &= test<bfloat16>(q);
-
+#ifdef USE_TF32
+  passed &= test<tfloat32>(q);
+#endif
   std::cout << (passed ? "Test Passed\n" : "Test FAILED\n");
 
   return passed ? 0 : 1;

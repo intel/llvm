@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu && !gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -24,6 +24,7 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using tfloat32 = sycl::ext::intel::experimental::esimd::tfloat32;
 
 template <class T> struct char_to_int {
   using type = typename std::conditional<
@@ -89,7 +90,8 @@ template <class T> struct DataMgr {
 
 template <class T, int VL, int N, int Rep, int Vs, int W, int Hs>
 bool test_impl(queue q, int offset, T (&&gold)[N]) {
-  std::cout << "Testing T=" << typeid(T).name() << " Rep=" << Rep << " "
+  std::cout << "Testing T=" << esimd_test::type_name<T>() << " Rep=" << Rep
+            << " "
             << "Vs=" << Vs << " "
             << "W=" << W << " "
             << "Hs=" << Hs << " "
@@ -191,6 +193,9 @@ int main(int argc, char **argv) {
   passed &= test<int>(q);
   passed &= test<uint64_t>(q);
   passed &= test<float>(q);
+#ifdef USE_TF32
+  passed &= test<tfloat32>(q);
+#endif
   if (doublesSupported)
     passed &= test<double>(q);
 

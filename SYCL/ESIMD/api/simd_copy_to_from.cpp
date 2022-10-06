@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu && !gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -39,10 +39,11 @@ using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using tfloat32 = sycl::ext::intel::experimental::esimd::tfloat32;
 
 template <typename T, int N, typename Flags>
 bool testUSM(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
-  std::cout << "  Running USM test. T=" << typeid(T).name()
+  std::cout << "  Running USM test. T=" << esimd_test::type_name<T>()
             << ", Flags=" << typeid(Flags).name() << ", N=" << N << "...\n";
 
   for (int I = 0; I < N; ++I) {
@@ -76,7 +77,7 @@ bool testUSM(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
 
 template <typename T, int N, typename Flags>
 bool testAcc(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
-  std::cout << "  Running accessor test. T=" << typeid(T).name()
+  std::cout << "  Running accessor test. T=" << esimd_test::type_name<T>()
             << ", Flags=" << typeid(Flags).name() << ", N=" << N << "...\n";
 
   for (int I = 0; I < N; ++I) {
@@ -257,6 +258,10 @@ int main(void) {
   Pass &= testAcc<int16_t>(Q);
   Pass &= testAcc<float>(Q);
   Pass &= testAcc<bfloat16>(Q);
+#endif
+#ifdef USE_TF32
+  Pass &= testUSM<tfloat32>(Q);
+  Pass &= testAcc<tfloat32>(Q);
 #endif
 
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");

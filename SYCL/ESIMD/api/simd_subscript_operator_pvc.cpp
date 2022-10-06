@@ -1,4 +1,4 @@
-//==---------- bin_and_cmp_ops_heavy_pvc.cpp  - DPC++ ESIMD on-device test -==//
+//==-------- simd_subscript_operator_pvc.cpp  - DPC++ ESIMD on-device test -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,13 +9,12 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// Tests various binary operations applied to simd objects.
-// PVC variant of the test - adds bfloat16 and tfloat32.
+// The test checks that it's possible to write through the simd subscript
+// operator. E.g.:
+//   simd<int, 4> v = 1;
+//   v[1] = 0; // v[1] returns writable simd_view
+// PVC variant of the test - adds tfloat32.
 
-// TODO Re-enable cases disabled via WA_BUG.
-
-#define USE_BF16
-#define WA_BUG
 #define USE_TF32
 
-#include "bin_and_cmp_ops_heavy.cpp"
+#include "simd_subscript_operator.cpp"
