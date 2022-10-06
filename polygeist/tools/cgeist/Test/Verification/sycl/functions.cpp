@@ -12,7 +12,7 @@
 
 #include <sycl/sycl.hpp>
 
-// CHECK: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64>)>
+// CHECK: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
 // CHECK: !sycl_id_2_ = !sycl.id<2>
 // CHECK: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>
 

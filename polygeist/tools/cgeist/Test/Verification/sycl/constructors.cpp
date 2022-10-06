@@ -25,7 +25,7 @@
 // CHECK-SAME:  attributes {[[SPIR_FUNCCC]], [[LINKONCE]], [[PASSTHROUGH]]}
 // CHECK-NEXT:   %0 = sycl.cast(%arg0) : (memref<?x!sycl_range_1_, 4>) -> memref<?x!sycl_array_1_, 4>
 
-// CHECK-LLVM: define spir_func void @cons_0([[ID_TYPE:%"class.cl::sycl::id.1"]] [[ARG0:%.*]], [[RANGE_TYPE:%"class.cl::sycl::range.1"]] [[ARG1:%.*]]) #0
+// CHECK-LLVM: define spir_func void @cons_0([[ID_TYPE:%"class.sycl::_V1::id.1"]] [[ARG0:%.*]], [[RANGE_TYPE:%"class.sycl::_V1::range.1"]] [[ARG1:%.*]]) #0
 // CHECK-LLVM-DAG: [[RANGE1:%.*]] = alloca [[RANGE_TYPE]]
 // CHECK-LLVM-DAG: [[ID1:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM-DAG: [[RANGE2:%.*]] = alloca [[RANGE_TYPE]]
@@ -61,7 +61,7 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], [[PASSTHROUGH]]}
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_1() #0
-// CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]
+// CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]
 // CHECK-LLVM: [[CAST1:%.*]] = bitcast [[ID_TYPE]]* %1 to i8*
 // CHECK-LLVM: call void @llvm.memset.p0i8.i64(i8* %2, i8 0, i64 16, i1 false)
 // CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID1]] to [[ID_TYPE]] addrspace(4)*
@@ -80,7 +80,7 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 // CHECK-NEXT: sycl.constructor(%3, %arg0, %arg1) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @id} : (memref<?x!sycl_id_2_, 4>, i64, i64) -> ()
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_2(i64 %0, i64 %1) #0
-// CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]
+// CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]
 // CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID1]] to [[ID_TYPE]] addrspace(4)*
 // CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm([[ID_TYPE]] addrspace(4)* [[ID1_AS]], [[ID_TYPE]] addrspace(4)* [[ID1_AS]], i64 0, i64 -1, i64 1, i64 %0, i64 %1)
 
@@ -101,8 +101,8 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-NEXT: %7 = "polygeist.pointer2memref"(%6) : (!llvm.ptr<!sycl_item_2_1_, 4>) -> memref<?x!sycl_item_2_1_, 4>
 // CHECK-NEXT: sycl.constructor(%4, %7) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_item_2_1_, 4>) -> ()
 
-// CHECK-LLVM: define spir_func void @cons_3([[ITEM_TYPE:%"class.cl::sycl::item.2.true"]] [[ARG0:%.*]]) #0
-// CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.cl::sycl::id.2"]]  
+// CHECK-LLVM: define spir_func void @cons_3([[ITEM_TYPE:%"class.sycl::_V1::item.2.true"]] [[ARG0:%.*]]) #0
+// CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]  
 // CHECK-LLVM-DAG: [[ITEM:%.*]] = alloca [[ITEM_TYPE]]
 // CHECK-LLVM: store [[ITEM_TYPE]] [[ARG0]], [[ITEM_TYPE]]* [[ITEM]], align 8
 // CHECK-LLVM: [[ID_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID]] to [[ID_TYPE]] addrspace(4)*
@@ -126,7 +126,7 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-NEXT: %7 = "polygeist.pointer2memref"(%6) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
 // CHECK-NEXT: sycl.constructor(%4, %7) {MangledName = @_ZN4sycl3_V12idILi2EEC1ERKS2_, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> ()
 
-// CHECK-LLVM: define spir_func void @cons_4([[ID_TYPE:%"class.cl::sycl::id.2"]] [[ARG0:%.*]]) #0
+// CHECK-LLVM: define spir_func void @cons_4([[ID_TYPE:%"class.sycl::_V1::id.2"]] [[ARG0:%.*]]) #0
 // CHECK-LLVM-DAG: [[ID1:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM-DAG: [[ID2:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM: store [[ID_TYPE]] [[ARG0]], [[ID_TYPE]]* [[ID2]], align 8
@@ -144,9 +144,9 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 // CHECK: sycl.constructor([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_, Type = @AccessorImplDevice} : (memref<?x!sycl_accessor_impl_device_1_, 4>, !sycl_id_1_, !sycl_range_1_, !sycl_range_1_) -> ()
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_5() #0
-// CHECK-LLVM: [[ACCESSOR:%.*]] = alloca %"class.cl::sycl::accessor.1", align 8
-// CHECK-LLVM: [[ACAST:%.*]] = addrspacecast %"class.cl::sycl::accessor.1"* [[ACCESSOR]] to %"class.cl::sycl::accessor.1" addrspace(4)*
-// CHECK-LLVM: call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.cl::sycl::accessor.1" addrspace(4)* [[ACAST]], %"class.cl::sycl::accessor.1" addrspace(4)* [[ACAST]], i64 0, i64 -1, i64 1)
+// CHECK-LLVM: [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
+// CHECK-LLVM: [[ACAST:%.*]] = addrspacecast %"class.sycl::_V1::accessor.1"* [[ACCESSOR]] to %"class.sycl::_V1::accessor.1" addrspace(4)*
+// CHECK-LLVM: call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]], %"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]], i64 0, i64 -1, i64 1)
 
 extern "C" SYCL_EXTERNAL void cons_5() {
   auto accessor = sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write>{};

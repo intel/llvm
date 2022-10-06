@@ -14,8 +14,8 @@
 
 // CHECK: !sycl_accessor_1_i32_read_write_global_buffer = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK: !sycl_accessor_2_i32_read_write_global_buffer = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl.id<2>, !sycl.range<2>, !sycl.range<2>)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
-// CHECK: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64>)>
+// CHECK: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+// CHECK: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
 // CHECK: !sycl_group_1_ = !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
 // CHECK: !sycl_group_2_ = !sycl.group<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
 // CHECK: !sycl_id_1_ = !sycl.id<1>

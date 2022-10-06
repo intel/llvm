@@ -15,6 +15,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "SYCLOpInterfaces.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPE DECLARATIONS
@@ -24,6 +25,21 @@ def SYCL_Dialect : Dialect {
   let name = "sycl";
   let cppNamespace = "::mlir::sycl";
   let useDefaultTypePrinterParser = 1;
+  let extraClassDeclaration = [{
+    MethodRegistry methods;
+
+    /// Each operation will be registered as usual in an MLIR dialect
+    /// and also will be registered as a SYCL method if it implements one.
+    template <typename... Args> void addOperations();
+
+    /// Returns the name of the operation implementing the queried
+    /// method, if present.
+    ///
+    /// For a method to be queried, it must have been registered
+    /// first.
+    llvm::Optional<llvm::StringRef> findMethod(::mlir::TypeID Type,
+                                               llvm::StringRef Name) const;
+  }];
 }
 
 class SYCL_Op<string mnemonic, list<Trait> traits = []>
