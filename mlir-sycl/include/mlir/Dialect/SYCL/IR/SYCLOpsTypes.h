@@ -383,7 +383,8 @@ public:
 class AccessorImplDeviceType
     : public Type::TypeBase<AccessorImplDeviceType, Type,
                             detail::AccessorImplDeviceStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 
