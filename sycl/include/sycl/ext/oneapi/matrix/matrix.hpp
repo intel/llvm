@@ -14,14 +14,16 @@
 
 #pragma once
 
-#include <sycl/feature_test.hpp>
+#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
+#define SYCL_EXT_ONEAPI_MATRIX_VERSION 1
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
-#if SYCL_EXT_ONEAPI_MATRIX_CUDA
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 3)
 #include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
-#elif SYCL_EXT_ONEAPI_MATRIX_USE
+#elif (SYCL_EXT_ONEAPI_MATRIX_VERSION == 2)
 #include <sycl/ext/oneapi/matrix/matrix-jit-use.hpp>
 #include <sycl/ext/oneapi/matrix/static-query-use.hpp>
-#else
+#elif (SYCL_EXT_ONEAPI_MATRIX_VERSION == 1)
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
 #include <sycl/ext/oneapi/matrix/static-query.hpp>
-#endif
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
