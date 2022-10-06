@@ -83,6 +83,11 @@ GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return getOrCreate(MDeviceFilterList, InitValue);
 }
 
+ods_target_list &
+GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
+  return getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
+}
+
 XPTIRegistry &GlobalHandler::getXPTIRegistry() {
   return getOrCreate(MXPTIRegistry);
 }
