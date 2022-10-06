@@ -364,15 +364,15 @@ static LogicalResult convertMethod(SYCLMethodOpInterface op,
 
   SmallVector<mlir::Value> methodArgs(op->getOperands());
 
-  if (op.getBaseType() != MethodArgs[0].getType()) {
+  if (op.getBaseType() != methodArgs[0].getType()) {
     auto Cast = rewriter.create<SYCLCastOp>(op.getLoc(), op.getBaseType(),
                                             op->getOperand(0));
-    MethodArgs[0] = Cast;
+    methodArgs[0] = Cast;
   }
 
   rewriter.replaceOpWithNewOp<SYCLCallOp>(
       op, op->getResult(0).getType(), op.getType(), op.getFunctionName(),
-      op.getMangledFunctionName(), MethodArgs);
+      op.getMangledFunctionName(), methodArgs);
 
   return success();
 }
