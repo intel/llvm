@@ -103,7 +103,21 @@ private:
   const FunctionContext funcContext;
 };
 
-struct MLIRASTConsumer : public clang::ASTConsumer {
+class CodeGenUtils {
+public:
+  /// Wraps \p memorySpace into an integer attribute.
+  static mlir::IntegerAttr wrapIntegerMemorySpace(unsigned memorySpace,
+                                                  mlir::MLIRContext *ctx);
+
+  /// Returns true if the given qual type is considered to be an aggregate for
+  /// ABI compliance.
+  static bool isAggregateTypeForABI(clang::QualType qt);
+
+  static bool isLLVMStructABI(const clang::RecordDecl *RD,
+                              llvm::StructType *ST);
+};
+
+class MLIRASTConsumer : public clang::ASTConsumer {
 private:
   std::set<std::string> &emitIfFound;
   std::set<std::pair<FunctionContext, std::string>> &done;
