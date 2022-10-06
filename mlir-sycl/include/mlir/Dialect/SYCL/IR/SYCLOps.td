@@ -59,8 +59,8 @@ class SYCLMethodOpInterfaceImpl<
     static ::mlir::TypeID getTypeID() { return ::mlir::sycl::}] # type # [{::getTypeID(); }
     static constexpr llvm::ArrayRef<llvm::StringLiteral> getMethodNames() { return methods; }
     ::mlir::Type getBaseType() { return BaseType(); }
-    llvm::StringRef getFunctionName() { return FunctionName(); }
     llvm::StringRef getMangledFunctionName() { return MangledFunctionName(); }
+    llvm::StringRef getFunctionName() { return FunctionName(); }
     llvm::StringRef getTypeName() { return TypeName(); }
   }];
 
