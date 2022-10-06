@@ -51,8 +51,19 @@ value to determine which of the extension's APIs the implementation supports.
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
-|2     |joint matrix type has a new `use` parameter. `layout` on matrix is unused. JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
+|1     |The APIs of this experimental extension are not versioned, so the feature-test macro always has this value. 
+|======================
+
+## Matrix API Versions
+
+While this document presents the core API that unifies Intel AMX, DPAS, and Nvidia Tensor Cores, the implementations support slightly different versions of the API. For this reason, we introduce a new macro, namely `SYCL_EXT_ONEAPI_MATRIX_VERSION`  to distinguish between these different implementations. The goal in the next few months is to get rid of this implementation versioning macro. These are the current values for this macro.
+
+[frame="none",options="header"]
+|======================
+|Value |Description
+|1     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported. The exact API used for this implementation is detailed in [matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_deprecated_matrix_no_use.asciidoc)
+|2     |joint matrix type has a new `use` parameter. `layout` on matrix is optional for `C` matrix. JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
+|3     |Implementation on Nvidia Tensor Cores
 |======================
 
 ## New `joint_matrix` class
@@ -62,7 +73,8 @@ We introduce a new class called `joint_matrix`. The user needs to specify the ty
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename T, use Use,
           size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent,
-          layout Layout = layout::unused, typename Group = sub_group>
+          layout Layout = (Use == use::accumulator) ? layout::dynamic : layout::invalid, 
+          typename Group = sub_group>
 struct joint_matrix {
     joint_matrix(Group g) {}
 };
@@ -87,9 +99,6 @@ enum class use {
 }
 ```
 
-IMPORTANT: In both AMX and DPAS support, the `use` template parameter is required
-
-
 #### Layout
 Besides row major and column major layouts, `layout` is flexible enough to introduce custom layouts such as packed layout.
 
@@ -99,12 +108,13 @@ enum class layout {
   row_major,
   col_major,
   packed,
-  unused
+  dynamic,
+  invalid
 };
 }
 ```
 
-IMPORTANT: In both AMX and DPAS support, the `layout` template parameter is unused and will be ignored if specified
+IMPORTANT: In both AMX and DPAS support, the `layout` template parameter can be `dynamic` for Matrix A and B as well.
 
 #### Memory Scope
 In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
@@ -137,14 +147,23 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          use Use, access::address_space Space>
+  void joint_matrix_load(Group sg,
+    joint_matrix<T, Use, NumRows, NumCols, Layout::dynamic, Group> &res,
+    multi_ptr<T, Space> src, size_t stride, layout memL);
+    
+  template <typename Group, typename T, size_t NumRows, size_t NumCols,
           use Use, layout Layout, access::address_space Space>
   void joint_matrix_load(Group sg,
     joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
-    multi_ptr<T, Space> src, size_t stride, layout memL);
+    multi_ptr<T, Space> src, size_t stride);
 }
 ```
-This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS.
 
+`joint_matrix_load` loads data from memory to the 2d tiles/registers of Intel AMX/DPAS.
+We define two overloads of the load function depending on whether the memory layout was declared as part of the `joint_matrix` type or not. 
+The first overload that takes memory layout as an argument is only available for a `joint_matrix` type that was declared with `layout::dynamic`.
+The second overload without a memory layout uses static_assert must not used with a `joint_matrix` type that was declared with `layout::dynamic`.
 
 #### Store
 ```c++
@@ -163,11 +182,11 @@ This function stores the data from the 2d tiles back to memory.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M, std::size_t K, std::size_t N, 
-            layout LayoutA = layout::unused, layout LayoutB = layout::unused>
-  joint_matrix<Group, use::accumulator, Td, M, N, layout::unused, Group> joint_matrix_mad(Group sg,
+            layout LayoutA, layout LayoutB>
+  joint_matrix<Group, use::accumulator, Td, M, N, layout::dynamic, Group> joint_matrix_mad(Group sg,
     joint_matrix<Ta, use::a, M, K, layoutA, Group> A,
     joint_matrix<Tb, use::b, K, N, layoutB, Group> B,
-    joint_matrix<Tc, use::accumulator, M, N, layout::unused, Group> C);
+    joint_matrix<Tc, use::accumulator, M, N, layout::dynamic, Group> C);
 }
 ```
 The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
@@ -219,7 +238,7 @@ The code listing below shows a synopsis of these new APIs.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename T, size_t NumRows, size_t NumCols,
-          use Use, layout Layout = layout::unused,
+          use Use, layout Layout,
           typename Group = sycl::sub_group>
 struct joint_matrix {
    wi_data<T, Use, NumRows, NumCols, Layout, Group> get_wi_data();
@@ -230,7 +249,7 @@ class wi_data {
   wi_element<T, NumRows, NumCols, Use, Layout, Group> operator[](size_t i);
 };
 template <typename T, size_t NumRows, size_t NumCols,
-          use Use, layout Layout = layout::unused,
+          use Use, layout Layout,
           typename Group = sycl::sub_group>
 class wi_element {
   operator T();
@@ -303,7 +322,6 @@ range<2> L = {1, SG_SIZE};
 int8_t *memA = malloc_shared<int8_t>(M*K, q);
 int8_t *memB = malloc_shared<int8_t>(K*N, q);
 int32_t *memC = malloc_shared<int32_t>(M*N, q);
-// Assuming memB has already been VNNIed
 q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)                            
   [[sycl::reqd_sub_group_size(SG_SIZE)]] {
    const auto global_idx = item.get_global_id(0);
@@ -311,13 +329,13 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    const auto sg_startx = global_idx - item.get_local_id(0);
    const auto sg_starty = global_idy - item.get_local_id(1);
    sub_group sg = item.get_sub_group();
-   joint_matrix<int8_t, use::a, tM, tK> tA(sg);
-   joint_matrix<int8_t, use::b, tK, tN> tB(sg);
+   joint_matrix<int8_t, use::a, tM, tK, layout::row_major> tA(sg);
+   joint_matrix<int8_t, use::b, tK, tN, layout::row_major> tB(sg);
    joint_matrix<int32_t, use::accumulator, tM, tN> tC(sg);
    joint_matrix_fill(sg, tC, 0);
    for (int k = 0; k < K; k += tk) {
-     joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K, layout::row_major);
-     joint_matrix_load(sg, tB, memB + k * N + sg_starty/SG_SIZE*tN*4, N*4, layout::packed); // VNNI
+     joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K);
+     joint_matrix_load(sg, tB, memB + k * N + sg_starty/SG_SIZE*tN, N); 
      tC = joint_matrix_mad(sg, tA, tB, tC);
    }
    auto wi_data_c = matC.get_wi_data();
@@ -403,11 +421,11 @@ struct tpu_params<
   static constexpr std::size_t defaultK =
       (K != 0) ? K : ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <layout Layout = layout::unused, typename Group = sub_group>
+  template <layout Layout, typename Group = sub_group>
   using joint_matrix_a = joint_matrix<Ta, use::a, defaultM, defaultK, Layout, Group>;
-  template <layout Layout = layout::unused, typename Group = sub_group>
+  template <layout Layout, typename Group = sub_group>
   using joint_matrix_b = joint_matrix<Tb, use::b, defaultK, defaultN, Layout, Group>;
-  template <layout Layout = layout::unused, typename Group = sub_group>
+  template <layout Layout, typename Group = sub_group>
   using joint_matrix_c = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
 
   static constexpr bool dynamic_p = false; // should be true in future implementations
@@ -453,11 +471,11 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   static constexpr std::size_t defaultN = 16;
   static constexpr std::size_t defaultK = ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <layout Layout = layout::unused, typename Group = sub_group>
+  template <layout Layout, typename Group = sub_group>
   using joint_matrix_a = joint_matrix<Ta, use::a, defaultM, defaultK, Layout, Group>;
-  template <layout Layout = layout::unused, typename Group = sub_group>
+  template <layout Layout, typename Group = sub_group>
   using joint_matrix_b = joint_matrix<Tb, use::b, defaultK, defaultN, Layout, Group>;
-  template <layout Layout = layout::unused, typename Group = sub_group>
+  template <layout Layout, typename Group = sub_group>
   using joint_matrix_c = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
 
   static constexpr bool dynamic_p = false; // should be true in future implementations because
