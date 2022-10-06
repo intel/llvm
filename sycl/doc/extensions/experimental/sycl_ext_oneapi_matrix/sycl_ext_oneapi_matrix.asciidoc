@@ -464,7 +464,7 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
 
   using type_a = Ta; // this type alias is not available in the current implementation 
   using type_b = Tb; // this type alias is not available in the current implementation
-  using type_c = Tc; // this type alias is not available in the current implementation
+  using type_accumulator = Tc; // this type alias is not available in the current implementation
 
   // construct the matrices using the default sizes
   static constexpr std::size_t defaultM = 16;
