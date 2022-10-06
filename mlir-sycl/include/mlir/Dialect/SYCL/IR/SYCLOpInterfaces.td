@@ -26,7 +26,7 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
     `SYCLMethodOpInterfaceImpl` and also implement the `BaseType` method,
     returning the SYCL type representing the class this method is a member of;
     the `MangledFunctionName` method, returning the mangled name of the function
-    implementing this operation; the `FuncionName` method, returning the
+    implementing this operation; the `FunctionName` method, returning the
     unmangled name of the function implementing this operation; and the
     `TypeName` method, returning the original name of the type this operation is
     a member of.
