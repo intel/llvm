@@ -30,7 +30,7 @@ public:
 
 public:
   template <typename U> struct rebind {
-    typedef aligned_allocator<std::remove_const_t<U>> other;
+    typedef aligned_allocator<U> other;
   };
 
   aligned_allocator() = default;
