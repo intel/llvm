@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -internal-isystem Inputs -fsycl-is-device -std=c++20 -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -std=c++20 -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
-#include "Inputs/sycl.hpp"
+#include "sycl.hpp"
 
 // This test checks that we correctly capture binding declarations.
 
