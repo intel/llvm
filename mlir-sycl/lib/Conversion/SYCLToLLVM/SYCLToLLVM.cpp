@@ -362,7 +362,7 @@ static LogicalResult convertMethod(SYCLMethodOpInterface op,
   LLVM_DEBUG(llvm::dbgs() << "MethodPattern: Rewriting op: "; op.dump();
              llvm::dbgs() << "\n");
 
-  SmallVector<mlir::Value> MethodArgs(op->getOperands());
+  SmallVector<mlir::Value> methodArgs(op->getOperands());
 
   if (op.getBaseType() != MethodArgs[0].getType()) {
     auto Cast = rewriter.create<SYCLCastOp>(op.getLoc(), op.getBaseType(),
