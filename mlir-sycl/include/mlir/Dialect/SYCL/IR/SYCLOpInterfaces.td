@@ -23,12 +23,12 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
     type.
 
     Operations implementing this interface should inherit
-    `SYCLMethodOpInterfaceImpl` and also implement the `MangledFunctionName` method,
-    returning the mangled name of the function implementing this operation; the
-    `BaseType` method, returning the SYCL type representing the class this
-    method is a member of; the `Type` method, returning the original name of the
-    type this operation is a member of; and the `Funcion` method, returning the
-    unmangled name of the function implementing this operation.
+    `SYCLMethodOpInterfaceImpl` and also implement the `BaseType` method,
+    returning the SYCL type representing the class this method is a member of;
+    the `MangledFunctionName` method, returning the mangled name of the function
+    implementing this operation; the `Funcion` method, returning the unmangled
+    name of the function implementing this operation; and the `Type` method,
+    returning the original name of the type this operation is a member of.
 
     Operations implementing this interface are registered as methods in the
     `SYCLDialect`. See the `SYCLDialect` documentation.
