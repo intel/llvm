@@ -354,9 +354,9 @@ The query interface proposed here consists of three functionalities:
 
 - Validation: at compile time, the validation functionality informs the user whether a specific combination is valid or not. This takes place when the user specifies all template parameters.
 
-- Default values: this provides a default shape if the user does not provide a specific combination. In this case, aliases to the `joint_matrix` type can be used, namely `joint_matrix_a/b/c` where no additional argument is needed. This form happens when the user specifies all template parameters except the sizes of the matrices (`tiles`) M, N, and K.
+- Default values: this provides a default shape if the user does not provide a specific combination. In this case, aliases to the `joint_matrix` type can be used, namely `joint_matrix_a/b/accumulator` where no additional argument is needed. This form happens when the user specifies all template parameters except the sizes of the matrices (`tiles`) M, N, and K.
 
-- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query returns an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively, depending on whether the implementation supports a continuous or discrete number of sizes. For example, the Intel AMX implementation supports a continuous number of sizes, so the `max_*` variant is applied and only the maximum number is returned. The DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
+- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query returns an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and accumulator. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively, depending on whether the implementation supports a continuous or discrete number of sizes. For example, the Intel AMX implementation supports a continuous number of sizes, so the `max_*` variant is applied and only the maximum number is returned. The DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
 
 The table below provides a description for each of the member variables and type aliases in `tpu_params` class and the forms in which  they are defined.
 
@@ -365,20 +365,20 @@ The table below provides a description for each of the member variables and type
 | Member/type alias in `tpu_params` | Forms they are defined in |Description
 |`type_a`| validation, default values|type alias for the type of matrix A
 |`type_b`|  validation, default values|type alias for the type of matrix B
-|`type_c`|  validation, default values|type alias for the type of matrix C
+|`type_accumulator`|  validation, default values|type alias for the type of matrix accumulator
 |`defaultM`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value M that the user provides if M is supported by the implementation
 |`defaultN`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value N that the user provides if N is supported by the implementation
 |`defaultK`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value K that the user provides if K is supported by the implementation
 |`joint_matrix_a`|  validation, default values|type alias for `joint_matrix` for matrix A
 |`joint_matrix_b`| validation, default values| type alias for `joint_matrix` for matrix B
-|`joint_matrix_c`|  validation, default values| type alias for `joint_matrix` for matrix C
+|`joint_matrix_accumulator`|  validation, default values| type alias for `joint_matrix` for matrix accumulator
 |`dynamic_p`| validation, default values, general query| a boolean that indicates whether the implementation supports dynamic sizes (true) or not (false)
 |numtiles|  validation, default values, general query|indicates number of tiles in Intel AMX (does not apply to DPAS)
 |scope| validation, default values, general query| indicates the memory and execution scope supported by the TPU implementation
-|`combination` |  validation, default values, general query|composes the types and sizes of A, B, C matrices allowed in one combination
+|`combination` |  validation, default values, general query|composes the types and sizes of A, B, accumulator matrices allowed in one combination
 |`max_msize`, `max_nsize`, `max_ksize`|  validation, default values, general query| if the TPU implementation supports a continuous number of element sizes, each of these members is non-zero, and the TPU implementation supports all element sizes from 1 up to (and including) that number. By contrast, if the TPU implementation supports a discrete number of element sizes, each of these members has the value zero
 |`msize`, `nsize`, `ksize`|  validation, default values, general query| if the TPU implementation supports a discrete number of element sizes, each of these members is non-zero, and the value tells one of the supported element sizes. By contrast, if the TPU supports a continuous number of element sizes, each of these members has the value zero
-|`atype`, `btype`, `ctype`| validation, default values, general query| indicates the types supported in the combination
+|`atype`, `btype`, `accumulatortype`| validation, default values, general query| indicates the types supported in the combination
 |`combinations`    | validation, default values, general query| tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes so only this specific combination is returned in the combinations array. 
 |`num_combinations`|  validation, default values, general query|indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
 |======================
@@ -412,7 +412,7 @@ struct tpu_params<
 
   using type_a = Ta; // this type alias is not available in the current implementation 
   using type_b = Tb; // this type alias is not available in the current implementation
-  using type_c = Tc; // this type alias is not available in the current implementation
+  using type_accumulator = Tc; // this type alias is not available in the current implementation
 
   // if combination is valid, construct the matrices
 
@@ -426,7 +426,7 @@ struct tpu_params<
   template <layout Layout, typename Group = sub_group>
   using joint_matrix_b = joint_matrix<Tb, use::b, defaultK, defaultN, Layout, Group>;
   template <layout Layout, typename Group = sub_group>
-  using joint_matrix_c = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
+  using joint_matrix_accumulator = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
 
   static constexpr bool dynamic_p = false; // should be true in future implementations
                           // because Intel AMX hardware supports dynamic sizes
@@ -441,7 +441,7 @@ struct tpu_params<
     uint32_t ksize;
     matrix_type atype;
     matrix_type btype;
-    matrix_type ctype;
+    matrix_type accumulatortype;
   };
   // In this case, the combinations array contains only the combination that the user provided
   static constexpr combination combinations[] = {
@@ -476,7 +476,7 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   template <layout Layout, typename Group = sub_group>
   using joint_matrix_b = joint_matrix<Tb, use::b, defaultK, defaultN, Layout, Group>;
   template <layout Layout, typename Group = sub_group>
-  using joint_matrix_c = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
+  using joint_matrix_accumulator = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
 
   static constexpr bool dynamic_p = false; // should be true in future implementations because
                           // Intel AMX hardware supports dynamic sizes
@@ -491,7 +491,7 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
     uint32_t ksize;
     matrix_type atype;
     matrix_type btype;
-    matrix_type ctype;
+    matrix_type accumulatortype;
   };
   // In this case, the combinations array contain only the combinations that correspond to the Ta, Tb, and Tc 
   // types that the user provided
@@ -518,7 +518,7 @@ struct tpu_params<tpu::amx, void, void, void, M, N, K> {
     uint32_t ksize;
     matrix_type atype;
     matrix_type btype;
-    matrix_type ctype;
+    matrix_type accumulatortype;
   };
   
   static constexpr combination combinations[] = {
@@ -584,7 +584,7 @@ size_t NDRangeN = N / myparams::defaultN;
 // device code: the matrices are constructed using the default dimensions
 myparams::joint_matrix_a sub_a(sg);
 myparams::joint_matrix_b sub_b(sg);
-myparams::joint_matrix_c sub_c(sg);
+myparams::joint_matrix_accumulator sub_c(sg);
 
 ```
 
