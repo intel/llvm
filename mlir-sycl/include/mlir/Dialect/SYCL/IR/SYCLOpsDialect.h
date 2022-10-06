@@ -19,16 +19,17 @@
 
 namespace mlir {
 namespace sycl {
-/// Table in which operations implementing SYCL methods should registered.
+/// Table in which operations implementing SYCL methods are registered.
 class MethodRegistry {
 public:
-  /// Register the methods in \p MethodNames for the SYCL type identified by
-  /// \p TypeID, being \p OpName the name of the SYCL operation representing
+  /// Register a SYCL method \p methodName for the SYCL type identified by
+  /// \p typeID, being \p opName the name of the SYCL operation representing
   /// this method.
   ///
-  /// Calls to `lookupMethod(TypeID, name)` (being name present in
-  /// `MethodNames`), will return `OpName`.
-  void registerMethod(mlir::TypeID typeID, llvm::StringRef methodName,
+  /// Calls to `lookupMethod(typeID, methodName)` will return `opName`.
+  ///
+  /// \return Whether the insertion happened.
+  bool registerMethod(mlir::TypeID typeID, llvm::StringRef methodName,
                       llvm::StringRef opName);
 
   /// Returns the name of the operation implementing the queried
@@ -42,31 +43,6 @@ public:
 private:
   llvm::DenseMap<std::pair<mlir::TypeID, llvm::StringRef>, llvm::StringRef>
       methods;
-};
-
-/// Class containing relevant MLIR SYCL-related information during the
-/// translation process.
-class SYCLContext {
-public:
-  /// Register the methods in \p MethodNames for the SYCL type identified by
-  /// \p TypeID, being \p OpName the name of the SYCL operation representing
-  /// this method.
-  ///
-  /// Calls to `findMethod(TypeID, name)` (being name present in
-  /// `MethodNames`), will return `OpName`.
-  void addMethod(mlir::TypeID typeID, llvm::StringRef methodName,
-                 llvm::StringRef opName);
-
-  /// Returns the name of the operation implementing the queried
-  /// method, if present.
-  ///
-  /// For a method to be queried, it must have been registered
-  /// first.
-  llvm::Optional<llvm::StringRef> findMethod(::mlir::TypeID Type,
-                                             llvm::StringRef Name) const;
-
-private:
-  MethodRegistry methodRegistry;
 };
 } // namespace sycl
 } // namespace mlir

@@ -128,13 +128,7 @@ void mlir::sycl::SYCLDialect::printType(
 llvm::Optional<llvm::StringRef>
 mlir::sycl::SYCLDialect::findMethod(mlir::TypeID BaseType,
                                     llvm::StringRef MethodName) const {
-  return syclCtx.findMethod(BaseType, MethodName);
-}
-
-llvm::Optional<llvm::StringRef>
-mlir::sycl::SYCLContext::findMethod(mlir::TypeID BaseType,
-                                    llvm::StringRef MethodName) const {
-  return methodRegistry.lookupMethod(BaseType, MethodName);
+  return methods.lookupMethod(BaseType, MethodName);
 }
 
 llvm::Optional<llvm::StringRef>
@@ -145,38 +139,30 @@ mlir::sycl::MethodRegistry::lookupMethod(mlir::TypeID BaseType,
                                : llvm::Optional<llvm::StringRef>{Iter->second};
 }
 
-void mlir::sycl::SYCLContext::addMethod(mlir::TypeID TypeID,
-                                        llvm::StringRef MethodName,
-                                        llvm::StringRef OpName) {
-  methodRegistry.registerMethod(TypeID, MethodName, OpName);
-}
-
-void mlir::sycl::MethodRegistry::registerMethod(mlir::TypeID TypeID,
+bool mlir::sycl::MethodRegistry::registerMethod(mlir::TypeID TypeID,
                                                 llvm::StringRef MethodName,
                                                 llvm::StringRef OpName) {
-  const bool Inserted =
-      methods.try_emplace({TypeID, MethodName}, OpName).second;
-  assert(Inserted && "Duplicated SYCL method");
+  return methods.try_emplace({TypeID, MethodName}, OpName).second;
 }
 
 // If the operation is a SYCL method, register it.
 template <typename T>
 static typename std::enable_if_t<mlir::sycl::isSYCLMethod<T>::value>
-addSYCLMethod(mlir::sycl::SYCLContext &syclCtx) {
+addSYCLMethod(mlir::sycl::MethodRegistry &methods) {
   const auto TypeID = T::getTypeID();
   const llvm::StringRef OpName = T::getOperationName();
   for (llvm::StringRef Name : T::getMethodNames())
-    syclCtx.addMethod(TypeID, Name, OpName);
+    assert(methods.registerMethod(TypeID, Name, OpName) && "Duplicated method");
 }
 
 // If the operation is not a SYCL method, do nothing.
 template <typename T>
 static typename std::enable_if_t<!mlir::sycl::isSYCLMethod<T>::value>
-addSYCLMethod(mlir::sycl::SYCLContext &) {}
+addSYCLMethod(mlir::sycl::MethodRegistry &) {}
 
 template <typename... Args> void mlir::sycl::SYCLDialect::addOperations() {
   mlir::Dialect::addOperations<Args...>();
-  (void)std::initializer_list<int>{0, (::addSYCLMethod<Args>(syclCtx), 0)...};
+  (void)std::initializer_list<int>{0, (::addSYCLMethod<Args>(methods), 0)...};
 }
 
 bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,

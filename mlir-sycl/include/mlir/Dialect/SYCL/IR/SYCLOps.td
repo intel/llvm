@@ -26,7 +26,7 @@ def SYCL_Dialect : Dialect {
   let cppNamespace = "::mlir::sycl";
   let useDefaultTypePrinterParser = 1;
   let extraClassDeclaration = [{
-    SYCLContext syclCtx;
+    MethodRegistry methods;
 
     /// Each operation will be registered as usual in an MLIR dialect
     /// and also will be registered as a SYCL method if it implements one.
