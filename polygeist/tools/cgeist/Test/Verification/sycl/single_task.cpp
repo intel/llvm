@@ -8,8 +8,8 @@
 // BUG: clang++ -o doesn't redirect the output to the file specified.
 // XFAIL: *
 
-// Test that the kernel named `kernel_single_task` is generated.
-// CHECK: define weak_odr spir_kernel void {{.*}}kernel_single_task
+// Test that the kernel named `kernel_single_task` is generated with the correct signature.
+// CHECK: define weak_odr spir_kernel void {{.*}}kernel_single_task(i32 addrspace(1)* {{.*}}, %"class.sycl::_V1::range.1" {{.*}}, %"class.sycl::_V1::range.1" {{.*}}, %"class.sycl::_V1::id.1" {{.*}})
 // Test that all referenced sycl header functions are generated.
 // CHECK-NOT: declare {{.*}} spir_func
 

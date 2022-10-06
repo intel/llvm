@@ -637,6 +637,7 @@ static int finalize(mlir::MLIRContext &context,
     if (!EmitOpenMPIR) {
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
+      pm3.addPass(polygeist::createConvertToLLVMABIPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array

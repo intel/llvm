@@ -4,6 +4,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   BarrierRemovalContinuation.cpp  
   CanonicalizeFor.cpp
   ConvertPolygeistToLLVM.cpp  
+  ConvertToLLVMABI.cpp
   InnerSerialization.cpp  
   LegalizeForSPIRV.cpp  
   LoopRestructure.cpp
