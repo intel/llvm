@@ -91,7 +91,20 @@ value to determine which of the extension’s APIs the implementation supports.
 |Value |Description
 |1     |Initial extension version. Base features are supported.
 |===
+=== Extension to `enum class aspect`
 
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_bfloat16
+}
+}
+----
+
+If a SYCL device has the `ext_oneapi_bfloat16` aspect, then it supports
+`bfloat16` conversions described in the next section.
 
 === New `bfloat16` class
 

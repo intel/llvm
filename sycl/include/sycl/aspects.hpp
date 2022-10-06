@@ -52,6 +52,7 @@ enum class __SYCL_TYPE(aspect) aspect {
   ext_oneapi_cuda_async_barrier = 34,
   ext_oneapi_bfloat16 = 35,
   ext_intel_free_memory = 36,
+  ext_oneapi_bfloat16_math_functions = 37,
 };
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
