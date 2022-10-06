@@ -366,9 +366,9 @@ The table below provides a description for each of the member variables and type
 |`type_a`| validation, default values|type alias for the type of matrix A
 |`type_b`|  validation, default values|type alias for the type of matrix B
 |`type_accumulator`|  validation, default values|type alias for the type of matrix accumulator
-|`defaultM`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value M that the user provides if M is supported by the implementation
-|`defaultN`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value N that the user provides if N is supported by the implementation
-|`defaultK`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value K that the user provides if K is supported by the implementation
+|`M`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value M that the user provides if M is supported by the implementation
+|`N`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value N that the user provides if N is supported by the implementation
+|`K`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value K that the user provides if K is supported by the implementation
 |`joint_matrix_a`|  validation, default values|type alias for `joint_matrix` for matrix A
 |`joint_matrix_b`| validation, default values| type alias for `joint_matrix` for matrix B
 |`joint_matrix_accumulator`|  validation, default values| type alias for `joint_matrix` for matrix accumulator
@@ -390,21 +390,21 @@ The table below provides a description for each of the member variables and type
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-template<tpu u, typename Ta=void, typename Tb=void, typename Tc=void, int M=0, int N=0, int K=0>
+template<tpu u, typename Ta=void, typename Tb=void, typename Tc=void, int sM=0, int sN=0, int sK=0>
 struct tpu_params;
 
 // Validation form: Valid or not
 // Specialization when both types and sizes are given
-template <typename Ta, typename Tb, typename Tc, int M, int N, int K>
+template <typename Ta, typename Tb, typename Tc, int sM, int sN, int sK>
 struct tpu_params<
-    tpu::amx, Ta, Tb, Tc, M, N, K,
+    tpu::amx, Ta, Tb, Tc, sM, sN, sK,
     typename std::enable_if<(
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
-        !std::is_same_v<Tc, void> && M != 0 && N != 0 && K != 0)>::type> {
+        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
   // Validate that parameters are supported
   static_assert(
-      (M == 0 && N == 0 && K == 0) ||
-          (is_combination_valid_amx<Ta, Tb, Tc>(M, N, K)),
+      (sM == 0 && sN == 0 && sK == 0) ||
+          (is_combination_valid_amx<Ta, Tb, Tc>(sM, sN, sK)),
       "Invalid parameters for Intel AMX, query valid types and maximum sizes "
       "using: "
       "tpu_params<tpu::amx> myparams; and then check out myparams.combinations array");
@@ -416,10 +416,10 @@ struct tpu_params<
 
   // if combination is valid, construct the matrices
 
-  static constexpr std::size_t defaultM = (M != 0) ? M : 16;
-  static constexpr std::size_t defaultN = (N != 0) ? N : 16;
-  static constexpr std::size_t defaultK =
-      (K != 0) ? K : ((sizeof(Ta) == 1) ? 64 : 32);
+  static constexpr std::size_t M = (sM != 0) ? sM : 16;
+  static constexpr std::size_t N = (sN != 0) ? sN : 16;
+  static constexpr std::size_t K =
+      (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 64 : 32);
 
   template <layout Layout, typename Group = sub_group>
   using joint_matrix_a = joint_matrix<Ta, use::a, defaultM, defaultK, Layout, Group>;
@@ -445,7 +445,7 @@ struct tpu_params<
   };
   // In this case, the combinations array contains only the combination that the user provided
   static constexpr combination combinations[] = {
-      {16, 16, (sizeof(Ta) == 1) ? 64 : 32, M, N, K}};
+      {16, 16, (sizeof(Ta) == 1) ? 64 : 32, sM, sN, sK}};
   static constexpr int num_combinations =
       sizeof(combinations) / sizeof(combination);
 };
@@ -467,16 +467,16 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   using type_accumulator = Tc; // this type alias is not available in the current implementation
 
   // construct the matrices using the default sizes
-  static constexpr std::size_t defaultM = 16;
-  static constexpr std::size_t defaultN = 16;
-  static constexpr std::size_t defaultK = ((sizeof(Ta) == 1) ? 64 : 32);
+  static constexpr std::size_t M = 16;
+  static constexpr std::size_t N = 16;
+  static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 64 : 32);
 
   template <layout Layout, typename Group = sub_group>
-  using joint_matrix_a = joint_matrix<Ta, use::a, defaultM, defaultK, Layout, Group>;
+  using joint_matrix_a = joint_matrix<Ta, use::a, M, K, Layout, Group>;
   template <layout Layout, typename Group = sub_group>
-  using joint_matrix_b = joint_matrix<Tb, use::b, defaultK, defaultN, Layout, Group>;
+  using joint_matrix_b = joint_matrix<Tb, use::b, K, N, Layout, Group>;
   template <layout Layout, typename Group = sub_group>
-  using joint_matrix_accumulator = joint_matrix<Tc, use::accumulator, defaultM, defaultN, Layout, Group>;
+  using joint_matrix_accumulator = joint_matrix<Tc, use::accumulator, M, N, Layout, Group>;
 
   static constexpr bool dynamic_p = false; // should be true in future implementations because
                           // Intel AMX hardware supports dynamic sizes
@@ -503,8 +503,8 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
 
 // General query form:
 // types are not given, no default sizes and no implicit matrix construction
-template <int M, int N, int K>
-struct tpu_params<tpu::amx, void, void, void, M, N, K> {
+template <int sM, int sN, int sK>
+struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
   static constexpr bool dynamic_p = false; // should be true in future implementations because
                           // Intel AMX hardware supports dynamic sizes
   static constexpr uint32_t numtiles = 8;
@@ -570,17 +570,17 @@ enum class scope_t {
 // User can provide sizes besides the types and tpu_params can assert if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
 using myparams = tpu_params<tpu::dpas, int8_t, int8_t, int, 16, 8, 32>;  
-size_t NDRangeM = M / myparams::defaultM;  //Assertion would happen at this line
-size_t NDRangeN = N / myparams::defaultN;
+size_t NDRangeM = M / myparams::M;  //Assertion would happen at this line
+size_t NDRangeN = N / myparams::N;
 ```
 
 === Default Values Example:
 ```c++
 using myparams = tpu_params_both<tpu::dpas, int8_t, int8_t, int>;
 // use this to construct the ranges on the host side
-size_t NDRangeM = M / myparams::defaultM;
-size_t NDRangeN = N / myparams::defaultN;
-//if M,N,K do not multiply the default sizes, padding has to be done
+size_t NDRangeM = M / myparams::M;
+size_t NDRangeN = N / myparams::N;
+//if M, N, K do not multiply the default sizes, padding has to be done
 // device code: the matrices are constructed using the default dimensions
 myparams::joint_matrix_a sub_a(sg);
 myparams::joint_matrix_b sub_b(sg);
@@ -645,7 +645,6 @@ for (int i = 0; i < length; ++i) {
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
-- Change the names default sizes in the query from defaultM, defaultN, defaultK to M,N,K
 - Change the type of `scope` in the query interface to be able to return more than one value. This will be useful in the event we support other scopes like workgroup besides subgroups
 - Add a more realistic and complete example that shows the value of the general query
 
