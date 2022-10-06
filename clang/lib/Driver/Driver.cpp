@@ -5125,8 +5125,7 @@ class OffloadingActionBuilder final {
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
           // Passing arg: -fsycl-targets=<targets>.
-          needLibs =
-              TC->getTriple().getSubArch() != llvm::Triple::SPIRSubArch_fpga;
+          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);

@@ -9,9 +9,9 @@
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16
 
-// test that fallback bfloat16 libraries are added in JIT mode with generic target
+// test that no bfloat16 libraries are added in JIT mode with generic target
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16
 
 // test that a PVC AOT compilation uses the native library
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s -### 2>&1 \
