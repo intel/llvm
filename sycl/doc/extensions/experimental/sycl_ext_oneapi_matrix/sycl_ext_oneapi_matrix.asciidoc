@@ -124,7 +124,7 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported
 When the group is a `sycl::sub_group`, a matrix is declared as follows:
 
 ```c++
-joint_matrix<int8_t, use::a, tM, tN> tA(sg);
+joint_matrix<int8_t, use::a, tM, tN, layout::row_major> tA(sg);
 ```
 
 
@@ -163,7 +163,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 `joint_matrix_load` loads data from memory to the 2d tiles/registers of Intel AMX/DPAS.
 We define two overloads of the load function depending on whether the memory layout was declared as part of the `joint_matrix` type or not. 
 The first overload that takes memory layout as an argument is only available for a `joint_matrix` type that was declared with `layout::dynamic`.
-The second overload without a memory layout uses static_assert must not used with a `joint_matrix` type that was declared with `layout::dynamic`.
+The second overload without a memory layout must not be used with a `joint_matrix` type that was declared with `layout::dynamic`.
 
 #### Store
 ```c++
