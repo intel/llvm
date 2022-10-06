@@ -1458,9 +1458,9 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
-/// @param src0 is the first atomic operand.
-/// @param src1 is the second atomic operand.
-/// @param pred is predicates.
+/// @param src0 is the first atomic operand (expected value).
+/// @param src1 is the second atomic operand (new value).
+/// @param pred predicates.
 ///
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
@@ -1695,8 +1695,11 @@ template <native::lsc::atomic_op Op, typename T, int N>
 __ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
                                      simd<T, N> src0, simd<T, N> src1,
                                      simd_mask<N> mask) {
+  // 2-argument lsc_atomic_update arguments order matches the standard one -
+  // expected value first, then new value. But atomic_update uses reverse order,
+  // hence the src1/src0 swap.
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
-      p, offset, src0, src1, mask);
+      p, offset, src1, src0, mask);
 }
 
 } // namespace esimd

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fdeclare-opencl-builtins -finclude-default-header -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
+// RUN: %clang_cc1 -triple spir64 -fdeclare-opencl-builtins -finclude-default-header -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv --spirv-max-version=1.3 %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
@@ -8,7 +8,7 @@
 // RUN: spirv-val %t.rev.spv
 // RUN: llvm-spirv --spirv-max-version=1.3 %t.rev.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-// CHECK-SPIRV: TypeInt [[IntTy:[0-9]+]]
+// CHECK-SPIRV: TypeInt [[IntTy:[0-9]+]] 32
 // CHECK-SPIRV: TypeVector [[IVecTy:[0-9]+]] [[IntTy]]
 // CHECK-SPIRV: TypeFloat [[FloatTy:[0-9]+]]
 // CHECK-SPIRV: TypeVector [[FVecTy:[0-9]+]] [[FloatTy]]
