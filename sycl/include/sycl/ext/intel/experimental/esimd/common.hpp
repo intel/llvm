@@ -185,18 +185,20 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
 }
 
 template <typename T> struct lsc_expand_type {
-  using type =
-      typename std::conditional<sizeof(T) <= 4, int32_t, int64_t>::type;
+  using type = std::conditional_t<
+      sizeof(T) <= 4,
+      std::conditional_t<std::is_signed<T>::value, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>>;
 };
 
 template <typename T> struct lsc_bitcast_type {
 public:
   using type = std::conditional_t<
-      sizeof(T) == 1, int8_t,
+      sizeof(T) == 1, uint8_t,
       std::conditional_t<
-          sizeof(T) == 2, int16_t,
-          std::conditional_t<sizeof(T) == 4, int32_t,
-                             std::conditional_t<sizeof(T) == 8, int64_t, T>>>>;
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
 };
 
 } // namespace detail
