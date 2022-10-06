@@ -44,6 +44,15 @@ This extension is written against the SYCL 2020 specification, Revision 5.
 == Status
 
 This extension is implemented and fully supported by DPC++.
+[NOTE]
+Currently, if AOT compilation is done for multiple targets
+using "-fsycl-targets=<A,B,C>" then `bfloat16` support will be native
+or software emulation depending on the target, with the exception of the
+"spirv" target. That is actually a JIT compilation and it will use software
+emulation regardless of the actual runtime execution device.
+In JIT mode where the "-fsycl-targets=" switch is not specified,
+the selection of native or emulation is at runtime,
+depending on the device.
 
 == Overview
 

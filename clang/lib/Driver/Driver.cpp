@@ -5107,11 +5107,10 @@ class OffloadingActionBuilder final {
 
     // Return whether to use native bfloat16 library.
     bool selectBfloatLibs(const ToolChain *TC, bool &useNative) {
-      bool needLibs = false;
-
       const OptTable &Opts = C.getDriver().getOpts();
       const char *TargetOpt = nullptr;
       const char *DeviceOpt = nullptr;
+      bool needLibs = false;
       for (auto *A : Args) {
         llvm::Triple *TargetBE = nullptr;
 
@@ -5124,8 +5123,12 @@ class OffloadingActionBuilder final {
         };
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
-          // Passing arg: -fsycl-targets=<targets>.
-          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
+          // When a generic target "spir64" is used with other AOT targets
+          // we use fallback libraries.
+          if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
+            needLibs = DeviceLinkerInputs.size() > 1;
+          else
+            needLibs = true;
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);
@@ -5150,7 +5153,7 @@ class OffloadingActionBuilder final {
         };
       }
       useNative = false;
-      if (needLibs && TC->getTriple().getArch() == llvm::Triple::spir64 &&
+      if (needLibs &&
           TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
           TargetOpt && DeviceOpt) {
         useNative = strstr(DeviceOpt, "pvc") || strstr(DeviceOpt, "ats");
