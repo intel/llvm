@@ -67,11 +67,11 @@ public:
 /// Bundle Entry ID (or, Offload Target String) has following components:
 ///  * Offload Kind - Host, OpenMP, or HIP
 ///  * Triple - Standard LLVM Triple
-///  * GPUArch (Optional) - Processor name, like gfx906 or sm_30
+///  * TargetID (Optional) - target ID, like gfx906:xnack+ or sm_30
 struct OffloadTargetInfo {
   llvm::StringRef OffloadKind;
   llvm::Triple Triple;
-  llvm::StringRef GPUArch;
+  llvm::StringRef TargetID;
 
   const OffloadBundlerConfig &BundlerConfig;
 
@@ -82,8 +82,8 @@ struct OffloadTargetInfo {
   bool isOffloadKindCompatible(const llvm::StringRef TargetOffloadKind) const;
   bool isTripleValid() const;
   bool operator==(const OffloadTargetInfo &Target) const;
-  std::string str();
-  llvm::Triple getTriple() { return Triple; }
+  std::string str() const;
+  llvm::Triple getTriple() const { return Triple; }
 };
 
 llvm::Expected<bool> CheckBundledSection(const OffloadBundlerConfig&);

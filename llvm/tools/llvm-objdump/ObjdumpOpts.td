@@ -38,6 +38,10 @@ def arch_name_EQ : Joined<["--"], "arch-name=">,
 def archive_headers : Flag<["--"], "archive-headers">,
   HelpText<"Display archive header information">;
 
+defm build_id :
+  Eq<"build-id", "Build ID to look up. Once found, added as an input file">,
+  MetaVarName<"<dir>">;
+
 def : Flag<["-"], "a">, Alias<archive_headers>,
   HelpText<"Alias for --archive-headers">;
 
@@ -129,7 +133,8 @@ def no_show_raw_insn : Flag<["--"], "no-show-raw-insn">,
            "do not print the instruction bytes.">;
 
 def no_leading_addr : Flag<["--"], "no-leading-addr">,
-  HelpText<"When disassembling, do not print leading addresses">;
+  HelpText<"When disassembling, do not print leading addresses for instructions or inline relocations">;
+def : Flag<["--"], "no-addresses">, Alias<no_leading_addr>;
 
 def raw_clang_ast : Flag<["--"], "raw-clang-ast">,
   HelpText<"Dump the raw binary contents of the clang AST section">;

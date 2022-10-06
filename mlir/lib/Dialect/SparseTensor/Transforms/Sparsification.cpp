@@ -1854,7 +1854,8 @@ public:
                                 PatternRewriter &rewriter) const override {
     // Detects sparse annotations and translate the per-dimension sparsity
     // information for all tensors to loop indices in the kernel.
-    assert(op.getNumOutputs() == 1);
+    if (op.getNumOutputs() != 1)
+      return failure();
     unsigned numTensors = op.getNumInputsAndOutputs();
     unsigned numLoops = op.iterator_types().getValue().size();
     Merger merger(numTensors, numLoops);
@@ -1937,7 +1938,8 @@ private:
           op->getContext(), srcEnc.getDimLevelType(),
           permute(getContext(), op.getMatchingIndexingMap(t),
                   topSort), // new order
-          srcEnc.getPointerBitWidth(), srcEnc.getIndexBitWidth());
+          srcEnc.getHigherOrdering(), srcEnc.getPointerBitWidth(),
+          srcEnc.getIndexBitWidth());
       auto dstTp = RankedTensorType::get(srcTp.getShape(),
                                          srcTp.getElementType(), dstEnc);
       auto convert = rewriter.create<ConvertOp>(tval.getLoc(), dstTp, tval);

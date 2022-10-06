@@ -609,7 +609,7 @@ ModuleMap::findOrCreateModuleForHeaderInUmbrellaDir(const FileEntry *File) {
       UmbrellaModule = UmbrellaModule->Parent;
 
     if (UmbrellaModule->InferSubmodules) {
-      const FileEntry *UmbrellaModuleMap =
+      OptionalFileEntryRefDegradesToFileEntryPtr UmbrellaModuleMap =
           getModuleMapFileForUniquing(UmbrellaModule);
 
       // Infer submodules for each of the directories we found between
@@ -1023,9 +1023,11 @@ Module *ModuleMap::inferFrameworkModule(const DirectoryEntry *FrameworkDir,
     // If we're not allowed to infer a framework module, don't.
     if (!canInfer)
       return nullptr;
-  } else
-    ModuleMapFile = getModuleMapFileForUniquing(Parent);
-
+  } else {
+    OptionalFileEntryRefDegradesToFileEntryPtr ModuleMapRef =
+        getModuleMapFileForUniquing(Parent);
+    ModuleMapFile = ModuleMapRef;
+  }
 
   // Look for an umbrella header.
   SmallString<128> UmbrellaName = StringRef(FrameworkDir->getName());
@@ -1277,19 +1279,21 @@ void ModuleMap::excludeHeader(Module *Mod, Module::Header Header) {
   Mod->Headers[Module::HK_Excluded].push_back(std::move(Header));
 }
 
-const FileEntry *
+Optional<FileEntryRef>
 ModuleMap::getContainingModuleMapFile(const Module *Module) const {
   if (Module->DefinitionLoc.isInvalid())
-    return nullptr;
+    return None;
 
-  return SourceMgr.getFileEntryForID(
-           SourceMgr.getFileID(Module->DefinitionLoc));
+  return SourceMgr.getFileEntryRefForID(
+      SourceMgr.getFileID(Module->DefinitionLoc));
 }
 
-const FileEntry *ModuleMap::getModuleMapFileForUniquing(const Module *M) const {
+Optional<FileEntryRef>
+ModuleMap::getModuleMapFileForUniquing(const Module *M) const {
   if (M->IsInferred) {
     assert(InferredModuleAllowedBy.count(M) && "missing inferred module map");
-    return InferredModuleAllowedBy.find(M)->second;
+    // FIXME: Update InferredModuleAllowedBy to use FileEntryRef.
+    return InferredModuleAllowedBy.find(M)->second->getLastRef();
   }
   return getContainingModuleMapFile(M);
 }
@@ -1297,6 +1301,42 @@ const FileEntry *ModuleMap::getModuleMapFileForUniquing(const Module *M) const {
 void ModuleMap::setInferredModuleAllowedBy(Module *M, const FileEntry *ModMap) {
   assert(M->IsInferred && "module not inferred");
   InferredModuleAllowedBy[M] = ModMap;
+}
+
+std::error_code
+ModuleMap::canonicalizeModuleMapPath(SmallVectorImpl<char> &Path) {
+  StringRef Dir = llvm::sys::path::parent_path({Path.data(), Path.size()});
+
+  // Do not canonicalize within the framework; the module map parser expects
+  // Modules/ not Versions/A/Modules.
+  if (llvm::sys::path::filename(Dir) == "Modules") {
+    StringRef Parent = llvm::sys::path::parent_path(Dir);
+    if (Parent.endswith(".framework"))
+      Dir = Parent;
+  }
+
+  FileManager &FM = SourceMgr.getFileManager();
+  auto DirEntry = FM.getDirectory(Dir.empty() ? "." : Dir);
+  if (!DirEntry)
+    return DirEntry.getError();
+
+  // Canonicalize the directory.
+  StringRef CanonicalDir = FM.getCanonicalName(*DirEntry);
+  if (CanonicalDir != Dir) {
+    bool Done = llvm::sys::path::replace_path_prefix(Path, Dir, CanonicalDir);
+    (void)Done;
+    assert(Done && "Path should always start with Dir");
+  }
+
+  // In theory, the filename component should also be canonicalized if it
+  // on a case-insensitive filesystem. However, the extra canonicalization is
+  // expensive and if clang looked up the filename it will always be lowercase.
+
+  // Remove ., remove redundant separators, and switch to native separators.
+  // This is needed for separators between CanonicalDir and the filename.
+  llvm::sys::path::remove_dots(Path);
+
+  return std::error_code();
 }
 
 void ModuleMap::addAdditionalModuleMapFile(const Module *M,
