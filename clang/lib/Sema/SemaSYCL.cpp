@@ -1826,20 +1826,10 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      // FIXME: Stop triggering decomposition for non-trivial types with
-      // pointers
-      if (RD->isTrivial()) {
-        PointerStack.back() = true;
-        if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
-          RD->addAttr(
-              SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
-      } else {
-        // We are visiting a non-trivial type with pointer.
-        CollectionStack.back() = true;
-        if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
-          RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
-              SemaRef.getASTContext()));
-      }
+      PointerStack.back() = true;
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+        RD->addAttr(
+            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
     }
     return true;
   }
