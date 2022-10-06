@@ -59,9 +59,9 @@ class SYCLMethodOpInterfaceImpl<
     static ::mlir::TypeID getTypeID() { return ::mlir::sycl::}] # type # [{::getTypeID(); }
     static constexpr llvm::ArrayRef<llvm::StringLiteral> getMethodNames() { return methods; }
     ::mlir::Type getBaseType() { return BaseType(); }
-    llvm::StringRef getFunctionName() { return Function(); }
-    llvm::StringRef getMangledFunctionName() { return MangledName(); }
-    llvm::StringRef getType() { return Type(); }
+    llvm::StringRef getFunctionName() { return FunctionName(); }
+    llvm::StringRef getMangledFunctionName() { return MangledFunctionName(); }
+    llvm::StringRef getTypeName() { return TypeName(); }
   }];
 
   let extraClassDefinition = [{

@@ -43,7 +43,7 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
       operation.
     }], "llvm::ArrayRef<llvm::StringLiteral>", "getMethodNames">,
     InterfaceMethod<[{
-      Return the SYCL type this method is implemented in.
+      Return the SYCL type this method is a member of.
     }], "::mlir::Type", "getBaseType">,
     InterfaceMethod<[{
       Return the mangled name of the function implementing this operation.
@@ -53,7 +53,7 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
     }], "llvm::StringRef", "getFunctionName">,
     InterfaceMethod<[{
       Return the original name of the type this method is implemented in.
-    }], "llvm::StringRef", "getType">,
+    }], "llvm::StringRef", "getTypeName">,
   ];
 }
 
