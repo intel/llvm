@@ -1116,9 +1116,8 @@ bool tools::isDependentLibAdded(const ArgList &Args, StringRef Lib) {
   SmallString<64> DepLib("--dependent-lib=");
   DepLib += Lib;
   return llvm::any_of(
-      Args.getAllArgValues(options::OPT_Xclang), [&DepLib](StringRef Option) {
-        return Option.equals(DepLib);
-      });
+      Args.getAllArgValues(options::OPT_Xclang),
+      [&DepLib](StringRef Option) { return Option.equals(DepLib); });
 }
 
 const char *tools::SplitDebugName(const JobAction &JA, const ArgList &Args,
