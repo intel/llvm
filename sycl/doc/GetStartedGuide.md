@@ -631,7 +631,6 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-
 When building for HIP AMD, use the AMD target triple and specify the
 target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
 as follows:
