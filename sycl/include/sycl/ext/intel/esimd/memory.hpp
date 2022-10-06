@@ -841,8 +841,8 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<unsigned, N> offset,
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
 /// @param offset The vector of 32-bit offsets in bytes.
-/// @param src0 The first additional argument (expected value).
-/// @param src1 The second additional argument (new value).
+/// @param src0 The first additional argument (new value).
+/// @param src1 The second additional argument (expected value).
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
