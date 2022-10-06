@@ -212,6 +212,6 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivialStructInBase>([=]() { return NonTrivialDerivedStructWithPtr.i;});
     });
-    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__wrapper_class, int, int)'
+    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__generated_NonTrivialDerived)'
   }
 }
