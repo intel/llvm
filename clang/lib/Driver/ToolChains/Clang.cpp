@@ -6106,11 +6106,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // library.
   if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment() &&
       Args.hasArg(options::OPT_fsycl)) {
-    bool MsvcrtdLibOption = llvm::any_of(
-      Args.getAllArgValues(options::OPT_Xclang), [](StringRef Option) {
-        return Option.equals("--dependent-lib=msvcrtd");
-      });
-    if (MsvcrtdLibOption)
+    if (isDependentLibAdded(Args, "msvcrtd"))
       CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
   }
 

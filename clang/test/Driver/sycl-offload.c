@@ -662,15 +662,13 @@
 // CHECK-LINK-NOSTDLIB: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check sycld.lib is chosen with /MDd
-// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG-CL %s
-// CHECK-LINK-SYCL-DEBUG-CL: "--dependent-lib=sycl{{[0-9]*}}d"
-// CHECK-LINK-SYCL-DEBUG-CL-NOT: "-defaultlib:sycl{{[0-9]*}}d.lib"
-
-/// Check sycld is pulled in msvcrtd is used
+// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+/// Check sycld is pulled in when msvcrtd is used
 // RUN: %clangxx -fsycl -Xclang --dependent-lib=msvcrtd \
 // RUN:   -target x86_64-unknown-windows-msvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
 // CHECK-LINK-SYCL-DEBUG: "--dependent-lib=sycl{{[0-9]*}}d"
+// CHECK-LINK-SYCL-DEBUG-NOT: "-defaultlib:sycl{{[0-9]*}}.lib"
 
 /// Check "-spirv-allow-unknown-intrinsics=llvm.genx." option is emitted for llvm-spirv tool
 // RUN: %clangxx %s -fsycl -### 2>&1 | FileCheck %s --check-prefix=CHK-ALLOW-INTRIN
