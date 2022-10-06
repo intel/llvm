@@ -137,8 +137,10 @@ namespace host_half_impl {
 class __SYCL_EXPORT half {
 public:
   half() = default;
-  constexpr half(const half &) = default;
-  constexpr half(half &&) = default;
+  // clang-cl doesn't create required exports on Windows for " = default"
+  // because of "constexpr", workaround by providing explicit implementation.
+  constexpr half(const half &Other) : Buf(Other.Buf) {}
+  constexpr half(half &&Other) : Buf(std::move(Other.Buf)) {}
 
   __SYCL_CONSTEXPR_HALF half(const float &rhs) : Buf(float2Half(rhs)) {}
 
