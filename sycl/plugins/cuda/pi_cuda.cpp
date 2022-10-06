@@ -2561,7 +2561,7 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
 
-    command_queue->sync_streams<true>([&result](CUstream s) {
+    command_queue->sync_streams</*ResetUsed=*/true>([&result](CUstream s) {
       result = PI_CHECK_ERROR(cuStreamSynchronize(s));
     });
 
@@ -3886,6 +3886,8 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
                                               pi_uint32 num_events_in_wait_list,
                                               const pi_event *event_wait_list,
                                               pi_event *event) {
+  // This function makes one stream work on the previous work (or work
+  // represented by input events) and then all future work waits on that stream.
   if (!command_queue) {
     return PI_ERROR_INVALID_QUEUE;
   }
@@ -3913,6 +3915,8 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
             [cuStream,
              tmp_event = command_queue->barrier_tmp_event_](CUstream s) {
               if (cuStream != s) {
+                // record a new CUDA event on every stream and make one stream
+                // wait for these events
                 PI_CHECK_ERROR(cuEventRecord(tmp_event, s));
                 PI_CHECK_ERROR(cuStreamWaitEvent(cuStream, tmp_event, 0));
               }
