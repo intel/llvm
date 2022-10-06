@@ -1758,8 +1758,8 @@ void CHR::cloneScopeBlocks(CHRScope *Scope,
                                  NewBlocks[0]->getIterator(), F.end());
 
   // Update the cloned blocks/instructions to refer to themselves.
-  for (unsigned i = 0, e = NewBlocks.size(); i != e; ++i)
-    for (Instruction &I : *NewBlocks[i])
+  for (BasicBlock *NewBB : NewBlocks)
+    for (Instruction &I : *NewBB)
       RemapInstruction(&I, VMap,
                        RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
 
@@ -1983,7 +1983,7 @@ bool CHR::run() {
     findScopes(AllScopes);
     CHR_DEBUG(dumpScopes(AllScopes, "All scopes"));
 
-    // Split the scopes if 1) the conditiona values of the biased
+    // Split the scopes if 1) the conditional values of the biased
     // branches/selects of the inner/lower scope can't be hoisted up to the
     // outermost/uppermost scope entry, or 2) the condition values of the biased
     // branches/selects in a scope (including subscopes) don't share at least

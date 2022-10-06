@@ -399,6 +399,7 @@ bool Sema::LookupTemplateName(LookupResult &Found,
     LookupCtx = computeDeclContext(ObjectType);
     IsDependent = !LookupCtx && ObjectType->isDependentType();
     assert((IsDependent || !ObjectType->isIncompleteType() ||
+            !ObjectType->getAs<TagType>() ||
             ObjectType->castAs<TagType>()->isBeingDefined()) &&
            "Caller should have completed object type");
 
@@ -3585,9 +3586,8 @@ static void collectConjunctionTerms(Expr *Clause,
     if (BinOp->getOpcode() == BO_LAnd) {
       collectConjunctionTerms(BinOp->getLHS(), Terms);
       collectConjunctionTerms(BinOp->getRHS(), Terms);
+      return;
     }
-
-    return;
   }
 
   Terms.push_back(Clause);
@@ -5086,7 +5086,7 @@ bool Sema::CheckTemplateTypeArgument(TemplateTypeParmDecl *Param,
       }
     }
     // fallthrough
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   default: {
     // We have a template type parameter but the template argument
@@ -5643,7 +5643,8 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param,
     if (CheckTemplateTemplateArgument(TempParm, Params, Arg))
       return true;
 
-    Converted.push_back(Arg.getArgument());
+    Converted.push_back(
+        Context.getCanonicalTemplateArgument(Arg.getArgument()));
     break;
 
   case TemplateArgument::Expression:
@@ -5813,13 +5814,14 @@ bool Sema::CheckTemplateArgumentList(
         if (!ArgumentPack.empty()) {
           // If we were part way through filling in an expanded parameter pack,
           // fall back to just producing individual arguments.
-          Converted.insert(Converted.end(),
-                           ArgumentPack.begin(), ArgumentPack.end());
+          for (const TemplateArgument &I : ArgumentPack)
+            Converted.push_back(Context.getCanonicalTemplateArgument(I));
           ArgumentPack.clear();
         }
 
         while (ArgIdx < NumArgs) {
-          Converted.push_back(NewArgs[ArgIdx].getArgument());
+          Converted.push_back(Context.getCanonicalTemplateArgument(
+              NewArgs[ArgIdx].getArgument()));
           ++ArgIdx;
         }
 
@@ -5952,7 +5954,8 @@ bool Sema::CheckTemplateArgumentList(
   if (ArgIdx < NumArgs && CurrentInstantiationScope &&
       CurrentInstantiationScope->getPartiallySubstitutedPack()) {
     while (ArgIdx < NumArgs && NewArgs[ArgIdx].getArgument().isPackExpansion())
-      Converted.push_back(NewArgs[ArgIdx++].getArgument());
+      Converted.push_back(Context.getCanonicalTemplateArgument(
+          NewArgs[ArgIdx++].getArgument()));
   }
 
   // If we have any leftover arguments, then there were too many arguments.
@@ -8850,7 +8853,7 @@ Sema::CheckSpecializationInstantiationRedecl(SourceLocation NewLoc,
         return false;
       }
       // Fall through
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
     case TSK_ExplicitInstantiationDeclaration:
     case TSK_ExplicitInstantiationDefinition:
@@ -10751,7 +10754,7 @@ Sema::CheckTypenameType(ElaboratedTypeKeyword Keyword,
   }
   // Fall through to create a dependent typename type, from which we can recover
   // better.
-  LLVM_FALLTHROUGH;
+  [[fallthrough]];
 
   case LookupResult::NotFoundInCurrentInstantiation:
     // Okay, it's a member of an unknown instantiation.

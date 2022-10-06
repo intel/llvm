@@ -68,6 +68,11 @@ enum class ICFLevel {
   all,
 };
 
+enum class ObjCStubsMode {
+  fast,
+  small,
+};
+
 struct SectionAlign {
   llvm::StringRef segName;
   llvm::StringRef sectName;
@@ -126,6 +131,7 @@ struct Configuration {
   bool emitBitcodeBundle = false;
   bool emitDataInCodeInfo = false;
   bool emitEncryptionInfo = false;
+  bool emitInitOffsets = false;
   bool timeTraceEnabled = false;
   bool dataConst = false;
   bool dedupLiterals = true;
@@ -166,6 +172,7 @@ struct Configuration {
   UndefinedSymbolTreatment undefinedSymbolTreatment =
       UndefinedSymbolTreatment::error;
   ICFLevel icfLevel = ICFLevel::none;
+  ObjCStubsMode objcStubsMode = ObjCStubsMode::fast;
   llvm::MachO::HeaderFileType outputType;
   std::vector<llvm::StringRef> systemLibraryRoots;
   std::vector<llvm::StringRef> librarySearchPaths;

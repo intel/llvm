@@ -7,15 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/ArithmeticToSPIRV/ArithmeticToSPIRV.h"
-#include "../PassDetail.h"
+
 #include "../SPIRVCommon/Pattern.h"
 #include "mlir/Conversion/FuncToSPIRV/FuncToSPIRV.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Debug.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTARITHMETICTOSPIRV
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 #define DEBUG_TYPE "arith-to-spirv-pattern"
 
@@ -189,6 +197,16 @@ public:
 
   LogicalResult
   matchAndRewrite(arith::CmpFOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override;
+};
+
+/// Converts arith.addui_carry to spv.IAddCarry.
+class AddICarryOpPattern final
+    : public OpConversionPattern<arith::AddUICarryOp> {
+public:
+  using OpConversionPattern<arith::AddUICarryOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(arith::AddUICarryOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -834,6 +852,31 @@ LogicalResult CmpFOpNanNonePattern::matchAndRewrite(
 }
 
 //===----------------------------------------------------------------------===//
+// AddICarryOpPattern
+//===----------------------------------------------------------------------===//
+
+LogicalResult
+AddICarryOpPattern::matchAndRewrite(arith::AddUICarryOp op, OpAdaptor adaptor,
+                                    ConversionPatternRewriter &rewriter) const {
+  Type dstElemTy = adaptor.getLhs().getType();
+  Location loc = op->getLoc();
+  Value result = rewriter.create<spirv::IAddCarryOp>(loc, adaptor.getLhs(),
+                                                     adaptor.getRhs());
+
+  Value sumResult = rewriter.create<spirv::CompositeExtractOp>(
+      loc, result, llvm::makeArrayRef(0));
+  Value carryValue = rewriter.create<spirv::CompositeExtractOp>(
+      loc, result, llvm::makeArrayRef(1));
+
+  // Convert the carry value to boolean.
+  Value one = spirv::ConstantOp::getOne(dstElemTy, loc, rewriter);
+  Value carryResult = rewriter.create<spirv::IEqualOp>(loc, carryValue, one);
+
+  rewriter.replaceOp(op, {sumResult, carryResult});
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // SelectOpPattern
 //===----------------------------------------------------------------------===//
 
@@ -887,7 +930,7 @@ void mlir::arith::populateArithmeticToSPIRVPatterns(
     TypeCastingOpPattern<arith::BitcastOp, spirv::BitcastOp>,
     CmpIOpBooleanPattern, CmpIOpPattern,
     CmpFOpNanNonePattern, CmpFOpPattern,
-    SelectOpPattern,
+    AddICarryOpPattern, SelectOpPattern,
 
     spirv::ElementwiseOpPattern<arith::MaxFOp, spirv::GLFMaxOp>,
     spirv::ElementwiseOpPattern<arith::MaxSIOp, spirv::GLSMaxOp>,
@@ -910,10 +953,10 @@ void mlir::arith::populateArithmeticToSPIRVPatterns(
 
 namespace {
 struct ConvertArithmeticToSPIRVPass
-    : public ConvertArithmeticToSPIRVBase<ConvertArithmeticToSPIRVPass> {
+    : public impl::ConvertArithmeticToSPIRVBase<ConvertArithmeticToSPIRVPass> {
   void runOnOperation() override {
-    auto module = getOperation();
-    auto targetAttr = spirv::lookupTargetEnvOrDefault(module);
+    Operation *op = getOperation();
+    auto targetAttr = spirv::lookupTargetEnvOrDefault(op);
     auto target = SPIRVConversionTarget::get(targetAttr);
 
     SPIRVTypeConverter::Options options;
@@ -934,12 +977,13 @@ struct ConvertArithmeticToSPIRVPass
     RewritePatternSet patterns(&getContext());
     arith::populateArithmeticToSPIRVPatterns(typeConverter, patterns);
 
-    if (failed(applyPartialConversion(module, *target, std::move(patterns))))
+    if (failed(applyPartialConversion(op, *target, std::move(patterns))))
       signalPassFailure();
   }
 };
 } // namespace
 
-std::unique_ptr<Pass> mlir::arith::createConvertArithmeticToSPIRVPass() {
+std::unique_ptr<OperationPass<>>
+mlir::arith::createConvertArithmeticToSPIRVPass() {
   return std::make_unique<ConvertArithmeticToSPIRVPass>();
 }

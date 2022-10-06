@@ -60,7 +60,7 @@ using namespace lldb_private::process_gdb_remote;
 // GDBRemoteCommunication constructor
 GDBRemoteCommunication::GDBRemoteCommunication(const char *comm_name,
                                                const char *listener_name)
-    : Communication(comm_name),
+    : Communication(), Broadcaster(nullptr, comm_name),
 #ifdef LLDB_CONFIGURATION_DEBUG
       m_packet_timeout(1000),
 #else
@@ -679,7 +679,7 @@ GDBRemoteCommunication::CheckForPacket(const uint8_t *src, size_t src_len,
 
     case '%': // Async notify packet
       isNotifyPacket = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
     case '$':
       // Look for a standard gdb packet?

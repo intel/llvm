@@ -162,7 +162,7 @@ DecomposeLinalgOp::createPeeledGenericOp(GenericOp genericOp,
     // map and result type that correspond to the yielded value.
 
     Optional<unsigned> resultNumber;
-    for (auto user : scalarOpResult.getUsers()) {
+    for (auto *user : scalarOpResult.getUsers()) {
       if (auto yieldOp = dyn_cast<YieldOp>(user)) {
         // Find the first use of the `scalarOpResult` in the yield op.
         for (OpOperand &yieldOperand : yieldOp->getOpOperands()) {
@@ -201,8 +201,8 @@ DecomposeLinalgOp::createPeeledGenericOp(GenericOp genericOp,
   auto indexingMapAttr =
       rewriter.getAffineMapArrayAttr(peeledGenericOpIndexingMaps);
   return rewriter.create<GenericOp>(
-      loc, resultTypes, genericOp.inputs(), outsOperands, indexingMapAttr,
-      genericOp.iterator_types(), /*doc=*/nullptr, /*libraryCall=*/nullptr,
+      loc, resultTypes, genericOp.getInputs(), outsOperands, indexingMapAttr,
+      genericOp.getIteratorTypes(), /*doc=*/nullptr, /*libraryCall=*/nullptr,
       [](OpBuilder, Location, ValueRange) {});
 }
 
@@ -240,8 +240,8 @@ DecomposeLinalgOp::createResidualGenericOp(GenericOp genericOp,
   auto indexingMapAttr = rewriter.getAffineMapArrayAttr(indexingMaps);
   return rewriter.create<GenericOp>(
       genericOp->getLoc(), genericOp->getResultTypes(),
-      residualGenericOpOperands, genericOp.outputs(), indexingMapAttr,
-      genericOp.iterator_types(), /*doc=*/nullptr, /*libraryCall=*/nullptr,
+      residualGenericOpOperands, genericOp.getOutputs(), indexingMapAttr,
+      genericOp.getIteratorTypes(), /*doc=*/nullptr, /*libraryCall=*/nullptr,
       [](OpBuilder, Location, ValueRange) {});
 }
 
@@ -301,7 +301,7 @@ DecomposeLinalgOp::matchAndRewrite(GenericOp genericOp,
                                                 body->getOperations());
 
   Operation *peeledScalarOperation = &(*peeledGenericOpBody->begin());
-  auto yieldOp = residualGenericOpBody->getTerminator();
+  auto *yieldOp = residualGenericOpBody->getTerminator();
   {
     // Yield all the result of the peeled scalar operation.
     OpBuilder::InsertionGuard g(rewriter);

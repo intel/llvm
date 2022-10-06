@@ -4826,7 +4826,7 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_HasTrivialDestructor:
   case UTT_HasVirtualDestructor:
     ArgTy = QualType(ArgTy->getBaseElementTypeUnsafe(), 0);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   // C++1z [meta.unary.prop]:
   //   T shall be a complete type, cv void, or an array of unknown bound.
@@ -5421,6 +5421,8 @@ void DiagnoseBuiltinDeprecation(Sema& S, TypeTrait Kind,
       Replacement = BTT_IsTriviallyAssignable;
       break;
     case UTT_HasTrivialCopy:
+      Replacement = UTT_IsTriviallyCopyable;
+      break;
     case UTT_HasTrivialDefaultConstructor:
     case UTT_HasTrivialMoveConstructor:
       Replacement = TT_IsTriviallyConstructible;
@@ -5436,9 +5438,26 @@ void DiagnoseBuiltinDeprecation(Sema& S, TypeTrait Kind,
 }
 }
 
+bool Sema::CheckTypeTraitArity(unsigned Arity, SourceLocation Loc, size_t N) {
+  if (Arity && N != Arity) {
+    Diag(Loc, diag::err_type_trait_arity)
+        << Arity << 0 << (Arity > 1) << (int)N << SourceRange(Loc);
+    return false;
+  }
+
+  if (!Arity && N == 0) {
+    Diag(Loc, diag::err_type_trait_arity)
+        << 1 << 1 << 1 << (int)N << SourceRange(Loc);
+    return false;
+  }
+  return true;
+}
+
 ExprResult Sema::BuildTypeTrait(TypeTrait Kind, SourceLocation KWLoc,
                                 ArrayRef<TypeSourceInfo *> Args,
                                 SourceLocation RParenLoc) {
+  if (!CheckTypeTraitArity(getTypeTraitArity(Kind), KWLoc, Args.size()))
+    return ExprError();
   QualType ResultType = Context.getLogicalOperationType();
 
   if (Kind <= UTT_Last && !CheckUnaryTypeTraitTypeCompleteness(
@@ -8457,7 +8476,7 @@ class TransformTypos : public TreeTransform<TransformTypos> {
   ///
   /// Returns true if there are any untried correction combinations.
   bool CheckAndAdvanceTypoExprCorrectionStreams() {
-    for (auto TE : TypoExprs) {
+    for (auto *TE : TypoExprs) {
       auto &State = SemaRef.getTypoExprState(TE);
       TransformCache.erase(TE);
       if (!State.Consumer->hasMadeAnyCorrectionProgress())
@@ -8524,7 +8543,7 @@ class TransformTypos : public TreeTransform<TransformTypos> {
         // TypoExprs were created recursively and thus won't be in our
         // Sema's TypoExprs - they were created in our `RecursiveTransformLoop`.
         auto &SemaTypoExprs = SemaRef.TypoExprs;
-        for (auto TE : TypoExprs) {
+        for (auto *TE : TypoExprs) {
           TransformCache.erase(TE);
           SemaRef.clearDelayedTypo(TE);
 

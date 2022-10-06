@@ -84,7 +84,8 @@ int main(void) {
   queue q(ESIMDSelector{}, createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto ctxt = q.get_context();
   // TODO: release memory in the end of the test
   float *A =

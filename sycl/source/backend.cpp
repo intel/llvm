@@ -96,26 +96,17 @@ queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
 }
 
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context,
-                               const async_handler &Handler, backend Backend) {
-  return make_queue_impl(NativeHandle, Context, nullptr, false, Handler,
-                         Backend);
-}
-
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context, bool KeepOwnership,
-                               const async_handler &Handler, backend Backend) {
-  return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership, Handler,
-                         Backend);
-}
-
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context, const device &Device,
+                               const context &Context, const device *Device,
                                bool KeepOwnership, const async_handler &Handler,
                                backend Backend) {
-  const auto &DeviceImpl = getSyclObjImpl(Device);
-  return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
-                         KeepOwnership, Handler, Backend);
+  if (Device) {
+    const auto &DeviceImpl = getSyclObjImpl(*Device);
+    return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
+                           KeepOwnership, Handler, Backend);
+  } else {
+    return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership,
+                           Handler, Backend);
+  }
 }
 
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,

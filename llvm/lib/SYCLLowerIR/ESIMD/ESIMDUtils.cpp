@@ -54,9 +54,10 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
       } else {
         auto *CI = cast<CallInst>(FCall);
 
-        if ((CI->getCalledFunction() != CurF) && ErrorOnNonCallUse) {
+        if ((CI->getCalledFunction() != CurF)) {
           // CurF is used in a call, but not as the callee.
-          llvm::report_fatal_error(ErrMsg);
+          if (ErrorOnNonCallUse)
+            llvm::report_fatal_error(ErrMsg);
         } else {
           auto FCaller = CI->getFunction();
 
@@ -69,9 +70,12 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
   }
 }
 
+bool isESIMD(const Function &F) {
+  return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+}
+
 bool isESIMDKernel(const Function &F) {
-  return (F.getCallingConv() == CallingConv::SPIR_KERNEL) &&
-         (F.getMetadata("sycl_explicit_simd") != nullptr);
+  return (F.getCallingConv() == CallingConv::SPIR_KERNEL) && isESIMD(F);
 }
 
 } // namespace esimd

@@ -82,14 +82,7 @@ pi_result redefinedEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-std::optional<unittest::PiMock> preparePiMock(platform &Plt) {
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return {};
-  }
-
-  unittest::PiMock Mock{Plt};
+void preparePiMock(unittest::PiMock &Mock) {
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
   Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
@@ -98,16 +91,14 @@ std::optional<unittest::PiMock> preparePiMock(platform &Plt) {
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-  return std::move(Mock);
 }
 
 // Check that the USM events are cleared from the queue upon call to wait(),
 // so that they are not waited for multiple times.
 TEST(QueueEventClear, ClearOnQueueWait) {
-  platform Plt{default_selector()};
-  auto Mock = preparePiMock(Plt);
-  if (!Mock)
-    return;
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  preparePiMock(Mock);
 
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
@@ -126,10 +117,9 @@ TEST(QueueEventClear, ClearOnQueueWait) {
 // Check that shared events are cleaned up from the queue once their number
 // exceeds a threshold.
 TEST(QueueEventClear, CleanupOnThreshold) {
-  platform Plt{default_selector()};
-  auto Mock = preparePiMock(Plt);
-  if (!Mock)
-    return;
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  preparePiMock(Mock);
 
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));

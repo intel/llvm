@@ -907,10 +907,8 @@ static bool isFlexibleArrayMemberExpr(const Expr *E,
     if (const auto *FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
       // FIXME: Sema doesn't treat a T[1] union member as a flexible array
       // member, only a T[0] or T[] member gets that treatment.
-      // Under StrictFlexArraysLevel, obey c99+ that disallows FAM in union, see
-      // C11 6.7.2.1 §18
       if (FD->getParent()->isUnion())
-        return StrictFlexArraysLevel < 2;
+        return true;
       RecordDecl::field_iterator FI(
           DeclContext::decl_iterator(const_cast<FieldDecl *>(FD)));
       return ++FI == FD->getParent()->field_end();
@@ -3782,7 +3780,7 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
                                      const ValueDecl *arrayDecl = nullptr) {
   // All the indices except that last must be zero.
 #ifndef NDEBUG
-  for (auto idx : indices.drop_back())
+  for (auto *idx : indices.drop_back())
     assert(isa<llvm::ConstantInt>(idx) &&
            cast<llvm::ConstantInt>(idx)->isZero());
 #endif
@@ -4335,7 +4333,7 @@ unsigned CodeGenFunction::getDebugInfoFIndex(const RecordDecl *Rec,
                                              unsigned FieldIndex) {
   unsigned I = 0, Skipped = 0;
 
-  for (auto F : Rec->getDefinition()->fields()) {
+  for (auto *F : Rec->getDefinition()->fields()) {
     if (I == FieldIndex)
       break;
     if (F->isUnnamedBitfield())

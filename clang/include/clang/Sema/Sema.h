@@ -239,8 +239,11 @@ namespace threadSafety {
 
 // FIXME: No way to easily map from TemplateTypeParmTypes to
 // TemplateTypeParmDecls, so we have this horrible PointerUnion.
-typedef std::pair<llvm::PointerUnion<const TemplateTypeParmType*, NamedDecl*>,
-                  SourceLocation> UnexpandedParameterPack;
+using UnexpandedParameterPack = std::pair<
+    llvm::PointerUnion<
+        const TemplateTypeParmType *, const SubstTemplateTypeParmPackType *,
+        const SubstNonTypeTemplateParmPackExpr *, const NamedDecl *>,
+    SourceLocation>;
 
 /// Describes whether we've seen any nullability information for the given
 /// file.
@@ -534,10 +537,7 @@ class Sema final {
   void operator=(const Sema &) = delete;
 
   ///Source of additional semantic information.
-  ExternalSemaSource *ExternalSource;
-
-  ///Whether Sema has generated a multiplexer and has to delete it.
-  bool isMultiplexExternalSource;
+  IntrusiveRefCntPtr<ExternalSemaSource> ExternalSource;
 
   static bool mightHaveNonExternalLinkage(const DeclaratorDecl *FD);
 
@@ -1528,6 +1528,15 @@ public:
     bool isImmediateFunctionContext() const {
       return Context == ExpressionEvaluationContext::ImmediateFunctionContext ||
              (Context == ExpressionEvaluationContext::DiscardedStatement &&
+              InImmediateFunctionContext) ||
+             // C++2b [expr.const]p14:
+             // An expression or conversion is in an immediate function
+             // context if it is potentially evaluated and either:
+             //   * its innermost enclosing non-block scope is a function
+             //     parameter scope of an immediate function, or
+             //   * its enclosing statement is enclosed by the compound-
+             //     statement of a consteval if statement.
+             (Context == ExpressionEvaluationContext::PotentiallyEvaluated &&
               InImmediateFunctionContext);
     }
 
@@ -1802,7 +1811,7 @@ public:
   ASTContext &getASTContext() const { return Context; }
   ASTConsumer &getASTConsumer() const { return Consumer; }
   ASTMutationListener *getASTMutationListener() const;
-  ExternalSemaSource* getExternalSource() const { return ExternalSource; }
+  ExternalSemaSource *getExternalSource() const { return ExternalSource.get(); }
 
   DarwinSDKInfo *getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
                                                          StringRef Platform);
@@ -2287,6 +2296,9 @@ public:
                                              Expr *E);
   SYCLIntelFPGALoopCoalesceAttr *
   BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelFPGAMaxReinvocationDelayAttr *
+  BuildSYCLIntelFPGAMaxReinvocationDelayAttr(const AttributeCommonInfo &CI, 
+                                             Expr *E);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
@@ -2513,6 +2525,11 @@ private:
 
   /// Namespace definitions that we will export when they finish.
   llvm::SmallPtrSet<const NamespaceDecl*, 8> DeferredExportedNamespaces;
+
+  /// In a C++ standard module, inline declarations require a definition to be
+  /// present at the end of a definition domain.  This set holds the decls to
+  /// be checked at the end of the TU.
+  llvm::SmallPtrSet<const FunctionDecl *, 8> PendingInlineFuncDecls;
 
   /// Helper function to judge if we are in module purview.
   /// Return false if we are not in a module.
@@ -2762,8 +2779,23 @@ public:
   /// If AsUnevaluated is false, E is treated as though it were an evaluated
   /// context, such as when building a type for decltype(auto).
   QualType BuildDecltypeType(Expr *E, bool AsUnevaluated = true);
-  QualType BuildUnaryTransformType(QualType BaseType,
-                                   UnaryTransformType::UTTKind UKind,
+
+  using UTTKind = UnaryTransformType::UTTKind;
+  QualType BuildUnaryTransformType(QualType BaseType, UTTKind UKind,
+                                   SourceLocation Loc);
+  QualType BuiltinEnumUnderlyingType(QualType BaseType, SourceLocation Loc);
+  QualType BuiltinAddPointer(QualType BaseType, SourceLocation Loc);
+  QualType BuiltinRemovePointer(QualType BaseType, SourceLocation Loc);
+  QualType BuiltinDecay(QualType BaseType, SourceLocation Loc);
+  QualType BuiltinAddReference(QualType BaseType, UTTKind UKind,
+                               SourceLocation Loc);
+  QualType BuiltinRemoveExtent(QualType BaseType, UTTKind UKind,
+                               SourceLocation Loc);
+  QualType BuiltinRemoveReference(QualType BaseType, UTTKind UKind,
+                                  SourceLocation Loc);
+  QualType BuiltinChangeCVRQualifiers(QualType BaseType, UTTKind UKind,
+                                      SourceLocation Loc);
+  QualType BuiltinChangeSignedness(QualType BaseType, UTTKind UKind,
                                    SourceLocation Loc);
 
   //===--------------------------------------------------------------------===//
@@ -3154,6 +3186,7 @@ public:
                                       QualType NewT, QualType OldT);
   void CheckMain(FunctionDecl *FD, const DeclSpec &D);
   void CheckMSVCRTEntryPoint(FunctionDecl *FD);
+  void CheckHLSLEntryPoint(FunctionDecl *FD);
   Attr *getImplicitCodeSegOrSectionAttrForFunction(const FunctionDecl *FD,
                                                    bool IsDefinition);
   void CheckFunctionOrTemplateParamDeclarator(Scope *S, Declarator &D);
@@ -5816,6 +5849,8 @@ public:
   bool isQualifiedMemberAccess(Expr *E);
   QualType CheckAddressOfOperand(ExprResult &Operand, SourceLocation OpLoc);
 
+  bool CheckTypeTraitArity(unsigned Arity, SourceLocation Loc, size_t N);
+
   ExprResult CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
                                             SourceLocation OpLoc,
                                             UnaryExprOrTypeTrait ExprKind,
@@ -7744,6 +7779,7 @@ public:
                                      StringLiteral *AssertMessageExpr,
                                      SourceLocation RParenLoc,
                                      bool Failed);
+  void DiagnoseStaticAssertDetails(const Expr *E);
 
   FriendDecl *CheckFriendTypeDecl(SourceLocation LocStart,
                                   SourceLocation FriendLoc,
@@ -10855,6 +10891,9 @@ public:
   ReqdWorkGroupSizeAttr *
   MergeReqdWorkGroupSizeAttr(Decl *D, const ReqdWorkGroupSizeAttr &A);
 
+  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                  SYCLTypeAttr::SYCLType TypeName);
+
   /// Only called on function definitions; if there is a MSVC #pragma optimize
   /// in scope, consider changing the function's attributes based on the
   /// optimization list passed to the pragma.
@@ -11758,9 +11797,8 @@ public:
       FunctionDecl *FD, Expr *VariantRef, OMPTraitInfo &TI,
       ArrayRef<Expr *> AdjustArgsNothing,
       ArrayRef<Expr *> AdjustArgsNeedDevicePtr,
-      ArrayRef<OMPDeclareVariantAttr::InteropType> AppendArgs,
-      SourceLocation AdjustArgsLoc, SourceLocation AppendArgsLoc,
-      SourceRange SR);
+      ArrayRef<OMPInteropInfo> AppendArgs, SourceLocation AdjustArgsLoc,
+      SourceLocation AppendArgsLoc, SourceRange SR);
 
   OMPClause *ActOnOpenMPSingleExprClause(OpenMPClauseKind Kind,
                                          Expr *Expr,
@@ -11930,12 +11968,10 @@ public:
                                       SourceLocation EndLoc);
 
   /// Called on well-formed 'init' clause.
-  OMPClause *ActOnOpenMPInitClause(Expr *InteropVar, ArrayRef<Expr *> PrefExprs,
-                                   bool IsTarget, bool IsTargetSync,
-                                   SourceLocation StartLoc,
-                                   SourceLocation LParenLoc,
-                                   SourceLocation VarLoc,
-                                   SourceLocation EndLoc);
+  OMPClause *
+  ActOnOpenMPInitClause(Expr *InteropVar, OMPInteropInfo &InteropInfo,
+                        SourceLocation StartLoc, SourceLocation LParenLoc,
+                        SourceLocation VarLoc, SourceLocation EndLoc);
 
   /// Called on well-formed 'use' clause.
   OMPClause *ActOnOpenMPUseClause(Expr *InteropVar, SourceLocation StartLoc,
@@ -13543,12 +13579,16 @@ public:
     const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
     if (!RecTy)
       return false;
+
+    if (RecTy->hasAttr<AttrTy>())
+      return true;
+
     if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
       ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
       if (CXXRecordDecl *RD = Template->getTemplatedDecl())
         return RD->hasAttr<AttrTy>();
     }
-    return RecTy->hasAttr<AttrTy>();
+    return false;
   }
 
 private:
@@ -13972,7 +14012,7 @@ public:
     KernelConstStaticVariable
   };
 
-  bool isKnownGoodSYCLDecl(const Decl *D);
+  bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);

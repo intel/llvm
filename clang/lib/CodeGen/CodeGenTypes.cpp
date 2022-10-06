@@ -51,6 +51,54 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
                                      StringRef suffix) {
   SmallString<256> TypeName;
   llvm::raw_svector_ostream OS(TypeName);
+  // If RD is spirv_JointMatrixINTEL type, mangle differently.
+  if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
+    if (RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
+      if (auto TemplateDecl = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+        ArrayRef<TemplateArgument> TemplateArgs =
+            TemplateDecl->getTemplateArgs().asArray();
+        OS << "spirv.JointMatrixINTEL.";
+        for (auto &TemplateArg : TemplateArgs) {
+          OS << "_";
+          if (TemplateArg.getKind() == TemplateArgument::Type) {
+            llvm::Type *TTy = ConvertType(TemplateArg.getAsType());
+            if (TTy->isIntegerTy()) {
+              switch (TTy->getIntegerBitWidth()) {
+              case 8:
+                OS << "char";
+                break;
+              case 16:
+                OS << "short";
+                break;
+              case 32:
+                OS << "int";
+                break;
+              case 64:
+                OS << "long";
+                break;
+              default:
+                OS << "i" << TTy->getIntegerBitWidth();
+                break;
+              }
+            } else if (TTy->isBFloatTy())
+              OS << "bfloat16";
+            else if (TTy->isStructTy()) {
+              StringRef LlvmTyName = TTy->getStructName();
+              // Emit half/bfloat16 for sycl[::*]::{half,bfloat16}
+              if (LlvmTyName.startswith("class.sycl::") ||
+                  LlvmTyName.startswith("class.__sycl_internal::"))
+                LlvmTyName = LlvmTyName.rsplit("::").second;
+              OS << LlvmTyName;
+            } else
+              TTy->print(OS, false, true);
+          } else if (TemplateArg.getKind() == TemplateArgument::Integral)
+            OS << TemplateArg.getAsIntegral();
+        }
+        Ty->setName(OS.str());
+        return;
+      }
+    }
+  }
   OS << RD->getKindName() << '.';
 
   // FIXME: We probably want to make more tweaks to the printing policy. For

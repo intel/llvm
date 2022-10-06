@@ -28,10 +28,18 @@ int main() {
   sycl::span<int> fromIntVec{vec};
 
   // fully specialized
-  // TODO: fix fully specialized span from array declaration support
-  // sycl::span<int,4> fullSpecArray{arr};
-  // sycl::span<const int,3> fullSpecConstArray{constArr};
+  sycl::span<int,4> fullSpecArray{arr};
+  sycl::span<const int,3> fullSpecConstArray{constArr};
   sycl::span<int, 4> fullSpecVecArray{vec};
+
+  // check that the extent is deduced correctly
+  static_assert(decltype(fromArray)::extent == decltype(fullSpecArray)::extent,
+                "extent doesn't match between unspecialized and fully "
+                "specialized span from array");
+  static_assert(decltype(fromConstArray)::extent ==
+                    decltype(fullSpecConstArray)::extent,
+                "extent doesn't match between unspecialized and fully "
+                "specialized span from const array");
 
   return 0;
 }

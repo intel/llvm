@@ -53,7 +53,7 @@ value to determine which of the extension's APIs the implementation supports.
 |======================
 |Value |Description
 |1     |Initial extension implementation on Intel AMX.  Base features are supported.
-|2     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad and the query interface are supported 
+|2     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
 |======================
 
 ## New `joint_matrix` class
@@ -165,6 +165,90 @@ namespace sycl::ext::oneapi::experimental::matrix {
 The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
 
 
+#### Matrix Initialization: `joint_matrix_fill`
+The current interface presented above assumes that all the matrices are directly loaded from memory. This new function called `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to `_tile_zero` intrinsic: 
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout L, typename Tv>
+  void joint_matrix_fill(Group sg, joint_matrix<T, NumRows, NumCols, L, Group> &m, Tv v);
+}
+```
+IMPORTANT: In the current implementation, only the subgroup scope is supported.  
+
+#### Element Indexing and Piece-Wise Operations 
+##### Background
+Besides matrix multiply and add, this extension aims to make it possible to perform piece-wise operations on matrices in a SPMD manner. The mechanisms that are recommended to perform such piece-wise operations depend upon which of the following classes the operation falls into:
+
+Class 1- Element-wise operations where the same operation is performed on every element of the matrix, such that the operation can be performed without knowledge of the position of the element within the matrix. Activation functions or adding a constant value to every element of the matrix are two examples.
+
+Class 2- Piece-wise operations where the operation depends on the element index of the matrix or the operation takes multiple elements as operands (such as a sum of all elements in a row for example). Quantization that is needed for conversion between low precision types like `int8_t` and `fp32` uses piece-wise operations.
+
+// We explored multiple options to enable this feature in the matrix interface: 1) Allowing non-restrictive element indexing on the matrix elements would result into slow indexing on the GPU, 2) Operator overloading can represent only element-wise operations and not the operations on pieces (row, column, diagonal, etc) of the matrix. 3) Providing specific functions for these piece-wise operations can resolve some of the functions we know of today like the ones involved in quantization but it is not general to any problem that may occur in the future. 
+
+##### Explicit conversion with mapping from SIMD to SPMD
+The data elements in a joint_matrix are distributed or shared across the work-items in the Group in an implementation-defined way. There is no fixed allocation of matrix elements owned by a `joint_matrix` instance to the WIs comprising the group used to instantiate it. For instance, the matrix is a shared entity among the work items in the case of the AMX backend because the AMX tile that holds the matrix data is a 2d register that is shared among the work items. Therefore the partitioning among the WIs is implementation defined. However, it is necessary to allocate WIs to specific elements of the matrix. In order to be able to perform piece-wise operations in a general and efficient way, we provide a conversion function from the joint_matrix domain that is owned by a group of work items to the portion that is owned by each work item. This enables the WI to perform piece-wise operations on the matrix within the SYCL SPMD programming model. 
+
+We introduce a new function `get_wi_data` that provides a view of the portion of the matrix that is owned by the current WI. So modifying `wi_data` means also modifying the joint matrix corresponding elements. The indexing provided inside the `wi_data` class acesses only the portion of the current WI and returns  `wi_element`. This latter holds a reference to the original joint_matrix that `wi_data` was constructed from. Users can use the `=` operator to update the element of the `joint_matrix` represented by the `wi_element` after the element-wise operation.
+
+Using `get_wi_data`, it is not possible to know which portions of data are owned by each thread in the group as this is implementation defined and change from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping coordinates information must be known to reason about the matrix view and extract the relevant piece. But for element-wise operations where the same operation is performed on all the elements of the matrix, having all the WIs in the group apply the operation inside a loop iterating over the `length` of `wi_data` guarantees the whole matrix element-wise operation.   
+
+Therefore, this extension currently only supports class 1 of operations because the mapping between `get_wi_data` and `joint_matrix` elements is not required to be known for these operations. However, general piece-wise operations will be supported in the future as a new API will be provided to convey the mapping from `joint_matrix` domain to WI Domain (See Section "WI data to joint matrix mapping coordinates information for piece-wise operations for more information").
+
+Also, note that `get_wi_data` cannot return a fixed size array length because the length of the WI portion is a runtime variable for the following reasons:
+
+1- The main compilation mode of SYCL is JIT compilation and partitioning among WIs is implementation defined.
+
+2- SG size is not fixed (like in the CUDA backend where warp size is always 32).
+
+3- AMX has the flexibility of allowing variable sizes on the matrix (`dynamic_extent`).
+
+In the case of CUDA backend which is SYCL AOT compiled and SG size = 32 known and fixed, the additional marray capability will be provided.
+
+The code listing below shows a synopsis of these new APIs.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+template <typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major,
+          typename Group = sycl::sub_group>
+struct joint_matrix {
+   wi_data<T, NumRows, NumCols, Layout, Group> get_wi_data();
+};
+template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
+class wi_data {
+  size_t length();
+  wi_element<T, NumRows, NumCols, Layout, Group> operator[](size_t i);
+};
+template <typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major,
+          typename Group = sycl::sub_group>
+class wi_element {
+  operator T();
+  wi_element &operator=(const T &rhs);
+…
+};
+}
+```
+
+In the following example `wi_data_c` is a reference to the WI owned portion of the joint matrix `matC`. As such `wi_data_c[i] OP rhs` updates the corresponding matrix element in the joint_matrix `matC`.
+Vectorization along the subgroup dimension will get enabled automatically to vectorize the contiguous portion of the matrix. 
+
+
+```c++
+auto wi_data_c = matC.get_wi_data();             
+for (int i = 0; i < wi_data_c.length(); i++)                
+        wi_data_c[i] *= alpha;    // Note that the indexing here "i" is in the vector owned by a WI, not in the matrix C        
+```
+
+IMPORTANT: In the current implementation, only the subgroup scope is supported.  
+
+IMPORTANT: The WI data to joint matrix mapping coordinates information is not implemented yet. 
+
+IMPORTANT: Since the current tensorcores implementation is AOT, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the tensorcores AOT backend. 
+
+
 ## VNNI/Packed Layout
 Intel AMX and DPAS compute assumes register for B tile (src1) to be in VNNI format as they need 32bit of K-data in A and B to be contiguous in memory.
 The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the case of 8-bit types. While the current implementation assumes that the matrix has been already packed by the user for performance reasons, the layout information is needed to inform the implementation about this transform.  The following example illustrates how a matrix in `row_major` layout is transformed into the `packed_b` layout for a 16-bit type.
@@ -225,12 +309,15 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    // users need to specify the packed_b layout
    joint_matrix<int8_t, tK, tN, packed_b> tB(sg);
    joint_matrix<int32_t, tM, tN> tC(sg);
-   joint_matrix_load(sg, tC, memC + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, matrix_layout::row_major);
+   joint_matrix_fill(sg, tC, 0);
    for (int k = 0; k < K; k += tk) {
      joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K, matrix_layout::row_major);
      joint_matrix_load(sg, tB, memB + k * N + sg_starty/SG_SIZE*tN*4, N*4, matrix_layout::packed_b); // VNNI
      tC = joint_matrix_mad(sg, tA, tB, tC);
    }
+   auto wi_data_c = matC.get_wi_data();             
+   for (int i = 0; i < wi_data_c.length(); i++)                
+     wi_data_c[i] *= alpha; // The indexing here "i" is in the vector owned by a WI, not in the matrix C
    joint_matrix_store(sg, tC, memC + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, matrix_layout::row_major);
 }).wait();
 ```
@@ -509,63 +596,6 @@ joint_matrix<int, msize, nsize> sub_c(sg);
 
 ## Future-looking API
 
-### Matrix Initialization: `joint_matrix_fill`
-The current interface presented above assumes that all the matrices are directly loaded from memory. This new function called `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to `_tile_zero` intrinsic: 
-
-```c++
-namespace sycl::ext::oneapi::experimental::matrix {
-  template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout L>
-  void joint_matrix_fill(Group sg, joint_matrix<T, NumRows, NumCols, L, Group> &m, const T& v);
-}
-```
-
-### Element Indexing and Element-Wise Operations 
-There are multiple options on how to enable this feature.
-
-#### Option 1: Non-restrictive element indexing
-Allowing non-restrictive element indexing on the matrix element as shown below would result into slow indexing on the GPU.
- Besides, it will rely heavily on spirv and compiler vectorization:
-
-```c++
-matrix<int, 8, 8> C;
-for (int i = 0; i < 8; i++) 
- for (int j = 0; j < 8; j++)
-   C(i,j) *= alpha; //Align with mdspan
-```
-#### Option2: Restrictive fast element indexing 
-In the DPC++ context, the expectation is that all element-wise operations will happen in a converged control path by all work items in the group.
-Option 2 proposes a new set of element-wise operations by overloading existing operations to work on `matrix` object. An example is shown below:
-```c++
-joint_matrix<ONEAPI::sub_group, int, 8, 8> C(sg);
-  C *= alpha; 
-```
-The problem with this option is that it is restrictive to a very limited set of operations. 
-
-#### Option3: Restrictive conversion in the interface from SIMD to SPMD
-Nvidia wmma interface added a new member to `fragment` class to designate the WI owned part of the matrix. 
-While this provides fast element indexing on the GPU compared to the non-restrictive option, the user does not know the mapping of the owned data to the original matrix. 
- However using the `mma` ptx instructions as opposed to the `wmma` ptx instructions the mapping is known. Knowing this mapping is important for the user to implement new operations like sum of rows of a matrix for quantized algorithms.
-
-#### proposal: Explicit conversion in the interface from SIMD to SPMD
-We introduce a new function `get_wi_data` that provides any portion of the matrix that the user wants but in a SPMD array object:.
-
-```c++
-namespace sycl::ext::oneapi::experimental::matrix {
-template <typename Group, typename T, size_t NumRows, size_t NumCols, matrix_layout L>
-  marray<T, n_rows * n_cols> get_wi_data(joint_matrix<T, NumRows, NumCols, L, Group> &m, size_t row_index,  
-                                          size_t col_index, size_t n_rows, size_t n_cols);
-}
-```
-
-Example where each WI gets 1 column:  
-```c++
-marray<T,msize> wi_C = get_wi_data(C, 0, wi_idx, msize, 1, matrix_layout::row_major);
-for (int i = 0; i < msize; i++)        
-   row_sum += wi_C[i];
-```
-
-
 ### Memory scope
 The current experimental API uses `joint_` semantics to define the memory scope of the matrix. The long term solution is to use the proposed link:../supported/sycl_ext_oneapi_local_memory.asciidoc[`group_local_memory` extension] to allocate the matrix in local memory associated with a SYCL group as shown in the example below.
 
@@ -574,6 +604,30 @@ The current experimental API uses `joint_` semantics to define the memory scope 
 multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<matrix<sub_group, int8_t, tM, tN>>(sg);
 ```
 We did not utilize this extension for this matrix API version because sub-group local memory is not yet well defined in {dpcpp}. Moreover, the representation of this notion in LLVM IR and SPIR-V is not clear yet. 
+
+### WI data to joint matrix mapping coordinates information for piece-wise operations
+The indexing provided inside the `wi_data` class acesses only the portion of the current WI. It is not possible the location or coordinates of this portion in the original matrix.  This coordinates mapping  is implementation defined and change from one backend to the other.   For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping coordinates information is needed to reason about the matrix view.
+With joint matrix, we want to write, as much as possible, one code to run on different backends. So if backend X states that a WI owns one exact row of the matrix for instance. Writing the following code will work only on that backend for that version of hardware. The hardware and implementations change, for instance, the same WI can own half of the row because SG size increased or hardware units increased. 
+
+```c++
+auto data = C.get_wi_data();
+for (int i = 0; i < length; ++i) {
+  sum_of_local_rows[row] += data[i];
+}
+```
+
+
+
+We want to keep backward compatibility in the joint matrix code when implementations or hardware change. To that end, instead of hard-code this mapping, we write  general backend and target-agnostic, especially in the JIT compilation mode of SYCL. This is possible by querying this mapping so code does not have to change from one version to the other.
+
+So for the mapping problem, since this mapping is implementation-defined, one of the proposals is to add runtime functions like:
+```c++
+auto data = C.get_wi_data();
+for (int i = 0; i < length; ++i) {
+  auto row, col = data[i].get_coord();
+  sum_of_local_rows[row] += data[i];
+}
+```
 
 
 ## Open Questions
@@ -585,7 +639,7 @@ We did not utilize this extension for this matrix API version because sub-group 
 - In the future looking APIs, `get_wi_data` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
 
 ## TODO List
-- Add support for fill matrix and element-wise operations features
+- Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
 - Add 'matrix_use' parameter to the matrix to distinguish between matrix A, B, and matrix accumulator. This is necessary for supporting VNNI and transpose transform 
 - Change the names default sizes in the query from defaultM, defaultN, defaultK to M,N,K
 - Change the type of `scope` in the query interface to be able to return more than one value. This will be useful in the event we support other scopes like workgroup besides subgroups
@@ -599,4 +653,5 @@ We did not utilize this extension for this matrix API version because sub-group 
 |Rev |Date       |Author     |Changes
 |1   |2021-04-13 |Dounia Khaldi |Initial public working draft.
 |2   |2021-10-05 |Dounia Khaldi |JIT implementation on both Intel AMX and DPAS
+|3   |2022-05-16 |Dounia Khaldi |Add matrix fill and piece-wise operations support
 |======================

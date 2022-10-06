@@ -28,9 +28,19 @@ namespace dependencies {
 
 class DependencyScanningWorkerFilesystem;
 
+/// A command-line tool invocation that is part of building a TU.
+///
+/// \see FullDependencies::Commands.
+struct Command {
+  std::string Executable;
+  std::vector<std::string> Arguments;
+};
+
 class DependencyConsumer {
 public:
   virtual ~DependencyConsumer() {}
+
+  virtual void handleBuildCommand(Command Cmd) = 0;
 
   virtual void
   handleDependencyOutputOpts(const DependencyOutputOptions &Opts) = 0;
@@ -42,6 +52,9 @@ public:
   virtual void handleModuleDependency(ModuleDeps MD) = 0;
 
   virtual void handleContextHash(std::string Hash) = 0;
+
+  virtual std::string lookupModuleOutput(const ModuleID &ID,
+                                         ModuleOutputKind Kind) = 0;
 };
 
 /// An individual dependency scanning worker that is able to run on its own
@@ -67,6 +80,8 @@ public:
                                   DependencyConsumer &Consumer,
                                   llvm::Optional<StringRef> ModuleName = None);
 
+  bool shouldEagerLoadModules() const { return EagerLoadModules; }
+
 private:
   std::shared_ptr<PCHContainerOperations> PCHContainerOps;
 
@@ -84,6 +99,8 @@ private:
   ScanningOutputFormat Format;
   /// Whether to optimize the modules' command-line arguments.
   bool OptimizeArgs;
+  /// Whether to set up command-lines to load PCM files eagerly.
+  bool EagerLoadModules;
 };
 
 } // end namespace dependencies

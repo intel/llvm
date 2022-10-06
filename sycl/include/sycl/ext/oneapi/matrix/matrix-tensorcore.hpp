@@ -26,8 +26,8 @@ class tf32 {
 };
 } // namespace precision
 // TODO: how are the default params for Rows/Cols used in Intel backend?
-template <typename T, size_t Rows = sycl::dynamic_extent,
-          size_t Cols = sycl::dynamic_extent, matrix_use Use = matrix_use::a,
+template <typename T, matrix_use Use, size_t Rows = sycl::dynamic_extent,
+          size_t Cols = sycl::dynamic_extent,
           layout Layout = layout::unused, typename Group = sycl::sub_group,
           typename Cond = void>
 struct joint_matrix;
@@ -35,7 +35,7 @@ struct joint_matrix;
 template <typename type, size_t size> class wi_data {
   marray<type, size> &data;
   wi_data(marray<type, size> &wi_data) : data(wi_data){};
-  template <typename T, size_t Rows, size_t Cols, matrix_use Use, layout Layout,
+  template <typename T, matrix_use Use, size_t Rows, size_t Cols, layout Layout,
             typename Group, typename Cond>
   friend struct joint_matrix;
 
@@ -62,7 +62,7 @@ public:
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(type, use, M, N, size)                \
   template <layout Layout>                                                     \
   struct joint_matrix<                                                         \
-      type, M, N, matrix_use::use, Layout, sycl::sub_group,                    \
+      type, matrix_use::use, M, N, Layout, sycl::sub_group,                    \
       typename std::enable_if_t<Layout == layout::row_major ||                 \
                                 Layout == layout::col_major>> {                \
     marray<type, size> wi_marray;                                              \
@@ -109,7 +109,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 8, 1)
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(type, M, N, size)                 \
   template <>                                                                  \
-  struct joint_matrix<type, M, N, matrix_use::accumulator, layout::unused,     \
+  struct joint_matrix<type, matrix_use::accumulator, M, N, layout::unused,     \
                       sycl::sub_group> {                                       \
     marray<type, size> wi_marray;                                              \
     inline __SYCL_ALWAYS_INLINE wi_data<type, size> get_wi_data() {            \
@@ -134,7 +134,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(double, 8, 8, 2)
                                                    size)                       \
   template <layout Layout>                                                     \
   struct joint_matrix<                                                         \
-      precision, M, N, matrix_use::use, Layout, sycl::sub_group,               \
+      precision, matrix_use::use, M, N, Layout, sycl::sub_group,               \
       typename std::enable_if_t<Layout == layout::row_major ||                 \
                                 Layout == layout::col_major>> {                \
     marray<type, size> wi_marray;                                              \
@@ -152,7 +152,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_use Use, layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
-                  joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &res,
+                  joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
                   const T2 v) {
   // We kept the unused "sg" in joint_matrix_fill to match the other DPC++
   // functions
@@ -177,7 +177,7 @@ template <typename S, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, typename Cond = void>
 struct load_multiplicand {
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-                S, NumRows, NumCols, Use, Layout, sycl::sub_group> &res,
+                S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride);
 };
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -203,12 +203,11 @@ template <sycl::ext::oneapi::experimental::matrix::layout LayoutL, typename T,
           size_t NumRows, size_t NumCols, access::address_space Space>
 void load_accumulator_layoutT(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
-        T, NumRows, NumCols,
-        sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+        T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, NumRows, NumCols,
         sycl::ext::oneapi::experimental::matrix::layout::unused,
         sycl::sub_group> &res,
     multi_ptr<T, Space> src, size_t stride) {
-  if constexpr (std::is_same<T, int32_t>::value) {
+  if constexpr (std::is_same<std::remove_const_t<T>, int32_t>::value) {
     auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       __imma_m16n16k16_ld_c(destptr, src.get(), stride,
@@ -220,7 +219,7 @@ void load_accumulator_layoutT(
       __imma_m32n8k16_ld_c(destptr, src.get(), stride,
                            get_layout_id<LayoutL>());
     }
-  } else if constexpr (std::is_same<T, float>::value) {
+  } else if constexpr (std::is_same<std::remove_const_t<T>, float>::value) {
     auto dstptr = reinterpret_cast<float *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       __hmma_m16n16k16_ld_c_f32(dstptr, src.get(), stride,
@@ -257,8 +256,7 @@ template <typename T, size_t NumRows, size_t NumCols,
           access::address_space Space>
 void load_accumulator(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
-        T, NumRows, NumCols,
-        sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+        T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, NumRows, NumCols,
         sycl::ext::oneapi::experimental::matrix::layout::unused,
         sycl::sub_group> &res,
     multi_ptr<T, Space> src, size_t stride,
@@ -291,12 +289,13 @@ struct load_multiplicand<
         Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major ||
         Layout == sycl::ext::oneapi::experimental::matrix::layout::col_major>> {
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-                S, NumRows, NumCols, Use, Layout, sycl::sub_group> &res,
+                S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride) {
-    if constexpr (std::is_same<T, uint16_t>::value ||
+    if constexpr (std::is_same<std::remove_const_t<T>, uint16_t>::value ||
                   std::is_same<
-                      T, sycl::ext::oneapi::experimental::bfloat16>::value) {
-      auto tileptr = reinterpret_cast<int32_t const *>(src.get());
+                      std::remove_const_t<T>,
+                      sycl::ext::oneapi::experimental::bfloat16>::value) {
+      auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
         if constexpr (Use ==
@@ -321,8 +320,8 @@ struct load_multiplicand<
         __mma_bf16_m32n8k16_ld_b(destptr, tileptr, stride,
                                  get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same<T, uint8_t>::value) {
-      auto tileptr = reinterpret_cast<int32_t const *>(src.get());
+    } else if constexpr (std::is_same<std::remove_const_t<T>, uint8_t>::value) {
+      auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
         if constexpr (Use ==
@@ -347,8 +346,8 @@ struct load_multiplicand<
         __imma_m32n8k16_ld_b_u8(destptr, tileptr, stride,
                                 get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same<T, int8_t>::value) {
-      auto tileptr = reinterpret_cast<int32_t const *>(src.get());
+    } else if constexpr (std::is_same<std::remove_const_t<T>, int8_t>::value) {
+      auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
         if constexpr (Use ==
@@ -373,8 +372,8 @@ struct load_multiplicand<
         __imma_m32n8k16_ld_b_s8(destptr, tileptr, stride,
                                 get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same<T, half>::value) {
-      auto tileptr = reinterpret_cast<int32_t const *>(src.get());
+    } else if constexpr (std::is_same<std::remove_const_t<T>, half>::value) {
+      auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
         if constexpr (Use ==
@@ -396,18 +395,19 @@ struct load_multiplicand<
         __hmma_m32n8k16_ld_b(dstptr, tileptr, stride, get_layout_id<Layout>());
       }
 
-    } else if constexpr (std::is_same<S, sycl::ext::oneapi::experimental::
-                                             matrix::precision::tf32>::value) {
-      auto tileptr = reinterpret_cast<int32_t *>(src.get());
-      auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
-      if constexpr (NumRows == 16 && NumCols == 8) {
-        __mma_tf32_m16n16k8_ld_a(dstptr, tileptr, stride,
-                                 get_layout_id<Layout>());
-      } else if constexpr (NumRows == 8 && NumCols == 16) {
-        __mma_tf32_m16n16k8_ld_b(dstptr, tileptr, stride,
-                                 get_layout_id<Layout>());
-      }
-    } else if constexpr (std::is_same<T, double>::value) {
+    } else if constexpr (std::is_same<S,
+                                        sycl::ext::oneapi::experimental::
+                                            matrix::precision::tf32>::value) {
+        auto tileptr = reinterpret_cast<const int32_t *>(src.get());
+        auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
+        if constexpr (NumRows == 16 && NumCols == 8) {
+          __mma_tf32_m16n16k8_ld_a(dstptr, tileptr, stride,
+                                   get_layout_id<Layout>());
+        } else if constexpr (NumRows == 8 && NumCols == 16) {
+          __mma_tf32_m16n16k8_ld_b(dstptr, tileptr, stride,
+                                   get_layout_id<Layout>());
+        }
+      } else if constexpr (std::is_same<std::remove_const_t<T>, double>::value) {
       auto dstptr = reinterpret_cast<double *>(&res.wi_marray);
       if constexpr (Use ==
                     sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
@@ -430,8 +430,7 @@ struct joint_matrix_store_impl {
   template <sycl::ext::oneapi::experimental::matrix::layout LayoutL>
   void storeLayoutT(
       sycl::ext::oneapi::experimental::matrix::joint_matrix<
-          T, NumRows, NumCols,
-          sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+          T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, NumRows, NumCols,
           sycl::ext::oneapi::experimental::matrix::layout::unused,
           sycl::sub_group> &src,
       multi_ptr<T, Space> dst, size_t stride) {
@@ -485,8 +484,7 @@ struct joint_matrix_store_impl {
   }
   void
   store(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-            T, NumRows, NumCols,
-            sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+            T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, NumRows, NumCols,
             sycl::ext::oneapi::experimental::matrix::layout::unused,
             sycl::sub_group> &src,
         multi_ptr<T, Space> dst, size_t stride,
@@ -515,19 +513,17 @@ template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K, s
           typename Cond = void>
 struct joint_matrix_mad_impl {
   void mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T3, M, N,
-               sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+               T3, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M, N,
                sycl::ext::oneapi::experimental::matrix::layout::unused,
                sycl::sub_group> &D,
            sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T1, M, K, sycl::ext::oneapi::experimental::matrix::matrix_use::a,
+               T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
                LayoutA, sycl::sub_group> &A,
            sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T1, K, N, sycl::ext::oneapi::experimental::matrix::matrix_use::b,
+               T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
                LayoutB, sycl::sub_group> &B,
            sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T2, M, N,
-               sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+               T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M, N,
                sycl::ext::oneapi::experimental::matrix::layout::unused,
                sycl::sub_group> &C);
 };
@@ -582,26 +578,24 @@ struct joint_matrix_mad_impl<
          LayoutB ==
              sycl::ext::oneapi::experimental::matrix::layout::col_major)>> {
   void mad(sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T3, M, N,
-               sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+               T3, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M, N,
                sycl::ext::oneapi::experimental::matrix::layout::unused,
                sycl::sub_group> &D,
            sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T1, M, K, sycl::ext::oneapi::experimental::matrix::matrix_use::a,
+               T1, sycl::ext::oneapi::experimental::matrix::matrix_use::a, M, K,
                LayoutA, sycl::sub_group> &A,
            sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T1, K, N, sycl::ext::oneapi::experimental::matrix::matrix_use::b,
+               T1, sycl::ext::oneapi::experimental::matrix::matrix_use::b, K, N,
                LayoutB, sycl::sub_group> &B,
            sycl::ext::oneapi::experimental::matrix::joint_matrix<
-               T2, M, N,
-               sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
+               T2, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator, M, N,
                sycl::ext::oneapi::experimental::matrix::layout::unused,
                sycl::sub_group> &C) {
     if constexpr (M == 16 && N == 16 && K == 16) {
       if constexpr (std::is_same<T2, int32_t>::value) {
-        auto ptrA = reinterpret_cast<int32_t const *>(&A.wi_marray);
-        auto ptrB = reinterpret_cast<int32_t const *>(&B.wi_marray);
-        auto ptrC = reinterpret_cast<int32_t const *>(&C.wi_marray);
+        auto ptrA = reinterpret_cast<const int32_t *>(&A.wi_marray);
+        auto ptrB = reinterpret_cast<const int32_t *>(&B.wi_marray);
+        auto ptrC = reinterpret_cast<const int32_t *>(&C.wi_marray);
         auto ptrD = reinterpret_cast<int32_t *>(&D.wi_marray);
         if constexpr (std::is_same<T1, int8_t>::value) {
           __imma_m16n16k16_mma_s8(ptrD, ptrA, ptrB, ptrC,
@@ -611,13 +605,13 @@ struct joint_matrix_mad_impl<
                                   get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, half>::value) {
-        auto ptrA = reinterpret_cast<int32_t const *>(&A.wi_marray);
-        auto ptrB = reinterpret_cast<int32_t const *>(&B.wi_marray);
+        auto ptrA = reinterpret_cast<const int32_t *>(&A.wi_marray);
+        auto ptrB = reinterpret_cast<const int32_t *>(&B.wi_marray);
         if constexpr (std::is_same<T2, float>::value) {
           if constexpr (std::is_same<T3, float>::value) {
           __hmma_m16n16k16_mma_f32f32(
               reinterpret_cast<float *>(&D.wi_marray), ptrA, ptrB,
-              reinterpret_cast<float const *>(&C.wi_marray),
+              reinterpret_cast<const float *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
           } else {
             __hmma_m16n16k16_mma_f16f32(
@@ -634,7 +628,7 @@ struct joint_matrix_mad_impl<
           } else {
           __hmma_m16n16k16_mma_f16f16(
               reinterpret_cast<int32_t *>(&D.wi_marray), ptrA, ptrB,
-              reinterpret_cast<int32_t const *>(&C.wi_marray),
+              reinterpret_cast<const int32_t *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
           }
         }
@@ -643,16 +637,16 @@ struct joint_matrix_mad_impl<
                                                 bfloat16>::value) {
         __mma_bf16_m16n16k16_mma_f32(
             reinterpret_cast<float *>(&D.wi_marray),
-            reinterpret_cast<int32_t const *>(&A.wi_marray),
-            reinterpret_cast<int32_t const *>(&B.wi_marray),
-            reinterpret_cast<float const *>(&C.wi_marray),
+            reinterpret_cast<const int32_t *>(&A.wi_marray),
+            reinterpret_cast<const int32_t *>(&B.wi_marray),
+            reinterpret_cast<const float *>(&C.wi_marray),
             get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
     } else if constexpr (M == 8 && N == 32 && K == 16) {
       if constexpr (std::is_same<T2, int32_t>::value) {
-        auto ptrA = reinterpret_cast<int32_t const *>(&A.wi_marray);
-        auto ptrB = reinterpret_cast<int32_t const *>(&B.wi_marray);
-        auto ptrC = reinterpret_cast<int32_t const *>(&C.wi_marray);
+        auto ptrA = reinterpret_cast<const int32_t *>(&A.wi_marray);
+        auto ptrB = reinterpret_cast<const int32_t *>(&B.wi_marray);
+        auto ptrC = reinterpret_cast<const int32_t *>(&C.wi_marray);
         auto ptrD = reinterpret_cast<int32_t *>(&D.wi_marray);
         if constexpr (std::is_same<T1, int8_t>::value) {
           __imma_m8n32k16_mma_s8(ptrD, ptrA, ptrB, ptrC,
@@ -662,17 +656,17 @@ struct joint_matrix_mad_impl<
                                  get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, half>::value) {
-        auto ptrA = reinterpret_cast<int32_t const *>(&A.wi_marray);
-        auto ptrB = reinterpret_cast<int32_t const *>(&B.wi_marray);
+        auto ptrA = reinterpret_cast<const int32_t *>(&A.wi_marray);
+        auto ptrB = reinterpret_cast<const int32_t *>(&B.wi_marray);
         if constexpr (std::is_same<T2, float>::value) {
           __hmma_m8n32k16_mma_f32f32(
               reinterpret_cast<float *>(&D.wi_marray), ptrA, ptrB,
-              reinterpret_cast<float const *>(&C.wi_marray),
+              reinterpret_cast<const float *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
         } else if constexpr (std::is_same<T2, half>::value) {
           __hmma_m8n32k16_mma_f16f16(
               reinterpret_cast<int32_t *>(&D.wi_marray), ptrA, ptrB,
-              reinterpret_cast<int32_t const *>(&C.wi_marray),
+              reinterpret_cast<const int32_t *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
@@ -680,16 +674,16 @@ struct joint_matrix_mad_impl<
                                                 bfloat16>::value) {
         __mma_bf16_m8n32k16_mma_f32(
             reinterpret_cast<float *>(&D.wi_marray),
-            reinterpret_cast<int32_t const *>(&A.wi_marray),
-            reinterpret_cast<int32_t const *>(&B.wi_marray),
-            reinterpret_cast<float const *>(&C.wi_marray),
+            reinterpret_cast<const int32_t *>(&A.wi_marray),
+            reinterpret_cast<const int32_t *>(&B.wi_marray),
+            reinterpret_cast<const float *>(&C.wi_marray),
             get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
     } else if constexpr (M == 32 && N == 8 && K == 16) {
       if constexpr (std::is_same<T2, int32_t>::value) {
-        auto ptrA = reinterpret_cast<int32_t const *>(&A.wi_marray);
-        auto ptrB = reinterpret_cast<int32_t const *>(&B.wi_marray);
-        auto ptrC = reinterpret_cast<int32_t const *>(&C.wi_marray);
+        auto ptrA = reinterpret_cast<const int32_t *>(&A.wi_marray);
+        auto ptrB = reinterpret_cast<const int32_t *>(&B.wi_marray);
+        auto ptrC = reinterpret_cast<const int32_t *>(&C.wi_marray);
         auto ptrD = reinterpret_cast<int32_t *>(&D.wi_marray);
         if constexpr (std::is_same<T1, int8_t>::value) {
           __imma_m32n8k16_mma_s8(ptrD, ptrA, ptrB, ptrC,
@@ -703,22 +697,22 @@ struct joint_matrix_mad_impl<
                                                 bfloat16>::value) {
         __mma_bf16_m32n8k16_mma_f32(
             reinterpret_cast<float *>(&D.wi_marray),
-            reinterpret_cast<int32_t const *>(&A.wi_marray),
-            reinterpret_cast<int32_t const *>(&B.wi_marray),
-            reinterpret_cast<float const *>(&C.wi_marray),
+            reinterpret_cast<const int32_t *>(&A.wi_marray),
+            reinterpret_cast<const int32_t *>(&B.wi_marray),
+            reinterpret_cast<const float *>(&C.wi_marray),
             get_layout_pair_id<LayoutA, LayoutB>(), 0);
       } else if constexpr (std::is_same<T1, half>::value) {
-        auto ptrA = reinterpret_cast<int32_t const *>(&A.wi_marray);
-        auto ptrB = reinterpret_cast<int32_t const *>(&B.wi_marray);
+        auto ptrA = reinterpret_cast<const int32_t *>(&A.wi_marray);
+        auto ptrB = reinterpret_cast<const int32_t *>(&B.wi_marray);
         if constexpr (std::is_same<T2, float>::value) {
           __hmma_m32n8k16_mma_f32f32(
               reinterpret_cast<float *>(&D.wi_marray), ptrA, ptrB,
-              reinterpret_cast<float const *>(&C.wi_marray),
+              reinterpret_cast<const float *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
         } else if constexpr (std::is_same<T2, half>::value) {
           __hmma_m32n8k16_mma_f16f16(
               reinterpret_cast<int32_t *>(&D.wi_marray), ptrA, ptrB,
-              reinterpret_cast<int32_t const *>(&C.wi_marray),
+              reinterpret_cast<const int32_t *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       }
@@ -730,9 +724,9 @@ struct joint_matrix_mad_impl<
                                   get_layout_pair_id<LayoutA, LayoutB>(), 0);
     } else if constexpr (std::is_same<T1, double>::value) {
       __dmma_m8n8k4_mma_f64(reinterpret_cast<double *>(&D.wi_marray),
-                            reinterpret_cast<double const *>(&A.wi_marray),
-                            reinterpret_cast<double const *>(&B.wi_marray),
-                            reinterpret_cast<double const *>(&C.wi_marray),
+                            reinterpret_cast<const double *>(&A.wi_marray),
+                            reinterpret_cast<const double *>(&B.wi_marray),
+                            reinterpret_cast<const double *>(&C.wi_marray),
                             get_layout_pair_id<LayoutA, LayoutB>(), 0);
     }
   }
@@ -751,7 +745,7 @@ template <typename Group, typename S, typename T, size_t NumRows,
           std::enable_if_t<std::is_same<S, T>::value, bool> = true>
 void joint_matrix_load(
     Group sg,
-    joint_matrix<S, NumRows, NumCols, Use,
+    joint_matrix<S, Use, NumRows, NumCols,
                  sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
         &res,
     multi_ptr<T, Space> src, size_t stride,
@@ -770,15 +764,17 @@ void joint_matrix_load(
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename Group, typename S, typename T, size_t NumRows,
-          size_t NumCols, matrix_use Use, layout Layout,
-          access::address_space Space,
-          std::enable_if_t<std::is_same<S, T>::value ||
-                               (std::is_same<S, precision::tf32>::value &&
-                                std::is_same<T, float>::value),
-                           bool> = true>
+
+template <
+    typename Group, typename S, typename T, matrix_use Use, size_t NumRows,
+    size_t NumCols, matrix::layout Layout, access::address_space Space,
+    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
+                         (std::is_same<S, precision::tf32>::value &&
+
+                          std::is_same<std::remove_const_t<T>, float>::value),
+                     bool> = true>
 void joint_matrix_load(
-    Group sg, joint_matrix<S, NumRows, NumCols, Use, Layout, Group> &res,
+    Group sg, joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
     multi_ptr<T, Space> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::ext::oneapi::detail::load_multiplicand<S, T, NumRows, NumCols, Use,
@@ -800,7 +796,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space>
 void joint_matrix_store(
     Group sg,
-    joint_matrix<T, NumRows, NumCols, matrix_use::accumulator,
+    joint_matrix<T, matrix_use::accumulator, NumRows, NumCols, 
                  sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
         &src,
     multi_ptr<T, Space> dst, size_t stride,
@@ -825,12 +821,12 @@ template <typename Group, typename T1, typename T2, typename T3, std::size_t M,
           std::size_t K, std::size_t N, layout LayoutA = sycl::ext::oneapi::experimental::matrix::layout::unused, layout LayoutB = sycl::ext::oneapi::experimental::matrix::layout::unused>
 void joint_matrix_mad(
     Group sg,
-    joint_matrix<T3, M, N, matrix_use::accumulator,
+    joint_matrix<T3, matrix_use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
         &D,
-    joint_matrix<T1, M, K, matrix_use::a, LayoutA, Group> &A,
-    joint_matrix<T1, K, N, matrix_use::b, LayoutB, Group> &B,
-    joint_matrix<T2, M, N, matrix_use::accumulator,
+    joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group> &A,
+    joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group> &B,
+    joint_matrix<T2, matrix_use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
         &C) {
 #if defined(__SYCL_DEVICE_ONLY__) 

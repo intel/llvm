@@ -253,6 +253,8 @@ public:
     return {};
   }
 
+  const Loop *getInnermostLoop() const { return InnermostLoop; }
+
 private:
   /// A wrapper around ScalarEvolution, used to add runtime SCEV checks, and
   /// applies dynamic knowledge to simplify SCEV expressions and convert them
@@ -624,7 +626,7 @@ public:
   }
 
   /// Return the list of stores to invariant addresses.
-  const ArrayRef<StoreInst *> getStoresToInvariantAddresses() const {
+  ArrayRef<StoreInst *> getStoresToInvariantAddresses() const {
     return StoresToInvariantAddresses;
   }
 

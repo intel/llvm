@@ -46,7 +46,7 @@ class filter_selector;
 /// \ingroup sycl_api
 class __SYCL_EXPORT device {
 public:
-  /// Constructs a SYCL device instance as a host device.
+  /// Constructs a SYCL device instance using the default device.
   device();
 
   /// Constructs a SYCL device instance from an OpenCL cl_device_id
@@ -61,6 +61,8 @@ public:
   /// by the DeviceSelector provided.
   ///
   /// \param DeviceSelector SYCL 1.2.1 device_selector to be used (see 4.6.1.1).
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   explicit device(const device_selector &DeviceSelector);
 
 #if __cplusplus >= 201703L
@@ -97,6 +99,8 @@ public:
   /// Check if device is a host device
   ///
   /// \return true if SYCL device is a host device
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Check if device is a CPU device

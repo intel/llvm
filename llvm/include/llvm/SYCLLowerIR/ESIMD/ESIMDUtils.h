@@ -16,6 +16,7 @@ namespace llvm {
 namespace esimd {
 
 constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
+constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 using CallGraphNodeAction = std::function<void(Function *)>;
 void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction NodeF,
@@ -34,6 +35,8 @@ void traverseCallgraphUp(Function *F, CallGraphNodeActionF ActionF,
 
 // Tells whether given function is a ESIMD kernel.
 bool isESIMDKernel(const Function &F);
+// Tells whether given function is a ESIMD function.
+bool isESIMD(const Function &F);
 
 /// Reports and error with the message \p Msg concatenated with the optional
 /// \p OptMsg if \p Condition is false.

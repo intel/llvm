@@ -277,6 +277,10 @@ public:
     return EffectiveTriple;
   }
 
+  bool hasEffectiveTriple() const {
+    return !EffectiveTriple.getTriple().empty();
+  }
+
   path_list &getLibraryPaths() { return LibraryPaths; }
   const path_list &getLibraryPaths() const { return LibraryPaths; }
 
@@ -551,7 +555,7 @@ public:
 
   /// Add an additional -fdebug-prefix-map entry.
   virtual std::string GetGlobalDebugPathRemapping() const { return {}; }
-  
+
   // Return the DWARF version to emit, in the absence of arguments
   // to the contrary.
   virtual unsigned GetDefaultDwarfVersion() const { return 5; }
@@ -593,6 +597,9 @@ public:
 
   /// isThreadModelSupported() - Does this target support a thread model?
   virtual bool isThreadModelSupported(const StringRef Model) const;
+
+  /// isBareMetal - Is this a bare metal target.
+  virtual bool isBareMetal() const { return false; }
 
   virtual std::string getMultiarchTriple(const Driver &D,
                                          const llvm::Triple &TargetTriple,

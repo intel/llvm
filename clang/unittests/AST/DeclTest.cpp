@@ -260,3 +260,54 @@ TEST(Decl, ModuleAndInternalLinkage) {
   EXPECT_EQ(b->getLinkageInternal(), ModuleLinkage);
   EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
 }
+
+TEST(Decl, GetNonTransparentDeclContext) {
+  llvm::Annotations Code(R"(
+    export module m3;
+    export template <class> struct X {
+      template <class Self> friend void f(Self &&self) {
+        (Self&)self;
+      }
+    };)");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto *f = selectFirst<FunctionDecl>(
+      "f", match(functionDecl(hasName("f")).bind("f"), Ctx));
+
+  EXPECT_TRUE(f->getNonTransparentDeclContext()->isFileContext());
+}
+
+TEST(Decl, MemberFunctionInModules) {
+  llvm::Annotations Code(R"(
+    module;
+    class G {
+      void bar() {}
+    };
+    export module M;
+    class A {
+      void foo() {}
+    };
+    )");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto *foo = selectFirst<FunctionDecl>(
+      "foo", match(functionDecl(hasName("foo")).bind("foo"), Ctx));
+
+  // The function defined within a class definition is not implicitly inline
+  // if it is not attached to global module
+  EXPECT_FALSE(foo->isInlined());
+
+  auto *bar = selectFirst<FunctionDecl>(
+      "bar", match(functionDecl(hasName("bar")).bind("bar"), Ctx));
+
+  // In global module, the function defined within a class definition is
+  // implicitly inline.
+  EXPECT_TRUE(bar->isInlined());
+}
+

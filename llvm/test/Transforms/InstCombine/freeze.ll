@@ -132,8 +132,7 @@ define i32 @early_freeze_test3(i32 %v1) {
 ; CHECK-LABEL: @early_freeze_test3(
 ; CHECK-NEXT:    [[V1_FR:%.*]] = freeze i32 [[V1:%.*]]
 ; CHECK-NEXT:    [[V2:%.*]] = shl i32 [[V1_FR]], 1
-; CHECK-NEXT:    [[V3:%.*]] = add i32 [[V2]], 2
-; CHECK-NEXT:    [[V4:%.*]] = or i32 [[V3]], 1
+; CHECK-NEXT:    [[V4:%.*]] = add i32 [[V2]], 3
 ; CHECK-NEXT:    ret i32 [[V4]]
 ;
   %v2 = shl i32 %v1, 1
@@ -230,6 +229,63 @@ bb1:
   br label %end
 
 end:
+  ret void
+}
+
+declare i32 @__CxxFrameHandler3(...)
+
+define void @freeze_dominated_uses_catchswitch(i1 %c, i32 %x) personality i8* bitcast (i32 (...)* @__CxxFrameHandler3 to i8*) {
+; CHECK-LABEL: @freeze_dominated_uses_catchswitch(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[C:%.*]], label [[IF_THEN:%.*]], label [[IF_ELSE:%.*]]
+; CHECK:       if.then:
+; CHECK-NEXT:    invoke void @use_i32(i32 0)
+; CHECK-NEXT:    to label [[CLEANUP:%.*]] unwind label [[CATCH_DISPATCH:%.*]]
+; CHECK:       if.else:
+; CHECK-NEXT:    invoke void @use_i32(i32 1)
+; CHECK-NEXT:    to label [[CLEANUP]] unwind label [[CATCH_DISPATCH]]
+; CHECK:       catch.dispatch:
+; CHECK-NEXT:    [[PHI:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[X:%.*]], [[IF_ELSE]] ]
+; CHECK-NEXT:    [[CS:%.*]] = catchswitch within none [label [[CATCH:%.*]], label %catch2] unwind to caller
+; CHECK:       catch:
+; CHECK-NEXT:    [[CP:%.*]] = catchpad within [[CS]] [i8* null, i32 64, i8* null]
+; CHECK-NEXT:    [[PHI_FREEZE:%.*]] = freeze i32 [[PHI]]
+; CHECK-NEXT:    call void @use_i32(i32 [[PHI_FREEZE]]) [ "funclet"(token [[CP]]) ]
+; CHECK-NEXT:    unreachable
+; CHECK:       catch2:
+; CHECK-NEXT:    [[CP2:%.*]] = catchpad within [[CS]] [i8* null, i32 64, i8* null]
+; CHECK-NEXT:    call void @use_i32(i32 [[PHI]]) [ "funclet"(token [[CP2]]) ]
+; CHECK-NEXT:    unreachable
+; CHECK:       cleanup:
+; CHECK-NEXT:    ret void
+;
+entry:
+  br i1 %c, label %if.then, label %if.else
+
+if.then:
+  invoke void @use_i32(i32 0)
+  to label %cleanup unwind label %catch.dispatch
+
+if.else:
+  invoke void @use_i32(i32 1)
+  to label %cleanup unwind label %catch.dispatch
+
+catch.dispatch:
+  %phi = phi i32 [ 0, %if.then ], [ %x, %if.else ]
+  %cs = catchswitch within none [label %catch, label %catch2] unwind to caller
+
+catch:
+  %cp = catchpad within %cs [i8* null, i32 64, i8* null]
+  %phi.freeze = freeze i32 %phi
+  call void @use_i32(i32 %phi.freeze) [ "funclet"(token %cp) ]
+  unreachable
+
+catch2:
+  %cp2 = catchpad within %cs [i8* null, i32 64, i8* null]
+  call void @use_i32(i32 %phi) [ "funclet"(token %cp2) ]
+  unreachable
+
+cleanup:
   ret void
 }
 

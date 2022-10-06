@@ -886,40 +886,16 @@ static Value *NegateValue(Value *V, Instruction *BI,
     if (TheNeg->getParent()->getParent() != BI->getParent()->getParent())
       continue;
 
-    bool FoundCatchSwitch = false;
-
-    BasicBlock::iterator InsertPt;
+    Instruction *InsertPt;
     if (Instruction *InstInput = dyn_cast<Instruction>(V)) {
-      if (InvokeInst *II = dyn_cast<InvokeInst>(InstInput)) {
-        InsertPt = II->getNormalDest()->begin();
-      } else {
-        InsertPt = ++InstInput->getIterator();
-      }
-
-      const BasicBlock *BB = InsertPt->getParent();
-
-      // Make sure we don't move anything before PHIs or exception
-      // handling pads.
-      while (InsertPt != BB->end() && (isa<PHINode>(InsertPt) ||
-                                       InsertPt->isEHPad())) {
-        if (isa<CatchSwitchInst>(InsertPt))
-          // A catchswitch cannot have anything in the block except
-          // itself and PHIs.  We'll bail out below.
-          FoundCatchSwitch = true;
-        ++InsertPt;
-      }
+      InsertPt = InstInput->getInsertionPointAfterDef();
+      if (!InsertPt)
+        continue;
     } else {
-      InsertPt = TheNeg->getParent()->getParent()->getEntryBlock().begin();
+      InsertPt = &*TheNeg->getFunction()->getEntryBlock().begin();
     }
 
-    // We found a catchswitch in the block where we want to move the
-    // neg.  We cannot move anything into that block.  Bail and just
-    // create the neg before BI, as if we hadn't found an existing
-    // neg.
-    if (FoundCatchSwitch)
-      break;
-
-    TheNeg->moveBefore(&*InsertPt);
+    TheNeg->moveBefore(InsertPt);
     if (TheNeg->getOpcode() == Instruction::Sub) {
       TheNeg->setHasNoUnsignedWrap(false);
       TheNeg->setHasNoSignedWrap(false);
@@ -1898,10 +1874,10 @@ ReassociatePass::buildMinimalMultiplyDAG(IRBuilderBase &Builder,
   // Iteratively collect the base of each factor with an add power into the
   // outer product, and halve each power in preparation for squaring the
   // expression.
-  for (unsigned Idx = 0, Size = Factors.size(); Idx != Size; ++Idx) {
-    if (Factors[Idx].Power & 1)
-      OuterProduct.push_back(Factors[Idx].Base);
-    Factors[Idx].Power >>= 1;
+  for (Factor &F : Factors) {
+    if (F.Power & 1)
+      OuterProduct.push_back(F.Base);
+    F.Power >>= 1;
   }
   if (Factors[0].Power) {
     Value *SquareRoot = buildMinimalMultiplyDAG(Builder, Factors);
@@ -2027,7 +2003,7 @@ void ReassociatePass::RecursivelyEraseDeadInsts(Instruction *I,
   RedoInsts.remove(I);
   llvm::salvageDebugInfo(*I);
   I->eraseFromParent();
-  for (auto Op : Ops)
+  for (auto *Op : Ops)
     if (Instruction *OpInst = dyn_cast<Instruction>(Op))
       if (OpInst->use_empty())
         Insts.insert(OpInst);

@@ -1,3 +1,6 @@
+set(LIBC_INCLUDE_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+include(LLVMLibCHeaderRules)
+
 add_subdirectory(llvm-libc-macros)
 add_subdirectory(llvm-libc-types)
 
@@ -104,6 +107,8 @@ add_gen_header(
     .llvm-libc-types.once_flag
     .llvm-libc-types.thrd_start_t
     .llvm-libc-types.thrd_t
+    .llvm-libc-types.tss_t
+    .llvm-libc-types.tss_dtor_t
 )
 
 add_gen_header(
@@ -174,7 +179,9 @@ add_gen_header(
   DEPENDS
     .llvm_libc_common_h
     .llvm-libc-types.__pthread_start_t
+    .llvm-libc-types.__pthread_tss_dtor_t
     .llvm-libc-types.pthread_attr_t
+    .llvm-libc-types.pthread_key_t
     .llvm-libc-types.pthread_mutex_t
     .llvm-libc-types.pthread_mutexattr_t
     .llvm-libc-types.pthread_t
@@ -201,7 +208,18 @@ add_gen_header(
   GEN_HDR sys/stat.h
   DEPENDS
     .llvm_libc_common_h
+    .llvm-libc-macros.sys_stat_macros
     .llvm-libc-types.mode_t
+)
+
+add_gen_header(
+  sys_sendfile
+  DEF_FILE sys/sendfile.h.def
+  GEN_HDR sys/sendfile.h
+  DEPENDS
+    .llvm_libc_common_h
+    .llvm-libc-types.off_t
+    .llvm-libc-types.ssize_t
 )
 
 add_gen_header(
@@ -213,3 +231,39 @@ add_gen_header(
   DATA_FILES
     ../config/${LIBC_TARGET_OS}/syscall_numbers.h.inc
 )
+
+if(NOT LLVM_LIBC_FULL_BUILD)
+  # We don't install headers in non-fullbuild mode.
+  return()
+endif()
+
+function(get_all_install_header_targets out_var)
+  set(all_deps ${ARGN})
+  foreach(target IN LISTS ARGN)
+    get_target_property(deps ${target} DEPS)
+    if(NOT deps)
+      continue()
+    endif()
+    list(APPEND all_deps ${deps})
+    get_all_install_header_targets(nested_deps ${deps})
+    list(APPEND all_deps ${nested_deps})
+  endforeach()
+  list(REMOVE_DUPLICATES all_deps)
+  set(${out_var} ${all_deps} PARENT_SCOPE)
+endfunction(get_all_install_header_targets)
+
+get_all_install_header_targets(all_install_header_targets ${TARGET_PUBLIC_HEADERS})
+add_custom_target(libc-headers)
+add_dependencies(libc-headers ${all_install_header_targets})
+foreach(target IN LISTS all_install_header_targets)
+  get_target_property(header_file ${target} HEADER_FILE_PATH)
+  if(NOT header_file)
+    message(FATAL_ERROR "Installable header file '${target}' does not have the "
+                        "HEADER_FILE_PATH property set.")
+  endif()
+  file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_BINARY_DIR} ${header_file})
+  get_filename_component(nested_dir ${relative_path} DIRECTORY)
+  install(FILES ${header_file}
+          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${nested_dir}
+          COMPONENT ${LIBC_COMPONENT})
+endforeach()

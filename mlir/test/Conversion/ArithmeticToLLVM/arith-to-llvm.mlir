@@ -338,6 +338,30 @@ func.func @bitcast_1d(%arg0: vector<2xf32>) {
 
 // -----
 
+// CHECK-LABEL: @addui_carry_scalar
+// CHECK-SAME:    ([[ARG0:%.+]]: i32, [[ARG1:%.+]]: i32) -> (i32, i1)
+func.func @addui_carry_scalar(%arg0: i32, %arg1: i32) -> (i32, i1) {
+  // CHECK-NEXT: [[RES:%.+]] = "llvm.intr.uadd.with.overflow"([[ARG0]], [[ARG1]]) : (i32, i32) -> !llvm.struct<(i32, i1)>
+  // CHECK-NEXT: [[SUM:%.+]] = llvm.extractvalue [[RES]][0] : !llvm.struct<(i32, i1)>
+  // CHECK-NEXT: [[CARRY:%.+]] = llvm.extractvalue [[RES]][1] : !llvm.struct<(i32, i1)>
+  %sum, %carry = arith.addui_carry %arg0, %arg1 : i32, i1
+  // CHECK-NEXT: return [[SUM]], [[CARRY]] : i32, i1
+  return %sum, %carry : i32, i1
+}
+
+// CHECK-LABEL: @addui_carry_vector1d
+// CHECK-SAME:    ([[ARG0:%.+]]: vector<3xi16>, [[ARG1:%.+]]: vector<3xi16>) -> (vector<3xi16>, vector<3xi1>)
+func.func @addui_carry_vector1d(%arg0: vector<3xi16>, %arg1: vector<3xi16>) -> (vector<3xi16>, vector<3xi1>) {
+  // CHECK-NEXT: [[RES:%.+]] = "llvm.intr.uadd.with.overflow"([[ARG0]], [[ARG1]]) : (vector<3xi16>, vector<3xi16>) -> !llvm.struct<(vector<3xi16>, vector<3xi1>)>
+  // CHECK-NEXT: [[SUM:%.+]] = llvm.extractvalue [[RES]][0] : !llvm.struct<(vector<3xi16>, vector<3xi1>)>
+  // CHECK-NEXT: [[CARRY:%.+]] = llvm.extractvalue [[RES]][1] : !llvm.struct<(vector<3xi16>, vector<3xi1>)>
+  %sum, %carry = arith.addui_carry %arg0, %arg1 : vector<3xi16>, vector<3xi1>
+  // CHECK-NEXT: return [[SUM]], [[CARRY]] : vector<3xi16>, vector<3xi1>
+  return %sum, %carry : vector<3xi16>, vector<3xi1>
+}
+
+// -----
+
 // CHECK-LABEL: func @cmpf_2dvector(
 func.func @cmpf_2dvector(%arg0 : vector<4x3xf32>, %arg1 : vector<4x3xf32>) {
   // CHECK: %[[ARG0:.*]] = builtin.unrealized_conversion_cast
@@ -382,4 +406,28 @@ func.func @select(%arg0 : i1, %arg1 : i32, %arg2 : i32) -> i32 {
   // CHECK: = llvm.select %arg0, %arg1, %arg2 : i1, i32
   %0 = arith.select %arg0, %arg1, %arg2 : i32
   return %0 : i32
+}
+
+// -----
+
+// CHECK-LABEL: @minmaxi
+func.func @minmaxi(%arg0 : i32, %arg1 : i32) -> i32 {
+  // CHECK: = "llvm.intr.smin"(%arg0, %arg1) : (i32, i32) -> i32
+  %0 = arith.minsi %arg0, %arg1 : i32
+  // CHECK: = "llvm.intr.smax"(%arg0, %arg1) : (i32, i32) -> i32
+  %1 = arith.maxsi %arg0, %arg1 : i32
+  // CHECK: = "llvm.intr.umin"(%arg0, %arg1) : (i32, i32) -> i32
+  %2 = arith.minui %arg0, %arg1 : i32
+  // CHECK: = "llvm.intr.umax"(%arg0, %arg1) : (i32, i32) -> i32
+  %3 = arith.maxui %arg0, %arg1 : i32
+  return %0 : i32
+}
+
+// CHECK-LABEL: @minmaxf
+func.func @minmaxf(%arg0 : f32, %arg1 : f32) -> f32 {
+  // CHECK: = "llvm.intr.minnum"(%arg0, %arg1) : (f32, f32) -> f32
+  %0 = arith.minf %arg0, %arg1 : f32
+  // CHECK: = "llvm.intr.maxnum"(%arg0, %arg1) : (f32, f32) -> f32
+  %1 = arith.maxf %arg0, %arg1 : f32
+  return %0 : f32
 }

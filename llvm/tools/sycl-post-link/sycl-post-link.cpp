@@ -627,11 +627,12 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
          "Cannot remove initializer of llvm.used global");
   Initializer->destroyConstant();
   for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    auto Op = (*It)->getOperand(0);
+    auto Op = (*It)->stripPointerCasts();
     auto *F = dyn_cast<Function>(Op);
     if (llvm::isSafeToDestroyConstant(*It)) {
       (*It)->destroyConstant();
-    } else if (F) {
+    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
+               !F->use_empty()) {
       // The element in "llvm.used" array has other users. That is Ok for
       // specialization constants, but is wrong for kernels.
       llvm::report_fatal_error("Unexpected usage of SYCL kernel");
@@ -664,6 +665,10 @@ processInputModule(std::unique_ptr<Module> M) {
   // Keeps track of any changes made to the input module and report to the user
   // if none were made.
   bool Modified = false;
+
+  // Propagate ESIMD attribute to wrapper functions to prevent
+  // spurious splits and kernel link errors.
+  Modified |= runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*M);
 
   // After linking device bitcode "llvm.used" holds references to the kernels
   // that are defined in the device image. But after splitting device image into

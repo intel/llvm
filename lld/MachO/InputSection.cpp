@@ -177,10 +177,6 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
 
   memcpy(buf, data.data(), data.size());
 
-  std::vector<uint64_t> relocTargets;
-  if (!optimizationHints.empty())
-    relocTargets.reserve(relocs.size());
-
   for (size_t i = 0; i < relocs.size(); i++) {
     const Reloc &r = relocs[i];
     uint8_t *loc = buf + r.offset;
@@ -222,13 +218,9 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
       referentVA = referentIsec->getVA(r.addend);
     }
     target->relocateOne(loc, r, referentVA, getVA() + r.offset);
-
-    if (!optimizationHints.empty())
-      relocTargets.push_back(referentVA);
   }
 
-  if (!optimizationHints.empty())
-    target->applyOptimizationHints(buf, this, relocTargets);
+  target->applyOptimizationHints(buf, this);
 }
 
 ConcatInputSection *macho::makeSyntheticInputSection(StringRef segName,
@@ -251,7 +243,7 @@ void CStringInputSection::splitIntoPieces() {
     if (end == StringRef::npos)
       fatal(getLocation(off) + ": string is not null terminated");
     size_t size = end + 1;
-    uint32_t hash = config->dedupLiterals ? xxHash64(s.substr(0, size)) : 0;
+    uint32_t hash = deduplicateLiterals ? xxHash64(s.substr(0, size)) : 0;
     pieces.emplace_back(off, hash);
     s = s.substr(size);
     off += size;

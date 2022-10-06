@@ -231,6 +231,8 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
     "mtx_t",
     "thrd_t",
     "thrd_start_t",
+    "tss_t",
+    "tss_dtor_t",
   ];
 
   let Enumerations = [
@@ -248,10 +250,12 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
 def PThreadAPI : PublicAPI<"pthread.h"> {
   let Types = [
       "__pthread_start_t",
+      "__pthread_tss_dtor_t",
       "pthread_attr_t",
       "pthread_mutex_t",
       "pthread_mutexattr_t",
       "pthread_t",
+      "pthread_key_t",
   ];
 }
 
@@ -269,4 +273,8 @@ def UniStdAPI : PublicAPI<"unistd.h"> {
 
 def SysStatAPI : PublicAPI<"sys/stat.h"> {
   let Types = ["mode_t"];
+}
+
+def SysSendfileAPI : PublicAPI<"sys/sendfile.h"> {
+  let Types = ["off_t", "size_t", "ssize_t"];
 }

@@ -9,8 +9,9 @@ load("//llvm:template_rule.bzl", "template_rule")
 
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
 )
+
+licenses(["notice"])
 
 exports_files([
     "tools/clang-format/clang-format.el",
@@ -2107,19 +2108,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "clang-offload-wrapper",
-    srcs = glob(["tools/clang-offload-wrapper/*.cpp"]),
-    stamp = 0,
-    deps = [
-        ":basic",
-        "//llvm:BitWriter",
-        "//llvm:Support",
-        "//llvm:TransformUtils",
-        "//llvm:ir_headers",
-    ],
-)
-
-cc_binary(
     name = "clang-refactor",
     srcs = glob([
         "tools/clang-refactor/*.cpp",
@@ -2189,6 +2177,7 @@ cc_binary(
     srcs = glob(["tools/clang-scan-deps/*.cpp"]),
     stamp = 0,
     deps = [
+        ":driver",
         ":frontend",
         ":tooling",
         ":tooling_dependency_scanning",

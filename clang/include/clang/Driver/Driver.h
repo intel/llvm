@@ -769,6 +769,10 @@ private:
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
 
+  /// Checks for any mismatch of targets and provided input binaries.
+  void checkForOffloadMismatch(Compilation &C,
+                               llvm::opt::DerivedArgList &Args) const;
+
   /// Track filename used for the FPGA dependency info.
   mutable llvm::StringMap<const std::string> FPGATempDepFiles;
 

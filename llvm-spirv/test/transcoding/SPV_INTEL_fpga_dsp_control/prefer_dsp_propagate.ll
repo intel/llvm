@@ -20,14 +20,14 @@
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv %t.bc -o %t.negative.spv
 ; RUN: llvm-spirv %t.negative.spv --to-text -o %t.negative.spt
 ; RUN: FileCheck < %t.negative.spt %s --check-prefix=CHECK-SPIRV-NEG
 
-; RUN: llvm-spirv -r %t.negative.spv -o %t.negative.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.negative.spv -o %t.negative.rev.bc
 ; RUN: llvm-dis < %t.negative.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NEG
 
 ; CHECK-SPIRV: Capability FPGADSPControlINTEL

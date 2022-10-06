@@ -264,7 +264,7 @@ TEST_F(TUSchedulerTests, Debounce) {
   Notification N;
   updateWithDiags(S, Path, "auto (timed out)", WantDiagnostics::Auto,
                   [&](std::vector<Diag>) { N.notify(); });
-  EXPECT_TRUE(N.wait(timeoutSeconds(1)));
+  EXPECT_TRUE(N.wait(timeoutSeconds(5)));
 
   // Once we start shutting down the TUScheduler, this one becomes a dead write.
   updateWithDiags(S, Path, "auto (discarded)", WantDiagnostics::Auto,
@@ -1401,9 +1401,12 @@ TEST_F(TUSchedulerTests, PreambleThrottle) {
       }
       if (Invoke)
         Invoke();
-      if (Notify && ID == Notify->first) {
-        Notify->second->notify();
-        Notify.reset();
+      {
+        std::lock_guard<std::mutex> Lock(Mu);
+        if (Notify && ID == Notify->first) {
+          Notify->second->notify();
+          Notify.reset();
+        }
       }
       return ID;
     }

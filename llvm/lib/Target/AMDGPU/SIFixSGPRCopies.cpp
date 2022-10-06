@@ -575,7 +575,7 @@ static bool hoistAndMergeSGPRInits(unsigned Reg,
   // Try to schedule SGPR initializations as early as possible in the MBB.
   for (auto &Init : Inits) {
     auto &Defs = Init.second;
-    for (auto MI : Defs) {
+    for (auto *MI : Defs) {
       auto MBB = MI->getParent();
       MachineInstr &BoundaryMI = *getFirstNonPrologue(MBB, TII);
       MachineBasicBlock::reverse_iterator B(BoundaryMI);
@@ -924,7 +924,7 @@ void SIFixSGPRCopies::analyzeVGPRToSGPRCopy(V2SCopyInfo& Info) {
         for (auto &U : MRI->use_instructions(Reg))
           Users.push_back(&U);
     }
-    for (auto U : Users) {
+    for (auto *U : Users) {
       if (TII->isSALU(*U))
         Info.SChain.insert(U);
       AnalysisWorklist.push_back(U);
@@ -992,10 +992,8 @@ void SIFixSGPRCopies::lowerVGPR2SGPRCopies(MachineFunction &MF) {
 
   SmallSet<MachineInstr *, 4> OutOfOrderProcessedCopies;
 
-  for (MachineFunction::iterator BI = MF.begin(), BE = MF.end(); BI != BE;
-       ++BI) {
-    MachineBasicBlock *MBB = &*BI;
-    for (MachineBasicBlock::iterator I = MBB->begin(), E = MBB->end(); I != E;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineBasicBlock::iterator I = MBB.begin(), E = MBB.end(); I != E;
          ++I) {
       MachineInstr *MI = &*I;
       if (!needProcessing(*MI))
@@ -1012,7 +1010,7 @@ void SIFixSGPRCopies::lowerVGPR2SGPRCopies(MachineFunction &MF) {
               const TargetRegisterClass *DestRC =
                   TRI->getEquivalentSGPRClass(SrcRC);
               Register NewDst = MRI->createVirtualRegister(DestRC);
-              MachineBasicBlock *BlockToInsertCopy = MBB;
+              MachineBasicBlock *BlockToInsertCopy = &MBB;
               MachineBasicBlock::iterator PointToInsertCopy = I;
               if (MI->isPHI()) {
                 BlockToInsertCopy =

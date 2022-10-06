@@ -14,7 +14,6 @@
 #include <sycl/detail/common_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/device.hpp>
-#include <sycl/program.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
@@ -33,6 +32,8 @@ class kernel;
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+
+enum class program_state { none = 0, compiled = 1, linked = 2 };
 
 class program_impl {
 public:
@@ -237,13 +238,6 @@ public:
   kernel get_kernel(std::string KernelName,
                     std::shared_ptr<program_impl> PtrToSelf,
                     bool IsCreatedFromSource) const;
-
-  /// Queries this SYCL program for information.
-  ///
-  /// The return type depends on the information being queried.
-  template <info::program param>
-  typename info::param_traits<info::program, param>::return_type
-  get_info() const;
 
   /// Returns built program binaries.
   ///
@@ -453,14 +447,6 @@ private:
 
   bool MIsInterop = false;
 };
-
-template <>
-uint32_t program_impl::get_info<info::program::reference_count>() const;
-
-template <> context program_impl::get_info<info::program::context>() const;
-
-template <>
-std::vector<device> program_impl::get_info<info::program::devices>() const;
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

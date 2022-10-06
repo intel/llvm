@@ -3,6 +3,54 @@ add_libc_testsuite(libc_sys_stat_unittests)
 add_subdirectory(testdata)
 
 add_libc_unittest(
+  chmod_test
+  SUITE
+    libc_sys_stat_unittests
+  SRCS
+    chmod_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.fcntl
+    libc.include.sys_stat
+    libc.src.fcntl.open
+    libc.src.sys.stat.chmod
+    libc.src.unistd.close
+    libc.src.unistd.write
+)
+
+add_libc_unittest(
+  fchmodat_test
+  SUITE
+    libc_sys_stat_unittests
+  SRCS
+    fchmodat_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.fcntl
+    libc.include.sys_stat
+    libc.src.fcntl.open
+    libc.src.sys.stat.fchmodat
+    libc.src.unistd.close
+    libc.src.unistd.write
+)
+
+add_libc_unittest(
+  fchmod_test
+  SUITE
+    libc_sys_stat_unittests
+  SRCS
+    fchmod_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.fcntl
+    libc.include.sys_stat
+    libc.src.fcntl.open
+    libc.src.sys.stat.fchmod
+    libc.src.unistd.close
+    libc.src.unistd.write
+)
+
+add_libc_unittest(
   mkdirat_test
   SUITE
     libc_sys_stat_unittests

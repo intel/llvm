@@ -24,4 +24,4 @@
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
 ; Reverse translation shouldn't crash:
-; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers --spirv-target-env=SPV-IR %t.spv -o %t.bc

@@ -286,7 +286,8 @@ add_entrypoint_object(
   CXX_STANDARD
     20 # For constinit of the atexit callback list.
   DEPENDS
-    libc.src.__support.CPP.blockstore
+    libc.src.__support.fixedvector
+    libc.src.__support.blockstore
     libc.src.__support.threads.mutex
 )
 

@@ -14,6 +14,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/Basic/PrettyStackTrace.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
@@ -21,6 +22,7 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <numeric>
 
@@ -2819,6 +2821,7 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, ParsedType ObjectType,
   //   identifier
   //   template-id (when it hasn't already been annotated)
   if (Tok.is(tok::identifier)) {
+  ParseIdentifier:
     // Consume the identifier.
     IdentifierInfo *Id = Tok.getIdentifierInfo();
     SourceLocation IdLoc = ConsumeToken();
@@ -3053,9 +3056,20 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, ParsedType ObjectType,
     return false;
   }
 
-  Diag(Tok, diag::err_expected_unqualified_id)
-    << getLangOpts().CPlusPlus;
-  return true;
+  switch (Tok.getKind()) {
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
+    if (!NextToken().is(tok::l_paren)) {
+      Tok.setKind(tok::identifier);
+      Diag(Tok, diag::ext_keyword_as_ident)
+          << Tok.getIdentifierInfo()->getName() << 0;
+      goto ParseIdentifier;
+    }
+    [[fallthrough]];
+  default:
+    Diag(Tok, diag::err_expected_unqualified_id) << getLangOpts().CPlusPlus;
+    return true;
+  }
 }
 
 /// ParseCXXNewExpression - Parse a C++ new-expression. New is used to allocate
@@ -3724,14 +3738,6 @@ static ExpressionTrait ExpressionTraitFromTokKind(tok::TokenKind kind) {
   }
 }
 
-static unsigned TypeTraitArity(tok::TokenKind kind) {
-  switch (kind) {
-    default: llvm_unreachable("Not a known type trait");
-#define TYPE_TRAIT(N,Spelling,K) case tok::kw_##Spelling: return N;
-#include "clang/Basic/TokenKinds.def"
-  }
-}
-
 /// Parse the built-in type-trait pseudo-functions that allow
 /// implementation of the TR1/C++11 type traits templates.
 ///
@@ -3745,7 +3751,6 @@ static unsigned TypeTraitArity(tok::TokenKind kind) {
 ///
 ExprResult Parser::ParseTypeTrait() {
   tok::TokenKind Kind = Tok.getKind();
-  unsigned Arity = TypeTraitArity(Kind);
 
   SourceLocation Loc = ConsumeToken();
 
@@ -3779,18 +3784,6 @@ ExprResult Parser::ParseTypeTrait() {
     return ExprError();
 
   SourceLocation EndLoc = Parens.getCloseLocation();
-
-  if (Arity && Args.size() != Arity) {
-    Diag(EndLoc, diag::err_type_trait_arity)
-      << Arity << 0 << (Arity > 1) << (int)Args.size() << SourceRange(Loc);
-    return ExprError();
-  }
-
-  if (!Arity && Args.empty()) {
-    Diag(EndLoc, diag::err_type_trait_arity)
-      << 1 << 1 << 1 << (int)Args.size() << SourceRange(Loc);
-    return ExprError();
-  }
 
   return Actions.ActOnTypeTrait(TypeTraitFromTokKind(Kind), Loc, Args, EndLoc);
 }

@@ -78,7 +78,7 @@ public:
   virtual ~MemoryMapper();
 };
 
-class InProcessMemoryMapper final : public MemoryMapper {
+class InProcessMemoryMapper : public MemoryMapper {
 public:
   InProcessMemoryMapper(size_t PageSize);
 
@@ -102,6 +102,7 @@ public:
 
 private:
   struct Allocation {
+    size_t Size;
     std::vector<shared::WrapperFunctionCall> DeinitializationActions;
   };
   using AllocationMap = DenseMap<ExecutorAddr, Allocation>;
