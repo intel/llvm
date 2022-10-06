@@ -637,8 +637,8 @@ public:
           PI_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
@@ -650,8 +650,8 @@ public:
                  std::remove_const_t<ReinterpretT>>>>::type
   reinterpret() const {
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, get_range(), OffsetInBytes, IsSubBuffer);
   }
 
