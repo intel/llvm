@@ -76,11 +76,9 @@ filter create_filter(const std::string &Input) {
       Result.Backend = backend::ext_oneapi_cuda;
     } else if (Token == "hip" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_hip;
-      Result.HasBackend = true;
-    } else if (Token == "esimd_emulator" && !Result.HasBackend) {
+    } else if (Token == "esimd_emulator" && !Result.Backend) {
       Result.Backend = backend::ext_intel_esimd_emulator;
-      Result.HasBackend = true;
-    } else if (std::regex_match(Token, IntegerExpr) && !Result.HasDeviceNum) {
+    } else if (std::regex_match(Token, IntegerExpr) && !Result.DeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
