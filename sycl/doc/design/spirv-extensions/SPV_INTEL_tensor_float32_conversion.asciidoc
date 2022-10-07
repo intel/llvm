@@ -1,0 +1,172 @@
+:extension_name: SPV_INTEL_tensor_float32_conversion
+:capability_tf32_conversion_name: TensorFloat32ConversionINTEL
+:capability_tf32_conversion_token: 6425
+:ConvertFToTF32_name: OpConvertFToTF32INTEL
+:ConvertFToTF32_token: 6426
+
+{extension_name}
+================
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Dmitry Sidorov, Intel +
+- Victor Mustya, Intel +
+- Kacper Kasper, Intel +
+- Ben Ashbaugh, Intel +
+
+== Notice
+
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6 Revision 2.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds conversion instruction from float to tensor float (TF32)
+data format. TF32 uses 1 bit for a sign, 8 bits for an exponent and 10 bits for a
+fraction. This extension doesn’t introduce TF32 type in SPIR-V, instead
+instruction below uses 32-bit float type to represent TF32 value.
+
+
+== Extension Name
+
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_tf32_conversion_name}
+----
+
+== New Instructions
+
+Instructions added under the *{capability_tf32_conversion_name}* capability:
+
+[subs="attributes"]
+----
+{ConvertFToTF32_name}
+----
+
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_tf32_conversion_name}* | {capability_tf32_conversion_token}
+|{ConvertFToTF32_name} | {ConvertFToTF32_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {capability_tf32_conversion_token} | *{capability_tf32_conversion_name}*
+| Enables a rounding instruction from float to tf32 data format +
+ +
+See also extension: *{extension_name}*
+|====
+--
+
+
+=== Instructions
+
+==== 3.37.11. Conversion Instructions
+
+[cols="1,1,3*3",width="100%"]
+|=====
+4+|[[OpConvertFToTF32]]*{ConvertFToTF32_name}* +
+ +
+Convert value numerically from a floating point type to *TF32*.
+It rounds up 13th bit of a float value and zero out last 13 bits. +
+ +
+'Result Type' must be a scalar or vector of floating-point type. +
+ +
+'Float Value' must be a scalar or vector of floating-point type.
+It must have the same number of components as Result Type. +
+ +
+Results are computed per component. +
+ +
+1+|Capability: +
+*{capability_tf32_conversion_name}*
+1+| 4 | {ConvertFToTF32_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Float Value'
+| '<id>' +
+|=====
+
+
+== Issues
+
+// . first issue
+// +
+// --
+// *RESOLVED*:
+// --
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-08-22|Dmitry Sidorov|Initial revision
+|========================================
