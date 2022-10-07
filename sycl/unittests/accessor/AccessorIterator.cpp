@@ -10,6 +10,63 @@
 class AccessorIteratorTest : public ::testing::Test {
 public:
   template <int Dimensions, typename T = int>
+  void checkWriteThroughIterator(const sycl::range<Dimensions> &fullShape,
+                                 const sycl::range<Dimensions> &fillShape,
+                                 const sycl::id<Dimensions> &offset) {
+    std::vector<T> data(fullShape.size(), T{});
+    sycl::buffer buffer(data.data(), fullShape);
+    {
+      auto accessor = buffer.template get_access<sycl::access_mode::write>(
+          fillShape, offset);
+      T linear_id = 1;
+      for (auto it = accessor.begin(), e = accessor.end(); it != e; ++it) {
+        *it = linear_id;
+        linear_id += 1;
+      }
+    }
+
+    sycl::id<3> offsetToUse(Dimensions > 2 ? offset[Dimensions - 3] : 0,
+                            Dimensions > 1 ? offset[Dimensions - 2] : 0,
+                            offset[Dimensions - 1]);
+
+    sycl::id<3> shapeToCheck(
+        (Dimensions > 2 ? fillShape[Dimensions - 3] : 1) + offsetToUse[0],
+        (Dimensions > 1 ? fillShape[Dimensions - 2] : 1) + offsetToUse[1],
+        fillShape[Dimensions - 1] + offsetToUse[2]);
+
+    auto fullAccessor = buffer.template get_access<sycl::access_mode::read>();
+    T linear_id = 1;
+    for (size_t z = offsetToUse[0]; z < shapeToCheck[0]; ++z) {
+      for (size_t y = offsetToUse[1]; y < shapeToCheck[1]; ++y) {
+        for (size_t x = offsetToUse[2]; x < shapeToCheck[2]; ++x) {
+          auto value = accessHelper<Dimensions>(fullAccessor, z, y, x);
+          ASSERT_EQ(linear_id, value);
+          linear_id += 1;
+        }
+      }
+    }
+
+    sycl::id<3> adjustedFullShape(
+        Dimensions > 2 ? fullShape[Dimensions - 3] : 1,
+        Dimensions > 1 ? fullShape[Dimensions - 2] : 1,
+        fullShape[Dimensions - 1]);
+
+    for (size_t z = 0; z < adjustedFullShape[0]; ++z) {
+      for (size_t y = 0; y < adjustedFullShape[1]; ++y) {
+        for (size_t x = 0; x < adjustedFullShape[2]; ++x) {
+          // Skip elements which we previously checked
+          if (z >= offsetToUse[0] && z < shapeToCheck[0] &&
+              y >= offsetToUse[1] && y < shapeToCheck[1] &&
+              x >= offsetToUse[2] && x < shapeToCheck[2])
+            continue;
+          auto value = accessHelper<Dimensions>(fullAccessor, z, y, x);
+          ASSERT_EQ(T{}, value) << "at (" << z << "; " << y << "; " << x << ")";
+        }
+      }
+    }
+  }
+
+  template <int Dimensions, typename T = int>
   void checkFullCopyThroughIterator(const sycl::range<Dimensions> &shape) {
     std::vector<T> reference(shape.size());
     std::iota(reference.begin(), reference.end(), 0);
@@ -372,4 +429,85 @@ TEST_F(AccessorIteratorTest, PartialCopyWithOffset3D) {
       sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 4, 5}, sycl::id<3>{3, 2, 1}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{9, 8, 7}, sycl::range<3>{3, 4, 5}, sycl::id<3>{3, 2, 1}));
+}
+
+TEST_F(AccessorIteratorTest, FullWrite1D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<1>{10}, sycl::range<1>{10}, sycl::id<1>{0}));
+}
+
+TEST_F(AccessorIteratorTest, FullWrite2D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{5, 5}, sycl::range<2>{5, 5}, sycl::id<2>{0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{2, 5}, sycl::range<2>{2, 5}, sycl::id<2>{0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{5, 2}, sycl::range<2>{5, 2}, sycl::id<2>{0, 0}));
+}
+
+TEST_F(AccessorIteratorTest, FullWrite3D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 5, 5}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{1, 5, 5}, sycl::range<3>{1, 5, 5}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 1, 5}, sycl::range<3>{5, 1, 5}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 5, 1}, sycl::range<3>{5, 5, 1}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{3, 6, 4}, sycl::range<3>{3, 6, 4}, sycl::id<3>{0, 0, 0}));
+}
+
+TEST_F(AccessorIteratorTest, PartialWriteWithoutOffset1D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{0}));
+}
+
+TEST_F(AccessorIteratorTest, PartialWriteWithoutOffset2D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{5, 5}, sycl::range<2>{3, 3}, sycl::id<2>{0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{2, 5}, sycl::range<2>{1, 3}, sycl::id<2>{0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{5, 2}, sycl::range<2>{3, 1}, sycl::id<2>{0, 0}));
+}
+
+TEST_F(AccessorIteratorTest, PartialWriteWithoutOffset3D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{1, 5, 5}, sycl::range<3>{0, 3, 3}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 1, 5}, sycl::range<3>{3, 1, 3}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 5, 1}, sycl::range<3>{3, 3, 1}, sycl::id<3>{0, 0, 0}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{3, 6, 4}, sycl::range<3>{1, 3, 2}, sycl::id<3>{0, 0, 0}));
+}
+
+TEST_F(AccessorIteratorTest, PartialWriteWithOffset1D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{3}));
+}
+
+TEST_F(AccessorIteratorTest, PartialWriteWithOffset2D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{5, 5}, sycl::range<2>{3, 3}, sycl::id<2>{1, 1}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{3, 5}, sycl::range<2>{1, 3}, sycl::id<2>{1, 2}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<2>{5, 3}, sycl::range<2>{3, 1}, sycl::id<2>{1, 1}));
+}
+
+TEST_F(AccessorIteratorTest, PartialWriteWithOffset3D) {
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}, sycl::id<3>{1, 1, 1}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{3, 5, 5}, sycl::range<3>{0, 3, 3}, sycl::id<3>{1, 2, 2}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 2, 5}, sycl::range<3>{3, 1, 3}, sycl::id<3>{1, 1, 2}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{5, 5, 3}, sycl::range<3>{3, 3, 1}, sycl::id<3>{1, 1, 1}));
+  ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
+      sycl::range<3>{3, 6, 4}, sycl::range<3>{1, 3, 2}, sycl::id<3>{1, 3, 2}));
 }
