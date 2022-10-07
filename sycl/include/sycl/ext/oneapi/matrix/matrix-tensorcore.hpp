@@ -703,8 +703,7 @@ template <
         std::is_same<S,
                      std::is_same<std::remove_const_t<T>>::value ||
                          (std::is_same<S, precision::tf32>::value &&
-                          std::is_same < std::is_same<std::remove_const_t<T>,
-                                                      float>::value),
+                          std::is_same<std::remove_const_t<T>, float>::value),
                      bool> = true> void
         joint_matrix_load(
             Group sg,
