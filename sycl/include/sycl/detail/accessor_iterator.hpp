@@ -55,9 +55,7 @@ public:
 
   accessor_iterator() = default;
 
-  reference operator*() {
-    return *(MDataPtr + getAbsoluteOffsetToBuffer());
-  }
+  reference operator*() { return *(MDataPtr + getAbsoluteOffsetToBuffer()); }
 
   accessor_iterator &operator++() {
     ++MLinearId;
@@ -311,18 +309,18 @@ private:
   }
 
   static accessor_iterator getBegin(DataT *DataPtr,
-                                     const range<Dimensions> &MemoryRange,
-                                     const range<Dimensions> &AccessRange,
-                                     const id<Dimensions> &Offset) {
+                                    const range<Dimensions> &MemoryRange,
+                                    const range<Dimensions> &AccessRange,
+                                    const id<Dimensions> &Offset) {
     auto It = accessor_iterator(DataPtr, MemoryRange, AccessRange, Offset);
     It.MLinearId = It.MBegin;
     return It;
   }
 
   static accessor_iterator getEnd(DataT *DataPtr,
-                                   const range<Dimensions> &MemoryRange,
-                                   const range<Dimensions> &AccessRange,
-                                   const id<Dimensions> &Offset) {
+                                  const range<Dimensions> &MemoryRange,
+                                  const range<Dimensions> &AccessRange,
+                                  const id<Dimensions> &Offset) {
     auto It = accessor_iterator(DataPtr, MemoryRange, AccessRange, Offset);
     It.MLinearId = It.MEnd;
     return It;
@@ -349,5 +347,5 @@ public:
 #endif // NDEBUG
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(V1)
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
