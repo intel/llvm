@@ -443,11 +443,10 @@ public:
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
   // Virtual for testing purposes only
-  virtual void
-  deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
+  void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   Scheduler();
-  virtual ~Scheduler();
+  ~Scheduler();
   void releaseResources();
   inline bool isDeferredMemObjectsEmpty();
 
@@ -470,7 +469,7 @@ protected:
                                          std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
-  void cleanupDeferredMemObjects(bool Blocking);
+  void cleanupDeferredMemObjects(BlockingT Blocking);
   void releaseMemObjRecord(
       detail::SYCLMemObjI *MemObj,
       std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,

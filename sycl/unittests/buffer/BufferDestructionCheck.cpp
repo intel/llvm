@@ -21,14 +21,18 @@
 
 #include "../scheduler/SchedulerTestUtils.hpp"
 
-class FairMockScheduler : public sycl::detail::Scheduler {
+class MockCmdWithReleaseTracking : public MockCommand {
 public:
-  using sycl::detail::Scheduler::checkLeavesCompletion;
-  using sycl::detail::Scheduler::MDeferredMemObjRelease;
-  using sycl::detail::Scheduler::MGraphBuilder;
-  using sycl::detail::Scheduler::MGraphLock;
-  MOCK_METHOD1(deferMemObjRelease,
-               void(const std::shared_ptr<sycl::detail::SYCLMemObjI> &));
+  MockCmdWithReleaseTracking(
+      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
+      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
+      : MockCommand(Queue, Req, Type){};
+  MockCmdWithReleaseTracking(
+      sycl::detail::QueueImplPtr Queue,
+      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
+      : MockCommand(Queue, Type){};
+  ~MockCmdWithReleaseTracking() { Release(); }
+  MOCK_METHOD0(Release, void());
 };
 
 class BufferDestructionCheck : public ::testing::Test {
@@ -41,7 +45,7 @@ protected:
       std::cout << "Not run due to host-only environment\n";
       GTEST_SKIP();
     }
-    MockSchedulerPtr = new testing::NiceMock<FairMockScheduler>();
+    MockSchedulerPtr = new MockScheduler();
     sycl::detail::GlobalHandler::instance().attachScheduler(
         dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
   }
@@ -49,340 +53,274 @@ protected:
     sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
   }
 
-  inline void
-  CheckBufferDestruction(std::shared_ptr<sycl::detail::buffer_impl> BufImpl,
-                         bool ShouldBeDeferred) {
-    ASSERT_NE(BufImpl, nullptr);
-    const std::function<bool(
-        const std::shared_ptr<sycl::detail::SYCLMemObjI> &)>
-        checkerNotEqual =
-            [&BufImpl](
-                const std::shared_ptr<sycl::detail::SYCLMemObjI> &memObj) {
-              return BufImpl.get() != memObj.get();
-            };
-    const std::function<bool(
-        const std::shared_ptr<sycl::detail::SYCLMemObjI> &)>
-        checkerEqual =
-            [&BufImpl](
-                const std::shared_ptr<sycl::detail::SYCLMemObjI> &memObj) {
-              return BufImpl.get() == memObj.get();
-            };
-    if (ShouldBeDeferred) {
-      testing::Sequence S;
-      // first is check that explicitly created buffer is deferred
-      EXPECT_CALL(*MockSchedulerPtr,
-                  deferMemObjRelease(testing::Truly(checkerEqual)))
-          .Times(1)
-          .InSequence(S)
-          .RetiresOnSaturation();
-      // we have two queues - non host and host queue. Currently queue contains
-      // its own buffer as class member, buffer as used for assert handling.
-      // those buffers also created with size only so it also to be deferred on
-      // deletion.
-      EXPECT_CALL(*MockSchedulerPtr, deferMemObjRelease(testing::_))
-          .Times(testing::AnyNumber())
-          .InSequence(S);
-    } else {
-      // buffer created above should not be deferred on deletion because has non
-      // default allocator
-      EXPECT_CALL(*MockSchedulerPtr,
-                  deferMemObjRelease(testing::Truly(checkerNotEqual)))
-          .Times(testing::AnyNumber());
-    }
-  }
-
   template <typename Buffer>
-  void SubmitWorkload(sycl::queue &Queue, Buffer *Buf) {
-    Queue.submit([&](sycl::handler &CGH) {
-      // Just need to imitate task dependency on buffer
-      auto acc = Buf->get_access(CGH, sycl::read_only);
-      CGH.host_task([] {});
-    });
+  MockCmdWithReleaseTracking *addCommandToBuffer(Buffer &Buf, sycl::queue &Q) {
+    sycl::detail::Requirement MockReq = getMockRequirement(Buf);
+    std::vector<sycl::detail::Command *> AuxCmds;
+    sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
+        sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+    MockCmdWithReleaseTracking *MockCmd = new MockCmdWithReleaseTracking(
+        sycl::detail::getSyclObjImpl(Q), MockReq);
+    std::vector<sycl::detail::Command *> ToEnqueue;
+    MockSchedulerPtr->addNodeToLeaves(Rec, MockCmd, sycl::access::mode::write,
+                                      ToEnqueue);
+    // we do not want to enqueue commands, just keep not enqueued and not
+    // completed, otherwise check is not possible
+    return MockCmd;
   }
 
 protected:
   sycl::unittest::PiMock Mock;
   sycl::platform Plt;
-  testing::NiceMock<FairMockScheduler> *MockSchedulerPtr;
+  MockScheduler *MockSchedulerPtr;
 };
-
-TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultNoRecord) {
-  sycl::context Context{Plt};
-  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-  {
-    sycl::buffer<int, 1> Buf(1);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    CheckBufferDestruction(BufImpl, false);
-  }
-}
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
+  sycl::detail::buffer_impl *RawBufferImplPtr = NULL;
   {
     sycl::buffer<int, 1> Buf(1);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, true);
+    RawBufferImplPtr = BufImpl.get();
+    MockCmd = addCommandToBuffer(Buf, Q);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
+  EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
+            RawBufferImplPtr);
+  EXPECT_CALL(*MockCmd, Release).Times(1);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultSetFinalData) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     int FinalData = 0;
     sycl::buffer<int, 1> Buf(1);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
     Buf.set_final_data(&FinalData);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyNonDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     using AllocatorTypeTest =
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
+  sycl::detail::buffer_impl *RawBufferImplPtr = NULL;
   {
     using AllocatorTypeTest = sycl::buffer_allocator<int>;
     AllocatorTypeTest allocator;
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, true);
+    RawBufferImplPtr = BufImpl.get();
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
+  EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
+            RawBufferImplPtr);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithRawHostPtr) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     int InitialVal = 8;
     sycl::buffer<int, 1> Buf(&InitialVal, 1);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithRawHostPtrWithNonDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     int InitialVal = 8;
     using AllocatorTypeTest =
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(&InitialVal, 1, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithConstRawHostPtr) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     const int InitialVal = 8;
     sycl::buffer<int, 1> Buf(&InitialVal, 1);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck,
        BufferWithConstRawHostPtrWithNonDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     const int InitialVal = 8;
     using AllocatorTypeTest =
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(&InitialVal, 1, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithContainer) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     std::vector<int> data{3, 4};
     sycl::buffer<int, 1> Buf(data);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithContainerWithNonDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     std::vector<int> data{3, 4};
     using AllocatorTypeTest =
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(data, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSharedPtr) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     std::shared_ptr<int> InitialVal(new int(5));
     sycl::buffer<int, 1> Buf(InitialVal, 1);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSharedPtrWithNonDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     std::shared_ptr<int> InitialVal(new int(5));
     using AllocatorTypeTest =
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(InitialVal, 1, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSharedPtrArray) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     std::shared_ptr<int[]> InitialVal(new int[2]);
     sycl::buffer<int, 1> Buf(InitialVal, 1);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck,
        BufferWithSharedPtrArrayWithNonDefaultAllocator) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
   {
     std::shared_ptr<int[]> InitialVal(new int[2]);
     using AllocatorTypeTest =
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(InitialVal, 2, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, false);
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithIterators) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
+
+  MockCmdWithReleaseTracking *MockCmd = NULL;
+  sycl::detail::buffer_impl *RawBufferImplPtr = NULL;
   {
     std::vector<int> data{3, 4};
     sycl::buffer<int, 1> Buf(data.begin(), data.end());
     std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
         sycl::detail::getSyclObjImpl(Buf);
-    SubmitWorkload(Q, &Buf);
-    CheckBufferDestruction(BufImpl, true);
+    RawBufferImplPtr = BufImpl.get();
+    MockCmd = addCommandToBuffer(Buf, Q);
+    EXPECT_CALL(*MockCmd, Release).Times(1);
   }
-}
-
-// TEST_F(BufferDestructionCheck, BufferWithIteratorsWithNonDefaultAllocator) {
-//   sycl::context Context{Plt};
-//   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-//   {
-//     std::vector<int> data{3, 4};
-//     using AllocatorTypeTest = sycl::usm_allocator<int,
-//     sycl::usm::alloc::shared>; AllocatorTypeTest allocator(Q);
-//     sycl::buffer<int, 1, AllocatorTypeTest> Buf(data.begin(), data.end(),
-//     allocator); std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-//         sycl::detail::getSyclObjImpl(Buf);
-//     //needs workload
-//     CheckBufferDestruction(BufImpl, false);
-//   }
-// }
-
-TEST_F(BufferDestructionCheck, BufferDeferringCheckWriteLock) {
-  sycl::context Context{Plt};
-  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-  {
-    testing::Sequence S;
-    sycl::detail::buffer_impl *unsafePtr = nullptr;
-    EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-    std::unique_lock<std::shared_timed_mutex> Lock(MockSchedulerPtr->MGraphLock,
-                                                   std::defer_lock);
-    {
-      sycl::buffer<int, 1> Buf(1);
-      SubmitWorkload(Q, &Buf);
-      {
-        std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-            sycl::detail::getSyclObjImpl(Buf);
-        unsafePtr = BufImpl.get();
-      }
-      Lock.lock();
-      // gmock warning will be generated - simply tell gtest that now we do not
-      // want to mock the function
-      ON_CALL(*MockSchedulerPtr, deferMemObjRelease)
-          .WillByDefault(
-              [this](const std::shared_ptr<sycl::detail::SYCLMemObjI> &MemObj) {
-                return MockSchedulerPtr
-                    ->sycl::detail::Scheduler::deferMemObjRelease(MemObj);
-              });
-    }
-    // Record is empty but lock should prevent from being deleted
-    ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
-    EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.front().get(),
-              unsafePtr);
-    Lock.unlock();
-    MockSchedulerPtr->releaseResources();
-
-    ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-  }
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
+  EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
+            RawBufferImplPtr);
 }
 
 std::map<pi_event, pi_int32> ExpectedEventStatus;
@@ -400,20 +338,6 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
     return PI_ERROR_INVALID_OPERATION;
 }
 
-class MockCmdWithReleaseTracking : public MockCommand {
-public:
-  MockCmdWithReleaseTracking(
-      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
-      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Req, Type){};
-  MockCmdWithReleaseTracking(
-      sycl::detail::QueueImplPtr Queue,
-      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Type){};
-  ~MockCmdWithReleaseTracking() { Release(); }
-  MOCK_METHOD0(Release, void());
-};
-
 TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
@@ -421,9 +345,8 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   sycl::buffer<int, 1> Buf(1);
   sycl::detail::Requirement MockReq = getMockRequirement(Buf);
   std::vector<sycl::detail::Command *> AuxCmds;
-  sycl::detail::MemObjRecord *Rec =
-      MockSchedulerPtr->MGraphBuilder.getOrInsertMemObjRecord(
-          sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+  sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
+      sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
   MockCmdWithReleaseTracking *ReadCmd = nullptr;
   MockCmdWithReleaseTracking *WriteCmd = nullptr;
   ReadCmd =
@@ -439,13 +362,12 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
 
   std::vector<sycl::detail::Command *> ToCleanUp;
   std::vector<sycl::detail::Command *> ToEnqueue;
-  MockSchedulerPtr->MGraphBuilder.addNodeToLeaves(
-      Rec, ReadCmd, sycl::access::mode::read, ToEnqueue);
-  MockSchedulerPtr->MGraphBuilder.addNodeToLeaves(
-      Rec, WriteCmd, sycl::access::mode::write, ToEnqueue);
+  MockSchedulerPtr->addNodeToLeaves(Rec, ReadCmd, sycl::access::mode::read,
+                                    ToEnqueue);
+  MockSchedulerPtr->addNodeToLeaves(Rec, WriteCmd, sycl::access::mode::write,
+                                    ToEnqueue);
 
   Mock.redefine<sycl::detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
-  std::shared_lock<std::shared_timed_mutex> Lock(MockSchedulerPtr->MGraphLock);
   testing::InSequence S;
 
   ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_SUBMITTED;
