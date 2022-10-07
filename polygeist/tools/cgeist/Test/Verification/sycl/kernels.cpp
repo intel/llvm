@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// clang-format off
 // RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s 2> /dev/null| FileCheck %s --check-prefix=CHECK-MLIR
 // RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -27,7 +28,7 @@
 // CHECK-LLVM-DAG: %"struct.sycl::_V1::detail::ItemBase.1.true" = type { %"class.sycl::_V1::range.1", %"class.sycl::_V1::id.1", %"class.sycl::_V1::id.1" }
 
 // CHECK-MLIR: gpu.module @device_functions
-// CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
+// CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, %arg1: memref<?x!sycl_range_1_>, %arg2: memref<?x!sycl_range_1_>, %arg3: memref<?x!sycl_id_1_>)
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // CHECK-MLIR-NOT: gpu.func kernel
 
@@ -58,7 +59,7 @@ void host_1() {
   }
 }
 
-// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
+// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, %arg1: memref<?x!sycl_range_1_>, %arg2: memref<?x!sycl_range_1_>, %arg3: memref<?x!sycl_id_1_>)
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // CHECK-MLIR-NOT: gpu.func kernel
 

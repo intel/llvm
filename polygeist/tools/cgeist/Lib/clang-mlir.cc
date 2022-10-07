@@ -304,6 +304,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
+  const bool isKernel = FD->hasAttr<SYCLKernelAttr>();
+
   for (ParmVarDecl *parm : FD->parameters()) {
     assert(i != function.getNumArguments());
 
@@ -323,7 +325,7 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     mlir::Value val = function.getArgument(i);
     assert(val && "Expecting a valid value");
 
-    if (isArray)
+    if (isArray || (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)))
       params.emplace(parm, ValueCategory(val, /*isReference*/ true));
     else {
       mlir::Value alloc =
@@ -3314,9 +3316,18 @@ void MLIRASTConsumer::createMLIRParametersTypes(
     parmTypes.push_back(mlirThisType);
   }
 
+  const bool isKernel = FD.hasAttr<SYCLKernelAttr>();
+
   // Handle the remaining parameters.
   for (ParmVarDecl *parm : FD.parameters()) {
     QualType parmType = parm->getType();
+
+    // SPIR ABI compliance: aggregates need to be passed as pointers.
+    if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
+      auto mlirType = mlir::MemRefType::get(-1, getMLIRType(parmType));
+      parmTypes.push_back(mlirType);
+      continue;
+    }
 
     bool ArrayStruct = false;
     auto mlirType = getMLIRType(parmType, &ArrayStruct);
@@ -4013,8 +4024,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::vector<std::string> InputCommandArgs) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using a
-  // well formed diagnostic object.
+  // Buffer diagnostics from argument parsing so that we can output them using
+  // a well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
@@ -4198,8 +4209,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
     // Inform the target of the language options.
     //
-    // FIXME: We shouldn't need to do this, the target should be immutable once
-    // created. This complexity should be lifted elsewhere.
+    // FIXME: We shouldn't need to do this, the target should be immutable
+    // once created. This complexity should be lifted elsewhere.
     Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
 
     // Adjust target options based on codegen options.
