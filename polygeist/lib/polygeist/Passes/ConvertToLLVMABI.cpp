@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass currently only handles SYCL Kernel functions.
+// This pass currently only handles GPU functions.
 // This pass converts all arguments with MemRef type to LLVM pointer type,
 // and replace all uses of the original argument with a
 // `polygeist.pointer2memref` of the new argument.
@@ -34,7 +34,6 @@ public:
 
   LogicalResult matchAndRewrite(gpu::GPUFuncOp op,
                                 PatternRewriter &rewriter) const override {
-    assert(op.isKernel() && "Expecting SYCL Kernel");
     LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: GPUFuncLowering: "
                             << op.getName() << "\n");
 
@@ -71,11 +70,17 @@ public:
       funcBody.eraseArgument(en.index() + 1);
     }
 
-    assert(funcTy.getNumResults() == 0 &&
-           "Expecting SYCL kernel to return void");
+    SmallVector<Type, 1> convertedResultTys;
+    for (Type ty : funcTy.getResults()) {
+      if (auto MT = ty.dyn_cast<MemRefType>())
+        convertedResultTys.push_back(LLVM::LLVMPointerType::get(
+            MT.getElementType(), MT.getMemorySpaceAsInt()));
+      else
+        convertedResultTys.push_back(ty);
+    }
 
     auto newFuncTy = FunctionType::get(
-        op.getContext(), conversion.getConvertedTypes(), funcTy.getResults());
+        op.getContext(), conversion.getConvertedTypes(), convertedResultTys);
     op->setAttr(FunctionOpInterface::getTypeAttrName(),
                 TypeAttr::get(newFuncTy));
     LLVM_DEBUG(llvm::dbgs() << "  New FunctionType: " << newFuncTy << "\n");
@@ -87,6 +92,45 @@ public:
   }
 };
 
+class GPUReturnLowering : public OpRewritePattern<gpu::ReturnOp> {
+public:
+  using OpRewritePattern<gpu::ReturnOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(gpu::ReturnOp op,
+                                PatternRewriter &rewriter) const override {
+    LLVM_DEBUG(llvm::dbgs()
+               << "ConvertToLLVMABIPass: GPUReturnLowering: " << op << "\n");
+
+    // Notify MLIR we're updating the function in place
+    rewriter.startRootUpdate(op);
+
+    bool changed = false;
+    for (const auto &en : llvm::enumerate(op.getOperands())) {
+      auto MT = en.value().getType().dyn_cast<MemRefType>();
+      if (!MT)
+        continue;
+
+      Type PT = LLVM::LLVMPointerType::get(MT.getElementType(),
+                                           MT.getMemorySpaceAsInt());
+      auto memref2Ptr = rewriter.create<polygeist::Memref2PointerOp>(
+          en.value().getLoc(), PT, en.value());
+      op.setOperand(en.index(), memref2Ptr);
+      changed = true;
+    }
+    LLVM_DEBUG({
+      if (changed)
+        llvm::dbgs() << "  New ReturnOp: " << op << "\n";
+      else
+        llvm::dbgs() << "  unchanged\n";
+    });
+
+    // Notify MLIR in place updates are done
+    rewriter.finalizeRootUpdate(op);
+
+    return changed ? success() : failure();
+  }
+};
+
 struct ConvertToLLVMABIPass final
     : public mlir::polygeist::ConvertToLLVMABIBase<ConvertToLLVMABIPass> {
   void runOnOperation() override {
@@ -94,15 +138,23 @@ struct ConvertToLLVMABIPass final
 
     RewritePatternSet patterns(&getContext());
     patterns.add<GPUFuncLowering>(&getContext());
+    patterns.add<GPUReturnLowering>(&getContext());
 
     ConversionTarget target(getContext());
     target.addDynamicallyLegalOp<gpu::GPUFuncOp>([](gpu::GPUFuncOp op) {
       FunctionType funcTy = op.getFunctionType();
-      assert(funcTy.getNumResults() == 0 &&
-             "Expecting SYCL kernel to return void");
-      return llvm::none_of(funcTy.getInputs(),
-                           [](Type ty) { return ty.isa<MemRefType>(); });
+      bool hasMemRef = llvm::any_of(
+          funcTy.getResults(), [](Type ty) { return ty.isa<MemRefType>(); });
+      hasMemRef |= llvm::any_of(funcTy.getInputs(),
+                                [](Type ty) { return ty.isa<MemRefType>(); });
+      return !hasMemRef;
     });
+    target.addDynamicallyLegalOp<gpu::ReturnOp>([](gpu::ReturnOp op) {
+      return llvm::none_of(op.getOperands(), [](Value v) {
+        return v.getType().isa<MemRefType>();
+      });
+    });
+    target.addLegalOp<polygeist::Memref2PointerOp>();
     target.addLegalOp<polygeist::Pointer2MemrefOp>();
 
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
