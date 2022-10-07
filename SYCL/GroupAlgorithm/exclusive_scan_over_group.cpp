@@ -1,7 +1,6 @@
 // UNSUPPORTED: hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: ze_debug4,ze_debug-1
 
 // CPU and ACC not yet supported:
 // Unsupported SPIR-V module SPIRV module requires unsupported capability 6400
@@ -54,5 +53,7 @@ int main(int argc, const char **argv) {
   for (int i = 0; i < sizeof(expected) / sizeof(T); ++i) {
     assert(result[i] == expected[i]);
   }
+  sycl::free(data, queue);
+  sycl::free(result, queue);
   return 0;
 }
