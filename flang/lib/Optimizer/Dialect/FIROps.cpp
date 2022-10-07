@@ -1038,47 +1038,23 @@ mlir::LogicalResult fir::CoordinateOp::verify() {
 // DispatchOp
 //===----------------------------------------------------------------------===//
 
-mlir::FunctionType fir::DispatchOp::getFunctionType() {
-  return mlir::FunctionType::get(getContext(), getOperandTypes(),
-                                 getResultTypes());
-}
+mlir::LogicalResult fir::DispatchOp::verify() {
+  // Check that pass_arg_pos is in range of actual operands. pass_arg_pos is
+  // unsigned so check for less than zero is not needed.
+  if (getPassArgPos() && *getPassArgPos() > (getArgOperands().size() - 1))
+    return emitOpError(
+        "pass_arg_pos must be smaller than the number of operands");
 
-mlir::ParseResult fir::DispatchOp::parse(mlir::OpAsmParser &parser,
-                                         mlir::OperationState &result) {
-  mlir::FunctionType calleeType;
-  llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand> operands;
-  auto calleeLoc = parser.getNameLoc();
-  llvm::StringRef calleeName;
-  if (failed(parser.parseOptionalKeyword(&calleeName))) {
-    mlir::StringAttr calleeAttr;
-    if (parser.parseAttribute(calleeAttr,
-                              fir::DispatchOp::getMethodAttrNameStr(),
-                              result.attributes))
-      return mlir::failure();
-  } else {
-    result.addAttribute(fir::DispatchOp::getMethodAttrNameStr(),
-                        parser.getBuilder().getStringAttr(calleeName));
-  }
-  if (parser.parseOperandList(operands, mlir::OpAsmParser::Delimiter::Paren) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(calleeType) ||
-      parser.addTypesToList(calleeType.getResults(), result.types) ||
-      parser.resolveOperands(operands, calleeType.getInputs(), calleeLoc,
-                             result.operands))
-    return mlir::failure();
+  // Operand pointed by pass_arg_pos must have polymorphic type.
+  if (getPassArgPos() &&
+      !fir::isPolymorphicType(getArgOperands()[*getPassArgPos()].getType()))
+    return emitOpError("pass_arg_pos must be a polymorphic operand");
   return mlir::success();
 }
 
-void fir::DispatchOp::print(mlir::OpAsmPrinter &p) {
-  p << ' ' << getMethodAttr() << '(';
-  p.printOperand(getObject());
-  if (!getArgs().empty()) {
-    p << ", ";
-    p.printOperands(getArgs());
-  }
-  p << ") : ";
-  p.printFunctionalType(getOperation()->getOperandTypes(),
-                        getOperation()->getResultTypes());
+mlir::FunctionType fir::DispatchOp::getFunctionType() {
+  return mlir::FunctionType::get(getContext(), getOperandTypes(),
+                                 getResultTypes());
 }
 
 //===----------------------------------------------------------------------===//

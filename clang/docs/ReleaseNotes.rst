@@ -231,6 +231,15 @@ Improvements to Clang's diagnostics
   be selected.
 - Add a fix-it hint for the ``-Wdefaulted-function-deleted`` warning to
   explicitly delete the function.
+- Fixed an accidental duplicate diagnostic involving the declaration of a
+  function definition without a prototype which is preceded by a static
+  declaration of the function with a prototype. Fixes
+  `Issue 58181 <https://github.com/llvm/llvm-project/issues/58181>`_.
+- Copy-elided initialization of lock scopes is now handled differently in
+  ``-Wthread-safety-analysis``: annotations on the move constructor are no
+  longer taken into account, in favor of annotations on the function returning
+  the lock scope by value. This could result in new warnings if code depended
+  on the previous undocumented behavior.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -415,6 +424,7 @@ C++20 Feature Support
   name is found via ordinary lookup so typedefs are found.
 - Implemented `P0634r3 <https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0634r3.html>`_,
   which removes the requirement for the ``typename`` keyword in certain contexts.
+- Implemented The Equality Operator You Are Looking For (`P2468 <http://wg21.link/p2468r2>`_).
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
