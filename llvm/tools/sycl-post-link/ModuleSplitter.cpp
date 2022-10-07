@@ -373,17 +373,36 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
 }
 
 void collectGlobalVarsToExtract(SetVector<const GlobalValue *> &GVs,
-                                const Module &M) {
-  // It's not easy to trace global variable's uses inside needed functions
-  // because global variable can be used inside a combination of operators, so
-  // mark all global variables as needed and remove dead ones after cloning.
+                                const Module &M,
+                                const EntryPointGroup &ModuleEntryPoints) {
+  // Trace global variable's uses. Add global vars to extract list only if they
+  // are used inside the determined entry points.
   // Notice. For device global variables with the 'device_image_scope' property,
-  // removing dead ones is a must, the 'checkImageScopedDeviceGlobals' function
-  // checks that there are no usages of a single device global variable with the
-  // 'device_image_scope' property from multiple modules and the splitter must
-  // not add such usages after the check.
-  for (const auto &G : M.globals())
-    GVs.insert(&G);
+  // removing dead ones is a must, the 'verifyNoCrossModuleDeviceGlobalUsage'
+  // function checks that there are no usages of a single device global variable
+  // with the 'device_image_scope' property from multiple modules and the
+  // splitter must not add such usages after the check.
+  for (auto &G : M.globals()) {
+    SmallSetVector<const User *, 32> Workqueue;
+    for (auto *U : G.users())
+      Workqueue.insert(U);
+
+    while (!Workqueue.empty()) {
+      const User *U = Workqueue.pop_back_val();
+      if (auto *I = dyn_cast<const Instruction>(U)) {
+        auto *F = I->getFunction();
+        Workqueue.insert(F);
+        continue;
+      }
+      if (auto *F = dyn_cast<const Function>(U)) {
+        // Check if the function belongs to predefined entry points set.
+        if (ModuleEntryPoints.Functions.count(const_cast<Function *>(F)))
+          GVs.insert(&G);
+      }
+      for (auto *UU : U->users())
+        Workqueue.insert(UU);
+    }
+  }
 }
 
 ModuleDesc extractSubModule(const ModuleDesc &MD,
@@ -413,7 +432,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
                             const CallGraph &CG) {
   SetVector<const GlobalValue *> GVs;
   collectFunctionsToExtract(GVs, ModuleEntryPoints, CG);
-  collectGlobalVarsToExtract(GVs, MD.getModule());
+  collectGlobalVarsToExtract(GVs, MD.getModule(), ModuleEntryPoints);
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   SplitM.cleanup();
