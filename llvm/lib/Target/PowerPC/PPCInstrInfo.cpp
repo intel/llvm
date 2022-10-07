@@ -311,7 +311,7 @@ static const uint16_t FMAOpIdxInfo[][6] = {
 // Check if an opcode is a FMA instruction. If it is, return the index in array
 // FMAOpIdxInfo. Otherwise, return -1.
 int16_t PPCInstrInfo::getFMAOpIdxInfo(unsigned Opcode) const {
-  for (unsigned I = 0; I < array_lengthof(FMAOpIdxInfo); I++)
+  for (unsigned I = 0; I < std::size(FMAOpIdxInfo); I++)
     if (FMAOpIdxInfo[I][InfoArrayIdxFMAInst] == Opcode)
       return I;
   return -1;
@@ -2332,7 +2332,7 @@ bool PPCInstrInfo::ClobbersPredicate(MachineInstr &MI,
 
   bool Found = false;
   for (const MachineOperand &MO : MI.operands()) {
-    for (unsigned c = 0; c < array_lengthof(RCs) && !Found; ++c) {
+    for (unsigned c = 0; c < std::size(RCs) && !Found; ++c) {
       const TargetRegisterClass *RC = RCs[c];
       if (MO.isReg()) {
         if (MO.isDef() && RC->contains(MO.getReg())) {
@@ -2538,7 +2538,12 @@ bool PPCInstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
     else
       return false;
 
-    PredsToUpdate.push_back(std::make_pair(&(UseMI->getOperand(0)), Pred));
+    // Convert the comparison and its user to a compare against zero with the
+    // appropriate predicate on the branch. Zero comparison might provide
+    // optimization opportunities post-RA (see optimization in
+    // PPCPreEmitPeephole.cpp).
+    UseMI->getOperand(0).setImm(Pred);
+    CmpInstr.getOperand(2).setImm(0);
   }
 
   // Search for Sub.

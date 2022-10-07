@@ -60,6 +60,7 @@ public:
 
   void openFile();
   void writeSections();
+  void applyOptimizationHints();
   void writeUuid();
   void writeCodeSignature();
   void writeOutputFile();
@@ -405,6 +406,31 @@ public:
 
 private:
   StringRef path;
+};
+
+class LCDyldEnv final : public LoadCommand {
+public:
+  explicit LCDyldEnv(StringRef name) : name(name) {}
+
+  uint32_t getSize() const override {
+    return alignTo(sizeof(dyld_env_command) + name.size() + 1,
+                   target->wordSize);
+  }
+
+  void writeTo(uint8_t *buf) const override {
+    auto *c = reinterpret_cast<dyld_env_command *>(buf);
+    buf += sizeof(dyld_env_command);
+
+    c->cmd = LC_DYLD_ENVIRONMENT;
+    c->cmdsize = getSize();
+    c->name = sizeof(dyld_env_command);
+
+    memcpy(buf, name.data(), name.size());
+    buf[name.size()] = '\0';
+  }
+
+private:
+  StringRef name;
 };
 
 class LCMinVersion final : public LoadCommand {
@@ -821,6 +847,9 @@ template <class LP> void Writer::createLoadCommands() {
           make<LCDylib>(LC_REEXPORT_DYLIB, dylibFile->installName));
   }
 
+  for (const auto &dyldEnv : config->dyldEnvs)
+    in.header->addLoadCommand(make<LCDyldEnv>(dyldEnv));
+
   if (functionStartsSection)
     in.header->addLoadCommand(make<LCFunctionStarts>(functionStartsSection));
   if (dataInCodeSection)
@@ -930,6 +959,12 @@ template <class LP> void Writer::createOutputSections() {
       if (osec->name == section_names::ehFrame &&
           segname == segment_names::text)
         osec->align = target->wordSize;
+
+      // MC keeps the default 1-byte alignment for __thread_vars, even though it
+      // contains pointers that are fixed up by dyld, which requires proper
+      // alignment.
+      if (isThreadLocalVariables(osec->flags))
+        osec->align = std::max<uint32_t>(osec->align, target->wordSize);
 
       getOrCreateOutputSegment(segname)->addOutputSection(osec);
     }
@@ -1072,6 +1107,18 @@ void Writer::writeSections() {
   });
 }
 
+void Writer::applyOptimizationHints() {
+  if (config->arch() != AK_arm64 || config->ignoreOptimizationHints)
+    return;
+
+  uint8_t *buf = buffer->getBufferStart();
+  TimeTraceScope timeScope("Apply linker optimization hints");
+  parallelForEach(inputFiles, [buf](const InputFile *file) {
+    if (const auto *objFile = dyn_cast<ObjFile>(file))
+      target->applyOptimizationHints(buf, *objFile);
+  });
+}
+
 // In order to utilize multiple cores, we first split the buffer into chunks,
 // compute a hash for each chunk, and then compute a hash value of the hash
 // values.
@@ -1114,11 +1161,13 @@ void Writer::writeOutputFile() {
   if (errorCount())
     return;
   writeSections();
+  applyOptimizationHints();
   writeUuid();
   writeCodeSignature();
 
   if (auto e = buffer->commit())
-    error("failed to write to the output file: " + toString(std::move(e)));
+    fatal("failed to write output '" + buffer->getPath() +
+          "': " + toString(std::move(e)));
 }
 
 template <class LP> void Writer::run() {

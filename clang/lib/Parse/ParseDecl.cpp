@@ -1417,7 +1417,7 @@ void Parser::ParseExternalSourceSymbolAttribute(
   ArgsUnion Args[] = {Language.get(), DefinedInExpr.get(),
                       GeneratedDeclaration};
   Attrs.addNew(&ExternalSourceSymbol, SourceRange(Loc, T.getCloseLocation()),
-               ScopeName, ScopeLoc, Args, llvm::array_lengthof(Args), Syntax);
+               ScopeName, ScopeLoc, Args, std::size(Args), Syntax);
 }
 
 /// Parse the contents of the "objc_bridge_related" attribute.
@@ -1538,7 +1538,7 @@ void Parser::ParseSwiftNewTypeAttribute(
 
   ArgsUnion Args[] = {SwiftType};
   Attrs.addNew(&AttrName, SourceRange(AttrNameLoc, T.getCloseLocation()),
-               ScopeName, ScopeLoc, Args, llvm::array_lengthof(Args), Syntax);
+               ScopeName, ScopeLoc, Args, std::size(Args), Syntax);
 }
 
 void Parser::ParseTypeTagForDatatypeAttribute(IdentifierInfo &AttrName,
@@ -1787,6 +1787,11 @@ Parser::DeclGroupPtrTy Parser::ParseDeclaration(DeclaratorContext Context,
     }
     return ParseSimpleDeclaration(Context, DeclEnd, DeclAttrs, DeclSpecAttrs,
                                   true, nullptr, DeclSpecStart);
+
+  case tok::kw_cbuffer:
+  case tok::kw_tbuffer:
+    SingleDecl = ParseHLSLBuffer(DeclEnd);
+    break;
   case tok::kw_namespace:
     ProhibitAttributes(DeclAttrs);
     ProhibitAttributes(DeclSpecAttrs);
@@ -4589,6 +4594,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
     // Code completion for an enum name.
     cutOffParsing();
     Actions.CodeCompleteTag(getCurScope(), DeclSpec::TST_enum);
+    DS.SetTypeSpecError(); // Needed by ActOnUsingDeclaration.
     return;
   }
 

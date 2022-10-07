@@ -82,7 +82,7 @@ static const bool UseMultipleCmdlistBarriers = [] {
   const char *UseMultipleCmdlistBarriersFlag =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS");
   if (!UseMultipleCmdlistBarriersFlag)
-    return false;
+    return true;
   return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
 }();
 
@@ -232,6 +232,29 @@ static const pi_uint32 MaxNumEventsPerPool = [] {
   if (Result <= 0)
     Result = 256;
   return Result;
+}();
+
+// Get value of device scope events env var setting or default setting
+static const int DeviceEventsSetting = [] {
+  const char *DeviceEventsSettingStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+  if (DeviceEventsSettingStr) {
+    // Override the default if user has explicitly chosen the events scope.
+    switch (std::stoi(DeviceEventsSettingStr)) {
+    case 0:
+      return AllHostVisible;
+    case 1:
+      return OnDemandHostVisibleProxy;
+    case 2:
+      return LastCommandInBatchHostVisible;
+    default:
+      // fallthrough to default setting
+      break;
+    }
+  }
+  // This is our default setting, which is expected to be the fastest
+  // with the modern GPU drivers.
+  return AllHostVisible;
 }();
 
 // Helper function to implement zeHostSynchronize.
@@ -643,7 +666,7 @@ inline static pi_result createEventAndAssociateQueue(
     bool ForceHostVisible = false) {
 
   if (!ForceHostVisible)
-    ForceHostVisible = Queue->Device->eventsScope() == AllHostVisible;
+    ForceHostVisible = DeviceEventsSetting == AllHostVisible;
   PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
 
   (*Event)->Queue = Queue;
@@ -807,33 +830,6 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
       false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
 
   return PI_SUCCESS;
-}
-
-// Get value of device scope events env var setting or -1 if unset
-static const int DeviceEventsSetting = [] {
-  const char *DeviceEventsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
-  if (!DeviceEventsSettingStr)
-    return -1;
-  return std::stoi(DeviceEventsSettingStr);
-}();
-
-// Controls the scope of events.
-// If immediate commandlists are being used then use compatible event scopes.
-enum EventsScope _pi_device::eventsScope() {
-  // Set default based on type of commandlists being used.
-  auto Default = useImmediateCommandLists() ? OnDemandHostVisibleProxy
-                                            : LastCommandInBatchHostVisible;
-  // Override the default if user has explicitly chosen the events scope.
-  switch (DeviceEventsSetting) {
-  case 0:
-    return AllHostVisible;
-  case 1:
-    return OnDemandHostVisibleProxy;
-  case 2:
-    return LastCommandInBatchHostVisible;
-  }
-  return Default;
 }
 
 // Get value of immediate commandlists env var setting or -1 if unset
@@ -1627,7 +1623,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
-    if (Device->eventsScope() == LastCommandInBatchHostVisible &&
+    if (DeviceEventsSetting == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
       // need to create host proxy event.
@@ -2007,7 +2003,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (CurQueue->Device->eventsScope() != AllHostVisible) {
+          if (DeviceEventsSetting != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }
@@ -2557,24 +2553,45 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
       // Additionally we need to cache all sub-devices too, such that they
       // are readily visible to the piextDeviceCreateWithNativeHandle.
       //
+      std::vector<pi_device> PiSubDevices;
       pi_uint32 SubDevicesCount = 0;
       ZE_CALL(zeDeviceGetSubDevices,
               (Device->ZeDevice, &SubDevicesCount, nullptr));
 
-      auto ZeSubdevices = new ze_device_handle_t[SubDevicesCount];
-      ZE_CALL(zeDeviceGetSubDevices,
-              (Device->ZeDevice, &SubDevicesCount, ZeSubdevices));
+      if (SubDevicesCount) {
+        auto ZeSubdevices = new ze_device_handle_t[SubDevicesCount];
+        ZE_CALL(zeDeviceGetSubDevices,
+                (Device->ZeDevice, &SubDevicesCount, ZeSubdevices));
 
-      // Wrap the Level Zero sub-devices into PI sub-devices, and add them to
-      // cache.
-      for (uint32_t I = 0; I < SubDevicesCount; ++I) {
-        std::unique_ptr<_pi_device> PiSubDevice(
-            new _pi_device(ZeSubdevices[I], this, Device.get()));
-        pi_result Result = PiSubDevice->initialize();
-        if (Result != PI_SUCCESS) {
-          delete[] ZeSubdevices;
-          return Result;
+        // Wrap the Level Zero sub-devices into PI sub-devices
+        // and add them to cache.
+        for (uint32_t I = 0; I < SubDevicesCount; ++I) {
+          std::unique_ptr<_pi_device> PiSubDevice(
+              new _pi_device(ZeSubdevices[I], this, Device.get()));
+          pi_result Result = PiSubDevice->initialize();
+          if (Result != PI_SUCCESS) {
+            delete[] ZeSubdevices;
+            return Result;
+          }
+          // save pointers to sub-devices for quick retrieval in the future.
+          Device->SubDevices.push_back(PiSubDevice.get());
+          PiDevicesCache.push_back(std::move(PiSubDevice));
         }
+        delete[] ZeSubdevices;
+        PiSubDevices = Device->SubDevices;
+      } else {
+        // Level Zero will not report the sub-device on a single tile
+        // machine, but we still want that to be partitionable into
+        // multiple CCS-s. In this case the loop below will find out
+        // the CCS-s and report them as sub-devices of the root
+        // device.
+        SubDevicesCount = 1;
+        PiSubDevices.push_back(Device.get());
+      }
+
+      // Find out CCCs.
+      for (uint32_t I = 0; I < SubDevicesCount; ++I) {
+        auto PiSubDevice = PiSubDevices[I];
 
         // collect all the ordinals for the sub-sub-devices
         std::vector<int> Ordinals;
@@ -2611,7 +2628,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           for (uint32_t K = 0; K < QueueGroupProperties[Ordinals[J]].numQueues;
                ++K) {
             std::unique_ptr<_pi_device> PiSubSubDevice(
-                new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
+                new _pi_device(PiSubDevice->ZeDevice, this, PiSubDevice));
             pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
             if (Result != PI_SUCCESS) {
               return Result;
@@ -2623,13 +2640,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
             PiDevicesCache.push_back(std::move(PiSubSubDevice));
           }
         }
-
-        // save pointers to sub-devices for quick retrieval in the future.
-        Device->SubDevices.push_back(PiSubDevice.get());
-        PiDevicesCache.push_back(std::move(PiSubDevice));
       }
-      delete[] ZeSubdevices;
-
       // Save the root device in the cache for future uses.
       PiDevicesCache.push_back(std::move(Device));
     }
@@ -3153,20 +3164,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                       PI_SUCCESS);
       return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
+    // Only report device memory which zeMemAllocDevice can allocate from.
+    // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
-    uint32_t MemCount = 0;
-    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
-    std::vector<zes_mem_handle_t> MemHandles(MemCount);
-    ZE_CALL(zesDeviceEnumMemoryModules,
-            (ZeDevice, &MemCount, MemHandles.data()));
-
-    for (auto &ZesMemHandle : MemHandles) {
+    uint32_t MemCount = 1;
+    zes_mem_handle_t ZesMemHandle;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, &ZesMemHandle));
+    if (MemCount != 0) {
       ZesStruct<zes_mem_properties_t> ZeMemProperties;
       ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
-      // Only report HBM which zeMemAllocDevice allocates from.
-      if (ZeMemProperties.type != ZES_MEM_TYPE_HBM)
-        continue;
-
       ZesStruct<zes_mem_state_t> ZeMemState;
       ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
       FreeMemory += ZeMemState.free;
@@ -5517,7 +5523,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
-    if (Queue->Device->eventsScope() != OnDemandHostVisibleProxy)
+    if (DeviceEventsSetting != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -5899,8 +5905,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     return PI_ERROR_INVALID_EVENT;
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventList[I]->Queue->Device->eventsScope() ==
-        OnDemandHostVisibleProxy) {
+    if (DeviceEventsSetting == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
@@ -6665,7 +6670,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   printZeEventList(WaitList);
 
   ZE_CALL(zeCommandListAppendMemoryCopy,
-    (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
+          (ZeCommandList, Dst, Src, Size, ZeEvent, 0, nullptr));
 
   if (auto Res =
           Queue->executeCommandList(CommandList, BlockingWrite, OkToBatch))
@@ -6918,15 +6923,17 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
 
   auto &Device = Queue->Device;
 
-  // Performance analysis on a simple SYCL data "fill" test shows copy engine
-  // is faster than compute engine for such operations.
-  //
-  bool PreferCopyEngine = true;
+  // Default to using compute engine for fill operation, but allow to
+  // override this with an environment variable.
+  const char *PreferCopyEngineEnv =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
+  bool PreferCopyEngine =
+      PreferCopyEngineEnv ? std::stoi(PreferCopyEngineEnv) != 0 : false;
 
   // Make sure that pattern size matches the capability of the copy queues.
   // Check both main and link groups as we don't known which one will be used.
   //
-  if (Device->hasCopyEngine()) {
+  if (PreferCopyEngine && Device->hasCopyEngine()) {
     if (Device->hasMainCopyEngine() &&
         Device->QueueGroup[_pi_device::queue_group_info_t::MainCopy]
                 .ZeProperties.maxMemoryFillPatternSize < PatternSize) {

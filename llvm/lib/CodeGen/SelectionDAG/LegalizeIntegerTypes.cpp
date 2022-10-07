@@ -2988,23 +2988,17 @@ void DAGTypeLegalizer::ExpandIntRes_ADDSUB(SDNode *N,
   if (N->getOpcode() == ISD::ADD) {
     Lo = DAG.getNode(ISD::ADD, dl, NVT, LoOps);
     Hi = DAG.getNode(ISD::ADD, dl, NVT, makeArrayRef(HiOps, 2));
-    SDValue Cmp1 = DAG.getSetCC(dl, getSetCCResultType(NVT), Lo, LoOps[0],
-                                ISD::SETULT);
+    SDValue Cmp = DAG.getSetCC(dl, getSetCCResultType(NVT), Lo, LoOps[0],
+                               ISD::SETULT);
 
-    if (BoolType == TargetLoweringBase::ZeroOrOneBooleanContent) {
-      SDValue Carry = DAG.getZExtOrTrunc(Cmp1, dl, NVT);
-      Hi = DAG.getNode(ISD::ADD, dl, NVT, Hi, Carry);
-      return;
-    }
+    SDValue Carry;
+    if (BoolType == TargetLoweringBase::ZeroOrOneBooleanContent)
+      Carry = DAG.getZExtOrTrunc(Cmp, dl, NVT);
+    else
+      Carry = DAG.getSelect(dl, NVT, Cmp, DAG.getConstant(1, dl, NVT),
+                             DAG.getConstant(0, dl, NVT));
 
-    SDValue Carry1 = DAG.getSelect(dl, NVT, Cmp1,
-                                   DAG.getConstant(1, dl, NVT),
-                                   DAG.getConstant(0, dl, NVT));
-    SDValue Cmp2 = DAG.getSetCC(dl, getSetCCResultType(NVT), Lo, LoOps[1],
-                                ISD::SETULT);
-    SDValue Carry2 = DAG.getSelect(dl, NVT, Cmp2,
-                                   DAG.getConstant(1, dl, NVT), Carry1);
-    Hi = DAG.getNode(ISD::ADD, dl, NVT, Hi, Carry2);
+    Hi = DAG.getNode(ISD::ADD, dl, NVT, Hi, Carry);
   } else {
     Lo = DAG.getNode(ISD::SUB, dl, NVT, LoOps);
     Hi = DAG.getNode(ISD::SUB, dl, NVT, makeArrayRef(HiOps, 2));
@@ -3452,12 +3446,26 @@ void DAGTypeLegalizer::ExpandIntRes_FP_TO_XINT_SAT(SDNode *N, SDValue &Lo,
 
 void DAGTypeLegalizer::ExpandIntRes_LLROUND_LLRINT(SDNode *N, SDValue &Lo,
                                                    SDValue &Hi) {
-  SDValue Op = N->getOperand(N->isStrictFPOpcode() ? 1 : 0);
+  SDLoc dl(N);
+  bool IsStrict = N->isStrictFPOpcode();
+  SDValue Op = N->getOperand(IsStrict ? 1 : 0);
+  SDValue Chain = IsStrict ? N->getOperand(0) : SDValue();
 
   assert(getTypeAction(Op.getValueType()) != TargetLowering::TypePromoteFloat &&
          "Input type needs to be promoted!");
 
   EVT VT = Op.getValueType();
+
+  if (VT == MVT::f16) {
+    VT = MVT::f32;
+    // Extend to f32.
+    if (IsStrict) {
+      Op = DAG.getNode(ISD::STRICT_FP_EXTEND, dl, { VT, MVT::Other }, {Chain, Op});
+      Chain = Op.getValue(1);
+    } else {
+      Op = DAG.getNode(ISD::FP_EXTEND, dl, VT, Op);
+    }
+  }
 
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
   if (N->getOpcode() == ISD::LLROUND ||
@@ -3489,9 +3497,7 @@ void DAGTypeLegalizer::ExpandIntRes_LLROUND_LLRINT(SDNode *N, SDValue &Lo,
   } else
     llvm_unreachable("Unexpected opcode!");
 
-  SDLoc dl(N);
   EVT RetVT = N->getValueType(0);
-  SDValue Chain = N->isStrictFPOpcode() ? N->getOperand(0) : SDValue();
 
   TargetLowering::MakeLibCallOptions CallOptions;
   CallOptions.setSExt(true);
@@ -4427,6 +4433,22 @@ void DAGTypeLegalizer::ExpandIntRes_UDIV(SDNode *N,
     return;
   }
 
+  // Try to expand UDIV by constant.
+  if (isa<ConstantSDNode>(N->getOperand(1))) {
+    EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
+    // Only if the new type is legal.
+    if (isTypeLegal(NVT)) {
+      SDValue InL, InH;
+      GetExpandedInteger(N->getOperand(0), InL, InH);
+      SmallVector<SDValue> Result;
+      if (TLI.expandDIVREMByConstant(N, Result, NVT, DAG, InL, InH)) {
+        Lo = Result[0];
+        Hi = Result[1];
+        return;
+      }
+    }
+  }
+
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
   if (VT == MVT::i16)
     LC = RTLIB::UDIV_I16;
@@ -4452,6 +4474,22 @@ void DAGTypeLegalizer::ExpandIntRes_UREM(SDNode *N,
     SDValue Res = DAG.getNode(ISD::UDIVREM, dl, DAG.getVTList(VT, VT), Ops);
     SplitInteger(Res.getValue(1), Lo, Hi);
     return;
+  }
+
+  // Try to expand UREM by constant.
+  if (isa<ConstantSDNode>(N->getOperand(1))) {
+    EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
+    // Only if the new type is legal.
+    if (isTypeLegal(NVT)) {
+      SDValue InL, InH;
+      GetExpandedInteger(N->getOperand(0), InL, InH);
+      SmallVector<SDValue> Result;
+      if (TLI.expandDIVREMByConstant(N, Result, NVT, DAG, InL, InH)) {
+        Lo = Result[0];
+        Hi = Result[1];
+        return;
+      }
+    }
   }
 
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;

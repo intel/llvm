@@ -38,14 +38,14 @@ public:
       AllocKind != usm::alloc::device,
       "usm_allocator does not support AllocKind == usm::alloc::device");
 
-  usm_allocator() noexcept = delete;
+  usm_allocator() = delete;
   usm_allocator(const context &Ctxt, const device &Dev,
-                const property_list &PropList = {}) noexcept
+                const property_list &PropList = {})
       : MContext(Ctxt), MDevice(Dev), MPropList(PropList) {}
-  usm_allocator(const queue &Q, const property_list &PropList = {}) noexcept
+  usm_allocator(const queue &Q, const property_list &PropList = {})
       : MContext(Q.get_context()), MDevice(Q.get_device()),
         MPropList(PropList) {}
-  usm_allocator(const usm_allocator &) noexcept = default;
+  usm_allocator(const usm_allocator &) = default;
   usm_allocator(usm_allocator &&) noexcept = default;
   usm_allocator &operator=(const usm_allocator &Other) {
     MContext = Other.MContext;

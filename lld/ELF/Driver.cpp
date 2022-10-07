@@ -947,15 +947,21 @@ template <class ELFT> static void readCallGraphsFromObjectFiles() {
   }
 }
 
-static bool getCompressDebugSections(opt::InputArgList &args) {
+static DebugCompressionType getCompressDebugSections(opt::InputArgList &args) {
   StringRef s = args.getLastArgValue(OPT_compress_debug_sections, "none");
-  if (s == "none")
-    return false;
-  if (s != "zlib")
+  if (s == "zlib") {
+    if (!compression::zlib::isAvailable())
+      error("--compress-debug-sections: zlib is not available");
+    return DebugCompressionType::Zlib;
+  }
+  if (s == "zstd") {
+    if (!compression::zstd::isAvailable())
+      error("--compress-debug-sections: zstd is not available");
+    return DebugCompressionType::Zstd;
+  }
+  if (s != "none")
     error("unknown --compress-debug-sections value: " + s);
-  if (!compression::zlib::isAvailable())
-    error("--compress-debug-sections: zlib is not available");
-  return true;
+  return DebugCompressionType::None;
 }
 
 static StringRef getAliasSpelling(opt::Arg *arg) {
@@ -1346,8 +1352,10 @@ static void readConfigs(opt::InputArgList &args) {
   config->passPlugins = args::getStrings(args, OPT_load_pass_plugins);
 
   // Parse -mllvm options.
-  for (auto *arg : args.filtered(OPT_mllvm))
+  for (auto *arg : args.filtered(OPT_mllvm)) {
     parseClangOption(arg->getValue(), arg->getSpelling());
+    config->mllvmOpts.emplace_back(arg->getValue());
+  }
 
   // --threads= takes a positive integer and provides the default value for
   // --thinlto-jobs=.
@@ -1362,6 +1370,7 @@ static void readConfigs(opt::InputArgList &args) {
   }
   if (auto *arg = args.getLastArg(OPT_thinlto_jobs))
     config->thinLTOJobs = arg->getValue();
+  config->threadCount = parallel::strategy.compute_thread_count();
 
   if (config->ltoo > 3)
     error("invalid optimization level for LTO: " + Twine(config->ltoo));

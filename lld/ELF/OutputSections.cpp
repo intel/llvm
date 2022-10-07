@@ -17,11 +17,15 @@
 #include "lld/Common/Memory.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/Config/llvm-config.h" // LLVM_ENABLE_ZLIB
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TimeProfiler.h"
 #if LLVM_ENABLE_ZLIB
 #include <zlib.h>
+#endif
+#if LLVM_ENABLE_ZSTD
+#include <zstd.h>
 #endif
 
 using namespace llvm;
@@ -320,22 +324,70 @@ static SmallVector<uint8_t, 0> deflateShard(ArrayRef<uint8_t> in, int level,
 
 // Compress section contents if this section contains debug info.
 template <class ELFT> void OutputSection::maybeCompress() {
-#if LLVM_ENABLE_ZLIB
   using Elf_Chdr = typename ELFT::Chdr;
+  (void)sizeof(Elf_Chdr);
 
   // Compress only DWARF debug sections.
-  if (!config->compressDebugSections || (flags & SHF_ALLOC) ||
-      !name.startswith(".debug_") || size == 0)
+  if (config->compressDebugSections == DebugCompressionType::None ||
+      (flags & SHF_ALLOC) || !name.startswith(".debug_") || size == 0)
     return;
 
   llvm::TimeTraceScope timeScope("Compress debug sections");
-
-  // Write uncompressed data to a temporary zero-initialized buffer.
+  compressed.uncompressedSize = size;
   auto buf = std::make_unique<uint8_t[]>(size);
+  // Write uncompressed data to a temporary zero-initialized buffer.
   {
     parallel::TaskGroup tg;
     writeTo<ELFT>(buf.get(), tg);
   }
+
+#if LLVM_ENABLE_ZSTD
+  // Use ZSTD's streaming compression API which permits parallel workers working
+  // on the stream. See http://facebook.github.io/zstd/zstd_manual.html
+  // "Streaming compression - HowTo".
+  if (config->compressDebugSections == DebugCompressionType::Zstd) {
+    // Allocate a buffer of half of the input size, and grow it by 1.5x if
+    // insufficient.
+    compressed.shards = std::make_unique<SmallVector<uint8_t, 0>[]>(1);
+    SmallVector<uint8_t, 0> &out = compressed.shards[0];
+    out.resize_for_overwrite(std::max<size_t>(size / 2, 32));
+    size_t pos = 0;
+
+    ZSTD_CCtx *cctx = ZSTD_createCCtx();
+    // Ignore error if zstd was not built with ZSTD_MULTITHREAD.
+    (void)ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers,
+                                 parallel::strategy.compute_thread_count());
+    ZSTD_outBuffer zob = {out.data(), out.size(), 0};
+    ZSTD_EndDirective directive = ZSTD_e_continue;
+    const size_t blockSize = ZSTD_CStreamInSize();
+    do {
+      const size_t n = std::min(static_cast<size_t>(size - pos), blockSize);
+      if (n == size - pos)
+        directive = ZSTD_e_end;
+      ZSTD_inBuffer zib = {buf.get() + pos, n, 0};
+      size_t bytesRemaining = 0;
+      while (zib.pos != zib.size ||
+             (directive == ZSTD_e_end && bytesRemaining != 0)) {
+        if (zob.pos == zob.size) {
+          out.resize_for_overwrite(out.size() * 3 / 2);
+          zob.dst = out.data();
+          zob.size = out.size();
+        }
+        bytesRemaining = ZSTD_compressStream2(cctx, &zob, &zib, directive);
+        assert(!ZSTD_isError(bytesRemaining));
+      }
+      pos += n;
+    } while (directive != ZSTD_e_end);
+    out.resize(zob.pos);
+    ZSTD_freeCCtx(cctx);
+
+    size = sizeof(Elf_Chdr) + out.size();
+    flags |= SHF_COMPRESSED;
+    return;
+  }
+#endif
+
+#if LLVM_ENABLE_ZLIB
   // We chose 1 (Z_BEST_SPEED) as the default compression level because it is
   // the fastest. If -O2 is given, we use level 6 to compress debug info more by
   // ~15%. We found that level 7 to 9 doesn't make much difference (~1% more
@@ -361,7 +413,6 @@ template <class ELFT> void OutputSection::maybeCompress() {
 
   // Update section size and combine Alder-32 checksums.
   uint32_t checksum = 1;       // Initial Adler-32 value
-  compressed.uncompressedSize = size;
   size = sizeof(Elf_Chdr) + 2; // Elf_Chdir and zlib header
   for (size_t i = 0; i != numShards; ++i) {
     size += shardsOut[i].size();
@@ -400,10 +451,15 @@ void OutputSection::writeTo(uint8_t *buf, parallel::TaskGroup &tg) {
   // just write it down.
   if (compressed.shards) {
     auto *chdr = reinterpret_cast<typename ELFT::Chdr *>(buf);
-    chdr->ch_type = ELFCOMPRESS_ZLIB;
     chdr->ch_size = compressed.uncompressedSize;
     chdr->ch_addralign = alignment;
     buf += sizeof(*chdr);
+    if (config->compressDebugSections == DebugCompressionType::Zstd) {
+      chdr->ch_type = ELFCOMPRESS_ZSTD;
+      memcpy(buf, compressed.shards[0].data(), compressed.shards[0].size());
+      return;
+    }
+    chdr->ch_type = ELFCOMPRESS_ZLIB;
 
     // Compute shard offsets.
     auto offsets = std::make_unique<size_t[]>(compressed.numShards);

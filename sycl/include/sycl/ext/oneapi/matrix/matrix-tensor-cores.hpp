@@ -19,7 +19,6 @@ namespace experimental {
 namespace matrix {
 //TODO ifdef this stuff!
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 template <typename type, size_t size> class wi_data {
   marray<type, size> &data;
   wi_data(marray<type, size> &wi_data) : data(wi_data){};

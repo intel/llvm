@@ -48,8 +48,13 @@ int main(int argc, char **argv, char *env[]) {
       NewEnv.emplace_back(env[I++]);
   }
 
+#ifdef __linux__
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.so");
+#elif defined(__APPLE__)
+  NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.dylib");
+  NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_pi_trace_collector.dylib");
+#endif
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
 
   const auto EnablePITrace = [&]() {

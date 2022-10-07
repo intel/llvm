@@ -13,7 +13,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/StringSet.h"
 
 namespace mlir {
 class AffineExpr;
@@ -44,6 +44,12 @@ bool isElementwise(LinalgOp op);
 /// Check if `permutation` is a permutation of the range
 /// `[0, permutation.size())`.
 bool isPermutation(ArrayRef<int64_t> permutation);
+
+/// Check if `attr` has "parallel" iterator type semantics.
+bool isParallelIterator(Attribute attr);
+
+/// Check if `attr` has "reduction" iterator type semantics.
+bool isReductionIterator(Attribute attr);
 
 /// Helper function that creates a memref::DimOp or tensor::DimOp depending on
 /// the type of `source`.
@@ -186,15 +192,6 @@ SmallVector<Type> getTensorOutputTypes(LinalgOp op, ValueRange operands);
 SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
                                     LinalgOp op, ValueRange operands,
                                     ValueRange results);
-
-/// Turns an OpFoldResult into a value, creating an index-typed constant if
-/// necessary.
-Value materializeOpFoldResult(ImplicitLocOpBuilder &builder,
-                              OpFoldResult opFoldResult);
-Value materializeOpFoldResult(OpBuilder &b, Location loc,
-                              OpFoldResult opFoldResult);
-Value materializeOpFoldResult(OpBuilder &b, Location loc,
-                              ArrayRef<OpFoldResult> opFoldResults);
 
 /// A struct containg offsets-sizes-strides arguments of the tiled shape.
 struct SliceParameters {
@@ -497,6 +494,23 @@ struct GenerateLoopNest {
                        bodyBuilderFn,
                    ArrayRef<linalg::ProcInfo> procInfo = {});
 };
+
+/// Returns an attribute list that excludes pre-defined attributes.
+template <typename OpTy>
+SmallVector<NamedAttribute> getPrunedAttributeList(OpTy op) {
+  llvm::StringSet<> elidedAttrs;
+  elidedAttrs.insert(op.getAttributeNames().begin(),
+                     op.getAttributeNames().end());
+  if (isa<linalg::LinalgOp>(op.getOperation()))
+    elidedAttrs.insert(LinalgDialect::kMemoizedIndexingMapsAttrName);
+  SmallVector<NamedAttribute> attrs;
+  for (auto attr : op->getAttrs()) {
+    if (elidedAttrs.count(attr.getName()))
+      continue;
+    attrs.push_back(attr);
+  }
+  return attrs;
+}
 
 } // namespace linalg
 } // namespace mlir

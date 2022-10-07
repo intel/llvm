@@ -173,4 +173,37 @@ unsigned long long int __devicelib_imf_umul64hi(unsigned long long int x,
                               static_cast<uint64_t>(y));
 #endif
 }
+
+DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_llmax(long long int x, long long int y) {
+  return __imax(x, y);
+  ;
+}
+
+DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_llmin(long long int x, long long int y) {
+  return __imin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_ullmax(unsigned long long int x,
+                                              unsigned long long int y) {
+  return __imax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_ullmin(unsigned long long int x,
+                                              unsigned long long int y) {
+  return __imin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umax(unsigned int x, unsigned int y) {
+  return __imax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umin(unsigned int x, unsigned int y) {
+  return __imin(x, y);
+}
 #endif //__LIBDEVICE_IMF_ENABLED__

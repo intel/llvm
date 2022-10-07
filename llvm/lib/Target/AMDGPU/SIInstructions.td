@@ -921,62 +921,70 @@ def : GCNPat <
 } // End OtherPredicates = [UnsafeFPMath]
 
 
-// f16_to_fp patterns
-def : GCNPat <
-  (f32 (f16_to_fp i32:$src0)),
-  (V_CVT_F32_F16_e64 SRCMODS.NONE, $src0)
->;
+multiclass f16_fp_Pats<Instruction cvt_f16_f32_inst_e64, Instruction cvt_f32_f16_inst_e64> {
+  // f16_to_fp patterns
+  def : GCNPat <
+    (f32 (f16_to_fp i32:$src0)),
+    (cvt_f32_f16_inst_e64 SRCMODS.NONE, $src0)
+  >;
 
-def : GCNPat <
-  (f32 (f16_to_fp (and_oneuse i32:$src0, 0x7fff))),
-  (V_CVT_F32_F16_e64 SRCMODS.ABS, $src0)
->;
+  def : GCNPat <
+    (f32 (f16_to_fp (and_oneuse i32:$src0, 0x7fff))),
+    (cvt_f32_f16_inst_e64 SRCMODS.ABS, $src0)
+  >;
 
-def : GCNPat <
-  (f32 (f16_to_fp (i32 (srl_oneuse (and_oneuse i32:$src0, 0x7fff0000), (i32 16))))),
-  (V_CVT_F32_F16_e64 SRCMODS.ABS, (i32 (V_LSHRREV_B32_e64 (i32 16), i32:$src0)))
->;
+  def : GCNPat <
+    (f32 (f16_to_fp (i32 (srl_oneuse (and_oneuse i32:$src0, 0x7fff0000), (i32 16))))),
+    (cvt_f32_f16_inst_e64 SRCMODS.ABS, (i32 (V_LSHRREV_B32_e64 (i32 16), i32:$src0)))
+  >;
 
-def : GCNPat <
-  (f32 (f16_to_fp (or_oneuse i32:$src0, 0x8000))),
-  (V_CVT_F32_F16_e64 SRCMODS.NEG_ABS, $src0)
->;
+  def : GCNPat <
+    (f32 (f16_to_fp (or_oneuse i32:$src0, 0x8000))),
+    (cvt_f32_f16_inst_e64 SRCMODS.NEG_ABS, $src0)
+  >;
 
-def : GCNPat <
-  (f32 (f16_to_fp (xor_oneuse i32:$src0, 0x8000))),
-  (V_CVT_F32_F16_e64 SRCMODS.NEG, $src0)
->;
+  def : GCNPat <
+    (f32 (f16_to_fp (xor_oneuse i32:$src0, 0x8000))),
+    (cvt_f32_f16_inst_e64 SRCMODS.NEG, $src0)
+  >;
 
-def : GCNPat <
-  (f64 (fpextend f16:$src)),
-  (V_CVT_F64_F32_e32 (V_CVT_F32_F16_e32 $src))
->;
+  def : GCNPat <
+    (f64 (fpextend f16:$src)),
+    (V_CVT_F64_F32_e32 (cvt_f32_f16_inst_e64 SRCMODS.NONE, $src))
+  >;
 
-// fp_to_fp16 patterns
-def : GCNPat <
-  (i32 (AMDGPUfp_to_f16 (f32 (VOP3Mods f32:$src0, i32:$src0_modifiers)))),
-  (V_CVT_F16_F32_e64 $src0_modifiers, f32:$src0)
->;
+  // fp_to_fp16 patterns
+  def : GCNPat <
+    (i32 (AMDGPUfp_to_f16 (f32 (VOP3Mods f32:$src0, i32:$src0_modifiers)))),
+    (cvt_f16_f32_inst_e64 $src0_modifiers, f32:$src0)
+  >;
 
-def : GCNPat <
-  (i32 (fp_to_sint f16:$src)),
-  (V_CVT_I32_F32_e32 (V_CVT_F32_F16_e32 VSrc_b32:$src))
->;
+  def : GCNPat <
+    (i32 (fp_to_sint f16:$src)),
+    (V_CVT_I32_F32_e32 (cvt_f32_f16_inst_e64 SRCMODS.NONE, VSrc_b32:$src))
+  >;
 
-def : GCNPat <
-  (i32 (fp_to_uint f16:$src)),
-  (V_CVT_U32_F32_e32 (V_CVT_F32_F16_e32 VSrc_b32:$src))
->;
+  def : GCNPat <
+    (i32 (fp_to_uint f16:$src)),
+    (V_CVT_U32_F32_e32 (cvt_f32_f16_inst_e64 SRCMODS.NONE, VSrc_b32:$src))
+  >;
 
-def : GCNPat <
-  (f16 (sint_to_fp i32:$src)),
-  (V_CVT_F16_F32_e32 (V_CVT_F32_I32_e32 VSrc_b32:$src))
->;
+  def : GCNPat <
+    (f16 (sint_to_fp i32:$src)),
+    (cvt_f16_f32_inst_e64 SRCMODS.NONE, (V_CVT_F32_I32_e32 VSrc_b32:$src))
+  >;
 
-def : GCNPat <
-  (f16 (uint_to_fp i32:$src)),
-  (V_CVT_F16_F32_e32 (V_CVT_F32_U32_e32 VSrc_b32:$src))
->;
+  def : GCNPat <
+    (f16 (uint_to_fp i32:$src)),
+    (cvt_f16_f32_inst_e64 SRCMODS.NONE, (V_CVT_F32_U32_e32 VSrc_b32:$src))
+  >;
+}
+
+let SubtargetPredicate = NotHasTrue16BitInsts in
+defm : f16_fp_Pats<V_CVT_F16_F32_e64, V_CVT_F32_F16_e64>;
+
+let SubtargetPredicate = HasTrue16BitInsts in
+defm : f16_fp_Pats<V_CVT_F16_F32_t16_e64, V_CVT_F32_F16_t16_e64>;
 
 //===----------------------------------------------------------------------===//
 // VOP2 Patterns
@@ -984,20 +992,18 @@ def : GCNPat <
 
 // NoMods pattern used for mac. If there are any source modifiers then it's
 // better to select mad instead of mac.
-class FMADPat <ValueType vt, Instruction inst, SDPatternOperator node>
-  : GCNPat <(vt (node (vt (VOP3NoMods vt:$src0)),
-                      (vt (VOP3NoMods vt:$src1)),
-                      (vt (VOP3NoMods vt:$src2)))),
+class FMADPat <ValueType vt, Instruction inst>
+  : GCNPat <(vt (any_fmad (vt (VOP3NoMods vt:$src0)),
+                          (vt (VOP3NoMods vt:$src1)),
+                          (vt (VOP3NoMods vt:$src2)))),
     (inst SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
           SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
 // Prefer mac form when there are no modifiers.
 let AddedComplexity = 9 in {
-let OtherPredicates = [HasMadMacF32Insts] in {
-def : FMADPat <f32, V_MAC_F32_e64, fmad>;
-def : FMADPat <f32, V_MAC_F32_e64, AMDGPUfmad_ftz>;
-} // OtherPredicates = [HasMadMacF32Insts]
+let OtherPredicates = [HasMadMacF32Insts] in
+def : FMADPat <f32, V_MAC_F32_e64>;
 
 // Don't allow source modifiers. If there are any source modifiers then it's
 // better to select mad instead of mac.
@@ -1022,23 +1028,9 @@ def : GCNPat <
                              SRCMODS.NONE, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-let SubtargetPredicate = Has16BitInsts in {
-def : FMADPat <f16, V_MAC_F16_e64, fmad>;
-def : FMADPat <f16, V_MAC_F16_e64, AMDGPUfmad_ftz>;
-} // SubtargetPredicate = Has16BitInsts
+let SubtargetPredicate = Has16BitInsts in
+def : FMADPat <f16, V_MAC_F16_e64>;
 } // AddedComplexity = 9
-
-class FMADModsPat<ValueType Ty, Instruction inst, SDPatternOperator mad_opr>
-  : GCNPat<
-  (Ty (mad_opr (Ty (VOP3Mods Ty:$src0, i32:$src0_mod)),
-               (Ty (VOP3Mods Ty:$src1, i32:$src1_mod)),
-               (Ty (VOP3Mods Ty:$src2, i32:$src2_mod)))),
-  (inst $src0_mod, $src0, $src1_mod, $src1,
-  $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
->;
-
-let OtherPredicates = [HasMadMacF32Insts] in
-def : FMADModsPat<f32, V_MAD_F32_e64, AMDGPUfmad_ftz>;
 
 let OtherPredicates = [HasMadMacF32Insts, NoFP32Denormals] in
 def : GCNPat <
@@ -1048,9 +1040,6 @@ def : GCNPat <
       (V_MAD_LEGACY_F32_e64 $src0_mod, $src0, $src1_mod, $src1,
                         $src2_mod, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
-
-let SubtargetPredicate = Has16BitInsts in
-def : FMADModsPat<f16, V_MAD_F16_e64, AMDGPUfmad_ftz>;
 
 class VOPSelectModsPat <ValueType vt> : GCNPat <
   (vt (select i1:$src0, (VOP3Mods vt:$src1, i32:$src1_mods),
@@ -1522,7 +1511,10 @@ class ClampPat<Instruction inst, ValueType vt> : GCNPat <
 
 def : ClampPat<V_MAX_F32_e64, f32>;
 def : ClampPat<V_MAX_F64_e64, f64>;
+let SubtargetPredicate = NotHasTrue16BitInsts in
 def : ClampPat<V_MAX_F16_e64, f16>;
+let SubtargetPredicate = HasTrue16BitInsts in
+def : ClampPat<V_MAX_F16_t16_e64, f16>;
 
 let SubtargetPredicate = HasVOP3PInsts in {
 def : GCNPat <
@@ -2287,6 +2279,7 @@ def : GCNPat <
     )
 >;
 
+let SubtargetPredicate = NotHasTrue16BitInsts in
 def : GCNPat <
   (f16 (sint_to_fp i1:$src)),
   (V_CVT_F16_F32_e32 (
@@ -2295,9 +2288,27 @@ def : GCNPat <
                         SSrc_i1:$src))
 >;
 
+let SubtargetPredicate = HasTrue16BitInsts in
+def : GCNPat <
+  (f16 (sint_to_fp i1:$src)),
+  (V_CVT_F16_F32_t16_e32 (
+      V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
+                        /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_NEG_ONE),
+                        SSrc_i1:$src))
+>;
+
+let SubtargetPredicate = NotHasTrue16BitInsts in
 def : GCNPat <
   (f16 (uint_to_fp i1:$src)),
   (V_CVT_F16_F32_e32 (
+      V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
+                        /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_ONE),
+                        SSrc_i1:$src))
+>;
+let SubtargetPredicate = HasTrue16BitInsts in
+def : GCNPat <
+  (f16 (uint_to_fp i1:$src)),
+  (V_CVT_F16_F32_t16_e32 (
       V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                         /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_ONE),
                         SSrc_i1:$src))
@@ -2520,6 +2531,8 @@ def : GCNPat<
 
 // Prefer selecting to max when legal, but using mul is always valid.
 let AddedComplexity = -5 in {
+
+let OtherPredicates = [NotHasTrue16BitInsts] in {
 def : GCNPat<
   (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
   (V_MUL_F16_e64 0, (i32 CONST.FP16_ONE), $src_mods, $src)
@@ -2529,6 +2542,19 @@ def : GCNPat<
   (fcanonicalize (f16 (fneg (VOP3Mods f16:$src, i32:$src_mods)))),
   (V_MUL_F16_e64 0, (i32 CONST.FP16_NEG_ONE), $src_mods, $src)
 >;
+} // End OtherPredicates
+
+let OtherPredicates = [HasTrue16BitInsts] in {
+def : GCNPat<
+  (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
+  (V_MUL_F16_t16_e64 0, (i32 CONST.FP16_ONE), $src_mods, $src)
+>;
+
+def : GCNPat<
+  (fcanonicalize (f16 (fneg (VOP3Mods f16:$src, i32:$src_mods)))),
+  (V_MUL_F16_t16_e64 0, (i32 CONST.FP16_NEG_ONE), $src_mods, $src)
+>;
+} // End OtherPredicates
 
 def : GCNPat<
   (fcanonicalize (v2f16 (VOP3PMods v2f16:$src, i32:$src_mods))),
@@ -2571,8 +2597,13 @@ multiclass SelectCanonicalizeAsMax<
   def : GCNPat<
     (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
     (V_MAX_F16_e64 $src_mods, $src, $src_mods, $src, 0, 0)> {
-    // FIXME: Should have 16-bit inst subtarget predicate
-    let OtherPredicates = f16_preds;
+    let OtherPredicates = !listconcat(f16_preds, [Has16BitInsts, NotHasTrue16BitInsts]);
+  }
+
+  def : GCNPat<
+    (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
+    (V_MAX_F16_t16_e64 $src_mods, $src, $src_mods, $src, 0, 0)> {
+    let OtherPredicates = !listconcat(f16_preds, [Has16BitInsts, HasTrue16BitInsts]);
   }
 
   def : GCNPat<
@@ -2619,9 +2650,10 @@ def : GCNPat <
 >;
 } // End OtherPredicates = [HasDLInsts]
 
-let SubtargetPredicate = isGFX10Plus in
+let SubtargetPredicate = isGFX10Plus in {
 // Don't allow source modifiers. If there are any source modifiers then it's
 // better to select fma instead of fmac.
+let OtherPredicates = [NotHasTrue16BitInsts] in
 def : GCNPat <
   (fma (f16 (VOP3NoMods f32:$src0)),
        (f16 (VOP3NoMods f32:$src1)),
@@ -2629,6 +2661,15 @@ def : GCNPat <
   (V_FMAC_F16_e64 SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
                   SRCMODS.NONE, $src2)
 >;
+let OtherPredicates = [HasTrue16BitInsts] in
+def : GCNPat <
+  (fma (f16 (VOP3NoMods f32:$src0)),
+       (f16 (VOP3NoMods f32:$src1)),
+       (f16 (VOP3NoMods f32:$src2))),
+  (V_FMAC_F16_t16_e64 SRCMODS.NONE, $src0, SRCMODS.NONE, $src1,
+                  SRCMODS.NONE, $src2)
+>;
+}
 
 let SubtargetPredicate = isGFX90APlus in
 // Don't allow source modifiers. If there are any source modifiers then it's
@@ -2969,71 +3010,67 @@ def : AMDGPUPat <
 
 multiclass IntMed3Pat<Instruction med3Inst,
                  SDPatternOperator min,
-                 SDPatternOperator max,
-                 SDPatternOperator min_oneuse,
-                 SDPatternOperator max_oneuse> {
+                 SDPatternOperator max> {
 
   // This matches 16 permutations of
   // min(max(a, b), max(min(a, b), c))
   def : AMDGPUPat <
-  (min (max_oneuse i32:$src0, i32:$src1),
-       (max_oneuse (min_oneuse i32:$src0, i32:$src1), i32:$src2)),
+  (min (max i32:$src0, i32:$src1),
+       (max (min i32:$src0, i32:$src1), i32:$src2)),
   (med3Inst VSrc_b32:$src0, VSrc_b32:$src1, VSrc_b32:$src2)
 >;
 
   // This matches 16 permutations of
   // max(min(x, y), min(max(x, y), z))
   def : AMDGPUPat <
-  (max (min_oneuse i32:$src0, i32:$src1),
-       (min_oneuse (max_oneuse i32:$src0, i32:$src1), i32:$src2)),
+  (max (min i32:$src0, i32:$src1),
+       (min (max i32:$src0, i32:$src1), i32:$src2)),
   (med3Inst VSrc_b32:$src0, VSrc_b32:$src1, VSrc_b32:$src2)
 >;
 }
 
-defm : IntMed3Pat<V_MED3_I32_e64, smin, smax, smin_oneuse, smax_oneuse>;
-defm : IntMed3Pat<V_MED3_U32_e64, umin, umax, umin_oneuse, umax_oneuse>;
+defm : IntMed3Pat<V_MED3_I32_e64, smin, smax>;
+defm : IntMed3Pat<V_MED3_U32_e64, umin, umax>;
 
 // This matches 16 permutations of
 // max(min(x, y), min(max(x, y), z))
 class FPMed3Pat<ValueType vt,
                 //SDPatternOperator max, SDPatternOperator min,
                 Instruction med3Inst> : GCNPat<
-  (fmaxnum_like (fminnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
-                           (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
-           (fminnum_like_oneuse (fmaxnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
-                                           (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
-                           (vt (VOP3Mods_nnan vt:$src2, i32:$src2_mods)))),
+  (fmaxnum_like (fminnum_like (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
+                              (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
+           (fminnum_like (fmaxnum_like (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
+                                       (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
+                         (vt (VOP3Mods_nnan vt:$src2, i32:$src2_mods)))),
   (med3Inst $src0_mods, $src0, $src1_mods, $src1, $src2_mods, $src2, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
 class FP16Med3Pat<ValueType vt,
                 Instruction med3Inst> : GCNPat<
-  (fmaxnum_like (fminnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
+  (fmaxnum_like (fminnum_like (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
                                      (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
-           (fminnum_like_oneuse (fmaxnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
-                                                     (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
-                           (vt (VOP3Mods_nnan vt:$src2, i32:$src2_mods)))),
+                (fminnum_like (fmaxnum_like (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
+                                            (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
+                              (vt (VOP3Mods_nnan vt:$src2, i32:$src2_mods)))),
   (med3Inst $src0_mods, $src0, $src1_mods, $src1, $src2_mods, $src2, DSTCLAMP.NONE)
 >;
 
 multiclass Int16Med3Pat<Instruction med3Inst,
-                   SDPatternOperator min,
-                   SDPatternOperator max,
-                   SDPatternOperator max_oneuse,
-                   SDPatternOperator min_oneuse> {
+                        SDPatternOperator min,
+                        SDPatternOperator max> {
   // This matches 16 permutations of
   // max(min(x, y), min(max(x, y), z))
   def : GCNPat <
-  (max (min_oneuse i16:$src0, i16:$src1),
-       (min_oneuse (max_oneuse i16:$src0, i16:$src1), i16:$src2)),
+  (max (min i16:$src0, i16:$src1),
+       (min (max i16:$src0, i16:$src1), i16:$src2)),
   (med3Inst SRCMODS.NONE, VSrc_b16:$src0, SRCMODS.NONE, VSrc_b16:$src1, SRCMODS.NONE, VSrc_b16:$src2, DSTCLAMP.NONE)
 >;
 
   // This matches 16 permutations of
   // min(max(a, b), max(min(a, b), c))
   def : GCNPat <
-  (min (max_oneuse i16:$src0, i16:$src1),
-      (max_oneuse (min_oneuse i16:$src0, i16:$src1), i16:$src2)),
+  (min (max i16:$src0, i16:$src1),
+       (max (min i16:$src0, i16:$src1), i16:$src2)),
   (med3Inst SRCMODS.NONE, VSrc_b16:$src0, SRCMODS.NONE, VSrc_b16:$src1, SRCMODS.NONE, VSrc_b16:$src2, DSTCLAMP.NONE)
 >;
 }
@@ -3071,8 +3108,8 @@ def : FPMinMaxPat<V_MAXMIN_F16_e64, f16, fminnum_like, fmaxnum_like_oneuse>;
 
 let OtherPredicates = [isGFX9Plus] in {
 def : FP16Med3Pat<f16, V_MED3_F16_e64>;
-defm : Int16Med3Pat<V_MED3_I16_e64, smin, smax, smax_oneuse, smin_oneuse>;
-defm : Int16Med3Pat<V_MED3_U16_e64, umin, umax, umax_oneuse, umin_oneuse>;
+defm : Int16Med3Pat<V_MED3_I16_e64, smin, smax>;
+defm : Int16Med3Pat<V_MED3_U16_e64, umin, umax>;
 } // End Predicates = [isGFX9Plus]
 
 class AMDGPUGenericInstruction : GenericInstruction {

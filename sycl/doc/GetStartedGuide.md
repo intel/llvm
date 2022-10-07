@@ -641,6 +641,17 @@ clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
   simple-sycl-app.cpp -o simple-sycl-app-amd.exe
 ```
 
+The target architecture may also be specified for the CUDA backend, with 
+`-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is 
+necessary if an application aims to use newer hardware features, such as
+native atomic operations or tensor core operations. 
+
+```bash
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
+  simple-sycl-app.cpp -o simple-sycl-app-cuda.exe \
+  -Xsycl-target-backend --cuda-gpu-arch=sm_80
+```
+
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
 specify the target architecture.  The examples provided use a supported
 alias for the target, representing a full triple.  Additional details can
@@ -670,7 +681,7 @@ more. To find available options, execute:
 
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
-of accelerators available in the system or SYCL host device.
+of accelerators available in the system.
 In this case, the behavior of the `default_selector` can be altered
 using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
 the usage of the CUDA backend (if available), `PI_HIP` forces
@@ -682,9 +693,6 @@ SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 ```
 
 The default is the OpenCL backend if available.
-If there are no OpenCL or CUDA devices available, the SYCL host device is used.
-The SYCL host device executes the SYCL application directly in the host,
-without using any low-level API.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
@@ -825,7 +833,6 @@ which contains all the symbols required.
 
 * DPC++ device compiler fails if the same kernel was used in different
   translation units.
-* SYCL host device is not fully supported.
 * SYCL 2020 support work is in progress.
 * 32-bit host/target is not supported.
 * DPC++ works only with OpenCL low level runtimes which support out-of-order

@@ -83,7 +83,6 @@ public:
   OutputSection *parent = nullptr;
   ArrayRef<uint8_t> data;
   std::vector<Reloc> relocs;
-  ArrayRef<OptimizationHint> optimizationHints;
   // The symbols that belong to this InputSection, sorted by value. With
   // .subsections_via_symbols, there is typically only one element here.
   llvm::TinyPtrVector<Defined *> symbols;
@@ -208,8 +207,10 @@ public:
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   StringRef getStringRef(size_t i) const {
     size_t begin = pieces[i].inSecOff;
+    // The endpoint should be *at* the null terminator, not after. This matches
+    // the behavior of StringRef(const char *Str).
     size_t end =
-        (pieces.size() - 1 == i) ? data.size() : pieces[i + 1].inSecOff;
+        ((pieces.size() - 1 == i) ? data.size() : pieces[i + 1].inSecOff) - 1;
     return toStringRef(data.slice(begin, end - begin));
   }
 
@@ -283,6 +284,7 @@ inline bool isWordLiteralSection(uint32_t flags) {
 bool isCodeSection(const InputSection *);
 bool isCfStringSection(const InputSection *);
 bool isClassRefsSection(const InputSection *);
+bool isSelRefsSection(const InputSection *);
 bool isEhFrameSection(const InputSection *);
 bool isGccExceptTabSection(const InputSection *);
 
