@@ -699,16 +699,13 @@ template <
     typename Group, typename S, typename T, matrix_use Use, size_t NumRows,
     size_t NumCols, matrix_layout Layout, access::address_space Space,
     access::decorated IsDecorated,
-    std::enable_if_t<
-        std::is_same<S,
-                     std::is_same<std::remove_const_t<T>>::value ||
+    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
                          (std::is_same<S, precision::tf32>::value &&
                           std::is_same<std::remove_const_t<T>, float>::value),
-                     bool> = true> void
-        joint_matrix_load(
-            Group sg,
-            joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
-            multi_ptr<T, Space, IsDecorated> src, size_t stride) {
+                     bool> = true>
+void joint_matrix_load(
+    Group sg, joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_load_impl<
       S, T, Use, NumRows, NumCols, Layout, Space, IsDecorated>{}
