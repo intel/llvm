@@ -213,7 +213,7 @@ private:
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
 
   /// Compute and set the symbol visibility on the given \p function.
-  void setMLIRFunctionVisibility(mlir::FunctionOpInterface &function,
+  void setMLIRFunctionVisibility(mlir::FunctionOpInterface function,
                                  const clang::FunctionDecl &FD,
                                  bool shouldEmit);
 
@@ -228,7 +228,7 @@ private:
                              llvm::SmallVectorImpl<mlir::Type> &retTypes);
 
   /// Compute and set the MLIR function attributes for the given \p function.
-  void setMLIRFunctionAttributes(mlir::FunctionOpInterface &function,
+  void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
                                  const FunctionToEmit &F,
                                  mlir::LLVM::Linkage lnk,
                                  mlir::MLIRContext *ctx) const;

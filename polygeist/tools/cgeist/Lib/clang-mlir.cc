@@ -2917,8 +2917,9 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
                  << Def->getNameAsString() << " to functionsToEmit\n");
       functionsToEmit.emplace_back(*Def, F.getContext());
     }
-  } else if (ShouldEmit)
+  } else if (ShouldEmit) {
     emitIfFound.insert(mangledName);
+  }
 
   return function;
 }
@@ -3169,9 +3170,9 @@ MLIRASTConsumer::getLLVMLinkageType(const clang::FunctionDecl &FD,
                                     bool shouldEmit) {
   if (!FD.hasBody() || !shouldEmit)
     return llvm::GlobalValue::LinkageTypes::ExternalLinkage;
-  else if (auto CC = dyn_cast<CXXConstructorDecl>(&FD))
+  if (auto CC = dyn_cast<CXXConstructorDecl>(&FD))
     return CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(&FD))
+  if (auto CC = dyn_cast<CXXDestructorDecl>(&FD))
     return CGM.getFunctionLinkage(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
 
   return CGM.getFunctionLinkage(&FD);
@@ -3208,16 +3209,20 @@ MLIRASTConsumer::getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV) {
 }
 
 void MLIRASTConsumer::setMLIRFunctionVisibility(
-    mlir::FunctionOpInterface &function, const clang::FunctionDecl &FD,
+    mlir::FunctionOpInterface function, const clang::FunctionDecl &FD,
     bool shouldEmit) {
-  llvm::GlobalValue::LinkageTypes LV = getLLVMLinkageType(FD, shouldEmit);
-  SymbolTable::Visibility visibility =
-      (LV == llvm::GlobalValue::InternalLinkage ||
-       LV == llvm::GlobalValue::PrivateLinkage || !FD.isDefined() ||
-       FD.hasAttr<CUDAGlobalAttr>() || FD.hasAttr<CUDADeviceAttr>() ||
-       !shouldEmit)
-          ? SymbolTable::Visibility::Private
-          : SymbolTable::Visibility::Public;
+  SymbolTable::Visibility visibility = SymbolTable::Visibility::Public;
+
+  if (!shouldEmit || !FD.isDefined() || FD.hasAttr<CUDAGlobalAttr>() ||
+      FD.hasAttr<CUDADeviceAttr>())
+    visibility = SymbolTable::Visibility::Private;
+  else {
+    llvm::GlobalValue::LinkageTypes LV = getLLVMLinkageType(FD, shouldEmit);
+    if (LV == llvm::GlobalValue::InternalLinkage ||
+        LV == llvm::GlobalValue::PrivateLinkage)
+      visibility = SymbolTable::Visibility::Private;
+  }
+
   SymbolTable::setSymbolVisibility(function, visibility);
 }
 
@@ -3294,7 +3299,7 @@ void MLIRASTConsumer::createMLIRReturnTypes(
 }
 
 void MLIRASTConsumer::setMLIRFunctionAttributes(
-    mlir::FunctionOpInterface &function, const FunctionToEmit &F,
+    mlir::FunctionOpInterface function, const FunctionToEmit &F,
     LLVM::Linkage lnk, MLIRContext *ctx) const {
   NamedAttrList attrs(function->getAttrDictionary());
   attrs.set("llvm.linkage", mlir::LLVM::LinkageAttr::get(ctx, lnk));
@@ -3937,7 +3942,7 @@ std::string MLIRScanner::getMangledFuncName(const FunctionDecl &FD,
                                             CodeGen::CodeGenModule &CGM) {
   if (auto CC = dyn_cast<CXXConstructorDecl>(&FD))
     return CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(&FD))
+  if (auto CC = dyn_cast<CXXDestructorDecl>(&FD))
     return CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
 
   return CGM.getMangledName(&FD).str();
@@ -3953,8 +3958,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::vector<std::string> InputCommandArgs) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using
-  // a well formed diagnostic object.
+  // Buffer diagnostics from argument parsing so that we can output them using a
+  // well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
@@ -4138,8 +4143,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
     // Inform the target of the language options.
     //
-    // FIXME: We shouldn't need to do this, the target should be immutable
-    // once created. This complexity should be lifted elsewhere.
+    // FIXME: We shouldn't need to do this, the target should be immutable once
+    // created. This complexity should be lifted elsewhere.
     Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
 
     // Adjust target options based on codegen options.
