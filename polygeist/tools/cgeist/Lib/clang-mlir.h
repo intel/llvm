@@ -205,13 +205,37 @@ public:
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 
 private:
+  /// Returns the LLVM linkage type of the given function declaration \p FD.
+  llvm::GlobalValue::LinkageTypes
+  getLLVMLinkageType(const clang::FunctionDecl &FD, bool shouldEmit);
+
+  /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
+  static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
+
+  /// Compute and set the symbol visibility on the given \p function.
+  void setMLIRFunctionVisibility(mlir::FunctionOpInterface function,
+                                 const clang::FunctionDecl &FD,
+                                 bool shouldEmit);
+
+  /// Fill in \p parmTypes with the MLIR types of the \p FD function
+  /// declaration's parameters.
+  void createMLIRParametersTypes(const clang::FunctionDecl &FD,
+                                 llvm::SmallVectorImpl<mlir::Type> &parmTypes);
+
+  /// Fill in \p retTypes with the MLIR types of the \p FD function
+  /// declaration's return value(s).
+  void createMLIRReturnTypes(const clang::FunctionDecl &FD,
+                             llvm::SmallVectorImpl<mlir::Type> &retTypes);
+
+  /// Compute and set the MLIR function attributes for the given \p function.
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
                                  const FunctionToEmit &F,
                                  mlir::LLVM::Linkage lnk,
                                  mlir::MLIRContext *ctx) const;
 
+  /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>
-  getFunction(const std::string &name, FunctionContext context) const;
+  getFunction(const std::string &mangledName, FunctionContext context) const;
 };
 
 class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
@@ -284,8 +308,8 @@ private:
   /// converted value.
   mlir::Value castToMemSpace(mlir::Value val, unsigned memSpace);
 
-  /// Converts the \p val to the memory space of \p t and returns the converted
-  /// value.
+  /// Converts the \p val to the memory space of \p t and returns the
+  /// converted value.
   mlir::Value castToMemSpaceOfType(mlir::Value val, mlir::Type targetType);
 
   bool isTrivialAffineLoop(clang::ForStmt *fors,
@@ -511,9 +535,8 @@ public:
 
   ValueCategory CommonArrayToPointer(ValueCategory val);
 
-  static void getMangledFuncName(std::string &name,
-                                 const clang::FunctionDecl *FD,
-                                 clang::CodeGen::CodeGenModule &CGM);
+  static std::string getMangledFuncName(const clang::FunctionDecl &FD,
+                                        clang::CodeGen::CodeGenModule &CGM);
 };
 
 #endif /* CLANG_MLIR_H */

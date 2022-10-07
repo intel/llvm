@@ -1534,8 +1534,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       mlirclang::isNamespaceSYCL(callee->getEnclosingNamespaceContext());
   bool ShouldEmit = !isSyclFunc;
 
-  std::string mangledName;
-  MLIRScanner::getMangledFuncName(mangledName, callee, Glob.getCGM());
+  std::string mangledName =
+      MLIRScanner::getMangledFuncName(*callee, Glob.getCGM());
   if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
 
