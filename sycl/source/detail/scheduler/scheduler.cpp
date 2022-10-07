@@ -270,18 +270,6 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   deallocateStreams(StreamsToDeallocate);
 }
 
-void Scheduler::releaseMemObjRecord(
-    detail::SYCLMemObjI *MemObj,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
-  MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
-  assert(Record);
-  MGraphBuilder.decrementLeafCountersForRecord(Record);
-  MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
-                                         AuxResourcesToDeallocate);
-  MGraphBuilder.removeRecordForMemObj(MemObj);
-}
-
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
@@ -309,8 +297,10 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     {
       WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
-      releaseMemObjRecord(MemObj, StreamsToDeallocate,
-                          AuxResourcesToDeallocate);
+      MGraphBuilder.decrementLeafCountersForRecord(Record);
+      MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
+                                             AuxResourcesToDeallocate);
+      MGraphBuilder.removeRecordForMemObj(MemObj);
     }
   }
   deallocateStreams(StreamsToDeallocate);

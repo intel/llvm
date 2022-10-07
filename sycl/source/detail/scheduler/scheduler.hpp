@@ -470,10 +470,7 @@ protected:
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
-  void releaseMemObjRecord(
-      detail::SYCLMemObjI *MemObj,
-      std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-      std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate);
+
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
