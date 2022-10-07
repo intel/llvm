@@ -452,7 +452,7 @@ void Scheduler::releaseResources() {
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
   while (!isDeferredMemObjectsEmpty())
-    cleanupDeferredMemObjects(true);
+    cleanupDeferredMemObjects(/*Blocking*/ true);
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {
@@ -481,7 +481,7 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  cleanupDeferredMemObjects(false);
+  cleanupDeferredMemObjects(/*Blocking*/ false);
   if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty())
@@ -516,7 +516,7 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
   }
-  cleanupDeferredMemObjects(false);
+  cleanupDeferredMemObjects(/*Blocking*/ false);
 }
 
 inline bool Scheduler::isDeferredMemObjectsEmpty() {
