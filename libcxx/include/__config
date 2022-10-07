@@ -24,7 +24,10 @@
 
 #ifdef __cplusplus
 
-#  define _LIBCPP_VERSION 16000
+// _LIBCPP_VERSION represents the version of libc++, which matches the version of LLVM.
+// Given a LLVM release LLVM XX.YY.ZZ (e.g. LLVM 16.0.1 == 16.00.01), _LIBCPP_VERSION is
+// defined to XXYYZZ.
+#  define _LIBCPP_VERSION 160000
 
 #  define _LIBCPP_CONCAT_IMPL(_X, _Y) _X##_Y
 #  define _LIBCPP_CONCAT(_X, _Y) _LIBCPP_CONCAT_IMPL(_X, _Y)
@@ -47,7 +50,8 @@
 #    elif __cplusplus <= 202002L
 #      define _LIBCPP_STD_VER 20
 #    else
-#      define _LIBCPP_STD_VER 22 // current year, or date of c++2b ratification
+// Expected release year of the next C++ standard
+#      define _LIBCPP_STD_VER 23
 #    endif
 #  endif // _LIBCPP_STD_VER
 
@@ -206,18 +210,10 @@
 #    define _LIBCPP_CLANG_VER (__clang_major__ * 100 + __clang_minor__)
 #  elif defined(__GNUC__)
 #    define _LIBCPP_COMPILER_GCC
-#  elif defined(_MSC_VER)
-#    define _LIBCPP_COMPILER_MSVC
 #  endif
 
 #  if !defined(_LIBCPP_COMPILER_CLANG_BASED) && __cplusplus < 201103L
 #    error "libc++ only supports C++03 with Clang-based compilers. Please enable C++11"
-#  endif
-
-#  ifdef _LIBCPP_COMPILER_MSVC
-#    error If you successfully use libc++ with MSVC please tell the libc++ developers and consider upstreaming your \
-changes. We are not aware of anybody using this configuration and know that at least some code is currently broken. \
-If there are users of this configuration we are happy to provide support.
 #  endif
 
 // FIXME: ABI detection should be done via compiler builtin macros. This
@@ -490,27 +486,7 @@ typedef __char32_t char32_t;
 
 #    define _LIBCPP_DISABLE_EXTENSION_WARNING __extension__
 
-#  elif defined(_LIBCPP_COMPILER_MSVC)
-
-#    define _LIBCPP_WARNING(x) __pragma(message(__FILE__ "(" _LIBCPP_TOSTRING(__LINE__) ") : warning note: " x))
-
-#    if _MSC_VER < 1900
-#      error "MSVC versions prior to Visual Studio 2015 are not supported"
-#    endif
-
-#    define _LIBCPP_NORETURN __declspec(noreturn)
-
-#    define _LIBCPP_WEAK
-
-#    define _LIBCPP_HAS_NO_ASAN
-
-#    define _LIBCPP_ALWAYS_INLINE __forceinline
-
-#    define _LIBCPP_HAS_NO_VECTOR_EXTENSION
-
-#    define _LIBCPP_DISABLE_EXTENSION_WARNING
-
-#  endif // _LIBCPP_COMPILER_[CLANG|GCC|MSVC]
+#  endif // _LIBCPP_COMPILER_[CLANG|GCC]
 
 #  if defined(_LIBCPP_OBJECT_FORMAT_COFF)
 
@@ -1081,7 +1057,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #    define _LIBCPP_IF_WIDE_CHARACTERS(...) __VA_ARGS__
 #  endif
 
-#  if defined(_LIBCPP_ABI_MICROSOFT) && (defined(_LIBCPP_COMPILER_MSVC) || __has_declspec_attribute(empty_bases))
+#  if defined(_LIBCPP_ABI_MICROSOFT) && __has_declspec_attribute(empty_bases)
 #    define _LIBCPP_DECLSPEC_EMPTY_BASES __declspec(empty_bases)
 #  else
 #    define _LIBCPP_DECLSPEC_EMPTY_BASES
@@ -1205,6 +1181,22 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #    define _LIBCPP_PACKED __attribute__((__packed__))
 #  else
 #    define _LIBCPP_PACKED
+#  endif
+
+// c8rtomb() and mbrtoc8() were added in C++20 and C23. Support for these
+// functions is gradually being added to existing C libraries. The conditions
+// below check for known C library versions and conditions under which these
+// functions are declared by the C library.
+#  define _LIBCPP_HAS_NO_C8RTOMB_MBRTOC8
+// GNU libc 2.36 and newer declare c8rtomb() and mbrtoc8() in C++ modes if
+// __cpp_char8_t is defined or if C2X extensions are enabled. Unfortunately,
+// determining the latter depends on internal GNU libc details. If the
+// __cpp_char8_t feature test macro is not defined, then a char8_t typedef
+// will be declared as well.
+#  if defined(_LIBCPP_GLIBC_PREREQ) && defined(__GLIBC_USE)
+#    if _LIBCPP_GLIBC_PREREQ(2, 36) && (defined(__cpp_char8_t) || __GLIBC_USE(ISOC2X))
+#      undef _LIBCPP_HAS_NO_C8RTOMB_MBRTOC8
+#    endif
 #  endif
 
 #endif // __cplusplus

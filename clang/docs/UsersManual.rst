@@ -881,15 +881,20 @@ Configuration files
 Configuration files group command-line options and allow all of them to be
 specified just by referencing the configuration file. They may be used, for
 example, to collect options required to tune compilation for particular
-target, such as -L, -I, -l, --sysroot, codegen options, etc.
+target, such as ``-L``, ``-I``, ``-l``, ``--sysroot``, codegen options, etc.
 
-The command line option `--config` can be used to specify configuration
-file in a Clang invocation. For example:
+Configuration files can be either specified on the command line or loaded
+from default locations. If both variants are present, the default configuration
+files are loaded first.
+
+The command line option ``--config`` can be used to specify explicit
+configuration files in a Clang invocation. If the option is used multiple times,
+all specified files are loaded, in order. For example:
 
 ::
 
     clang --config /home/user/cfgs/testing.txt
-    clang --config debug.cfg
+    clang --config debug.cfg --config runtimes.cfg
 
 If the provided argument contains a directory separator, it is considered as
 a file path, and options are read from that file. Otherwise the argument is
@@ -900,35 +905,40 @@ treated as a file name and is searched for sequentially in the directories:
     - the directory where Clang executable resides.
 
 Both user and system directories for configuration files are specified during
-clang build using CMake parameters, CLANG_CONFIG_FILE_USER_DIR and
-CLANG_CONFIG_FILE_SYSTEM_DIR respectively. The first file found is used. It is
-an error if the required file cannot be found.
+clang build using CMake parameters, ``CLANG_CONFIG_FILE_USER_DIR`` and
+``CLANG_CONFIG_FILE_SYSTEM_DIR`` respectively. The first file found is used.
+It is an error if the required file cannot be found.
 
-Another way to specify a configuration file is to encode it in executable name.
-For example, if the Clang executable is named `armv7l-clang` (it may be a
-symbolic link to `clang`), then Clang will search for file `armv7l.cfg` in the
-directory where Clang resides.
+The default configuration files are searched for in the same directories
+following the rules described in the next paragraphs. Loading default
+configuration files can be disabled entirely via passing
+the ``--no-default-config`` flag.
+
+The name of the default configuration file is deduced from the clang executable
+name.  For example, if the Clang executable is named ``armv7l-clang`` (it may
+be a symbolic link to ``clang``), then Clang will search for file
+``armv7l.cfg`` in the directory where Clang resides.
 
 If a driver mode is specified in invocation, Clang tries to find a file specific
 for the specified mode. For example, if the executable file is named
-`x86_64-clang-cl`, Clang first looks for `x86_64-cl.cfg` and if it is not found,
-looks for `x86_64.cfg`.
+``x86_64-clang-cl``, Clang first looks for ``x86_64-clang-cl.cfg`` and if it is
+not found, looks for ``x86_64.cfg``.
 
 If the command line contains options that effectively change target architecture
-(these are -m32, -EL, and some others) and the configuration file starts with an
-architecture name, Clang tries to load the configuration file for the effective
-architecture. For example, invocation:
+(these are ``-m32``, ``-EL``, and some others) and the configuration file starts
+with an architecture name, Clang tries to load the configuration file for the
+effective architecture. For example, invocation:
 
 ::
 
     x86_64-clang -m32 abc.c
 
-causes Clang search for a file `i368.cfg` first, and if no such file is found,
-Clang looks for the file `x86_64.cfg`.
+causes Clang search for a file ``i368.cfg`` first, and if no such file is found,
+Clang looks for the file ``x86_64.cfg``.
 
 The configuration file consists of command-line options specified on one or
 more lines. Lines composed of whitespace characters only are ignored as well as
-lines in which the first non-blank character is `#`. Long options may be split
+lines in which the first non-blank character is ``#``. Long options may be split
 between several lines by a trailing backslash. Here is example of a
 configuration file:
 
@@ -944,19 +954,19 @@ configuration file:
     # other config files may be included
     @linux.options
 
-Files included by `@file` directives in configuration files are resolved
+Files included by ``@file`` directives in configuration files are resolved
 relative to the including file. For example, if a configuration file
-`~/.llvm/target.cfg` contains the directive `@os/linux.opts`, the file
-`linux.opts` is searched for in the directory `~/.llvm/os`.
+``~/.llvm/target.cfg`` contains the directive ``@os/linux.opts``, the file
+``linux.opts`` is searched for in the directory ``~/.llvm/os``.
 
-To generate paths relative to the configuration file, the `<CFGDIR>` token may
+To generate paths relative to the configuration file, the ``<CFGDIR>`` token may
 be used. This will expand to the absolute path of the directory containing the
 configuration file.
 
 In cases where a configuration file is deployed alongside SDK contents, the
-SDK directory can remain fully portable by using `<CFGDIR>` prefixed paths.
+SDK directory can remain fully portable by using ``<CFGDIR>`` prefixed paths.
 In this way, the user may only need to specify a root configuration file with
-`--config` to establish every aspect of the SDK with the compiler:
+``--config`` to establish every aspect of the SDK with the compiler:
 
 ::
 
@@ -1359,8 +1369,8 @@ floating point semantic models: precise (the default), strict, and fast.
   "fenv_access", "off", "on", "off"
   "rounding_mode", "tonearest", "dynamic", "tonearest"
   "contract", "on", "off", "fast"
-  "denormal_fp_math", "IEEE", "IEEE", "PreserveSign"
-  "denormal_fp32_math", "IEEE","IEEE", "PreserveSign"
+  "denormal_fp_math", "IEEE", "IEEE", "IEEE"
+  "denormal_fp32_math", "IEEE","IEEE", "IEEE"
   "support_math_errno", "on", "on", "off"
   "no_honor_nans", "off", "off", "on"
   "no_honor_infinities", "off", "off", "on"
@@ -1407,6 +1417,61 @@ floating point semantic models: precise (the default), strict, and fast.
    * ``-fno-trapping-math``
 
    * ``-ffp-contract=fast``
+
+   Note: ``-ffast-math`` causes ``crtfastmath.o`` to be linked with code. See
+   :ref:`crtfastmath.o` for more details.
+
+.. option:: -fno-fast-math
+
+   Disable fast-math mode.  This options disables unsafe floating-point
+   optimizations by preventing the compiler from making any tranformations that
+   could affect the results.
+
+   This option implies:
+
+   * ``-fhonor-infinities``
+
+   * ``-fhonor-nans``
+
+   * ``-fmath-errno``
+
+   * ``-fno-finite-math-only``
+
+   * ``-fno-associative-math``
+
+   * ``-fno-reciprocal-math``
+
+   * ``-fsigned-zeros``
+
+   * ``-fno-trapping-math``
+
+   * ``-ffp-contract=on``
+
+   * ``-fdenormal-fp-math=ieee``
+
+   There is ambiguity about how ``-ffp-contract``, ``-ffast-math``,
+   and ``-fno-fast-math`` behave in combination. To keep the value of
+   ``-ffp-contract`` consistent, we define this set of rules:
+
+   * ``-ffast-math`` sets ``ffp-contract`` to ``fast``.
+
+   * ``-fno-fast-math`` sets ``-ffp-contract`` to ``on`` (``fast`` for CUDA and
+     HIP).
+
+   * If ``-ffast-math`` and ``-ffp-contract`` are both seen, but
+     ``-ffast-math`` is not followed by ``-fno-fast-math``, ``ffp-contract``
+     will be given the value of whichever option was last seen.
+
+   * If ``-fno-fast-math`` is seen and ``-ffp-contract`` has been seen at least
+     once, the ``ffp-contract`` will get the value of the last seen value of
+     ``-ffp-contract``.
+
+   * If ``-fno-fast-math`` is seen and ``-ffp-contract`` has not been seen, the
+     ``-ffp-contract`` setting is determined by the default value of
+     ``-ffp-contract``.
+
+   Note: ``-fno-fast-math`` implies ``-fdenormal-fp-math=ieee``.
+   ``-fno-fast-math`` causes ``crtfastmath.o`` to not be linked with code.
 
 .. option:: -fdenormal-fp-math=<value>
 
@@ -1631,6 +1696,15 @@ Note that floating-point operations performed as part of constant initialization
    modes, such as `-ffp-model=precise` or `-ffp-model=strict`, this option
    has no effect because the optimizer is prohibited from making unsafe
    transformations.
+
+.. _crtfastmath.o:
+
+A note about ``crtfastmath.o``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+``-ffast-math`` and ``-funsafe-math-optimizations`` cause ``crtfastmath.o`` to be
+automatically linked,  which adds a static constructor that sets the FTZ/DAZ
+bits in MXCSR, affecting not only the current compilation unit but all static
+and shared libraries included in the program.
 
 .. _FLT_EVAL_METHOD:
 

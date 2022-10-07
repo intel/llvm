@@ -209,6 +209,8 @@ TEST(YAMLGeneratorTest, emitFunctionYAML) {
   I.ReturnType =
       TypeInfo(EmptySID, "void", InfoType::IT_default, "path/to/void");
   I.Params.emplace_back("int", "path/to/int", "P");
+  I.Params.emplace_back("double", "path/to/double", "D");
+  I.Params.back().DefaultValue = "2.0 * M_PI";
   I.IsMethod = true;
   I.Parent = Reference(EmptySID, "Parent", InfoType::IT_record);
 
@@ -240,6 +242,11 @@ Params:
       Name:            'int'
       Path:            'path/to/int'
     Name:            'P'
+  - Type:
+      Name:            'double'
+      Path:            'path/to/double'
+    Name:            'D'
+    DefaultValue:    '2.0 * M_PI'
 ReturnType:
   Type:
     Name:            'void'
@@ -249,7 +256,11 @@ ReturnType:
   EXPECT_EQ(Expected, Actual.str());
 }
 
-TEST(YAMLGeneratorTest, emitEnumYAML) {
+// Tests the equivalent of:
+// namespace A {
+// enum e { X };
+// }
+TEST(YAMLGeneratorTest, emitSimpleEnumYAML) {
   EnumInfo I;
   I.Name = "e";
   I.Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
@@ -258,7 +269,7 @@ TEST(YAMLGeneratorTest, emitEnumYAML) {
   I.Loc.emplace_back(12, llvm::SmallString<16>{"test.cpp"});
 
   I.Members.emplace_back("X");
-  I.Scoped = true;
+  I.Scoped = false;
 
   auto G = getYAMLGenerator();
   assert(G);
@@ -279,9 +290,42 @@ DefLocation:
 Location:
   - LineNumber:      12
     Filename:        'test.cpp'
-Scoped:          true
 Members:
-  - 'X'
+  - Name:            'X'
+    Value:           '0'
+...
+)raw";
+  EXPECT_EQ(Expected, Actual.str());
+}
+
+// Tests the equivalent of:
+// enum class e : short { X = FOO_BAR + 2 };
+TEST(YAMLGeneratorTest, enumTypedScopedEnumYAML) {
+  EnumInfo I;
+  I.Name = "e";
+
+  I.Members.emplace_back("X", "-9876", "FOO_BAR + 2");
+  I.Scoped = true;
+  I.BaseType = TypeInfo("short");
+
+  auto G = getYAMLGenerator();
+  assert(G);
+  std::string Buffer;
+  llvm::raw_string_ostream Actual(Buffer);
+  auto Err = G->generateDocForInfo(&I, Actual, ClangDocContext());
+  assert(!Err);
+  std::string Expected =
+      R"raw(---
+USR:             '0000000000000000000000000000000000000000'
+Name:            'e'
+Scoped:          true
+BaseType:
+  Type:
+    Name:            'short'
+Members:
+  - Name:            'X'
+    Value:           '-9876'
+    Expr:            'FOO_BAR + 2'
 ...
 )raw";
   EXPECT_EQ(Expected, Actual.str());

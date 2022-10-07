@@ -29,7 +29,7 @@ int main() {
 
   S<int> s;
 
-  struct StructWithPointers {
+  struct StructWithArrayOfPointers {
     int x;
     int y;
     int *ArrayOfPtrs[2];
@@ -37,7 +37,7 @@ int main() {
 
   struct DecomposedStruct {
     int a;
-    StructWithPointers SWPtrsMem[2];
+    StructWithArrayOfPointers SWPtrsMem[2];
     int *Array_2D_Ptrs[2][1];
     int c;
   };
@@ -49,8 +49,19 @@ int main() {
     int c;
   };
 
+  struct StructWithSimplePointer {
+    int *Ptr;
+    int a;
+  };
+
+  struct StructWithNestedPointer {
+    StructWithSimplePointer SWPointer[2];
+  };
+
   DecomposedStruct DecompStructArray[2];
   NonDecomposedStruct NonDecompStructArray[2];
+  StructWithSimplePointer StructWithSimplePointerArray[2];
+  StructWithNestedPointer StructWithNestedPointerArray[2];
 
   int array_2D[2][3];
 
@@ -107,6 +118,20 @@ int main() {
     h.single_task<class Kernel_NonDecomposedStruct>(
         [=] {
           NonDecomposedStruct local = NonDecompStructArray[0];
+        });
+  });
+
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_StructWithSimplePointer>(
+        [=] {
+           StructWithSimplePointer local = StructWithSimplePointerArray[0];
+        });
+  });
+
+  myQueue.submit([&](sycl::handler &h) {
+    h.single_task<class Kernel_StructWithNestedPointer>(
+        [=] {
+           StructWithNestedPointer local = StructWithNestedPointerArray[0];
         });
   });
 }
@@ -230,10 +255,10 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
-// Initializer for struct array inside DecomposedStruct i.e. StructWithPointers SWPtrsMem[2]
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
+// Initializer for struct array inside DecomposedStruct i.e. StructWithArrayOfPointers SWPtrsMem[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithArrayOfPointers[2]'
 // Initializer for first element of inner struct array
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithArrayOfPointers'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
@@ -248,7 +273,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
 // Initializer for second element of inner struct array
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithArrayOfPointers'
 // CHECK-NEXT: ImplicitCastExpr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
 // CHECK-NEXT: ImplicitCastExpr
@@ -281,10 +306,10 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
-// Initializer for struct array inside DecomposedStruct i.e. StructWithPointers SWPtrsMem[2]
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
+// Initializer for struct array inside DecomposedStruct i.e. StructWithArrayOfPointers SWPtrsMem[2]
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithArrayOfPointers[2]'
 // Initializer for first element of inner struct array
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithArrayOfPointers'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
@@ -299,7 +324,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPtrs' '__wrapper_class'
 // Initializer for second element of inner struct array
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithArrayOfPointers'
 // CHECK-NEXT: ImplicitCastExpr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_x' 'int'
 // CHECK-NEXT: ImplicitCastExpr
@@ -388,3 +413,72 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+
+// Check Kernel_StructWithSimplePointer parameters.
+// CHECK: FunctionDecl {{.*}}Kernel_StructWithSimplePointer{{.*}} 'void (__generated_StructWithSimplePointer, __generated_StructWithSimplePointer)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_StructWithSimplePointerArray '__generated_StructWithSimplePointer'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_StructWithSimplePointerArray '__generated_StructWithSimplePointer'
+// Check Kernel_StructWithSimplePointer inits
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} cinit
+// CHECK-NEXT: InitListExpr
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithSimplePointer[2]'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' 'void (const StructWithSimplePointer &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithSimplePointer' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithSimplePointer *' reinterpret_cast<StructWithSimplePointer *> <BitCast>
+// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
+// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_StructWithSimplePointerArray' '__generated_StructWithSimplePointer'
+
+// CHECK: CXXConstructExpr {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' 'void (const StructWithSimplePointer &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithSimplePointer' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithSimplePointer *' reinterpret_cast<StructWithSimplePointer *> <BitCast>
+// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
+// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_StructWithSimplePointerArray' '__generated_StructWithSimplePointer'
+
+// Check Kernel_StructWithNestedPointer parameters.
+// CHECK: FunctionDecl {{.*}}Kernel_StructWithNestedPointer{{.*}} 'void (__generated_StructWithSimplePointer, __generated_StructWithSimplePointer, __generated_StructWithSimplePointer, __generated_StructWithSimplePointer)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_SWPointer '__generated_StructWithSimplePointer'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_SWPointer '__generated_StructWithSimplePointer'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_SWPointer '__generated_StructWithSimplePointer'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_SWPointer '__generated_StructWithSimplePointer'
+// Check Kernel_StructWithNestedPointer inits
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} cinit
+// CHECK-NEXT: InitListExpr
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithNestedPointer[2]'
+// InitListExpr for first array element of StructWithNestedPointerArray
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithNestedPointer'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithSimplePointer[2]'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' 'void (const StructWithSimplePointer &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithSimplePointer' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithSimplePointer *' reinterpret_cast<StructWithSimplePointer *> <BitCast>
+// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
+// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'
+
+// CHECK: CXXConstructExpr {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' 'void (const StructWithSimplePointer &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithSimplePointer' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithSimplePointer *' reinterpret_cast<StructWithSimplePointer *> <BitCast>
+// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
+// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'
+
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithNestedPointer'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithSimplePointer[2]'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' 'void (const StructWithSimplePointer &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithSimplePointer' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithSimplePointer *' reinterpret_cast<StructWithSimplePointer *> <BitCast>
+// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
+// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'
+
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' 'void (const StructWithSimplePointer &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithSimplePointer' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithSimplePointer':'StructWithSimplePointer' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithSimplePointer *' reinterpret_cast<StructWithSimplePointer *> <BitCast>
+// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithSimplePointer *' prefix '&' cannot overflow
+// CHECK-NEXT: DeclRefExpr {{.*}} '__generated_StructWithSimplePointer' lvalue ParmVar {{.*}} '_arg_SWPointer' '__generated_StructWithSimplePointer'

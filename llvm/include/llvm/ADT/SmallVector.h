@@ -312,8 +312,8 @@ public:
 /// copy these types with memcpy, there is no way for the type to observe this.
 /// This catches the important case of std::pair<POD, POD>, which is not
 /// trivially assignable.
-template <typename T, bool = (std::is_trivially_copy_constructible<T>::value) &&
-                             (std::is_trivially_move_constructible<T>::value) &&
+template <typename T, bool = (is_trivially_copy_constructible<T>::value) &&
+                             (is_trivially_move_constructible<T>::value) &&
                              std::is_trivially_destructible<T>::value>
 class SmallVectorTemplateBase : public SmallVectorTemplateCommon<T> {
   friend class SmallVectorTemplateCommon<T>;
@@ -468,8 +468,7 @@ protected:
 
   /// Either const T& or T, depending on whether it's cheap enough to take
   /// parameters by value.
-  using ValueParamT =
-      typename std::conditional<TakesParamByValue, T, const T &>::type;
+  using ValueParamT = std::conditional_t<TakesParamByValue, T, const T &>;
 
   SmallVectorTemplateBase(size_t Size) : SmallVectorTemplateCommon<T>(Size) {}
 

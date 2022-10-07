@@ -266,8 +266,8 @@ TEST(SerializeTest, emitEnumInfo) {
   EnumInfo E;
   E.Name = "E";
   E.DefLoc = Location(0, llvm::SmallString<16>{"test.cpp"});
-  E.Members.emplace_back("X");
-  E.Members.emplace_back("Y");
+  E.Members.emplace_back("X", "0");
+  E.Members.emplace_back("Y", "1");
   ExpectedNamespaceWithEnum.ChildEnums.emplace_back(std::move(E));
   CheckNamespaceInfo(&ExpectedNamespaceWithEnum, NamespaceWithEnum);
 
@@ -277,8 +277,8 @@ TEST(SerializeTest, emitEnumInfo) {
   G.Name = "G";
   G.Scoped = true;
   G.DefLoc = Location(0, llvm::SmallString<16>{"test.cpp"});
-  G.Members.emplace_back("A");
-  G.Members.emplace_back("B");
+  G.Members.emplace_back("A", "0");
+  G.Members.emplace_back("B", "1");
   ExpectedNamespaceWithScopedEnum.ChildEnums.emplace_back(std::move(G));
   CheckNamespaceInfo(&ExpectedNamespaceWithScopedEnum, NamespaceWithScopedEnum);
 }
@@ -511,7 +511,7 @@ TEST(SerializeTest, emitModulePublicLFunctions) {
   std::vector<std::string> Args;
   Args.push_back("-fmodules-ts");
   ExtractInfosFromCodeWithArgs(R"raw(export module M;
-int moduleFunction(int x);
+int moduleFunction(int x, double d = 3.2 - 1.0);
 static int staticModuleFunction(int x);
 export double exportedModuleFunction(double y);)raw",
                                2, /*Public=*/true, Infos, Args);
@@ -523,6 +523,8 @@ export double exportedModuleFunction(double y);)raw",
   F.ReturnType = TypeInfo(EmptySID, "int", InfoType::IT_default);
   F.Loc.emplace_back(0, llvm::SmallString<16>{"test.cpp"});
   F.Params.emplace_back("int", "x");
+  F.Params.emplace_back("double", "d");
+  F.Params.back().DefaultValue = "3.2 - 1.0";
   F.Access = AccessSpecifier::AS_none;
   ExpectedBWithFunction.ChildFunctions.emplace_back(std::move(F));
   CheckNamespaceInfo(&ExpectedBWithFunction, BWithFunction);

@@ -1082,8 +1082,7 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
-#pragma unroll
-    for (int I = 0; I < AdjustedDim; ++I) {
+    detail::dim_loop<AdjustedDim>([&, this](size_t I) {
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
@@ -1094,7 +1093,7 @@ protected:
 #endif
       getAccessRange()[I] = AccessRange[I];
       getMemoryRange()[I] = MemRange[I];
-    }
+    });
 
     // Adjust for offsets as that part is invariant for all invocations of
     // operator[]. Will have to re-adjust in get_pointer.
@@ -1182,6 +1181,15 @@ public:
     else
       return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
   }
+
+public:
+  accessor()
+      : AccessorBaseHost(
+            /*Offset=*/{0, 0, 0}, /*AccessRange=*/{0, 0, 0},
+            /*MemoryRange=*/{0, 0, 0},
+            /*AccessMode=*/getAdjustedMode({}),
+            /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
+            /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1938,7 +1946,7 @@ public:
   size_t byte_size() const noexcept { return size() * sizeof(DataT); }
 
   size_t max_size() const noexcept {
-    return (std::numeric_limits<difference_type>::max)();
+    return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
   }
 
   bool empty() const noexcept { return size() == 0; }
@@ -2362,9 +2370,8 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
-#pragma unroll
-    for (int I = 0; I < AdjustedDim; ++I)
-      getSize()[I] = AccessRange[I];
+    detail::dim_loop<AdjustedDim>(
+        [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
   }
 
 public:

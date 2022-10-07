@@ -1161,6 +1161,23 @@ bool SITargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
                   MachineMemOperand::MOVolatile;
     return true;
   }
+  case Intrinsic::amdgcn_ds_bvh_stack_rtn: {
+    Info.opc = ISD::INTRINSIC_W_CHAIN;
+
+    const GCNTargetMachine &TM =
+        static_cast<const GCNTargetMachine &>(getTargetMachine());
+
+    SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
+    Info.ptrVal = MFI->getGWSPSV(TM);
+
+    // This is an abstract access, but we need to specify a type and size.
+    Info.memVT = MVT::i32;
+    Info.size = 4;
+    Info.align = Align(4);
+
+    Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MOStore;
+    return true;
+  }
   default:
     return false;
   }
@@ -3279,10 +3296,7 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   // we've carefully laid out the parameters so that when sp is reset they'll be
   // in the correct location.
   if (IsTailCall && !IsSibCall) {
-    Chain = DAG.getCALLSEQ_END(Chain,
-                               DAG.getTargetConstant(NumBytes, DL, MVT::i32),
-                               DAG.getTargetConstant(0, DL, MVT::i32),
-                               InFlag, DL);
+    Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InFlag, DL);
     InFlag = Chain.getValue(1);
   }
 
@@ -3337,9 +3351,7 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   InFlag = Call.getValue(1);
 
   uint64_t CalleePopBytes = NumBytes;
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getTargetConstant(0, DL, MVT::i32),
-                             DAG.getTargetConstant(CalleePopBytes, DL, MVT::i32),
-                             InFlag, DL);
+  Chain = DAG.getCALLSEQ_END(Chain, 0, CalleePopBytes, InFlag, DL);
   if (!Ins.empty())
     InFlag = Chain.getValue(1);
 
@@ -3394,9 +3406,7 @@ SDValue SITargetLowering::lowerDYNAMIC_STACKALLOCImpl(
   }
 
   Chain = DAG.getCopyToReg(Chain, dl, SPReg, Tmp1);    // Output chain
-  Tmp2 = DAG.getCALLSEQ_END(
-      Chain, DAG.getIntPtrConstant(0, dl, true),
-      DAG.getIntPtrConstant(0, dl, true), SDValue(), dl);
+  Tmp2 = DAG.getCALLSEQ_END(Chain, 0, 0, SDValue(), dl);
 
   return DAG.getMergeValues({Tmp1, Tmp2}, dl);
 }
@@ -4071,9 +4081,9 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
                                             : &AMDGPU::VReg_64RegClass;
 
     const TargetRegisterClass *Src0SubRC =
-        TRI->getSubRegClass(Src0RC, AMDGPU::sub0);
+        TRI->getSubRegisterClass(Src0RC, AMDGPU::sub0);
     const TargetRegisterClass *Src1SubRC =
-        TRI->getSubRegClass(Src1RC, AMDGPU::sub1);
+        TRI->getSubRegisterClass(Src1RC, AMDGPU::sub1);
 
     MachineOperand SrcReg0Sub0 = TII->buildExtractSubRegOrImm(
         MI, MRI, Src0, Src0RC, AMDGPU::sub0, Src0SubRC);
@@ -4159,7 +4169,7 @@ MachineBasicBlock *SITargetLowering::EmitInstrWithCustomInserter(
             .addImm(0);
       } else {
         const TargetRegisterClass *SubRC =
-            TRI->getSubRegClass(Src2RC, AMDGPU::sub0);
+            TRI->getSubRegisterClass(Src2RC, AMDGPU::sub0);
         MachineOperand Src2Sub0 = TII->buildExtractSubRegOrImm(
             MII, MRI, Src2, Src2RC, AMDGPU::sub0, SubRC);
         MachineOperand Src2Sub1 = TII->buildExtractSubRegOrImm(
@@ -7520,14 +7530,6 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
       Opcode = AMDGPUISD::BUFFER_ATOMIC_XOR;
       break;
     case Intrinsic::amdgcn_buffer_atomic_fadd:
-      if (!Op.getValue(0).use_empty() && !hasAtomicFaddRtnForTy(Op)) {
-        DiagnosticInfoUnsupported
-          NoFpRet(DAG.getMachineFunction().getFunction(),
-                  "return versions of fp atomics not supported",
-                  DL.getDebugLoc(), DS_Error);
-        DAG.getContext()->diagnose(NoFpRet);
-        return SDValue();
-      }
       Opcode = AMDGPUISD::BUFFER_ATOMIC_FADD;
       break;
     default:
@@ -7798,19 +7800,13 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
     DAG.setNodeMemRefs(NewNode, {MemRef});
     return SDValue(NewNode, 0);
   }
-  case Intrinsic::amdgcn_global_atomic_fadd:
-    if (!Op.getValue(0).use_empty() && !Subtarget->hasGFX90AInsts()) {
-      DiagnosticInfoUnsupported
-        NoFpRet(DAG.getMachineFunction().getFunction(),
-                "return versions of fp atomics not supported",
-                DL.getDebugLoc(), DS_Error);
-      DAG.getContext()->diagnose(NoFpRet);
-      return SDValue();
-    }
-    [[fallthrough]];
+  case Intrinsic::amdgcn_global_atomic_fadd: {
+    if (!Subtarget->hasAtomicFaddNoRtnInsts())
+      return makeV_ILLEGAL(Op, DAG);
+    return SDValue();
+  }
   case Intrinsic::amdgcn_global_atomic_fmin:
   case Intrinsic::amdgcn_global_atomic_fmax:
-  case Intrinsic::amdgcn_flat_atomic_fadd:
   case Intrinsic::amdgcn_flat_atomic_fmin:
   case Intrinsic::amdgcn_flat_atomic_fmax: {
     MemSDNode *M = cast<MemSDNode>(Op);
@@ -7821,16 +7817,6 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
     };
     unsigned Opcode = 0;
     switch (IntrID) {
-    case Intrinsic::amdgcn_global_atomic_fadd:
-      if (!Subtarget->hasAtomicFaddNoRtnInsts())
-        return makeV_ILLEGAL(Op, DAG);
-      [[fallthrough]];
-    case Intrinsic::amdgcn_flat_atomic_fadd: {
-      EVT VT = Op.getOperand(3).getValueType();
-      return DAG.getAtomic(ISD::ATOMIC_LOAD_FADD, DL, VT,
-                           DAG.getVTList(VT, MVT::Other), Ops,
-                           M->getMemOperand());
-    }
     case Intrinsic::amdgcn_global_atomic_fmin:
     case Intrinsic::amdgcn_flat_atomic_fmin: {
       Opcode = AMDGPUISD::ATOMIC_LOAD_FMIN;
@@ -12775,9 +12761,6 @@ SITargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
 
     if ((AS == AMDGPUAS::GLOBAL_ADDRESS || AS == AMDGPUAS::FLAT_ADDRESS) &&
         Subtarget->hasAtomicFaddNoRtnInsts()) {
-      if (Subtarget->hasGFX940Insts())
-        return AtomicExpansionKind::None;
-
       // The amdgpu-unsafe-fp-atomics attribute enables generation of unsafe
       // floating point atomic instructions. May generate more efficient code,
       // but may not respect rounding and denormal modes, and may give incorrect
@@ -12787,23 +12770,31 @@ SITargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
               .getValueAsString() != "true")
         return AtomicExpansionKind::CmpXChg;
 
-      if (Subtarget->hasGFX90AInsts()) {
-        if (Ty->isFloatTy() && AS == AMDGPUAS::FLAT_ADDRESS)
-          return AtomicExpansionKind::CmpXChg;
-
-        auto SSID = RMW->getSyncScopeID();
-        if (SSID == SyncScope::System ||
-            SSID == RMW->getContext().getOrInsertSyncScopeID("one-as"))
-          return AtomicExpansionKind::CmpXChg;
-
-        return ReportUnsafeHWInst(AtomicExpansionKind::None);
-      }
-
-      if (AS == AMDGPUAS::FLAT_ADDRESS)
+      // Always expand system scope fp atomics.
+      auto SSID = RMW->getSyncScopeID();
+      if (SSID == SyncScope::System ||
+          SSID == RMW->getContext().getOrInsertSyncScopeID("one-as"))
         return AtomicExpansionKind::CmpXChg;
 
-      return RMW->use_empty() ? ReportUnsafeHWInst(AtomicExpansionKind::None)
-                              : AtomicExpansionKind::CmpXChg;
+      if (AS == AMDGPUAS::GLOBAL_ADDRESS && Ty->isFloatTy()) {
+        // global atomic fadd f32 no-rtn: gfx908, gfx90a, gfx940, gfx11+.
+        if (RMW->use_empty() && Subtarget->hasAtomicFaddNoRtnInsts())
+          return ReportUnsafeHWInst(AtomicExpansionKind::None);
+        // global atomic fadd f32 rtn: gfx90a, gfx940, gfx11+.
+        if (!RMW->use_empty() && Subtarget->hasAtomicFaddRtnInsts())
+          return ReportUnsafeHWInst(AtomicExpansionKind::None);
+      }
+
+      // flat atomic fadd f32: gfx940, gfx11+.
+      if (AS == AMDGPUAS::FLAT_ADDRESS && Ty->isFloatTy() &&
+          Subtarget->hasFlatAtomicFaddF32Inst())
+        return ReportUnsafeHWInst(AtomicExpansionKind::None);
+
+      // global and flat atomic fadd f64: gfx90a, gfx940.
+      if (Ty->isDoubleTy() && Subtarget->hasGFX90AInsts())
+        return ReportUnsafeHWInst(AtomicExpansionKind::None);
+
+      return AtomicExpansionKind::CmpXChg;
     }
 
     // DS FP atomics do respect the denormal mode, but the rounding mode is
@@ -12977,4 +12968,29 @@ SITargetLowering::getTargetMMOFlags(const Instruction &I) const {
   if (I.getMetadata("amdgpu.noclobber"))
     return MONoClobber;
   return MachineMemOperand::MONone;
+}
+
+bool SITargetLowering::checkForPhysRegDependency(
+    SDNode *Def, SDNode *User, unsigned Op, const TargetRegisterInfo *TRI,
+    const TargetInstrInfo *TII, unsigned &PhysReg, int &Cost) const {
+  if (User->getOpcode() != ISD::CopyToReg)
+    return false;
+  if (!Def->isMachineOpcode())
+    return false;
+  MachineSDNode *MDef = dyn_cast<MachineSDNode>(Def);
+  if (!MDef)
+    return false;
+
+  unsigned ResNo = User->getOperand(Op).getResNo();
+  if (User->getOperand(Op)->getValueType(ResNo) != MVT::i1)
+    return false;
+  const MCInstrDesc &II = TII->get(MDef->getMachineOpcode());
+  if (II.isCompare() && II.hasImplicitDefOfPhysReg(AMDGPU::SCC)) {
+    PhysReg = AMDGPU::SCC;
+    const TargetRegisterClass *RC =
+        TRI->getMinimalPhysRegClass(PhysReg, Def->getSimpleValueType(ResNo));
+    Cost = RC->getCopyCost();
+    return true;
+  }
+  return false;
 }
