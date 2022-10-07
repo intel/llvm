@@ -264,7 +264,9 @@ struct deduce_AS
 
 } // namespace detail
 
-template <typename T> struct remove_decoration { using type = T; };
+template <typename T> struct remove_decoration {
+  using type = T;
+};
 
 // Propagate through const qualifier.
 template <typename T> struct remove_decoration<const T> {

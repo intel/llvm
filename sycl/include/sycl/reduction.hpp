@@ -255,10 +255,10 @@ private:
   }
 
   template <class _T, access::address_space Space, class BinaryOp>
-  static constexpr bool
-      BasicCheck = std::is_same<remove_decoration_t<_T>, Ty>::value &&
-                   (Space == access::address_space::global_space ||
-                    Space == access::address_space::local_space);
+  static constexpr bool BasicCheck =
+      std::is_same<remove_decoration_t<_T>, Ty>::value &&
+      (Space == access::address_space::global_space ||
+       Space == access::address_space::local_space);
 
 public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
