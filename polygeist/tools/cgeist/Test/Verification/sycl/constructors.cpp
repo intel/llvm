@@ -16,6 +16,49 @@
 // CHECK-DAG: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<1>
 
+// Check globals referenced in device functions are created in the GPU module
+// CHECK: gpu.module @device_functions {
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupLocalInvocationId : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupId : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInNumSubgroups : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupMaxSize : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupSize : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInLocalInvocationId : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInWorkgroupId : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInWorkgroupSize : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInNumWorkgroups : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInGlobalOffset : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInGlobalSize : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInGlobalInvocationId : memref<3xi64>
+
+// Ensure the spriv functions that reference these globals are not filtered out
+// CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_xv()
+// CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_yv()
+// CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_zv()
+// CHECK-DAG: func.func @_Z20__spirv_GlobalSize_xv()
+// CHECK-DAG: func.func @_Z20__spirv_GlobalSize_yv()
+// CHECK-DAG: func.func @_Z20__spirv_GlobalSize_zv()
+// CHECK-DAG: func.func @_Z22__spirv_GlobalOffset_xv()
+// CHECK-DAG: func.func @_Z22__spirv_GlobalOffset_yv()
+// CHECK-DAG: func.func @_Z22__spirv_GlobalOffset_zv()
+// CHECK-DAG: func.func @_Z23__spirv_NumWorkgroups_xv()
+// CHECK-DAG: func.func @_Z23__spirv_NumWorkgroups_yv()
+// CHECK-DAG: func.func @_Z23__spirv_NumWorkgroups_zv()
+// CHECK-DAG: func.func @_Z23__spirv_WorkgroupSize_xv()
+// CHECK-DAG: func.func @_Z23__spirv_WorkgroupSize_yv()
+// CHECK-DAG: func.func @_Z23__spirv_WorkgroupSize_zv()
+// CHECK-DAG: func.func @_Z21__spirv_WorkgroupId_xv()
+// CHECK-DAG: func.func @_Z21__spirv_WorkgroupId_yv()
+// CHECK-DAG: func.func @_Z21__spirv_WorkgroupId_zv()
+// CHECK-DAG: func.func @_Z27__spirv_LocalInvocationId_xv()
+// CHECK-DAG: func.func @_Z27__spirv_LocalInvocationId_yv()
+// CHECK-DAG: func.func @_Z27__spirv_LocalInvocationId_zv()
+// CHECK-DAG: func.func @_Z18__spirv_SubgroupIdv()
+// CHECK-DAG: func.func @_Z33__spirv_SubgroupLocalInvocationIdv()
+// CHECK-DAG: func.func @_Z23__spirv_SubgroupMaxSizev()
+// CHECK-DAG: func.func @_Z20__spirv_NumSubgroupsv()
+
+
 // Ensure the constructors are NOT filtered out, and sycl.cast is generated for cast from sycl.id or sycl.range to sycl.array.
 // CHECK-LABEL: func.func @_ZN4sycl3_V12idILi1EEC1ERKS2_(%arg0: memref<?x!sycl_id_1_, 4>, %arg1: memref<?x!sycl_id_1_, 4>)
 // CHECK-SAME:  attributes {[[SPIR_FUNCCC:llvm.cconv = #llvm.cconv<spir_funccc>]], [[LINKONCE:llvm.linkage = #llvm.linkage<linkonce_odr>]], 
