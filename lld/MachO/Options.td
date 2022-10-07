@@ -57,6 +57,9 @@ def time_trace_granularity_eq: Joined<["--"], "time-trace-granularity=">,
 def deduplicate_literals: Flag<["--"], "deduplicate-literals">,
     HelpText<"Enable literal deduplication. This is implied by --icf={safe,all}">,
     Group<grp_lld>;
+def dead_strip_duplicates: Flag<["--"], "dead-strip-duplicates">,
+    HelpText<"Do not error on duplicate symbols that will be dead stripped.">,
+    Group<grp_lld>;
 def print_dylib_search: Flag<["--"], "print-dylib-search">,
     HelpText<"Print which paths lld searched when trying to find dylibs">,
     Group<grp_lld>;
@@ -1227,8 +1230,10 @@ def executable_path : Flag<["-"], "executable_path">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
 def fixup_chains : Flag<["-"], "fixup_chains">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Emit chained fixups">,
+    Group<grp_undocumented>;
+def no_fixup_chains : Flag<["-"], "no_fixup_chains">,
+    HelpText<"Emit fixup information as classic dyld opcodes">,
     Group<grp_undocumented>;
 def fixup_chains_section : Flag<["-"], "fixup_chains_section">,
     HelpText<"This option is undocumented in ld64">,
@@ -1246,11 +1251,11 @@ def force_symbols_coalesce_list : Flag<["-"], "force_symbols_coalesce_list">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def force_symbols_not_weak_list : Flag<["-"], "force_symbols_not_weak_list">,
+def force_symbols_not_weak_list : Separate<["-"], "force_symbols_not_weak_list">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def force_symbols_weak_list : Flag<["-"], "force_symbols_weak_list">,
+def force_symbols_weak_list : Separate<["-"], "force_symbols_weak_list">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
