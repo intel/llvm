@@ -23,10 +23,10 @@
 
 class FairMockScheduler : public sycl::detail::Scheduler {
 public:
+  using sycl::detail::Scheduler::checkLeavesCompletion;
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
   using sycl::detail::Scheduler::MGraphBuilder;
   using sycl::detail::Scheduler::MGraphLock;
-  using sycl::detail::Scheduler::waitForRecordToFinish;
   MOCK_METHOD1(deferMemObjRelease,
                void(const std::shared_ptr<sycl::detail::SYCLMemObjI> &));
 };
@@ -452,17 +452,17 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
       PI_EVENT_SUBMITTED;
 
-  EXPECT_FALSE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, false));
+  EXPECT_FALSE(MockSchedulerPtr->checkLeavesCompletion(Rec));
 
   ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
   ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
       PI_EVENT_SUBMITTED;
 
-  EXPECT_FALSE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, false));
+  EXPECT_FALSE(MockSchedulerPtr->checkLeavesCompletion(Rec));
 
   ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
   ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
-  EXPECT_TRUE(MockSchedulerPtr->waitForRecordToFinish(Rec, Lock, true));
+  EXPECT_TRUE(MockSchedulerPtr->checkLeavesCompletion(Rec));
   // previous expect_call is still valid and will generate failure if we recieve
   // call here, no need for extra limitation
   EXPECT_CALL(*ReadCmd, Release).Times(1);

@@ -26,59 +26,63 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-inline bool Scheduler::checkLeavesCompletion(LeavesCollection &Leaves,
-                                             ReadLockT &GraphReadLock,
-                                             bool Blocking) {
-  std::vector<Command *> ToCleanUp;
-  for (Command *Cmd : Leaves) {
-    // Expect that mem object release is not responsible for dependency commands
-    // enqueue
-    if (Cmd->getEvent()->isCompleted())
-      continue;
-
-    if (Blocking)
-      GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
-    else
+bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
+  for (Command *Cmd : Record->MReadLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
+      return false;
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
       return false;
   }
   return true;
 }
 
-bool Scheduler::waitForRecordToFinish(MemObjRecord *Record,
-                                      ReadLockT &GraphReadLock, bool Blocking) {
-  assert(Record);
-  if (!checkLeavesCompletion(Record->MReadLeaves, GraphReadLock, Blocking))
-    return false;
-  if (!checkLeavesCompletion(Record->MWriteLeaves, GraphReadLock, Blocking))
-    return false;
-
+void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
+                                      ReadLockT &GraphReadLock) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Will contain the list of dependencies for the Release Command
+  std::set<Command *> DepCommands;
+#endif
   std::vector<Command *> ToCleanUp;
+  for (Command *Cmd : Record->MReadLeaves) {
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Capture the dependencies
+    DepCommands.insert(Cmd);
+#endif
+    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    DepCommands.insert(Cmd);
+#endif
+    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+  }
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Will contain the list of dependencies for the Release Command
-    std::set<Command *> DepCommands;
-    // Capture the read dependencies
-    for (Command *Cmd : Record->MWriteLeaves)
-      DepCommands.insert(Cmd);
-    // Capture the write dependencies
-    for (Command *Cmd : Record->MReadLeaves)
-      DepCommands.insert(Cmd);
-    // Report these dependencies to the Command so these dependencies can be
-    // reported as edges
-    ReleaseCmd->resolveReleaseDependencies(DepCommands);
-#endif
     EnqueueResultT Res;
     bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
-    // Unconditionally wait for completion
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Report these dependencies to the Command so these dependencies can be
+    // reported as edges
+    ReleaseCmd->resolveReleaseDependencies(DepCommands);
+#endif
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
-
-  return true;
 }
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
@@ -266,7 +270,7 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
   deallocateStreams(StreamsToDeallocate);
 }
 
-inline void Scheduler::releaseMemObjRecord(
+void Scheduler::releaseMemObjRecord(
     detail::SYCLMemObjI *MemObj,
     std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
     std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
@@ -300,7 +304,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
       ReadLockT Lock(MGraphLock);
-      waitForRecordToFinish(Record, Lock, true);
+      waitForRecordToFinish(Record, Lock);
     }
     {
       WriteLockT Lock(MGraphLock, std::defer_lock);
@@ -524,7 +528,7 @@ void Scheduler::cleanupDeferredMemObjects(bool Blocking) {
   if (isDeferredMemObjectsEmpty())
     return;
   if (Blocking) {
-    std::list<std::shared_ptr<SYCLMemObjI>> MTempStorage;
+    std::vector<std::shared_ptr<SYCLMemObjI>> MTempStorage;
     {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       MDeferredMemObjRelease.swap(MTempStorage);
@@ -544,7 +548,7 @@ void Scheduler::cleanupDeferredMemObjects(bool Blocking) {
       auto MemObjIt = MDeferredMemObjRelease.begin();
       while (MemObjIt != MDeferredMemObjRelease.end()) {
         MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
-        if (!waitForRecordToFinish(Record, Lock, Blocking)) {
+        if (!checkLeavesCompletion(Record)) {
           MemObjIt++;
           continue;
         }

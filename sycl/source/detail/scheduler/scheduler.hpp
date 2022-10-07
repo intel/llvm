@@ -471,7 +471,7 @@ protected:
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(bool Blocking);
-  inline void releaseMemObjRecord(
+  void releaseMemObjRecord(
       detail::SYCLMemObjI *MemObj,
       std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
       std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate);
@@ -766,22 +766,16 @@ protected:
                                BlockingT Blocking = NON_BLOCKING);
   };
 
-  /// This function conditionally waits on all of the graph leaves which somehow
-  /// use the memory object which is represented by \c Record. The function is
-  /// called upon destruction of memory buffer. \param Record memory record to
-  /// await graph leaves of to finish \param GraphReadLock locked graph read
-  /// lock \param ForceWait flag to identify if we need to wait for all
-  /// dependencies
+  /// This function waits on all of the graph leaves which somehow use the
+  /// memory object which is represented by \c Record. The function is called
+  /// upon destruction of memory buffer.
+  /// \param Record memory record to await graph leaves of to finish
+  /// \param GraphReadLock locked graph read lock
   ///
   /// GraphReadLock will be unlocked/locked as needed. Upon return from the
   /// function, GraphReadLock will be left in locked state.
-  /// \return true if all record dependencies and release commands are
-  /// completed, otherwise - false. Must always return true if ForceWait ==
-  /// true.
-  bool waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock,
-                             bool Blocking);
-  inline bool checkLeavesCompletion(LeavesCollection &Leaves,
-                                    ReadLockT &GraphReadLock, bool Blocking);
+  void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
+  bool checkLeavesCompletion(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
@@ -789,7 +783,7 @@ protected:
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
 
-  std::list<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
+  std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
   std::mutex MDeferredMemReleaseMutex;
 
   QueueImplPtr DefaultHostQueue;

@@ -74,7 +74,7 @@ public:
   void unloadPlugins();
 
   // For testing purposes only
-  void attachScheduler(Scheduler *scheduler);
+  void attachScheduler(Scheduler *Scheduler);
 
 private:
   friend void releaseDefaultContexts();
