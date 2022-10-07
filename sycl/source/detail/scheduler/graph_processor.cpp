@@ -32,7 +32,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
     return;
 
   EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, BLOCKING);
+  bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, Cmd, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
@@ -48,7 +48,8 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
 
 bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, EnqueueResultT &EnqueueResult,
-    std::vector<Command *> &ToCleanUp, BlockingT Blocking) {
+    std::vector<Command *> &ToCleanUp, Command *RootCommand,
+    BlockingT Blocking) {
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
@@ -62,7 +63,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // first and exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
+      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, RootCommand,
+                          Blocking))
         return false;
   }
 
@@ -74,7 +76,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
+      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, RootCommand,
+                          Blocking))
         return false;
   }
 
@@ -91,7 +94,13 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // on completion of C and starts cleanup process. This thread is still in the
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
-  return Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  if (Result && Cmd->isBlocking()) {
+    Cmd->addBlockedUser(RootCommand);
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
+  }
+  return Result;
 }
 
 } // namespace detail

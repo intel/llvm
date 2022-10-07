@@ -321,10 +321,6 @@ public:
 
     HostTask.MHostTask.reset();
 
-    // unblock user empty command here
-    EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
-    assert(EmptyCmd && "No empty command found");
-
     // Completing command's event along with unblocking enqueue readiness of
     // empty command may lead to quick deallocation of MThisCmd by some cleanup
     // process. Thus we'll copy deps prior to completing of event and unblocking
@@ -339,9 +335,12 @@ public:
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
       // update self-event status
+      const std::vector<Command *> &CmdsToEnqueue = MThisCmd->getBlockedUsers();
+
       MThisCmd->MEvent->setComplete();
 
-      EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+      Scheduler::enqueueUnblockedCommands(MThisCmd->MEvent, CmdsToEnqueue,
+                                          ToCleanUp);
 
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
@@ -370,9 +369,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
       // we will have two different contexts for the same CPU device: C1, C2.
       // Also we have default host queue. This queue is accessible via
       // Scheduler. Now, let's assume we have three different events: E1(C1),
-      // E2(C1), E3(C2). Also, we have an EmptyCommand which is to be executed
-      // on host queue. The command's MPreparedDepsEvents will contain all three
-      // events (E1, E2, E3). Now, if piEventsWait is called for all three
+      // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
+      // three events (E1, E2, E3). Now, if piEventsWait is called for all three
       // events we'll experience failure with CL_INVALID_CONTEXT 'cause these
       // events refer to different contexts.
       std::map<context_impl *, std::vector<EventImplPtr>>
@@ -607,8 +605,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 3. Some types of commands do not produce PI events after they are enqueued
   //    (e.g. alloca). Note that we can't check the pi event to make that
   //    distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized()) ||
-                         getType() == CommandType::HOST_TASK;
+  bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized());
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -2588,6 +2585,12 @@ bool ExecCGCommand::supportsPostEnqueueCleanup() const {
           (!static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() &&
            !static_cast<CGExecKernel *>(MCommandGroup.get())
                 ->hasAuxiliaryResources()));
+}
+
+void Command::removeBlockedUser(Command *User) {
+  auto it = std::find(MBlockedUsers.begin(), MBlockedUsers.end(), User);
+  if (it != MBlockedUsers.end())
+    MBlockedUsers.erase(it);
 }
 
 } // namespace detail

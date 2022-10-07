@@ -464,6 +464,11 @@ protected:
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
 
+  static void
+  enqueueUnblockedCommands(const EventImplPtr &UnblockedDep,
+                           const std::vector<Command *> &CmdsToEnqueue,
+                           std::vector<Command *> &ToCleanUp);
+
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
@@ -752,6 +757,7 @@ protected:
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
+                               Command *RootCommand,
                                BlockingT Blocking = NON_BLOCKING);
   };
 
@@ -777,6 +783,7 @@ protected:
   friend class DispatchHostTask;
   friend class queue_impl;
   friend class event_impl;
+  friend class ::MockScheduler;
 
   /// Stream buffers structure.
   ///

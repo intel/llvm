@@ -142,8 +142,21 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
+  // Shows that command could not be enqueued, now it may be true for empty task
+  // only
   bool isEnqueueBlocked() const {
-    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+    return MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+  }
+  // Shows thst command could be enqueud, but is blocking enqueue of all
+  // commands depending on it. Regular usage - host task.
+  bool isBlocking() const { return isHostTask() && MEvent->isComplete(); }
+
+  void addBlockedUser(Command *NewUser) { MBlockedUsers.push_back(NewUser); }
+
+  void removeBlockedUser(Command *User);
+
+  const std::vector<Command *> &getBlockedUsers() const {
+    return MBlockedUsers;
   }
 
   const QueueImplPtr &getQueue() const { return MQueue; }
@@ -254,6 +267,11 @@ protected:
   std::mutex MEnqueueMtx;
 
   friend class DispatchHostTask;
+
+  /// Contains list of commands that depends on the host command explicitly (by
+  /// depends_on). Not involved into cleanup process since it is one-way link
+  /// and not holds resources.
+  std::vector<Command *> MBlockedUsers;
 
 public:
   const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
@@ -563,12 +581,6 @@ public:
   void emitInstrumentationData() final;
 
   detail::CG &getCG() const { return *MCommandGroup; }
-
-  // MEmptyCmd is only employed if this command refers to host-task.
-  // The mechanism of lookup for single EmptyCommand amongst users of
-  // host-task-representing command is unreliable. This unreliability roots in
-  // the cleanup process.
-  EmptyCommand *MEmptyCmd = nullptr;
 
   bool producesPiEvent() const final;
 

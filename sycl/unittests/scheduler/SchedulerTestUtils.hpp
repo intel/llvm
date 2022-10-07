@@ -143,7 +143,7 @@ public:
                              sycl::detail::EnqueueResultT &EnqueueResult,
                              sycl::detail::BlockingT Blocking) {
     std::vector<sycl::detail::Command *> ToCleanUp;
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp,
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp, Cmd,
                                           Blocking);
   }
 
@@ -156,6 +156,10 @@ public:
   }
 
   ReadLockT acquireGraphReadLock() { return ReadLockT{MGraphLock}; }
+  WriteLockT acquireOriginSchedGraphWriteLock() {
+    Scheduler &Sched = Scheduler::getInstance();
+    return WriteLockT(Sched.MGraphLock, std::defer_lock);
+  }
 
   sycl::detail::Command *
   insertMemoryMove(sycl::detail::MemObjRecord *Record,
