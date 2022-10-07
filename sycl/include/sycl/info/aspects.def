@@ -36,4 +36,3 @@
   __SYCL_ASPECT(ext_oneapi_cuda_async_barrier, 34, "ext_oneapi_cuda_async_barrier")
   __SYCL_ASPECT(ext_oneapi_bfloat16, 35, "ext_oneapi_bfloat16")
   __SYCL_ASPECT(ext_intel_free_memory, 36, "ext_intel_free_memory")
-  
