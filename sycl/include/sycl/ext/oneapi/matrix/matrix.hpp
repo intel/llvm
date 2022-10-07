@@ -29,3 +29,7 @@
 #if (SYCL_EXT_ONEAPI_MATRIX == 3)
 #include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
 #endif
+#if (SYCL_EXT_ONEAPI_MATRIX == 4)
+#include <sycl/ext/oneapi/matrix/matrix-unified.hpp>
+#endif
+
