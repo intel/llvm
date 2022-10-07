@@ -4024,8 +4024,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::vector<std::string> InputCommandArgs) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using a
-  // well formed diagnostic object.
+  // Buffer diagnostics from argument parsing so that we can output them using
+  // a well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);

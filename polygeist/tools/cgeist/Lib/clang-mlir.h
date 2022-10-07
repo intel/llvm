@@ -192,8 +192,8 @@ public:
   mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const clang::ValueDecl *VD,
                                              std::string prefix = "");
 
-  /// Return a value representing an access into a global string with the given
-  /// name, creating the string if necessary.
+  /// Return a value representing an access into a global string with the
+  /// given name, creating the string if necessary.
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
                                           mlir::OpBuilder &builder,
                                           clang::StringRef value);
