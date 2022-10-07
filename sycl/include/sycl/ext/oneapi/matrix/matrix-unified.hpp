@@ -6,11 +6,12 @@
 //
 // ===--------------------------------------------------------------------=== //
 
-//todo is bfloat16 necessary?
 #pragma once
-//#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
-//#include <sycl/ext/oneapi/matrix/joint-matrix.hpp>
+#if defined(CUDA_MATRIX)
 #include <sycl/ext/oneapi/matrix/matrix-tensor-cores.hpp>
+#else
+//#include <sycl/ext/oneapi/matrix/matrix-intel.hpp>
+#endif // defined(CUDA_MATRIX)
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -19,14 +20,13 @@ namespace oneapi {
 namespace experimental {
 namespace matrix {
 
-
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_use Use, layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
                   joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
                   const T2 v) {
-  // We kept the unused "sg" in joint_matrix_fill to match the other DPC++
+  // We kept the dynamic "sg" in joint_matrix_fill to match the other DPC++
   // functions
   std::ignore = sg;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -38,14 +38,14 @@ joint_matrix_fill(Group sg,
 }
 
 // TODO Two typenames (S and T) not required in CUDA backend but included for
-// Intel backend requirement.
+// Intel backend requirement. TODO: check if this is still the case!!
 template <typename Group, typename S, typename T, size_t NumRows,
           size_t NumCols, matrix_use Use, access::address_space Space,
           std::enable_if_t<std::is_same<S, T>::value, bool> = true>
 void joint_matrix_load(
     Group sg,
     joint_matrix<S, Use, NumRows, NumCols,
-                 sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic, Group>
         &res,
     multi_ptr<T, Space> src, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout LayoutAcc) {
@@ -96,7 +96,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
 void joint_matrix_store(
     Group sg,
     joint_matrix<T, matrix_use::accumulator, NumRows, NumCols, 
-                 sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic, Group>
         &src,
     multi_ptr<T, Space> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout LayoutAcc) {
@@ -116,21 +116,23 @@ void joint_matrix_store(
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename Group, typename T1, typename T2, typename T3, std::size_t M,
-          std::size_t K, std::size_t N, layout LayoutA = sycl::ext::oneapi::experimental::matrix::layout::unused, layout LayoutB = sycl::ext::oneapi::experimental::matrix::layout::unused>
-void joint_matrix_mad(
+template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M,
+          std::size_t K, std::size_t N, layout LayoutA = sycl::ext::oneapi::experimental::matrix::layout::dynamic, layout LayoutB = sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+joint_matrix<Tc, matrix_use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic, Group>
+         joint_matrix_mad(
     Group sg,
-    joint_matrix<T3, matrix_use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
-        &D,
-    joint_matrix<T1, matrix_use::a, M, K, LayoutA, Group> &A,
-    joint_matrix<T1, matrix_use::b, K, N, LayoutB, Group> &B,
-    joint_matrix<T2, matrix_use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::unused, Group>
+    joint_matrix<Ta, matrix_use::a, M, K, LayoutA, Group> &A,
+    joint_matrix<Tb, matrix_use::b, K, N, LayoutB, Group> &B,
+    joint_matrix<Tc, matrix_use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic, Group>
         &C) {
 #if defined(__SYCL_DEVICE_ONLY__) 
 #if defined(__NVPTX__)
-  sycl::ext::oneapi::detail::joint_matrix_mad_impl<T1, T2, T3, M, K, N, LayoutA,
+  joint_matrix<Tc, matrix_use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic, Group>
+        D;
+  sycl::ext::oneapi::detail::joint_matrix_mad_impl<Ta, Tc, Tc, M, K, N, LayoutA,
                                                    LayoutB>{}
       .mad(D, A, B, C);
 #elif defined(__AMDGCN__)

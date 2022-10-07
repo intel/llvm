@@ -15,7 +15,7 @@ namespace matrix {
 
 enum class matrix_use { a, b, accumulator };
 
-enum class layout { row_major, col_major, packed, unused };
+enum class layout { row_major, col_major, packed, dynamic };
 
 namespace precision {
 class tf32 {
@@ -28,7 +28,7 @@ class tf32 {
 // TODO: how are the default params for Rows/Cols used in Intel backend?
 template <typename T, matrix_use Use, size_t Rows = sycl::dynamic_extent,
           size_t Cols = sycl::dynamic_extent,
-          layout Layout = layout::unused, typename Group = sycl::sub_group,
+          layout Layout = layout::dynamic, typename Group = sycl::sub_group,
           typename Cond = void>
 struct joint_matrix;
 
