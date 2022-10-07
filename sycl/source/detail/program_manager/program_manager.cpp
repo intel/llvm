@@ -15,6 +15,7 @@
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
@@ -543,14 +544,52 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   DeviceImplPtr Dev =
       (MustBuildOnSubdevice == PI_TRUE) ? DeviceImpl : RootDevImpl;
-  auto BuildF = [this, &M, &KSId, &ContextImpl, &Dev, Prg, &CompileOpts,
-                 &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
-    auto Context = createSyclObjFromImpl<context>(ContextImpl);
-    auto Device = createSyclObjFromImpl<device>(Dev);
+  auto Context = createSyclObjFromImpl<context>(ContextImpl);
+  auto Device = createSyclObjFromImpl<device>(Dev);
+  const RTDeviceBinaryImage &Img =
+      getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
 
-    const RTDeviceBinaryImage &Img =
-        getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
+  // Check that device supports all aspects used by the kernel
+  const RTDeviceBinaryImage::PropertyRange &ARange =
+      Img.getDeviceRequirements();
 
+#define __SYCL_ASPECT(A, B, C)                                                 \
+  case aspect::A:                                                              \
+    return C;
+#define __SYCL_SPECIAL_ASPECT(A, B, C)
+  auto getAspectNameStr = [](aspect AspectNum) -> std::string {
+    switch (AspectNum) {
+#include <sycl/info/aspects.def>
+    default:
+      throw sycl::exception(
+          errc::kernel_not_supported,
+          "Unknown aspect " + std::to_string(static_cast<unsigned>(AspectNum)));
+    }
+  };
+#undef __SYCL_SPECIAL_ASPECT
+#undef __SYCL_ASPECT
+
+  for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : ARange) {
+    auto KName = std::string((*It)->Name);
+    if (KName != "aspects")
+      continue;
+    ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
+    // 8 because we need to skip 64-bits of size of the byte array
+    auto *AIt = reinterpret_cast<const std::uint32_t *>(&Aspects[8]);
+    auto *AEnd =
+        reinterpret_cast<const std::uint32_t *>(&Aspects[0] + Aspects.size());
+    while (AIt != AEnd) {
+      auto Aspect = static_cast<aspect>(*AIt);
+      if (!Dev->has(Aspect))
+        throw sycl::exception(errc::kernel_not_supported,
+                              "Required aspect " + getAspectNameStr(Aspect) +
+                                  " is not supported on the device");
+      ++AIt;
+    }
+  }
+
+  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
+                 &LinkOpts, SpecConsts, &KernelName] {
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
 
     const detail::plugin &Plugin = ContextImpl->getPlugin();
