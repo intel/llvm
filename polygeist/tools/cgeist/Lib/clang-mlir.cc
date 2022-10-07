@@ -4024,8 +4024,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::vector<std::string> InputCommandArgs) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using
-  // a well formed diagnostic object.
+  // Buffer diagnostics from argument parsing so that we can output them using a
+  // well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
@@ -4209,8 +4209,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
     // Inform the target of the language options.
     //
-    // FIXME: We shouldn't need to do this, the target should be immutable
-    // once created. This complexity should be lifted elsewhere.
+    // FIXME: We shouldn't need to do this, the target should be immutable once
+    // created. This complexity should be lifted elsewhere.
     Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
 
     // Adjust target options based on codegen options.
