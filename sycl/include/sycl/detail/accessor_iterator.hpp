@@ -37,144 +37,142 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-template <typename _AccessorDataT, int _AccessorDimensions,
-          access::mode _AccessMode, access::target _AccessTarget,
-          access::placeholder _IsPlaceholder, typename _PropertyListT>
+template <typename AccessorDataT, int AccessorDimensions,
+          access::mode AccessMode, access::target AccessTarget,
+          access::placeholder IsPlaceholder, typename PropertyListT>
 class accessor;
 
 namespace detail {
 
-template <typename _DataT, int _Dimensions> class __accessor_iterator {
+template <typename DataT, int Dimensions> class accessor_iterator {
 public:
   using difference_type = std::ptrdiff_t;
-  using value_type = _DataT;
+  using value_type = DataT;
   // FIXME: this should likely include address space
-  using pointer = _DataT *;
-  using reference = _DataT &;
+  using pointer = DataT *;
+  using reference = DataT &;
   using iterator_category = std::random_access_iterator_tag;
 
-  __accessor_iterator() = default;
+  accessor_iterator() = default;
 
   reference operator*() {
-    return *(_MDataPtr + __get_absolute_offset_to_buffer());
+    return *(MDataPtr + getAbsoluteOffsetToBuffer());
   }
 
-  __accessor_iterator &operator++() {
-    ++_MLinearId;
+  accessor_iterator &operator++() {
+    ++MLinearId;
     return *this;
   }
 
-  __accessor_iterator operator++(int) {
-    auto _Old = *this;
+  accessor_iterator operator++(int) {
+    auto Old = *this;
     ++(*this);
-    return _Old;
+    return Old;
   }
 
-  __accessor_iterator &operator--() {
-    --_MLinearId;
+  accessor_iterator &operator--() {
+    --MLinearId;
     return *this;
   }
 
-  __accessor_iterator operator--(int) {
-    auto _Old = *this;
+  accessor_iterator operator--(int) {
+    auto Old = *this;
     --(*this);
-    return _Old;
+    return Old;
   }
 
-  __accessor_iterator &operator+=(difference_type _N) {
-    _MLinearId += _N;
+  accessor_iterator &operator+=(difference_type N) {
+    MLinearId += N;
 
     return *this;
   }
 
-  friend __accessor_iterator operator+(const __accessor_iterator &_Lhs,
-                                       difference_type _N) {
-    auto _Ret = _Lhs;
-    _Ret += _N;
-    return _Ret;
+  friend accessor_iterator operator+(const accessor_iterator &Lhs,
+                                     difference_type N) {
+    auto Ret = Lhs;
+    Ret += N;
+    return Ret;
   }
 
-  friend __accessor_iterator operator+(difference_type _N,
-                                       const __accessor_iterator &_Rhs) {
-    auto _Ret = _Rhs;
-    _Ret += _N;
-    return _Ret;
+  friend accessor_iterator operator+(difference_type N,
+                                     const accessor_iterator &Rhs) {
+    auto Ret = Rhs;
+    Ret += N;
+    return Ret;
   }
 
-  __accessor_iterator &operator-=(difference_type _N) {
-    _MLinearId -= _N;
+  accessor_iterator &operator-=(difference_type N) {
+    MLinearId -= N;
 
     return *this;
   }
 
-  friend __accessor_iterator operator-(__accessor_iterator &_Lhs,
-                                       difference_type _N) {
-    _Lhs -= _N;
-    return _Lhs;
+  friend accessor_iterator operator-(accessor_iterator &Lhs,
+                                     difference_type N) {
+    Lhs -= N;
+    return Lhs;
   }
 
-  reference &operator[](difference_type _N) {
-    auto _Copy = *this;
-    _Copy += _N;
-    return *_Copy;
+  reference &operator[](difference_type N) {
+    auto Copy = *this;
+    Copy += N;
+    return *Copy;
   }
 
-  bool operator<(const __accessor_iterator &_Other) const {
-    return _MLinearId < _Other._MLinearId;
+  bool operator<(const accessor_iterator &Other) const {
+    return MLinearId < Other.MLinearId;
   }
 
-  bool operator>(const __accessor_iterator &_Other) const {
-    return _Other < *this;
+  bool operator>(const accessor_iterator &Other) const { return Other < *this; }
+
+  bool operator<=(const accessor_iterator &Other) const {
+    return !(*this > Other);
   }
 
-  bool operator<=(const __accessor_iterator &_Other) const {
-    return !(*this > _Other);
+  bool operator>=(const accessor_iterator &Other) const {
+    return !(*this < Other);
   }
 
-  bool operator>=(const __accessor_iterator &_Other) const {
-    return !(*this < _Other);
+  bool operator==(const accessor_iterator &Other) const {
+    return MLinearId == Other.MLinearId;
   }
 
-  bool operator==(const __accessor_iterator &_Other) const {
-    return _MLinearId == _Other._MLinearId;
+  bool operator!=(const accessor_iterator &Other) const {
+    return !(*this == Other);
   }
 
-  bool operator!=(const __accessor_iterator &_Other) const {
-    return !(*this == _Other);
-  }
-
-  difference_type operator-(const __accessor_iterator &_Rhs) {
-    return _MLinearId - _Rhs._MLinearId;
+  difference_type operator-(const accessor_iterator &Rhs) {
+    return MLinearId - Rhs.MLinearId;
   }
 
 private:
-  template <typename _AccessorDataT, int _AccessorDimensions,
-            access::mode _AccessMode, access::target _AccessTarget,
-            access::placeholder _IsPlaceholder, typename _PropertyListT>
+  template <typename AccessorDataT, int AccessorDimensions,
+            access::mode AccessMode, access::target AccessTarget,
+            access::placeholder IsPlaceholder, typename PropertyListT>
   friend class sycl::accessor;
 
-  _DataT *_MDataPtr = nullptr;
+  DataT *MDataPtr = nullptr;
 
   // Stores a linear id of an accessor's buffer element the iterator points to.
   // This id is relative to a range accessible through an accessor, i.e. it is
   // limited by a space with top left corner defiend as accessor::get_offset()
   // and bottom right corner defined as accesor::get_range().
-  size_t _MLinearId = 0;
+  size_t MLinearId = 0;
 
-  // Describes range of linear IDs accessible by the iterator. _MEnd corresponds
+  // Describes range of linear IDs accessible by the iterator. MEnd corresponds
   // to ID of en element past the last accessible element of accessors's
   // buffer.
-  size_t _MBegin = 0;
-  size_t _MEnd = 0;
+  size_t MBegin = 0;
+  size_t MEnd = 0;
 
   // If set to true, then it indicates that accessor has its offset and/or range
   // set to non-zero, i.e. it is a ranged accessor.
-  bool _MAccessorIsRanged = false;
+  bool MAccessorIsRanged = false;
 
   // Fields below are used (and changed to be non-zero) only if we deal with
   // a ranged accessor.
   //
-  // TODO: consider making their existance dependable on _Dimensions template
+  // TODO: consider making their existance dependable on Dimensions template
   // parameter, because not all of them are needed for all possible dimensions.
 
   // Three field below allow us to calculate an absolute offset to an accessor's
@@ -196,140 +194,138 @@ private:
   //   . X X X .
   //   . . . . .
   //
-  // _MStaticOffset stores a number of elements which precede the first
+  // MStaticOffset stores a number of elements which precede the first
   // accessible element, calculated as if the buffer was linearized.
-  // For the example above, _MStaticOffset would be equal to 6, because
+  // For the example above, MStaticOffset would be equal to 6, because
   // there is one full row before the first accessible element and a one more on
   // the second line. "Static" in the name highlights that this is a constant
   // element in an equation which calculates an absoulte offset to an accessor's
   // buffer, it doesn't depend on the current state of the iterator.
   //
-  // NOTE: _MStaticOffset is set to 0 in 1D case even if the accessor was
+  // NOTE: MStaticOffset is set to 0 in 1D case even if the accessor was
   // created with offset: it is done to further optimize 1D case by
-  // incorporating that offset into _MLinearId right away.
+  // incorporating that offset into MLinearId right away.
   //
-  // _MPerRowOffset stores a number of _inaccessible_ elements in each
-  // _accessible_ row. For the example above it would be equal to 2 (leftmost
+  // MPerRowOffset stores a number of inaccessible_ elements in each
+  // accessible_ row. For the example above it would be equal to 2 (leftmost
   // and the rightmost elements of a row).
   //
-  // _MPerSliceOffset stores a number of _inaccessible_ elements in each
-  // _accessible_ slice. Slice here means a single 2D layer in a 3D buffer. For
+  // MPerSliceOffset stores a number of inaccessible_ elements in each
+  // accessible_ slice. Slice here means a single 2D layer in a 3D buffer. For
   // the example above it would be equal to 0, because we are not looking at a
   // 3D buffer. However, if we had two slices like visualized above,
-  // _MPerSliceOffset would be equal to 16 (elements on the "perimeter" of the
+  // MPerSliceOffset would be equal to 16 (elements on the "perimeter" of the
   // slice, i.e. ones represented as dots (.)).
 
-  size_t _MStaticOffset = 0;
-  size_t _MPerRowOffset = 0;
-  size_t _MPerSliceOffset = 0;
+  size_t MStaticOffset = 0;
+  size_t MPerRowOffset = 0;
+  size_t MPerSliceOffset = 0;
 
-  // Contains a number of _accessible_ elements in a row
-  size_t _MRowSize = 0;
-  // Contains a number of _accessible_ elements in a slice
-  size_t _MSliceSize = 0;
+  // Contains a number of accessible_ elements in a row
+  size_t MRowSize = 0;
+  // Contains a number of accessible_ elements in a slice
+  size_t MSliceSize = 0;
 
-  // _MLinearId stores an offset which is relative to the accessible range of
-  // the accessor, which means that it could be the case that _MlinearId equal
+  // MLinearId stores an offset which is relative to the accessible range of
+  // the accessor, which means that it could be the case that MlinearId equal
   // to 0 should not correspond to the beginning of the underlying buffer, but
   // instead should be re-adjusted to account for an offset passed to the
   // accessor constructor.
   //
   // This function performs necessary calculations to make sure that all
   // access ranges and offsets are taken into account.
-  size_t __get_absolute_offset_to_buffer() {
+  size_t getAbsoluteOffsetToBuffer() {
     // For 1D case, any possible offsets are already incorporated into
-    // _MLinearId, so 1D is always treated as a non-ranged accessor
-    if (!_MAccessorIsRanged || _Dimensions == 1)
-      return _MLinearId;
+    // MLinearId, so 1D is always treated as a non-ranged accessor
+    if (!MAccessorIsRanged || Dimensions == 1)
+      return MLinearId;
 
     // Here we need to deal with 2D or 3D ranged accessor.
-    // _MLinearId points to an element relative to the accessible range. It
+    // MLinearId points to an element relative to the accessible range. It
     // should be adjusted to account for elements which are outside of the
     // accessible range of the accessor.
 
     // We start with static offset: that is a number of elements in full rows
     // and full slices before the first accessible element.
-    size_t _AbsoluteId = _MLinearId + _MStaticOffset;
+    size_t AbsoluteId = MLinearId + MStaticOffset;
 
     // Then we account for inaccessible elements in each full slice
-    size_t _Remaining = _MLinearId;
-    if constexpr (_Dimensions == 3) {
-      _AbsoluteId += _MPerSliceOffset * (_Remaining / _MSliceSize);
-      _Remaining %= _MSliceSize;
+    size_t Remaining = MLinearId;
+    if constexpr (Dimensions == 3) {
+      AbsoluteId += MPerSliceOffset * (Remaining / MSliceSize);
+      Remaining %= MSliceSize;
     }
 
     // Then we account for inaccessible elements in each full row
-    _AbsoluteId += _MPerRowOffset * (_Remaining / _MRowSize);
-    _Remaining %= _MRowSize;
+    AbsoluteId += MPerRowOffset * (Remaining / MRowSize);
+    Remaining %= MRowSize;
 
-    return _AbsoluteId;
+    return AbsoluteId;
   }
 
-  __accessor_iterator(_DataT *_DataPtr, const range<_Dimensions> &_MemoryRange,
-                      const range<_Dimensions> &_AccessRange,
-                      const id<_Dimensions> &_Offset)
-      : _MDataPtr(_DataPtr) {
-    constexpr int _XIndex = _Dimensions - 1;
-    constexpr int _YIndex = _Dimensions - 2;
-    (void)_YIndex;
-    constexpr int _ZIndex = _Dimensions - 3;
-    (void)_ZIndex;
+  accessor_iterator(DataT *DataPtr, const range<Dimensions> &MemoryRange,
+                    const range<Dimensions> &AccessRange,
+                    const id<Dimensions> &Offset)
+      : MDataPtr(DataPtr) {
+    constexpr int XIndex = Dimensions - 1;
+    constexpr int YIndex = Dimensions - 2;
+    (void)YIndex;
+    constexpr int ZIndex = Dimensions - 3;
+    (void)ZIndex;
 
-    if constexpr (_Dimensions > 1)
-      _MRowSize = _AccessRange[_XIndex];
-    if constexpr (_Dimensions > 2)
-      _MSliceSize = _AccessRange[_YIndex] * _MRowSize;
+    if constexpr (Dimensions > 1)
+      MRowSize = AccessRange[XIndex];
+    if constexpr (Dimensions > 2)
+      MSliceSize = AccessRange[YIndex] * MRowSize;
 
-    if (id<_Dimensions>{} != _Offset)
-      _MAccessorIsRanged = true;
+    if (id<Dimensions>{} != Offset)
+      MAccessorIsRanged = true;
     else {
-      for (size_t _I = 0; _I < _Dimensions; ++_I)
-        if (_AccessRange[_I] != _MemoryRange[_I])
-          _MAccessorIsRanged = true;
+      for (size_t I = 0; I < Dimensions; ++I)
+        if (AccessRange[I] != MemoryRange[I])
+          MAccessorIsRanged = true;
     }
 
-    if (_MAccessorIsRanged) {
-      if constexpr (_Dimensions > 2) {
-        _MStaticOffset +=
-            _MemoryRange[_XIndex] * _MemoryRange[_YIndex] * _Offset[_ZIndex];
-        _MPerSliceOffset =
-            _MemoryRange[_XIndex] * _MemoryRange[_YIndex] - _MSliceSize;
+    if (MAccessorIsRanged) {
+      if constexpr (Dimensions > 2) {
+        MStaticOffset +=
+            MemoryRange[XIndex] * MemoryRange[YIndex] * Offset[ZIndex];
+        MPerSliceOffset =
+            MemoryRange[XIndex] * MemoryRange[YIndex] - MSliceSize;
       }
-      if constexpr (_Dimensions > 1) {
+      if constexpr (Dimensions > 1) {
         // Elements in fully inaccessible rows
-        _MStaticOffset += _MemoryRange[_XIndex] * _Offset[_YIndex];
-        _MPerRowOffset = _MemoryRange[_XIndex] - _MRowSize;
+        MStaticOffset += MemoryRange[XIndex] * Offset[YIndex];
+        MPerRowOffset = MemoryRange[XIndex] - MRowSize;
       }
 
       // Elements from the first accessible row
-      if constexpr (_Dimensions == 1)
-        // To further optimize 1D case, offset is already included into _Begin
-        _MBegin = _Offset[_XIndex];
+      if constexpr (Dimensions == 1)
+        // To further optimize 1D case, offset is already included into Begin
+        MBegin = Offset[XIndex];
       else
-        _MStaticOffset += _Offset[_XIndex];
+        MStaticOffset += Offset[XIndex];
     }
 
-    _MEnd = _MBegin + _AccessRange.size();
+    MEnd = MBegin + AccessRange.size();
   }
 
-  static __accessor_iterator __get_begin(_DataT *_DataPtr,
-                                         const range<_Dimensions> &_MemoryRange,
-                                         const range<_Dimensions> &_AccessRange,
-                                         const id<_Dimensions> &_Offset) {
-    auto _It =
-        __accessor_iterator(_DataPtr, _MemoryRange, _AccessRange, _Offset);
-    _It._MLinearId = _It._MBegin;
-    return _It;
+  static accessor_iterator getBegin(DataT *DataPtr,
+                                     const range<Dimensions> &MemoryRange,
+                                     const range<Dimensions> &AccessRange,
+                                     const id<Dimensions> &Offset) {
+    auto It = accessor_iterator(DataPtr, MemoryRange, AccessRange, Offset);
+    It.MLinearId = It.MBegin;
+    return It;
   }
 
-  static __accessor_iterator __get_end(_DataT *_DataPtr,
-                                       const range<_Dimensions> &_MemoryRange,
-                                       const range<_Dimensions> &_AccessRange,
-                                       const id<_Dimensions> &_Offset) {
-    auto _It =
-        __accessor_iterator(_DataPtr, _MemoryRange, _AccessRange, _Offset);
-    _It._MLinearId = _It._MEnd;
-    return _It;
+  static accessor_iterator getEnd(DataT *DataPtr,
+                                   const range<Dimensions> &MemoryRange,
+                                   const range<Dimensions> &AccessRange,
+                                   const id<Dimensions> &Offset) {
+    auto It = accessor_iterator(DataPtr, MemoryRange, AccessRange, Offset);
+    It.MLinearId = It.MEnd;
+    return It;
   }
 
 public:
@@ -337,21 +333,21 @@ public:
   // Could be useful for debugging, but not a part of the official API,
   // therefore only available in builds with assertions enabled.
   friend std::ostream &operator<<(std::ostream &os,
-                                  const __accessor_iterator &it) {
-    os << "__accessor_iterator {\n";
-    os << "\t_MLinearId: " << it._MLinearId << "\n";
-    os << "\t_MEnd: " << it._MEnd << "\n";
-    os << "\t_MStaticOffset: " << it._MStaticOffset << "\n";
-    os << "\t_MPerRowOffset: " << it._MPerRowOffset << "\n";
-    os << "\t_MPerSliceOffset: " << it._MPerSliceOffset << "\n";
-    os << "\t_MRowSize: " << it._MRowSize << "\n";
-    os << "\t_MSliceSize: " << it._MSliceSize << "\n";
-    os << "\t_MAccessorIsRanged: " << it._MAccessorIsRanged << "\n";
+                                  const accessor_iterator &it) {
+    os << "accessor_iterator {\n";
+    os << "\tMLinearId: " << it.MLinearId << "\n";
+    os << "\tMEnd: " << it.MEnd << "\n";
+    os << "\tMStaticOffset: " << it.MStaticOffset << "\n";
+    os << "\tMPerRowOffset: " << it.MPerRowOffset << "\n";
+    os << "\tMPerSliceOffset: " << it.MPerSliceOffset << "\n";
+    os << "\tMRowSize: " << it.MRowSize << "\n";
+    os << "\tMSliceSize: " << it.MSliceSize << "\n";
+    os << "\tMAccessorIsRanged: " << it.MAccessorIsRanged << "\n";
     os << "}";
     return os;
   }
 #endif // NDEBUG
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // __SYCL_INLINE_VER_NAMESPACE(V1)
 } // namespace sycl
