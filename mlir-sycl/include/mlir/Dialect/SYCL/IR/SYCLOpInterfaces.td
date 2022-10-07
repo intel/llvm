@@ -22,6 +22,15 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
     This interface describes an operation that calls a member function of a SYCL
     type.
 
+    Operations implementing this interface should inherit
+    `SYCLMethodOpInterfaceImpl` and also implement the `BaseType` method,
+    returning the SYCL type representing the class this method is a member of;
+    the `MangledFunctionName` method, returning the mangled name of the function
+    implementing this operation; the `FunctionName` method, returning the
+    unmangled name of the function implementing this operation; and the
+    `TypeName` method, returning the original name of the type this operation is
+    a member of.
+
     Operations implementing this interface are registered as methods in the
     `SYCLDialect`. See the `SYCLDialect` documentation.
   }];
@@ -34,6 +43,18 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
       Return the list of the method names to be replaced by this
       operation.
     }], "llvm::ArrayRef<llvm::StringLiteral>", "getMethodNames">,
+    InterfaceMethod<[{
+      Return the SYCL type this method is a member of.
+    }], "::mlir::Type", "getBaseType">,
+    InterfaceMethod<[{
+      Return the mangled name of the function implementing this operation.
+    }], "llvm::StringRef", "getMangledFunctionName">,
+    InterfaceMethod<[{
+      Return the name of the function implementing this operation.
+    }], "llvm::StringRef", "getFunctionName">,
+    InterfaceMethod<[{
+      Return the original name of the type this method is implemented in.
+    }], "llvm::StringRef", "getTypeName">,
   ];
 }
 
