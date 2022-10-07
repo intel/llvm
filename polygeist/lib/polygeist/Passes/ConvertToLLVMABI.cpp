@@ -34,10 +34,7 @@ public:
 
   LogicalResult matchAndRewrite(gpu::GPUFuncOp op,
                                 PatternRewriter &rewriter) const override {
-    assert(op->getAttr("llvm.cconv") ==
-               mlir::LLVM::CConvAttr::get(op.getContext(),
-                                          LLVM::cconv::CConv::SPIR_KERNEL) &&
-           "Expecting SYCL Kernel");
+    assert(op.isKernel() && "Expecting SYCL Kernel");
     LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: GPUFuncLowering: "
                             << op.getName() << "\n");
 
@@ -51,7 +48,7 @@ public:
     Region &funcBody = op.getBody();
     SmallVector<BlockArgument, 8> Args(funcBody.getArguments().begin(),
                                        funcBody.getArguments().end());
-    for (auto &en : llvm::enumerate(Args)) {
+    for (const auto &en : llvm::enumerate(Args)) {
       Value arg = en.value();
       auto MT = arg.getType().dyn_cast<MemRefType>();
       if (!MT) {
@@ -100,7 +97,10 @@ struct ConvertToLLVMABIPass final
 
     ConversionTarget target(getContext());
     target.addDynamicallyLegalOp<gpu::GPUFuncOp>([](gpu::GPUFuncOp op) {
-      return llvm::none_of(op.getFunctionType().getInputs(),
+      FunctionType funcTy = op.getFunctionType();
+      assert(funcTy.getNumResults() == 0 &&
+             "Expecting SYCL kernel to return void");
+      return llvm::none_of(funcTy.getInputs(),
                            [](Type ty) { return ty.isa<MemRefType>(); });
     });
     target.addLegalOp<polygeist::Pointer2MemrefOp>();
