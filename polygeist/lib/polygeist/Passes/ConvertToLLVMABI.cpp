@@ -104,7 +104,7 @@ public:
     // Notify MLIR we're updating the function in place
     rewriter.startRootUpdate(op);
 
-    bool Changed = false;
+    bool changed = false;
     for (const auto &en : llvm::enumerate(op.getOperands())) {
       auto MT = en.value().getType().dyn_cast<MemRefType>();
       if (!MT)
@@ -115,19 +115,19 @@ public:
       auto memref2Ptr = rewriter.create<polygeist::Memref2PointerOp>(
           en.value().getLoc(), PT, en.value());
       op.setOperand(en.index(), memref2Ptr);
-      Changed = true;
+      changed = true;
     }
     LLVM_DEBUG({
-      if (Changed)
+      if (changed)
         llvm::dbgs() << "  New ReturnOp: " << op << "\n";
       else
-        llvm::dbgs() << " unchanged\n";
+        llvm::dbgs() << "  unchanged\n";
     });
 
     // Notify MLIR in place updates are done
     rewriter.finalizeRootUpdate(op);
 
-    return Changed ? success() : failure();
+    return changed ? success() : failure();
   }
 };
 
