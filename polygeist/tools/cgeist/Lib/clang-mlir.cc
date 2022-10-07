@@ -304,8 +304,6 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  const bool isKernel = FD->hasAttr<SYCLKernelAttr>();
-
   for (ParmVarDecl *parm : FD->parameters()) {
     assert(i != function.getNumArguments());
 
