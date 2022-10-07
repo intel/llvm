@@ -286,10 +286,10 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
   if (auto CM = dyn_cast<CXXMethodDecl>(FD)) {
     if (CM->getParent()->isLambda()) {
       for (auto C : CM->getParent()->captures()) {
-        if (C.capturesVariable()) {
+        if (C.capturesVariable())
           CaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
-        }
       }
+
       CM->getParent()->getCaptureFields(Captures, ThisCapture);
       if (ThisCapture) {
         llvm::errs() << " thiscapture:\n";
@@ -363,17 +363,16 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
           expr->getInit()->dump();
       }
       assert(ThisVal.val);
+
       FieldDecl *field = expr->getMember();
       if (!field) {
         if (expr->isBaseInitializer()) {
           bool BaseIsVirtual = expr->isBaseVirtual();
-
           auto BaseType = expr->getBaseClass();
 
           // Shift and cast down to the base type.
           // TODO: for complete types, this should be possible with a GEP.
           mlir::Value V = ThisVal.val;
-
           const clang::Type *BaseTypes[] = {BaseType};
           bool BaseVirtual[] = {BaseIsVirtual};
 
@@ -390,8 +389,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
                                /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
           continue;
         }
-        if (expr->isDelegatingInitializer()) {
 
+        if (expr->isDelegatingInitializer()) {
           Expr *init = expr->getInit();
           if (auto clean = dyn_cast<ExprWithCleanups>(init)) {
             llvm::errs() << "TODO: cleanup\n";
@@ -405,12 +404,14 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
         }
       }
       assert(field && "initialiation expression must apply to a field");
+
       if (auto AILE = dyn_cast<ArrayInitLoopExpr>(expr->getInit())) {
         VisitArrayInitLoop(AILE,
                            CommonFieldLookup(CC->getThisObjectType(), field,
                                              ThisVal.val, /*isLValue*/ false));
         continue;
       }
+
       if (auto cons = dyn_cast<CXXConstructExpr>(expr->getInit())) {
         VisitConstructCommon(cons, /*name*/ nullptr, /*space*/ 0,
                              CommonFieldLookup(CC->getThisObjectType(), field,
@@ -418,11 +419,13 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
                                  .val);
         continue;
       }
+
       auto initexpr = Visit(expr->getInit());
       if (!initexpr.val) {
         expr->getInit()->dump();
         assert(initexpr.val);
       }
+
       bool isArray = false;
       Glob.getMLIRType(expr->getInit()->getType(), &isArray);
 
@@ -432,6 +435,7 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
       cfl.store(builder, initexpr, isArray);
     }
   }
+
   if (auto CC = dyn_cast<CXXDestructorDecl>(FD)) {
     CC->dump();
     llvm::errs() << " warning, destructor not fully handled yet\n";
@@ -462,15 +466,15 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     if (D->getParent()->isUnion() && D->isDefaulted()) {
       mlir::Value V = ThisVal.val;
       assert(V);
-      if (auto MT = V.getType().dyn_cast<MemRefType>()) {
+      if (auto MT = V.getType().dyn_cast<MemRefType>())
         V = builder.create<polygeist::Pointer2MemrefOp>(
             loc, LLVM::LLVMPointerType::get(MT.getElementType()), V);
-      }
+
       mlir::Value src = function.getArgument(1);
-      if (auto MT = src.getType().dyn_cast<MemRefType>()) {
+      if (auto MT = src.getType().dyn_cast<MemRefType>())
         src = builder.create<polygeist::Pointer2MemrefOp>(
             loc, LLVM::LLVMPointerType::get(MT.getElementType()), src);
-      }
+
       mlir::Value typeSize = builder.create<polygeist::TypeSizeOp>(
           loc, builder.getIndexType(),
           mlir::TypeAttr::get(
@@ -496,9 +500,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
 
   Stmt *stmt = FD->getBody();
   assert(stmt);
-  if (ShowAST) {
+  if (ShowAST)
     stmt->dump();
-  }
+
   Visit(stmt);
 
   if (function.getResultTypes().size()) {
@@ -507,9 +511,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     mlir::Value vals[1] = {
         builder.create<mlir::memref::LoadOp>(loc, returnVal)};
     builder.create<ReturnOp>(loc, vals);
-  } else if (isa<gpu::GPUFuncOp>(function)) {
+  } else if (isa<gpu::GPUFuncOp>(function))
     builder.create<gpu::ReturnOp>(loc);
-  } else
+  else
     builder.create<ReturnOp>(loc);
 
   checkFunctionParent(function, f.getContext(), module);
