@@ -204,12 +204,12 @@ private:
   // created with offset: it is done to further optimize 1D case by
   // incorporating that offset into MLinearId right away.
   //
-  // MPerRowOffset stores a number of inaccessible_ elements in each
-  // accessible_ row. For the example above it would be equal to 2 (leftmost
+  // MPerRowOffset stores a number of _inaccessible_ elements in each
+  // _accessible_ row. For the example above it would be equal to 2 (leftmost
   // and the rightmost elements of a row).
   //
-  // MPerSliceOffset stores a number of inaccessible_ elements in each
-  // accessible_ slice. Slice here means a single 2D layer in a 3D buffer. For
+  // MPerSliceOffset stores a number of _inaccessible_ elements in each
+  // _accessible_ slice. Slice here means a single 2D layer in a 3D buffer. For
   // the example above it would be equal to 0, because we are not looking at a
   // 3D buffer. However, if we had two slices like visualized above,
   // MPerSliceOffset would be equal to 16 (elements on the "perimeter" of the
@@ -219,9 +219,9 @@ private:
   size_t MPerRowOffset = 0;
   size_t MPerSliceOffset = 0;
 
-  // Contains a number of accessible_ elements in a row
+  // Contains a number of _accessible_ elements in a row
   size_t MRowSize = 0;
-  // Contains a number of accessible_ elements in a slice
+  // Contains a number of _accessible_ elements in a slice
   size_t MSliceSize = 0;
 
   // MLinearId stores an offset which is relative to the accessible range of
