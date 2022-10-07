@@ -116,31 +116,6 @@ private:
   }
 };
 
-TEST_F(AccessorIteratorTest, ImplementationDetails) {
-  std::vector<int> reference(5);
-  std::iota(reference.begin(), reference.end(), 0);
-  sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
-  auto accessor = buffer.template get_access<sycl::access_mode::read_write>();
-  {
-    auto It = accessor.begin();
-    // Check that It can't be decremented past begin
-    ASSERT_EQ(--It, accessor.begin());
-    ASSERT_EQ(It - 1, accessor.begin());
-    ASSERT_EQ(It -= 1, accessor.begin());
-    ASSERT_EQ(It - 10, accessor.begin());
-    ASSERT_EQ(It -= 10, accessor.begin());
-  }
-  {
-    auto It = accessor.end();
-    // Check that It can't be incremented past end
-    ASSERT_EQ(++It, accessor.end());
-    ASSERT_EQ(It + 1, accessor.end());
-    ASSERT_EQ(It += 1, accessor.end());
-    ASSERT_EQ(It + 10, accessor.end());
-    ASSERT_EQ(It += 10, accessor.end());
-  }
-}
-
 // FIXME: consider turning this into parameterized test to check various
 // accessor types
 TEST_F(AccessorIteratorTest, IteratorTraits) {

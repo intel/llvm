@@ -60,8 +60,7 @@ public:
   }
 
   __accessor_iterator &operator++() {
-    if (_MLinearId < _MEnd)
-      ++_MLinearId;
+    ++_MLinearId;
     return *this;
   }
 
@@ -72,8 +71,7 @@ public:
   }
 
   __accessor_iterator &operator--() {
-    if (_MLinearId > _MBegin)
-      --_MLinearId;
+    --_MLinearId;
     return *this;
   }
 
@@ -84,15 +82,7 @@ public:
   }
 
   __accessor_iterator &operator+=(difference_type _N) {
-    if (_N < 0) {
-      *this -= -_N;
-      return *this;
-    }
-
-    if (static_cast<size_t>(_N) > _MEnd || _MEnd - _N < _MLinearId)
-      _MLinearId = _MEnd;
-    else
-      _MLinearId += _N;
+    _MLinearId += _N;
 
     return *this;
   }
@@ -112,15 +102,7 @@ public:
   }
 
   __accessor_iterator &operator-=(difference_type _N) {
-    if (_N < 0) {
-      *this += -_N;
-      return *this;
-    }
-
-    if (_MBegin + _N > _MLinearId)
-      _MLinearId = _MBegin;
-    else
-      _MLinearId -= _N;
+    _MLinearId -= _N;
 
     return *this;
   }
