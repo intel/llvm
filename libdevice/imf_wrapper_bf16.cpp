@@ -1,0 +1,31 @@
+//==----- imf_wrapper_bf16.cpp - wrappers for BFloat16 intel math library
+// functions ------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "imf_bf16.hpp"
+
+#ifdef __LIBDEVICE_IMF_ENABLED__
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_bfloat162float(_iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_bfloat162float(_iml_bf16_internal b) {
+  return __devicelib_imf_bfloat162float(b);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_float2bfloat16(float f) {
+  return __devicelib_imf_float2bfloat16(f);
+}
+
+
+#endif // __LIBDEVICE_IMF_ENABLED__

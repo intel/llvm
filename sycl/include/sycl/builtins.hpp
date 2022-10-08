@@ -1838,6 +1838,8 @@ extern SYCL_EXTERNAL _Float16 __imf_fmaxf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL _Float16 __imf_fminf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL _Float16 __imf_copysignf16(_Float16 x, _Float16 y);
 extern SYCL_EXTERNAL float __imf_half2float(_Float16 x);
+extern SYCL_EXTERNAL float __imf_bfloat162float(uint16_t);
+extern SYCL_EXTERNAL uint16_t __imf_float2bfloat16(float);
 extern SYCL_EXTERNAL double __imf_fma(double x, double y, double z);
 extern SYCL_EXTERNAL double __imf_fabs(double x);
 extern SYCL_EXTERNAL double __imf_floor(double x);
