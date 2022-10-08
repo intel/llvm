@@ -10,8 +10,8 @@
 #define __LIBDEVICE_DEVICE_IMF_H__
 
 #include "device.h"
-#include "imf_half.hpp"
 #include "imf_bf16.hpp"
+#include "imf_half.hpp"
 #include <cstddef>
 #include <limits>
 #include <type_traits>

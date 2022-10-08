@@ -27,5 +27,4 @@ _iml_bf16_internal __imf_float2bfloat16(float f) {
   return __devicelib_imf_float2bfloat16(f);
 }
 
-
 #endif // __LIBDEVICE_IMF_ENABLED__
