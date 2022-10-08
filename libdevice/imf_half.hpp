@@ -22,15 +22,6 @@ typedef _Float16 _iml_half_internal;
 typedef uint16_t _iml_half_internal;
 #endif
 
-// We don't want to include fenv.h and rounding mode are used internally
-// by type convert functions, so we define ourselves'.
-typedef enum {
-  __IML_RTE, // round to nearest-even
-  __IML_RTZ, // round to zero
-  __IML_RTP, // round to +inf
-  __IML_RTN, // round to -inf
-} __iml_rounding_mode;
-
 template <typename Ty> struct __iml_get_unsigned {};
 template <> struct __iml_get_unsigned<short> {
   using utype = uint16_t;
