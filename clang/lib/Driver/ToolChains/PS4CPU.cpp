@@ -159,17 +159,31 @@ void tools::PScpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const bool IsPS5 = TC.getTriple().isPS5();
   assert(IsPS4 || IsPS5);
 
-  // This tells LTO to perform JustMyCode instrumentation.
-  if (UseLTO && UseJMC) {
-    if (IsPS4 && D.getLTOMode() == LTOK_Thin) {
-      CmdArgs.push_back("-lto-thin-debug-options=-enable-jmc-instrument");
-    } else if (IsPS4 && D.getLTOMode() == LTOK_Full) {
-      CmdArgs.push_back("-lto-debug-options=-enable-jmc-instrument");
-    } else if (IsPS5) {
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-enable-jmc-instrument");
-    } else
+  auto AddCodeGenFlag = [&](Twine Flag) {
+    const char *Prefix = nullptr;
+    if (IsPS4 && D.getLTOMode() == LTOK_Thin)
+      Prefix = "-lto-thin-debug-options=";
+    else if (IsPS4 && D.getLTOMode() == LTOK_Full)
+      Prefix = "-lto-debug-options=";
+    else if (IsPS5)
+      Prefix = "-plugin-opt=";
+    else
       llvm_unreachable("new LTO mode?");
+
+    CmdArgs.push_back(Args.MakeArgString(Twine(Prefix) + Flag));
+  };
+
+  if (UseLTO) {
+    // We default to creating the arange section, but LTO does not. Enable it
+    // here.
+    AddCodeGenFlag("-generate-arange-section");
+
+    // This tells LTO to perform JustMyCode instrumentation.
+    if (UseJMC)
+      AddCodeGenFlag("-enable-jmc-instrument");
+
+    if (Arg *A = Args.getLastArg(options::OPT_fcrash_diagnostics_dir))
+      AddCodeGenFlag(Twine("-crash-diagnostics-dir=") + A->getValue());
   }
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs))

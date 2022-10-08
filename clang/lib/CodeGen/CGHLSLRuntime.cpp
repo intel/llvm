@@ -19,6 +19,7 @@
 #include "llvm/IR/IntrinsicsDirectX.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/FormatVariadic.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -46,6 +47,11 @@ void addDxilValVersion(StringRef ValVersionStr, llvm::Module &M) {
   auto *DXILValMD = M.getOrInsertNamedMetadata(DXILValKey);
   DXILValMD->addOperand(Val);
 }
+void addDisableOptimizations(llvm::Module &M) {
+  StringRef Key = "dx.disable_optimizations";
+  M.addModuleFlag(llvm::Module::ModFlagBehavior::Override, Key, 1);
+}
+
 } // namespace
 
 void CGHLSLRuntime::finishCodeGen() {
@@ -54,6 +60,10 @@ void CGHLSLRuntime::finishCodeGen() {
   Triple T(M.getTargetTriple());
   if (T.getArch() == Triple::ArchType::dxil)
     addDxilValVersion(TargetOpts.DxilValidatorVersion, M);
+
+  generateGlobalCtorDtorCalls();
+  if (CGM.getCodeGenOpts().OptimizationLevel == 0)
+    addDisableOptimizations(M);
 }
 
 void CGHLSLRuntime::annotateHLSLResource(const VarDecl *D, GlobalVariable *GV) {
@@ -98,6 +108,13 @@ void clang::CodeGen::CGHLSLRuntime::setHLSLEntryAttributes(
   const StringRef ShaderAttrKindStr = "hlsl.shader";
   Fn->addFnAttr(ShaderAttrKindStr,
                 ShaderAttr->ConvertShaderTypeToStr(ShaderAttr->getType()));
+  if (HLSLNumThreadsAttr *NumThreadsAttr = FD->getAttr<HLSLNumThreadsAttr>()) {
+    const StringRef NumThreadsKindStr = "hlsl.numthreads";
+    std::string NumThreadsStr =
+        formatv("{0},{1},{2}", NumThreadsAttr->getX(), NumThreadsAttr->getY(),
+                NumThreadsAttr->getZ());
+    Fn->addFnAttr(NumThreadsKindStr, NumThreadsStr);
+  }
 }
 
 llvm::Value *CGHLSLRuntime::emitInputSemantic(IRBuilder<> &B,
@@ -134,6 +151,7 @@ void CGHLSLRuntime::emitEntryFunction(const FunctionDecl *FD,
   IRBuilder<> B(BB);
   llvm::SmallVector<Value *> Args;
   // FIXME: support struct parameters where semantics are on members.
+  // See: https://github.com/llvm/llvm-project/issues/57874
   for (const auto *Param : FD->parameters()) {
     Args.push_back(emitInputSemantic(B, *Param));
   }
@@ -141,5 +159,57 @@ void CGHLSLRuntime::emitEntryFunction(const FunctionDecl *FD,
   CallInst *CI = B.CreateCall(FunctionCallee(Fn), Args);
   (void)CI;
   // FIXME: Handle codegen for return type semantics.
+  // See: https://github.com/llvm/llvm-project/issues/57875
   B.CreateRetVoid();
+}
+
+static void gatherFunctions(SmallVectorImpl<Function *> &Fns, llvm::Module &M,
+                            bool CtorOrDtor) {
+  const auto *GV =
+      M.getNamedGlobal(CtorOrDtor ? "llvm.global_ctors" : "llvm.global_dtors");
+  if (!GV)
+    return;
+  const auto *CA = dyn_cast<ConstantArray>(GV->getInitializer());
+  if (!CA)
+    return;
+  // The global_ctor array elements are a struct [Priority, Fn *, COMDat].
+  // HLSL neither supports priorities or COMDat values, so we will check those
+  // in an assert but not handle them.
+
+  llvm::SmallVector<Function *> CtorFns;
+  for (const auto &Ctor : CA->operands()) {
+    if (isa<ConstantAggregateZero>(Ctor))
+      continue;
+    ConstantStruct *CS = cast<ConstantStruct>(Ctor);
+
+    assert(cast<ConstantInt>(CS->getOperand(0))->getValue() == 65535 &&
+           "HLSL doesn't support setting priority for global ctors.");
+    assert(isa<ConstantPointerNull>(CS->getOperand(2)) &&
+           "HLSL doesn't support COMDat for global ctors.");
+    Fns.push_back(cast<Function>(CS->getOperand(1)));
+  }
+}
+
+void CGHLSLRuntime::generateGlobalCtorDtorCalls() {
+  llvm::Module &M = CGM.getModule();
+  SmallVector<Function *> CtorFns;
+  SmallVector<Function *> DtorFns;
+  gatherFunctions(CtorFns, M, true);
+  gatherFunctions(DtorFns, M, false);
+
+  // Insert a call to the global constructor at the beginning of the entry block
+  // to externally exported functions. This is a bit of a hack, but HLSL allows
+  // global constructors, but doesn't support driver initialization of globals.
+  for (auto &F : M.functions()) {
+    if (!F.hasFnAttribute("hlsl.shader"))
+      continue;
+    IRBuilder<> B(&F.getEntryBlock(), F.getEntryBlock().begin());
+    for (auto *Fn : CtorFns)
+      B.CreateCall(FunctionCallee(Fn));
+
+    // Insert global dtors before the terminator of the last instruction
+    B.SetInsertPoint(F.back().getTerminator());
+    for (auto *Fn : DtorFns)
+      B.CreateCall(FunctionCallee(Fn));
+  }
 }

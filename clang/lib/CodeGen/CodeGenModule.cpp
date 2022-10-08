@@ -185,15 +185,11 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   if (CodeGenOpts.hasProfileClangUse()) {
     auto ReaderOrErr = llvm::IndexedInstrProfReader::create(
         CodeGenOpts.ProfileInstrumentUsePath, CodeGenOpts.ProfileRemappingFile);
-    if (auto E = ReaderOrErr.takeError()) {
-      unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                              "Could not read profile %0: %1");
-      llvm::handleAllErrors(std::move(E), [&](const llvm::ErrorInfoBase &EI) {
-        getDiags().Report(DiagID) << CodeGenOpts.ProfileInstrumentUsePath
-                                  << EI.message();
-      });
-    } else
-      PGOReader = std::move(ReaderOrErr.get());
+    // We're checking for profile read errors in CompilerInvocation, so if
+    // there was an error it should've already been caught. If it hasn't been
+    // somehow, trip an assertion.
+    assert(ReaderOrErr);
+    PGOReader = std::move(ReaderOrErr.get());
   }
 
   // If coverage mapping generation is enabled, create the
@@ -527,6 +523,17 @@ static llvm::MDNode *getAspectsMD(ASTContext &ASTContext,
   return llvm::MDNode::get(Ctx, AspectsMD);
 }
 
+static llvm::MDNode *getAspectEnumValueMD(ASTContext &ASTContext,
+                                          llvm::LLVMContext &Ctx,
+                                          const EnumConstantDecl *ECD) {
+  SmallVector<llvm::Metadata *, 2> AspectEnumValMD;
+  AspectEnumValMD.push_back(llvm::MDString::get(Ctx, ECD->getName()));
+  AspectEnumValMD.push_back(
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+          llvm::Type::getInt32Ty(Ctx), ECD->getInitVal().getSExtValue())));
+  return llvm::MDNode::get(Ctx, AspectEnumValMD);
+}
+
 void CodeGenModule::Release() {
   Module *Primary = getContext().getModuleForCodeGen();
   if (CXX20ModuleInits && Primary && !Primary->isHeaderLikeModule())
@@ -607,9 +614,8 @@ void CodeGenModule::Release() {
     }
     // Emit amdgpu_code_object_version module flag, which is code object version
     // times 100.
-    // ToDo: Enable module flag for all code object version when ROCm device
-    // library is ready.
-    if (getTarget().getTargetOpts().CodeObjectVersion == TargetOptions::COV_5) {
+    if (getTarget().getTargetOpts().CodeObjectVersion !=
+        TargetOptions::COV_None) {
       getModule().addModuleFlag(llvm::Module::Error,
                                 "amdgpu_code_object_version",
                                 getTarget().getTargetOpts().CodeObjectVersion);
@@ -915,7 +921,7 @@ void CodeGenModule::Release() {
     // Emit type name with list of associated device aspects.
     if (TypesWithAspects.size() > 0) {
       llvm::NamedMDNode *AspectsMD =
-          TheModule.getOrInsertNamedMetadata("intel_types_that_use_aspects");
+          TheModule.getOrInsertNamedMetadata("sycl_types_that_use_aspects");
       for (const auto &Type : TypesWithAspects) {
         StringRef Name = Type.first;
         const RecordDecl *RD = Type.second;
@@ -923,6 +929,15 @@ void CodeGenModule::Release() {
                                            Name,
                                            RD->getAttr<SYCLUsesAspectsAttr>()));
       }
+    }
+
+    // Emit metadata for all aspects defined in the aspects enum.
+    if (AspectsEnumDecl) {
+      llvm::NamedMDNode *AspectEnumValsMD =
+          TheModule.getOrInsertNamedMetadata("sycl_aspects");
+      for (const EnumConstantDecl *ECD : AspectsEnumDecl->enumerators())
+        AspectEnumValsMD->addOperand(
+            getAspectEnumValueMD(Context, TheModule.getContext(), ECD));
     }
   }
 
@@ -1175,13 +1190,20 @@ void CodeGenModule::setGlobalVisibility(llvm::GlobalValue *GV,
   // or set explicitly.
   LinkageInfo LV = D->getLinkageAndVisibility();
   if (GV->hasDLLExportStorageClass() || GV->hasDLLImportStorageClass()) {
-    // Reject explicit non-default visibility on dllexport/dllimport.
-    if (LV.isVisibilityExplicit() && LV.getVisibility() != DefaultVisibility)
+    // Reject incompatible dlllstorage and visibility annotations.
+    if (!LV.isVisibilityExplicit())
+      return;
+    if (GV->hasDLLExportStorageClass()) {
+      if (LV.getVisibility() == HiddenVisibility)
+        getDiags().Report(D->getLocation(),
+                          diag::err_hidden_visibility_dllexport);
+    } else if (LV.getVisibility() != DefaultVisibility) {
       getDiags().Report(D->getLocation(),
-                        diag::err_non_default_visibility_dllstorage)
-          << (GV->hasDLLExportStorageClass() ? "dllexport" : "dllimport");
+                        diag::err_non_default_visibility_dllimport);
+    }
     return;
   }
+
   if (LV.isVisibilityExplicit() || getLangOpts().SetVisibilityForExternDecls ||
       !GV->isDeclarationForLinker())
     GV->setVisibility(GetLLVMVisibility(LV.getVisibility()));
@@ -1396,21 +1418,21 @@ static void AppendTargetMangling(const CodeGenModule &CGM,
 
   Out << '.';
   const TargetInfo &Target = CGM.getTarget();
-  ParsedTargetAttr Info =
-      Attr->parse([&Target](StringRef LHS, StringRef RHS) {
-        // Multiversioning doesn't allow "no-${feature}", so we can
-        // only have "+" prefixes here.
-        assert(LHS.startswith("+") && RHS.startswith("+") &&
-               "Features should always have a prefix.");
-        return Target.multiVersionSortPriority(LHS.substr(1)) >
-               Target.multiVersionSortPriority(RHS.substr(1));
-      });
+  ParsedTargetAttr Info = Target.parseTargetAttr(Attr->getFeaturesStr());
+  llvm::sort(Info.Features, [&Target](StringRef LHS, StringRef RHS) {
+    // Multiversioning doesn't allow "no-${feature}", so we can
+    // only have "+" prefixes here.
+    assert(LHS.startswith("+") && RHS.startswith("+") &&
+           "Features should always have a prefix.");
+    return Target.multiVersionSortPriority(LHS.substr(1)) >
+           Target.multiVersionSortPriority(RHS.substr(1));
+  });
 
   bool IsFirst = true;
 
-  if (!Info.Architecture.empty()) {
+  if (!Info.CPU.empty()) {
     IsFirst = false;
-    Out << "arch_" << Info.Architecture;
+    Out << "arch_" << Info.CPU;
   }
 
   for (StringRef Feat : Info.Features) {
@@ -2098,14 +2120,17 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
   if (!hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);
 
-  if (!D || !D->hasAttr<NoStackProtectorAttr>()) {
-    if (LangOpts.getStackProtector() == LangOptions::SSPOn)
-      B.addAttribute(llvm::Attribute::StackProtect);
-    else if (LangOpts.getStackProtector() == LangOptions::SSPStrong)
-      B.addAttribute(llvm::Attribute::StackProtectStrong);
-    else if (LangOpts.getStackProtector() == LangOptions::SSPReq)
-      B.addAttribute(llvm::Attribute::StackProtectReq);
-  }
+  if (D && D->hasAttr<NoStackProtectorAttr>())
+    ; // Do nothing.
+  else if (D && D->hasAttr<StrictGuardStackCheckAttr>() &&
+           LangOpts.getStackProtector() == LangOptions::SSPOn)
+    B.addAttribute(llvm::Attribute::StackProtectStrong);
+  else if (LangOpts.getStackProtector() == LangOptions::SSPOn)
+    B.addAttribute(llvm::Attribute::StackProtect);
+  else if (LangOpts.getStackProtector() == LangOptions::SSPStrong)
+    B.addAttribute(llvm::Attribute::StackProtectStrong);
+  else if (LangOpts.getStackProtector() == LangOptions::SSPReq)
+    B.addAttribute(llvm::Attribute::StackProtectReq);
 
   if (!D) {
     // If we don't have a declaration to control inlining, the function isn't
@@ -2314,10 +2339,11 @@ bool CodeGenModule::GetCPUAndFeaturesAttributes(GlobalDecl GD,
     // get and parse the target attribute so we can get the cpu for
     // the function.
     if (TD) {
-      ParsedTargetAttr ParsedAttr = TD->parse();
-      if (!ParsedAttr.Architecture.empty() &&
-          getTarget().isValidCPUName(ParsedAttr.Architecture)) {
-        TargetCPU = ParsedAttr.Architecture;
+      ParsedTargetAttr ParsedAttr =
+          Target.parseTargetAttr(TD->getFeaturesStr());
+      if (!ParsedAttr.CPU.empty() &&
+          getTarget().isValidCPUName(ParsedAttr.CPU)) {
+        TargetCPU = ParsedAttr.CPU;
         TuneCPU = ""; // Clear the tune CPU.
       }
       if (!ParsedAttr.Tune.empty() &&
@@ -5063,6 +5089,16 @@ void CodeGenModule::maybeSetTrivialComdat(const Decl &D,
   GO.setComdat(TheModule.getOrInsertComdat(GO.getName()));
 }
 
+void CodeGenModule::setAspectsEnumDecl(const EnumDecl *ED) {
+  if (AspectsEnumDecl && AspectsEnumDecl != ED) {
+    // Conflicting definitions of the aspect enum are not allowed.
+    Error(ED->getLocation(), "redefinition of aspect enum");
+    getDiags().Report(AspectsEnumDecl->getLocation(),
+                      diag::note_previous_definition);
+  }
+  AspectsEnumDecl = ED;
+}
+
 void CodeGenModule::generateIntelFPGAAnnotation(
     const Decl *D, llvm::SmallString<256> &AnnotStr) {
   llvm::raw_svector_ostream Out(AnnotStr);
@@ -6480,10 +6516,13 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
       getModule(), Type, Constant, Linkage, InitialValue, Name.c_str(),
       /*InsertBefore=*/nullptr, llvm::GlobalVariable::NotThreadLocal, TargetAS);
   if (emitter) emitter->finalize(GV);
-  setGVProperties(GV, VD);
-  if (GV->getDLLStorageClass() == llvm::GlobalVariable::DLLExportStorageClass)
-    // The reference temporary should never be dllexport.
-    GV->setDLLStorageClass(llvm::GlobalVariable::DefaultStorageClass);
+  // Don't assign dllimport or dllexport to local linkage globals.
+  if (!llvm::GlobalValue::isLocalLinkage(Linkage)) {
+    setGVProperties(GV, VD);
+    if (GV->getDLLStorageClass() == llvm::GlobalVariable::DLLExportStorageClass)
+      // The reference temporary should never be dllexport.
+      GV->setDLLStorageClass(llvm::GlobalVariable::DefaultStorageClass);
+  }
   GV->setAlignment(Align.getAsAlign());
   if (supportsCOMDAT() && GV->isWeakForLinker())
     GV->setComdat(TheModule.getOrInsertComdat(GV->getName()));

@@ -1093,6 +1093,9 @@ bool AArch64InstrInfo::isSchedulingBoundary(const MachineInstr &MI,
   case AArch64::ISB:
     // DSB and ISB also are scheduling barriers.
     return true;
+  case AArch64::MSRpstatesvcrImm1:
+    // SMSTART and SMSTOP are also scheduling barriers.
+    return true;
   default:;
   }
   if (isSEHInstruction(MI))
@@ -4909,7 +4912,9 @@ bool AArch64InstrInfo::isAssociativeAndCommutative(
   case AArch64::FMULv2f32:
   case AArch64::FMULv2f64:
   case AArch64::FMULv4f32:
-    return Inst.getParent()->getParent()->getTarget().Options.UnsafeFPMath;
+    return Inst.getParent()->getParent()->getTarget().Options.UnsafeFPMath ||
+           (Inst.getFlag(MachineInstr::MIFlag::FmReassoc) &&
+            Inst.getFlag(MachineInstr::MIFlag::FmNsz));
   default:
     return false;
   }

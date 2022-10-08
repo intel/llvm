@@ -83,7 +83,8 @@ func.func @foo(%p : !fir.class<!fir.type<_QTpoint{x:f32,y:f32}>>)
 
 ### Unlimited polymorphic entities `CLASS(*)`
 
-The unlimited polymorphic entity is represented as a class type with `*`.
+The unlimited polymorphic entity is represented as a class type with `none` as
+element type.
 
 **Fortran**
 ```fortran
@@ -95,15 +96,14 @@ end subroutine
 
 **FIR**
 ```c
-func.func @bar(%x : !fir.class<*>)
+func.func @bar(%x : !fir.class<none>)
 ```
 
 ### Assumed-type `TYPE(*)`
 
 Assumed type is added in Fortran 2018 and it is available only for dummy
 arguments. It's mainly used for interfaces to non-Fortran code and is similar
-to C's `void`. It's not part of polymorphic entities directly but it's not
-currently implemented in flang.
+to C's `void`.
 
 Assumed-type is represented as `!fir.type<*>`.
 

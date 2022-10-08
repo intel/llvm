@@ -64,7 +64,10 @@ add_entrypoint_object(
     -O3
 )
 
+add_math_entrypoint_object(acosf)
+add_math_entrypoint_object(asinf)
 add_math_entrypoint_object(atanf)
+
 add_math_entrypoint_object(atanhf)
 
 add_math_entrypoint_object(ceil)
@@ -82,6 +85,8 @@ add_math_entrypoint_object(coshf)
 add_math_entrypoint_object(expf)
 
 add_math_entrypoint_object(exp2f)
+
+add_math_entrypoint_object(exp10f)
 
 add_math_entrypoint_object(expm1f)
 

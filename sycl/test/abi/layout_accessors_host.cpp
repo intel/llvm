@@ -25,7 +25,8 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
 // CHECK-NEXT:  8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT:  8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:  0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 16 |   char[16] padding
+// CHECK-NEXT: 16 | detail::AccHostDataT * MAccData
+// CHECK-NEXT: 24 |   char[8] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -46,7 +47,8 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer>
 // CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 16 |   char[16] padding
+// CHECK-NEXT: 16 | detail::AccHostDataT * MAccData
+// CHECK-NEXT: 24 |   char[8] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 

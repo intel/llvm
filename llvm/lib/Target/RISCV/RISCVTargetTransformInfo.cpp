@@ -328,6 +328,22 @@ static const CostTblEntry VectorIntrinsicCostTable[]{
     {Intrinsic::round, MVT::nxv2f64, 9},
     {Intrinsic::round, MVT::nxv4f64, 9},
     {Intrinsic::round, MVT::nxv8f64, 9},
+    {Intrinsic::roundeven, MVT::v2f32, 9},
+    {Intrinsic::roundeven, MVT::v4f32, 9},
+    {Intrinsic::roundeven, MVT::v8f32, 9},
+    {Intrinsic::roundeven, MVT::v16f32, 9},
+    {Intrinsic::roundeven, MVT::nxv2f32, 9},
+    {Intrinsic::roundeven, MVT::nxv4f32, 9},
+    {Intrinsic::roundeven, MVT::nxv8f32, 9},
+    {Intrinsic::roundeven, MVT::nxv16f32, 9},
+    {Intrinsic::roundeven, MVT::v2f64, 9},
+    {Intrinsic::roundeven, MVT::v4f64, 9},
+    {Intrinsic::roundeven, MVT::v8f64, 9},
+    {Intrinsic::roundeven, MVT::v16f64, 9},
+    {Intrinsic::roundeven, MVT::nxv1f64, 9},
+    {Intrinsic::roundeven, MVT::nxv2f64, 9},
+    {Intrinsic::roundeven, MVT::nxv4f64, 9},
+    {Intrinsic::roundeven, MVT::nxv8f64, 9},
     {Intrinsic::fabs, MVT::v2f32, 1},
     {Intrinsic::fabs, MVT::v4f32, 1},
     {Intrinsic::fabs, MVT::v8f32, 1},
@@ -656,16 +672,27 @@ InstructionCost RISCVTTIImpl::getExtendedReductionCost(
          getArithmeticReductionCost(Opcode, ValTy, FMF, CostKind);
 }
 
-InstructionCost RISCVTTIImpl::getVectorImmCost(VectorType *VecTy,
-                                               TTI::OperandValueInfo OpInfo,
-                                               TTI::TargetCostKind CostKind) {
+InstructionCost RISCVTTIImpl::getStoreImmCost(Type *Ty,
+                                              TTI::OperandValueInfo OpInfo,
+                                              TTI::TargetCostKind CostKind) {
   assert(OpInfo.isConstant() && "non constant operand?");
-  APInt PseudoAddr = APInt::getAllOnes(DL.getPointerSizeInBits());
-  // Add a cost of address load + the cost of the vector load.
-  return RISCVMatInt::getIntMatCost(PseudoAddr, DL.getPointerSizeInBits(),
-                                    getST()->getFeatureBits()) +
-    getMemoryOpCost(Instruction::Load, VecTy, DL.getABITypeAlign(VecTy),
-                    /*AddressSpace=*/0, CostKind);
+  if (!isa<VectorType>(Ty))
+    // FIXME: We need to account for immediate materialization here, but doing
+    // a decent job requires more knowledge about the immediate than we
+    // currently have here.
+    return 0;
+
+  if (OpInfo.isUniform())
+    // vmv.x.i, vmv.v.x, or vfmv.v.f
+    // We ignore the cost of the scalar constant materialization to be consistent
+    // with how we treat scalar constants themselves just above.
+    return 1;
+
+  // Add a cost of address generation + the cost of the vector load. The
+  // address is expected to be a PC relative offset to a constant pool entry
+  // using auipc/addi.
+  return 2 + getMemoryOpCost(Instruction::Load, Ty, DL.getABITypeAlign(Ty),
+                             /*AddressSpace=*/0, CostKind);
 }
 
 
@@ -676,8 +703,8 @@ InstructionCost RISCVTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
                                               TTI::OperandValueInfo OpInfo,
                                               const Instruction *I) {
   InstructionCost Cost = 0;
-  if (Opcode == Instruction::Store && isa<VectorType>(Src) && OpInfo.isConstant())
-    Cost += getVectorImmCost(cast<VectorType>(Src), OpInfo, CostKind);
+  if (Opcode == Instruction::Store && OpInfo.isConstant())
+    Cost += getStoreImmCost(Src, OpInfo, CostKind);
   return Cost + BaseT::getMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
                                        CostKind, OpInfo, I);
 }
@@ -713,6 +740,15 @@ InstructionCost RISCVTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
       return LT.first * 1;
     }
 
+    if (ValTy->getScalarSizeInBits() == 1) {
+      //  vmv.v.x v9, a0
+      //  vmsne.vi v9, v9, 0
+      //  vmandn.mm v8, v8, v9
+      //  vmand.mm v9, v0, v9
+      //  vmor.mm v0, v9, v8
+      return LT.first * 5;
+    }
+
     // vmv.v.x v10, a0
     // vmsne.vi v0, v10, 0
     // vmerge.vvm v8, v9, v8, v0
@@ -727,12 +763,126 @@ InstructionCost RISCVTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
     if (CmpInst::isIntPredicate(VecPred))
       return LT.first * 1;
 
-    // TODO: Add cost for fp vector compare instruction.
+    // If we do not support the input floating point vector type, use the base
+    // one which will calculate as:
+    // ScalarizeCost + Num * Cost for fixed vector,
+    // InvalidCost for scalable vector.
+    if ((ValTy->getScalarSizeInBits() == 16 && !ST->hasVInstructionsF16()) ||
+        (ValTy->getScalarSizeInBits() == 32 && !ST->hasVInstructionsF32()) ||
+        (ValTy->getScalarSizeInBits() == 64 && !ST->hasVInstructionsF64()))
+      return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind,
+                                       I);
+    switch (VecPred) {
+      // Support natively.
+    case CmpInst::FCMP_OEQ:
+    case CmpInst::FCMP_OGT:
+    case CmpInst::FCMP_OGE:
+    case CmpInst::FCMP_OLT:
+    case CmpInst::FCMP_OLE:
+    case CmpInst::FCMP_UNE:
+      return LT.first * 1;
+    // TODO: Other comparisons?
+    default:
+      break;
+    }
   }
 
   // TODO: Add cost for scalar type.
 
   return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
+}
+
+InstructionCost RISCVTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
+                                                 unsigned Index) {
+  assert(Val->isVectorTy() && "This must be a vector type");
+
+  if (Opcode != Instruction::ExtractElement &&
+      Opcode != Instruction::InsertElement)
+    return BaseT::getVectorInstrCost(Opcode, Val, Index);
+
+  // Legalize the type.
+  std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Val);
+
+  // This type is legalized to a scalar type.
+  if (!LT.second.isVector())
+    return 0;
+
+  // For unsupported scalable vector.
+  if (LT.second.isScalableVector() && !LT.first.isValid())
+    return LT.first;
+
+  if (!isTypeLegal(Val))
+    return BaseT::getVectorInstrCost(Opcode, Val, Index);
+
+  // In RVV, we could use vslidedown + vmv.x.s to extract element from vector
+  // and vslideup + vmv.s.x to insert element to vector.
+  unsigned BaseCost = 1;
+  // When insertelement we should add the index with 1 as the input of vslideup.
+  unsigned SlideCost = Opcode == Instruction::InsertElement ? 2 : 1;
+
+  if (Index != -1U) {
+    // The type may be split. For fixed-width vectors we can normalize the
+    // index to the new type.
+    if (LT.second.isFixedLengthVector()) {
+      unsigned Width = LT.second.getVectorNumElements();
+      Index = Index % Width;
+    }
+
+    // We could extract/insert the first element without vslidedown/vslideup.
+    if (Index == 0)
+      SlideCost = 0;
+    else if (Opcode == Instruction::InsertElement)
+      SlideCost = 1; // With a constant index, we do not need to use addi.
+  }
+
+  // Mask vector extract/insert element is different from normal case.
+  if (Val->getScalarSizeInBits() == 1) {
+    // For extractelement, we need the following instructions:
+    // vmv.v.i v8, 0
+    // vmerge.vim v8, v8, 1, v0
+    // vsetivli zero, 1, e8, m2, ta, mu (not count)
+    // vslidedown.vx v8, v8, a0
+    // vmv.x.s a0, v8
+
+    // For insertelement, we need the following instructions:
+    // vsetvli a2, zero, e8, m1, ta, mu (not count)
+    // vmv.s.x v8, a0
+    // vmv.v.i v9, 0
+    // vmerge.vim v9, v9, 1, v0
+    // addi a0, a1, 1
+    // vsetvli zero, a0, e8, m1, tu, mu (not count)
+    // vslideup.vx v9, v8, a1
+    // vsetvli a0, zero, e8, m1, ta, mu (not count)
+    // vand.vi v8, v9, 1
+    // vmsne.vi v0, v8, 0
+
+    // TODO: should we count these special vsetvlis?
+    BaseCost = Opcode == Instruction::InsertElement ? 5 : 3;
+  }
+  // Extract i64 in the target that has XLEN=32 need more instruction.
+  if (Val->getScalarType()->isIntegerTy() &&
+      ST->getXLen() < Val->getScalarSizeInBits()) {
+    // For extractelement, we need the following instructions:
+    // vsetivli zero, 1, e64, m1, ta, mu (not count)
+    // vslidedown.vx v8, v8, a0
+    // vmv.x.s a0, v8
+    // li a1, 32
+    // vsrl.vx v8, v8, a1
+    // vmv.x.s a1, v8
+
+    // For insertelement, we need the following instructions:
+    // vsetivli zero, 2, e32, m4, ta, mu (not count)
+    // vmv.v.i v12, 0
+    // vslide1up.vx v16, v12, a1
+    // vslide1up.vx v12, v16, a0
+    // addi a0, a2, 1
+    // vsetvli zero, a0, e64, m4, tu, mu (not count)
+    // vslideup.vx v8, v12, a2
+
+    // TODO: should we count these special vsetvlis?
+    BaseCost = Opcode == Instruction::InsertElement ? 3 : 4;
+  }
+  return BaseCost + SlideCost;
 }
 
 void RISCVTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,

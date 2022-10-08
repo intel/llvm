@@ -146,6 +146,8 @@ llvm::StringRef getLTOParallelism(const llvm::opt::ArgList &Args,
 
 bool areOptimizationsEnabled(const llvm::opt::ArgList &Args);
 
+bool isDependentLibAdded(const llvm::opt::ArgList &Args, StringRef Lib);
+
 bool isUseSeparateSections(const llvm::Triple &Triple);
 
 /// \p EnvVar is split by system delimiter for environment variables.

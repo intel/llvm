@@ -51,6 +51,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          piCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          piCallback);
+#ifdef SYCL_HAS_LEVEL_ZERO
   } else if (std::string_view(StreamName) ==
                  "sycl.experimental.level_zero.debug" &&
              std::getenv("SYCL_TRACE_ZE_ENABLE")) {
@@ -60,6 +61,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          zeCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
                          zeCallback);
+#endif
 #ifdef USE_PI_CUDA
   } else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
              std::getenv("SYCL_TRACE_CU_ENABLE")) {
@@ -77,10 +79,12 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
   if (std::string_view(StreamName) == "sycl.pi.debug" &&
       std::getenv("SYCL_TRACE_PI_ENABLE"))
     piPrintersFinish();
+#ifdef SYCL_HAS_LEVEL_ZERO
   else if (std::string_view(StreamName) ==
                "sycl.experimental.level_zero.debug" &&
            std::getenv("SYCL_TRACE_ZE_ENABLE"))
     zePrintersFinish();
+#endif
 #ifdef USE_PI_CUDA
   else if (std::string_view(StreamName) == "sycl.experimental.cuda.debug" &&
            std::getenv("SYCL_TRACE_CU_ENABLE"))

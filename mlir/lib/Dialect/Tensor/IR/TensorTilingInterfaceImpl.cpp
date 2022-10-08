@@ -8,7 +8,7 @@
 
 #include "mlir/Dialect/Tensor/IR/TensorTilingInterfaceImpl.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -31,15 +31,15 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
 
     auto padOp = cast<PadOp>(op);
     SmallVector<OpFoldResult> mixedSizes = getAsOpFoldResult(reifiedShapes[0]);
-    Value initTensor = b.create<linalg::InitTensorOp>(
+    Value emptyTensor = b.create<EmptyOp>(
         op->getLoc(), mixedSizes, padOp.getResultType().getElementType());
-    return {initTensor};
+    return {emptyTensor};
   }
 
-  SmallVector<StringRef> getLoopIteratorTypes(Operation *op) const {
+  SmallVector<utils::IteratorType> getLoopIteratorTypes(Operation *op) const {
     auto padOp = cast<PadOp>(op);
-    SmallVector<StringRef> iteratorTypes(padOp.getResultType().getRank(),
-                                         getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        padOp.getResultType().getRank(), utils::IteratorType::parallel);
     return iteratorTypes;
   }
 

@@ -26,7 +26,6 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/TableGen/Error.h"
@@ -1571,7 +1570,7 @@ void OpEmitter::genSeparateArgParamBuilder() {
       bool hasVariadicResult = numVariadicResults != 0;
 
       // Avoid emitting "resultTypes.size() >= 0u" which is always true.
-      if (!(hasVariadicResult && numNonVariadicResults == 0))
+      if (!hasVariadicResult || numNonVariadicResults != 0)
         body << "  "
              << "assert(resultTypes.size() "
              << (hasVariadicResult ? ">=" : "==") << " "
@@ -2839,7 +2838,7 @@ void OpEmitter::genOpAsmInterface() {
   auto &body = method->body();
   for (int i = 0; i != numResults; ++i) {
     body << "  auto resultGroup" << i << " = getODSResults(" << i << ");\n"
-         << "  if (!llvm::empty(resultGroup" << i << "))\n"
+         << "  if (!resultGroup" << i << ".empty())\n"
          << "    setNameFn(*resultGroup" << i << ".begin(), \""
          << resultNames[i] << "\");\n";
   }

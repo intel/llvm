@@ -145,6 +145,9 @@ def HLSLEntry
     : SubsetSubject<Function,
                     [{S->isExternallyVisible() && !isa<CXXMethodDecl>(S)}],
                     "global functions">;
+def HLSLBufferObj : SubsetSubject<HLSLBuffer,
+                    [{isa<HLSLBufferDecl>(S)}],
+                    "cbuffer/tbuffer">;
 
 def ClassTmpl : SubsetSubject<CXXRecord, [{S->getDescribedClassTemplate()}],
                               "class templates">;
@@ -930,6 +933,7 @@ def Availability : InheritableAttr {
              .Case("maccatalyst", "macCatalyst")
              .Case("maccatalyst_app_extension", "macCatalyst (App Extension)")
              .Case("swift", "Swift")
+             .Case("shadermodel", "HLSL ShaderModel")
              .Default(llvm::StringRef());
 }
 static llvm::StringRef getPlatformNameSourceSpelling(llvm::StringRef Platform) {
@@ -945,6 +949,7 @@ static llvm::StringRef getPlatformNameSourceSpelling(llvm::StringRef Platform) {
              .Case("maccatalyst", "macCatalyst")
              .Case("maccatalyst_app_extension", "macCatalystApplicationExtension")
              .Case("zos", "z/OS")
+             .Case("shadermodel", "ShaderModel")
              .Default(Platform);
 }
 static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
@@ -959,6 +964,7 @@ static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
              .Case("watchOSApplicationExtension", "watchos_app_extension")
              .Case("macCatalyst", "maccatalyst")
              .Case("macCatalystApplicationExtension", "maccatalyst_app_extension")
+             .Case("ShaderModel", "shadermodel")
              .Default(Platform);
 } }];
   let HasCustomParsing = 1;
@@ -1422,6 +1428,14 @@ def SYCLIntelBufferLocation : InheritableAttr {
 }
 
 def SYCLRequiresDecomposition : InheritableAttr {
+  // No spellings, as this is for internal use.
+  let Spellings = [];
+  let Subjects = SubjectList<[Named]>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [InternalOnly];
+}
+
+def SYCLGenerateNewType : InheritableAttr {
   // No spellings, as this is for internal use.
   let Spellings = [];
   let Subjects = SubjectList<[Named]>;
@@ -1965,7 +1979,7 @@ def ExtVectorType : Attr {
 
 def FallThrough : StmtAttr {
   let Spellings = [CXX11<"", "fallthrough", 201603>,
-                   C2x<"", "fallthrough", 201904>,
+                   C2x<"", "fallthrough", 201910>,
                    CXX11<"clang", "fallthrough">, GCC<"fallthrough">];
   // The attribute only applies to a NullStmt, but we have special fix-it
   // behavior if applied to a case label.
@@ -2970,9 +2984,16 @@ def NotTailCalled : InheritableAttr {
 def : MutualExclusions<[AlwaysInline, NotTailCalled]>;
 
 def NoStackProtector : InheritableAttr {
-  let Spellings = [Clang<"no_stack_protector">];
+  let Spellings = [Clang<"no_stack_protector">, Declspec<"safebuffers">];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [NoStackProtectorDocs];
+  let SimpleHandler = 1;
+}
+
+def StrictGuardStackCheck : InheritableAttr {
+  let Spellings = [Declspec<"strict_gs_check">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [StrictGuardStackCheckDocs];
   let SimpleHandler = 1;
 }
 
@@ -3616,10 +3637,6 @@ def Target : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [TargetDocs];
   let AdditionalMembers = [{
-    ParsedTargetAttr parse() const {
-      return parse(getFeaturesStr());
-    }
-
     StringRef getArchitecture() const {
       StringRef Features = getFeaturesStr();
       if (Features == "default") return {};
@@ -3653,57 +3670,7 @@ def Target : InheritableAttr {
       }
     }
 
-    template<class Compare>
-    ParsedTargetAttr parse(Compare cmp) const {
-      ParsedTargetAttr Attrs = parse();
-      llvm::sort(Attrs.Features, cmp);
-      return Attrs;
-    }
-
     bool isDefaultVersion() const { return getFeaturesStr() == "default"; }
-
-    static ParsedTargetAttr parse(StringRef Features) {
-      ParsedTargetAttr Ret;
-      if (Features == "default") return Ret;
-      SmallVector<StringRef, 1> AttrFeatures;
-      Features.split(AttrFeatures, ",");
-
-      // Grab the various features and prepend a "+" to turn on the feature to
-      // the backend and add them to our existing set of features.
-      for (auto &Feature : AttrFeatures) {
-        // Go ahead and trim whitespace rather than either erroring or
-        // accepting it weirdly.
-        Feature = Feature.trim();
-
-        // TODO: Support the fpmath option. It will require checking
-        // overall feature validity for the function with the rest of the
-        // attributes on the function.
-        if (Feature.startswith("fpmath="))
-          continue;
-
-        if (Feature.startswith("branch-protection=")) {
-          Ret.BranchProtection = Feature.split('=').second.trim();
-          continue;
-        }
-
-        // While we're here iterating check for a different target cpu.
-        if (Feature.startswith("arch=")) {
-          if (!Ret.Architecture.empty())
-            Ret.DuplicateArchitecture = true;
-          else
-            Ret.Architecture = Feature.split("=").second.trim();
-        } else if (Feature.startswith("tune=")) {
-          if (!Ret.Tune.empty())
-            Ret.DuplicateTune = true;
-          else
-            Ret.Tune = Feature.split("=").second.trim();
-        } else if (Feature.startswith("no-"))
-          Ret.Features.push_back("-" + Feature.split("-").second.str());
-        else
-          Ret.Features.push_back("+" + Feature.str());
-      }
-      return Ret;
-    }
   }];
 }
 
@@ -3825,7 +3792,7 @@ def ObjCRequiresPropertyDefs : InheritableAttr {
 
 def Unused : InheritableAttr {
   let Spellings = [CXX11<"", "maybe_unused", 201603>, GCC<"unused">,
-                   C2x<"", "maybe_unused", 201904>];
+                   C2x<"", "maybe_unused", 202106>];
   let Subjects = SubjectList<[Var, ObjCIvar, Type, Enum, EnumConstant, Label,
                               Field, ObjCMethod, FunctionLike]>;
   let Documentation = [WarnMaybeUnusedDocs];
@@ -3918,7 +3885,7 @@ def WarnUnused : InheritableAttr {
 
 def WarnUnusedResult : InheritableAttr {
   let Spellings = [CXX11<"", "nodiscard", 201907>,
-                   C2x<"", "nodiscard", 201904>,
+                   C2x<"", "nodiscard", 202003>,
                    CXX11<"clang", "warn_unused_result">,
                    GCC<"warn_unused_result">];
   let Subjects = SubjectList<[ObjCMethod, Enum, Record, FunctionLike, TypedefName]>;
@@ -4960,6 +4927,14 @@ def HLSLSV_GroupIndex: HLSLAnnotationAttr {
   let Subjects = SubjectList<[ParmVar, GlobalVar]>;
   let LangOpts = [HLSL];
   let Documentation = [HLSLSV_GroupIndexDocs];
+}
+
+def HLSLResourceBinding: InheritableAttr {
+  let Spellings = [HLSLSemantic<"register">];
+  let Subjects = SubjectList<[HLSLBufferObj, GlobalVar]>;
+  let LangOpts = [HLSL];
+  let Args = [StringArgument<"Slot">, StringArgument<"Space", 1>];
+  let Documentation = [HLSLResourceBindingDocs];
 }
 
 def HLSLShader : InheritableAttr {
