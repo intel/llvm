@@ -500,6 +500,10 @@ CODEGENOPT(SYCLUseMainFileName, 1, 0)
 /// Whether to use opaque pointers.
 CODEGENOPT(OpaquePointers, 1, 0)
 
+/// Modify C++ ABI to returning `this` pointer from constructors and
+/// non-deleting destructors. (No effect on Microsoft ABI.)
+CODEGENOPT(CtorDtorReturnThis, 1, 0)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT

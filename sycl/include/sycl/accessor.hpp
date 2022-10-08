@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/buffer.hpp>
+#include <sycl/detail/accessor_iterator.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
@@ -30,6 +31,7 @@
 #include <sycl/property_list_conversion.hpp>
 #include <sycl/sampler.hpp>
 
+#include <iterator>
 #include <type_traits>
 
 #include <utility>
@@ -334,7 +336,7 @@ protected:
 
   public:
     AccessorSubscript(AccType Accessor, id<Dims> IDs)
-        : MAccessor(Accessor), MIDs(IDs) {}
+        : MIDs(IDs), MAccessor(Accessor) {}
 
     // Only accessor class is supposed to use this c'tor for the first
     // operator[].
@@ -1201,7 +1203,12 @@ public:
   using value_type = DataT;
   using reference = DataT &;
   using const_reference = const DataT &;
-  using difference_type = size_t;
+
+  using iterator = typename detail::accessor_iterator<DataT, Dimensions>;
+  using const_iterator =
+      typename detail::accessor_iterator<const DataT, Dimensions>;
+  using difference_type =
+      typename std::iterator_traits<iterator>::difference_type;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -2099,6 +2106,34 @@ public:
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
+
+  iterator begin() const noexcept {
+    return iterator::getBegin(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  iterator end() const noexcept {
+    return iterator::getEnd(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  const_iterator cbegin() const noexcept {
+    return const_iterator::getBegin(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  const_iterator cend() const noexcept {
+    return const_iterator::getEnd(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
