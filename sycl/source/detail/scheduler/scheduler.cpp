@@ -373,12 +373,14 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
 }
 
 void Scheduler::enqueueUnblockedCommands(
-    const EventImplPtr &UnblockedDep, const std::vector<Command *> &ToEnqueue,
+    const std::vector<EventImplPtr> &ToEnqueue,
     std::vector<Command *> &ToCleanUp) {
-  for (auto &Command : ToEnqueue) {
+  for (auto &Event : ToEnqueue) {
+    Command *Cmd = static_cast<Command *>(Event->getCommand());
+    if (!Cmd)
+      continue;
     EnqueueResultT Res;
-    bool Enqueued =
-        GraphProcessor::enqueueCommand(Command, Res, ToCleanUp, Command);
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);

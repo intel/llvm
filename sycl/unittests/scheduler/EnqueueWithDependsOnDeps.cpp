@@ -1,70 +1,77 @@
-// //==------------ EnqueueWithDependsOnDeps.cpp --- Scheduler unit tests------==//
-// //
-// // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// // See https://llvm.org/LICENSE.txt for license information.
-// // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// //
-// //===----------------------------------------------------------------------===//
+//==------------ EnqueueWithDependsOnDeps.cpp --- Scheduler unit tests------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
-// #include "SchedulerTest.hpp"
-// #include "SchedulerTestUtils.hpp"
+#include "SchedulerTest.hpp"
+#include "SchedulerTestUtils.hpp"
 
-// #include <helpers/PiMock.hpp>
-// #include <helpers/ScopedEnvVar.hpp>
-// #include <helpers/TestKernel.hpp>
+#include <helpers/PiMock.hpp>
+#include <helpers/ScopedEnvVar.hpp>
+#include <helpers/TestKernel.hpp>
 
-// #include <vector>
+#include <vector>
 
-// using namespace sycl;
-// using EventImplPtr = std::shared_ptr<detail::event_impl>;
+using namespace sycl;
+using EventImplPtr = std::shared_ptr<detail::event_impl>;
 
-// detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
-//                            detail::QueueImplPtr DevQueue,
-//                            const std::vector<EventImplPtr> &Events) {
-//   std::vector<detail::Command *> ToEnqueue;
+enum TestCGType { KERNEL_TASK = 0x00, HOST_TASK = 0x01 };
 
-//   // Emulating processing of command group function
-//   MockHandlerCustomFinalize MockCGH(DevQueue, false);
+detail::Command *AddTaskCG(TestCGType Type, MockScheduler &MS,
+                           detail::QueueImplPtr DevQueue,
+                           const std::vector<EventImplPtr> &Events,
+                           std::function<void()> *CustomHostLambda = nullptr) {
+  std::vector<detail::Command *> ToEnqueue;
 
-//   for (auto EventImpl : Events)
-//     MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
+  // Emulating processing of command group function
+  MockHandlerCustomFinalize MockCGH(DevQueue, false);
 
-//   if (IsHost)
-//     MockCGH.host_task([] {});
-//   else {
-//     kernel_bundle KernelBundle =
-//         sycl::get_kernel_bundle<sycl::bundle_state::input>(
-//             DevQueue->get_context());
-//     auto ExecBundle = sycl::build(KernelBundle);
-//     MockCGH.use_kernel_bundle(ExecBundle);
-//     MockCGH.single_task<TestKernel<>>([] {});
-//   }
+  for (auto EventImpl : Events)
+    MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
 
-//   std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
+  if (Type == TestCGType::HOST_TASK) {
+    if (!CustomHostLambda)
+      MockCGH.host_task([] {});
+    else
+      MockCGH.host_task(*CustomHostLambda);
+  } else {
+    kernel_bundle KernelBundle =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(
+            DevQueue->get_context());
+    auto ExecBundle = sycl::build(KernelBundle);
+    MockCGH.use_kernel_bundle(ExecBundle);
+    MockCGH.single_task<TestKernel<>>([] {});
+  }
 
-//   detail::Command *NewCmd =
-//       MS.addCG(std::move(CmdGroup),
-//                IsHost ? MS.getDefaultHostQueue() : DevQueue, ToEnqueue);
-//   EXPECT_EQ(ToEnqueue.size(), 0u);
-//   return NewCmd;
-// }
+  std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
 
-// bool CheckTestExecutionRequirements(const platform &plt) {
-//   if (plt.is_host()) {
-//     std::cout << "Not run due to host-only environment\n";
-//     return false;
-//   }
-//   // This test only contains device image for SPIR-V capable devices.
-//   if (plt.get_backend() != sycl::backend::opencl &&
-//       plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-//     std::cout << "Only OpenCL and Level Zero are supported for this test\n";
-//     return false;
-//   }
-//   return true;
-// }
+  detail::Command *NewCmd = MS.addCG(
+      std::move(CmdGroup),
+      Type == TestCGType::HOST_TASK ? MS.getDefaultHostQueue() : DevQueue,
+      ToEnqueue);
+  EXPECT_EQ(ToEnqueue.size(), 0u);
+  return NewCmd;
+}
 
-// inline constexpr auto DisablePostEnqueueCleanupName =
-//     "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+bool CheckTestExecutionRequirements(const platform &plt) {
+  if (plt.is_host()) {
+    std::cout << "Not run due to host-only environment\n";
+    return false;
+  }
+  // This test only contains device image for SPIR-V capable devices.
+  if (plt.get_backend() != sycl::backend::opencl &&
+      plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
+    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
+    return false;
+  }
+  return true;
+}
+
+inline constexpr auto DisablePostEnqueueCleanupName =
+    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
 
 // TEST_F(SchedulerTest, EnqueueNoMemObjTwoHostTasks) {
 //   // Checks enqueue of two dependent host tasks
@@ -86,16 +93,17 @@
 
 //   std::vector<EventImplPtr> Events;
 
-//   detail::Command *Cmd1 = AddTaskCG(true, MS, QueueDevImpl, Events);
-//   EventImplPtr Cmd1Event = Cmd1->getEvent();
+//   detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, MS, QueueDevImpl,
+//   Events); EventImplPtr Cmd1Event = Cmd1->getEvent();
 
 //   // Simulate depends_on() call
 //   Events.push_back(Cmd1Event);
-//   detail::Command *Cmd2 = AddTaskCG(true, MS, QueueDevImpl, Events);
-//   EventImplPtr Cmd2Event = Cmd2->getEvent();
+//   detail::Command *Cmd2 = AddTaskCG(TestCGType::HOST_TASK, MS, QueueDevImpl,
+//   Events); EventImplPtr Cmd2Event = Cmd2->getEvent();
 
 //   detail::EnqueueResultT Result;
-//   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+//   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result,
+//   detail::BlockingT::NON_BLOCKING));
 
 //   // Preconditions for post enqueue checks
 //   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
@@ -108,41 +116,60 @@
 //             info::event_command_status::complete);
 // }
 
-// TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
-//   // Checks enqueue of kernel depending on host task
-//   unittest::ScopedEnvVar DisabledCleanup{
-//       DisablePostEnqueueCleanupName, "1",
-//       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
+  // Checks enqueue of kernel depending on host task
+  unittest::ScopedEnvVar DisabledCleanup{
+      DisablePostEnqueueCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-//   unittest::PiMock Mock;
-//   platform Plt = Mock.getPlatform();
-//   if (!CheckTestExecutionRequirements(Plt))
-//     return;
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  if (!CheckTestExecutionRequirements(Plt))
+    return;
 
-//   queue QueueDev(context(Plt), default_selector_v);
-//   MockScheduler MS;
+  queue QueueDev(context(Plt), default_selector_v);
+  MockScheduler MS;
 
-//   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
+  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
 
-//   std::vector<EventImplPtr> Events;
+  std::vector<EventImplPtr> Events;
 
-//   detail::Command *Cmd1 = AddTaskCG(true, MS, QueueDevImpl, Events);
-//   EventImplPtr Cmd1Event = Cmd1->getEvent();
+  std::mutex m;
+  std::function<void()> CustomHostLambda = [&m]() {
+    std::unique_lock InsideHostTaskLock(m);
+  };
 
-//   // Simulate depends_on() call
-//   Events.push_back(Cmd1Event);
-//   detail::Command *Cmd2 = AddTaskCG(false, MS, QueueDevImpl, Events);
-//   EventImplPtr Cmd2Event = Cmd2->getEvent();
+  detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, MS, QueueDevImpl,
+                                    Events, &CustomHostLambda);
+  EventImplPtr Cmd1Event = Cmd1->getEvent();
+  EXPECT_TRUE(Cmd1->isBlocking());
 
-//   detail::EnqueueResultT Result;
-//   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+  // Simulate depends_on() call
+  Events.push_back(Cmd1Event);
+  detail::Command *Cmd2 =
+      AddTaskCG(TestCGType::KERNEL_TASK, MS, QueueDevImpl, Events);
+  EventImplPtr Cmd2Event = Cmd2->getEvent();
 
-//   // Preconditions for post enqueue checks
-//   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
-//   EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
+  std::unique_lock TestLock(m, std::defer_lock);
+  TestLock.lock();
+  detail::EnqueueResultT Result;
+  EXPECT_FALSE(
+      MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+  EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
+  EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(Cmd1));
+  EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
+  EXPECT_FALSE(Cmd2->isSuccessfullyEnqueued());
 
-//   Cmd2Event->wait(Cmd2Event);
-// }
+  TestLock.unlock();
+  Cmd1Event->wait(Cmd1Event);
+  {
+    auto Lock = MS.acquireOriginSchedGraphWriteLock();
+    Lock.lock();
+    EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
+  }
+
+  Cmd2Event->wait(Cmd2Event);
+}
 
 // TEST_F(SchedulerTest, EnqueueNoMemObjHostDepKernel) {
 //   // Checks enqueue of host task depending on kernel
@@ -171,7 +198,8 @@
 //   EventImplPtr Cmd2Event = Cmd2->getEvent();
 
 //   detail::EnqueueResultT Result;
-//   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
+//   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result,
+//   detail::BlockingT::NON_BLOCKING));
 
 //   // Preconditions for post enqueue checks
 //   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
@@ -180,7 +208,8 @@
 // }
 
 // TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
-//   // Checks blocking command tranfer for dependent kernels and enqueue of root
+//   // Checks blocking command tranfer for dependent kernels and enqueue of
+//   root
 //   // kernel on host task completion
 //   unittest::ScopedEnvVar DisabledCleanup{
 //       DisablePostEnqueueCleanupName, "1",
@@ -230,7 +259,8 @@
 
 //   Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
 
-//   EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
+//   EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result,
+//   detail::BlockingT::NON_BLOCKING));
 
 //   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
 //   EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
@@ -278,8 +308,8 @@
 //   EventImplPtr Cmd3Event = Cmd2->getEvent();
 
 //   detail::EnqueueResultT Result;
-//   EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
-//   Cmd3Event->wait(Cmd3Event);
+//   EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result,
+//   detail::BlockingT::NON_BLOCKING)); Cmd3Event->wait(Cmd3Event);
 
 //   // One piEventsWait call:
 //   // kernel2 waits for kernel 1 by sending event list to enqueue launch call
@@ -292,7 +322,8 @@
 // }
 
 // TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
-//   // Checks blocking command tranfer for dependent kernels and enqueue of root
+//   // Checks blocking command tranfer for dependent kernels and enqueue of
+//   root
 //   // kernel on host task completion
 //   unittest::ScopedEnvVar DisabledCleanup{
 //       DisablePostEnqueueCleanupName, "1",

@@ -50,8 +50,19 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, EnqueueResultT &EnqueueResult,
     std::vector<Command *> &ToCleanUp, Command *RootCommand,
     BlockingT Blocking) {
-  if (!Cmd || Cmd->isSuccessfullyEnqueued())
+
+  if (!Cmd)
     return true;
+  if (Cmd->isSuccessfullyEnqueued()) {
+    if (Cmd == RootCommand || !Cmd->isBlocking())
+      return true;
+    const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
+    if (!Cmd->containsBlockedUser(RootCmdEvent))
+      Cmd->addBlockedUser(RootCmdEvent);
+
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
+  }
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
   if (Cmd->isEnqueueBlocked() && !Blocking) {
@@ -95,8 +106,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
   bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
-  if (Result && Cmd->isBlocking()) {
-    Cmd->addBlockedUser(RootCommand);
+  if (Result && Cmd->isBlocking() && Cmd != RootCommand) {
+    Cmd->addBlockedUser(RootCommand->getEvent());
     EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
     return false;
   }

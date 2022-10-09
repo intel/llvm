@@ -335,12 +335,12 @@ public:
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
       // update self-event status
-      const std::vector<Command *> &CmdsToEnqueue = MThisCmd->getBlockedUsers();
+      const std::vector<EventImplPtr> &CmdsToEnqueue =
+          MThisCmd->getBlockedUsers();
 
       MThisCmd->MEvent->setComplete();
 
-      Scheduler::enqueueUnblockedCommands(MThisCmd->MEvent, CmdsToEnqueue,
-                                          ToCleanUp);
+      Scheduler::enqueueUnblockedCommands(CmdsToEnqueue, ToCleanUp);
 
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
@@ -2588,13 +2588,6 @@ bool ExecCGCommand::supportsPostEnqueueCleanup() const {
            !static_cast<CGExecKernel *>(MCommandGroup.get())
                 ->hasAuxiliaryResources()));
 }
-
-void Command::removeBlockedUser(Command *User) {
-  auto it = std::find(MBlockedUsers.begin(), MBlockedUsers.end(), User);
-  if (it != MBlockedUsers.end())
-    MBlockedUsers.erase(it);
-}
-
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

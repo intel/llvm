@@ -465,8 +465,7 @@ protected:
                                          std::vector<Command *> &ToCleanUp);
 
   static void
-  enqueueUnblockedCommands(const EventImplPtr &UnblockedDep,
-                           const std::vector<Command *> &CmdsToEnqueue,
+  enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
                            std::vector<Command *> &ToCleanUp);
 
   /// Graph builder class.

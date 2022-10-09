@@ -149,13 +149,18 @@ public:
   }
   // Shows thst command could be enqueud, but is blocking enqueue of all
   // commands depending on it. Regular usage - host task.
-  bool isBlocking() const { return isHostTask() && MEvent->isComplete(); }
+  bool isBlocking() const { return isHostTask() && !MEvent->isComplete(); }
 
-  void addBlockedUser(Command *NewUser) { MBlockedUsers.push_back(NewUser); }
+  void addBlockedUser(const EventImplPtr &NewUser) {
+    MBlockedUsers.push_back(NewUser);
+  }
 
-  void removeBlockedUser(Command *User);
+  bool containsBlockedUser(const EventImplPtr &User) const {
+    return std::find(MBlockedUsers.begin(), MBlockedUsers.end(), User) !=
+           MBlockedUsers.end();
+  }
 
-  const std::vector<Command *> &getBlockedUsers() const {
+  const std::vector<EventImplPtr> &getBlockedUsers() const {
     return MBlockedUsers;
   }
 
@@ -271,7 +276,9 @@ protected:
   /// Contains list of commands that depends on the host command explicitly (by
   /// depends_on). Not involved into cleanup process since it is one-way link
   /// and not holds resources.
-  std::vector<Command *> MBlockedUsers;
+  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
+  /// intersect with command enqueue.
+  std::vector<EventImplPtr> MBlockedUsers;
 
 public:
   const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
