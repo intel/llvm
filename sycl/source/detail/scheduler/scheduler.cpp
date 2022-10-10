@@ -281,7 +281,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   // anymore, so we just need them to survive the graph lock then they can die
   // as they go out of scope.
   std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
-
+  std::cout << "removeMemoryObject" << std::endl;
   {
     MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
     if (!Record)
@@ -294,6 +294,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       ReadLockT Lock(MGraphLock);
       waitForRecordToFinish(Record, Lock);
     }
+    std::cout << "waited" << std::endl;
     {
       WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
@@ -302,6 +303,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
                                              AuxResourcesToDeallocate);
       MGraphBuilder.removeRecordForMemObj(MemObj);
     }
+    std::cout << "removed" << std::endl;
   }
   deallocateStreams(StreamsToDeallocate);
 }
@@ -525,6 +527,11 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       MDeferredMemObjRelease.swap(MTempStorage);
     }
+    for (auto entry : MTempStorage) {
+      entry.reset();
+      std::cout << "entry is deleted" << std::endl;
+    }
+    std::cout << "all entries is deleted" << std::endl;
     // if any objects in MTempStorage exist - it is leaving scope and being
     // deleted
   }
