@@ -249,8 +249,9 @@ class PrivateMemoryOpCall(gdb.xmethod.XMethodWorker):
             item_base = args[0]["localItem"]["MImpl"]
             item_base = self.ItemBase(item_base)
             index = item_base.get_linear_id()
-            return obj["Val"]["_M_t"]["_M_t"]["_M_head_impl"][index]
 
+            eval_string = "((" + str(obj.type) + ")" + str(obj) + ")->Val.get()"
+            return gdb.parse_and_eval(eval_string)[index]
 
 class PrivateMemoryMatcher(gdb.xmethod.XMethodMatcher):
     """Entry point for sycl::_V1::private_memory"""
