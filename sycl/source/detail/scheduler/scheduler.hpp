@@ -758,6 +758,9 @@ protected:
                                std::vector<Command *> &ToCleanUp,
                                Command *RootCommand,
                                BlockingT Blocking = NON_BLOCKING);
+
+    static bool handleBlockingCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
+                                  Command *RootCommand, BlockingT Blocking);
   };
 
   /// This function waits on all of the graph leaves which somehow use the

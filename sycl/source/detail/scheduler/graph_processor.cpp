@@ -46,23 +46,29 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
     GraphReadLock.lock();
 }
 
+bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
+                                                  EnqueueResultT &EnqueueResult,
+                                                  Command *RootCommand,
+                                                  BlockingT Blocking) {
+  if (Cmd == RootCommand || !Cmd->isBlocking() || Blocking)
+    return true;
+  if (!Blocking) {
+    const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
+    if (!Cmd->containsBlockedUser(RootCmdEvent))
+      Cmd->addBlockedUser(RootCmdEvent);
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
+  }
+}
+
 bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, EnqueueResultT &EnqueueResult,
     std::vector<Command *> &ToCleanUp, Command *RootCommand,
     BlockingT Blocking) {
-
   if (!Cmd)
     return true;
-  if (Cmd->isSuccessfullyEnqueued()) {
-    if (Cmd == RootCommand || !Cmd->isBlocking())
-      return true;
-    const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
-    if (!Cmd->containsBlockedUser(RootCmdEvent))
-      Cmd->addBlockedUser(RootCmdEvent);
-
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
-  }
+  if (Cmd->isSuccessfullyEnqueued())
+    return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
   if (Cmd->isEnqueueBlocked() && !Blocking) {
@@ -106,11 +112,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
   bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
-  if (Result && Cmd->isBlocking() && Cmd != RootCommand) {
-    Cmd->addBlockedUser(RootCommand->getEvent());
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
-  }
+  if (Result)
+    Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
   return Result;
 }
 
