@@ -559,7 +559,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
 // We don't need "case aspect::usm_allocator" here because it will duplicate
 // "case aspect::usm_system_allocations", therefore leave this macro empty
-#define __SYCL_SPECIAL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
   auto getAspectNameStr = [](aspect AspectNum) -> std::string {
     switch (AspectNum) {
 #include <sycl/info/aspects.def>
@@ -570,13 +570,13 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
           "Unknown aspect " + std::to_string(static_cast<unsigned>(AspectNum)));
     }
   };
-#undef __SYCL_SPECIAL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
 
   for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : ARange) {
     auto KName = std::string_view((*It)->Name);
-    if (KName != "aspects")
+    if (KName != std::string_view("aspects"))
       continue;
     ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
     // 8 because we need to skip 64-bits of size of the byte array

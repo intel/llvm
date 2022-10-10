@@ -15,13 +15,13 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 #define __SYCL_ASPECT(ASPECT, ID) ASPECT = ID,
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)                          \
   ASPECT __SYCL2020_DEPRECATED(MESSAGE) = ID,
-#define __SYCL_SPECIAL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)                  \
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)                    \
   __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
 enum class __SYCL_TYPE(aspect) aspect {
 #include <sycl/info/aspects.def>
 #include <sycl/info/aspects_deprecated.def>
 };
-#undef __SYCL_SPECIAL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
 
