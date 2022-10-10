@@ -575,8 +575,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 #undef __SYCL_ASPECT
 
   for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : ARange) {
-    auto KName = std::string_view((*It)->Name);
-    if (KName != std::string_view("aspects"))
+    using namespace std::literals;
+    if ((*It)->Name != "aspects"sv)
       continue;
     ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
     // 8 because we need to skip 64-bits of size of the byte array
