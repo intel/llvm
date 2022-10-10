@@ -47,6 +47,20 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
   auto id = item.operator==(item);
 }
 
+// CHECK: func.func @_Z21nd_item_get_global_idN4sycl3_V17nd_itemILi2EEE(%arg0: !sycl_nd_item_2_)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_nd_item_2_>
+// CHECK-NEXT: affine.store %arg0, %0[0] : memref<1x!sycl_nd_item_2_>
+// CHECK-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_nd_item_2_>) -> !llvm.ptr<!sycl_nd_item_2_>
+// CHECK-NEXT: %2 = llvm.addrspacecast %1 : !llvm.ptr<!sycl_nd_item_2_> to !llvm.ptr<!sycl_nd_item_2_, 4>
+// CHECK-NEXT: %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<!sycl_nd_item_2_, 4>) -> memref<?x!sycl_nd_item_2_, 4>
+// CHECK-NEXT: %4 = sycl.call(%3) {Function = @get_global_id, MangledName = @_ZNK4sycl3_V17nd_itemILi2EE13get_global_idEv, Type = @nd_item} : (memref<?x!sycl_nd_item_2_, 4>) -> !sycl_id_2_
+// CHECK-NEXT: return
+
+SYCL_EXTERNAL void nd_item_get_global_id(sycl::nd_item<2> ndItem) {
+  auto id = ndItem.get_global_id();
+}
+
 // CHECK: func.func @_Z4op_1N4sycl3_V12idILi2EEES2_(%arg0: !sycl_id_2_, %arg1: !sycl_id_2_)
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
