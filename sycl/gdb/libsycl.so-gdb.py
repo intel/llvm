@@ -153,7 +153,7 @@ class AccessorOpIndexItemFalse(AccessorOpIndex):
 
 
 class AccessorMatcher(gdb.xmethod.XMethodMatcher):
-    """Entry point for sycl::_V1::accessor"""
+    """Entry point for sycl::_V1::(local_)accessor"""
 
     def __init__(self):
         gdb.xmethod.XMethodMatcher.__init__(self, "AccessorMatcher")
@@ -162,7 +162,7 @@ class AccessorMatcher(gdb.xmethod.XMethodMatcher):
         if method_name != "operator[]":
             return None
 
-        result = re.match("^sycl::_V1::accessor<.+>$", class_type.tag)
+        result = re.match("^sycl::_V1::(?:local_)?accessor<.+>$", class_type.tag)
         if result is None:
             return None
 
