@@ -81,6 +81,8 @@ using namespace llvm;
 STATISTIC(NumArgumentsPromoted, "Number of pointer arguments promoted");
 STATISTIC(NumArgumentsDead, "Number of dead pointer args eliminated");
 
+// test
+
 namespace {
 
 struct ArgPart {
