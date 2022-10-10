@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass currently only handles GPU functions.
 // This pass converts all arguments with MemRef type to LLVM pointer type,
 // and replace all uses of the original argument with a
 // `polygeist.pointer2memref` of the new argument.
@@ -16,9 +15,11 @@
 #include "PassDetails.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/Debug.h"
 
@@ -28,48 +29,56 @@ using namespace mlir;
 
 namespace {
 
-class GPUFuncLowering : public OpRewritePattern<gpu::GPUFuncOp> {
+template <typename T> class FuncLowering : public OpRewritePattern<T> {
 public:
-  using OpRewritePattern<gpu::GPUFuncOp>::OpRewritePattern;
+  using OpRewritePattern<T>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(gpu::GPUFuncOp op,
+  LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: GPUFuncLowering: "
+    LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: FuncLowering: "
                             << op.getName() << "\n");
 
     // Notify MLIR we're updating the function in place
     rewriter.startRootUpdate(op);
 
-    FunctionType funcTy = op.getFunctionType();
-    TypeConverter::SignatureConversion conversion(funcTy.getNumInputs());
+    bool isDeclaration = op.getBody().empty();
+    if (!isDeclaration) {
+      rewriter.setInsertionPointToStart(&op.getBody().front());
 
-    rewriter.setInsertionPointToStart(&op.getBody().front());
-    Region &funcBody = op.getBody();
-    SmallVector<BlockArgument, 8> Args(funcBody.getArguments().begin(),
-                                       funcBody.getArguments().end());
-    for (const auto &en : llvm::enumerate(Args)) {
-      Value arg = en.value();
-      auto MT = arg.getType().dyn_cast<MemRefType>();
-      if (!MT) {
-        conversion.addInputs(en.index(), {arg.getType()});
-        continue;
+      Region &funcBody = op.getBody();
+      SmallVector<BlockArgument, 8> Args(funcBody.getArguments().begin(),
+                                         funcBody.getArguments().end());
+      for (const auto &en : llvm::enumerate(Args)) {
+        Value arg = en.value();
+        auto MT = arg.getType().dyn_cast<MemRefType>();
+        if (!MT)
+          continue;
+
+        LLVM_DEBUG(llvm::dbgs() << "  Replace argument " << en.index() << ": \""
+                                << arg << "\"");
+        Type PT = LLVM::LLVMPointerType::get(MT.getElementType(),
+                                             MT.getMemorySpaceAsInt());
+        Value newArg = funcBody.insertArgument(en.index(), PT, arg.getLoc());
+        LLVM_DEBUG(llvm::dbgs() << " -> \"" << newArg << "\"\n");
+
+        auto Ptr2Memref = rewriter.create<polygeist::Pointer2MemrefOp>(
+            arg.getLoc(), MT, newArg);
+
+        arg.replaceAllUsesWith(Ptr2Memref);
+        funcBody.eraseArgument(en.index() + 1);
       }
-
-      LLVM_DEBUG(llvm::dbgs() << "  Replace argument " << en.index() << ": \""
-                              << arg << "\"");
-      Type PT = LLVM::LLVMPointerType::get(MT.getElementType(),
-                                           MT.getMemorySpaceAsInt());
-      Value newArg = funcBody.insertArgument(en.index(), PT, arg.getLoc());
-      LLVM_DEBUG(llvm::dbgs() << " -> \"" << newArg << "\"\n");
-      conversion.addInputs(en.index(), {PT});
-
-      auto Ptr2Memref = rewriter.create<polygeist::Pointer2MemrefOp>(
-          arg.getLoc(), MT, newArg);
-
-      arg.replaceAllUsesWith(Ptr2Memref);
-      funcBody.eraseArgument(en.index() + 1);
     }
 
+    FunctionType funcTy = op.getFunctionType();
+    TypeConverter::SignatureConversion conversion(funcTy.getNumInputs());
+    for (const auto &en : llvm::enumerate(funcTy.getInputs())) {
+      if (auto MT = en.value().dyn_cast<MemRefType>())
+        conversion.addInputs(
+            en.index(), {LLVM::LLVMPointerType::get(MT.getElementType(),
+                                                    MT.getMemorySpaceAsInt())});
+      else
+        conversion.addInputs(en.index(), {en.value()});
+    }
     SmallVector<Type, 1> convertedResultTys;
     for (Type ty : funcTy.getResults()) {
       if (auto MT = ty.dyn_cast<MemRefType>())
@@ -92,42 +101,80 @@ public:
   }
 };
 
-class GPUReturnLowering : public OpRewritePattern<gpu::ReturnOp> {
+static LogicalResult convertOperation(Operation &op,
+                                      PatternRewriter &rewriter) {
+  LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: OpLowering: " << op
+                          << "\n");
+
+  // Notify MLIR we're updating the function in place
+  rewriter.startRootUpdate(&op);
+
+  bool changed = false;
+  for (const auto &en : llvm::enumerate(op.getOperands())) {
+    auto MT = en.value().getType().dyn_cast<MemRefType>();
+    if (!MT)
+      continue;
+
+    Type PT = LLVM::LLVMPointerType::get(MT.getElementType(),
+                                         MT.getMemorySpaceAsInt());
+    rewriter.setInsertionPoint(&op);
+    auto memref2Ptr = rewriter.create<polygeist::Memref2PointerOp>(
+        en.value().getLoc(), PT, en.value());
+    op.setOperand(en.index(), memref2Ptr);
+    changed = true;
+  }
+  for (Value result : op.getOpResults()) {
+    auto MT = result.getType().dyn_cast<MemRefType>();
+    if (!MT)
+      continue;
+
+    result.setType(LLVM::LLVMPointerType::get(MT.getElementType(),
+                                              MT.getMemorySpaceAsInt()));
+    rewriter.setInsertionPointAfter(&op);
+    auto Ptr2Memref = rewriter.create<polygeist::Pointer2MemrefOp>(
+        result.getLoc(), MT, result);
+    result.replaceAllUsesExcept(Ptr2Memref, Ptr2Memref);
+    changed = true;
+  }
+  LLVM_DEBUG({
+    if (changed)
+      llvm::dbgs() << "  New Op: " << op << "\n";
+    else
+      llvm::dbgs() << "  unchanged\n";
+  });
+
+  // Notify MLIR in place updates are done
+  rewriter.finalizeRootUpdate(&op);
+
+  return changed ? success() : failure();
+}
+
+template <typename T> class OpLowering : public OpRewritePattern<T> {
 public:
-  using OpRewritePattern<gpu::ReturnOp>::OpRewritePattern;
+  using OpRewritePattern<T>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(gpu::ReturnOp op,
+  LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    LLVM_DEBUG(llvm::dbgs()
-               << "ConvertToLLVMABIPass: GPUReturnLowering: " << op << "\n");
+    return convertOperation(*op.getOperation(), rewriter);
+  }
+};
 
-    // Notify MLIR we're updating the function in place
-    rewriter.startRootUpdate(op);
+class SYCLConstructorLowering
+    : public OpRewritePattern<sycl::SYCLConstructorOp> {
+public:
+  using OpRewritePattern<sycl::SYCLConstructorOp>::OpRewritePattern;
 
-    bool changed = false;
-    for (const auto &en : llvm::enumerate(op.getOperands())) {
-      auto MT = en.value().getType().dyn_cast<MemRefType>();
-      if (!MT)
-        continue;
+  LogicalResult matchAndRewrite(sycl::SYCLConstructorOp op,
+                                PatternRewriter &rewriter) const override {
+    LLVM_DEBUG(llvm::dbgs() << "ConvertToLLVMABIPass: SYCLConstructorLowering: "
+                            << op << "\n");
 
-      Type PT = LLVM::LLVMPointerType::get(MT.getElementType(),
-                                           MT.getMemorySpaceAsInt());
-      auto memref2Ptr = rewriter.create<polygeist::Memref2PointerOp>(
-          en.value().getLoc(), PT, en.value());
-      op.setOperand(en.index(), memref2Ptr);
-      changed = true;
-    }
-    LLVM_DEBUG({
-      if (changed)
-        llvm::dbgs() << "  New ReturnOp: " << op << "\n";
-      else
-        llvm::dbgs() << "  unchanged\n";
-    });
+    auto funcCallOp = rewriter.create<func::CallOp>(
+        op.getLoc(), op.MangledName(), TypeRange(), op.getOperands());
+    rewriter.replaceOp(op.getOperation(), funcCallOp.getResults());
+    LLVM_DEBUG(llvm::dbgs() << "  Converted to: " << funcCallOp << "\n");
 
-    // Notify MLIR in place updates are done
-    rewriter.finalizeRootUpdate(op);
-
-    return changed ? success() : failure();
+    return success();
   }
 };
 
@@ -137,25 +184,56 @@ struct ConvertToLLVMABIPass final
     ModuleOp m = getOperation();
 
     RewritePatternSet patterns(&getContext());
-    patterns.add<GPUFuncLowering>(&getContext());
-    patterns.add<GPUReturnLowering>(&getContext());
+    patterns.add<FuncLowering<gpu::GPUFuncOp>>(&getContext());
+    patterns.add<FuncLowering<func::FuncOp>>(&getContext());
+    patterns.add<OpLowering<gpu::ReturnOp>>(&getContext());
+    patterns.add<OpLowering<func::ReturnOp>>(&getContext());
+    patterns.add<OpLowering<sycl::SYCLCallOp>>(&getContext());
+    patterns.add<OpLowering<func::CallOp>>(&getContext());
+    patterns.add<SYCLConstructorLowering>(&getContext());
 
     ConversionTarget target(getContext());
-    target.addDynamicallyLegalOp<gpu::GPUFuncOp>([](gpu::GPUFuncOp op) {
-      FunctionType funcTy = op.getFunctionType();
+    auto checkFuncTy = [](FunctionType funcTy) {
       bool hasMemRef = llvm::any_of(
           funcTy.getResults(), [](Type ty) { return ty.isa<MemRefType>(); });
       hasMemRef |= llvm::any_of(funcTy.getInputs(),
                                 [](Type ty) { return ty.isa<MemRefType>(); });
       return !hasMemRef;
-    });
-    target.addDynamicallyLegalOp<gpu::ReturnOp>([](gpu::ReturnOp op) {
-      return llvm::none_of(op.getOperands(), [](Value v) {
+    };
+    auto checkOperation = [](Operation &op) {
+      bool hasMemRef = llvm::any_of(
+          op.getResultTypes(), [](Type ty) { return ty.isa<MemRefType>(); });
+      hasMemRef |= llvm::any_of(op.getOperands(), [](Value v) {
         return v.getType().isa<MemRefType>();
       });
+      return !hasMemRef;
+    };
+    target.addDynamicallyLegalOp<gpu::GPUFuncOp>(
+        [&checkFuncTy](gpu::GPUFuncOp op) {
+          return checkFuncTy(op.getFunctionType());
+        });
+    target.addDynamicallyLegalOp<func::FuncOp>([&checkFuncTy](func::FuncOp op) {
+      return checkFuncTy(op.getFunctionType());
     });
+    target.addDynamicallyLegalOp<gpu::ReturnOp>(
+        [&checkOperation](gpu::ReturnOp op) {
+          return checkOperation(*op.getOperation());
+        });
+    target.addDynamicallyLegalOp<func::ReturnOp>(
+        [&checkOperation](func::ReturnOp op) {
+          return checkOperation(*op.getOperation());
+        });
+    target.addDynamicallyLegalOp<sycl::SYCLCallOp>(
+        [&checkOperation](sycl::SYCLCallOp op) {
+          return checkOperation(*op.getOperation());
+        });
+    target.addDynamicallyLegalOp<func::CallOp>(
+        [&checkOperation](func::CallOp op) {
+          return checkOperation(*op.getOperation());
+        });
     target.addLegalOp<polygeist::Memref2PointerOp>();
     target.addLegalOp<polygeist::Pointer2MemrefOp>();
+    target.addIllegalOp<sycl::SYCLConstructorOp>();
 
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
       signalPassFailure();
