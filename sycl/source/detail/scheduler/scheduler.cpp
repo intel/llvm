@@ -441,8 +441,10 @@ void Scheduler::releaseResources() {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
-  while (!isDeferredMemObjectsEmpty())
+  while (!isDeferredMemObjectsEmpty()) {
+    std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING)" std::endl;
     cleanupDeferredMemObjects(BlockingT::BLOCKING);
+  }
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {
