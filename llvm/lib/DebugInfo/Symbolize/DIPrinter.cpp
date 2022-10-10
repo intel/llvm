@@ -75,7 +75,7 @@ public:
 
   SourceCode(
       StringRef FileName, int64_t Line, int Lines,
-      const Optional<StringRef> &EmbeddedSource = Optional<StringRef>(None))
+      const Optional<StringRef> &EmbeddedSource = Optional<StringRef>())
       : Line(Line), Lines(Lines),
         FirstLine(std::max(static_cast<int64_t>(1), Line - Lines / 2)),
         LastLine(FirstLine + Lines - 1),
@@ -206,6 +206,10 @@ void PlainPrinterBase::print(const Request &Request, const DIGlobal &Global) {
     Name = DILineInfo::Addr2LineBadString;
   OS << Name << "\n";
   OS << Global.Start << " " << Global.Size << "\n";
+  if (Global.DeclFile.empty())
+    OS << "??:?\n";
+  else
+    OS << Global.DeclFile << ":" << Global.DeclLine << "\n";
   printFooter();
 }
 

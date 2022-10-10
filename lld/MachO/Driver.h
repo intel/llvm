@@ -20,8 +20,7 @@
 #include <set>
 #include <type_traits>
 
-namespace lld {
-namespace macho {
+namespace lld::macho {
 
 class DylibFile;
 class InputFile;
@@ -49,7 +48,8 @@ std::string createResponseFile(const llvm::opt::InputArgList &args);
 llvm::Optional<StringRef> resolveDylibPath(llvm::StringRef path);
 
 DylibFile *loadDylib(llvm::MemoryBufferRef mbref, DylibFile *umbrella = nullptr,
-                     bool isBundleLoader = false);
+                     bool isBundleLoader = false,
+                     bool explicitlyLinked = false);
 void resetLoadedDylibs();
 
 // Search for all possible combinations of `{root}/{name}.{extension}`.
@@ -110,7 +110,6 @@ private:
 
 extern std::unique_ptr<DependencyTracker> depTracker;
 
-} // namespace macho
-} // namespace lld
+} // namespace lld::macho
 
 #endif

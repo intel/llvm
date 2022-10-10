@@ -1,4 +1,4 @@
-Data Parallel C++ Documentation
+DPC++ Documentation
 ===============================
 
 Using oneAPI DPC++ for Application Development
@@ -42,6 +42,8 @@ Design Documents for the oneAPI DPC++ Compiler
    design/ITTAnnotations
    design/DeviceGlobal
    design/CompileTimeProperties
+   design/ESIMDStatelesAccessors
+   design/DeviceIf
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
 

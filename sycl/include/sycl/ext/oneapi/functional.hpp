@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/functional.hpp>
+#include <sycl/functional.hpp>
 
 #include <functional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 
@@ -104,5 +104,5 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

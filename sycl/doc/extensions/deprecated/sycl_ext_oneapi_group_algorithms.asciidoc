@@ -146,7 +146,7 @@ Group algorithms are performed collaboratively by the work-items in a group. All
 
 Many functions provide at least two overloads: one operating directly on data produced by the work-items in the group, and another operating on a range of data in memory specified by a pair of pointers.  If the pointers passed to such a group function are not the same for all work-items in the group, their behavior is undefined.  How the elements of a range are processed by the work-items in a group is undefined.
 
-Using functions from the group algorithms library inside of a kernel may introduce additional limits on the resources available to user code inside the same kernel (e.g. private memory, work-group local memory).  The behavior of these limits is implementation-defined, but must be reflected by calls to kernel querying functions such as +kernel::get_work_group_info+.
+Using functions from the group algorithms library inside of a kernel may introduce additional limits on the resources available to user code inside the same kernel (e.g. private memory, work-group local memory).  The behavior of these limits is implementation-defined, but must be reflected by calls to kernel querying functions such as +kernel::get_info+.
 
 It is undefined behavior for any of these functions to be invoked within a +parallel_for_work_group+ or +parallel_for_work_item+ context, but this restriction may be lifted in a future version of the proposal.
 

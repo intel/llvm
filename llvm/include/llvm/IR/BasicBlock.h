@@ -116,7 +116,11 @@ public:
 
   /// Returns the terminator instruction if the block is well formed or null
   /// if the block is not well formed.
-  const Instruction *getTerminator() const LLVM_READONLY;
+  const Instruction *getTerminator() const LLVM_READONLY {
+    if (InstList.empty() || !InstList.back().isTerminator())
+      return nullptr;
+    return &InstList.back();
+  }
   Instruction *getTerminator() {
     return const_cast<Instruction *>(
         static_cast<const BasicBlock *>(this)->getTerminator());
@@ -190,6 +194,15 @@ public:
   iterator getFirstInsertionPt() {
     return static_cast<const BasicBlock *>(this)
                                           ->getFirstInsertionPt().getNonConst();
+  }
+
+  /// Returns an iterator to the first instruction in this block that is
+  /// not a PHINode, a debug intrinsic, a static alloca or any pseudo operation.
+  const_iterator getFirstNonPHIOrDbgOrAlloca() const;
+  iterator getFirstNonPHIOrDbgOrAlloca() {
+    return static_cast<const BasicBlock *>(this)
+        ->getFirstNonPHIOrDbgOrAlloca()
+        .getNonConst();
   }
 
   /// Return a const iterator range over the instructions in the block, skipping

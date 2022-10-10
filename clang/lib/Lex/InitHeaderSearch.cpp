@@ -239,13 +239,14 @@ void InitHeaderSearch::AddDefaultCIncludePaths(const llvm::Triple &triple,
     case llvm::Triple::OpenBSD:
     case llvm::Triple::NaCl:
     case llvm::Triple::PS4:
+    case llvm::Triple::PS5:
     case llvm::Triple::ELFIAMCU:
     case llvm::Triple::Fuchsia:
       break;
     case llvm::Triple::Win32:
       if (triple.getEnvironment() != llvm::Triple::Cygnus)
         break;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       // FIXME: temporary hack: hard-coded paths.
       AddPath("/usr/local/include", System, false);
@@ -351,11 +352,14 @@ void InitHeaderSearch::AddDefaultCIncludePaths(const llvm::Triple &triple,
   case llvm::Triple::ELFIAMCU:
   case llvm::Triple::Fuchsia:
     break;
-  case llvm::Triple::PS4: {
+  case llvm::Triple::PS4:
+  case llvm::Triple::PS5: {
     // <isysroot> gets prepended later in AddPath().
     std::string BaseSDKPath;
     if (!HasSysroot) {
-      const char *envValue = getenv("SCE_ORBIS_SDK_DIR");
+      const char *EnvVar = (os == llvm::Triple::PS4) ? "SCE_ORBIS_SDK_DIR"
+                                                     : "SCE_PROSPERO_SDK_DIR";
+      const char *envValue = getenv(EnvVar);
       if (envValue)
         BaseSDKPath = envValue;
       else {
@@ -370,9 +374,8 @@ void InitHeaderSearch::AddDefaultCIncludePaths(const llvm::Triple &triple,
       }
     }
     AddPath(BaseSDKPath + "/target/include", System, false);
-    if (triple.isPS4())
-      AddPath(BaseSDKPath + "/target/include_common", System, false);
-    LLVM_FALLTHROUGH;
+    AddPath(BaseSDKPath + "/target/include_common", System, false);
+    break;
   }
   default:
     AddPath("/usr/include", ExternCSystem, false);
@@ -458,8 +461,13 @@ void InitHeaderSearch::AddDefaultIncludePaths(const LangOptions &Lang,
   if (triple.isOSDarwin()) {
     if (HSOpts.UseStandardSystemIncludes) {
       // Add the default framework include paths on Darwin.
-      AddPath("/System/Library/Frameworks", System, true);
-      AddPath("/Library/Frameworks", System, true);
+      if (triple.isDriverKit()) {
+        AddPath("/System/DriverKit/System/Library/Frameworks", System, true);
+      }
+      else {
+        AddPath("/System/Library/Frameworks", System, true);
+        AddPath("/Library/Frameworks", System, true);
+      }
     }
     return;
   }

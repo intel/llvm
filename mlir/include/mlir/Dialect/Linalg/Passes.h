@@ -22,12 +22,12 @@ namespace func {
 class FuncOp;
 } // namespace func
 
-// TODO: Remove when all references have been updated.
-using FuncOp = func::FuncOp;
-
 namespace bufferization {
 struct OneShotBufferizationOptions;
 } // namespace bufferization
+
+#define GEN_PASS_DECL
+#include "mlir/Dialect/Linalg/Passes.h.inc"
 
 std::unique_ptr<Pass> createConvertElementwiseToLinalgPass();
 
@@ -42,10 +42,6 @@ std::unique_ptr<OperationPass<func::FuncOp>>
 createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {},
                        linalg::LinalgTilingLoopType loopType =
                            linalg::LinalgTilingLoopType::Loops);
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgPromotionPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 createLinalgInlineScalarOperandsPass();
@@ -65,16 +61,8 @@ createConvertLinalgToParallelLoopsPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertLinalgToAffineLoopsPass();
 
-/// This pass implements a cross-dialect bufferization approach and performs an
-/// analysis to determine which op operands and results may be bufferized in the
-/// same buffers. The analysis is performed on topologically sorted CallOp and
-/// FuncOp within a module. It provides analyses and bufferization across
-/// function boundaries. Within a function boundary, the analysis is performed
-/// on SSA use-def chains starting from function operands that are annotated
-/// with the 'inplaceable' attribute.
-std::unique_ptr<Pass> createLinalgComprehensiveModuleBufferizePass();
-std::unique_ptr<Pass> createLinalgComprehensiveModuleBufferizePass(
-    const bufferization::OneShotBufferizationOptions &options);
+/// Create a pass that rewrites tensor.empty to bufferization.alloc_tensor.
+std::unique_ptr<Pass> createEmptyTensorToAllocTensorPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
@@ -112,44 +100,16 @@ std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPadPass(
     const linalg::LinalgTransformationFilter &filter =
         linalg::LinalgTransformationFilter());
 
-/// Create a LinalgStrategyPromotePass.
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPromotePass(
-    StringRef opName = "",
-    const linalg::LinalgPromotionOptions &opt =
-        linalg::LinalgPromotionOptions(),
-    const linalg::LinalgTransformationFilter &filter =
-        linalg::LinalgTransformationFilter());
-
-/// Create a LinalgStrategyGeneralizePass.
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyGeneralizePass(
-    StringRef opName = "", const linalg::LinalgTransformationFilter &filter =
-                               linalg::LinalgTransformationFilter());
-
 /// Create a LinalgStrategyDecomposePass.
 // TODO: if/when we need finer control add an `opName` parameter.
 std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyDecomposePass(
     const linalg::LinalgTransformationFilter &filter =
         linalg::LinalgTransformationFilter());
 
-/// Create a LinalgStrategyInterchangePass.
-std::unique_ptr<OperationPass<func::FuncOp>>
-createLinalgStrategyInterchangePass(
-    ArrayRef<int64_t> iteratorInterchange = {},
-    const linalg::LinalgTransformationFilter &filter =
-        linalg::LinalgTransformationFilter());
-
-/// Create a LinalgStrategyVectorizePass.
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyVectorizePass(
+/// Create a LinalgStrategyPeelPass.
+std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPeelPass(
     StringRef opName = "",
-    linalg::LinalgVectorizationOptions opt =
-        linalg::LinalgVectorizationOptions(),
-    const linalg::LinalgTransformationFilter &filter =
-        linalg::LinalgTransformationFilter(),
-    bool padVectorize = false);
-
-/// Create a LinalgStrategyEnablePass.
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyEnablePass(
-    linalg::LinalgEnablingOptions opt = linalg::LinalgEnablingOptions(),
+    const linalg::LinalgPeelOptions &opt = linalg::LinalgPeelOptions(),
     const linalg::LinalgTransformationFilter &filter =
         linalg::LinalgTransformationFilter());
 

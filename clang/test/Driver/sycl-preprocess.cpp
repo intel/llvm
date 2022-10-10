@@ -9,7 +9,7 @@
 // PREPROC_ONLY: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\.h]]"{{.*}} "-fsyntax-only"
 // PREPROC_ONLY: append-file{{.*}} "--append=[[INTFOOTER]]"{{.*}} "--output=[[HOST_APPENDED:.+\.cpp]]"
 // PREPROC_ONLY: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o" "[[HOST_OUT:.+\.ii]]"{{.*}} "[[HOST_APPENDED]]"
-// PREPROC_ONLY: clang-offload-bundler{{.*}} "-type=ii"{{.*}} "-outputs={{.+_output.ii}}" "-inputs=[[DEVICE_OUT]],[[HOST_OUT]]"
+// PREPROC_ONLY: clang-offload-bundler{{.*}} "-type=ii"{{.*}} "-output={{.+_output.ii}}" "-input=[[DEVICE_OUT]]" "-input=[[HOST_OUT]]"
 
 /// When compiling from preprocessed file, no integration header is expected
 // RUN: touch %t.ii

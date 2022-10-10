@@ -8,23 +8,21 @@
 
 #pragma once
 
-#include <CL/sycl/queue.hpp>
+#include <sycl/queue.hpp>
 
 #include <gtest/gtest.h>
 
 class SchedulerTest : public ::testing::Test {
 protected:
-  cl::sycl::async_handler MAsyncHandler =
-      [](cl::sycl::exception_list ExceptionList) {
-        for (std::exception_ptr ExceptionPtr : ExceptionList) {
-          try {
-            std::rethrow_exception(ExceptionPtr);
-          } catch (cl::sycl::exception &E) {
-            std::cerr << E.what();
-          } catch (...) {
-            std::cerr << "Unknown async exception was caught." << std::endl;
-          }
-        }
-      };
-  cl::sycl::queue MQueue = cl::sycl::queue(cl::sycl::device(), MAsyncHandler);
+  sycl::async_handler MAsyncHandler = [](sycl::exception_list ExceptionList) {
+    for (std::exception_ptr ExceptionPtr : ExceptionList) {
+      try {
+        std::rethrow_exception(ExceptionPtr);
+      } catch (sycl::exception &E) {
+        std::cerr << E.what();
+      } catch (...) {
+        std::cerr << "Unknown async exception was caught." << std::endl;
+      }
+    }
+  };
 };

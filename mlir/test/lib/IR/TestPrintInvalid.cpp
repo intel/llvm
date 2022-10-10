@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -20,6 +21,8 @@ using namespace mlir;
 namespace {
 struct TestPrintInvalidPass
     : public PassWrapper<TestPrintInvalidPass, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestPrintInvalidPass)
+
   StringRef getArgument() const final { return "test-print-invalid"; }
   StringRef getDescription() const final {
     return "Test printing invalid ops.";
@@ -31,7 +34,7 @@ struct TestPrintInvalidPass
   void runOnOperation() override {
     Location loc = getOperation().getLoc();
     OpBuilder builder(getOperation().getBodyRegion());
-    auto funcOp = builder.create<FuncOp>(
+    auto funcOp = builder.create<func::FuncOp>(
         loc, "test", FunctionType::get(getOperation().getContext(), {}, {}));
     funcOp.addEntryBlock();
     // The created function is invalid because there is no return op.

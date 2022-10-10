@@ -11,6 +11,7 @@
 #include "mlir-c/IR.h"
 #include "mlir/CAPI/AffineMap.h"
 #include "mlir/CAPI/IR.h"
+#include "mlir/CAPI/Support.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
@@ -148,12 +149,18 @@ int64_t mlirShapedTypeGetDimSize(MlirType type, intptr_t dim) {
   return unwrap(type).cast<ShapedType>().getDimSize(static_cast<unsigned>(dim));
 }
 
+int64_t mlirShapedTypeGetDynamicSize() { return ShapedType::kDynamicSize; }
+
 bool mlirShapedTypeIsDynamicSize(int64_t size) {
   return ShapedType::isDynamic(size);
 }
 
 bool mlirShapedTypeIsDynamicStrideOrOffset(int64_t val) {
   return ShapedType::isDynamicStrideOrOffset(val);
+}
+
+int64_t mlirShapedTypeGetDynamicStrideOrOffset() {
+  return ShapedType::kDynamicStrideOrOffset;
 }
 
 //===----------------------------------------------------------------------===//
@@ -356,4 +363,25 @@ MlirType mlirFunctionTypeGetResult(MlirType type, intptr_t pos) {
   assert(pos >= 0 && "pos in array must be positive");
   return wrap(
       unwrap(type).cast<FunctionType>().getResult(static_cast<unsigned>(pos)));
+}
+
+//===----------------------------------------------------------------------===//
+// Opaque type.
+//===----------------------------------------------------------------------===//
+
+bool mlirTypeIsAOpaque(MlirType type) { return unwrap(type).isa<OpaqueType>(); }
+
+MlirType mlirOpaqueTypeGet(MlirContext ctx, MlirStringRef dialectNamespace,
+                           MlirStringRef typeData) {
+  return wrap(
+      OpaqueType::get(StringAttr::get(unwrap(ctx), unwrap(dialectNamespace)),
+                      unwrap(typeData)));
+}
+
+MlirStringRef mlirOpaqueTypeGetDialectNamespace(MlirType type) {
+  return wrap(unwrap(type).cast<OpaqueType>().getDialectNamespace().strref());
+}
+
+MlirStringRef mlirOpaqueTypeGetData(MlirType type) {
+  return wrap(unwrap(type).cast<OpaqueType>().getTypeData());
 }

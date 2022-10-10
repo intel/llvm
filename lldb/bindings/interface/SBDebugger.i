@@ -141,6 +141,8 @@ public:
     static SBError
     InitializeWithErrorHandling();
 
+    static void PrintStackTraceOnError();
+
     static void
     Terminate();
 
@@ -222,6 +224,8 @@ public:
             return self->GetErrorFile().GetFile();
         }
     }
+
+    lldb::SBStructuredData GetSetting(const char *setting = nullptr);
 
     SBError
     SetInputString (const char* data);
@@ -539,6 +543,8 @@ Example: ::
 
     lldb::SBError
     RunREPL (lldb::LanguageType language, const char *repl_options);
+
+    SBTrace LoadTraceFromFile(SBError &error, const SBFileSpec &trace_description_file);
 
 #ifdef SWIGPYTHON
     %pythoncode%{

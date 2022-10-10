@@ -59,16 +59,12 @@ TEST(StringRefTest, Construction) {
   EXPECT_EQ("hello", StringRef("hello"));
   EXPECT_EQ("hello", StringRef("hello world", 5));
   EXPECT_EQ("hello", StringRef(std::string("hello")));
-#if __cplusplus > 201402L
   EXPECT_EQ("hello", StringRef(std::string_view("hello")));
-#endif
 }
 
 TEST(StringRefTest, Conversion) {
   EXPECT_EQ("hello", std::string(StringRef("hello")));
-#if __cplusplus > 201402L
   EXPECT_EQ("hello", std::string_view(StringRef("hello")));
-#endif
 }
 
 TEST(StringRefTest, EmptyInitializerList) {
@@ -584,6 +580,15 @@ TEST(StringRefTest, EditDistance) {
                                        "people soiled our green "));
 }
 
+TEST(StringRefTest, EditDistanceInsensitive) {
+  StringRef Hello("HELLO");
+  EXPECT_EQ(2U, Hello.edit_distance_insensitive("hill"));
+  EXPECT_EQ(0U, Hello.edit_distance_insensitive("hello"));
+
+  StringRef Industry("InDuStRy");
+  EXPECT_EQ(6U, Industry.edit_distance_insensitive("iNtErEsT"));
+}
+
 TEST(StringRefTest, Misc) {
   std::string Storage;
   raw_string_ostream OS(Storage);
@@ -659,7 +664,7 @@ TEST(StringRefTest, getAsInteger) {
   uint32_t U32;
   uint64_t U64;
 
-  for (size_t i = 0; i < array_lengthof(Unsigned); ++i) {
+  for (size_t i = 0; i < std::size(Unsigned); ++i) {
     bool U8Success = StringRef(Unsigned[i].Str).getAsInteger(0, U8);
     if (static_cast<uint8_t>(Unsigned[i].Expected) == Unsigned[i].Expected) {
       ASSERT_FALSE(U8Success);
@@ -691,7 +696,7 @@ TEST(StringRefTest, getAsInteger) {
   int32_t S32;
   int64_t S64;
 
-  for (size_t i = 0; i < array_lengthof(Signed); ++i) {
+  for (size_t i = 0; i < std::size(Signed); ++i) {
     bool S8Success = StringRef(Signed[i].Str).getAsInteger(0, S8);
     if (static_cast<int8_t>(Signed[i].Expected) == Signed[i].Expected) {
       ASSERT_FALSE(S8Success);
@@ -737,7 +742,7 @@ static const char* BadStrings[] = {
 
 TEST(StringRefTest, getAsUnsignedIntegerBadStrings) {
   unsigned long long U64;
-  for (size_t i = 0; i < array_lengthof(BadStrings); ++i) {
+  for (size_t i = 0; i < std::size(BadStrings); ++i) {
     bool IsBadNumber = StringRef(BadStrings[i]).getAsInteger(0, U64);
     ASSERT_TRUE(IsBadNumber);
   }
@@ -820,7 +825,7 @@ TEST(StringRefTest, consumeIntegerUnsigned) {
   uint32_t U32;
   uint64_t U64;
 
-  for (size_t i = 0; i < array_lengthof(ConsumeUnsigned); ++i) {
+  for (size_t i = 0; i < std::size(ConsumeUnsigned); ++i) {
     StringRef Str = ConsumeUnsigned[i].Str;
     bool U8Success = Str.consumeInteger(0, U8);
     if (static_cast<uint8_t>(ConsumeUnsigned[i].Expected) ==
@@ -868,7 +873,7 @@ TEST(StringRefTest, consumeIntegerSigned) {
   int32_t S32;
   int64_t S64;
 
-  for (size_t i = 0; i < array_lengthof(ConsumeSigned); ++i) {
+  for (size_t i = 0; i < std::size(ConsumeSigned); ++i) {
     StringRef Str = ConsumeSigned[i].Str;
     bool S8Success = Str.consumeInteger(0, S8);
     if (static_cast<int8_t>(ConsumeSigned[i].Expected) ==
@@ -945,7 +950,7 @@ static const char join_result3[] = "a::b::c";
 TEST(StringRefTest, joinStrings) {
   std::vector<StringRef> v1;
   std::vector<std::string> v2;
-  for (size_t i = 0; i < array_lengthof(join_input); ++i) {
+  for (size_t i = 0; i < std::size(join_input); ++i) {
     v1.push_back(join_input[i]);
     v2.push_back(join_input[i]);
   }

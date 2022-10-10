@@ -594,20 +594,22 @@ define <2 x float> @fake_fneg_nsz_fadd_constant_vec(<2 x float> %x) {
 
 define float @fneg_nsz_fadd_constant_expr(float %x) {
 ; CHECK-LABEL: @fneg_nsz_fadd_constant_expr(
-; CHECK-NEXT:    [[R:%.*]] = fsub nsz float fneg (float bitcast (i32 ptrtoint (i16* @g to i32) to float)), [[X:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = fadd float [[X:%.*]], bitcast (i32 ptrtoint (ptr @g to i32) to float)
+; CHECK-NEXT:    [[R:%.*]] = fneg nsz float [[A]]
 ; CHECK-NEXT:    ret float [[R]]
 ;
-  %a = fadd float %x, bitcast (i32 ptrtoint (i16* @g to i32) to float)
+  %a = fadd float %x, bitcast (i32 ptrtoint (ptr @g to i32) to float)
   %r = fneg nsz float %a
   ret float %r
 }
 
 define float @fake_fneg_nsz_fadd_constant_expr(float %x) {
 ; CHECK-LABEL: @fake_fneg_nsz_fadd_constant_expr(
-; CHECK-NEXT:    [[R:%.*]] = fsub nsz float fneg (float bitcast (i32 ptrtoint (i16* @g to i32) to float)), [[X:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = fadd float [[X:%.*]], bitcast (i32 ptrtoint (ptr @g to i32) to float)
+; CHECK-NEXT:    [[R:%.*]] = fneg nsz float [[A]]
 ; CHECK-NEXT:    ret float [[R]]
 ;
-  %a = fadd float %x, bitcast (i32 ptrtoint (i16* @g to i32) to float)
+  %a = fadd float %x, bitcast (i32 ptrtoint (ptr @g to i32) to float)
   %r = fsub nsz float -0.0, %a
   ret float %r
 }
@@ -714,19 +716,42 @@ define float @fabs(float %a) {
   ret float %fneg1
 }
 
-; TODO: This should reduce to fneg-of-fabs.
-
 define float @fnabs(float %a) {
 ; CHECK-LABEL: @fnabs(
-; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt float [[A:%.*]], 0.000000e+00
-; CHECK-NEXT:    [[A_NEG:%.*]] = fneg fast float [[A]]
-; CHECK-NEXT:    [[FNEG1:%.*]] = select fast i1 [[CMP]], float [[A]], float [[A_NEG]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call fast float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    [[FNEG1:%.*]] = fneg fast float [[TMP1]]
 ; CHECK-NEXT:    ret float [[FNEG1]]
 ;
   %fneg = fneg float %a
   %cmp = fcmp olt float %a, %fneg
   %sel = select i1 %cmp, float %fneg, float %a
   %fneg1 = fneg fast float %sel
+  ret float %fneg1
+}
+
+define float @fnabs_1(float %a) {
+; CHECK-LABEL: @fnabs_1(
+; CHECK-NEXT:    [[TMP1:%.*]] = call fast float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    [[FNEG1:%.*]] = fneg fast float [[TMP1]]
+; CHECK-NEXT:    ret float [[FNEG1]]
+;
+  %fneg = fneg float %a
+  %cmp = fcmp ogt float %a, %fneg
+  %sel = select i1 %cmp, float %a, float %fneg
+  %fneg1 = fneg fast float %sel
+  ret float %fneg1
+}
+
+define float @fnabs_2(float %a) {
+; CHECK-LABEL: @fnabs_2(
+; CHECK-NEXT:    [[TMP1:%.*]] = call nsz float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    [[FNEG1:%.*]] = fneg float [[TMP1]]
+; CHECK-NEXT:    ret float [[FNEG1]]
+;
+  %fneg = fneg float %a
+  %cmp = fcmp olt float %a, %fneg
+  %sel = select nsz i1 %cmp, float %fneg, float %a
+  %fneg1 = fneg float %sel
   ret float %fneg1
 }
 

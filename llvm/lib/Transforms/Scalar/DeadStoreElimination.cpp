@@ -38,7 +38,9 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CaptureTracking.h"
+#include "llvm/Analysis/CodeMetrics.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -240,19 +242,30 @@ static OverwriteResult isMaskedStoreOverwrite(const Instruction *KillingI,
   const auto *DeadII = dyn_cast<IntrinsicInst>(DeadI);
   if (KillingII == nullptr || DeadII == nullptr)
     return OW_Unknown;
-  if (KillingII->getIntrinsicID() != Intrinsic::masked_store ||
-      DeadII->getIntrinsicID() != Intrinsic::masked_store)
+  if (KillingII->getIntrinsicID() != DeadII->getIntrinsicID())
     return OW_Unknown;
-  // Pointers.
-  Value *KillingPtr = KillingII->getArgOperand(1)->stripPointerCasts();
-  Value *DeadPtr = DeadII->getArgOperand(1)->stripPointerCasts();
-  if (KillingPtr != DeadPtr && !AA.isMustAlias(KillingPtr, DeadPtr))
-    return OW_Unknown;
-  // Masks.
-  // TODO: check that KillingII's mask is a superset of the DeadII's mask.
-  if (KillingII->getArgOperand(3) != DeadII->getArgOperand(3))
-    return OW_Unknown;
-  return OW_Complete;
+  if (KillingII->getIntrinsicID() == Intrinsic::masked_store) {
+    // Type size.
+    VectorType *KillingTy =
+        cast<VectorType>(KillingII->getArgOperand(0)->getType());
+    VectorType *DeadTy = cast<VectorType>(DeadII->getArgOperand(0)->getType());
+    if (KillingTy->getScalarSizeInBits() != DeadTy->getScalarSizeInBits())
+      return OW_Unknown;
+    // Element count.
+    if (KillingTy->getElementCount() != DeadTy->getElementCount())
+      return OW_Unknown;
+    // Pointers.
+    Value *KillingPtr = KillingII->getArgOperand(1)->stripPointerCasts();
+    Value *DeadPtr = DeadII->getArgOperand(1)->stripPointerCasts();
+    if (KillingPtr != DeadPtr && !AA.isMustAlias(KillingPtr, DeadPtr))
+      return OW_Unknown;
+    // Masks.
+    // TODO: check that KillingII's mask is a superset of the DeadII's mask.
+    if (KillingII->getArgOperand(3) != DeadII->getArgOperand(3))
+      return OW_Unknown;
+    return OW_Complete;
+  }
+  return OW_Unknown;
 }
 
 /// Return 'OW_Complete' if a store to the 'KillingLoc' location completely
@@ -762,6 +775,9 @@ struct DSEState {
   // Post-order numbers for each basic block. Used to figure out if memory
   // accesses are executed before another access.
   DenseMap<BasicBlock *, unsigned> PostOrderNumbers;
+  // Values that are only used with assumes. Used to refine pointer escape
+  // analysis.
+  SmallPtrSet<const Value *, 32> EphValues;
 
   /// Keep track of instructions (partly) overlapping with killing MemoryDefs per
   /// basic block.
@@ -771,15 +787,20 @@ struct DSEState {
   // fall back to CFG scan starting from all non-unreachable roots.
   bool AnyUnreachableExit;
 
+  // Whether or not we should iterate on removing dead stores at the end of the
+  // function due to removing a store causing a previously captured pointer to
+  // no longer be captured.
+  bool ShouldIterateEndOfFunctionDSE;
+
   // Class contains self-reference, make sure it's not copied/moved.
   DSEState(const DSEState &) = delete;
   DSEState &operator=(const DSEState &) = delete;
 
   DSEState(Function &F, AliasAnalysis &AA, MemorySSA &MSSA, DominatorTree &DT,
-           PostDominatorTree &PDT, const TargetLibraryInfo &TLI,
-           const LoopInfo &LI)
-      : F(F), AA(AA), EI(DT, LI), BatchAA(AA, &EI), MSSA(MSSA), DT(DT),
-        PDT(PDT), TLI(TLI), DL(F.getParent()->getDataLayout()), LI(LI) {
+           PostDominatorTree &PDT, AssumptionCache &AC,
+           const TargetLibraryInfo &TLI, const LoopInfo &LI)
+      : F(F), AA(AA), EI(DT, LI, EphValues), BatchAA(AA, &EI), MSSA(MSSA),
+        DT(DT), PDT(PDT), TLI(TLI), DL(F.getParent()->getDataLayout()), LI(LI) {
     // Collect blocks with throwing instructions not modeled in MemorySSA and
     // alloc-like objects.
     unsigned PO = 0;
@@ -809,6 +830,8 @@ struct DSEState {
     AnyUnreachableExit = any_of(PDT.roots(), [](const BasicBlock *E) {
       return isa<UnreachableInst>(E->getTerminator());
     });
+
+    CodeMetrics::collectEphemeralValues(&F, &AC, EphValues);
   }
 
   /// Return 'OW_Complete' if a store to the 'KillingLoc' location (by \p
@@ -955,7 +978,7 @@ struct DSEState {
       if (!isInvisibleToCallerOnUnwind(V)) {
         I.first->second = false;
       } else if (isNoAliasCall(V)) {
-        I.first->second = !PointerMayBeCaptured(V, true, false);
+        I.first->second = !PointerMayBeCaptured(V, true, false, EphValues);
       }
     }
     return I.first->second;
@@ -974,7 +997,7 @@ struct DSEState {
       // with the killing MemoryDef. But we refrain from doing so for now to
       // limit compile-time and this does not cause any changes to the number
       // of stores removed on a large test set in practice.
-      I.first->second = PointerMayBeCaptured(V, false, true);
+      I.first->second = PointerMayBeCaptured(V, false, true, EphValues);
     return !I.first->second;
   }
 
@@ -1007,7 +1030,8 @@ struct DSEState {
       if (CB->isLifetimeStartOrEnd())
         return false;
 
-      return CB->use_empty() && CB->willReturn() && CB->doesNotThrow();
+      return CB->use_empty() && CB->willReturn() && CB->doesNotThrow() &&
+             !CB->isTerminator();
     }
 
     return false;
@@ -1062,13 +1086,16 @@ struct DSEState {
       }
 
       MemoryAccess *UseAccess = WorkList[I];
-      // Simply adding the users of MemoryPhi to the worklist is not enough,
-      // because we might miss read clobbers in different iterations of a loop,
-      // for example.
-      // TODO: Add support for phi translation to handle the loop case.
-      if (isa<MemoryPhi>(UseAccess))
-        return false;
+      if (isa<MemoryPhi>(UseAccess)) {
+        // AliasAnalysis does not account for loops. Limit elimination to
+        // candidates for which we can guarantee they always store to the same
+        // memory location.
+        if (!isGuaranteedLoopInvariant(MaybeLoc->Ptr))
+          return false;
 
+        PushMemUses(cast<MemoryPhi>(UseAccess));
+        continue;
+      }
       // TODO: Checking for aliasing is expensive. Consider reducing the amount
       // of times this is called and/or caching it.
       Instruction *UseInst = cast<MemoryUseOrDef>(UseAccess)->getMemoryInst();
@@ -1095,9 +1122,8 @@ struct DSEState {
       return {std::make_pair(MemoryLocation(Ptr, Len), false)};
 
     if (auto *CB = dyn_cast<CallBase>(I)) {
-      if (isFreeCall(I, &TLI))
-        return {std::make_pair(MemoryLocation::getAfter(CB->getArgOperand(0)),
-                               true)};
+      if (Value *FreedOp = getFreedOperand(CB, &TLI))
+        return {std::make_pair(MemoryLocation::getAfter(FreedOp), true)};
     }
 
     return None;
@@ -1106,9 +1132,9 @@ struct DSEState {
   /// Returns true if \p I is a memory terminator instruction like
   /// llvm.lifetime.end or free.
   bool isMemTerminatorInst(Instruction *I) const {
-    IntrinsicInst *II = dyn_cast<IntrinsicInst>(I);
-    return (II && II->getIntrinsicID() == Intrinsic::lifetime_end) ||
-           isFreeCall(I, &TLI);
+    auto *CB = dyn_cast<CallBase>(I);
+    return CB && (CB->getIntrinsicID() == Intrinsic::lifetime_end ||
+                  getFreedOperand(CB, &TLI) != nullptr);
   }
 
   /// Returns true if \p MaybeTerm is a memory terminator for \p Loc from
@@ -1590,6 +1616,14 @@ struct DSEState {
       if (MemoryAccess *MA = MSSA.getMemoryAccess(DeadInst)) {
         if (MemoryDef *MD = dyn_cast<MemoryDef>(MA)) {
           SkipStores.insert(MD);
+          if (auto *SI = dyn_cast<StoreInst>(MD->getMemoryInst())) {
+            if (SI->getValueOperand()->getType()->isPointerTy()) {
+              const Value *UO = getUnderlyingObject(SI->getValueOperand());
+              if (CapturedBeforeReturn.erase(UO))
+                ShouldIterateEndOfFunctionDSE = true;
+              InvisibleToCallerAfterRet.erase(UO);
+            }
+          }
         }
 
         Updater.removeMemoryAccess(MA);
@@ -1663,33 +1697,36 @@ struct DSEState {
     LLVM_DEBUG(
         dbgs()
         << "Trying to eliminate MemoryDefs at the end of the function\n");
-    for (MemoryDef *Def : llvm::reverse(MemDefs)) {
-      if (SkipStores.contains(Def))
-        continue;
+    do {
+      ShouldIterateEndOfFunctionDSE = false;
+      for (MemoryDef *Def : llvm::reverse(MemDefs)) {
+        if (SkipStores.contains(Def))
+          continue;
 
-      Instruction *DefI = Def->getMemoryInst();
-      auto DefLoc = getLocForWrite(DefI);
-      if (!DefLoc || !isRemovable(DefI))
-        continue;
+        Instruction *DefI = Def->getMemoryInst();
+        auto DefLoc = getLocForWrite(DefI);
+        if (!DefLoc || !isRemovable(DefI))
+          continue;
 
-      // NOTE: Currently eliminating writes at the end of a function is limited
-      // to MemoryDefs with a single underlying object, to save compile-time. In
-      // practice it appears the case with multiple underlying objects is very
-      // uncommon. If it turns out to be important, we can use
-      // getUnderlyingObjects here instead.
-      const Value *UO = getUnderlyingObject(DefLoc->Ptr);
-      if (!isInvisibleToCallerAfterRet(UO))
-        continue;
+        // NOTE: Currently eliminating writes at the end of a function is
+        // limited to MemoryDefs with a single underlying object, to save
+        // compile-time. In practice it appears the case with multiple
+        // underlying objects is very uncommon. If it turns out to be important,
+        // we can use getUnderlyingObjects here instead.
+        const Value *UO = getUnderlyingObject(DefLoc->Ptr);
+        if (!isInvisibleToCallerAfterRet(UO))
+          continue;
 
-      if (isWriteAtEndOfFunction(Def)) {
-        // See through pointer-to-pointer bitcasts
-        LLVM_DEBUG(dbgs() << "   ... MemoryDef is not accessed until the end "
-                             "of the function\n");
-        deleteDeadInstruction(DefI);
-        ++NumFastStores;
-        MadeChange = true;
+        if (isWriteAtEndOfFunction(Def)) {
+          // See through pointer-to-pointer bitcasts
+          LLVM_DEBUG(dbgs() << "   ... MemoryDef is not accessed until the end "
+                               "of the function\n");
+          deleteDeadInstruction(DefI);
+          ++NumFastStores;
+          MadeChange = true;
+        }
       }
-    }
+    } while (ShouldIterateEndOfFunctionDSE);
     return MadeChange;
   }
 
@@ -1751,10 +1788,9 @@ struct DSEState {
         !memoryIsNotModifiedBetween(Malloc, MemSet, BatchAA, DL, &DT))
       return false;
     IRBuilder<> IRB(Malloc);
-    const auto &DL = Malloc->getModule()->getDataLayout();
-    auto *Calloc =
-      emitCalloc(ConstantInt::get(IRB.getIntPtrTy(DL), 1),
-                 Malloc->getArgOperand(0), IRB, TLI);
+    Type *SizeTTy = Malloc->getArgOperand(0)->getType();
+    auto *Calloc = emitCalloc(ConstantInt::get(SizeTTy, 1),
+                              Malloc->getArgOperand(0), IRB, TLI);
     if (!Calloc)
       return false;
     MemorySSAUpdater Updater(&MSSA);
@@ -1788,10 +1824,9 @@ struct DSEState {
     if (!isRemovable(DefI))
       return false;
 
-    if (StoredConstant && isAllocationFn(DefUO, &TLI)) {
-      auto *CB = cast<CallBase>(DefUO);
-      auto *InitC = getInitialValueOfAllocation(CB, &TLI,
-                                                StoredConstant->getType());
+    if (StoredConstant) {
+      Constant *InitC =
+          getInitialValueOfAllocation(DefUO, &TLI, StoredConstant->getType());
       // If the clobbering access is LiveOnEntry, no instructions between them
       // can modify the memory location.
       if (InitC && InitC == StoredConstant)
@@ -1839,8 +1874,23 @@ struct DSEState {
           // We are searching for the definition of the store's destination.
           // So, if that is the same definition as the load, then this is a
           // noop. Otherwise, fail.
-          if (LoadAccess != Current)
+          if (LoadAccess != Current) {
+            // This is a potentially clobbering store, but it writes the same
+            // value, so we can safely ignore it if alignment is as expected.
+            if (auto *CurrentDef = cast<MemoryDef>(Current))
+              if (auto *CurrentStoreI =
+                      dyn_cast_or_null<StoreInst>(CurrentDef->getMemoryInst()))
+                // Check alignment to ensure load or store does not access at an
+                // offset.
+                if (CurrentStoreI->getValueOperand() == LoadI) {
+                  TypeSize StoreSize = DL.getTypeStoreSize(LoadI->getType());
+                  if (!StoreSize.isScalable() &&
+                      std::min(CurrentStoreI->getAlign(), LoadI->getAlign()) >=
+                          StoreSize)
+                    continue;
+                }
             return false;
+          }
         }
         return true;
       }
@@ -1929,12 +1979,13 @@ struct DSEState {
 
 static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
                                 DominatorTree &DT, PostDominatorTree &PDT,
+                                AssumptionCache &AC,
                                 const TargetLibraryInfo &TLI,
                                 const LoopInfo &LI) {
   bool MadeChange = false;
 
   MSSA.ensureOptimizedUses();
-  DSEState State(F, AA, MSSA, DT, PDT, TLI, LI);
+  DSEState State(F, AA, MSSA, DT, PDT, AC, TLI, LI);
   // For each store:
   for (unsigned I = 0; I < State.MemDefs.size(); I++) {
     MemoryDef *KillingDef = State.MemDefs[I];
@@ -1944,7 +1995,7 @@ static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
 
     Optional<MemoryLocation> MaybeKillingLoc;
     if (State.isMemTerminatorInst(KillingI))
-      MaybeKillingLoc = State.getLocForTerminator(KillingI).map(
+      MaybeKillingLoc = State.getLocForTerminator(KillingI).transform(
           [](const std::pair<MemoryLocation, bool> &P) { return P.first; });
     else
       MaybeKillingLoc = State.getLocForWrite(KillingI);
@@ -2114,9 +2165,10 @@ PreservedAnalyses DSEPass::run(Function &F, FunctionAnalysisManager &AM) {
   DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
   MemorySSA &MSSA = AM.getResult<MemorySSAAnalysis>(F).getMSSA();
   PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+  AssumptionCache &AC = AM.getResult<AssumptionAnalysis>(F);
   LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
 
-  bool Changed = eliminateDeadStores(F, AA, MSSA, DT, PDT, TLI, LI);
+  bool Changed = eliminateDeadStores(F, AA, MSSA, DT, PDT, AC, TLI, LI);
 
 #ifdef LLVM_ENABLE_STATS
   if (AreStatisticsEnabled())
@@ -2156,9 +2208,11 @@ public:
     MemorySSA &MSSA = getAnalysis<MemorySSAWrapperPass>().getMSSA();
     PostDominatorTree &PDT =
         getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();
+    AssumptionCache &AC =
+        getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
     LoopInfo &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 
-    bool Changed = eliminateDeadStores(F, AA, MSSA, DT, PDT, TLI, LI);
+    bool Changed = eliminateDeadStores(F, AA, MSSA, DT, PDT, AC, TLI, LI);
 
 #ifdef LLVM_ENABLE_STATS
     if (AreStatisticsEnabled())
@@ -2182,6 +2236,7 @@ public:
     AU.addPreserved<MemorySSAWrapperPass>();
     AU.addRequired<LoopInfoWrapperPass>();
     AU.addPreserved<LoopInfoWrapperPass>();
+    AU.addRequired<AssumptionCacheTracker>();
   }
 };
 
@@ -2199,6 +2254,7 @@ INITIALIZE_PASS_DEPENDENCY(MemorySSAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(MemoryDependenceWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_END(DSELegacyPass, "dse", "Dead Store Elimination", false,
                     false)
 

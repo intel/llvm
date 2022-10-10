@@ -92,6 +92,8 @@ public:
 
   static lldb::SBError InitializeWithErrorHandling();
 
+  static void PrintStackTraceOnError();
+
   static void Terminate();
 
   // Deprecated, use the one that takes a source_init_files bool.
@@ -112,6 +114,21 @@ public:
   bool IsValid() const;
 
   void Clear();
+
+  /// Getting a specific setting value into SBStructuredData format.
+  /// Client can specify empty string or null to get all settings.
+  ///
+  /// Example usages:
+  /// lldb::SBStructuredData settings = debugger.GetSetting();
+  /// lldb::SBStructuredData settings = debugger.GetSetting(nullptr);
+  /// lldb::SBStructuredData settings = debugger.GetSetting("");
+  /// lldb::SBStructuredData settings = debugger.GetSetting("target.arg0");
+  /// lldb::SBStructuredData settings = debugger.GetSetting("target");
+  ///
+  /// \param[out] setting
+  ///   Property setting path to retrieve values. e.g "target.source-map"
+  ///
+  lldb::SBStructuredData GetSetting(const char *setting = nullptr);
 
   void SetAsync(bool b);
 
@@ -389,6 +406,17 @@ public:
 
   SBError RunREPL(lldb::LanguageType language, const char *repl_options);
 
+  /// Load a trace from a trace description file and create Targets,
+  /// Processes and Threads based on the contents of such file.
+  ///
+  /// \param[out] error
+  ///   An error if the trace could not be created.
+  ///
+  /// \param[in] trace_description_file
+  ///   The file containing the necessary information to load the trace.
+  SBTrace LoadTraceFromFile(SBError &error,
+                            const SBFileSpec &trace_description_file);
+
 private:
   friend class SBCommandInterpreter;
   friend class SBInputReader;
@@ -396,6 +424,7 @@ private:
   friend class SBProcess;
   friend class SBSourceManager;
   friend class SBTarget;
+  friend class SBTrace;
 
   lldb::SBTarget FindTargetWithLLDBProcess(const lldb::ProcessSP &processSP);
 

@@ -1,4 +1,5 @@
-// RUN: mlir-tblgen -gen-dialect-doc -I %S/../../include %s | FileCheck %s
+// RUN: mlir-tblgen -gen-dialect-doc -I %S/../../include -dialect=test %s | FileCheck %s
+// RUN: mlir-tblgen -gen-dialect-doc -I %S/../../include -dialect=test_toc %s | FileCheck %s --check-prefix=CHECK_TOC
 
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -14,13 +15,33 @@ def Test_Dialect : Dialect {
 }
 def AOp : Op<Test_Dialect, "a", [NoSideEffect, SingleBlockImplicitTerminator<"YieldOp">]>;
 
+def TestAttr : DialectAttr<Test_Dialect, CPred<"true">> {
+  let summary = "attribute summary";
+  let description = "attribute description";
+}
+
+def TestType : DialectType<Test_Dialect, CPred<"true">> {
+  let summary = "type summary";
+  let description = "type description";
+}
+
 // CHECK: Dialect without a [TOC] here.
 // CHECK: TOC added by tool.
 // CHECK: [TOC]
+
 // CHECK-NOT: [TOC]
 // CHECK: Traits: SingleBlockImplicitTerminator<YieldOp>
 // CHECK: Interfaces: NoSideEffect (MemoryEffectOpInterface)
 // CHECK: Effects: MemoryEffects::Effect{}
+
+// CHECK: ## Attribute constraint definition
+// CHECK: ### attribute summary
+// CHECK: attribute description
+
+// CHECK: ## Type constraint definition
+// CHECK: ### type summary
+// CHECK: type description
+
 
 def Toc_Dialect : Dialect {
   let name = "test_toc";
@@ -36,6 +57,6 @@ def Toc_Dialect : Dialect {
 }
 def BOp : Op<Toc_Dialect, "b", []>;
 
-// CHECK: Dialect with
-// CHECK: [TOC]
-// CHECK: here.
+// CHECK_TOC: Dialect with
+// CHECK_TOC: [TOC]
+// CHECK_TOC: here.

@@ -9,6 +9,7 @@
 #include "flang/Evaluate/check-expression.h"
 #include "flang/Evaluate/characteristics.h"
 #include "flang/Evaluate/intrinsics.h"
+#include "flang/Evaluate/tools.h"
 #include "flang/Evaluate/traverse.h"
 #include "flang/Evaluate/type.h"
 #include "flang/Semantics/symbol.h"
@@ -48,7 +49,7 @@ public:
     return IsNamedConstant(ultimate) || IsImpliedDoIndex(ultimate) ||
         IsInitialProcedureTarget(ultimate) ||
         ultimate.has<semantics::TypeParamDetails>() ||
-        (INVARIANT && IsIntentIn(symbol) &&
+        (INVARIANT && IsIntentIn(symbol) && !IsOptional(symbol) &&
             !symbol.attrs().test(semantics::Attr::VALUE));
   }
   bool operator()(const CoarrayRef &) const { return false; }
@@ -84,7 +85,8 @@ public:
     const Symbol &sym{x.base().GetLastSymbol()};
     return INVARIANT && !IsAllocatable(sym) &&
         (!IsDummy(sym) ||
-            (IsIntentIn(sym) && !sym.attrs().test(semantics::Attr::VALUE)));
+            (IsIntentIn(sym) && !IsOptional(sym) &&
+                !sym.attrs().test(semantics::Attr::VALUE)));
   }
 
 private:
@@ -97,7 +99,7 @@ template <bool INVARIANT>
 bool IsConstantExprHelper<INVARIANT>::IsConstantStructureConstructorComponent(
     const Symbol &component, const Expr<SomeType> &expr) const {
   if (IsAllocatable(component)) {
-    return IsNullPointer(expr);
+    return IsNullObjectPointer(expr);
   } else if (IsPointer(component)) {
     return IsNullPointer(expr) || IsInitialDataTarget(expr) ||
         IsInitialProcedureTarget(expr);
@@ -109,27 +111,22 @@ bool IsConstantExprHelper<INVARIANT>::IsConstantStructureConstructorComponent(
 template <bool INVARIANT>
 bool IsConstantExprHelper<INVARIANT>::operator()(
     const ProcedureRef &call) const {
-  // LBOUND, UBOUND, and SIZE with DIM= arguments will have been rewritten
-  // into DescriptorInquiry operations.
+  // LBOUND, UBOUND, and SIZE with truly constant DIM= arguments will have
+  // been rewritten into DescriptorInquiry operations.
   if (const auto *intrinsic{std::get_if<SpecificIntrinsic>(&call.proc().u)}) {
     if (intrinsic->name == "kind" ||
-        intrinsic->name == IntrinsicProcTable::InvalidName) {
+        intrinsic->name == IntrinsicProcTable::InvalidName ||
+        call.arguments().empty() || !call.arguments()[0]) {
       // kind is always a constant, and we avoid cascading errors by considering
       // invalid calls to intrinsics to be constant
       return true;
-    } else if (intrinsic->name == "lbound" && call.arguments().size() == 1) {
-      // LBOUND(x) without DIM=
+    } else if (intrinsic->name == "lbound") {
       auto base{ExtractNamedEntity(call.arguments()[0]->UnwrapExpr())};
       return base && IsConstantExprShape(GetLBOUNDs(*base));
-    } else if (intrinsic->name == "ubound" && call.arguments().size() == 1) {
-      // UBOUND(x) without DIM=
+    } else if (intrinsic->name == "ubound") {
       auto base{ExtractNamedEntity(call.arguments()[0]->UnwrapExpr())};
       return base && IsConstantExprShape(GetUBOUNDs(*base));
-    } else if (intrinsic->name == "shape") {
-      auto shape{GetShape(call.arguments()[0]->UnwrapExpr())};
-      return shape && IsConstantExprShape(*shape);
-    } else if (intrinsic->name == "size" && call.arguments().size() == 1) {
-      // SIZE(x) without DIM
+    } else if (intrinsic->name == "shape" || intrinsic->name == "size") {
       auto shape{GetShape(call.arguments()[0]->UnwrapExpr())};
       return shape && IsConstantExprShape(*shape);
     }
@@ -173,7 +170,7 @@ struct IsActuallyConstantHelper {
     return (*this)(x.left());
   }
   template <typename T> bool operator()(const Expr<T> &x) {
-    return common::visit([this](const auto &y) { return (*this)(y); }, x.u);
+    return common::visit([=](const auto &y) { return (*this)(y); }, x.u);
   }
   bool operator()(const Expr<SomeType> &x) {
     if (IsNullPointer(x)) {
@@ -192,6 +189,9 @@ template <typename A> bool IsActuallyConstant(const A &x) {
 }
 
 template bool IsActuallyConstant(const Expr<SomeType> &);
+template bool IsActuallyConstant(const Expr<SomeInteger> &);
+template bool IsActuallyConstant(const Expr<SubscriptInteger> &);
+template bool IsActuallyConstant(const std::optional<Expr<SubscriptInteger>> &);
 
 // Object pointer initialization checking predicate IsInitialDataTarget().
 // This code determines whether an expression is allowable as the static
@@ -360,35 +360,9 @@ bool IsInitialProcedureTarget(const Expr<SomeType> &expr) {
   if (const auto *proc{std::get_if<ProcedureDesignator>(&expr.u)}) {
     return IsInitialProcedureTarget(*proc);
   } else {
-    return IsNullPointer(expr);
+    return IsNullProcedurePointer(expr);
   }
 }
-
-class ArrayConstantBoundChanger {
-public:
-  ArrayConstantBoundChanger(ConstantSubscripts &&lbounds)
-      : lbounds_{std::move(lbounds)} {}
-
-  template <typename A> A ChangeLbounds(A &&x) const {
-    return std::move(x); // default case
-  }
-  template <typename T> Constant<T> ChangeLbounds(Constant<T> &&x) {
-    x.set_lbounds(std::move(lbounds_));
-    return std::move(x);
-  }
-  template <typename T> Expr<T> ChangeLbounds(Parentheses<T> &&x) {
-    return ChangeLbounds(
-        std::move(x.left())); // Constant<> can be parenthesized
-  }
-  template <typename T> Expr<T> ChangeLbounds(Expr<T> &&x) {
-    return common::visit(
-        [&](auto &&x) { return Expr<T>{ChangeLbounds(std::move(x))}; },
-        std::move(x.u)); // recurse until we hit a constant
-  }
-
-private:
-  ConstantSubscripts &&lbounds_;
-};
 
 // Converts, folds, and then checks type, rank, and shape of an
 // initialization expression for a named constant, a non-pointer
@@ -420,7 +394,10 @@ std::optional<Expr<SomeType>> NonPointerInitializationExpr(const Symbol &symbol,
         int symRank{GetRank(symTS->shape())};
         if (IsImpliedShape(symbol)) {
           if (folded.Rank() == symRank) {
-            return {std::move(folded)};
+            return ArrayConstantBoundChanger{
+                std::move(*AsConstantExtents(
+                    context, GetRawLowerBounds(context, NamedEntity{symbol})))}
+                .ChangeLbounds(std::move(folded));
           } else {
             context.messages().Say(
                 "Implied-shape parameter '%s' has rank %d but its initializer has rank %d"_err_en_US,
@@ -525,7 +502,8 @@ public:
       if (ultimate.attrs().test(semantics::Attr::OPTIONAL)) {
         return "reference to OPTIONAL dummy argument '"s +
             ultimate.name().ToString() + "'";
-      } else if (ultimate.attrs().test(semantics::Attr::INTENT_OUT)) {
+      } else if (!inInquiry_ &&
+          ultimate.attrs().test(semantics::Attr::INTENT_OUT)) {
         return "reference to INTENT(OUT) dummy argument '"s +
             ultimate.name().ToString() + "'";
       } else if (ultimate.has<semantics::ObjectEntityDetails>()) {
@@ -541,18 +519,44 @@ public:
         return std::nullopt;
       }
     }
-    return "reference to local entity '"s + ultimate.name().ToString() + "'";
+    if (inInquiry_) {
+      return std::nullopt;
+    } else {
+      return "reference to local entity '"s + ultimate.name().ToString() + "'";
+    }
   }
 
   Result operator()(const Component &x) const {
     // Don't look at the component symbol.
     return (*this)(x.base());
   }
-  Result operator()(const DescriptorInquiry &) const {
-    // Subtle: Uses of SIZE(), LBOUND(), &c. that are valid in specification
+  Result operator()(const ArrayRef &x) const {
+    if (auto result{(*this)(x.base())}) {
+      return result;
+    }
+    // The subscripts don't get special protection for being in a
+    // specification inquiry context;
+    auto restorer{common::ScopedSet(inInquiry_, false)};
+    return (*this)(x.subscript());
+  }
+  Result operator()(const Substring &x) const {
+    if (auto result{(*this)(x.parent())}) {
+      return result;
+    }
+    // The bounds don't get special protection for being in a
+    // specification inquiry context;
+    auto restorer{common::ScopedSet(inInquiry_, false)};
+    if (auto result{(*this)(x.lower())}) {
+      return result;
+    }
+    return (*this)(x.upper());
+  }
+  Result operator()(const DescriptorInquiry &x) const {
+    // Many uses of SIZE(), LBOUND(), &c. that are valid in specification
     // expressions will have been converted to expressions over descriptor
     // inquiries by Fold().
-    return std::nullopt;
+    auto restorer{common::ScopedSet(inInquiry_, true)};
+    return (*this)(x.base());
   }
 
   Result operator()(const TypeParamInquiry &inq) const {
@@ -565,6 +569,7 @@ public:
   }
 
   Result operator()(const ProcedureRef &x) const {
+    bool inInquiry{false};
     if (const auto *symbol{x.proc().GetSymbol()}) {
       const Symbol &ultimate{symbol->GetUltimate()};
       if (!semantics::IsPureProcedure(ultimate)) {
@@ -597,40 +602,44 @@ public:
       // TODO: other checks for standard module procedures
     } else {
       const SpecificIntrinsic &intrin{DEREF(x.proc().GetSpecificIntrinsic())};
+      inInquiry = context_.intrinsics().GetIntrinsicClass(intrin.name) ==
+          IntrinsicClass::inquiryFunction;
       if (scope_.IsDerivedType()) { // C750, C754
         if ((context_.intrinsics().IsIntrinsic(intrin.name) &&
                 badIntrinsicsForComponents_.find(intrin.name) !=
-                    badIntrinsicsForComponents_.end()) ||
-            IsProhibitedFunction(intrin.name)) {
+                    badIntrinsicsForComponents_.end())) {
           return "reference to intrinsic '"s + intrin.name +
               "' not allowed for derived type components or type parameter"
               " values";
         }
-        if (context_.intrinsics().GetIntrinsicClass(intrin.name) ==
-                IntrinsicClass::inquiryFunction &&
-            !IsConstantExpr(x)) {
+        if (inInquiry && !IsConstantExpr(x)) {
           return "non-constant reference to inquiry intrinsic '"s +
               intrin.name +
               "' not allowed for derived type components or type"
               " parameter values";
         }
-      } else if (intrin.name == "present") {
-        return std::nullopt; // no need to check argument(s)
+      }
+      if (intrin.name == "present") {
+        // don't bother looking at argument
+        return std::nullopt;
       }
       if (IsConstantExpr(x)) {
         // inquiry functions may not need to check argument(s)
         return std::nullopt;
       }
     }
+    auto restorer{common::ScopedSet(inInquiry_, inInquiry)};
     return (*this)(x.arguments());
   }
 
 private:
   const semantics::Scope &scope_;
   FoldingContext &context_;
+  // Contextual information: this flag is true when in an argument to
+  // an inquiry intrinsic like SIZE().
+  mutable bool inInquiry_{false};
   const std::set<std::string> badIntrinsicsForComponents_{
       "allocated", "associated", "extends_type_of", "present", "same_type_as"};
-  static bool IsProhibitedFunction(std::string name) { return false; }
 };
 
 template <typename A>
@@ -656,14 +665,13 @@ template void CheckSpecificationExpr(
     const std::optional<Expr<SubscriptInteger>> &, const semantics::Scope &,
     FoldingContext &);
 
-// IsSimplyContiguous() -- 9.5.4
-class IsSimplyContiguousHelper
-    : public AnyTraverse<IsSimplyContiguousHelper, std::optional<bool>> {
+// IsContiguous() -- 9.5.4
+class IsContiguousHelper
+    : public AnyTraverse<IsContiguousHelper, std::optional<bool>> {
 public:
   using Result = std::optional<bool>; // tri-state
-  using Base = AnyTraverse<IsSimplyContiguousHelper, Result>;
-  explicit IsSimplyContiguousHelper(FoldingContext &c)
-      : Base{*this}, context_{c} {}
+  using Base = AnyTraverse<IsContiguousHelper, Result>;
+  explicit IsContiguousHelper(FoldingContext &c) : Base{*this}, context_{c} {}
   using Base::operator();
 
   Result operator()(const semantics::Symbol &symbol) const {
@@ -677,43 +685,48 @@ public:
       return true;
     } else if (semantics::IsPointer(ultimate) ||
         semantics::IsAssumedShape(ultimate)) {
-      return false;
+      return std::nullopt;
     } else if (const auto *details{
                    ultimate.detailsIf<semantics::ObjectEntityDetails>()}) {
       return !details->IsAssumedRank();
-    } else if (auto assoc{Base::operator()(ultimate)}) {
-      return assoc;
     } else {
-      return false;
+      return Base::operator()(ultimate);
     }
   }
 
   Result operator()(const ArrayRef &x) const {
-    const auto &symbol{x.GetLastSymbol()};
-    if (!(*this)(symbol).has_value()) {
-      return false;
-    } else if (auto rank{CheckSubscripts(x.subscript())}) {
-      if (x.Rank() == 0) {
-        return true;
-      } else if (*rank > 0) {
-        // a(1)%b(:,:) is contiguous if an only if a(1)%b is contiguous.
-        return (*this)(x.base());
-      } else {
-        // a(:)%b(1,1) is not contiguous.
-        return false;
-      }
+    if (x.Rank() == 0) {
+      return true; // scalars considered contiguous
+    }
+    int subscriptRank{0};
+    auto subscripts{CheckSubscripts(x.subscript(), subscriptRank)};
+    if (!subscripts.value_or(false)) {
+      return subscripts; // subscripts not known to be contiguous
+    } else if (subscriptRank > 0) {
+      // a(1)%b(:,:) is contiguous if and only if a(1)%b is contiguous.
+      return (*this)(x.base());
     } else {
-      return false;
+      // a(:)%b(1,1) is (probably) not contiguous.
+      return std::nullopt;
     }
   }
   Result operator()(const CoarrayRef &x) const {
-    return CheckSubscripts(x.subscript()).has_value();
+    int rank{0};
+    return CheckSubscripts(x.subscript(), rank).has_value();
   }
   Result operator()(const Component &x) const {
-    return x.base().Rank() == 0 && (*this)(x.GetLastSymbol()).value_or(false);
+    if (x.base().Rank() == 0) {
+      return (*this)(x.GetLastSymbol());
+    } else {
+      // TODO could be true if base contiguous and this is only component, or
+      // if base has only one element?
+      return std::nullopt;
+    }
   }
-  Result operator()(const ComplexPart &) const { return false; }
-  Result operator()(const Substring &) const { return false; }
+  Result operator()(const ComplexPart &x) const {
+    return x.complex().Rank() == 0;
+  }
+  Result operator()(const Substring &) const { return std::nullopt; }
 
   Result operator()(const ProcedureRef &x) const {
     if (auto chars{
@@ -726,23 +739,25 @@ public:
                 characteristics::FunctionResult::Attr::Contiguous);
       }
     }
-    return false;
+    return std::nullopt;
   }
 
+  Result operator()(const NullPointer &) const { return true; }
+
 private:
-  // If the subscripts can possibly be on a simply-contiguous array reference,
-  // return the rank.
-  static std::optional<int> CheckSubscripts(
-      const std::vector<Subscript> &subscript) {
+  static std::optional<bool> CheckSubscripts(
+      const std::vector<Subscript> &subscript, int &rank) {
     bool anyTriplet{false};
-    int rank{0};
+    rank = 0;
     for (auto j{subscript.size()}; j-- > 0;) {
       if (const auto *triplet{std::get_if<Triplet>(&subscript[j].u)}) {
-        if (!triplet->IsStrideOne()) {
-          return std::nullopt;
+        auto isStride1{triplet->IsStrideOne()};
+        if (!isStride1.value_or(false)) {
+          return isStride1;
         } else if (anyTriplet) {
           if (triplet->lower() || triplet->upper()) {
-            // all triplets before the last one must be just ":"
+            // all triplets before the last one must be just ":" for
+            // simple contiguity
             return std::nullopt;
           }
         } else {
@@ -750,26 +765,26 @@ private:
         }
         ++rank;
       } else if (anyTriplet || subscript[j].Rank() > 0) {
-        return std::nullopt;
+        return false;
       }
     }
-    return rank;
+    return true;
   }
 
   FoldingContext &context_;
 };
 
 template <typename A>
-bool IsSimplyContiguous(const A &x, FoldingContext &context) {
+std::optional<bool> IsContiguous(const A &x, FoldingContext &context) {
   if (IsVariable(x)) {
-    auto known{IsSimplyContiguousHelper{context}(x)};
-    return known && *known;
+    return IsContiguousHelper{context}(x);
   } else {
     return true; // not a variable
   }
 }
 
-template bool IsSimplyContiguous(const Expr<SomeType> &, FoldingContext &);
+template std::optional<bool> IsContiguous(
+    const Expr<SomeType> &, FoldingContext &);
 
 // IsErrorExpr()
 struct IsErrorExprHelper : public AnyTraverse<IsErrorExprHelper, bool> {

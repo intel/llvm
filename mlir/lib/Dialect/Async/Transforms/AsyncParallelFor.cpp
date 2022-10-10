@@ -10,15 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <utility>
+#include "mlir/Dialect/Async/Passes.h"
 
 #include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
-#include "mlir/Dialect/Async/Passes.h"
 #include "mlir/Dialect/Async/Transforms.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Matchers.h"
@@ -26,6 +25,12 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
+#include <utility>
+
+namespace mlir {
+#define GEN_PASS_DEF_ASYNCPARALLELFOR
+#include "mlir/Dialect/Async/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::async;
@@ -94,7 +99,7 @@ namespace {
 //   }
 //
 struct AsyncParallelForPass
-    : public AsyncParallelForBase<AsyncParallelForPass> {
+    : public impl::AsyncParallelForBase<AsyncParallelForPass> {
   AsyncParallelForPass() = default;
 
   AsyncParallelForPass(bool asyncDispatch, int32_t numWorkerThreads,
@@ -153,7 +158,7 @@ struct ParallelComputeFunctionBounds {
 
 struct ParallelComputeFunction {
   unsigned numLoops;
-  FuncOp func;
+  func::FuncOp func;
   llvm::SmallVector<Value> captures;
 };
 
@@ -258,11 +263,11 @@ static ParallelComputeFunction createParallelComputeFunction(
       getParallelComputeFunctionType(op, rewriter);
 
   FunctionType type = computeFuncType.type;
-  FuncOp func = FuncOp::create(op.getLoc(),
-                               numBlockAlignedInnerLoops > 0
-                                   ? "parallel_compute_fn_with_aligned_loops"
-                                   : "parallel_compute_fn",
-                               type);
+  func::FuncOp func = func::FuncOp::create(
+      op.getLoc(),
+      numBlockAlignedInnerLoops > 0 ? "parallel_compute_fn_with_aligned_loops"
+                                    : "parallel_compute_fn",
+      type);
   func.setPrivate();
 
   // Insert function into the module symbol table and assign it unique name.
@@ -455,8 +460,9 @@ static ParallelComputeFunction createParallelComputeFunction(
 //     call @parallel_compute_fn(%block_start, %block_size, ...);
 //   }
 //
-static FuncOp createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
-                                          PatternRewriter &rewriter) {
+static func::FuncOp
+createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
+                            PatternRewriter &rewriter) {
   OpBuilder::InsertionGuard guard(rewriter);
   Location loc = computeFunc.func.getLoc();
   ImplicitLocOpBuilder b(loc, rewriter);
@@ -476,7 +482,7 @@ static FuncOp createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
   inputTypes.append(computeFuncInputTypes.begin(), computeFuncInputTypes.end());
 
   FunctionType type = rewriter.getFunctionType(inputTypes, TypeRange());
-  FuncOp func = FuncOp::create(loc, "async_dispatch_fn", type);
+  func::FuncOp func = func::FuncOp::create(loc, "async_dispatch_fn", type);
   func.setPrivate();
 
   // Insert function into the module symbol table and assign it unique name.
@@ -549,7 +555,7 @@ static FuncOp createAsyncDispatchFunction(ParallelComputeFunction &computeFunc,
     // Create async.execute operation to dispatch half of the block range.
     auto execute = b.create<ExecuteOp>(TypeRange(), ValueRange(), ValueRange(),
                                        executeBodyBuilder);
-    b.create<AddToGroupOp>(indexTy, execute.token(), group);
+    b.create<AddToGroupOp>(indexTy, execute.getToken(), group);
     b.create<scf::YieldOp>(ValueRange({start, midIndex}));
   }
 
@@ -580,7 +586,7 @@ static void doAsyncDispatch(ImplicitLocOpBuilder &b, PatternRewriter &rewriter,
 
   // Add one more level of indirection to dispatch parallel compute functions
   // using async operations and recursive work splitting.
-  FuncOp asyncDispatchFunction =
+  func::FuncOp asyncDispatchFunction =
       createAsyncDispatchFunction(parallelComputeFunction, rewriter);
 
   Value c0 = b.create<arith::ConstantIndexOp>(0);
@@ -651,7 +657,7 @@ doSequentialDispatch(ImplicitLocOpBuilder &b, PatternRewriter &rewriter,
                      const SmallVector<Value> &tripCounts) {
   MLIRContext *ctx = op->getContext();
 
-  FuncOp compute = parallelComputeFunction.func;
+  func::FuncOp compute = parallelComputeFunction.func;
 
   Value c0 = b.create<arith::ConstantIndexOp>(0);
   Value c1 = b.create<arith::ConstantIndexOp>(1);
@@ -696,7 +702,7 @@ doSequentialDispatch(ImplicitLocOpBuilder &b, PatternRewriter &rewriter,
     // Create async.execute operation to launch parallel computate function.
     auto execute = b.create<ExecuteOp>(TypeRange(), ValueRange(), ValueRange(),
                                        executeBodyBuilder);
-    b.create<AddToGroupOp>(rewriter.getIndexType(), execute.token(), group);
+    b.create<AddToGroupOp>(rewriter.getIndexType(), execute.getToken(), group);
     b.create<scf::YieldOp>();
   };
 

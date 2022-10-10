@@ -86,8 +86,11 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
       if ($_op.isExternal())
         return success();
       ArrayRef<Type> fnInputTypes = $_op.getArgumentTypes();
-      Block &entryBlock = $_op.front();
-    
+      // NOTE: This should just be $_op.front() but access generically
+      // because the interface methods defined here may be shadowed in
+      // arbitrary ways. https://github.com/llvm/llvm-project/issues/54807
+      Block &entryBlock = $_op->getRegion(0).front();
+
       unsigned numArguments = fnInputTypes.size();
       if (entryBlock.getNumArguments() != numArguments)
         return $_op.emitOpError("entry block must have ")
@@ -133,7 +136,7 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     /// given argument types.
     static void buildWithEntryBlock(
         OpBuilder &builder, OperationState &state, StringRef name, Type type,
-        ArrayRef<NamedAttribute> attrs, ArrayRef<Type> inputTypes) {
+        ArrayRef<NamedAttribute> attrs, TypeRange inputTypes) {
       state.addAttribute(SymbolTable::getSymbolAttrName(),
                         builder.getStringAttr(name));
       state.addAttribute(function_interface_impl::getTypeAttrName(),
@@ -146,7 +149,7 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
       bodyRegion->push_back(body);
       for (Type input : inputTypes)
         body->addArgument(input, state.location);
-    } 
+    }
   }];
   let extraSharedClassDeclaration = [{
     /// Block list iterator types.
@@ -157,7 +160,7 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     /// Block argument iterator types.
     using BlockArgListType = Region::BlockArgListType;
     using args_iterator = BlockArgListType::iterator;
-    
+
     //===------------------------------------------------------------------===//
     // Body Handling
     //===------------------------------------------------------------------===//
@@ -166,36 +169,36 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     bool isExternal() { return empty(); }
 
     /// Return the region containing the body of this function.
-    Region &getBody() { return $_op->getRegion(0); }
+    Region &getFunctionBody() { return $_op->getRegion(0); }
 
     /// Delete all blocks from this function.
     void eraseBody() {
-      getBody().dropAllReferences();
-      getBody().getBlocks().clear();
+      getFunctionBody().dropAllReferences();
+      getFunctionBody().getBlocks().clear();
     }
 
     /// Return the list of blocks within the function body.
-    BlockListType &getBlocks() { return getBody().getBlocks(); }
+    BlockListType &getBlocks() { return getFunctionBody().getBlocks(); }
 
-    iterator begin() { return getBody().begin(); }
-    iterator end() { return getBody().end(); }
-    reverse_iterator rbegin() { return getBody().rbegin(); }
-    reverse_iterator rend() { return getBody().rend(); }
+    iterator begin() { return getFunctionBody().begin(); }
+    iterator end() { return getFunctionBody().end(); }
+    reverse_iterator rbegin() { return getFunctionBody().rbegin(); }
+    reverse_iterator rend() { return getFunctionBody().rend(); }
 
     /// Returns true if this function has no blocks within the body.
-    bool empty() { return getBody().empty(); }
+    bool empty() { return getFunctionBody().empty(); }
 
     /// Push a new block to the back of the body region.
-    void push_back(Block *block) { getBody().push_back(block); }
+    void push_back(Block *block) { getFunctionBody().push_back(block); }
 
     /// Push a new block to the front of the body region.
-    void push_front(Block *block) { getBody().push_front(block); }
+    void push_front(Block *block) { getFunctionBody().push_front(block); }
 
     /// Return the last block in the body region.
-    Block &back() { return getBody().back(); }
+    Block &back() { return getFunctionBody().back(); }
 
     /// Return the first block in the body region.
-    Block &front() { return getBody().front(); }
+    Block &front() { return getFunctionBody().front(); }
 
     /// Add an entry block to an empty function, and set up the block arguments
     /// to match the signature of the function. The newly inserted entry block
@@ -204,7 +207,7 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
       assert(empty() && "function already has an entry block");
       Block *entry = new Block();
       push_back(entry);
-      
+
       // FIXME: Allow for passing in locations for these arguments instead of using
       // the operations location.
       ArrayRef<Type> inputTypes = $_op.getArgumentTypes();
@@ -277,13 +280,13 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
 
     /// Returns the entry block function argument at the given index.
     BlockArgument getArgument(unsigned idx) {
-      return getBody().getArgument(idx);
+      return getFunctionBody().getArgument(idx);
     }
 
     /// Support argument iteration.
-    args_iterator args_begin() { return getBody().args_begin(); }
-    args_iterator args_end() { return getBody().args_end(); }
-    BlockArgListType getArguments() { return getBody().getArguments(); }
+    args_iterator args_begin() { return getFunctionBody().args_begin(); }
+    args_iterator args_end() { return getFunctionBody().args_end(); }
+    BlockArgListType getArguments() { return getFunctionBody().getArguments(); }
 
     /// Insert a single argument of type `argType` with attributes `argAttrs` and
     /// location `argLoc` at `argIndex`.

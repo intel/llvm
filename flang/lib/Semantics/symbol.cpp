@@ -174,6 +174,7 @@ void GenericDetails::set_specific(Symbol &specific) {
   CHECK(!derivedType_);
   specific_ = &specific;
 }
+void GenericDetails::clear_specific() { specific_ = nullptr; }
 void GenericDetails::set_derivedType(Symbol &derivedType) {
   CHECK(!specific_);
   CHECK(!derivedType_);
@@ -211,7 +212,8 @@ void GenericDetails::CopyFrom(const GenericDetails &from) {
   for (std::size_t i{0}; i < from.specificProcs_.size(); ++i) {
     if (std::find_if(specificProcs_.begin(), specificProcs_.end(),
             [&](const Symbol &mySymbol) {
-              return &mySymbol == &*from.specificProcs_[i];
+              return &mySymbol.GetUltimate() ==
+                  &from.specificProcs_[i]->GetUltimate();
             }) == specificProcs_.end()) {
       specificProcs_.push_back(from.specificProcs_[i]);
       bindingNames_.push_back(from.bindingNames_[i]);
@@ -379,6 +381,9 @@ llvm::raw_ostream &operator<<(
   DumpList(os, "shape", x.shape());
   DumpList(os, "coshape", x.coshape());
   DumpExpr(os, "init", x.init_);
+  if (x.unanalyzedPDTComponentInit()) {
+    os << " (has unanalyzedPDTComponentInit)";
+  }
   return os;
 }
 
@@ -637,7 +642,7 @@ const Symbol *DerivedTypeDetails::GetFinalForRank(int rank) const {
         if (const Symbol * arg{details->dummyArgs().at(0)}) {
           if (const auto *object{arg->detailsIf<ObjectEntityDetails>()}) {
             if (rank == object->shape().Rank() || object->IsAssumedRank() ||
-                symbol.attrs().test(Attr::ELEMENTAL)) {
+                IsElementalProcedure(symbol)) {
               return &symbol;
             }
           }

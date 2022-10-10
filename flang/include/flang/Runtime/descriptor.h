@@ -145,9 +145,10 @@ public:
   Descriptor(const Descriptor &);
   Descriptor &operator=(const Descriptor &);
 
-  static constexpr std::size_t BytesFor(TypeCategory category, int kind) {
-    return category == TypeCategory::Complex ? kind * 2 : kind;
-  }
+  // Returns the number of bytes occupied by an element of the given
+  // category and kind including any alignment padding required
+  // between adjacent elements.
+  static std::size_t BytesFor(TypeCategory category, int kind);
 
   void Establish(TypeCode t, std::size_t elementBytes, void *p = nullptr,
       int rank = maxRank, const SubscriptValue *extent = nullptr,
@@ -347,7 +348,7 @@ public:
 
   // Deallocates storage, including allocatable and automatic
   // components.  Optionally invokes FINAL subroutines.
-  int Destroy(bool finalize = false);
+  int Destroy(bool finalize = false, bool destroyPointers = false);
 
   bool IsContiguous(int leadingDimensions = maxRank) const {
     auto bytes{static_cast<SubscriptValue>(ElementBytes())};

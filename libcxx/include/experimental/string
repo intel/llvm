@@ -9,6 +9,7 @@
 
 #ifndef _LIBCPP_EXPERIMENTAL_STRING
 #define _LIBCPP_EXPERIMENTAL_STRING
+
 /*
     experimental/string synopsis
 
@@ -37,6 +38,7 @@ namespace pmr {
 
  */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <experimental/__config>
 #include <experimental/memory_resource>
 #include <string>
@@ -46,6 +48,8 @@ namespace pmr {
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_LFTS_PMR
+
+#ifndef _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits = char_traits<_CharT>>
 using basic_string =
@@ -57,6 +61,8 @@ typedef basic_string<char32_t> u32string;
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
 typedef basic_string<wchar_t> wstring;
 #endif
+
+#endif // _LIBCPP_CXX03_LANG
 
 _LIBCPP_END_NAMESPACE_LFTS_PMR
 

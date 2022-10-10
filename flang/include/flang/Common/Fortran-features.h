@@ -19,20 +19,21 @@ ENUM_CLASS(LanguageFeature, BackslashEscapes, OldDebugLines,
     FixedFormContinuationWithColumn1Ampersand, LogicalAbbreviations,
     XOROperator, PunctuationInNames, OptionalFreeFormSpace, BOZExtensions,
     EmptyStatement, AlternativeNE, ExecutionPartNamelist, DECStructures,
-    DoubleComplex, Byte, StarKind, QuadPrecision, SlashInitialization,
-    TripletInArrayConstructor, MissingColons, SignedComplexLiteral,
-    OldStyleParameter, ComplexConstructor, PercentLOC, SignedPrimary, FileName,
-    Carriagecontrol, Convert, Dispose, IOListLeadingComma,
-    AbbreviatedEditDescriptor, ProgramParentheses, PercentRefAndVal,
-    OmitFunctionDummies, CrayPointer, Hollerith, ArithmeticIF, Assign,
-    AssignedGOTO, Pause, OpenACC, OpenMP, CruftAfterAmpersand, ClassicCComments,
-    AdditionalFormats, BigIntLiterals, RealDoControls,
+    DoubleComplex, Byte, StarKind, ExponentMatchingKindParam, QuadPrecision,
+    SlashInitialization, TripletInArrayConstructor, MissingColons,
+    SignedComplexLiteral, OldStyleParameter, ComplexConstructor, PercentLOC,
+    SignedPrimary, FileName, Carriagecontrol, Convert, Dispose,
+    IOListLeadingComma, AbbreviatedEditDescriptor, ProgramParentheses,
+    PercentRefAndVal, OmitFunctionDummies, CrayPointer, Hollerith, ArithmeticIF,
+    Assign, AssignedGOTO, Pause, OpenACC, OpenMP, CruftAfterAmpersand,
+    ClassicCComments, AdditionalFormats, BigIntLiterals, RealDoControls,
     EquivalenceNumericWithCharacter, EquivalenceNonDefaultNumeric,
     EquivalenceSameNonSequence, AdditionalIntrinsics, AnonymousParents,
     OldLabelDoEndStatements, LogicalIntegerAssignment, EmptySourceFile,
     ProgramReturn, ImplicitNoneTypeNever, ImplicitNoneTypeAlways,
     ForwardRefDummyImplicitNone, OpenAccessAppend, BOZAsDefaultInteger,
-    DistinguishableSpecifics, DefaultSave, PointerInSeqType, NonCharacterFormat)
+    DistinguishableSpecifics, DefaultSave, PointerInSeqType, NonCharacterFormat,
+    SaveMainProgram, SaveBigMainProgramVariables)
 
 using LanguageFeatures = EnumSet<LanguageFeature, LanguageFeature_enumSize>;
 
@@ -46,6 +47,7 @@ public:
     disable_.set(LanguageFeature::ImplicitNoneTypeNever);
     disable_.set(LanguageFeature::ImplicitNoneTypeAlways);
     disable_.set(LanguageFeature::DefaultSave);
+    disable_.set(LanguageFeature::SaveMainProgram);
     // These features, if enabled, conflict with valid standard usage,
     // so there are disabled here by default.
     disable_.set(LanguageFeature::BackslashEscapes);

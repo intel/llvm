@@ -72,41 +72,41 @@ static cl::opt<bool> EmitJumpTables("hexagon-emit-jump-tables",
   cl::init(true), cl::Hidden,
   cl::desc("Control jump table emission on Hexagon target"));
 
-static cl::opt<bool> EnableHexSDNodeSched("enable-hexagon-sdnode-sched",
-  cl::Hidden, cl::ZeroOrMore, cl::init(false),
-  cl::desc("Enable Hexagon SDNode scheduling"));
+static cl::opt<bool>
+    EnableHexSDNodeSched("enable-hexagon-sdnode-sched", cl::Hidden,
+                         cl::desc("Enable Hexagon SDNode scheduling"));
 
-static cl::opt<bool> EnableFastMath("ffast-math",
-  cl::Hidden, cl::ZeroOrMore, cl::init(false),
-  cl::desc("Enable Fast Math processing"));
+static cl::opt<bool> EnableFastMath("ffast-math", cl::Hidden,
+                                    cl::desc("Enable Fast Math processing"));
 
-static cl::opt<int> MinimumJumpTables("minimum-jump-tables",
-  cl::Hidden, cl::ZeroOrMore, cl::init(5),
-  cl::desc("Set minimum jump tables"));
+static cl::opt<int> MinimumJumpTables("minimum-jump-tables", cl::Hidden,
+                                      cl::init(5),
+                                      cl::desc("Set minimum jump tables"));
 
-static cl::opt<int> MaxStoresPerMemcpyCL("max-store-memcpy",
-  cl::Hidden, cl::ZeroOrMore, cl::init(6),
-  cl::desc("Max #stores to inline memcpy"));
+static cl::opt<int>
+    MaxStoresPerMemcpyCL("max-store-memcpy", cl::Hidden, cl::init(6),
+                         cl::desc("Max #stores to inline memcpy"));
 
-static cl::opt<int> MaxStoresPerMemcpyOptSizeCL("max-store-memcpy-Os",
-  cl::Hidden, cl::ZeroOrMore, cl::init(4),
-  cl::desc("Max #stores to inline memcpy"));
+static cl::opt<int>
+    MaxStoresPerMemcpyOptSizeCL("max-store-memcpy-Os", cl::Hidden, cl::init(4),
+                                cl::desc("Max #stores to inline memcpy"));
 
-static cl::opt<int> MaxStoresPerMemmoveCL("max-store-memmove",
-  cl::Hidden, cl::ZeroOrMore, cl::init(6),
-  cl::desc("Max #stores to inline memmove"));
+static cl::opt<int>
+    MaxStoresPerMemmoveCL("max-store-memmove", cl::Hidden, cl::init(6),
+                          cl::desc("Max #stores to inline memmove"));
 
-static cl::opt<int> MaxStoresPerMemmoveOptSizeCL("max-store-memmove-Os",
-  cl::Hidden, cl::ZeroOrMore, cl::init(4),
-  cl::desc("Max #stores to inline memmove"));
+static cl::opt<int>
+    MaxStoresPerMemmoveOptSizeCL("max-store-memmove-Os", cl::Hidden,
+                                 cl::init(4),
+                                 cl::desc("Max #stores to inline memmove"));
 
-static cl::opt<int> MaxStoresPerMemsetCL("max-store-memset",
-  cl::Hidden, cl::ZeroOrMore, cl::init(8),
-  cl::desc("Max #stores to inline memset"));
+static cl::opt<int>
+    MaxStoresPerMemsetCL("max-store-memset", cl::Hidden, cl::init(8),
+                         cl::desc("Max #stores to inline memset"));
 
-static cl::opt<int> MaxStoresPerMemsetOptSizeCL("max-store-memset-Os",
-  cl::Hidden, cl::ZeroOrMore, cl::init(4),
-  cl::desc("Max #stores to inline memset"));
+static cl::opt<int>
+    MaxStoresPerMemsetOptSizeCL("max-store-memset-Os", cl::Hidden, cl::init(4),
+                                cl::desc("Max #stores to inline memset"));
 
 static cl::opt<bool> AlignLoads("hexagon-align-loads",
   cl::Hidden, cl::init(false),
@@ -144,7 +144,7 @@ static bool CC_SkipOdd(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
     Hexagon::R0, Hexagon::R1, Hexagon::R2,
     Hexagon::R3, Hexagon::R4, Hexagon::R5
   };
-  const unsigned NumArgRegs = array_lengthof(ArgRegs);
+  const unsigned NumArgRegs = std::size(ArgRegs);
   unsigned RegNum = State.getFirstUnallocated(ArgRegs);
 
   // RegNum is an index into ArgRegs: skip a register if RegNum is odd.
@@ -612,8 +612,7 @@ HexagonTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   Glue = Chain.getValue(1);
 
   // Create the CALLSEQ_END node.
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, dl, true),
-                             DAG.getIntPtrConstant(0, dl, true), Glue, dl);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, Glue, dl);
   Glue = Chain.getValue(1);
 
   // Handle result values, copying them out of physregs into vregs that we
@@ -1396,10 +1395,9 @@ HexagonTargetLowering::LowerToTLSGeneralDynamicModel(GlobalAddressSDNode *GA,
   Chain = DAG.getCopyToReg(DAG.getEntryNode(), dl, Hexagon::R0, Chain, InFlag);
   InFlag = Chain.getValue(1);
 
-  unsigned Flags =
-      static_cast<const HexagonSubtarget &>(DAG.getSubtarget()).useLongCalls()
-          ? HexagonII::MO_GDPLT | HexagonII::HMOTF_ConstExtended
-          : HexagonII::MO_GDPLT;
+  unsigned Flags = DAG.getSubtarget<HexagonSubtarget>().useLongCalls()
+                       ? HexagonII::MO_GDPLT | HexagonII::HMOTF_ConstExtended
+                       : HexagonII::MO_GDPLT;
 
   return GetDynamicTLSAddr(DAG, Chain, GA, InFlag, PtrVT,
                            Hexagon::R0, Flags);
@@ -1901,6 +1899,8 @@ const char* HexagonTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case HexagonISD::VASL:          return "HexagonISD::VASL";
   case HexagonISD::VASR:          return "HexagonISD::VASR";
   case HexagonISD::VLSR:          return "HexagonISD::VLSR";
+  case HexagonISD::SSAT:          return "HexagonISD::SSAT";
+  case HexagonISD::USAT:          return "HexagonISD::USAT";
   case HexagonISD::VEXTRACTW:     return "HexagonISD::VEXTRACTW";
   case HexagonISD::VINSERTW0:     return "HexagonISD::VINSERTW0";
   case HexagonISD::VROR:          return "HexagonISD::VROR";
@@ -1914,12 +1914,11 @@ const char* HexagonTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case HexagonISD::QCAT:          return "HexagonISD::QCAT";
   case HexagonISD::QTRUE:         return "HexagonISD::QTRUE";
   case HexagonISD::QFALSE:        return "HexagonISD::QFALSE";
+  case HexagonISD::TL_EXTEND:     return "HexagonISD::TL_EXTEND";
+  case HexagonISD::TL_TRUNCATE:   return "HexagonISD::TL_TRUNCATE";
   case HexagonISD::TYPECAST:      return "HexagonISD::TYPECAST";
   case HexagonISD::VALIGN:        return "HexagonISD::VALIGN";
   case HexagonISD::VALIGNADDR:    return "HexagonISD::VALIGNADDR";
-  case HexagonISD::VPACKL:        return "HexagonISD::VPACKL";
-  case HexagonISD::VUNPACK:       return "HexagonISD::VUNPACK";
-  case HexagonISD::VUNPACKU:      return "HexagonISD::VUNPACKU";
   case HexagonISD::ISEL:          return "HexagonISD::ISEL";
   case HexagonISD::OP_END:        break;
   }
@@ -2164,6 +2163,11 @@ HexagonTargetLowering::getPreferredVectorAction(MVT VT) const {
   // Always widen (remaining) vectors of i1.
   if (ElemTy == MVT::i1)
     return TargetLoweringBase::TypeWidenVector;
+  // Widen non-power-of-2 vectors. Such types cannot be split right now,
+  // and computeRegisterProperties will override "split" with "widen",
+  // which can cause other issues.
+  if (!isPowerOf2_32(VecLen))
+    return TargetLoweringBase::TypeWidenVector;
 
   return TargetLoweringBase::TypeSplitVector;
 }
@@ -2341,7 +2345,49 @@ HexagonTargetLowering::getVectorShiftByInt(SDValue Op, SelectionDAG &DAG)
 
 SDValue
 HexagonTargetLowering::LowerVECTOR_SHIFT(SDValue Op, SelectionDAG &DAG) const {
-  return getVectorShiftByInt(Op, DAG);
+  const SDLoc &dl(Op);
+
+  // First try to convert the shift (by vector) to a shift by a scalar.
+  // If we first split the shift, the shift amount will become 'extract
+  // subvector', and will no longer be recognized as scalar.
+  SDValue Res = Op;
+  if (SDValue S = getVectorShiftByInt(Op, DAG))
+    Res = S;
+
+  unsigned Opc = Res.getOpcode();
+  switch (Opc) {
+  case HexagonISD::VASR:
+  case HexagonISD::VLSR:
+  case HexagonISD::VASL:
+    break;
+  default:
+    // No instructions for shifts by non-scalars.
+    return SDValue();
+  }
+
+  MVT ResTy = ty(Res);
+  if (ResTy.getVectorElementType() != MVT::i8)
+    return Res;
+
+  // For shifts of i8, extend the inputs to i16, then truncate back to i8.
+  assert(ResTy.getVectorElementType() == MVT::i8);
+  SDValue Val = Res.getOperand(0), Amt = Res.getOperand(1);
+
+  auto ShiftPartI8 = [&dl, &DAG, this](unsigned Opc, SDValue V, SDValue A) {
+    MVT Ty = ty(V);
+    MVT ExtTy = MVT::getVectorVT(MVT::i16, Ty.getVectorNumElements());
+    SDValue ExtV = Opc == HexagonISD::VASR ? DAG.getSExtOrTrunc(V, dl, ExtTy)
+                                           : DAG.getZExtOrTrunc(V, dl, ExtTy);
+    SDValue ExtS = DAG.getNode(Opc, dl, ExtTy, {ExtV, A});
+    return DAG.getZExtOrTrunc(ExtS, dl, Ty);
+  };
+
+  if (ResTy.getSizeInBits() == 32)
+    return ShiftPartI8(Opc, Val, Amt);
+
+  auto [LoV, HiV] = opSplit(Val, dl, DAG);
+  return DAG.getNode(ISD::CONCAT_VECTORS, dl, ResTy,
+                     {ShiftPartI8(Opc, LoV, Amt), ShiftPartI8(Opc, HiV, Amt)});
 }
 
 SDValue
@@ -3245,13 +3291,25 @@ HexagonTargetLowering::LowerOperationWrapper(SDNode *N,
       return;
   }
 
-  // We are only custom-lowering stores to verify the alignment of the
-  // address if it is a compile-time constant. Since a store can be modified
-  // during type-legalization (the value being stored may need legalization),
-  // return empty Results here to indicate that we don't really make any
-  // changes in the custom lowering.
-  if (N->getOpcode() != ISD::STORE)
-    return TargetLowering::LowerOperationWrapper(N, Results, DAG);
+  SDValue Op(N, 0);
+  unsigned Opc = N->getOpcode();
+
+  switch (Opc) {
+    case HexagonISD::SSAT:
+    case HexagonISD::USAT:
+      Results.push_back(opJoin(SplitVectorOp(Op, DAG), SDLoc(Op), DAG));
+      break;
+    case ISD::STORE:
+      // We are only custom-lowering stores to verify the alignment of the
+      // address if it is a compile-time constant. Since a store can be
+      // modified during type-legalization (the value being stored may need
+      // legalization), return empty Results here to indicate that we don't
+      // really make any changes in the custom lowering.
+      return;
+    default:
+      TargetLowering::LowerOperationWrapper(N, Results, DAG);
+      break;
+  }
 }
 
 void
@@ -3666,9 +3724,12 @@ HexagonTargetLowering::shouldExpandAtomicLoadInIR(LoadInst *LI) const {
              : AtomicExpansionKind::None;
 }
 
-bool HexagonTargetLowering::shouldExpandAtomicStoreInIR(StoreInst *SI) const {
+TargetLowering::AtomicExpansionKind
+HexagonTargetLowering::shouldExpandAtomicStoreInIR(StoreInst *SI) const {
   // Do not expand loads and stores that don't exceed 64 bits.
-  return SI->getValueOperand()->getType()->getPrimitiveSizeInBits() > 64;
+  return SI->getValueOperand()->getType()->getPrimitiveSizeInBits() > 64
+             ? AtomicExpansionKind::Expand
+             : AtomicExpansionKind::None;
 }
 
 TargetLowering::AtomicExpansionKind

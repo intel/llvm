@@ -36,6 +36,7 @@ runs:
       GIT_ALTERNATE_OBJECT_DIRECTORIES: ${{ inputs.cache_path }}/${{ inputs.repository }}/.git/objects
     uses: actions/checkout@v2
     with:
+      persist-credentials: false
       repository: ${{ inputs.repository }}
       ref: ${{ inputs.ref }}
       path: ${{ inputs.path }}

@@ -27,7 +27,7 @@ using namespace llvm;
 namespace llvm {
 // Use FS-AFDO discriminator.
 cl::opt<bool> EnableFSDiscriminator(
-    "enable-fs-discriminator", cl::Hidden, cl::init(false), cl::ZeroOrMore,
+    "enable-fs-discriminator", cl::Hidden,
     cl::desc("Enable adding flow sensitive discriminators"));
 } // namespace llvm
 
@@ -78,8 +78,8 @@ DILocation *DILocation::getImpl(LLVMContext &Context, unsigned Line,
   Ops.push_back(Scope);
   if (InlinedAt)
     Ops.push_back(InlinedAt);
-  return storeImpl(new (Ops.size()) DILocation(Context, Storage, Line, Column,
-                                               Ops, ImplicitCode),
+  return storeImpl(new (Ops.size(), Storage) DILocation(
+                       Context, Storage, Line, Column, Ops, ImplicitCode),
                    Storage, Context.pImpl->DILocations);
 }
 
@@ -106,9 +106,6 @@ const DILocation *DILocation::getMergedLocation(const DILocation *LocA,
   if (LocA == LocB)
     return LocA;
 
-  SmallPtrSet<DILocation *, 5> InlinedLocationsA;
-  for (DILocation *L = LocA->getInlinedAt(); L; L = L->getInlinedAt())
-    InlinedLocationsA.insert(L);
   SmallSet<std::pair<DIScope *, DILocation *>, 5> Locations;
   DIScope *S = LocA->getScope();
   DILocation *L = LocA->getInlinedAt();
@@ -120,7 +117,6 @@ const DILocation *DILocation::getMergedLocation(const DILocation *LocA,
       L = L->getInlinedAt();
     }
   }
-  const DILocation *Result = LocB;
   S = LocB->getScope();
   L = LocB->getInlinedAt();
   while (S) {
@@ -137,7 +133,7 @@ const DILocation *DILocation::getMergedLocation(const DILocation *LocA,
   // but on the other hand, it's a "line 0" location.
   if (!S || !isa<DILocalScope>(S))
     S = LocA->getScope();
-  return DILocation::get(Result->getContext(), 0, 0, S, L);
+  return DILocation::get(LocA->getContext(), 0, 0, S, L);
 }
 
 Optional<unsigned> DILocation::encodeDiscriminator(unsigned BD, unsigned DF,
@@ -304,7 +300,7 @@ GenericDINode *GenericDINode::getImpl(LLVMContext &Context, unsigned Tag,
   // Use a nullptr for empty headers.
   assert(isCanonical(Header) && "Expected canonical MDString");
   Metadata *PreOps[] = {Header};
-  return storeImpl(new (DwarfOps.size() + 1) GenericDINode(
+  return storeImpl(new (DwarfOps.size() + 1, Storage) GenericDINode(
                        Context, Storage, Hash, Tag, PreOps, DwarfOps),
                    Storage, Context.pImpl->GenericDINodes);
 }
@@ -329,17 +325,18 @@ void GenericDINode::recalculateHash() {
     }                                                                          \
   } while (false)
 #define DEFINE_GETIMPL_STORE(CLASS, ARGS, OPS)                                 \
-  return storeImpl(new (array_lengthof(OPS))                                   \
+  return storeImpl(new (std::size(OPS), Storage)                               \
                        CLASS(Context, Storage, UNWRAP_ARGS(ARGS), OPS),        \
                    Storage, Context.pImpl->CLASS##s)
 #define DEFINE_GETIMPL_STORE_NO_OPS(CLASS, ARGS)                               \
-  return storeImpl(new (0u) CLASS(Context, Storage, UNWRAP_ARGS(ARGS)),        \
+  return storeImpl(new (0u, Storage)                                           \
+                       CLASS(Context, Storage, UNWRAP_ARGS(ARGS)),             \
                    Storage, Context.pImpl->CLASS##s)
 #define DEFINE_GETIMPL_STORE_NO_CONSTRUCTOR_ARGS(CLASS, OPS)                   \
-  return storeImpl(new (array_lengthof(OPS)) CLASS(Context, Storage, OPS),     \
+  return storeImpl(new (std::size(OPS), Storage) CLASS(Context, Storage, OPS), \
                    Storage, Context.pImpl->CLASS##s)
 #define DEFINE_GETIMPL_STORE_N(CLASS, ARGS, OPS, NUM_OPS)                      \
-  return storeImpl(new (NUM_OPS)                                               \
+  return storeImpl(new (NUM_OPS, Storage)                                      \
                        CLASS(Context, Storage, UNWRAP_ARGS(ARGS), OPS),        \
                    Storage, Context.pImpl->CLASS##s)
 
@@ -805,7 +802,7 @@ DIFile *DIFile::getImpl(LLVMContext &Context, MDString *Filename,
   assert((!Source || isCanonical(*Source)) && "Expected canonical MDString");
   DEFINE_GETIMPL_LOOKUP(DIFile, (Filename, Directory, CS, Source));
   Metadata *Ops[] = {Filename, Directory, CS ? CS->Value : nullptr,
-                     Source.getValueOr(nullptr)};
+                     Source.value_or(nullptr)};
   DEFINE_GETIMPL_STORE(DIFile, (CS, Source), Ops);
 }
 DICompileUnit::DICompileUnit(LLVMContext &C, StorageType Storage,
@@ -848,7 +845,7 @@ DICompileUnit *DICompileUnit::getImpl(
                      Macros,
                      SysRoot,
                      SDK};
-  return storeImpl(new (array_lengthof(Ops)) DICompileUnit(
+  return storeImpl(new (std::size(Ops), Storage) DICompileUnit(
                        Context, Storage, SourceLanguage, IsOptimized,
                        RuntimeVersion, EmissionKind, DWOId, SplitDebugInlining,
                        DebugInfoForProfiling, NameTableKind, RangesBaseAddress,
@@ -978,27 +975,33 @@ DISubprogram *DISubprogram::getImpl(
     unsigned ScopeLine, Metadata *ContainingType, unsigned VirtualIndex,
     int ThisAdjustment, DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
     Metadata *TemplateParams, Metadata *Declaration, Metadata *RetainedNodes,
-    Metadata *ThrownTypes, Metadata *Annotations, StorageType Storage,
-    bool ShouldCreate) {
+    Metadata *ThrownTypes, Metadata *Annotations, MDString *TargetFuncName,
+    StorageType Storage, bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   assert(isCanonical(LinkageName) && "Expected canonical MDString");
+  assert(isCanonical(TargetFuncName) && "Expected canonical MDString");
   DEFINE_GETIMPL_LOOKUP(DISubprogram,
                         (Scope, Name, LinkageName, File, Line, Type, ScopeLine,
                          ContainingType, VirtualIndex, ThisAdjustment, Flags,
                          SPFlags, Unit, TemplateParams, Declaration,
-                         RetainedNodes, ThrownTypes, Annotations));
-  SmallVector<Metadata *, 12> Ops = {
+                         RetainedNodes, ThrownTypes, Annotations,
+                         TargetFuncName));
+  SmallVector<Metadata *, 13> Ops = {
       File,           Scope,          Name,        LinkageName,
       Type,           Unit,           Declaration, RetainedNodes,
-      ContainingType, TemplateParams, ThrownTypes, Annotations};
-  if (!Annotations) {
+      ContainingType, TemplateParams, ThrownTypes, Annotations,
+      TargetFuncName};
+  if (!TargetFuncName) {
     Ops.pop_back();
-    if (!ThrownTypes) {
+    if (!Annotations) {
       Ops.pop_back();
-      if (!TemplateParams) {
+      if (!ThrownTypes) {
         Ops.pop_back();
-        if (!ContainingType)
+        if (!TemplateParams) {
           Ops.pop_back();
+          if (!ContainingType)
+            Ops.pop_back();
+        }
       }
     }
   }
@@ -1379,7 +1382,10 @@ void DIExpression::appendOffset(SmallVectorImpl<uint64_t> &Ops,
     Ops.push_back(Offset);
   } else if (Offset < 0) {
     Ops.push_back(dwarf::DW_OP_constu);
-    Ops.push_back(-Offset);
+    // Avoid UB when encountering LLONG_MIN, because in 2's complement
+    // abs(LLONG_MIN) is LLONG_MAX+1.
+    uint64_t AbsMinusOne = -(Offset+1);
+    Ops.push_back(AbsMinusOne + 1);
     Ops.push_back(dwarf::DW_OP_minus);
   }
 }
@@ -1574,7 +1580,7 @@ DIExpression *DIExpression::appendToStack(const DIExpression *Expr,
   //
   // Match .* DW_OP_stack_value (DW_OP_LLVM_fragment A B)?.
   Optional<FragmentInfo> FI = Expr->getFragmentInfo();
-  unsigned DropUntilStackValue = FI.hasValue() ? 3 : 0;
+  unsigned DropUntilStackValue = FI ? 3 : 0;
   ArrayRef<uint64_t> ExprOpsBeforeFragment =
       Expr->getElements().drop_back(DropUntilStackValue);
   bool NeedsDeref = (Expr->getNumElements() > DropUntilStackValue) &&

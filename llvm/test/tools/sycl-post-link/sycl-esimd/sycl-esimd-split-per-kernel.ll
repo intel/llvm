@@ -2,8 +2,8 @@
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-IR-0
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-SYCL-IR-1
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR-0
-; RUN: FileCheck %s -input-file=%t_esimd_1.ll --check-prefixes CHECK-ESIMD-IR-1
+; RUN: FileCheck %s -input-file=%t_esimd_2.ll --check-prefixes CHECK-ESIMD-IR-2
+; RUN: FileCheck %s -input-file=%t_esimd_3.ll --check-prefixes CHECK-ESIMD-IR-3
 
 ; This test checks that after we split SYCL and ESIMD kernels into
 ; separate modules, we split those two modules further according to
@@ -54,17 +54,17 @@ attributes #1 = { "sycl-module-id"="a.cpp" }
 ; CHECK: [Code|Properties]
 ; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop
 ; CHECK-DAG: {{.*}}tmp_1.ll|{{.*}}_1.prop
-; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop
-; CHECK-DAG: {{.*}}tmp_esimd_1.ll|{{.*}}_esimd_1.prop
+; CHECK-DAG: {{.*}}tmp_esimd_2.ll|{{.*}}_esimd_2.prop
+; CHECK-DAG: {{.*}}tmp_esimd_3.ll|{{.*}}_esimd_3.prop
 
-; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel1()
-; CHECK-SYCL-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
-
-; CHECK-SYCL-IR-1-DAG: define dso_local spir_kernel void @SYCL_kernel2()
+; CHECK-SYCL-IR-1-DAG: define dso_local spir_kernel void @SYCL_kernel1()
 ; CHECK-SYCL-IR-1-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 
-; CHECK-ESIMD-IR-0-DAG: define dso_local spir_kernel void @ESIMD_kernel1()
-; CHECK-ESIMD-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel2()
+; CHECK-SYCL-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 
-; CHECK-ESIMD-IR-1-DAG: define dso_local spir_kernel void @ESIMD_kernel2()
-; CHECK-ESIMD-IR-1-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+; CHECK-ESIMD-IR-3-DAG: define dso_local spir_kernel void @ESIMD_kernel1()
+; CHECK-ESIMD-IR-3-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+
+; CHECK-ESIMD-IR-2-DAG: define dso_local spir_kernel void @ESIMD_kernel2()
+; CHECK-ESIMD-IR-2-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()

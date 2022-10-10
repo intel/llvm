@@ -200,13 +200,14 @@ TEST_F(HeaderSearchTest, HeaderFrameworkLookup) {
       /*RelativePath=*/nullptr, /*RequestingModule=*/nullptr,
       /*SuggestedModule=*/nullptr, /*IsMapped=*/nullptr, &IsFrameworkFound);
 
-  EXPECT_TRUE(FoundFile.hasValue());
+  EXPECT_TRUE(FoundFile.has_value());
   EXPECT_TRUE(IsFrameworkFound);
-  auto &FE = FoundFile.getValue();
+  auto &FE = FoundFile.value();
   auto FI = Search.getExistingFileInfo(FE);
   EXPECT_TRUE(FI);
   EXPECT_TRUE(FI->IsValid);
   EXPECT_EQ(FI->Framework.str(), "Foo");
+  EXPECT_EQ(Search.getIncludeNameForHeader(FE), "Foo/Foo.h");
 }
 
 // Helper struct with null terminator character to make MemoryBuffer happy.
@@ -268,13 +269,14 @@ TEST_F(HeaderSearchTest, HeaderMapFrameworkLookup) {
       /*SuggestedModule=*/nullptr, &IsMapped,
       /*IsFrameworkFound=*/nullptr);
 
-  EXPECT_TRUE(FoundFile.hasValue());
+  EXPECT_TRUE(FoundFile.has_value());
   EXPECT_TRUE(IsMapped);
-  auto &FE = FoundFile.getValue();
+  auto &FE = FoundFile.value();
   auto FI = Search.getExistingFileInfo(FE);
   EXPECT_TRUE(FI);
   EXPECT_TRUE(FI->IsValid);
   EXPECT_EQ(FI->Framework.str(), "Foo");
+  EXPECT_EQ(Search.getIncludeNameForHeader(FE), "Foo/Foo.h");
 }
 
 } // namespace

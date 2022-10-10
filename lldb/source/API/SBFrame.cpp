@@ -602,7 +602,8 @@ SBValue SBFrame::FindValue(const char *name, ValueType value_type,
                 &variable_list);
           if (value_type == eValueTypeVariableGlobal) {
             const bool get_file_globals = true;
-            VariableList *frame_vars = frame->GetVariableList(get_file_globals);
+            VariableList *frame_vars = frame->GetVariableList(get_file_globals,
+                                                              nullptr);
             if (frame_vars)
               frame_vars->AppendVariablesIfUnique(variable_list);
           }
@@ -637,9 +638,9 @@ SBValue SBFrame::FindValue(const char *name, ValueType value_type,
             for (uint32_t set_idx = 0; set_idx < num_sets; ++set_idx) {
               const RegisterSet *reg_set = reg_ctx->GetRegisterSet(set_idx);
               if (reg_set &&
-                  ((reg_set->name && strcasecmp(reg_set->name, name) == 0) ||
-                   (reg_set->short_name &&
-                    strcasecmp(reg_set->short_name, name) == 0))) {
+                  (llvm::StringRef(reg_set->name).equals_insensitive(name) ||
+                   llvm::StringRef(reg_set->short_name)
+                       .equals_insensitive(name))) {
                 value_sp =
                     ValueObjectRegisterSet::Create(frame, reg_ctx, set_idx);
                 sb_value.SetSP(value_sp);
@@ -739,7 +740,7 @@ SBValueList SBFrame::GetVariables(bool arguments, bool locals, bool statics,
     lldb::DynamicValueType use_dynamic =
         frame->CalculateTarget()->GetPreferDynamicValue();
     const bool include_runtime_support_values =
-        target ? target->GetDisplayRuntimeSupportValues() : false;
+        target->GetDisplayRuntimeSupportValues();
 
     SBVariablesOptions options;
     options.SetIncludeArguments(arguments);
@@ -805,7 +806,10 @@ SBValueList SBFrame::GetVariables(const lldb::SBVariablesOptions &options) {
       frame = exe_ctx.GetFramePtr();
       if (frame) {
         VariableList *variable_list = nullptr;
-        variable_list = frame->GetVariableList(true);
+        Status var_error;
+        variable_list = frame->GetVariableList(true, &var_error);
+        if (var_error.Fail())
+          value_list.SetError(var_error);
         if (variable_list) {
           const size_t num_variables = variable_list->GetSize();
           if (num_variables) {

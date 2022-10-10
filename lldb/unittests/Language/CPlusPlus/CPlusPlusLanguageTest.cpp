@@ -108,7 +108,10 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
        "llvm", "isUInt<10u>", "(unsigned long)", "", "llvm::isUInt<10u>"},
       {"f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>()", "",
        "f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>", "()", "",
-       "f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>"}};
+       "f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>"},
+      {"llvm::Optional<llvm::MCFixupKind>::operator*() const volatile &&",
+       "llvm::Optional<llvm::MCFixupKind>", "operator*", "()", "const volatile &&",
+       "llvm::Optional<llvm::MCFixupKind>::operator*"}};
 
   for (const auto &test : test_cases) {
     CPlusPlusLanguage::MethodName method(ConstString(test.input));
@@ -121,6 +124,37 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
       EXPECT_EQ(test.scope_qualified_name, method.GetScopeQualifiedName());
     }
   }
+}
+
+TEST(CPlusPlusLanguage, ContainsPath) {
+  CPlusPlusLanguage::MethodName 
+      reference_1(ConstString("int foo::bar::func01(int a, double b)"));
+  CPlusPlusLanguage::MethodName
+      reference_2(ConstString("int foofoo::bar::func01(std::string a, int b)"));
+  CPlusPlusLanguage::MethodName reference_3(ConstString("int func01()"));
+  CPlusPlusLanguage::MethodName 
+      reference_4(ConstString("bar::baz::operator bool()"));
+  
+  EXPECT_TRUE(reference_1.ContainsPath("func01"));
+  EXPECT_TRUE(reference_1.ContainsPath("bar::func01"));
+  EXPECT_TRUE(reference_1.ContainsPath("foo::bar::func01"));
+  EXPECT_FALSE(reference_1.ContainsPath("func"));
+  EXPECT_FALSE(reference_1.ContainsPath("baz::func01"));
+  EXPECT_FALSE(reference_1.ContainsPath("::bar::func01"));
+  EXPECT_FALSE(reference_1.ContainsPath("::foo::baz::func01"));
+  EXPECT_FALSE(reference_1.ContainsPath("foo::bar::baz::func01"));
+  
+  EXPECT_TRUE(reference_2.ContainsPath("foofoo::bar::func01"));
+  EXPECT_FALSE(reference_2.ContainsPath("foo::bar::func01"));
+  
+  EXPECT_TRUE(reference_3.ContainsPath("func01"));
+  EXPECT_FALSE(reference_3.ContainsPath("func"));
+  EXPECT_FALSE(reference_3.ContainsPath("bar::func01"));
+
+  EXPECT_TRUE(reference_4.ContainsPath("operator bool"));
+  EXPECT_TRUE(reference_4.ContainsPath("baz::operator bool"));
+  EXPECT_TRUE(reference_4.ContainsPath("bar::baz::operator bool"));
+  EXPECT_FALSE(reference_4.ContainsPath("az::operator bool"));
 }
 
 TEST(CPlusPlusLanguage, ExtractContextAndIdentifier) {

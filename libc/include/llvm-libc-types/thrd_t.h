@@ -9,14 +9,8 @@
 #ifndef __LLVM_LIBC_TYPES_THRD_T_H__
 #define __LLVM_LIBC_TYPES_THRD_T_H__
 
-#include <llvm-libc-types/__futex_word.h>
+#include <llvm-libc-types/__thread_type.h>
 
-typedef struct {
-  __futex_word __clear_tid;
-  int __tid;
-  void *__stack;
-  int __stack_size;
-  int __retval;
-} thrd_t;
+typedef __thread_type thrd_t;
 
 #endif // __LLVM_LIBC_TYPES_THRD_T_H__

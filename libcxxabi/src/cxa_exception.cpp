@@ -254,7 +254,7 @@ will call terminate, assuming that there was no handler for the
 exception.
 */
 void
-__cxa_throw(void *thrown_object, std::type_info *tinfo, void (*dest)(void *)) {
+__cxa_throw(void *thrown_object, std::type_info *tinfo, void (_LIBCXXABI_DTOR_FUNC *dest)(void *)) {
     __cxa_eh_globals *globals = __cxa_get_globals();
     __cxa_exception* exception_header = cxa_exception_from_thrown_object(thrown_object);
 
@@ -444,6 +444,14 @@ __cxa_begin_catch(void* unwind_arg) throw()
             (
                 static_cast<_Unwind_Exception*>(unwind_exception)
             );
+
+#if defined(__MVS__)
+    // Remove the exception object from the linked list of exceptions that the z/OS unwinder
+    // maintains before adding it to the libc++abi list of caught exceptions.
+    // The libc++abi will manage the lifetime of the exception from this point forward.
+    _UnwindZOS_PopException();
+#endif
+
     if (native_exception)
     {
         // Increment the handler count, removing the flag about being rethrown

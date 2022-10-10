@@ -94,6 +94,7 @@ public:
     OB_gc_live = 5,                // "gc-live"
     OB_clang_arc_attachedcall = 6, // "clang.arc.attachedcall"
     OB_ptrauth = 7,                // "ptrauth"
+    OB_kcfi = 8,                   // "kcfi"
   };
 
   /// getMDKindID - Return a unique non-zero ID for the specified metadata kind.
@@ -202,6 +203,11 @@ public:
   /// diagnostics.
   void setDiagnosticsHotnessRequested(bool Requested);
 
+  bool getMisExpectWarningRequested() const;
+  void setMisExpectWarningRequested(bool Requested);
+  void setDiagnosticsMisExpectTolerance(Optional<uint32_t> Tolerance);
+  uint32_t getDiagnosticsMisExpectTolerance() const;
+
   /// Return the minimum hotness value a diagnostic would need in order
   /// to be included in optimization diagnostics.
   ///
@@ -308,9 +314,11 @@ public:
   /// Whether we've decided on using opaque pointers or typed pointers yet.
   bool hasSetOpaquePointersValue() const;
 
-  /// Enable opaque pointers. Can only be called before creating the first
-  /// pointer type.
-  void enableOpaquePointers() const;
+  /// Set whether opaque pointers are enabled. The method may be called multiple
+  /// times, but only with the same value. Note that creating a pointer type or
+  /// otherwise querying the opaque pointer mode performs an implicit set to
+  /// the default value.
+  void setOpaquePointers(bool Enable) const;
 
   /// Whether typed pointers are supported. If false, all pointers are opaque.
   bool supportsTypedPointers() const;

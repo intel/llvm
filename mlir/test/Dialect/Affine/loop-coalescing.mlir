@@ -1,7 +1,7 @@
 // RUN: mlir-opt -split-input-file -allow-unregistered-dialect -affine-loop-coalescing %s | FileCheck %s
 
 // CHECK-LABEL: @one_3d_nest
-func @one_3d_nest() {
+func.func @one_3d_nest() {
   // Capture original bounds.  Note that for zero-based step-one loops, the
   // upper bound is also the number of iterations.
   // CHECK: %[[orig_lb:.*]] = arith.constant 0
@@ -44,7 +44,7 @@ func @one_3d_nest() {
 // multiple uses of loop induction variables get rewritten to the same values.
 
 // CHECK-LABEL: @multi_use
-func @multi_use() {
+func.func @multi_use() {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c10 = arith.constant 10 : index
@@ -72,7 +72,7 @@ func @multi_use() {
   return
 }
 
-func @unnormalized_loops() {
+func.func @unnormalized_loops() {
   // CHECK: %[[orig_step_i:.*]] = arith.constant 2
   // CHECK: %[[orig_step_j:.*]] = arith.constant 3
   // CHECK: %[[orig_lb_i:.*]] = arith.constant 5
@@ -88,10 +88,7 @@ func @unnormalized_loops() {
 
   // Number of iterations in the outer scf.
   // CHECK: %[[diff_i:.*]] = arith.subi %[[orig_ub_i]], %[[orig_lb_i]]
-  // CHECK: %[[c1:.*]] = arith.constant 1
-  // CHECK: %[[step_minus_c1:.*]] = arith.subi %[[orig_step_i]], %[[c1]]
-  // CHECK: %[[dividend:.*]] = arith.addi %[[diff_i]], %[[step_minus_c1]]
-  // CHECK: %[[numiter_i:.*]] = arith.divsi %[[dividend]], %[[orig_step_i]]
+  // CHECK: %[[numiter_i:.*]] = arith.ceildivsi %[[diff_i]], %[[orig_step_i]]
 
   // Normalized lower bound and step for the outer scf.
   // CHECK: %[[lb_i:.*]] = arith.constant 0
@@ -99,7 +96,7 @@ func @unnormalized_loops() {
 
   // Number of iterations in the inner loop, the pattern is the same as above,
   // only capture the final result.
-  // CHECK: %[[numiter_j:.*]] = arith.divsi {{.*}}, %[[orig_step_j]]
+  // CHECK: %[[numiter_j:.*]] = arith.ceildivsi {{.*}}, %[[orig_step_j]]
 
   // New bounds of the outer scf.
   // CHECK: %[[range:.*]] = arith.muli %[[numiter_i]], %[[numiter_j]]
@@ -130,18 +127,14 @@ func @unnormalized_loops() {
 // CHECK-SAME: %[[orig_lb2:[A-Za-z0-9]+]]:
 // CHECK-SAME: %[[orig_ub2:[A-Za-z0-9]+]]:
 // CHECK-SAME: %[[orig_step2:[A-Za-z0-9]+]]:
-func @parametric(%lb1 : index, %ub1 : index, %step1 : index,
+func.func @parametric(%lb1 : index, %ub1 : index, %step1 : index,
                  %lb2 : index, %ub2 : index, %step2 : index) {
   // Compute the number of iterations for each of the loops and the total
   // number of iterations.
   // CHECK: %[[range1:.*]] = arith.subi %[[orig_ub1]], %[[orig_lb1]]
-  // CHECK: %[[orig_step1_minus_1:.*]] = arith.subi %[[orig_step1]], %c1
-  // CHECK: %[[dividend1:.*]] = arith.addi %[[range1]], %[[orig_step1_minus_1]]
-  // CHECK: %[[numiter1:.*]] = arith.divsi %[[dividend1]], %[[orig_step1]]
+  // CHECK: %[[numiter1:.*]] = arith.ceildivsi %[[range1]], %[[orig_step1]]
   // CHECK: %[[range2:.*]] = arith.subi %[[orig_ub2]], %[[orig_lb2]]
-  // CHECK: %[[orig_step2_minus_1:.*]] = arith.subi %arg5, %c1
-  // CHECK: %[[dividend2:.*]] = arith.addi %[[range2]], %[[orig_step2_minus_1]]
-  // CHECK: %[[numiter2:.*]] = arith.divsi %[[dividend2]], %[[orig_step2]]
+  // CHECK: %[[numiter2:.*]] = arith.ceildivsi %[[range2]], %[[orig_step2]]
   // CHECK: %[[range:.*]] = arith.muli %[[numiter1]], %[[numiter2]] : index
 
   // Check that the outer loop is updated.
@@ -166,7 +159,7 @@ func @parametric(%lb1 : index, %ub1 : index, %step1 : index,
 }
 
 // CHECK-LABEL: @two_bands
-func @two_bands() {
+func.func @two_bands() {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c10 = arith.constant 10 : index
@@ -182,7 +175,7 @@ func @two_bands() {
       // The inner pair of loops is coalesced separately.
       // CHECK: scf.for
       scf.for %k = %i to %j step %c1 {
-        // CHECK_NOT: scf.for
+        // CHECK-NOT: scf.for
         scf.for %l = %i to %j step %c1 {
           "foo"() : () -> ()
         }
@@ -201,7 +194,7 @@ func @two_bands() {
 // CHECK-DAG: #[[EIGHT:.*]] = affine_map<() -> (8)>
 // CHECK-DAG: #[[MOD:.*]] = affine_map<(d0)[s0] -> (d0 mod s0)>
 // CHECK-DAG: #[[DIV:.*]] = affine_map<(d0)[s0] -> (d0 floordiv s0)>
-func @coalesce_affine_for() {
+func.func @coalesce_affine_for() {
   affine.for %i = 0 to 16 {
     affine.for %j = 0 to 64 {
       affine.for %k = 0 to 8 {
@@ -232,7 +225,7 @@ func @coalesce_affine_for() {
 // CHECK-DAG: #[[PRODUCT:.*]] = affine_map<(d0)[s0] -> (d0 * s0)>
 // CHECK-DAG: #[[MOD:.*]] = affine_map<(d0)[s0] -> (d0 mod s0)>
 // CHECK-DAG: #[[FLOOR:.*]] = affine_map<(d0)[s0] -> (d0 floordiv s0)>
-func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
+func.func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
   %c0 = arith.constant 0 : index
   %M = memref.dim %arg0, %c0 : memref<?x?xf32>
   %N = memref.dim %arg0, %c0 : memref<?x?xf32>
@@ -271,7 +264,7 @@ func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
 // CHECK-DAG: #[[SIXTY_FOUR:.*]] = affine_map<() -> (64)>
 // CHECK-DAG: #[[MOD:.*]] = affine_map<(d0)[s0] -> (d0 mod s0)>
 // CHECK-DAG: #[[DIV:.*]] = affine_map<(d0)[s0] -> (d0 floordiv s0)>
-func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
+func.func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
   %c0 = arith.constant 0 : index
   %M = memref.dim %arg0, %c0 : memref<?x?xf32>
   %N = memref.dim %arg0, %c0 : memref<?x?xf32>
@@ -309,7 +302,7 @@ func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
 // CHECK-DAG: #[[MOD:.*]] = affine_map<(d0)[s0] -> (d0 mod s0)>
 // CHECK-DAG: #[[DIV:.*]] = affine_map<(d0)[s0] -> (d0 floordiv s0)>
 #myMap = affine_map<()[s1] -> (s1, -s1)>
-func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
+func.func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
  %c0 = arith.constant 0 : index
  %M = memref.dim %arg0, %c0 : memref<?x?xf32>
  %N = memref.dim %arg0, %c0 : memref<?x?xf32>
@@ -346,7 +339,7 @@ func @coalesce_affine_for(%arg0: memref<?x?xf32>) {
 // CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0) -> (696, d0 * 110 + 110)>
 #map0 = affine_map<(d0) -> (d0 * 110)>
 #map1 = affine_map<(d0) -> (696, d0 * 110 + 110)>
-func @test_loops_do_not_get_coalesced() {
+func.func @test_loops_do_not_get_coalesced() {
   affine.for %i = 0 to 7 {
     affine.for %j = #map0(%i) to min #map1(%i) {
     }

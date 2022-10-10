@@ -131,7 +131,7 @@ namespace DeduceDifferentType {
 
   struct X { constexpr operator int() { return 0; } } x;
   template<X &> struct C {};
-  template<int N> int c(C<N>); // expected-error {{value of type 'int' is not implicitly convertible to 'DeduceDifferentType::X &'}}
+  template<int N> int c(C<N>); // expected-error {{value of type 'int' is not implicitly convertible to 'X &'}}
   int c_imp = c(C<x>()); // expected-error {{no matching function}}
   int c_exp = c<x>(C<x>()); // expected-error {{no matching function}}
 
@@ -558,3 +558,24 @@ namespace TypeSuffix {
   X<1, 1u>::type y; // expected-error {{no type named 'type' in 'TypeSuffix::X<1, 1U>'}}
   X<1, 1>::type z; // expected-error {{no type named 'type' in 'TypeSuffix::X<1, 1>'}}
 }
+
+namespace no_crash {
+template <class T>
+class Base {
+public:
+  template <class> class EntryPointSpec {};
+  template <auto Method>
+  using EntryPoint = EntryPointSpec<T>;
+};
+
+class Derived : Base<Derived>{
+  template <class...> class Spec {};
+
+  void Invalid(Undefined) const; // expected-error {{unknown type name 'Undefined'}}
+  void crash() {
+    return Spec{
+        EntryPoint<&Invalid>()
+    };
+  }
+};
+} // no_crash

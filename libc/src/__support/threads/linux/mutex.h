@@ -11,6 +11,7 @@
 
 #include "src/__support/CPP/atomic.h"
 #include "src/__support/OSUtil/syscall.h" // For syscall functions.
+#include "src/__support/threads/linux/futex_word.h"
 #include "src/__support/threads/mutex_common.h"
 
 #include <linux/futex.h>
@@ -26,8 +27,6 @@ struct Mutex {
 
   void *owner;
   unsigned long long lock_count;
-
-  using FutexWordType = unsigned int;
 
   cpp::Atomic<FutexWordType> futex_word;
 
@@ -77,8 +76,9 @@ public:
         // futex syscall will block if the futex data is still
         // `LockState::Waiting` (the 4th argument to the syscall function
         // below.)
-        __llvm_libc::syscall(SYS_futex, &futex_word.val, FUTEX_WAIT_PRIVATE,
-                             FutexWordType(LockState::Waiting), 0, 0, 0);
+        __llvm_libc::syscall_impl(SYS_futex, &futex_word.val,
+                                  FUTEX_WAIT_PRIVATE,
+                                  FutexWordType(LockState::Waiting), 0, 0, 0);
         was_waiting = true;
         // Once woken up/unblocked, try everything all over.
         continue;
@@ -91,8 +91,8 @@ public:
           // we will wait for the futex to be woken up. Note again that the
           // following syscall will block only if the futex data is still
           // `LockState::Waiting`.
-          __llvm_libc::syscall(SYS_futex, &futex_word, FUTEX_WAIT_PRIVATE,
-                               FutexWordType(LockState::Waiting), 0, 0, 0);
+          __llvm_libc::syscall_impl(SYS_futex, &futex_word, FUTEX_WAIT_PRIVATE,
+                                    FutexWordType(LockState::Waiting), 0, 0, 0);
           was_waiting = true;
         }
         continue;
@@ -109,8 +109,8 @@ public:
       if (futex_word.compare_exchange_strong(mutex_status,
                                              FutexWordType(LockState::Free))) {
         // If any thread is waiting to be woken up, then do it.
-        __llvm_libc::syscall(SYS_futex, &futex_word, FUTEX_WAKE_PRIVATE, 1, 0,
-                             0, 0);
+        __llvm_libc::syscall_impl(SYS_futex, &futex_word, FUTEX_WAKE_PRIVATE, 1,
+                                  0, 0, 0);
         return MutexError::NONE;
       }
 

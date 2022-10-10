@@ -10,8 +10,8 @@
 
 // Call erase(const_iterator first, const_iterator last); with various invalid iterators
 
-// UNSUPPORTED: libcxx-no-debug-mode, c++03, windows
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DEBUG=1
+// REQUIRES: has-unix-headers
+// UNSUPPORTED: !libcpp-has-debug-mode, c++03
 
 #include <list>
 

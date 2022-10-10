@@ -86,6 +86,9 @@ AST_MATCHER(Expr, usedInBooleanContext) {
 AST_MATCHER(CXXConstructExpr, isDefaultConstruction) {
   return Node.getConstructor()->isDefaultConstructor();
 }
+AST_MATCHER(QualType, isIntegralType) {
+  return Node->isIntegralType(Finder->getASTContext());
+}
 } // namespace ast_matchers
 namespace tidy {
 namespace readability {
@@ -99,10 +102,9 @@ ContainerSizeEmptyCheck::ContainerSizeEmptyCheck(StringRef Name,
 void ContainerSizeEmptyCheck::registerMatchers(MatchFinder *Finder) {
   const auto ValidContainerRecord = cxxRecordDecl(isSameOrDerivedFrom(
       namedDecl(
-          has(cxxMethodDecl(isConst(), parameterCountIs(0), isPublic(),
-                            hasName("size"),
-                            returns(qualType(isInteger(), unless(booleanType()),
-                                             unless(elaboratedType()))))
+          has(cxxMethodDecl(
+                  isConst(), parameterCountIs(0), isPublic(), hasName("size"),
+                  returns(qualType(isIntegralType(), unless(booleanType()))))
                   .bind("size")),
           has(cxxMethodDecl(isConst(), parameterCountIs(0), isPublic(),
                             hasName("empty"), returns(booleanType()))
@@ -191,10 +193,17 @@ void ContainerSizeEmptyCheck::check(const MatchFinder::MatchResult &Result) {
   std::string ReplacementText = std::string(
       Lexer::getSourceText(CharSourceRange::getTokenRange(E->getSourceRange()),
                            *Result.SourceManager, getLangOpts()));
-  if (isBinaryOrTernary(E) || isa<UnaryOperator>(E)) {
+  const auto *OpCallExpr = dyn_cast<CXXOperatorCallExpr>(E);
+  if (isBinaryOrTernary(E) || isa<UnaryOperator>(E) ||
+      (OpCallExpr && (OpCallExpr->getOperator() == OO_Star))) {
     ReplacementText = "(" + ReplacementText + ")";
   }
-  if (E->getType()->isPointerType())
+  if (OpCallExpr &&
+      OpCallExpr->getOperator() == OverloadedOperatorKind::OO_Arrow) {
+    // This can happen if the object is a smart pointer. Don't add anything
+    // because a '->' is already there (PR#51776), just call the method.
+    ReplacementText += "empty()";
+  } else if (E->getType()->isPointerType())
     ReplacementText += "->empty()";
   else
     ReplacementText += ".empty()";

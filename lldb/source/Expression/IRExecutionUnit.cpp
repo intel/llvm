@@ -151,7 +151,8 @@ Status IRExecutionUnit::DisassembleFunction(Stream &stream,
     return ret;
   }
 
-  lldb::DataBufferSP buffer_sp(new DataBufferHeap(func_range.second, 0));
+  lldb::WritableDataBufferSP buffer_sp(
+      new DataBufferHeap(func_range.second, 0));
 
   Process *process = exe_ctx.GetProcessPtr();
   Status err;
@@ -199,7 +200,9 @@ Status IRExecutionUnit::DisassembleFunction(Stream &stream,
                                       UINT32_MAX, false, false);
 
   InstructionList &instruction_list = disassembler_sp->GetInstructionList();
-  instruction_list.Dump(&stream, true, true, &exe_ctx);
+  instruction_list.Dump(&stream, true, true, /*show_control_flow_kind=*/true,
+                        &exe_ctx);
+
   return ret;
 }
 

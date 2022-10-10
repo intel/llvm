@@ -49,11 +49,14 @@
 
 namespace llvm {
 class raw_ostream;
+class ThreadPool;
 }
 
 namespace lldb_private {
 class Address;
+class CallbackLogHandler;
 class CommandInterpreter;
+class LogHandler;
 class Process;
 class Stream;
 class SymbolContext;
@@ -79,6 +82,7 @@ public:
     eBroadcastBitProgress = (1 << 0),
     eBroadcastBitWarning = (1 << 1),
     eBroadcastBitError = (1 << 2),
+    eBroadcastSymbolChange = (1 << 3),
   };
 
   static ConstString GetStaticBroadcasterClass();
@@ -148,11 +152,7 @@ public:
 
   Status SetInputString(const char *data);
 
-  // This method will setup data recorder if reproducer enabled.
-  // On reply mode this method should take instructions from reproducer file.
-  Status SetInputFile(lldb::FileSP file);
-
-  void SetInputFile(lldb::FileSP file, repro::DataRecorder *recorder);
+  void SetInputFile(lldb::FileSP file);
 
   void SetOutputFile(lldb::FileSP file);
 
@@ -242,6 +242,7 @@ public:
   bool EnableLog(llvm::StringRef channel,
                  llvm::ArrayRef<const char *> categories,
                  llvm::StringRef log_file, uint32_t log_options,
+                 size_t buffer_size, LogHandlerKind log_handler_kind,
                  llvm::raw_ostream &error_stream);
 
   void SetLoggingCallback(lldb::LogOutputCallback log_callback, void *baton);
@@ -289,8 +290,6 @@ public:
   void SetPrompt(llvm::StringRef p);
   void SetPrompt(const char *) = delete;
 
-  llvm::StringRef GetReproducerPath() const;
-
   bool GetUseExternalEditor() const;
 
   bool SetUseExternalEditor(bool use_external_editor_p);
@@ -300,6 +299,8 @@ public:
   bool SetUseColor(bool use_color);
 
   bool GetShowProgress() const;
+
+  bool SetShowProgress(bool show_progress);
 
   llvm::StringRef GetShowProgressAnsiPrefix() const;
 
@@ -377,6 +378,9 @@ public:
     return m_broadcaster_manager_sp;
   }
 
+  /// Shared thread poll. Use only with ThreadPoolTaskGroup.
+  static llvm::ThreadPool &GetThreadPool();
+
   /// Report warning events.
   ///
   /// Progress events will be delivered to any debuggers that have listeners
@@ -395,7 +399,7 @@ public:
   ///   If a pointer is passed to a std::once_flag, then it will be used to
   ///   ensure the given warning is only broadcast once.
   static void
-  ReportWarning(std::string messsage,
+  ReportWarning(std::string message,
                 llvm::Optional<lldb::user_id_t> debugger_id = llvm::None,
                 std::once_flag *once = nullptr);
 
@@ -417,9 +421,11 @@ public:
   ///   If a pointer is passed to a std::once_flag, then it will be used to
   ///   ensure the given error is only broadcast once.
   static void
-  ReportError(std::string messsage,
+  ReportError(std::string message,
               llvm::Optional<lldb::user_id_t> debugger_id = llvm::None,
               std::once_flag *once = nullptr);
+
+  static void ReportSymbolChange(const ModuleSpec &module_spec);
 
 protected:
   friend class CommandInterpreter;
@@ -547,8 +553,8 @@ protected:
 
   llvm::Optional<uint64_t> m_current_event_id;
 
-  llvm::StringMap<std::weak_ptr<llvm::raw_ostream>> m_log_streams;
-  std::shared_ptr<llvm::raw_ostream> m_log_callback_stream_sp;
+  llvm::StringMap<std::weak_ptr<LogHandler>> m_stream_handlers;
+  std::shared_ptr<CallbackLogHandler> m_callback_handler_sp;
   ConstString m_instance_name;
   static LoadPluginCallbackType g_load_plugin_callback;
   typedef std::vector<llvm::sys::DynamicLibrary> LoadedPluginsList;

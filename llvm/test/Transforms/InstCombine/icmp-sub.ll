@@ -489,15 +489,75 @@ define <2 x i1> @sub_ne_zero_use(<2 x i8> %x, <2 x i8> %y) {
   ret <2 x i1> %r
 }
 
-define i32 @sub_eq_zero_select(i32 %a, i32 %b, i32* %p) {
+define i32 @sub_eq_zero_select(i32 %a, i32 %b, ptr %p) {
 ; CHECK-LABEL: @sub_eq_zero_select(
 ; CHECK-NEXT:    [[SUB:%.*]] = sub i32 [[A:%.*]], [[B:%.*]]
-; CHECK-NEXT:    store i32 [[SUB]], i32* [[P:%.*]], align 4
+; CHECK-NEXT:    store i32 [[SUB]], ptr [[P:%.*]], align 4
 ; CHECK-NEXT:    ret i32 [[B]]
 ;
   %sub = sub i32 %a, %b
-  store i32 %sub, i32* %p
+  store i32 %sub, ptr %p
   %cmp = icmp eq i32 %sub, 0
   %sel = select i1 %cmp, i32 %a, i32 %b
   ret i32 %sel
+}
+
+; Replacing the "SUB == 0" regresses codegen, and it may be hard to recover from that.
+
+declare i32 @llvm.umin.i32(i32, i32)
+
+define void @PR54558_reduced(i32 %arg) {
+; CHECK-LABEL: @PR54558_reduced(
+; CHECK-NEXT:  bb_entry:
+; CHECK-NEXT:    br label [[BB_LOOP:%.*]]
+; CHECK:       bb_loop:
+; CHECK-NEXT:    [[PHI_OUTER:%.*]] = phi i32 [ [[SUB:%.*]], [[BB_LOOP]] ], [ [[ARG:%.*]], [[BB_ENTRY:%.*]] ]
+; CHECK-NEXT:    [[MIN:%.*]] = tail call i32 @llvm.umin.i32(i32 [[PHI_OUTER]], i32 43)
+; CHECK-NEXT:    call void @use(i32 [[MIN]])
+; CHECK-NEXT:    [[SUB]] = sub i32 [[PHI_OUTER]], [[MIN]]
+; CHECK-NEXT:    [[COND_OUTER:%.*]] = icmp eq i32 [[SUB]], 0
+; CHECK-NEXT:    br i1 [[COND_OUTER]], label [[BB_EXIT:%.*]], label [[BB_LOOP]]
+; CHECK:       bb_exit:
+; CHECK-NEXT:    ret void
+;
+bb_entry:
+  br label %bb_loop
+
+bb_loop:
+  %phi_outer = phi i32 [ %sub, %bb_loop ], [ %arg, %bb_entry ]
+  %min = tail call i32 @llvm.umin.i32(i32 %phi_outer, i32 43)
+  call void @use(i32 %min)
+  %sub = sub i32 %phi_outer, %min
+  %cond_outer = icmp eq i32 %sub, 0
+  br i1 %cond_outer, label %bb_exit, label %bb_loop
+
+bb_exit:
+  ret void
+}
+
+; TODO: It might be ok to replace the "SUB == 0" in this example if codegen can invert it.
+
+define void @PR54558_reduced_more(i32 %x, i32 %y) {
+; CHECK-LABEL: @PR54558_reduced_more(
+; CHECK-NEXT:  bb_entry:
+; CHECK-NEXT:    br label [[BB_LOOP:%.*]]
+; CHECK:       bb_loop:
+; CHECK-NEXT:    [[PHI_OUTER:%.*]] = phi i32 [ [[SUB:%.*]], [[BB_LOOP]] ], [ [[X:%.*]], [[BB_ENTRY:%.*]] ]
+; CHECK-NEXT:    [[SUB]] = sub i32 [[PHI_OUTER]], [[Y:%.*]]
+; CHECK-NEXT:    [[COND_OUTER:%.*]] = icmp eq i32 [[SUB]], 0
+; CHECK-NEXT:    br i1 [[COND_OUTER]], label [[BB_EXIT:%.*]], label [[BB_LOOP]]
+; CHECK:       bb_exit:
+; CHECK-NEXT:    ret void
+;
+bb_entry:
+  br label %bb_loop
+
+bb_loop:
+  %phi_outer = phi i32 [ %sub, %bb_loop ], [ %x, %bb_entry ]
+  %sub = sub i32 %phi_outer, %y
+  %cond_outer = icmp eq i32 %sub, 0
+  br i1 %cond_outer, label %bb_exit, label %bb_loop
+
+bb_exit:
+  ret void
 }

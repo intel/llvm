@@ -4,12 +4,12 @@
 #include "sycl.hpp"
 class Foo;
 
-using namespace cl::sycl;
+using namespace sycl;
 
 queue q;
 
 using Accessor =
-    accessor<int, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::global_buffer>;
+    accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer>;
 #ifdef SPIR64
 // expected-warning@#KernelSingleTask {{size of kernel arguments (7994 bytes) may exceed the supported maximum of 2048 bytes on some devices}}
 #elif SPIR32

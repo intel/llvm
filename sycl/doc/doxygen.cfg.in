@@ -44,7 +44,7 @@ PROJECT_NUMBER         = @PACKAGE_VERSION@
 # for a project that appears at the top of each page and should give viewer a
 # quick idea about the purpose of the project. Keep the description short.
 
-PROJECT_BRIEF          = "Runtime libraries for oneAPI Data Parallel C++"
+PROJECT_BRIEF          = "Runtime libraries for oneAPI DPC++"
 
 # With the PROJECT_LOGO tag one can specify a logo or an icon that is included
 # in the documentation. The maximum height of the logo should not exceed 55
@@ -1118,7 +1118,7 @@ COLS_IN_ALPHA_INDEX    = 4
 # while generating the index headers.
 # This tag requires that the tag ALPHABETICAL_INDEX is set to YES.
 
-IGNORE_PREFIX          = cl::sycl:: cl::sycl::ext::intel::experimental::esimd
+IGNORE_PREFIX          = sycl::_V1:: sycl::_V1::ext::intel::experimental::esimd
 
 #---------------------------------------------------------------------------
 # Configuration options related to the HTML output
@@ -2105,8 +2105,11 @@ INCLUDE_FILE_PATTERNS  =
 # This tag requires that the tag ENABLE_PREPROCESSING is set to YES.
 
 PREDEFINED             = "__SYCL_INLINE_NAMESPACE(X)=namespace X" \
+                         "__SYCL_INLINE_VER_NAMESPACE(X)=namespace X" \
                          "__SYCL_EXPORT" \
-                         "__SYCL_EXPORT_DEPRECATED(x)="
+                         "__SYCL_EXPORT_DEPRECATED(x)=" \
+                         "__ESIMD_NS=sycl::ext::intel::esimd" \
+                         "__ESIMD_ENS=sycl::ext::intel::experimental::esimd"
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

@@ -1,4 +1,4 @@
-//===- ReduceArguments.cpp - Specialized Delta Pass -----------------------===//
+//===- ReduceBasicBlocks.cpp - Specialized Delta Pass ---------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 //
 // This file implements a function which calls the Generic Delta pass in order
-// to reduce uninteresting Arguments from defined functions.
+// to reduce uninteresting BasicBlocks from defined functions.
 //
 //===----------------------------------------------------------------------===//
 
 #include "ReduceBasicBlocks.h"
+#include "Utils.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -29,13 +30,13 @@ using namespace llvm;
 static void replaceBranchTerminator(BasicBlock &BB,
                                     const DenseSet<BasicBlock *> &BBsToKeep) {
   auto *Term = BB.getTerminator();
-  std::vector<BasicBlock *> ChunkSucessors;
+  std::vector<BasicBlock *> ChunkSuccessors;
   for (auto *Succ : successors(&BB))
     if (BBsToKeep.count(Succ))
-      ChunkSucessors.push_back(Succ);
+      ChunkSuccessors.push_back(Succ);
 
   // BB only references Chunk BBs
-  if (ChunkSucessors.size() == Term->getNumSuccessors())
+  if (ChunkSuccessors.size() == Term->getNumSuccessors())
     return;
 
   bool IsBranch = isa<BranchInst>(Term) || isa<InvokeInst>(Term);
@@ -43,24 +44,37 @@ static void replaceBranchTerminator(BasicBlock &BB,
   if (auto *IndBI = dyn_cast<IndirectBrInst>(Term))
     Address = IndBI->getAddress();
 
-  Term->replaceAllUsesWith(UndefValue::get(Term->getType()));
+  Term->replaceAllUsesWith(getDefaultValue(Term->getType()));
   Term->eraseFromParent();
 
-  if (ChunkSucessors.empty()) {
+  if (ChunkSuccessors.empty()) {
+    // Scan forward in BB list to try find a block that is kept.
+    Function &F = *BB.getParent();
+    Function::iterator FI = BB.getIterator();
+    FI++;
+    while (FI != F.end()) {
+      auto &FIB = *FI;
+      if (BBsToKeep.count(&FIB) && !isa<PHINode>(FIB.begin())) {
+        BranchInst::Create(&FIB, &BB);
+        return;
+      }
+      FI++;
+    }
+    // If that fails then resort to replacing with a ret.
     auto *FnRetTy = BB.getParent()->getReturnType();
     ReturnInst::Create(BB.getContext(),
-                       FnRetTy->isVoidTy() ? nullptr : UndefValue::get(FnRetTy),
+                       FnRetTy->isVoidTy() ? nullptr : getDefaultValue(FnRetTy),
                        &BB);
     return;
   }
 
   if (IsBranch)
-    BranchInst::Create(ChunkSucessors[0], &BB);
+    BranchInst::Create(ChunkSuccessors[0], &BB);
 
   if (Address) {
     auto *NewIndBI =
-        IndirectBrInst::Create(Address, ChunkSucessors.size(), &BB);
-    for (auto *Dest : ChunkSucessors)
+        IndirectBrInst::Create(Address, ChunkSuccessors.size(), &BB);
+    for (auto *Dest : ChunkSuccessors)
       NewIndBI->addDestination(Dest);
   }
 }
@@ -74,7 +88,7 @@ removeUninterestingBBsFromSwitch(SwitchInst &SwInst,
   if (!BBsToKeep.count(SwInst.getDefaultDest())) {
     auto *FnRetTy = SwInst.getParent()->getParent()->getReturnType();
     ReturnInst::Create(SwInst.getContext(),
-                       FnRetTy->isVoidTy() ? nullptr : UndefValue::get(FnRetTy),
+                       FnRetTy->isVoidTy() ? nullptr : getDefaultValue(FnRetTy),
                        SwInst.getParent());
     SwInst.eraseFromParent();
   } else
@@ -88,23 +102,54 @@ removeUninterestingBBsFromSwitch(SwitchInst &SwInst,
     }
 }
 
+/// It's OK to add a block to the set of removed blocks if the first
+/// basic block in the function that survives all of the deletions is
+/// a legal entry block. Keep at least one block in a function.
+static bool okToRemove(BasicBlock &Candidate, Function &F,
+                       const DenseSet<BasicBlock *> &BBsToDelete) {
+  size_t NumBlocksDeleted = 0;
+  bool FoundNewEntryBlock = false;
+  for (auto &B : F) {
+    if (&B == &Candidate)
+      continue;
+    if (BBsToDelete.count(&B)) {
+      ++NumBlocksDeleted;
+      continue;
+    }
+    if (!FoundNewEntryBlock) {
+      /// Ok we've found the first block that's not going to be deleted,
+      /// it will be the new entry block -- that's only legal if this
+      /// block has no predecessors among blocks that survive the
+      /// deletions
+      for (BasicBlock *Pred : predecessors(&B)) {
+        if (!BBsToDelete.contains(Pred))
+          return false;
+      }
+      FoundNewEntryBlock = true;
+    }
+  }
+  // Don't delete the last block.
+  return NumBlocksDeleted + 1 < F.size();
+}
+
 /// Removes out-of-chunk arguments from functions, and modifies their calls
 /// accordingly. It also removes allocations of out-of-chunk arguments.
 static void extractBasicBlocksFromModule(Oracle &O, Module &Program) {
-  DenseSet<BasicBlock *> BBsToKeep;
+  DenseSet<BasicBlock *> BBsToKeep, BBsToDelete;
 
-  SmallVector<BasicBlock *> BBsToDelete;
   for (auto &F : Program) {
     for (auto &BB : F) {
-      if (O.shouldKeep())
+      if (!okToRemove(BB, F, BBsToDelete) || O.shouldKeep())
         BBsToKeep.insert(&BB);
-      else {
-        BBsToDelete.push_back(&BB);
-        // Remove out-of-chunk BB from successor phi nodes
-        for (auto *Succ : successors(&BB))
-          Succ->removePredecessor(&BB);
-      }
+      else
+        BBsToDelete.insert(&BB);
     }
+  }
+
+  // Remove out-of-chunk BB from successor phi nodes
+  for (auto &BB : BBsToDelete) {
+    for (auto *Succ : successors(BB))
+      Succ->removePredecessor(BB, /*KeepOneInputPHIs=*/true);
   }
 
   // Replace terminators that reference out-of-chunk BBs
@@ -120,20 +165,14 @@ static void extractBasicBlocksFromModule(Oracle &O, Module &Program) {
   for (auto &BB : BBsToDelete) {
     // Instructions might be referenced in other BBs
     for (auto &I : *BB)
-      I.replaceAllUsesWith(UndefValue::get(I.getType()));
-    if (BB->getParent()->size() == 1) {
-      // this is the last basic block of the function, thus we must also make
-      // sure to remove comdat and set linkage to external
-      auto F = BB->getParent();
-      F->deleteBody();
-      F->setComdat(nullptr);
-    } else {
-      BB->eraseFromParent();
-    }
+      I.replaceAllUsesWith(getDefaultValue(I.getType()));
+    // Should not be completely removing the body of a function.
+    assert(BB->getParent()->size() > 1);
+    BB->eraseFromParent();
   }
 }
 
 void llvm::reduceBasicBlocksDeltaPass(TestRunner &Test) {
-  outs() << "*** Reducing Basic Blocks...\n";
+  errs() << "*** Reducing Basic Blocks...\n";
   runDeltaPass(Test, extractBasicBlocksFromModule);
 }

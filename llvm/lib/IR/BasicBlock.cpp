@@ -148,12 +148,6 @@ const Module *BasicBlock::getModule() const {
   return getParent()->getParent();
 }
 
-const Instruction *BasicBlock::getTerminator() const {
-  if (InstList.empty() || !InstList.back().isTerminator())
-    return nullptr;
-  return &InstList.back();
-}
-
 const CallInst *BasicBlock::getTerminatingMustTailCall() const {
   if (InstList.empty())
     return nullptr;
@@ -256,6 +250,30 @@ BasicBlock::const_iterator BasicBlock::getFirstInsertionPt() const {
 
   const_iterator InsertPt = FirstNonPHI->getIterator();
   if (InsertPt->isEHPad()) ++InsertPt;
+  return InsertPt;
+}
+
+BasicBlock::const_iterator BasicBlock::getFirstNonPHIOrDbgOrAlloca() const {
+  const Instruction *FirstNonPHI = getFirstNonPHI();
+  if (!FirstNonPHI)
+    return end();
+
+  const_iterator InsertPt = FirstNonPHI->getIterator();
+  if (InsertPt->isEHPad())
+    ++InsertPt;
+
+  if (isEntryBlock()) {
+    const_iterator End = end();
+    while (InsertPt != End &&
+           (isa<AllocaInst>(*InsertPt) || isa<DbgInfoIntrinsic>(*InsertPt) ||
+            isa<PseudoProbeInst>(*InsertPt))) {
+      if (const AllocaInst *AI = dyn_cast<AllocaInst>(&*InsertPt)) {
+        if (!AI->isStaticAlloca())
+          break;
+      }
+      ++InsertPt;
+    }
+  }
   return InsertPt;
 }
 

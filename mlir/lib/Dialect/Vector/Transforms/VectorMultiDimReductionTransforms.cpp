@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Vector/Transforms/VectorRewritePatterns.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/Builders.h"
@@ -28,23 +29,24 @@ using namespace mlir;
 class InnerOuterDimReductionConversion
     : public OpRewritePattern<vector::MultiDimReductionOp> {
 public:
-  using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   explicit InnerOuterDimReductionConversion(
-      MLIRContext *context, vector::VectorMultiReductionLowering options)
-      : mlir::OpRewritePattern<vector::MultiDimReductionOp>(context),
+      MLIRContext *context, vector::VectorMultiReductionLowering options,
+      PatternBenefit benefit = 1)
+      : mlir::OpRewritePattern<vector::MultiDimReductionOp>(context, benefit),
         useInnerDimsForReduction(
             options == vector::VectorMultiReductionLowering::InnerReduction) {}
 
   LogicalResult matchAndRewrite(vector::MultiDimReductionOp multiReductionOp,
                                 PatternRewriter &rewriter) const override {
-    auto src = multiReductionOp.source();
+    auto src = multiReductionOp.getSource();
     auto loc = multiReductionOp.getLoc();
     auto srcRank = multiReductionOp.getSourceVectorType().getRank();
 
     // Separate reduction and parallel dims
     auto reductionDimsRange =
-        multiReductionOp.reduction_dims().getAsValueRange<IntegerAttr>();
+        multiReductionOp.getReductionDims().getAsValueRange<IntegerAttr>();
     auto reductionDims = llvm::to_vector<4>(llvm::map_range(
         reductionDimsRange, [](const APInt &a) { return a.getZExtValue(); }));
     llvm::SmallDenseSet<int64_t> reductionDimsSet(reductionDims.begin(),
@@ -86,8 +88,8 @@ public:
         reductionMask[i] = true;
     }
     rewriter.replaceOpWithNewOp<vector::MultiDimReductionOp>(
-        multiReductionOp, transposeOp.result(), reductionMask,
-        multiReductionOp.kind());
+        multiReductionOp, transposeOp.getResult(), multiReductionOp.getAcc(),
+        reductionMask, multiReductionOp.getKind());
     return success();
   }
 
@@ -100,11 +102,12 @@ private:
 class ReduceMultiDimReductionRank
     : public OpRewritePattern<vector::MultiDimReductionOp> {
 public:
-  using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   explicit ReduceMultiDimReductionRank(
-      MLIRContext *context, vector::VectorMultiReductionLowering options)
-      : mlir::OpRewritePattern<vector::MultiDimReductionOp>(context),
+      MLIRContext *context, vector::VectorMultiReductionLowering options,
+      PatternBenefit benefit = 1)
+      : mlir::OpRewritePattern<vector::MultiDimReductionOp>(context, benefit),
         useInnerDimsForReduction(
             options == vector::VectorMultiReductionLowering::InnerReduction) {}
 
@@ -186,17 +189,23 @@ public:
     auto castedType = VectorType::get(
         vectorShape, multiReductionOp.getSourceVectorType().getElementType());
     Value cast = rewriter.create<vector::ShapeCastOp>(
-        loc, castedType, multiReductionOp.source());
-
+        loc, castedType, multiReductionOp.getSource());
+    Value acc = multiReductionOp.getAcc();
+    if (flattenedParallelDim) {
+      auto accType = VectorType::get(
+          {flattenedParallelDim},
+          multiReductionOp.getSourceVectorType().getElementType());
+      acc = rewriter.create<vector::ShapeCastOp>(loc, accType, acc);
+    }
     // 5. Creates the flattened form of vector.multi_reduction with inner/outer
     // most dim as reduction.
     auto newOp = rewriter.create<vector::MultiDimReductionOp>(
-        loc, cast, mask, multiReductionOp.kind());
+        loc, cast, acc, mask, multiReductionOp.getKind());
 
     // 6. If there are no parallel shapes, the result is a scalar.
     // TODO: support 0-d vectors when available.
     if (parallelShapes.empty()) {
-      rewriter.replaceOp(multiReductionOp, newOp.dest());
+      rewriter.replaceOp(multiReductionOp, newOp.getDest());
       return success();
     }
 
@@ -205,7 +214,7 @@ public:
         parallelShapes,
         multiReductionOp.getSourceVectorType().getElementType());
     rewriter.replaceOpWithNewOp<vector::ShapeCastOp>(
-        multiReductionOp, outputCastedType, newOp.dest());
+        multiReductionOp, outputCastedType, newOp.getDest());
     return success();
   }
 
@@ -217,7 +226,7 @@ private:
 /// and combines results
 struct TwoDimMultiReductionToElementWise
     : public OpRewritePattern<vector::MultiDimReductionOp> {
-  using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::MultiDimReductionOp multiReductionOp,
                                 PatternRewriter &rewriter) const override {
@@ -237,13 +246,11 @@ struct TwoDimMultiReductionToElementWise
     if (!elementType.isIntOrIndexOrFloat())
       return failure();
 
-    Value result =
-        rewriter.create<vector::ExtractOp>(loc, multiReductionOp.source(), 0)
-            .getResult();
-    for (int64_t i = 1; i < srcShape[0]; i++) {
-      auto operand =
-          rewriter.create<vector::ExtractOp>(loc, multiReductionOp.source(), i);
-      result = makeArithReduction(rewriter, loc, multiReductionOp.kind(),
+    Value result = multiReductionOp.getAcc();
+    for (int64_t i = 0; i < srcShape[0]; i++) {
+      auto operand = rewriter.create<vector::ExtractOp>(
+          loc, multiReductionOp.getSource(), i);
+      result = makeArithReduction(rewriter, loc, multiReductionOp.getKind(),
                                   operand, result);
     }
 
@@ -256,7 +263,7 @@ struct TwoDimMultiReductionToElementWise
 /// a sequence of vector.reduction ops.
 struct TwoDimMultiReductionToReduction
     : public OpRewritePattern<vector::MultiDimReductionOp> {
-  using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::MultiDimReductionOp multiReductionOp,
                                 PatternRewriter &rewriter) const override {
@@ -275,9 +282,11 @@ struct TwoDimMultiReductionToReduction
 
     for (int i = 0; i < outerDim; ++i) {
       auto v = rewriter.create<vector::ExtractOp>(
-          loc, multiReductionOp.source(), ArrayRef<int64_t>{i});
-      auto reducedValue =
-          rewriter.create<vector::ReductionOp>(loc, multiReductionOp.kind(), v);
+          loc, multiReductionOp.getSource(), ArrayRef<int64_t>{i});
+      auto acc = rewriter.create<vector::ExtractOp>(
+          loc, multiReductionOp.getAcc(), ArrayRef<int64_t>{i});
+      auto reducedValue = rewriter.create<vector::ReductionOp>(
+          loc, multiReductionOp.getKind(), v, acc);
       result = rewriter.create<vector::InsertElementOp>(
           loc, reducedValue, result,
           rewriter.create<arith::ConstantIndexOp>(loc, i));
@@ -294,7 +303,7 @@ struct TwoDimMultiReductionToReduction
 /// separately.
 struct OneDimMultiReductionToTwoDim
     : public OpRewritePattern<vector::MultiDimReductionOp> {
-  using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::MultiDimReductionOp multiReductionOp,
                                 PatternRewriter &rewriter) const override {
@@ -308,6 +317,8 @@ struct OneDimMultiReductionToTwoDim
     auto srcShape = srcVectorType.getShape();
     auto castedType = VectorType::get(ArrayRef<int64_t>{1, srcShape.back()},
                                       srcVectorType.getElementType());
+    auto accType =
+        VectorType::get(ArrayRef<int64_t>{1}, srcVectorType.getElementType());
     assert(!multiReductionOp.getDestType().isa<VectorType>() &&
            "multi_reduction with a single dimension expects a scalar result");
 
@@ -317,9 +328,11 @@ struct OneDimMultiReductionToTwoDim
 
     /// vector.extract(vector.multi_reduce(vector.shape_cast(v, 1xk)), 0)
     Value cast = rewriter.create<vector::ShapeCastOp>(
-        loc, castedType, multiReductionOp.source());
+        loc, castedType, multiReductionOp.getSource());
+    Value castAcc = rewriter.create<vector::BroadcastOp>(
+        loc, accType, multiReductionOp.getAcc());
     Value reduced = rewriter.create<vector::MultiDimReductionOp>(
-        loc, cast, mask, multiReductionOp.kind());
+        loc, cast, castAcc, mask, multiReductionOp.getKind());
     rewriter.replaceOpWithNewOp<vector::ExtractOp>(multiReductionOp, reduced,
                                                    ArrayRef<int64_t>{0});
     return success();
@@ -327,12 +340,15 @@ struct OneDimMultiReductionToTwoDim
 };
 
 void mlir::vector::populateVectorMultiReductionLoweringPatterns(
-    RewritePatternSet &patterns, VectorMultiReductionLowering options) {
+    RewritePatternSet &patterns, VectorMultiReductionLowering options,
+    PatternBenefit benefit) {
   patterns.add<InnerOuterDimReductionConversion, ReduceMultiDimReductionRank>(
-      patterns.getContext(), options);
-  patterns.add<OneDimMultiReductionToTwoDim>(patterns.getContext());
+      patterns.getContext(), options, benefit);
+  patterns.add<OneDimMultiReductionToTwoDim>(patterns.getContext(), benefit);
   if (options == VectorMultiReductionLowering ::InnerReduction)
-    patterns.add<TwoDimMultiReductionToReduction>(patterns.getContext());
+    patterns.add<TwoDimMultiReductionToReduction>(patterns.getContext(),
+                                                  benefit);
   else
-    patterns.add<TwoDimMultiReductionToElementWise>(patterns.getContext());
+    patterns.add<TwoDimMultiReductionToElementWise>(patterns.getContext(),
+                                                    benefit);
 }

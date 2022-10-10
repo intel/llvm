@@ -1,5 +1,8 @@
 // REQUIRES: x86-registered-target
 
+// FIXME: enable opaque pointers support
+// UNSUPPORTED: enable-opaque-pointers
+
 //
 // Check help message.
 //
@@ -17,7 +20,7 @@
 // RUN: %clang -target %itanium_abi_triple -c %s -o %t.host
 // RUN: %clang -target x86_64-pc-linux-gnu -c %s -o %t.x86_64
 // RUN: %clang -target spir64 -emit-llvm   -c %s -o %t.spir64
-// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64 -inputs=%t.host,%t.x86_64,%t.spir64 -outputs=%t.fat
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64 -input=%t.host -input=%t.x86_64 -input=%t.spir64 -output=%t.fat
 
 //
 // Generate dependencies for targets and check contents of the output bitcode files.
@@ -31,7 +34,7 @@
 // when 'unknown' environment has been specified/implied for SYCL via
 // clang-offload-bundler's -targets
 //
-// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64-unknown-unknown-sycldevice -inputs=%t.host,%t.x86_64,%t.spir64 -outputs=%t.legacy-sycldevice.fat
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64-unknown-unknown-sycldevice -input=%t.host -input=%t.x86_64 -input=%t.spir64 -output=%t.legacy-sycldevice.fat
 // Check correct behavior for multiple targets
 // RUN: clang-offload-deps -targets=openmp-x86_64-pc-linux-gnu,sycl-spir64-unknown-unknown -outputs=%t.deps.legacy.x86_64,%t.deps.legacy.spir64 %t.legacy-sycldevice.fat
 // RUN: llvm-dis -o - %t.deps.legacy.spir64 | FileCheck %s --check-prefixes=CHECK-DEPS-SPIR64 -DSPIRTriple=spir64-unknown-unknown

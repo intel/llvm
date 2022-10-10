@@ -94,6 +94,48 @@ inline ConstantMatch<int64_t> m_ICst(int64_t &Cst) {
   return ConstantMatch<int64_t>(Cst);
 }
 
+template <typename ConstT>
+inline Optional<ConstT> matchConstantSplat(Register,
+                                           const MachineRegisterInfo &);
+
+template <>
+inline Optional<APInt> matchConstantSplat(Register Reg,
+                                          const MachineRegisterInfo &MRI) {
+  return getIConstantSplatVal(Reg, MRI);
+}
+
+template <>
+inline Optional<int64_t> matchConstantSplat(Register Reg,
+                                            const MachineRegisterInfo &MRI) {
+  return getIConstantSplatSExtVal(Reg, MRI);
+}
+
+template <typename ConstT> struct ICstOrSplatMatch {
+  ConstT &CR;
+  ICstOrSplatMatch(ConstT &C) : CR(C) {}
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    if (auto MaybeCst = matchConstant<ConstT>(Reg, MRI)) {
+      CR = *MaybeCst;
+      return true;
+    }
+
+    if (auto MaybeCstSplat = matchConstantSplat<ConstT>(Reg, MRI)) {
+      CR = *MaybeCstSplat;
+      return true;
+    }
+
+    return false;
+  };
+};
+
+inline ICstOrSplatMatch<APInt> m_ICstOrSplat(APInt &Cst) {
+  return ICstOrSplatMatch<APInt>(Cst);
+}
+
+inline ICstOrSplatMatch<int64_t> m_ICstOrSplat(int64_t &Cst) {
+  return ICstOrSplatMatch<int64_t>(Cst);
+}
+
 struct GCstAndRegMatch {
   Optional<ValueAndVReg> &ValReg;
   GCstAndRegMatch(Optional<ValueAndVReg> &ValReg) : ValReg(ValReg) {}
@@ -312,6 +354,17 @@ inline bind_ty<LLT> m_Type(LLT Ty) { return Ty; }
 inline bind_ty<CmpInst::Predicate> m_Pred(CmpInst::Predicate &P) { return P; }
 inline operand_type_match m_Pred() { return operand_type_match(); }
 
+struct ImplicitDefMatch {
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    MachineInstr *TmpMI;
+    if (mi_match(Reg, MRI, m_MInstr(TmpMI)))
+      return TmpMI->getOpcode() == TargetOpcode::G_IMPLICIT_DEF;
+    return false;
+  }
+};
+
+inline ImplicitDefMatch m_GImplicitDef() { return ImplicitDefMatch(); }
+
 // Helper for matching G_FCONSTANT
 inline bind_ty<const ConstantFP *> m_GFCst(const ConstantFP *&C) { return C; }
 
@@ -379,6 +432,19 @@ template <typename LHS, typename RHS>
 inline BinaryOp_match<LHS, RHS, TargetOpcode::G_ADD, true>
 m_GAdd(const LHS &L, const RHS &R) {
   return BinaryOp_match<LHS, RHS, TargetOpcode::G_ADD, true>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline BinaryOp_match<LHS, RHS, TargetOpcode::G_BUILD_VECTOR, false>
+m_GBuildVector(const LHS &L, const RHS &R) {
+  return BinaryOp_match<LHS, RHS, TargetOpcode::G_BUILD_VECTOR, false>(L, R);
+}
+
+template <typename LHS, typename RHS>
+inline BinaryOp_match<LHS, RHS, TargetOpcode::G_BUILD_VECTOR_TRUNC, false>
+m_GBuildVectorTrunc(const LHS &L, const RHS &R) {
+  return BinaryOp_match<LHS, RHS, TargetOpcode::G_BUILD_VECTOR_TRUNC, false>(L,
+                                                                             R);
 }
 
 template <typename LHS, typename RHS>

@@ -350,15 +350,15 @@ defm : X86WriteResUnsupported<WriteVecMoveZ>;
 def  : WriteRes<WriteVecMoveToGpr,    [SLM_IEC_RSV01]>;
 def  : WriteRes<WriteVecMoveFromGpr,  [SLM_IEC_RSV01]>;
 
-defm : SLMWriteResPair<WriteVecShift,    [SLM_FPC_RSV0],  2, [2], 2>;
-defm : SLMWriteResPair<WriteVecShiftX,   [SLM_FPC_RSV0],  2, [2], 2>;
-defm : SLMWriteResPair<WriteVecShiftY,   [SLM_FPC_RSV0],  2, [2], 2>;
+defm : SLMWriteResPair<WriteVecShift,    [SLM_FPC_RSV0],  2, [2]>;
+defm : SLMWriteResPair<WriteVecShiftX,   [SLM_FPC_RSV0],  2, [2]>;
+defm : X86WriteResPairUnsupported<WriteVecShiftY>;
 defm : X86WriteResPairUnsupported<WriteVecShiftZ>;
 defm : SLMWriteResPair<WriteVecShiftImm, [SLM_FPC_RSV0],  1>;
 defm : SLMWriteResPair<WriteVecShiftImmX,[SLM_FPC_RSV0],  1>;
-defm : SLMWriteResPair<WriteVecShiftImmY,[SLM_FPC_RSV0],  1>;
+defm : X86WriteResPairUnsupported<WriteVecShiftImmY>;
 defm : X86WriteResPairUnsupported<WriteVecShiftImmZ>;
-defm : SLMWriteResPair<WriteVarVecShift,  [SLM_FPC_RSV0],  1>;
+defm : X86WriteResPairUnsupported<WriteVarVecShift>;
 defm : X86WriteResPairUnsupported<WriteVarVecShiftY>;
 defm : X86WriteResPairUnsupported<WriteVarVecShiftZ>;
 
@@ -377,10 +377,8 @@ defm : SLMWriteResPair<WriteVecIMul,  [SLM_FPC_RSV0],   4>;
 defm : SLMWriteResPair<WriteVecIMulX, [SLM_FPC_RSV0],   5, [2]>;
 defm : SLMWriteResPair<WriteVecIMulY, [SLM_FPC_RSV0],   5, [2]>;
 defm : X86WriteResPairUnsupported<WriteVecIMulZ>;
-// FIXME: The below is closer to correct, but caused some perf regressions.
-//defm : SLMWriteResPair<WritePMULLD,  [SLM_FPC_RSV0],   11, [11], 7>;
-defm : SLMWriteResPair<WritePMULLD,  [SLM_FPC_RSV0],   4>;
-defm : SLMWriteResPair<WritePMULLDY, [SLM_FPC_RSV0],   4>;
+defm : SLMWriteResPair<WritePMULLD,  [SLM_FPC_RSV0],   11, [11], 7>;
+defm : X86WriteResPairUnsupported<WritePMULLDY>;
 defm : X86WriteResPairUnsupported<WritePMULLDZ>;
 defm : SLMWriteResPair<WriteShuffle,  [SLM_FPC_RSV0],  1>;
 defm : SLMWriteResPair<WriteShuffleY, [SLM_FPC_RSV0],  1>;
@@ -473,14 +471,29 @@ def: InstRW<[SLMWriteResGroup1rr], (instrs MMX_PADDQrr, PADDQrr,
                                            MMX_PSUBQrr, PSUBQrr,
                                            PCMPEQQrr)>;
 
+def SLMWriteResGroup2rr : SchedWriteRes<[SLM_FPC_RSV0]> {
+  let Latency = 5;
+  let NumMicroOps = 1;
+  let ResourceCycles = [2];
+}
+def: InstRW<[SLMWriteResGroup2rr], (instrs PCMPGTQrr)>;
+
 def SLMWriteResGroup1rm : SchedWriteRes<[SLM_MEC_RSV,SLM_FPC_RSV01]> {
   let Latency = 7;
   let NumMicroOps = 3;
   let ResourceCycles = [1,8];
 }
+
 def: InstRW<[SLMWriteResGroup1rm], (instrs MMX_PADDQrm, PADDQrm,
                                            MMX_PSUBQrm, PSUBQrm,
                                            PCMPEQQrm)>;
+
+def SLMWriteResGroup2rm : SchedWriteRes<[SLM_MEC_RSV,SLM_FPC_RSV0]> {
+  let Latency = 8;
+  let NumMicroOps = 2;
+  let ResourceCycles = [1,2];
+}
+def: InstRW<[SLMWriteResGroup2rm], (instrs PCMPGTQrm)>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Dependency breaking instructions.

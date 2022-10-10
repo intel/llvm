@@ -1,15 +1,15 @@
-; RUN: opt < %s -instrprof -debug-info-correlate -S | opt --O2 -S | FileCheck %s
+; RUN: opt < %s -passes=instrprof -debug-info-correlate -S | opt -O2 -S | FileCheck %s
 
 @__profn_foo = private constant [3 x i8] c"foo"
 ; CHECK:      @__profc_foo
 
 define  void @_Z3foov() !dbg !12 {
-  call void @llvm.instrprof.cover(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @__profn_foo, i32 0, i32 0), i64 12345678, i32 1, i32 0)
-  ; CHECK: store i8 0, i8* getelementptr inbounds ([1 x i8], [1 x i8]* @__profc_foo
+  call void @llvm.instrprof.cover(ptr @__profn_foo, i64 12345678, i32 1, i32 0)
+  ; CHECK: store i8 0, ptr @__profc_foo, align 1
   ret void
 }
 
-declare void @llvm.instrprof.cover(i8*, i64, i32, i32)
+declare void @llvm.instrprof.cover(ptr, i64, i32, i32)
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!2, !3, !4, !5, !6, !7, !8, !9, !10}
@@ -20,10 +20,10 @@ declare void @llvm.instrprof.cover(i8*, i64, i32, i32)
 !2 = !{i32 7, !"Dwarf Version", i32 4}
 !3 = !{i32 2, !"Debug Info Version", i32 3}
 !4 = !{i32 1, !"wchar_size", i32 4}
-!5 = !{i32 1, !"branch-target-enforcement", i32 0}
-!6 = !{i32 1, !"sign-return-address", i32 0}
-!7 = !{i32 1, !"sign-return-address-all", i32 0}
-!8 = !{i32 1, !"sign-return-address-with-bkey", i32 0}
+!5 = !{i32 8, !"branch-target-enforcement", i32 0}
+!6 = !{i32 8, !"sign-return-address", i32 0}
+!7 = !{i32 8, !"sign-return-address-all", i32 0}
+!8 = !{i32 8, !"sign-return-address-with-bkey", i32 0}
 !9 = !{i32 7, !"uwtable", i32 1}
 !10 = !{i32 7, !"frame-pointer", i32 1}
 !11 = !{!"clang version 14.0.0"}

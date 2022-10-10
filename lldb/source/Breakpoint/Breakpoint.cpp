@@ -328,6 +328,11 @@ uint32_t Breakpoint::GetIgnoreCount() const {
 
 uint32_t Breakpoint::GetHitCount() const { return m_hit_counter.GetValue(); }
 
+void Breakpoint::ResetHitCount() {
+  m_hit_counter.Reset();
+  m_locations.ResetHitCount();
+}
+
 bool Breakpoint::IsOneShot() const { return m_options.IsOneShot(); }
 
 void Breakpoint::SetOneShot(bool one_shot) { m_options.SetOneShot(one_shot); }
@@ -1026,6 +1031,7 @@ const char *Breakpoint::BreakpointEventTypeAsCString(BreakpointEventType type) {
     case eBreakpointEventTypeThreadChanged: return "thread changed";
     case eBreakpointEventTypeAutoContinueChanged: return "autocontinue changed";
   };
+  llvm_unreachable("Fully covered switch above!");
 }
 
 Log *Breakpoint::BreakpointEventData::GetLogChannel() {

@@ -874,10 +874,11 @@
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=sparc-none-none < /dev/null | FileCheck -match-full-lines -check-prefix SPARC -check-prefix SPARC-DEFAULT %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=sparc-rtems-elf < /dev/null | FileCheck -match-full-lines -check-prefix SPARC -check-prefix SPARC-DEFAULT %s
+// Check that clang defines __NO_INLINE__ unconditionally (even at -O) to
+// work around Issue #47994.
+// RUN: %clang_cc1 -E -dM -triple=sparc-unknown-linux-gnu -O < /dev/null | FileCheck -match-full-lines -check-prefix SPARC-LINUX %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=sparc-none-netbsd < /dev/null | FileCheck -match-full-lines -check-prefix SPARC -check-prefix SPARC-NETOPENBSD %s
-// RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=sparc-none-openbsd < /dev/null | FileCheck -match-full-lines -check-prefix SPARC -check-prefix SPARC-NETOPENBSD %s
 // RUN: %clang_cc1 -x c++ -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=sparc-none-none < /dev/null | FileCheck -match-full-lines -check-prefix SPARC -check-prefix SPARC-DEFAULT -check-prefix SPARC-DEFAULT-CXX %s
-// RUN: %clang_cc1 -x c++ -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=sparc-none-openbsd < /dev/null | FileCheck -match-full-lines -check-prefix SPARC -check-prefix SPARC-NETOPENBSD -check-prefix SPARC-NETOPENBSD-CXX %s
 //
 // SPARC-NOT:#define _LP64
 // SPARC:#define __BIGGEST_ALIGNMENT__ 8
@@ -999,6 +1000,7 @@
 // SPARC:#define __LONG_LONG_MAX__ 9223372036854775807LL
 // SPARC:#define __LONG_MAX__ 2147483647L
 // SPARC-NOT:#define __LP64__
+// SPARC-LINUX:#define __NO_INLINE__ 1
 // SPARC:#define __POINTER_WIDTH__ 32
 // SPARC-DEFAULT:#define __PTRDIFF_TYPE__ int
 // SPARC-NETOPENBSD:#define __PTRDIFF_TYPE__ long int
@@ -1026,7 +1028,6 @@
 // SPARC-NETOPENBSD:#define __SIZE_TYPE__ long unsigned int
 // SPARC:#define __SIZE_WIDTH__ 32
 // SPARC-DEFAULT-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 8U
-// SPARC-NETOPENBSD-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 8UL
 // SPARC:#define __UINT16_C_SUFFIX__
 // SPARC:#define __UINT16_MAX__ 65535
 // SPARC:#define __UINT16_TYPE__ unsigned short
@@ -1244,7 +1245,8 @@
 // TCE:#define __tce__ 1
 // TCE:#define tce 1
 //
-// RUN: %clang_cc1 -E -dM -ffreestanding -fgnuc-version=4.2.1 -triple=x86_64-scei-ps4 < /dev/null | FileCheck -match-full-lines -check-prefix PS4 %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=x86_64-scei-ps4 < /dev/null | FileCheck --match-full-lines --check-prefixes=PS4,PS4ONLY %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=x86_64-sie-ps5 < /dev/null | FileCheck --match-full-lines --check-prefixes=PS4,PS5ONLY %s
 //
 // PS4:#define _LP64 1
 // PS4:#define __BIGGEST_ALIGNMENT__ 32
@@ -1314,8 +1316,9 @@
 // PS4:#define __LP64__ 1
 // PS4:#define __MMX__ 1
 // PS4:#define __NO_MATH_INLINES 1
-// PS4:#define __ORBIS__ 1
+// PS4ONLY:#define __ORBIS__ 1
 // PS4:#define __POINTER_WIDTH__ 64
+// PS5ONLY:#define __PROSPERO__ 1
 // PS4:#define __PTRDIFF_MAX__ 9223372036854775807L
 // PS4:#define __PTRDIFF_TYPE__ long int
 // PS4:#define __PTRDIFF_WIDTH__ 64
@@ -1343,7 +1346,8 @@
 // PS4:#define __SSE2__ 1
 // PS4:#define __SSE_MATH__ 1
 // PS4:#define __SSE__ 1
-// PS4:#define __STDC_VERSION__ 199901L
+// PS4ONLY:#define __STDC_VERSION__ 199901L
+// PS5ONLY:#define __STDC_VERSION__ 201710L
 // PS4:#define __UINTMAX_TYPE__ long unsigned int
 // PS4:#define __USER_LABEL_PREFIX__
 // PS4:#define __WCHAR_MAX__ 65535
@@ -1360,12 +1364,16 @@
 // PS4:#define __x86_64__ 1
 // PS4:#define unix 1
 //
-// RUN: %clang_cc1 -x c++ -E -dM -ffreestanding -triple=x86_64-scei-ps4 < /dev/null | FileCheck -match-full-lines -check-prefix PS4-CXX %s
+// RUN: %clang_cc1 -x c++ -E -dM -ffreestanding -triple=x86_64-scei-ps4 < /dev/null | FileCheck --match-full-lines --check-prefix PS4-CXX %s
+// RUN: %clang_cc1 -x c++ -E -dM -ffreestanding -triple=x86_64-sie-ps5 < /dev/null | FileCheck --match-full-lines --check-prefix PS4-CXX %s
 // PS4-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 32UL
 //
-// RUN: %clang_cc1 -E -dM -triple=x86_64-pc-mingw32 < /dev/null | FileCheck -match-full-lines -check-prefix X86-64-DECLSPEC %s
-// RUN: %clang_cc1 -E -dM -fms-extensions -triple=x86_64-unknown-mingw32 < /dev/null | FileCheck -match-full-lines -check-prefix X86-64-DECLSPEC %s
-// X86-64-DECLSPEC: #define __declspec{{.*}}
+// RUN: %clang_cc1 -E -dM -triple=x86_64-pc-mingw32 < /dev/null | FileCheck -match-full-lines -check-prefix X86-64-DECLSPEC-GNU %s
+// X86-64-DECLSPEC-GNU: #define __declspec{{.*}} __attribute__{{.*}}
+//
+// RUN: %clang_cc1 -E -dM -fms-extensions -triple=x86_64-unknown-mingw32 < /dev/null | FileCheck -match-full-lines -check-prefix X86-64-DECLSPEC-MS %s
+// RUN: %clang_cc1 -E -dM -fdeclspec -triple=x86_64-unknown-mingw32 < /dev/null | FileCheck -match-full-lines -check-prefix X86-64-DECLSPEC-MS %s
+// X86-64-DECLSPEC-MS: #define __declspec{{.*}} __declspec{{.*}}
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=sparc64-none-none < /dev/null | FileCheck -match-full-lines -check-prefix SPARCV9 %s
 // SPARCV9:#define __BIGGEST_ALIGNMENT__ 16
@@ -1379,6 +1387,11 @@
 // SPARCV9:#define __SIZEOF_POINTER__ 8
 // SPARCV9:#define __UINTPTR_TYPE__ long unsigned int
 //
+// Check that clang defines __NO_INLINE__ unconditionally (even at -O) to
+// work around Issue #47994.
+// RUN: %clang_cc1 -E -dM -triple=sparc64-unknown-linux-gnu -O < /dev/null | FileCheck -match-full-lines -check-prefix SPARC64-LINUX %s
+// SPARC64-LINUX:#define __NO_INLINE__ 1
+//
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=sparc64-none-openbsd < /dev/null | FileCheck -match-full-lines -check-prefix SPARC64-OBSD %s
 // SPARC64-OBSD:#define __INT64_TYPE__ long long int
 // SPARC64-OBSD:#define __INTMAX_C_SUFFIX__ LL
@@ -1386,13 +1399,13 @@
 // SPARC64-OBSD:#define __UINTMAX_C_SUFFIX__ ULL
 // SPARC64-OBSD:#define __UINTMAX_TYPE__ long long unsigned int
 //
-// RUN: %clang_cc1 -E -dM -ffreestanding -triple=x86_64-pc-kfreebsd-gnu < /dev/null | FileCheck -match-full-lines -check-prefix KFREEBSD-DEFINE %s
-// KFREEBSD-DEFINE:#define __FreeBSD_kernel__ 1
-// KFREEBSD-DEFINE:#define __GLIBC__ 1
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=x86_64-pc-kfreebsd-gnu < /dev/null | FileCheck -match-full-lines -check-prefix KFREEBSD-DEF %s
+// KFREEBSD-DEF:#define __FreeBSD_kernel__ 1
+// KFREEBSD-DEF:#define __GLIBC__ 1
 //
-// RUN: %clang_cc1 -E -dM -ffreestanding -triple=i686-pc-kfreebsd-gnu < /dev/null | FileCheck -match-full-lines -check-prefix KFREEBSDI686-DEFINE %s
-// KFREEBSDI686-DEFINE:#define __FreeBSD_kernel__ 1
-// KFREEBSDI686-DEFINE:#define __GLIBC__ 1
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=i686-pc-kfreebsd-gnu < /dev/null | FileCheck -match-full-lines -check-prefix KFREEBSDI686-DEF %s
+// KFREEBSDI686-DEF:#define __FreeBSD_kernel__ 1
+// KFREEBSDI686-DEF:#define __GLIBC__ 1
 //
 // RUN: %clang_cc1 -x c++ -triple i686-pc-linux-gnu -fobjc-runtime=gcc -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix GNUSOURCE %s
 // RUN: %clang_cc1 -x c++ -triple sparc-rtems-elf -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix GNUSOURCE %s

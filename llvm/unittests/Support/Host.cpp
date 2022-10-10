@@ -40,8 +40,8 @@ protected:
     // some systems.
     return (Host.isOSWindows() && llvm_is_multithreaded()) ||
            Host.isOSDarwin() || (Host.isX86() && Host.isOSLinux()) ||
-           (Host.isPPC64() && Host.isOSLinux()) ||
-           (Host.isSystemZ() && (Host.isOSLinux() || Host.isOSzOS()));
+           (Host.isOSLinux() && !Host.isAndroid()) ||
+           (Host.isSystemZ() && Host.isOSzOS());
   }
 
   HostTest() : Host(Triple::normalize(sys::getProcessTriple())) {}
@@ -132,6 +132,10 @@ TEST(getLinuxHostCPUName, AArch64) {
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x51\n"
                                               "CPU part        : 0xc01"),
             "saphira");
+
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0xc0\n"
+                                              "CPU part        : 0xac3"),
+            "ampere1");
 
   // MSM8992/4 weirdness
   StringRef MSM8992ProcCpuInfo = R"(
@@ -326,7 +330,7 @@ TEST(getLinuxHostCPUName, s390x) {
 
   // Model Id: 3931
   ExpectedCPUs.push_back("zEC12");
-  ExpectedCPUs.push_back("arch14");
+  ExpectedCPUs.push_back("z16");
 
   // Model Id: 8561
   ExpectedCPUs.push_back("zEC12");
@@ -372,6 +376,21 @@ TEST(getLinuxHostCPUName, s390x) {
                 ExpectedCPUs[CheckIndex++]);
     }
   }
+}
+
+TEST(getLinuxHostCPUName, RISCV) {
+  const StringRef SifiveU74MCProcCPUInfo = R"(
+processor       : 0
+hart            : 2
+isa             : rv64imafdc
+mmu             : sv39
+uarch           : sifive,u74-mc
+)";
+  EXPECT_EQ(sys::detail::getHostCPUNameForRISCV(SifiveU74MCProcCPUInfo),
+            "sifive-u74");
+  EXPECT_EQ(
+      sys::detail::getHostCPUNameForRISCV("uarch           : sifive,bullet0\n"),
+      "sifive-u74");
 }
 
 static bool runAndGetCommandOutput(

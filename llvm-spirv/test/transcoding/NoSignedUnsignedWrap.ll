@@ -16,7 +16,7 @@
 ;
 ; During consumption, any SPIR-V extension must be accepted by default
 ;
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; Negative tests:

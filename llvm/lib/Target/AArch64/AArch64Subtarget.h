@@ -40,12 +40,15 @@ public:
   enum ARMProcFamilyEnum : uint8_t {
     Others,
     A64FX,
+    Ampere1,
     AppleA7,
     AppleA10,
     AppleA11,
     AppleA12,
     AppleA13,
     AppleA14,
+    AppleA15,
+    AppleA16,
     Carmel,
     CortexA35,
     CortexA53,
@@ -73,6 +76,7 @@ public:
     NeoverseN2,
     Neoverse512TVB,
     NeoverseV1,
+    NeoverseV2,
     Saphira,
     ThunderX2T99,
     ThunderX,
@@ -105,10 +109,12 @@ protected:
   unsigned PrefLoopLogAlignment = 0;
   unsigned MaxBytesForLoopAlignment = 0;
   unsigned MaxJumpTableSize = 0;
-  unsigned WideningBaseCost = 0;
 
   // ReserveXRegister[i] - X#i is not available as a general purpose register.
   BitVector ReserveXRegister;
+
+  // ReserveXRegisterForRA[i] - X#i is not available for register allocator.
+  BitVector ReserveXRegisterForRA;
 
   // CustomCallUsedXRegister[i] - X#i call saved.
   BitVector CustomCallSavedXRegs;
@@ -196,7 +202,13 @@ public:
   }
 
   bool isXRegisterReserved(size_t i) const { return ReserveXRegister[i]; }
-  unsigned getNumXRegisterReserved() const { return ReserveXRegister.count(); }
+  bool isXRegisterReservedForRA(size_t i) const { return ReserveXRegisterForRA[i]; }
+  unsigned getNumXRegisterReserved() const {
+    BitVector AllReservedX(AArch64::GPR64commonRegClass.getNumRegs());
+    AllReservedX |= ReserveXRegister;
+    AllReservedX |= ReserveXRegisterForRA;
+    return AllReservedX.count();
+  }
   bool isXRegCustomCalleeSaved(size_t i) const {
     return CustomCallSavedXRegs[i];
   }
@@ -205,14 +217,12 @@ public:
   /// Return true if the CPU supports any kind of instruction fusion.
   bool hasFusion() const {
     return hasArithmeticBccFusion() || hasArithmeticCbzFusion() ||
-           hasFuseAES() || hasFuseArithmeticLogic() ||
-           hasFuseCCSelect() || hasFuseLiterals();
+           hasFuseAES() || hasFuseArithmeticLogic() || hasFuseCCSelect() ||
+           hasFuseAdrpAdd() || hasFuseLiterals();
   }
 
   unsigned getMaxInterleaveFactor() const { return MaxInterleaveFactor; }
-  unsigned getVectorInsertExtractBaseCost() const {
-    return VectorInsertExtractBaseCost;
-  }
+  unsigned getVectorInsertExtractBaseCost() const;
   unsigned getCacheLineSize() const override { return CacheLineSize; }
   unsigned getPrefetchDistance() const override { return PrefetchDistance; }
   unsigned getMinPrefetchStride(unsigned NumMemAccesses,
@@ -235,8 +245,6 @@ public:
 
   unsigned getMaximumJumpTableSize() const { return MaxJumpTableSize; }
 
-  unsigned getWideningBaseCost() const { return WideningBaseCost; }
-
   /// CPU has TBI (top byte of addresses is ignored during HW address
   /// translation) and OS enables it.
   bool supportsAddressTopByteIgnored() const;
@@ -249,6 +257,7 @@ public:
   bool isTargetWindows() const { return TargetTriple.isOSWindows(); }
   bool isTargetAndroid() const { return TargetTriple.isAndroid(); }
   bool isTargetFuchsia() const { return TargetTriple.isOSFuchsia(); }
+  bool isWindowsArm64EC() const { return TargetTriple.isWindowsArm64EC(); }
 
   bool isTargetCOFF() const { return TargetTriple.isOSBinFormatCOFF(); }
   bool isTargetELF() const { return TargetTriple.isOSBinFormatELF(); }
@@ -356,6 +365,19 @@ public:
   }
 
   unsigned getVScaleForTuning() const { return VScaleForTuning; }
+
+  const char* getChkStkName() const {
+    if (isWindowsArm64EC())
+      return "__chkstk_arm64ec";
+    return "__chkstk";
+  }
+
+  const char* getSecurityCheckCookieName() const {
+    if (isWindowsArm64EC())
+      return "__security_check_cookie_arm64ec";
+    return "__security_check_cookie";
+  }
+
 };
 } // End llvm namespace
 

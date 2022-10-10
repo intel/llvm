@@ -1,5 +1,4 @@
 /// When -fsycl is used, C++ source is the default
-// REQUIRES: clang-driver
 
 // RUN: %clang -c -fsycl %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=CXX_TYPE_CHECK %s

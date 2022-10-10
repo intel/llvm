@@ -47,6 +47,9 @@
 #ifdef _AIX
 #include <sys/systemcfg.h>
 #endif
+#if defined(__sun__) && defined(__svr4__)
+#include <kstat.h>
+#endif
 
 #define DEBUG_TYPE "host-detection"
 
@@ -215,6 +218,7 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
         .Case("0xd0c", "neoverse-n1")
         .Case("0xd49", "neoverse-n2")
         .Case("0xd40", "neoverse-v1")
+        .Case("0xd4f", "neoverse-v2")
         .Default("generic");
   }
 
@@ -288,12 +292,18 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
     switch (Exynos) {
     default:
       // Default by falling through to Exynos M3.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 0x1002:
       return "exynos-m3";
     case 0x1003:
       return "exynos-m4";
     }
+  }
+
+  if (Implementer == "0xc0") { // Ampere Computing
+    return StringSwitch<const char *>(Part)
+        .Case("0xac3", "ampere1")
+        .Default("generic");
   }
 
   return "generic";
@@ -330,7 +340,7 @@ StringRef getCPUNameFromS390Model(unsigned int Id, bool HaveVectorSupport) {
     case 3931:
     case 3932:
     default:
-      return HaveVectorSupport? "arch14" : "zEC12";
+      return HaveVectorSupport? "z16" : "zEC12";
   }
 }
 } // end anonymous namespace
@@ -378,6 +388,26 @@ StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
   }
 
   return "generic";
+}
+
+StringRef sys::detail::getHostCPUNameForRISCV(StringRef ProcCpuinfoContent) {
+  // There are 24 lines in /proc/cpuinfo
+  SmallVector<StringRef> Lines;
+  ProcCpuinfoContent.split(Lines, "\n");
+
+  // Look for uarch line to determine cpu name
+  StringRef UArch;
+  for (unsigned I = 0, E = Lines.size(); I != E; ++I) {
+    if (Lines[I].startswith("uarch")) {
+      UArch = Lines[I].substr(5).ltrim("\t :");
+      break;
+    }
+  }
+
+  return StringSwitch<const char *>(UArch)
+      .Case("sifive,u74-mc", "sifive-u74")
+      .Case("sifive,bullet0", "sifive-u74")
+      .Default("generic");
 }
 
 StringRef sys::detail::getHostCPUNameForBPF() {
@@ -1373,12 +1403,123 @@ StringRef sys::getHostCPUName() {
 }
 #elif defined(__riscv)
 StringRef sys::getHostCPUName() {
+#if defined(__linux__)
+  std::unique_ptr<llvm::MemoryBuffer> P = getProcCpuinfoContent();
+  StringRef Content = P ? P->getBuffer() : "";
+  return detail::getHostCPUNameForRISCV(Content);
+#else
 #if __riscv_xlen == 64
   return "generic-rv64";
 #elif __riscv_xlen == 32
   return "generic-rv32";
 #else
 #error "Unhandled value of __riscv_xlen"
+#endif
+#endif
+}
+#elif defined(__sparc__)
+#if defined(__linux__)
+StringRef sys::detail::getHostCPUNameForSPARC(StringRef ProcCpuinfoContent) {
+  SmallVector<StringRef> Lines;
+  ProcCpuinfoContent.split(Lines, "\n");
+
+  // Look for cpu line to determine cpu name
+  StringRef Cpu;
+  for (unsigned I = 0, E = Lines.size(); I != E; ++I) {
+    if (Lines[I].startswith("cpu")) {
+      Cpu = Lines[I].substr(5).ltrim("\t :");
+      break;
+    }
+  }
+
+  return StringSwitch<const char *>(Cpu)
+      .StartsWith("SuperSparc", "supersparc")
+      .StartsWith("HyperSparc", "hypersparc")
+      .StartsWith("SpitFire", "ultrasparc")
+      .StartsWith("BlackBird", "ultrasparc")
+      .StartsWith("Sabre", " ultrasparc")
+      .StartsWith("Hummingbird", "ultrasparc")
+      .StartsWith("Cheetah", "ultrasparc3")
+      .StartsWith("Jalapeno", "ultrasparc3")
+      .StartsWith("Jaguar", "ultrasparc3")
+      .StartsWith("Panther", "ultrasparc3")
+      .StartsWith("Serrano", "ultrasparc3")
+      .StartsWith("UltraSparc T1", "niagara")
+      .StartsWith("UltraSparc T2", "niagara2")
+      .StartsWith("UltraSparc T3", "niagara3")
+      .StartsWith("UltraSparc T4", "niagara4")
+      .StartsWith("UltraSparc T5", "niagara4")
+      .StartsWith("LEON", "leon3")
+      // niagara7/m8 not supported by LLVM yet.
+      .StartsWith("SPARC-M7", "niagara4" /* "niagara7" */)
+      .StartsWith("SPARC-S7", "niagara4" /* "niagara7" */)
+      .StartsWith("SPARC-M8", "niagara4" /* "m8" */)
+      .Default("generic");
+}
+#endif
+
+StringRef sys::getHostCPUName() {
+#if defined(__linux__)
+  std::unique_ptr<llvm::MemoryBuffer> P = getProcCpuinfoContent();
+  StringRef Content = P ? P->getBuffer() : "";
+  return detail::getHostCPUNameForSPARC(Content);
+#elif defined(__sun__) && defined(__svr4__)
+  char *buf = NULL;
+  kstat_ctl_t *kc;
+  kstat_t *ksp;
+  kstat_named_t *brand = NULL;
+
+  kc = kstat_open();
+  if (kc != NULL) {
+    ksp = kstat_lookup(kc, const_cast<char *>("cpu_info"), -1, NULL);
+    if (ksp != NULL && kstat_read(kc, ksp, NULL) != -1 &&
+        ksp->ks_type == KSTAT_TYPE_NAMED)
+      brand =
+          (kstat_named_t *)kstat_data_lookup(ksp, const_cast<char *>("brand"));
+    if (brand != NULL && brand->data_type == KSTAT_DATA_STRING)
+      buf = KSTAT_NAMED_STR_PTR(brand);
+  }
+  kstat_close(kc);
+
+  return StringSwitch<const char *>(buf)
+      .Case("TMS390S10", "supersparc") // Texas Instruments microSPARC I
+      .Case("TMS390Z50", "supersparc") // Texas Instruments SuperSPARC I
+      .Case("TMS390Z55",
+            "supersparc") // Texas Instruments SuperSPARC I with SuperCache
+      .Case("MB86904", "supersparc") // Fujitsu microSPARC II
+      .Case("MB86907", "supersparc") // Fujitsu TurboSPARC
+      .Case("RT623", "hypersparc")   // Ross hyperSPARC
+      .Case("RT625", "hypersparc")
+      .Case("RT626", "hypersparc")
+      .Case("UltraSPARC-I", "ultrasparc")
+      .Case("UltraSPARC-II", "ultrasparc")
+      .Case("UltraSPARC-IIe", "ultrasparc")
+      .Case("UltraSPARC-IIi", "ultrasparc")
+      .Case("SPARC64-III", "ultrasparc")
+      .Case("SPARC64-IV", "ultrasparc")
+      .Case("UltraSPARC-III", "ultrasparc3")
+      .Case("UltraSPARC-III+", "ultrasparc3")
+      .Case("UltraSPARC-IIIi", "ultrasparc3")
+      .Case("UltraSPARC-IIIi+", "ultrasparc3")
+      .Case("UltraSPARC-IV", "ultrasparc3")
+      .Case("UltraSPARC-IV+", "ultrasparc3")
+      .Case("SPARC64-V", "ultrasparc3")
+      .Case("SPARC64-VI", "ultrasparc3")
+      .Case("SPARC64-VII", "ultrasparc3")
+      .Case("UltraSPARC-T1", "niagara")
+      .Case("UltraSPARC-T2", "niagara2")
+      .Case("UltraSPARC-T2", "niagara2")
+      .Case("UltraSPARC-T2+", "niagara2")
+      .Case("SPARC-T3", "niagara3")
+      .Case("SPARC-T4", "niagara4")
+      .Case("SPARC-T5", "niagara4")
+      // niagara7/m8 not supported by LLVM yet.
+      .Case("SPARC-M7", "niagara4" /* "niagara7" */)
+      .Case("SPARC-S7", "niagara4" /* "niagara7" */)
+      .Case("SPARC-M8", "niagara4" /* "m8" */)
+      .Default("generic");
+#else
+  return "generic";
 #endif
 }
 #else
@@ -1446,7 +1587,9 @@ int computeHostNumPhysicalCores() {
   }
   return CPU_COUNT(&Enabled);
 }
-#elif defined(__linux__) && defined(__powerpc__)
+#elif defined(__linux__) && defined(__s390x__)
+int computeHostNumPhysicalCores() { return sysconf(_SC_NPROCESSORS_ONLN); }
+#elif defined(__linux__) && !defined(__ANDROID__)
 int computeHostNumPhysicalCores() {
   cpu_set_t Affinity;
   if (sched_getaffinity(0, sizeof(Affinity), &Affinity) == 0)
@@ -1465,8 +1608,6 @@ int computeHostNumPhysicalCores() {
   }
   return -1;
 }
-#elif defined(__linux__) && defined(__s390x__)
-int computeHostNumPhysicalCores() { return sysconf(_SC_NPROCESSORS_ONLN); }
 #elif defined(__APPLE__)
 // Gets the number of *physical cores* on the machine.
 int computeHostNumPhysicalCores() {
@@ -1594,6 +1735,7 @@ bool sys::getHostCPUFeatures(StringMap<bool> &Features) {
   bool HasExtLeaf8 = MaxExtLevel >= 0x80000008 &&
                      !getX86CpuIDAndInfo(0x80000008, &EAX, &EBX, &ECX, &EDX);
   Features["clzero"]   = HasExtLeaf8 && ((EBX >> 0) & 1);
+  Features["rdpru"]    = HasExtLeaf8 && ((EBX >> 4) & 1);
   Features["wbnoinvd"] = HasExtLeaf8 && ((EBX >> 9) & 1);
 
   bool HasLeaf7 =

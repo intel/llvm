@@ -50,6 +50,7 @@
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include <algorithm>
+#include <iterator>
 #include <map>
 #include <string>
 #include <vector>
@@ -188,8 +189,7 @@ extractSystemIncludesAndTarget(llvm::SmallString<128> Driver,
 
   for (size_t I = 0, E = CommandLine.size(); I < E; ++I) {
     llvm::StringRef Arg = CommandLine[I];
-    if (llvm::any_of(FlagsToPreserve,
-                     [&Arg](llvm::StringRef S) { return S == Arg; })) {
+    if (llvm::is_contained(FlagsToPreserve, Arg)) {
       Args.push_back(Arg);
     } else {
       const auto *Found =
@@ -238,10 +238,17 @@ extractSystemIncludesAndTarget(llvm::SmallString<128> Driver,
 tooling::CompileCommand &
 addSystemIncludes(tooling::CompileCommand &Cmd,
                   llvm::ArrayRef<std::string> SystemIncludes) {
+  std::vector<std::string> ToAppend;
   for (llvm::StringRef Include : SystemIncludes) {
     // FIXME(kadircet): This doesn't work when we have "--driver-mode=cl"
-    Cmd.CommandLine.push_back("-isystem");
-    Cmd.CommandLine.push_back(Include.str());
+    ToAppend.push_back("-isystem");
+    ToAppend.push_back(Include.str());
+  }
+  if (!ToAppend.empty()) {
+    // Just append when `--` isn't present.
+    auto InsertAt = llvm::find(Cmd.CommandLine, "--");
+    Cmd.CommandLine.insert(InsertAt, std::make_move_iterator(ToAppend.begin()),
+                           std::make_move_iterator(ToAppend.end()));
   }
   return Cmd;
 }
@@ -254,7 +261,9 @@ tooling::CompileCommand &setTarget(tooling::CompileCommand &Cmd,
       if (Arg == "-target" || Arg.startswith("--target="))
         return Cmd;
     }
-    Cmd.CommandLine.push_back("--target=" + Target);
+    // Just append when `--` isn't present.
+    auto InsertAt = llvm::find(Cmd.CommandLine, "--");
+    Cmd.CommandLine.insert(InsertAt, "--target=" + Target);
   }
   return Cmd;
 }
@@ -332,7 +341,7 @@ public:
       auto Type = driver::types::lookupTypeForExtension(Ext);
       if (Type == driver::types::TY_INVALID) {
         elog("System include extraction: invalid file type for {0}", Ext);
-        return {};
+        return Cmd;
       }
       Lang = driver::types::getTypeName(Type);
     }

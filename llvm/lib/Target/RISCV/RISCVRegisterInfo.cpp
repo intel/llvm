@@ -102,6 +102,7 @@ BitVector RISCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   markSuperRegs(Reserved, RISCV::VTYPE);
   markSuperRegs(Reserved, RISCV::VXSAT);
   markSuperRegs(Reserved, RISCV::VXRM);
+  markSuperRegs(Reserved, RISCV::VLENB); // vlenb (constant)
 
   // Floating point environment registers.
   markSuperRegs(Reserved, RISCV::FRM);
@@ -114,10 +115,6 @@ BitVector RISCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 bool RISCVRegisterInfo::isAsmClobberable(const MachineFunction &MF,
                                          MCRegister PhysReg) const {
   return !MF.getSubtarget<RISCVSubtarget>().isRegisterReservedByUser(PhysReg);
-}
-
-bool RISCVRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
-  return PhysReg == RISCV::X0;
 }
 
 const uint32_t *RISCVRegisterInfo::getNoPreservedMask() const {
@@ -173,7 +170,7 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   Register FrameReg;
   StackOffset Offset =
       getFrameLowering(MF)->getFrameIndexReference(MF, FrameIndex, FrameReg);
-  bool IsRVVSpill = TII->isRVVSpill(MI, /*CheckFIs*/ false);
+  bool IsRVVSpill = RISCV::isRVVSpill(MI);
   if (!IsRVVSpill)
     Offset += StackOffset::getFixed(MI.getOperand(FIOperandNum + 1).getImm());
 
@@ -199,8 +196,9 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       ScalableAdjOpc = RISCV::SUB;
     }
     // 1. Get vlenb && multiply vlen with the number of vector registers.
-    ScalableFactorRegister =
-        TII->getVLENFactoredAmount(MF, MBB, II, DL, ScalableValue);
+    ScalableFactorRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    TII->getVLENFactoredAmount(MF, MBB, II, DL, ScalableFactorRegister,
+                               ScalableValue);
   }
 
   if (!isInt<12>(Offset.getFixed())) {
@@ -272,7 +270,7 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset.getFixed());
   }
 
-  auto ZvlssegInfo = TII->isRVVSpillForZvlsseg(MI.getOpcode());
+  auto ZvlssegInfo = RISCV::isRVVSpillForZvlsseg(MI.getOpcode());
   if (ZvlssegInfo) {
     Register VL = MRI.createVirtualRegister(&RISCV::GPRRegClass);
     BuildMI(MBB, II, DL, TII->get(RISCV::PseudoReadVLENB), VL);

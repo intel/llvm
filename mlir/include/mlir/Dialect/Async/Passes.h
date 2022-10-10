@@ -16,6 +16,10 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+class ModuleOp;
+
+#define GEN_PASS_DECL
+#include "mlir/Dialect/Async/Passes.h.inc"
 
 std::unique_ptr<Pass> createAsyncParallelForPass();
 

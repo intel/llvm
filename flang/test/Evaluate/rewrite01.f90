@@ -57,6 +57,13 @@ subroutine size_test(x, n, m)
 end subroutine
 
 subroutine shape_test(x, n, m)
+  abstract interface
+    function foo(n)
+      integer, intent(in) :: n
+      real, pointer :: foo(:,:)
+    end function
+  end interface
+  procedure(foo), pointer :: pf
   integer :: x(n, m)
   !CHECK: PRINT *, [INTEGER(4)::int(size(x,dim=1,kind=8),kind=4),int(size(x,dim=2,kind=8),kind=4)]
   print *, shape(x)
@@ -66,6 +73,8 @@ subroutine shape_test(x, n, m)
   print *, shape(returns_array_2(m))
   !CHECK: PRINT *, [INTEGER(8)::42_8]
   print *, shape(returns_array_3(), kind=8)
+  !CHECK: PRINT *, 2_4
+  print *, rank(pf(1))
 end subroutine
 
 subroutine lbound_test(x, n, m)
@@ -103,9 +112,22 @@ subroutine len_test(a,b, c, d, e, n, m)
   external d
   integer, intent(in) :: n, m
   character(n), intent(in) :: e
+  character(5), parameter :: cparam = "abc  "
+  interface
+     function fun1(L)
+       character(L) :: fun1
+       integer :: L
+     end function fun1
+  end interface
+  interface
+     function mofun(L)
+       character(L) :: mofun
+       integer, intent(in) :: L
+     end function mofun
+  end interface
 
-  !CHECK: PRINT *, int(a%len,kind=8)
-  print *, len(a, kind=8)
+  !CHECK: PRINT *, int(int(a%len,kind=8),kind=4)
+  print *, len(a)
   !CHECK: PRINT *, 5_4
   print *, len(a(1:5))
   !CHECK: PRINT *, len(b(a))
@@ -130,6 +152,47 @@ subroutine len_test(a,b, c, d, e, n, m)
   print *, len(b(a(n:m)))
   !CHECK: PRINT *, int(max(0_8,max(0_8,int(n,kind=8))-4_8+1_8),kind=4)
   print *, len(e(4:))
+  !CHECK: PRINT *, len(fun1(n-m))
+  print *, len(fun1(n-m))
+  !CHECK: PRINT *, len(mofun(m+1_4))
+  print *, len(mofun(m+1))
+  !CHECK: PRINT *, 3_4
+  print *, len(trim(cparam))
+  !CHECK: PRINT *, len(trim(c))
+  print *, len(trim(c))
+  !CHECK: PRINT *, 40_4
+  print *, len(repeat(c, 4))
+  !CHECK: PRINT *, len(repeat(c,int(i,kind=8)))
+  print *, len(repeat(c, i))
 end subroutine len_test
+
+!CHECK-LABEL: associate_tests
+subroutine associate_tests(p)
+  real, pointer :: p(:)
+  real :: a(10:20)
+  interface
+    subroutine may_change_p_bounds(p)
+      real, pointer :: p(:)
+    end subroutine
+  end interface
+  associate(x => p)
+    call may_change_p_bounds(p)
+    !CHECK: PRINT *, lbound(x,dim=1,kind=8), size(x,dim=1,kind=8)+lbound(x,dim=1,kind=8)-1_8, size(x,dim=1,kind=8)
+    print *, lbound(x, 1, kind=8), ubound(x, 1, kind=8), size(x, 1, kind=8)
+  end associate
+  associate(x => p+1)
+    call may_change_p_bounds(p)
+    !CHECK: PRINT *, 1_8, size(x,dim=1,kind=8), size(x,dim=1,kind=8)
+    print *, lbound(x, 1, kind=8), ubound(x, 1, kind=8), size(x, 1, kind=8)
+  end associate
+  associate(x => a)
+    !CHECK: PRINT *, 10_8, 20_8, 11_8
+    print *, lbound(x, 1, kind=8), ubound(x, 1, kind=8), size(x, 1, kind=8)
+  end associate
+  associate(x => a+42.)
+    !CHECK: PRINT *, 1_8, 11_8, 11_8
+    print *, lbound(x, 1, kind=8), ubound(x, 1, kind=8), size(x, 1, kind=8)
+  end associate
+end subroutine
 
 end module

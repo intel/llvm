@@ -25,8 +25,7 @@ void test(
   {
     std::basic_string<CharT> str;
     OutIt out_it{str};
-    std::basic_format_context context =
-        test_format_context_create(out_it, args);
+    std::basic_format_context<OutIt, CharT> context = test_format_context_create(out_it, args);
     context.out() = CharT('a');
     context.out() = CharT('b');
     context.out() = CharT('c');
@@ -52,7 +51,6 @@ void test() {
       std::make_format_args<std::basic_format_context<
           std::back_insert_iterator<std::basic_string<char8_t>>, char8_t>>()));
 #endif
-#ifndef TEST_HAS_NO_UNICODE_CHARS
   test(std::basic_format_args(
       std::make_format_args<std::basic_format_context<
           std::back_insert_iterator<std::basic_string<char16_t>>,
@@ -61,7 +59,6 @@ void test() {
       std::make_format_args<std::basic_format_context<
           std::back_insert_iterator<std::basic_string<char32_t>>,
           char32_t>>()));
-#endif
 }
 
 int main(int, char**) {

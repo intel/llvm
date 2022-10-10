@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
@@ -30,9 +30,10 @@ static unsigned getNestingDepth(Operation *op) {
   return depth;
 }
 
-class TestLoopUnrollingPass
+struct TestLoopUnrollingPass
     : public PassWrapper<TestLoopUnrollingPass, OperationPass<>> {
-public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestLoopUnrollingPass)
+
   StringRef getArgument() const final { return "test-loop-unrolling"; }
   StringRef getDescription() const final {
     return "Tests loop unrolling transformation";
@@ -48,7 +49,7 @@ public:
   }
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
   }
 
   void runOnOperation() override {

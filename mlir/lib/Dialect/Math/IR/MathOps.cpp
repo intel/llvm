@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/CommonFolders.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/IR/Builders.h"
 
@@ -21,29 +22,61 @@ using namespace mlir::math;
 #include "mlir/Dialect/Math/IR/MathOps.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// AbsOp folder
+// AbsFOp folder
 //===----------------------------------------------------------------------===//
 
-OpFoldResult math::AbsOp::fold(ArrayRef<Attribute> operands) {
-  auto constOperand = operands.front();
-  if (!constOperand)
-    return {};
+OpFoldResult math::AbsFOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOp<FloatAttr>(operands,
+                                     [](const APFloat &a) { return abs(a); });
+}
 
-  auto attr = constOperand.dyn_cast<FloatAttr>();
-  if (!attr)
-    return {};
+//===----------------------------------------------------------------------===//
+// AbsIOp folder
+//===----------------------------------------------------------------------===//
 
-  auto ft = getType().cast<FloatType>();
+OpFoldResult math::AbsIOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOp<IntegerAttr>(operands,
+                                       [](const APInt &a) { return a.abs(); });
+}
 
-  APFloat apf = attr.getValue();
+//===----------------------------------------------------------------------===//
+// AtanOp folder
+//===----------------------------------------------------------------------===//
 
-  if (ft.getWidth() == 64)
-    return FloatAttr::get(getType(), fabs(apf.convertToDouble()));
+OpFoldResult math::AtanOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(atan(a.convertToDouble()));
+        case 32:
+          return APFloat(atanf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
 
-  if (ft.getWidth() == 32)
-    return FloatAttr::get(getType(), fabsf(apf.convertToFloat()));
+//===----------------------------------------------------------------------===//
+// Atan2Op folder
+//===----------------------------------------------------------------------===//
 
-  return {};
+OpFoldResult math::Atan2Op::fold(ArrayRef<Attribute> operands) {
+  return constFoldBinaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a, const APFloat &b) -> Optional<APFloat> {
+        if (a.isZero() && b.isZero())
+          return llvm::APFloat::getNaN(a.getSemantics());
+
+        if (a.getSizeInBits(a.getSemantics()) == 64 &&
+            b.getSizeInBits(b.getSemantics()) == 64)
+          return APFloat(atan2(a.convertToDouble(), b.convertToDouble()));
+
+        if (a.getSizeInBits(a.getSemantics()) == 32 &&
+            b.getSizeInBits(b.getSemantics()) == 32)
+          return APFloat(atan2f(a.convertToFloat(), b.convertToFloat()));
+
+        return {};
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -51,18 +84,11 @@ OpFoldResult math::AbsOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult math::CeilOp::fold(ArrayRef<Attribute> operands) {
-  auto constOperand = operands.front();
-  if (!constOperand)
-    return {};
-
-  auto attr = constOperand.dyn_cast<FloatAttr>();
-  if (!attr)
-    return {};
-
-  APFloat sourceVal = attr.getValue();
-  sourceVal.roundToIntegral(llvm::RoundingMode::TowardPositive);
-
-  return FloatAttr::get(getType(), sourceVal);
+  return constFoldUnaryOp<FloatAttr>(operands, [](const APFloat &a) {
+    APFloat result(a);
+    result.roundToIntegral(llvm::RoundingMode::TowardPositive);
+    return result;
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -70,26 +96,48 @@ OpFoldResult math::CeilOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult math::CopySignOp::fold(ArrayRef<Attribute> operands) {
-  auto ft = getType().dyn_cast<FloatType>();
-  if (!ft)
-    return {};
+  return constFoldBinaryOp<FloatAttr>(operands,
+                                      [](const APFloat &a, const APFloat &b) {
+                                        APFloat result(a);
+                                        result.copySign(b);
+                                        return result;
+                                      });
+}
 
-  APFloat vals[2]{APFloat(ft.getFloatSemantics()),
-                  APFloat(ft.getFloatSemantics())};
-  for (int i = 0; i < 2; ++i) {
-    if (!operands[i])
-      return {};
+//===----------------------------------------------------------------------===//
+// CosOp folder
+//===----------------------------------------------------------------------===//
 
-    auto attr = operands[i].dyn_cast<FloatAttr>();
-    if (!attr)
-      return {};
+OpFoldResult math::CosOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(cos(a.convertToDouble()));
+        case 32:
+          return APFloat(cosf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
 
-    vals[i] = attr.getValue();
-  }
+//===----------------------------------------------------------------------===//
+// SinOp folder
+//===----------------------------------------------------------------------===//
 
-  vals[0].copySign(vals[1]);
-
-  return FloatAttr::get(getType(), vals[0]);
+OpFoldResult math::SinOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(sin(a.convertToDouble()));
+        case 32:
+          return APFloat(sinf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -97,15 +145,9 @@ OpFoldResult math::CopySignOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult math::CountLeadingZerosOp::fold(ArrayRef<Attribute> operands) {
-  auto constOperand = operands.front();
-  if (!constOperand)
-    return {};
-
-  auto attr = constOperand.dyn_cast<IntegerAttr>();
-  if (!attr)
-    return {};
-
-  return IntegerAttr::get(getType(), attr.getValue().countLeadingZeros());
+  return constFoldUnaryOp<IntegerAttr>(operands, [](const APInt &a) {
+    return APInt(a.getBitWidth(), a.countLeadingZeros());
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -113,15 +155,9 @@ OpFoldResult math::CountLeadingZerosOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult math::CountTrailingZerosOp::fold(ArrayRef<Attribute> operands) {
-  auto constOperand = operands.front();
-  if (!constOperand)
-    return {};
-
-  auto attr = constOperand.dyn_cast<IntegerAttr>();
-  if (!attr)
-    return {};
-
-  return IntegerAttr::get(getType(), attr.getValue().countTrailingZeros());
+  return constFoldUnaryOp<IntegerAttr>(operands, [](const APInt &a) {
+    return APInt(a.getBitWidth(), a.countTrailingZeros());
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -129,15 +165,97 @@ OpFoldResult math::CountTrailingZerosOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult math::CtPopOp::fold(ArrayRef<Attribute> operands) {
-  auto constOperand = operands.front();
-  if (!constOperand)
-    return {};
+  return constFoldUnaryOp<IntegerAttr>(operands, [](const APInt &a) {
+    return APInt(a.getBitWidth(), a.countPopulation());
+  });
+}
 
-  auto attr = constOperand.dyn_cast<IntegerAttr>();
-  if (!attr)
-    return {};
+//===----------------------------------------------------------------------===//
+// ErfOp folder
+//===----------------------------------------------------------------------===//
 
-  return IntegerAttr::get(getType(), attr.getValue().countPopulation());
+OpFoldResult math::ErfOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(erf(a.convertToDouble()));
+        case 32:
+          return APFloat(erff(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// IPowIOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::IPowIOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldBinaryOpConditional<IntegerAttr>(
+      operands, [](const APInt &base, const APInt &power) -> Optional<APInt> {
+        unsigned width = base.getBitWidth();
+        auto zeroValue = APInt::getZero(width);
+        APInt oneValue{width, 1ULL, /*isSigned=*/true};
+        APInt minusOneValue{width, -1ULL, /*isSigned=*/true};
+
+        if (power.isZero())
+          return oneValue;
+
+        if (power.isNegative()) {
+          // Leave 0 raised to negative power not folded.
+          if (base.isZero())
+            return {};
+          if (base.eq(oneValue))
+            return oneValue;
+          // If abs(base) > 1, then the result is zero.
+          if (base.ne(minusOneValue))
+            return zeroValue;
+          // base == -1:
+          //   -1: power is odd
+          //    1: power is even
+          if (power[0] == 1)
+            return minusOneValue;
+
+          return oneValue;
+        }
+
+        // power is positive.
+        APInt result = oneValue;
+        APInt curBase = base;
+        APInt curPower = power;
+        while (true) {
+          if (curPower[0] == 1)
+            result *= curBase;
+          curPower.lshrInPlace(1);
+          if (curPower.isZero())
+            return result;
+          curBase *= curBase;
+        }
+      });
+
+  return Attribute();
+}
+
+//===----------------------------------------------------------------------===//
+// LogOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::LogOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        if (a.isNegative())
+          return {};
+
+        if (a.getSizeInBits(a.getSemantics()) == 64)
+          return APFloat(log(a.convertToDouble()));
+
+        if (a.getSizeInBits(a.getSemantics()) == 32)
+          return APFloat(logf(a.convertToFloat()));
+
+        return {};
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -145,28 +263,62 @@ OpFoldResult math::CtPopOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult math::Log2Op::fold(ArrayRef<Attribute> operands) {
-  auto constOperand = operands.front();
-  if (!constOperand)
-    return {};
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        if (a.isNegative())
+          return {};
 
-  auto attr = constOperand.dyn_cast<FloatAttr>();
-  if (!attr)
-    return {};
+        if (a.getSizeInBits(a.getSemantics()) == 64)
+          return APFloat(log2(a.convertToDouble()));
 
-  auto ft = getType().cast<FloatType>();
+        if (a.getSizeInBits(a.getSemantics()) == 32)
+          return APFloat(log2f(a.convertToFloat()));
 
-  APFloat apf = attr.getValue();
+        return {};
+      });
+}
 
-  if (apf.isNegative())
-    return {};
+//===----------------------------------------------------------------------===//
+// Log10Op folder
+//===----------------------------------------------------------------------===//
 
-  if (ft.getWidth() == 64)
-    return FloatAttr::get(getType(), log2(apf.convertToDouble()));
+OpFoldResult math::Log10Op::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        if (a.isNegative())
+          return {};
 
-  if (ft.getWidth() == 32)
-    return FloatAttr::get(getType(), log2f(apf.convertToFloat()));
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(log10(a.convertToDouble()));
+        case 32:
+          return APFloat(log10f(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
 
-  return {};
+//===----------------------------------------------------------------------===//
+// Log1pOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::Log1pOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          if ((a + APFloat(1.0)).isNegative())
+            return {};
+          return APFloat(log1p(a.convertToDouble()));
+        case 32:
+          if ((a + APFloat(1.0f)).isNegative())
+            return {};
+          return APFloat(log1pf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -174,57 +326,189 @@ OpFoldResult math::Log2Op::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult math::PowFOp::fold(ArrayRef<Attribute> operands) {
-  auto ft = getType().dyn_cast<FloatType>();
-  if (!ft)
-    return {};
+  return constFoldBinaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a, const APFloat &b) -> Optional<APFloat> {
+        if (a.getSizeInBits(a.getSemantics()) == 64 &&
+            b.getSizeInBits(b.getSemantics()) == 64)
+          return APFloat(pow(a.convertToDouble(), b.convertToDouble()));
 
-  APFloat vals[2]{APFloat(ft.getFloatSemantics()),
-                  APFloat(ft.getFloatSemantics())};
-  for (int i = 0; i < 2; ++i) {
-    if (!operands[i])
-      return {};
+        if (a.getSizeInBits(a.getSemantics()) == 32 &&
+            b.getSizeInBits(b.getSemantics()) == 32)
+          return APFloat(powf(a.convertToFloat(), b.convertToFloat()));
 
-    auto attr = operands[i].dyn_cast<FloatAttr>();
-    if (!attr)
-      return {};
-
-    vals[i] = attr.getValue();
-  }
-
-  if (ft.getWidth() == 64)
-    return FloatAttr::get(
-        getType(), pow(vals[0].convertToDouble(), vals[1].convertToDouble()));
-
-  if (ft.getWidth() == 32)
-    return FloatAttr::get(
-        getType(), powf(vals[0].convertToFloat(), vals[1].convertToFloat()));
-
-  return {};
+        return {};
+      });
 }
 
+//===----------------------------------------------------------------------===//
+// SqrtOp folder
+//===----------------------------------------------------------------------===//
+
 OpFoldResult math::SqrtOp::fold(ArrayRef<Attribute> operands) {
-  auto constOperand = operands.front();
-  if (!constOperand)
-    return {};
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        if (a.isNegative())
+          return {};
 
-  auto attr = constOperand.dyn_cast<FloatAttr>();
-  if (!attr)
-    return {};
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(sqrt(a.convertToDouble()));
+        case 32:
+          return APFloat(sqrtf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
 
-  auto ft = getType().cast<FloatType>();
+//===----------------------------------------------------------------------===//
+// ExpOp folder
+//===----------------------------------------------------------------------===//
 
-  APFloat apf = attr.getValue();
+OpFoldResult math::ExpOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(exp(a.convertToDouble()));
+        case 32:
+          return APFloat(expf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
 
-  if (apf.isNegative())
-    return {};
+//===----------------------------------------------------------------------===//
+// Exp2Op folder
+//===----------------------------------------------------------------------===//
 
-  if (ft.getWidth() == 64)
-    return FloatAttr::get(getType(), sqrt(apf.convertToDouble()));
+OpFoldResult math::Exp2Op::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(exp2(a.convertToDouble()));
+        case 32:
+          return APFloat(exp2f(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
 
-  if (ft.getWidth() == 32)
-    return FloatAttr::get(getType(), sqrtf(apf.convertToFloat()));
+//===----------------------------------------------------------------------===//
+// ExpM1Op folder
+//===----------------------------------------------------------------------===//
 
-  return {};
+OpFoldResult math::ExpM1Op::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(expm1(a.convertToDouble()));
+        case 32:
+          return APFloat(expm1f(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// TanOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::TanOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(tan(a.convertToDouble()));
+        case 32:
+          return APFloat(tanf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// TanhOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::TanhOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(tanh(a.convertToDouble()));
+        case 32:
+          return APFloat(tanhf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// RoundEvenOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::RoundEvenOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOp<FloatAttr>(operands, [](const APFloat &a) {
+    APFloat result(a);
+    result.roundToIntegral(llvm::RoundingMode::NearestTiesToEven);
+    return result;
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// FloorOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::FloorOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOp<FloatAttr>(operands, [](const APFloat &a) {
+    APFloat result(a);
+    result.roundToIntegral(llvm::RoundingMode::TowardNegative);
+    return result;
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// RoundOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::RoundOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(round(a.convertToDouble()));
+        case 32:
+          return APFloat(roundf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// TruncOp folder
+//===----------------------------------------------------------------------===//
+
+OpFoldResult math::TruncOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldUnaryOpConditional<FloatAttr>(
+      operands, [](const APFloat &a) -> Optional<APFloat> {
+        switch (a.getSizeInBits(a.getSemantics())) {
+        case 64:
+          return APFloat(trunc(a.convertToDouble()));
+        case 32:
+          return APFloat(truncf(a.convertToFloat()));
+        default:
+          return {};
+        }
+      });
 }
 
 /// Materialize an integer or floating point constant.

@@ -50,14 +50,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 
 #include "mlir/Dialect/Bufferization/IR/AllocationOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/BufferUtils.h"
-#include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "llvm/ADT/SetOperations.h"
+
+namespace mlir {
+namespace bufferization {
+#define GEN_PASS_DEF_BUFFERDEALLOCATION
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h.inc"
+} // namespace bufferization
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::bufferization;
@@ -83,7 +90,7 @@ walkReturnOperations(Region *region,
 static bool validateSupportedControlFlow(Operation *op) {
   WalkResult result = op->walk([&](Operation *operation) {
     // Only check ops that are inside a function.
-    if (!operation->getParentOfType<FuncOp>())
+    if (!operation->getParentOfType<func::FuncOp>())
       return WalkResult::advance();
 
     auto regions = operation->getRegions();
@@ -225,12 +232,12 @@ public:
       aliasToAllocations[alloc] = allocationInterface;
 
       // Get the alias information for the current allocation node.
-      llvm::for_each(aliases.resolve(alloc), [&](Value alias) {
+      for (Value alias : aliases.resolve(alloc)) {
         // TODO: check for incompatible implementations of the
         // AllocationOpInterface. This could be realized by promoting the
         // AllocationOpInterface to a DialectInterface.
         aliasToAllocations[alias] = allocationInterface;
-      });
+      }
     }
     return success();
   }
@@ -325,25 +332,20 @@ private:
       // argument.
       Operation *terminator = (*it)->getTerminator();
       auto branchInterface = cast<BranchOpInterface>(terminator);
+      SuccessorOperands operands =
+          branchInterface.getSuccessorOperands(it.getSuccessorIndex());
+
       // Query the associated source value.
-      Value sourceValue =
-          branchInterface.getSuccessorOperands(it.getSuccessorIndex())
-              .getValue()[blockArg.getArgNumber()];
-      // Wire new clone and successor operand.
-      auto mutableOperands =
-          branchInterface.getMutableSuccessorOperands(it.getSuccessorIndex());
-      if (!mutableOperands) {
-        terminator->emitError() << "terminators with immutable successor "
-                                   "operands are not supported";
-        continue;
+      Value sourceValue = operands[blockArg.getArgNumber()];
+      if (!sourceValue) {
+        return failure();
       }
+      // Wire new clone and successor operand.
       // Create a new clone at the current location of the terminator.
       auto clone = introduceCloneBuffers(sourceValue, terminator);
       if (failed(clone))
         return failure();
-      mutableOperands.getValue()
-          .slice(blockArg.getArgNumber(), 1)
-          .assign(*clone);
+      operands.slice(blockArg.getArgNumber(), 1).assign(*clone);
     }
 
     // Check whether the block argument has implicitly defined predecessors via
@@ -638,7 +640,9 @@ struct DefaultAllocationInterface
 /// The actual buffer deallocation pass that inserts and moves dealloc nodes
 /// into the right positions. Furthermore, it inserts additional clones if
 /// necessary. It uses the algorithm described at the top of the file.
-struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
+struct BufferDeallocationPass
+    : public bufferization::impl::BufferDeallocationBase<
+          BufferDeallocationPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<bufferization::BufferizationDialect>();
     registry.insert<memref::MemRefDialect>();
@@ -646,7 +650,7 @@ struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
   }
 
   void runOnOperation() override {
-    FuncOp func = getOperation();
+    func::FuncOp func = getOperation();
     if (func.isExternal())
       return;
 
@@ -659,7 +663,7 @@ struct BufferDeallocationPass : BufferDeallocationBase<BufferDeallocationPass> {
 
 LogicalResult bufferization::deallocateBuffers(Operation *op) {
   if (isa<ModuleOp>(op)) {
-    WalkResult result = op->walk([&](FuncOp funcOp) {
+    WalkResult result = op->walk([&](func::FuncOp funcOp) {
       if (failed(deallocateBuffers(funcOp)))
         return WalkResult::interrupt();
       return WalkResult::advance();

@@ -30,8 +30,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/CRC.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -83,7 +81,7 @@ GCOVOptions GCOVOptions::getDefault() {
 
   if (DefaultGCOVVersion.size() != 4) {
     llvm::report_fatal_error(Twine("Invalid -default-gcov-version: ") +
-                             DefaultGCOVVersion);
+                             DefaultGCOVVersion, /*GenCrashDiag=*/false);
   }
   memcpy(Options.Version, DefaultGCOVVersion.c_str(), 4);
   return Options;
@@ -165,39 +163,6 @@ private:
   StringMap<bool> InstrumentedFiles;
 };
 
-class GCOVProfilerLegacyPass : public ModulePass {
-public:
-  static char ID;
-  GCOVProfilerLegacyPass()
-      : GCOVProfilerLegacyPass(GCOVOptions::getDefault()) {}
-  GCOVProfilerLegacyPass(const GCOVOptions &Opts)
-      : ModulePass(ID), Profiler(Opts) {
-    initializeGCOVProfilerLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-  StringRef getPassName() const override { return "GCOV Profiler"; }
-
-  bool runOnModule(Module &M) override {
-    auto GetBFI = [this](Function &F) {
-      return &this->getAnalysis<BlockFrequencyInfoWrapperPass>(F).getBFI();
-    };
-    auto GetBPI = [this](Function &F) {
-      return &this->getAnalysis<BranchProbabilityInfoWrapperPass>(F).getBPI();
-    };
-    auto GetTLI = [this](Function &F) -> const TargetLibraryInfo & {
-      return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-    };
-    return Profiler.runOnModule(M, GetBFI, GetBPI, GetTLI);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<BlockFrequencyInfoWrapperPass>();
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-  }
-
-private:
-  GCOVProfiler Profiler;
-};
-
 struct BBInfo {
   BBInfo *Group;
   uint32_t Index;
@@ -231,21 +196,6 @@ struct Edge {
         .str();
   }
 };
-}
-
-char GCOVProfilerLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(
-    GCOVProfilerLegacyPass, "insert-gcov-profiling",
-    "Insert instrumentation for GCOV profiling", false, false)
-INITIALIZE_PASS_DEPENDENCY(BlockFrequencyInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(BranchProbabilityInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(
-    GCOVProfilerLegacyPass, "insert-gcov-profiling",
-    "Insert instrumentation for GCOV profiling", false, false)
-
-ModulePass *llvm::createGCOVProfilerPass(const GCOVOptions &Options) {
-  return new GCOVProfilerLegacyPass(Options);
 }
 
 static StringRef getFunctionName(const DISubprogram *SP) {
@@ -301,8 +251,8 @@ namespace {
     void writeOut() {
       write(0);
       writeString(Filename);
-      for (int i = 0, e = Lines.size(); i != e; ++i)
-        write(Lines[i]);
+      for (uint32_t L : Lines)
+        write(L);
     }
 
     GCOVLines(GCOVProfiler *P, StringRef F)
@@ -645,8 +595,8 @@ static bool functionHasLines(const Function &F, unsigned &EndLine) {
   // Check whether this function actually has any source lines. Not only
   // do these waste space, they also can crash gcov.
   EndLine = 0;
-  for (auto &BB : F) {
-    for (auto &I : BB) {
+  for (const auto &BB : F) {
+    for (const auto &I : BB) {
       // Debug intrinsic locations correspond to the location of the
       // declaration, not necessarily any statements or expressions.
       if (isa<DbgInfoIntrinsic>(&I)) continue;
@@ -698,7 +648,7 @@ bool GCOVProfiler::AddFlushBeforeForkAndExec() {
     }
   }
 
-  for (auto F : Forks) {
+  for (auto *F : Forks) {
     IRBuilder<> Builder(F);
     BasicBlock *Parent = F->getParent();
     auto NextInst = ++F->getIterator();
@@ -723,7 +673,7 @@ bool GCOVProfiler::AddFlushBeforeForkAndExec() {
     Parent->back().setDebugLoc(Loc);
   }
 
-  for (auto E : Execs) {
+  for (auto *E : Execs) {
     IRBuilder<> Builder(E);
     BasicBlock *Parent = E->getParent();
     auto NextInst = ++E->getIterator();
@@ -847,6 +797,8 @@ bool GCOVProfiler::emitProfileNotes(
       if (isUsingScopeBasedEH(F)) continue;
       if (F.hasFnAttribute(llvm::Attribute::NoProfile))
         continue;
+      if (F.hasFnAttribute(llvm::Attribute::SkipProfile))
+        continue;
 
       // Add the function line number to the lines of the entry block
       // to have a counter for the function definition.
@@ -927,7 +879,7 @@ bool GCOVProfiler::emitProfileNotes(
           while ((Idx >>= 8) > 0);
         }
 
-        for (auto &I : BB) {
+        for (const auto &I : BB) {
           // Debug intrinsic locations correspond to the location of the
           // declaration, not necessarily any statements or expressions.
           if (isa<DbgInfoIntrinsic>(&I)) continue;

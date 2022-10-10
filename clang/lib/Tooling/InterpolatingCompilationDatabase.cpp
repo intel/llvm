@@ -51,7 +51,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Debug.h"
@@ -165,8 +164,8 @@ struct TransferableCommand {
       const unsigned OldPos = Pos;
       std::unique_ptr<llvm::opt::Arg> Arg(OptTable.ParseOneArg(
           ArgList, Pos,
-          /* Include */ ClangCLMode ? CoreOption | CLOption : 0,
-          /* Exclude */ ClangCLMode ? 0 : CLOption));
+          /* Include */ ClangCLMode ? CoreOption | CLOption | CLDXCOption : 0,
+          /* Exclude */ ClangCLMode ? 0 : CLOption | CLDXCOption));
 
       if (!Arg)
         continue;
@@ -328,7 +327,7 @@ public:
       StringRef Path = Strings.save(StringRef(OriginalPaths[I]).lower());
 
       Paths.emplace_back(Path, I);
-      Types.push_back(foldType(guessType(Path)));
+      Types.push_back(foldType(guessType(OriginalPaths[I])));
       Stems.emplace_back(sys::path::stem(Path), I);
       auto Dir = ++sys::path::rbegin(Path), DirEnd = sys::path::rend(Path);
       for (int J = 0; J < DirectorySegmentsIndexed && Dir != DirEnd; ++J, ++Dir)

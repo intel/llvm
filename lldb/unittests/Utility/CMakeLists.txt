@@ -6,6 +6,7 @@ add_lldb_unittest(UtilityTests
   BroadcasterTest.cpp
   ConstStringTest.cpp
   CompletionRequestTest.cpp
+  DataBufferTest.cpp
   DataEncoderTest.cpp
   DataExtractorTest.cpp
   EnvironmentTest.cpp
@@ -22,7 +23,6 @@ add_lldb_unittest(UtilityTests
   RangeTest.cpp
   RegisterValueTest.cpp
   RegularExpressionTest.cpp
-  ReproducerTest.cpp
   ScalarTest.cpp
   SharedClusterTest.cpp
   StateTest.cpp

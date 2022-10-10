@@ -22,12 +22,13 @@
 // will export the ObjectFile protocol
 class ObjectFileMachO : public lldb_private::ObjectFile {
 public:
-  ObjectFileMachO(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
+  ObjectFileMachO(const lldb::ModuleSP &module_sp, lldb::DataBufferSP data_sp,
                   lldb::offset_t data_offset,
                   const lldb_private::FileSpec *file, lldb::offset_t offset,
                   lldb::offset_t length);
 
-  ObjectFileMachO(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
+  ObjectFileMachO(const lldb::ModuleSP &module_sp,
+                  lldb::WritableDataBufferSP data_sp,
                   const lldb::ProcessSP &process_sp, lldb::addr_t header_addr);
 
   ~ObjectFileMachO() override = default;
@@ -44,12 +45,12 @@ public:
   }
 
   static lldb_private::ObjectFile *
-  CreateInstance(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
+  CreateInstance(const lldb::ModuleSP &module_sp, lldb::DataBufferSP data_sp,
                  lldb::offset_t data_offset, const lldb_private::FileSpec *file,
                  lldb::offset_t file_offset, lldb::offset_t length);
 
   static lldb_private::ObjectFile *CreateMemoryInstance(
-      const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
+      const lldb::ModuleSP &module_sp, lldb::WritableDataBufferSP data_sp,
       const lldb::ProcessSP &process_sp, lldb::addr_t header_addr);
 
   static size_t GetModuleSpecifications(const lldb_private::FileSpec &file,
@@ -64,7 +65,7 @@ public:
                        lldb::SaveCoreStyle &core_style,
                        lldb_private::Status &error);
 
-  static bool MagicBytesMatch(lldb::DataBufferSP &data_sp, lldb::addr_t offset,
+  static bool MagicBytesMatch(lldb::DataBufferSP data_sp, lldb::addr_t offset,
                               lldb::addr_t length);
 
   // LLVM RTTI support
@@ -270,8 +271,8 @@ protected:
   typedef lldb_private::RangeVector<uint32_t, uint32_t> FileRangeArray;
   lldb_private::Address m_entry_point_address;
   FileRangeArray m_thread_context_offsets;
-  lldb::offset_t m_linkedit_original_offset;
-  lldb::addr_t m_text_address;
+  lldb::offset_t m_linkedit_original_offset = 0;
+  lldb::addr_t m_text_address = LLDB_INVALID_ADDRESS;
   bool m_thread_context_offsets_valid;
   lldb_private::FileSpecList m_reexported_dylibs;
   bool m_allow_assembly_emulation_unwind_plans;

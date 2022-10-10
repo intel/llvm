@@ -7,7 +7,7 @@
   iterator_types = []
 }
 
-func @main() -> () attributes {} {
+func.func @main() -> () attributes {} {
   %c0 = arith.constant 0 : i32
   %0 = tensor.from_elements %c0 : tensor<1xi32>
   %reshaped0 = tensor.collapse_shape %0 [] : tensor<1xi32> into tensor<i32>
@@ -17,7 +17,7 @@ func @main() -> () attributes {} {
   cf.br ^bb1(%reshaped0 : tensor<i32>)
 
 ^bb1(%2: tensor<i32>):  // 2 preds: ^bb0, ^bb2
-  %3 = linalg.init_tensor [] : tensor<i1>
+  %3 = tensor.empty() : tensor<i1>
   %4 = linalg.generic #attrs
     ins(%2, %reshaped1 : tensor<i32>, tensor<i32>)
     outs(%3 : tensor<i1>) {
@@ -29,7 +29,7 @@ func @main() -> () attributes {} {
   cf.cond_br %5, ^bb2(%2 : tensor<i32>), ^bb3
 
 ^bb2(%6: tensor<i32>):  // pred: ^bb1
-  %7 = linalg.init_tensor [] : tensor<i32>
+  %7 = tensor.empty() : tensor<i32>
   %8 = linalg.generic #attrs
     ins(%6, %6 : tensor<i32>, tensor<i32>)
     outs(%7 : tensor<i32>) {

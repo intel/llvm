@@ -32,6 +32,6 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'MyUnion' 'void (const MyUnion &) noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'MyUnion' 'void (const MyUnion &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'MyUnion' lvalue ParmVar {{.*}} '_arg_accel' 'MyUnion'
+// CHECK-NEXT: DeclRefExpr {{.*}}'MyUnion' lvalue ParmVar {{.*}} '_arg_accel' {{.*}}'MyUnion'

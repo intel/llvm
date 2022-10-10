@@ -27,15 +27,16 @@ L2:
 define void @test_add_cbz_multiple_use(i32 %a, i32 %b, i32* %ptr) {
 ; CHECK-LABEL: test_add_cbz_multiple_use:
 ; CHECK:       // %bb.0: // %common.ret
-; CHECK-NEXT:    adds w8, w0, w1
-; CHECK-NEXT:    csel w8, wzr, w8, ne
+; CHECK-NEXT:    mov w8, #10
+; CHECK-NEXT:    adds w9, w0, w1
+; CHECK-NEXT:    csel w8, w8, w9, ne
 ; CHECK-NEXT:    str w8, [x2]
 ; CHECK-NEXT:    ret
   %c = add nsw i32 %a, %b
   %d = icmp ne i32 %c, 0
   br i1 %d, label %L1, label %L2
 L1:
-  store i32 0, i32* %ptr, align 4
+  store i32 10, i32* %ptr, align 4
   ret void
 L2:
   store i32 %c, i32* %ptr, align 4
@@ -180,21 +181,26 @@ declare void @foo()
 declare void @bar(i32)
 
 ; Don't transform since the call will clobber the NZCV bits.
-define void @test_call_clobber(i32 %unused, i32 %a) {
+define void @test_call_clobber(i32 %unused, i32 %a) uwtable {
 ; CHECK-LABEL: test_call_clobber:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    stp x30, x19, [sp, #-16]! // 16-byte Folded Spill
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    .cfi_offset w19, -8
 ; CHECK-NEXT:    .cfi_offset w30, -16
+; CHECK-NEXT:    .cfi_remember_state
 ; CHECK-NEXT:    and w19, w1, #0x6
 ; CHECK-NEXT:    mov w0, w19
 ; CHECK-NEXT:    bl bar
 ; CHECK-NEXT:    cbnz w19, .LBB9_2
 ; CHECK-NEXT:  // %bb.1: // %if.end
 ; CHECK-NEXT:    ldp x30, x19, [sp], #16 // 16-byte Folded Reload
+; CHECK-NEXT:    .cfi_def_cfa_offset 0
+; CHECK-NEXT:    .cfi_restore w19
+; CHECK-NEXT:    .cfi_restore w30
 ; CHECK-NEXT:    ret
 ; CHECK-NEXT:  .LBB9_2: // %if.then
+; CHECK-NEXT:    .cfi_restore_state
 ; CHECK-NEXT:    bl foo
 entry:
   %c = and i32 %a, 6

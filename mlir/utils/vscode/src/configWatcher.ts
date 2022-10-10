@@ -1,5 +1,4 @@
 import * as chokidar from 'chokidar';
-import * as path from 'path';
 import * as vscode from 'vscode';
 
 import * as config from './config';
@@ -39,49 +38,45 @@ async function promptRestart(settingName: string, promptMessage: string) {
 }
 
 /**
- *  Activate the watchers that track configuration changes which decide when to
- *  restart the server.
+ *  Activate watchers that track configuration changes for the given workspace
+ *  folder, or null if the workspace is top-level.
  */
-export function activate(mlirContext: MLIRContext) {
+export async function activate(
+    mlirContext: MLIRContext, workspaceFolder: vscode.WorkspaceFolder,
+    serverSettings: string[], serverPaths: string[]) {
   // When a configuration change happens, check to see if we should restart the
   // server.
   mlirContext.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-    const settings: string[] = [ 'server_path', 'pdll_server_path' ];
-    for (const setting of settings) {
-      const expandedSetting = `mlir.${setting}`;
-      if (event.affectsConfiguration(expandedSetting)) {
+    for (const serverSetting of serverSettings) {
+      const expandedSetting = `mlir.${serverSetting}`;
+      if (event.affectsConfiguration(expandedSetting, workspaceFolder)) {
         promptRestart(
             'onSettingsChanged',
             `setting '${
                 expandedSetting}' has changed. Do you want to reload the server?`);
-        break;
       }
     }
   }));
 
-  // Track the server file in case it changes. We use `fs` here because the
-  // server may not be in a workspace directory.
-  const settings: string[] = [ 'server_path', 'pdll_server_path' ];
-  for (const setting of settings) {
-    const serverPath = config.get<string>(setting);
-
-    // Check that the path actually exists.
+  // Setup watchers for the provided server paths.
+  const fileWatcherConfig = {
+    disableGlobbing : true,
+    followSymlinks : true,
+    ignoreInitial : true,
+    awaitWriteFinish : true,
+  };
+  for (const serverPath of serverPaths) {
     if (serverPath === '') {
-      continue;
+      return;
     }
 
-    const fileWatcherConfig = {
-      disableGlobbing : true,
-      followSymlinks : true,
-      ignoreInitial : true,
-      awaitWriteFinish : true,
-    };
+    // If the server path actually exists, track it in case it changes.
     const fileWatcher = chokidar.watch(serverPath, fileWatcherConfig);
     fileWatcher.on('all', (event, _filename, _details) => {
       if (event != 'unlink') {
         promptRestart(
             'onSettingsChanged',
-            'MLIR language server binary has changed. Do you want to reload the server?');
+            'MLIR language server file has changed. Do you want to reload the server?');
       }
     });
     mlirContext.subscriptions.push(

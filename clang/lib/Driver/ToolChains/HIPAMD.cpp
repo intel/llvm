@@ -72,18 +72,44 @@ static bool shouldSkipSanitizeOption(const ToolChain &TC,
   return false;
 }
 
+void AMDGCN::Linker::constructLlvmLinkCommand(Compilation &C,
+                                         const JobAction &JA,
+                                         const InputInfoList &Inputs,
+                                         const InputInfo &Output,
+                                         const llvm::opt::ArgList &Args) const {
+  // Construct llvm-link command.
+  // The output from llvm-link is a bitcode file.
+  ArgStringList LlvmLinkArgs;
+
+  assert(!Inputs.empty() && "Must have at least one input.");
+
+  LlvmLinkArgs.append({"-o", Output.getFilename()});
+  for (auto Input : Inputs)
+    LlvmLinkArgs.push_back(Input.getFilename());
+
+  // Look for archive of bundled bitcode in arguments, and add temporary files
+  // for the extracted archive of bitcode to inputs.
+  auto TargetID = Args.getLastArgValue(options::OPT_mcpu_EQ);
+  AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LlvmLinkArgs, "amdgcn",
+                             TargetID,
+                             /*IsBitCodeSDL=*/true,
+                             /*PostClangLink=*/false);
+
+  const char *LlvmLink =
+    Args.MakeArgString(getToolChain().GetProgramPath("llvm-link"));
+  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+                                         LlvmLink, LlvmLinkArgs, Inputs,
+                                         Output));
+}
+
 void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
                                          const InputInfoList &Inputs,
                                          const InputInfo &Output,
                                          const llvm::opt::ArgList &Args) const {
   // Construct lld command.
   // The output from ld.lld is an HSA code object file.
-  ArgStringList LldArgs{"-flavor",
-                        "gnu",
-                        "--no-undefined",
-                        "-shared",
-                        "-plugin-opt=-amdgpu-internalize-symbols",
-                        "-plugin-opt=-sycl-enable-local-accessor"};
+  ArgStringList LldArgs{"-flavor", "gnu", "--no-undefined", "-shared",
+                        "-plugin-opt=-amdgpu-internalize-symbols"};
 
   auto &TC = getToolChain();
   auto &D = TC.getDriver();
@@ -121,6 +147,9 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
 
   addLinkerCompressDebugSectionsOption(TC, Args, LldArgs);
 
+  for (auto *Arg : Args.filtered(options::OPT_Xoffload_linker))
+    LldArgs.push_back(Arg->getValue(1));
+
   LldArgs.append({"-o", Output.getFilename()});
   for (auto Input : Inputs)
     LldArgs.push_back(Input.getFilename());
@@ -128,10 +157,12 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   // Look for archive of bundled bitcode in arguments, and add temporary files
   // for the extracted archive of bitcode to inputs.
   auto TargetID = Args.getLastArgValue(options::OPT_mcpu_EQ);
-  AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LldArgs, "amdgcn",
-                             TargetID,
-                             /*IsBitCodeSDL=*/true,
-                             /*PostClangLink=*/false);
+  if (C.getDriver().getUseNewOffloadingDriver() ||
+      JA.getOffloadingDeviceKind() != Action::OFK_SYCL)
+    AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LldArgs, "amdgcn",
+                               TargetID,
+                               /*IsBitCodeSDL=*/true,
+                               /*PostClangLink=*/false);
 
   const char *Lld = Args.MakeArgString(getToolChain().GetProgramPath("lld"));
   C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
@@ -139,7 +170,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
 }
 
 // For amdgcn the inputs of the linker job are device bitcode and output is
-// object file. It calls llvm-link, opt, llc, then lld steps.
+// either an object file or bitcode (-emit-llvm). It calls llvm-link, opt,
+// llc, then lld steps.
 void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -154,6 +186,9 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (JA.getType() == types::TY_HIP_FATBIN)
     return HIP::constructHIPFatbinCommand(C, JA, Output.getFilename(), Inputs,
                                           Args, *this);
+
+  if (JA.getType() == types::TY_LLVM_BC)
+    return constructLlvmLinkCommand(C, JA, Inputs, Output, Args);
 
   return constructLldCommand(C, JA, Inputs, Output, Args);
 }
@@ -170,7 +205,7 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
   if (!Args.hasFlag(options::OPT_fgpu_sanitize, options::OPT_fno_gpu_sanitize,
                     true))
     return;
-  for (auto A : Args.filtered(options::OPT_fsanitize_EQ)) {
+  for (auto *A : Args.filtered(options::OPT_fsanitize_EQ)) {
     SanitizerMask K = parseSanitizerValue(A->getValue(), /*AllowGroups=*/false);
     if (K != SanitizerKind::Address)
       D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
@@ -215,7 +250,7 @@ void HIPAMDToolChain::addClangTargetOptions(
   // supported for the foreseeable future.
   if (!DriverArgs.hasArg(options::OPT_fvisibility_EQ,
                          options::OPT_fvisibility_ms_compat)) {
-    CC1Args.append({"-fvisibility", "hidden"});
+    CC1Args.append({"-fvisibility=hidden"});
     CC1Args.push_back("-fapply-global-visibility-to-externs");
   }
 
@@ -271,12 +306,12 @@ void HIPAMDToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
-  llvm::for_each(
-      getHIPDeviceLibs(DriverArgs, DeviceOffloadingKind), [&](auto BCFile) {
-        CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
-                                                   : "-mlink-bitcode-file");
-        CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
-      });
+  for (auto BCFile : getDeviceLibs(DriverArgs, DeviceOffloadingKind)) {
+    CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
+                                               : "-mlink-bitcode-file");
+    CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
+  }
+
 }
 
 llvm::opt::DerivedArgList *
@@ -371,7 +406,7 @@ VersionTuple HIPAMDToolChain::computeMSVCVersion(const Driver *D,
 }
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-HIPAMDToolChain::getHIPDeviceLibs(
+HIPAMDToolChain::getDeviceLibs(
     const llvm::opt::ArgList &DriverArgs,
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
@@ -453,6 +488,6 @@ void HIPAMDToolChain::checkTargetID(
   auto PTID = getParsedTargetID(DriverArgs);
   if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
     getDriver().Diag(clang::diag::err_drv_bad_target_id)
-        << PTID.OptionalTargetID.getValue();
+        << *PTID.OptionalTargetID;
   }
 }

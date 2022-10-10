@@ -106,7 +106,7 @@ static void DefaultInitialize(
           static_cast<char32_t>(' '));
       break;
     default:
-      terminator.Crash("EOSHIFT: bad CHARACTER kind %d", kind);
+      terminator.Crash("not yet implemented: EOSHIFT: CHARACTER kind %d", kind);
     }
   } else {
     std::memset(result.raw().base_addr, 0, bytes);
@@ -167,7 +167,7 @@ void RTNAME(Cshift)(Descriptor &result, const Descriptor &source,
     }
     SubscriptValue &sourceDim{sourceAt[dim - 1]};
     sourceDim = dimLB + shiftCount % dimExtent;
-    if (shiftCount < 0) {
+    if (sourceDim < dimLB) {
       sourceDim += dimExtent;
     }
     for (resDim = 1; resDim <= dimExtent; ++resDim) {

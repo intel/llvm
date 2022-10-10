@@ -71,9 +71,9 @@ def SYSEXIT64 :RI<0x35, RawFrm, (outs), (ins), "sysexitq", []>, TB,
 } // SchedRW
 
 def : Pat<(debugtrap),
-          (INT3)>, Requires<[NotPS4]>;
+          (INT3)>, Requires<[NotPS]>;
 def : Pat<(debugtrap),
-          (INT (i8 0x41))>, Requires<[IsPS4]>;
+          (INT (i8 0x41))>, Requires<[IsPS]>;
 
 //===----------------------------------------------------------------------===//
 //  Input/Output Instructions.
@@ -733,6 +733,15 @@ def PTWRITE64r : RI<0xAE, MRM4r, (outs), (ins GR64:$dst),
                     "ptwrite{q}\t$dst", [(int_x86_ptwrite64 GR64:$dst)]>, XS,
                     Requires<[In64BitMode, HasPTWRITE]>;
 } // SchedRW
+
+//===----------------------------------------------------------------------===//
+// RDPRU - Read Processor Register instruction.
+
+let SchedRW = [WriteSystem] in {
+let Uses = [ECX], Defs = [EAX, EDX] in
+   def RDPRU : I<0x01, MRM_FD, (outs), (ins), "rdpru", []>, PS,
+               Requires<[HasRDPRU]>;
+}
 
 //===----------------------------------------------------------------------===//
 // Platform Configuration instruction

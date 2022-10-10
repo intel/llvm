@@ -15,6 +15,7 @@
 #include "support/Logger.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Index/IndexSymbol.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/JSON.h"
@@ -33,7 +34,7 @@ bool mapOptOrNull(const llvm::json::Value &Params, llvm::StringLiteral Prop,
   assert(O);
   auto *V = O->get(Prop);
   // Field is missing or null.
-  if (!V || V->getAsNull().hasValue())
+  if (!V || V->getAsNull())
     return true;
   return fromJSON(*V, Out, P.field(Prop));
 }
@@ -301,6 +302,8 @@ SymbolKind indexSymbolKindToSymbolKind(index::SymbolKind Kind) {
   case index::SymbolKind::TemplateTemplateParm:
   case index::SymbolKind::TemplateTypeParm:
     return SymbolKind::TypeParameter;
+  case index::SymbolKind::Concept:
+    return SymbolKind::Interface;
   }
   llvm_unreachable("invalid symbol kind");
 }
@@ -387,6 +390,10 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R,
           }
         }
       }
+    }
+    if (auto *Folding = TextDocument->getObject("foldingRange")) {
+      if (auto LineFolding = Folding->getBoolean("lineFoldingOnly"))
+        R.LineFoldingOnly = *LineFolding;
     }
     if (auto *Rename = TextDocument->getObject("rename")) {
       if (auto RenameSupport = Rename->getBoolean("prepareSupport"))
@@ -589,6 +596,10 @@ llvm::json::Value toJSON(const DiagnosticRelatedInformation &DRI) {
 
 llvm::json::Value toJSON(DiagnosticTag Tag) { return static_cast<int>(Tag); }
 
+llvm::json::Value toJSON(const CodeDescription &D) {
+  return llvm::json::Object{{"href", D.href}};
+}
+
 llvm::json::Value toJSON(const Diagnostic &D) {
   llvm::json::Object Diag{
       {"range", D.range},
@@ -601,6 +612,8 @@ llvm::json::Value toJSON(const Diagnostic &D) {
     Diag["codeActions"] = D.codeActions;
   if (!D.code.empty())
     Diag["code"] = D.code;
+  if (D.codeDescription)
+    Diag["codeDescription"] = *D.codeDescription;
   if (!D.source.empty())
     Diag["source"] = D.source;
   if (D.relatedInformation)
@@ -725,7 +738,9 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &O,
 
 bool operator==(const SymbolDetails &LHS, const SymbolDetails &RHS) {
   return LHS.name == RHS.name && LHS.containerName == RHS.containerName &&
-         LHS.USR == RHS.USR && LHS.ID == RHS.ID;
+         LHS.USR == RHS.USR && LHS.ID == RHS.ID &&
+         LHS.declarationRange == RHS.declarationRange &&
+         LHS.definitionRange == RHS.definitionRange;
 }
 
 llvm::json::Value toJSON(const SymbolDetails &P) {
@@ -745,6 +760,12 @@ llvm::json::Value toJSON(const SymbolDetails &P) {
 
   if (P.ID)
     Result["id"] = P.ID.str();
+
+  if (P.declarationRange)
+    Result["declarationRange"] = *P.declarationRange;
+
+  if (P.definitionRange)
+    Result["definitionRange"] = *P.definitionRange;
 
   // FIXME: workaround for older gcc/clang
   return std::move(Result);
@@ -917,7 +938,7 @@ llvm::json::Value toJSON(const MarkupContent &MC) {
 llvm::json::Value toJSON(const Hover &H) {
   llvm::json::Object Result{{"contents", toJSON(H.contents)}};
 
-  if (H.range.hasValue())
+  if (H.range)
     Result["range"] = toJSON(*H.range);
 
   return std::move(Result);
@@ -1015,7 +1036,7 @@ llvm::json::Value toJSON(const CompletionList &L) {
 }
 
 llvm::json::Value toJSON(const ParameterInformation &PI) {
-  assert((PI.labelOffsets.hasValue() || !PI.labelString.empty()) &&
+  assert((PI.labelOffsets || !PI.labelString.empty()) &&
          "parameter information label is required");
   llvm::json::Object Result;
   if (PI.labelOffsets)
@@ -1190,12 +1211,13 @@ bool fromJSON(const llvm::json::Value &E, TypeHierarchyDirection &Out,
   return true;
 }
 
-bool fromJSON(const llvm::json::Value &Params, TypeHierarchyParams &R,
+bool fromJSON(const llvm::json::Value &Params, TypeHierarchyPrepareParams &R,
               llvm::json::Path P) {
   llvm::json::ObjectMapper O(Params, P);
   return O && O.map("textDocument", R.textDocument) &&
-         O.map("position", R.position) && O.map("resolve", R.resolve) &&
-         O.map("direction", R.direction);
+         O.map("position", R.position) &&
+         mapOptOrNull(Params, "resolve", R.resolve, P) &&
+         mapOptOrNull(Params, "direction", R.direction, P);
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &O,
@@ -1203,23 +1225,28 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &O,
   return O << I.name << " - " << toJSON(I);
 }
 
+llvm::json::Value toJSON(const TypeHierarchyItem::ResolveParams &RP) {
+  llvm::json::Object Result{{"symbolID", RP.symbolID}};
+  if (RP.parents)
+    Result["parents"] = RP.parents;
+  return std::move(Result);
+}
+bool fromJSON(const llvm::json::Value &Params,
+              TypeHierarchyItem::ResolveParams &RP, llvm::json::Path P) {
+  llvm::json::ObjectMapper O(Params, P);
+  return O && O.map("symbolID", RP.symbolID) &&
+         mapOptOrNull(Params, "parents", RP.parents, P);
+}
+
 llvm::json::Value toJSON(const TypeHierarchyItem &I) {
-  llvm::json::Object Result{{"name", I.name},
-                            {"kind", static_cast<int>(I.kind)},
-                            {"range", I.range},
-                            {"selectionRange", I.selectionRange},
-                            {"uri", I.uri}};
+  llvm::json::Object Result{
+      {"name", I.name},   {"kind", static_cast<int>(I.kind)},
+      {"range", I.range}, {"selectionRange", I.selectionRange},
+      {"uri", I.uri},     {"data", I.data},
+  };
 
   if (I.detail)
     Result["detail"] = I.detail;
-  if (I.deprecated)
-    Result["deprecated"] = I.deprecated;
-  if (I.parents)
-    Result["parents"] = I.parents;
-  if (I.children)
-    Result["children"] = I.children;
-  if (I.data)
-    Result["data"] = I.data;
   return std::move(Result);
 }
 
@@ -1241,8 +1268,9 @@ bool fromJSON(const llvm::json::Value &Params, TypeHierarchyItem &I,
 bool fromJSON(const llvm::json::Value &Params,
               ResolveTypeHierarchyItemParams &R, llvm::json::Path P) {
   llvm::json::ObjectMapper O(Params, P);
-  return O && O.map("item", R.item) && O.map("resolve", R.resolve) &&
-         O.map("direction", R.direction);
+  return O && O.map("item", R.item) &&
+         mapOptOrNull(Params, "resolve", R.resolve, P) &&
+         mapOptOrNull(Params, "direction", R.direction, P);
 }
 
 bool fromJSON(const llvm::json::Value &Params, ReferenceContext &R,
@@ -1316,23 +1344,27 @@ bool fromJSON(const llvm::json::Value &Params, InlayHintsParams &R,
   return O && O.map("textDocument", R.textDocument) && O.map("range", R.range);
 }
 
-llvm::json::Value toJSON(InlayHintKind K) {
-  switch (K) {
-  case InlayHintKind::ParameterHint:
-    return "parameter";
-  case InlayHintKind::TypeHint:
-    return "type";
-  case InlayHintKind::DesignatorHint:
-    return "designator";
+llvm::json::Value toJSON(const InlayHintKind &Kind) {
+  switch (Kind) {
+  case InlayHintKind::Type:
+    return 1;
+  case InlayHintKind::Parameter:
+    return 2;
+  case InlayHintKind::Designator: // This is an extension, don't serialize.
+    return nullptr;
   }
   llvm_unreachable("Unknown clang.clangd.InlayHintKind");
 }
 
 llvm::json::Value toJSON(const InlayHint &H) {
-  return llvm::json::Object{{"position", H.position},
-                            {"range", H.range},
-                            {"kind", H.kind},
-                            {"label", H.label}};
+  llvm::json::Object Result{{"position", H.position},
+                            {"label", H.label},
+                            {"paddingLeft", H.paddingLeft},
+                            {"paddingRight", H.paddingRight}};
+  auto K = toJSON(H.kind);
+  if (!K.getAsNull())
+    Result["kind"] = std::move(K);
+  return std::move(Result);
 }
 bool operator==(const InlayHint &A, const InlayHint &B) {
   return std::tie(A.position, A.range, A.kind, A.label) ==
@@ -1341,6 +1373,21 @@ bool operator==(const InlayHint &A, const InlayHint &B) {
 bool operator<(const InlayHint &A, const InlayHint &B) {
   return std::tie(A.position, A.range, A.kind, A.label) <
          std::tie(B.position, B.range, B.kind, B.label);
+}
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, InlayHintKind Kind) {
+  auto ToString = [](InlayHintKind K) {
+    switch (K) {
+    case InlayHintKind::Parameter:
+      return "parameter";
+    case InlayHintKind::Type:
+      return "type";
+    case InlayHintKind::Designator:
+      return "designator";
+    }
+    llvm_unreachable("Unknown clang.clangd.InlayHintKind");
+  };
+  return OS << ToString(Kind);
 }
 
 static const char *toString(OffsetEncoding OE) {
@@ -1407,6 +1454,10 @@ bool fromJSON(const llvm::json::Value &Params, FoldingRangeParams &R,
   return O && O.map("textDocument", R.textDocument);
 }
 
+const llvm::StringLiteral FoldingRange::REGION_KIND = "region";
+const llvm::StringLiteral FoldingRange::COMMENT_KIND = "comment";
+const llvm::StringLiteral FoldingRange::IMPORT_KIND = "import";
+
 llvm::json::Value toJSON(const FoldingRange &Range) {
   llvm::json::Object Result{
       {"startLine", Range.startLine},
@@ -1416,8 +1467,8 @@ llvm::json::Value toJSON(const FoldingRange &Range) {
     Result["startCharacter"] = Range.startCharacter;
   if (Range.endCharacter)
     Result["endCharacter"] = Range.endCharacter;
-  if (Range.kind)
-    Result["kind"] = *Range.kind;
+  if (!Range.kind.empty())
+    Result["kind"] = Range.kind;
   return Result;
 }
 
@@ -1469,6 +1520,23 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const ASTNode &Root) {
   Print(Root, 0);
   return OS;
 }
+
+bool fromJSON(const llvm::json::Value &E, SymbolID &S, llvm::json::Path P) {
+  auto Str = E.getAsString();
+  if (!Str) {
+    P.report("expected a string");
+    return false;
+  }
+  auto ID = SymbolID::fromStr(*Str);
+  if (!ID) {
+    elog("Malformed symbolid: {0}", ID.takeError());
+    P.report("malformed symbolid");
+    return false;
+  }
+  S = *ID;
+  return true;
+}
+llvm::json::Value toJSON(const SymbolID &S) { return S.str(); }
 
 } // namespace clangd
 } // namespace clang

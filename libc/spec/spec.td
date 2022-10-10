@@ -50,12 +50,22 @@ def CharType : NamedType<"char">;
 
 // Common types
 def VoidPtr : PtrType<VoidType>;
+def VoidPtrPtr : PtrType<VoidPtr>;
+def RestrictedVoidPtrPtr : RestrictedPtrType<VoidPtr>;
 def ConstVoidPtr : ConstType<VoidPtr>;
+
 def SizeTType : NamedType<"size_t">;
+def SizeTPtr : PtrType<SizeTType>;
+def RestrictedSizeTPtr : RestrictedPtrType<SizeTType>;
+
 def LongDoublePtr : PtrType<LongDoubleType>;
 
 def IntMaxTType : NamedType<"intmax_t">;
 def UIntMaxTType : NamedType<"uintmax_t">;
+
+def OffTType : NamedType<"off_t">;
+def OffTPtr : PtrType<OffTType>;
+def SSizeTType : NamedType<"ssize_t">;
 
 // _Noreturn is really not a type, but it is convenient to treat it as a type.
 def NoReturn : NamedType<"_Noreturn void">;
@@ -84,6 +94,7 @@ def ThrdTType : NamedType<"thrd_t">;
 def ThrdTTypePtr : PtrType<ThrdTType>;
 
 def IntPtr : PtrType<IntType>;
+def RestrictedIntPtr : RestrictedPtrType<IntType>;
 def FloatPtr : PtrType<FloatType>;
 def DoublePtr : PtrType<DoubleType>;
 
@@ -96,9 +107,16 @@ def QSortCompareT : NamedType<"__qsortcompare_t">;
 
 def AtexitHandlerT : NamedType<"__atexithandler_t">;
 
+def FILE : NamedType<"FILE">;
+def FILEPtr : PtrType<FILE>;
+def FILERestrictedPtr : RestrictedPtrType<FILE>;
+
+def PThreadTType : NamedType<"pthread_t">;
+
+def PidT : NamedType<"pid_t">;
+
 //added because __assert_fail needs it.
 def UnsignedType : NamedType<"unsigned">;
-
 
 class Macro<string name> {
   string Name = name;
@@ -128,16 +146,23 @@ class FunctionSpec<string name, RetValSpec return, list<ArgSpec> args> {
   list<ArgSpec> Args = args;
 }
 
+class ObjectSpec<string name, string type> {
+  string Name = name;
+  string Type = type;
+}
+
 class HeaderSpec<string name,
                 list<Macro> macros = [],
                 list<Type> types = [],
                 list<EnumeratedNameValue> enumerations = [],
-                list<FunctionSpec> functions = []> {
+                list<FunctionSpec> functions = [],
+                list<ObjectSpec> objects = []> {
   string Name = name;
   list<FunctionSpec> Functions = functions;
   list<Type> Types = types;
   list<Macro> Macros = macros;
   list<EnumeratedNameValue> Enumerations = enumerations;
+  list<ObjectSpec> Objects = objects;
 }
 
 class StandardSpec<string name> {

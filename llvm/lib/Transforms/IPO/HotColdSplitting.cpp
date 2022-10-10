@@ -31,7 +31,6 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
-#include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
@@ -114,7 +113,8 @@ bool unlikelyExecuted(BasicBlock &BB) {
   // mark sanitizer traps as cold.
   for (Instruction &I : BB)
     if (auto *CB = dyn_cast<CallBase>(&I))
-      if (CB->hasFnAttr(Attribute::Cold) && !CB->getMetadata("nosanitize"))
+      if (CB->hasFnAttr(Attribute::Cold) &&
+          !CB->getMetadata(LLVMContext::MD_nosanitize))
         return true;
 
   // The block is cold if it has an unreachable terminator, unless it's

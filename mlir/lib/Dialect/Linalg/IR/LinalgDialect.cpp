@@ -10,8 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -91,8 +96,7 @@ void addNamedOpBuilderImpl(
 template <typename... OpTypes>
 void addNamedOpBuilders(
     llvm::StringMap<LinalgDialect::RegionBuilderFunType> &map) {
-  (void)std::initializer_list<int>{0,
-                                   (addNamedOpBuilderImpl<OpTypes>(map), 0)...};
+  (addNamedOpBuilderImpl<OpTypes>(map), ...);
 }
 
 void mlir::linalg::LinalgDialect::initialize() {
@@ -120,30 +124,6 @@ void mlir::linalg::LinalgDialect::initialize() {
 
 LogicalResult LinalgDialect::verifyOperationAttribute(Operation *op,
                                                       NamedAttribute attr) {
-  using bufferization::BufferizableOpInterface;
-
-  if (attr.getName() == BufferizableOpInterface::kInplaceableAttrName) {
-    if (!attr.getValue().isa<BoolAttr>()) {
-      return op->emitError()
-             << "'" << BufferizableOpInterface::kInplaceableAttrName
-             << "' is expected to be a boolean attribute";
-    }
-    if (!isa<FunctionOpInterface>(op))
-      return op->emitError() << "expected " << attr.getName()
-                             << " to be used on function-like operations";
-    return success();
-  }
-  if (attr.getName() == BufferizableOpInterface::kBufferLayoutAttrName) {
-    if (!attr.getValue().isa<AffineMapAttr>()) {
-      return op->emitError()
-             << "'" << BufferizableOpInterface::kBufferLayoutAttrName
-             << "' is expected to be a affine map attribute";
-    }
-    if (!isa<FunctionOpInterface>(op))
-      return op->emitError() << "expected " << attr.getName()
-                             << " to be used on function-like operations";
-    return success();
-  }
   if (attr.getName() == LinalgDialect::kMemoizedIndexingMapsAttrName)
     return success();
   return op->emitError() << "attribute '" << attr.getName()

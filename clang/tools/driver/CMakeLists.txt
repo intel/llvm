@@ -32,6 +32,7 @@ add_clang_tool(clang
   DEPENDS
   intrinsics_gen
   ${support_plugins}
+  GENERATE_DRIVER
   )
 
 clang_target_link_libraries(clang
@@ -61,7 +62,11 @@ if(NOT CLANG_LINKS_TO_CREATE)
   set(CLANG_LINKS_TO_CREATE clang++ clang-cl clang-cpp)
 endif()
 
-foreach(link ${CLANG_LINKS_TO_CREATE})
+if (CLANG_ENABLE_HLSL)
+  set(HLSL_LINK clang-dxc)
+endif()
+
+foreach(link ${CLANG_LINKS_TO_CREATE} ${HLSL_LINK})
   add_clang_symlink(${link} clang)
 endforeach()
 

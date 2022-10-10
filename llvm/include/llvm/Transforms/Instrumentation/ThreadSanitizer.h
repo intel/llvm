@@ -17,10 +17,7 @@
 
 namespace llvm {
 class Function;
-class FunctionPass;
 class Module;
-// Insert ThreadSanitizer (race detection) instrumentation
-FunctionPass *createThreadSanitizerLegacyPassPass();
 
 /// A function pass for tsan instrumentation.
 ///

@@ -19,7 +19,6 @@
 #include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/Support/LogicalResult.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "func-to-spirv-pattern"
@@ -36,7 +35,7 @@ using namespace mlir;
 
 namespace {
 
-/// Converts func.return to spv.Return.
+/// Converts func.return to spirv.Return.
 class ReturnOpPattern final : public OpConversionPattern<func::ReturnOp> {
 public:
   using OpConversionPattern<func::ReturnOp>::OpConversionPattern;
@@ -57,6 +56,32 @@ public:
   }
 };
 
+/// Converts func.call to spirv.FunctionCall.
+class CallOpPattern final : public OpConversionPattern<func::CallOp> {
+public:
+  using OpConversionPattern<func::CallOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(func::CallOp callOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // multiple results func was not converted to spirv.func
+    if (callOp.getNumResults() > 1)
+      return failure();
+    if (callOp.getNumResults() == 1) {
+      auto resultType =
+          getTypeConverter()->convertType(callOp.getResult(0).getType());
+      if (!resultType)
+        return failure();
+      rewriter.replaceOpWithNewOp<spirv::FunctionCallOp>(
+          callOp, resultType, adaptor.getOperands(), callOp->getAttrs());
+    } else {
+      rewriter.replaceOpWithNewOp<spirv::FunctionCallOp>(
+          callOp, TypeRange(), adaptor.getOperands(), callOp->getAttrs());
+    }
+    return success();
+  }
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -67,5 +92,5 @@ void mlir::populateFuncToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
                                        RewritePatternSet &patterns) {
   MLIRContext *context = patterns.getContext();
 
-  patterns.add<ReturnOpPattern>(typeConverter, context);
+  patterns.add<ReturnOpPattern, CallOpPattern>(typeConverter, context);
 }

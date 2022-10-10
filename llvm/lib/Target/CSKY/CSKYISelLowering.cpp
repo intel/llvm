@@ -104,9 +104,7 @@ CSKYTargetLowering::CSKYTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::UDIV, MVT::i32, Expand);
   }
 
-  if (!Subtarget.has3r2E3r3()) {
-    setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Expand);
-  }
+  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Expand);
 
   // Float
 
@@ -704,8 +702,7 @@ SDValue CSKYTargetLowering::LowerCall(CallLoweringInfo &CLI,
   Glue = Chain.getValue(1);
 
   // Mark the end of the call, which is glued to the call itself.
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getConstant(NumBytes, DL, PtrVT, true),
-                             DAG.getConstant(0, DL, PtrVT, true), Glue, DL);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, Glue, DL);
   Glue = Chain.getValue(1);
 
   // Assign locations to each value returned by this call.
@@ -1023,6 +1020,12 @@ CSKYTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Unexpected instr type to insert");
+  case CSKY::FSELS:
+  case CSKY::FSELD:
+    if (Subtarget.hasE2())
+      return emitSelectPseudo(MI, BB, CSKY::BT32);
+    else
+      return emitSelectPseudo(MI, BB, CSKY::BT16);
   case CSKY::ISEL32:
     return emitSelectPseudo(MI, BB, CSKY::BT32);
   case CSKY::ISEL16:

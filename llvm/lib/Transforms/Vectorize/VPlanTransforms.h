@@ -23,6 +23,7 @@ class Instruction;
 class PHINode;
 class ScalarEvolution;
 class Loop;
+class TargetLibraryInfo;
 
 struct VPlanTransforms {
   /// Replaces the VPInstructions in \p Plan with corresponding
@@ -32,7 +33,7 @@ struct VPlanTransforms {
                             function_ref<const InductionDescriptor *(PHINode *)>
                                 GetIntOrFpInductionDescriptor,
                             SmallPtrSetImpl<Instruction *> &DeadInstructions,
-                            ScalarEvolution &SE);
+                            ScalarEvolution &SE, const TargetLibraryInfo &TLI);
 
   static bool sinkScalarOperands(VPlan &Plan);
 
@@ -50,15 +51,17 @@ struct VPlanTransforms {
   /// recipe, if it exists.
   static void removeRedundantCanonicalIVs(VPlan &Plan);
 
-  /// Try to remove dead recipes. At the moment, only dead header recipes are
-  /// removed.
-  static void removeDeadRecipes(VPlan &Plan, Loop &OrigLoop);
+  static void removeDeadRecipes(VPlan &Plan);
 
   /// If any user of a VPWidenIntOrFpInductionRecipe needs scalar values,
   /// provide them by building scalar steps off of the canonical scalar IV and
   /// update the original IV's users. This is an optional optimization to reduce
   /// the needs of vector extracts.
   static void optimizeInductions(VPlan &Plan, ScalarEvolution &SE);
+
+  /// Remove redundant EpxandSCEVRecipes in \p Plan's entry block by replacing
+  /// them with already existing recipes expanding the same SCEV expression.
+  static void removeRedundantExpandSCEVRecipes(VPlan &Plan);
 };
 
 } // namespace llvm

@@ -45,6 +45,8 @@ def diasdkdir : P<"diasdkdir", "Set the location of the DIA SDK">;
 def entry   : P<"entry", "Name of entry point symbol">;
 def errorlimit : P<"errorlimit",
     "Maximum number of errors to emit before stopping (0 = no limit)">;
+def exclude_symbols  : P<"exclude-symbols", "Exclude symbols from automatic export">,
+    MetaVarName<"<symbol[,symbol,...]>">;
 def export  : P<"export", "Export a function">;
 // No help text because /failifmismatch is not intended to be used by the user.
 def failifmismatch : P<"failifmismatch", "">;
@@ -56,6 +58,8 @@ def guard   : P<"guard", "Control flow guard">;
 def heap    : P<"heap", "Size of the heap">;
 def ignore : P<"ignore", "Specify warning codes to ignore">;
 def implib  : P<"implib", "Import library name">;
+def noimplib : F<"noimplib">,
+    HelpText<"Don't output an import lib">;
 def lib : F<"lib">,
     HelpText<"Act like lib.exe; must be first argument if present">;
 def libpath : P<"libpath", "Additional library search path">;
@@ -166,7 +170,8 @@ def force_multiple : F<"force:multiple">,
     HelpText<"Allow multiply defined symbols when creating executables">;
 def force_multipleres : F<"force:multipleres">,
     HelpText<"Allow multiply defined resources when creating executables">;
-defm WX : B<"WX", "Treat warnings as errors", "Don't treat warnings as errors">;
+defm WX : B<"WX", "Treat warnings as errors",
+                  "Don't treat warnings as errors (default)">;
 
 defm allowbind : B<"allowbind", "Enable DLL binding (default)",
                    "Disable DLL binding">;
@@ -263,7 +268,7 @@ def threads
     : P<"threads", "Number of threads. '1' disables multi-threading. By "
                    "default all available hardware threads are used">;
 def call_graph_ordering_file: P<
-    "call-graph-ordering-file", 
+    "call-graph-ordering-file",
     "Layout sections to optimize the given callgraph">;
 defm call_graph_profile_sort: B<
     "call-graph-profile-sort",
@@ -275,11 +280,14 @@ def print_symbol_order: P<
     "/call-graph-profile-sort into the specified file">;
 def wrap : P_priv<"wrap">;
 
+def vfsoverlay : P<"vfsoverlay", "Path to a vfsoverlay yaml file to optionally look for /defaultlib's in">;
+
 // Flags for debugging
 def lldmap : F<"lldmap">;
 def lldmap_file : P_priv<"lldmap">;
 def map : F<"map">;
 def map_file : P_priv<"map">;
+def map_info : P<"mapinfo", "Include the specified information in a map file">;
 def show_timing : F<"time">;
 def summary : F<"summary">;
 
@@ -289,16 +297,21 @@ def summary : F<"summary">;
 
 def ignoreidl : F<"ignoreidl">;
 def ltcg : F<"ltcg">;
+def assemblydebug : F<"assemblydebug">;
 def nologo : F<"nologo">;
 def throwingnew : F<"throwingnew">;
 def editandcontinue : F<"editandcontinue">;
 def fastfail : F<"fastfail">;
+def kernel : F<"kernel">;
+def pdbcompress : F<"pdbcompress">;
+def emitpogophaseinfo : F<"emitpogophaseinfo">;
 
 def delay : P_priv<"delay">;
 def errorreport : P_priv<"errorreport">;
 def idlout : P_priv<"idlout">;
 def ilk : P_priv<"ilk">;
 def ltcg_opt : P_priv<"ltcg">;
+def assemblydebug_opt : P_priv<"assemblydebug">;
 def ltcgout : P_priv<"ltcgout">;
 def maxilksize : P_priv<"maxilksize">;
 def tlbid : P_priv<"tlbid">;

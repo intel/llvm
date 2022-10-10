@@ -1,6 +1,10 @@
 ; RUN: llc < %s | FileCheck %s --check-prefixes=CHECK,CHECK-NOF16
 ; RUN: llc < %s -mcpu=sm_80 | FileCheck %s --check-prefixes=CHECK,CHECK-F16
 ; RUN: llc < %s -mcpu=sm_80 --nvptx-no-f16-math | FileCheck %s --check-prefixes=CHECK,CHECK-NOF16
+; RUN: %if ptxas %{ llc < %s | %ptxas-verify %}
+; RUN: %if ptxas-11.0 %{ llc < %s -mcpu=sm_80 | %ptxas-verify -arch=sm_80 %}
+; RUN: %if ptxas-11.0 %{ llc < %s -mcpu=sm_80 --nvptx-no-f16-math | %ptxas-verify -arch=sm_80 %}
+
 target triple = "nvptx64-nvidia-cuda"
 
 ; Checks that llvm intrinsics for math functions are correctly lowered to PTX.
@@ -15,6 +19,8 @@ declare float @llvm.nearbyint.f32(float) #0
 declare double @llvm.nearbyint.f64(double) #0
 declare float @llvm.rint.f32(float) #0
 declare double @llvm.rint.f64(double) #0
+declare float @llvm.roundeven.f32(float) #0
+declare double @llvm.roundeven.f64(double) #0
 declare float @llvm.trunc.f32(float) #0
 declare double @llvm.trunc.f64(double) #0
 declare float @llvm.fabs.f32(float) #0
@@ -148,6 +154,29 @@ define float @rint_float_ftz(float %a) #1 {
 define double @rint_double(double %a) {
   ; CHECK: cvt.rni.f64.f64
   %b = call double @llvm.rint.f64(double %a)
+  ret double %b
+}
+
+; ---- roundeven ----
+
+; CHECK-LABEL: roundeven_float
+define float @roundeven_float(float %a) {
+  ; CHECK: cvt.rni.f32.f32
+  %b = call float @llvm.roundeven.f32(float %a)
+  ret float %b
+}
+
+; CHECK-LABEL: roundeven_float_ftz
+define float @roundeven_float_ftz(float %a) #1 {
+  ; CHECK: cvt.rni.ftz.f32.f32
+  %b = call float @llvm.roundeven.f32(float %a)
+  ret float %b
+}
+
+; CHECK-LABEL: roundeven_double
+define double @roundeven_double(double %a) {
+  ; CHECK: cvt.rni.f64.f64
+  %b = call double @llvm.roundeven.f64(double %a)
   ret double %b
 }
 

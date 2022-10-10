@@ -15,6 +15,8 @@
 #include "flang/Common/unwrap.h"
 #include "flang/Evaluate/constant.h"
 #include "flang/Evaluate/expression.h"
+#include "flang/Evaluate/shape.h"
+#include "flang/Evaluate/type.h"
 #include "flang/Parser/message.h"
 #include "flang/Semantics/attr.h"
 #include "flang/Semantics/symbol.h"
@@ -149,6 +151,7 @@ Expr<SomeType> Parenthesize(Expr<SomeType> &&);
 
 Expr<SomeReal> GetComplexPart(
     const Expr<SomeComplex> &, bool isImaginary = false);
+Expr<SomeReal> GetComplexPart(Expr<SomeComplex> &&, bool isImaginary = false);
 
 template <int KIND>
 Expr<SomeComplex> MakeComplex(Expr<Type<TypeCategory::Real, KIND>> &&re,
@@ -219,16 +222,22 @@ auto UnwrapConvertedExpr(B &x) -> common::Constify<A, B> * {
   } else if constexpr (std::is_same_v<Ty, Expr<SomeType>>) {
     return common::visit(
         [](auto &x) { return UnwrapConvertedExpr<A>(x); }, x.u);
-  } else if constexpr (!common::HasMember<A, TypelessExpression>) {
-    using Result = ResultType<A>;
-    if constexpr (std::is_same_v<Ty, Expr<Result>> ||
-        std::is_same_v<Ty, Expr<SomeKind<Result::category>>>) {
+  } else {
+    using DesiredResult = ResultType<A>;
+    if constexpr (std::is_same_v<Ty, Expr<DesiredResult>> ||
+        std::is_same_v<Ty, Expr<SomeKind<DesiredResult::category>>>) {
       return common::visit(
           [](auto &x) { return UnwrapConvertedExpr<A>(x); }, x.u);
-    } else if constexpr (std::is_same_v<Ty, Parentheses<Result>> ||
-        std::is_same_v<Ty, Convert<Result, Result::category>>) {
-      return common::visit(
-          [](auto &x) { return UnwrapConvertedExpr<A>(x); }, x.left().u);
+    } else {
+      using ThisResult = ResultType<B>;
+      if constexpr (std::is_same_v<Ty, Expr<ThisResult>>) {
+        return common::visit(
+            [](auto &x) { return UnwrapConvertedExpr<A>(x); }, x.u);
+      } else if constexpr (std::is_same_v<Ty, Parentheses<ThisResult>> ||
+          std::is_same_v<Ty, Convert<ThisResult, DesiredResult::category>>) {
+        return common::visit(
+            [](auto &x) { return UnwrapConvertedExpr<A>(x); }, x.left().u);
+      }
     }
   }
   return nullptr;
@@ -253,17 +262,17 @@ template <typename A> const Symbol *ExtractBareLenParameter(const A &expr) {
 }
 
 // If an expression simply wraps a DataRef, extract and return it.
-// The Boolean argument controls the handling of Substring
+// The Boolean argument controls the handling of Substring and ComplexPart
 // references: when true (not default), it extracts the base DataRef
-// of a substring, if it has one.
+// of a substring or complex part, if it has one.
 template <typename A>
 common::IfNoLvalue<std::optional<DataRef>, A> ExtractDataRef(
-    const A &, bool intoSubstring) {
+    const A &, bool intoSubstring, bool intoComplexPart) {
   return std::nullopt; // default base case
 }
 template <typename T>
-std::optional<DataRef> ExtractDataRef(
-    const Designator<T> &d, bool intoSubstring = false) {
+std::optional<DataRef> ExtractDataRef(const Designator<T> &d,
+    bool intoSubstring = false, bool intoComplexPart = false) {
   return common::visit(
       [=](const auto &x) -> std::optional<DataRef> {
         if constexpr (common::HasMember<decltype(x), decltype(DataRef::u)>) {
@@ -274,29 +283,38 @@ std::optional<DataRef> ExtractDataRef(
             return ExtractSubstringBase(x);
           }
         }
+        if constexpr (std::is_same_v<std::decay_t<decltype(x)>, ComplexPart>) {
+          if (intoComplexPart) {
+            return x.complex();
+          }
+        }
         return std::nullopt; // w/o "else" to dodge bogus g++ 8.1 warning
       },
       d.u);
 }
 template <typename T>
-std::optional<DataRef> ExtractDataRef(
-    const Expr<T> &expr, bool intoSubstring = false) {
+std::optional<DataRef> ExtractDataRef(const Expr<T> &expr,
+    bool intoSubstring = false, bool intoComplexPart = false) {
   return common::visit(
-      [=](const auto &x) { return ExtractDataRef(x, intoSubstring); }, expr.u);
+      [=](const auto &x) {
+        return ExtractDataRef(x, intoSubstring, intoComplexPart);
+      },
+      expr.u);
 }
 template <typename A>
-std::optional<DataRef> ExtractDataRef(
-    const std::optional<A> &x, bool intoSubstring = false) {
+std::optional<DataRef> ExtractDataRef(const std::optional<A> &x,
+    bool intoSubstring = false, bool intoComplexPart = false) {
   if (x) {
-    return ExtractDataRef(*x, intoSubstring);
+    return ExtractDataRef(*x, intoSubstring, intoComplexPart);
   } else {
     return std::nullopt;
   }
 }
 template <typename A>
-std::optional<DataRef> ExtractDataRef(const A *p, bool intoSubstring = false) {
+std::optional<DataRef> ExtractDataRef(
+    const A *p, bool intoSubstring = false, bool intoComplexPart = false) {
   if (p) {
-    return ExtractDataRef(*p, intoSubstring);
+    return ExtractDataRef(*p, intoSubstring, intoComplexPart);
   } else {
     return std::nullopt;
   }
@@ -329,7 +347,7 @@ bool IsArrayElement(const Expr<T> &expr, bool intoSubstring = true,
 
 template <typename A>
 std::optional<NamedEntity> ExtractNamedEntity(const A &x) {
-  if (auto dataRef{ExtractDataRef(x, true)}) {
+  if (auto dataRef{ExtractDataRef(x)}) {
     return common::visit(
         common::visitors{
             [](SymbolRef &&symbol) -> std::optional<NamedEntity> {
@@ -412,6 +430,27 @@ const Symbol *UnwrapWholeSymbolOrComponentDataRef(const A &x) {
       return &p->get();
     } else if (const Component * c{std::get_if<Component>(&dataRef->u)}) {
       if (c->base().Rank() == 0) {
+        return &c->GetLastSymbol();
+      }
+    }
+  }
+  return nullptr;
+}
+
+// If an expression is a whole symbol or a whole component designator,
+// potentially followed by an image selector, extract and return that symbol,
+// else null.
+template <typename A>
+const Symbol *UnwrapWholeSymbolOrComponentOrCoarrayRef(const A &x) {
+  if (auto dataRef{ExtractDataRef(x)}) {
+    if (const SymbolRef * p{std::get_if<SymbolRef>(&dataRef->u)}) {
+      return &p->get();
+    } else if (const Component * c{std::get_if<Component>(&dataRef->u)}) {
+      if (c->base().Rank() == 0) {
+        return &c->GetLastSymbol();
+      }
+    } else if (const CoarrayRef * c{std::get_if<CoarrayRef>(&dataRef->u)}) {
+      if (c->subscript().empty()) {
         return &c->GetLastSymbol();
       }
     }
@@ -895,13 +934,19 @@ template <typename A> bool IsAllocatableOrPointer(const A &x) {
 // pointers.
 bool IsAllocatableOrPointerObject(const Expr<SomeType> &, FoldingContext &);
 
+bool IsAllocatableDesignator(const Expr<SomeType> &);
+
 // Procedure and pointer detection predicates
 bool IsProcedure(const Expr<SomeType> &);
 bool IsFunction(const Expr<SomeType> &);
 bool IsProcedurePointerTarget(const Expr<SomeType> &);
-bool IsBareNullPointer(const Expr<SomeType> *); // NULL() w/o MOLD=
+bool IsBareNullPointer(const Expr<SomeType> *); // NULL() w/o MOLD= or type
+bool IsNullObjectPointer(const Expr<SomeType> &);
+bool IsNullProcedurePointer(const Expr<SomeType> &);
 bool IsNullPointer(const Expr<SomeType> &);
 bool IsObjectPointer(const Expr<SomeType> &, FoldingContext &);
+
+const ProcedureRef *GetProcedureRef(const Expr<SomeType> &);
 
 // Can Expr be passed as absent to an optional dummy argument.
 // See 15.5.2.12 point 1 for more details.
@@ -968,17 +1013,31 @@ std::optional<std::string> FindImpureCall(
 // Predicate: is a scalar expression suitable for naive scalar expansion
 // in the flattening of an array expression?
 // TODO: capture such scalar expansions in temporaries, flatten everything
-struct UnexpandabilityFindingVisitor
+class UnexpandabilityFindingVisitor
     : public AnyTraverse<UnexpandabilityFindingVisitor> {
+public:
   using Base = AnyTraverse<UnexpandabilityFindingVisitor>;
   using Base::operator();
-  UnexpandabilityFindingVisitor() : Base{*this} {}
-  template <typename T> bool operator()(const FunctionRef<T> &) { return true; }
+  explicit UnexpandabilityFindingVisitor(bool admitPureCall)
+      : Base{*this}, admitPureCall_{admitPureCall} {}
+  template <typename T> bool operator()(const FunctionRef<T> &procRef) {
+    return !admitPureCall_ || !procRef.proc().IsPure();
+  }
   bool operator()(const CoarrayRef &) { return true; }
+
+private:
+  bool admitPureCall_{false};
 };
 
-template <typename T> bool IsExpandableScalar(const Expr<T> &expr) {
-  return !UnexpandabilityFindingVisitor{}(expr);
+template <typename T>
+bool IsExpandableScalar(const Expr<T> &expr, FoldingContext &context,
+    const Shape &shape, bool admitPureCall = false) {
+  if (UnexpandabilityFindingVisitor{admitPureCall}(expr)) {
+    auto extents{AsConstantExtents(context, shape)};
+    return extents && GetSize(*extents) == 1;
+  } else {
+    return true;
+  }
 }
 
 // Common handling for procedure pointer compatibility of left- and right-hand
@@ -986,7 +1045,8 @@ template <typename T> bool IsExpandableScalar(const Expr<T> &expr) {
 // message that needs to be augmented by the names of the left and right sides
 std::optional<parser::MessageFixedText> CheckProcCompatibility(bool isCall,
     const std::optional<characteristics::Procedure> &lhsProcedure,
-    const characteristics::Procedure *rhsProcedure);
+    const characteristics::Procedure *rhsProcedure,
+    const SpecificIntrinsic *specificIntrinsic, std::string &whyNotCompatible);
 
 // Scalar constant expansion
 class ScalarConstantExpander {
@@ -1046,6 +1106,38 @@ Constant<T> PackageConstant(std::vector<Scalar<T>> &&elements,
 std::optional<Expr<SomeType>> DataConstantConversionExtension(
     FoldingContext &, const DynamicType &, const Expr<SomeType> &);
 
+// Convert Hollerith or short character to a another type as if the
+// Hollerith data had been BOZ.
+std::optional<Expr<SomeType>> HollerithToBOZ(
+    FoldingContext &, const Expr<SomeType> &, const DynamicType &);
+
+// Set explicit lower bounds on a constant array.
+class ArrayConstantBoundChanger {
+public:
+  explicit ArrayConstantBoundChanger(ConstantSubscripts &&lbounds)
+      : lbounds_{std::move(lbounds)} {}
+
+  template <typename A> A ChangeLbounds(A &&x) const {
+    return std::move(x); // default case
+  }
+  template <typename T> Constant<T> ChangeLbounds(Constant<T> &&x) {
+    x.set_lbounds(std::move(lbounds_));
+    return std::move(x);
+  }
+  template <typename T> Expr<T> ChangeLbounds(Parentheses<T> &&x) {
+    return ChangeLbounds(
+        std::move(x.left())); // Constant<> can be parenthesized
+  }
+  template <typename T> Expr<T> ChangeLbounds(Expr<T> &&x) {
+    return common::visit(
+        [&](auto &&x) { return Expr<T>{ChangeLbounds(std::move(x))}; },
+        std::move(x.u)); // recurse until we hit a constant
+  }
+
+private:
+  ConstantSubscripts &&lbounds_;
+};
+
 } // namespace Fortran::evaluate
 
 namespace Fortran::semantics {
@@ -1062,6 +1154,7 @@ const Symbol *GetMainEntry(const Symbol *);
 bool IsVariableName(const Symbol &);
 bool IsPureProcedure(const Symbol &);
 bool IsPureProcedure(const Scope &);
+bool IsElementalProcedure(const Symbol &);
 bool IsFunction(const Symbol &);
 bool IsFunction(const Scope &);
 bool IsProcedure(const Symbol &);
@@ -1077,6 +1170,7 @@ bool IsKindTypeParameter(const Symbol &);
 bool IsLenTypeParameter(const Symbol &);
 bool IsExtensibleType(const DerivedTypeSpec *);
 bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name);
+bool IsBuiltinCPtr(const Symbol &);
 // Is this derived type TEAM_TYPE from module ISO_FORTRAN_ENV?
 bool IsTeamType(const DerivedTypeSpec *);
 // Is this derived type TEAM_TYPE, C_PTR, or C_FUNPTR?

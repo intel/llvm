@@ -116,6 +116,10 @@ constexpr GPUInfo AMDGCNGPUs[] = {
   {{"gfx1034"},   {"gfx1034"}, GK_GFX1034, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
   {{"gfx1035"},   {"gfx1035"}, GK_GFX1035, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
   {{"gfx1036"},   {"gfx1036"}, GK_GFX1036, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
+  {{"gfx1100"},   {"gfx1100"}, GK_GFX1100, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
+  {{"gfx1101"},   {"gfx1101"}, GK_GFX1101, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
+  {{"gfx1102"},   {"gfx1102"}, GK_GFX1102, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
+  {{"gfx1103"},   {"gfx1103"}, GK_GFX1103, FEATURE_FAST_FMA_F32|FEATURE_FAST_DENORMAL_F32|FEATURE_WAVE32},
 };
 
 const GPUInfo *getArchEntry(AMDGPU::GPUKind AK, ArrayRef<GPUInfo> Table) {
@@ -231,6 +235,10 @@ AMDGPU::IsaVersion AMDGPU::getIsaVersion(StringRef GPU) {
   case GK_GFX1034: return {10, 3, 4};
   case GK_GFX1035: return {10, 3, 5};
   case GK_GFX1036: return {10, 3, 6};
+  case GK_GFX1100: return {11, 0, 0};
+  case GK_GFX1101: return {11, 0, 1};
+  case GK_GFX1102: return {11, 0, 2};
+  case GK_GFX1103: return {11, 0, 3};
   default:         return {0, 0, 0};
   }
 }
@@ -270,6 +278,8 @@ bool checkCPUKind(CPUKind Kind, bool IsRV64) {
 bool checkTuneCPUKind(CPUKind Kind, bool IsRV64) {
   if (Kind == CK_INVALID)
     return false;
+#define TUNE_PROC(ENUM, NAME) if (Kind == CK_##ENUM) return true;
+#include "llvm/Support/RISCVTargetParser.def"
   return RISCVCPUInfo[static_cast<unsigned>(Kind)].is64Bit() == IsRV64;
 }
 
@@ -280,18 +290,10 @@ CPUKind parseCPUKind(StringRef CPU) {
       .Default(CK_INVALID);
 }
 
-StringRef resolveTuneCPUAlias(StringRef TuneCPU, bool IsRV64) {
-  return llvm::StringSwitch<StringRef>(TuneCPU)
-#define PROC_ALIAS(NAME, RV32, RV64) .Case(NAME, IsRV64 ? StringRef(RV64) : StringRef(RV32))
-#include "llvm/Support/RISCVTargetParser.def"
-      .Default(TuneCPU);
-}
-
 CPUKind parseTuneCPUKind(StringRef TuneCPU, bool IsRV64) {
-  TuneCPU = resolveTuneCPUAlias(TuneCPU, IsRV64);
-
   return llvm::StringSwitch<CPUKind>(TuneCPU)
 #define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) .Case(NAME, CK_##ENUM)
+#define TUNE_PROC(ENUM, NAME) .Case(NAME, CK_##ENUM)
 #include "llvm/Support/RISCVTargetParser.def"
       .Default(CK_INVALID);
 }
@@ -313,7 +315,7 @@ void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64) {
     if (C.Kind != CK_INVALID && IsRV64 == C.is64Bit())
       Values.emplace_back(C.Name);
   }
-#define PROC_ALIAS(NAME, RV32, RV64) Values.emplace_back(StringRef(NAME));
+#define TUNE_PROC(ENUM, NAME) Values.emplace_back(StringRef(NAME));
 #include "llvm/Support/RISCVTargetParser.def"
 }
 

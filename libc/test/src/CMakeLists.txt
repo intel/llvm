@@ -3,7 +3,7 @@ function(add_fp_unittest name)
     "MATH_UNITTEST"
     "NEED_MPFR" # Optional arguments
     "" # Single value arguments
-    "" # Multi-value arguments
+    "LINK_LIBRARIES" # Multi-value arguments
     ${ARGN}
   )
 
@@ -14,15 +14,16 @@ function(add_fp_unittest name)
     endif()
   endif()
 
-  add_libc_unittest(${name} ${MATH_UNITTEST_UNPARSED_ARGUMENTS})
-  get_fq_target_name(${name} fq_target_name)
-  if (NOT TARGET ${fq_target_name})
-    return()
-  endif()
   if(MATH_UNITTEST_NEED_MPFR)
-    target_link_libraries(${fq_target_name} PRIVATE libcMPFRWrapper -lmpfr -lgmp)
+    list(APPEND MATH_UNITTEST_LINK_LIBRARIES libcMPFRWrapper -lmpfr -lgmp)
   endif()
-  target_link_libraries(${fq_target_name} PRIVATE LibcFPTestHelpers)
+  list(APPEND MATH_UNITTEST_LINK_LIBRARIES LibcFPTestHelpers)
+
+  add_libc_unittest(
+    ${name}
+    LINK_LIBRARIES "${MATH_UNITTEST_LINK_LIBRARIES}"
+    "${MATH_UNITTEST_UNPARSED_ARGUMENTS}"
+  )
 endfunction(add_fp_unittest)
 
 add_subdirectory(__support)
@@ -33,9 +34,11 @@ add_subdirectory(inttypes)
 add_subdirectory(math)
 add_subdirectory(string)
 add_subdirectory(stdlib)
+add_subdirectory(stdio)
 
 if(${LIBC_TARGET_OS} STREQUAL "linux")
   add_subdirectory(fcntl)
+  add_subdirectory(sched)
   add_subdirectory(sys)
   add_subdirectory(unistd)
 endif()
@@ -44,13 +47,16 @@ if(NOT LLVM_LIBC_FULL_BUILD)
   return()
 endif()
 
+add_subdirectory(dirent)
 # The signal API is currently disabled as signal.h is incorrect.
 # since assert uses the signal API, we disable assert also.
 # add_subdirectory(assert)
-# add_subdirectory(signal)
-add_subdirectory(stdio)
-add_subdirectory(threads)
+add_subdirectory(signal)
 add_subdirectory(time)
+
+if(${LIBC_TARGET_OS} STREQUAL "linux")
+  add_subdirectory(pthread)
+endif()
 
 set(public_test ${CMAKE_CURRENT_BINARY_DIR}/public_api_test.cpp)
 
@@ -76,7 +82,7 @@ add_custom_command(
 
   DEPENDS ${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/api.td ${spec_files}
           libc-prototype-testgen ${TARGET_PUBLIC_HEADERS}
-          llvmlibc
+          ${LIBC_TARGET}
 )
 
 add_executable(
@@ -91,6 +97,8 @@ set_target_properties(
   PROPERTIES
   INCLUDE_DIRECTORIES ""
 )
+target_link_libraries(libc-api-test ${LIBC_TARGET})
+
 # Only include we need is the include for cpp::IsSame and our generated
 # public headers.
 target_include_directories(

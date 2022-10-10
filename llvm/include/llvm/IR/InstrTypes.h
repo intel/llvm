@@ -1613,12 +1613,18 @@ public:
 
   /// Get the attribute of a given kind for the function.
   Attribute getFnAttr(StringRef Kind) const {
-    return getAttributes().getFnAttr(Kind);
+    Attribute Attr = getAttributes().getFnAttr(Kind);
+    if (Attr.isValid())
+      return Attr;
+    return getFnAttrOnCalledFunction(Kind);
   }
 
   /// Get the attribute of a given kind for the function.
   Attribute getFnAttr(Attribute::AttrKind Kind) const {
-    return getAttributes().getFnAttr(Kind);
+    Attribute A = getAttributes().getFnAttr(Kind);
+    if (A.isValid())
+      return A;
+    return getFnAttrOnCalledFunction(Kind);
   }
 
   /// Get the attribute of a given kind from a given arg
@@ -1820,7 +1826,13 @@ public:
 
   /// If one of the arguments has the 'returned' attribute, returns its
   /// operand value. Otherwise, return nullptr.
-  Value *getReturnedArgOperand() const;
+  Value *getReturnedArgOperand() const {
+    return getArgOperandWithAttribute(Attribute::Returned);
+  }
+
+  /// If one of the arguments has the specified attribute, returns its
+  /// operand value. Otherwise, return nullptr.
+  Value *getArgOperandWithAttribute(Attribute::AttrKind Kind) const;
 
   /// Return true if the call should not be treated as a call to a
   /// builtin.
@@ -2063,20 +2075,7 @@ public:
 
   /// Return true if this operand bundle user has operand bundles that
   /// may write to the heap.
-  bool hasClobberingOperandBundles() const {
-    for (auto &BOI : bundle_op_infos()) {
-      if (BOI.Tag->second == LLVMContext::OB_deopt ||
-          BOI.Tag->second == LLVMContext::OB_funclet ||
-          BOI.Tag->second == LLVMContext::OB_ptrauth)
-        continue;
-
-      // This instruction has an operand bundle that is not known to us.
-      // Assume the worst.
-      return true;
-    }
-
-    return false;
-  }
+  bool hasClobberingOperandBundles() const;
 
   /// Return true if the bundle operand at index \p OpIdx has the
   /// attribute \p A.
@@ -2288,7 +2287,7 @@ protected:
   /// Return the total number of values used in \p Bundles.
   static unsigned CountBundleInputs(ArrayRef<OperandBundleDef> Bundles) {
     unsigned Total = 0;
-    for (auto &B : Bundles)
+    for (const auto &B : Bundles)
       Total += B.input_size();
     return Total;
   }
@@ -2311,6 +2310,7 @@ private:
 
     return hasFnAttrOnCalledFunction(Kind);
   }
+  template <typename AK> Attribute getFnAttrOnCalledFunction(AK Kind) const;
 
   /// A specialized version of hasFnAttrImpl for when the caller wants to
   /// know if an attribute's semantics are implied, not whether the attribute

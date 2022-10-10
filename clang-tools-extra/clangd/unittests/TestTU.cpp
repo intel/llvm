@@ -41,6 +41,13 @@ ParseInputs TestTU::inputs(MockFS &FS) const {
   Inputs.FeatureModules = FeatureModules;
   auto &Argv = Inputs.CompileCommand.CommandLine;
   Argv = {"clang"};
+  // In tests, unless explicitly specified otherwise, omit predefined macros
+  // (__GNUC__ etc) for a 25% speedup. There are hundreds, and we'd generate,
+  // parse, serialize, and re-parse them!
+  if (!PredefineMacros) {
+    Argv.push_back("-Xclang");
+    Argv.push_back("-undef");
+  }
   // FIXME: this shouldn't need to be conditional, but it breaks a
   // GoToDefinition test for some reason (getMacroArgExpandedLocation fails).
   if (!HeaderCode.empty()) {
@@ -107,6 +114,7 @@ TestTU::preamble(PreambleParsedCallback PreambleCallback) const {
 ParsedAST TestTU::build() const {
   MockFS FS;
   auto Inputs = inputs(FS);
+  Inputs.Opts = ParseOpts;
   StoreDiags Diags;
   auto CI = buildCompilerInvocation(Inputs, Diags);
   assert(CI && "Failed to build compilation invocation.");
@@ -120,7 +128,7 @@ ParsedAST TestTU::build() const {
                                                /*PreambleCallback=*/nullptr);
   auto AST = ParsedAST::build(testPath(Filename), Inputs, std::move(CI),
                               Diags.take(), Preamble);
-  if (!AST.hasValue()) {
+  if (!AST) {
     llvm::errs() << "Failed to build code:\n" << Code;
     std::abort();
   }

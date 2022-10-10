@@ -76,14 +76,17 @@ static lto::Config createConfig() {
     c.RelocModel = Reloc::Static;
   else
     c.RelocModel = Reloc::PIC_;
+#ifndef NDEBUG
+  c.DisableVerify = false;
+#else
   c.DisableVerify = true;
+#endif
   c.DiagHandler = diagnosticHandler;
   c.OptLevel = config->ltoo;
   c.CPU = getCPUStr();
   c.MAttrs = getMAttrs();
   c.CGOptLevel = args::getCGOptLevel(config->ltoo);
   c.AlwaysEmitRegularLTOObj = !config->ltoObjPath.empty();
-  c.UseNewPM = config->ltoNewPassManager;
   c.DebugPassManager = config->ltoDebugPassManager;
   c.CSIRProfile = std::string(config->ltoCSProfileFile);
   c.RunCSIRInstr = config->ltoCSProfileGenerate;

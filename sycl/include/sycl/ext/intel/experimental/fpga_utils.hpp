@@ -8,98 +8,53 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/ext/oneapi/latency_control/properties.hpp>
+#include <sycl/stl.hpp>
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental::detail {
 
-enum class type {
-  none, // default
-  exact,
-  max,
-  min
+template <template <int32_t> class _Type, class _T>
+struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
+
+template <template <int32_t> class _Type, class... _T> struct _GetValue {
+  static constexpr auto value = _Type<0>::default_value;
 };
 
-template <int32_t _N> struct latency_anchor_id {
-  static constexpr int32_t value = _N;
-  static constexpr int32_t default_value = -1;
-};
-
-template <int32_t _N1, type _N2, int32_t _N3> struct latency_constraint {
-  static constexpr std::tuple<int32_t, type, int32_t> value = {_N1, _N2, _N3};
-  static constexpr std::tuple<int32_t, type, int32_t> default_value = {
-      0, type::none, 0};
-};
-
-using ignoreParam_int_t = int32_t;
-constexpr ignoreParam_int_t IgnoreParamInt{};
-using ignoreParam_enum_t = type;
-constexpr ignoreParam_enum_t IgnoreParamEnum{};
-
-template <class _VType, class _T> struct _ValueExtractorImp {
-  static constexpr auto _First = _T::value;
-  static constexpr auto _Second = IgnoreParamEnum;
-  static constexpr auto _Third = IgnoreParamInt;
-};
-
-template <class _VTypeFirst, class _VTypeSecond, class _VTypeThird, class _T>
-struct _ValueExtractorImp<
-    const std::tuple<_VTypeFirst, _VTypeSecond, _VTypeThird>, _T> {
-  static constexpr auto _First = std::get<0>(_T::value);
-  static constexpr auto _Second = std::get<1>(_T::value);
-  static constexpr auto _Third = std::get<2>(_T::value);
-};
-
-template <class _T>
-struct _ValueExtractor : _ValueExtractorImp<decltype(_T::value), _T> {};
-
-template <class _VTypeFirst, class _VTypeSecond, class _VTypeThird,
-          template <_VTypeFirst, _VTypeSecond, _VTypeThird> class _Type,
-          class _T>
-struct _MatchType
-    : std::is_same<
-          _Type<_ValueExtractor<_T>::_First, _ValueExtractor<_T>::_Second,
-                _ValueExtractor<_T>::_Third>,
-          _T> {};
-
-template <class _VTypeFirst, class _VTypeSecond, class _VTypeThird,
-          template <_VTypeFirst, _VTypeSecond, _VTypeThird> class _Type,
-          class... _T>
-struct _GetValue3 {
+template <template <int32_t> class _Type, class _T1, class... _T>
+struct _GetValue<_Type, _T1, _T...> {
   static constexpr auto value =
-      _Type<_VTypeFirst{}, _VTypeSecond{}, _VTypeThird{}>::default_value;
+      sycl::detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
+                                  _GetValue<_Type, _T...>>::value;
 };
 
-template <class _VTypeFirst, class _VTypeSecond, class _VTypeThird,
-          template <_VTypeFirst, _VTypeSecond, _VTypeThird> class _Type,
-          class _T1, class... _T>
-struct _GetValue3<_VTypeFirst, _VTypeSecond, _VTypeThird, _Type, _T1, _T...> {
-  static constexpr auto value = std::conditional<
-      _MatchType<_VTypeFirst, _VTypeSecond, _VTypeThird, _Type, _T1>::value,
-      _T1, _GetValue3<_VTypeFirst, _VTypeSecond, _VTypeThird, _Type, _T...>>::
-      type::value;
+// Get the specified property from the given compile-time property list. If
+// the property is not provided in the property list, get the default version of
+// this property.
+template <typename PropListT, typename PropKeyT, typename DefaultPropValT,
+          typename = void>
+struct GetOrDefaultValT {
+  using type = DefaultPropValT;
+};
+template <typename PropListT, typename PropKeyT, typename DefaultPropValT>
+struct GetOrDefaultValT<
+    PropListT, PropKeyT, DefaultPropValT,
+    std::enable_if_t<PropListT::template has_property<PropKeyT>()>> {
+  using type = decltype(PropListT::template get_property<PropKeyT>());
 };
 
-template <class _VType, template <_VType> class _Type, class... _T>
-struct _GetValue {
-private:
-  template <_VType _V1, ignoreParam_enum_t, ignoreParam_int_t>
-  using _Type2 = _Type<_V1>;
+// Default latency_anchor_id property for latency control, indicating the
+// applied operation is not an anchor.
+using defaultLatencyAnchorIdProperty = latency_anchor_id_key::value_t<-1>;
+// Default latency_constraint property for latency control, indicating the
+// applied operation is not a non-anchor.
+using defaultLatencyConstraintProperty =
+    latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
-public:
-  static constexpr auto value =
-      _GetValue3<_VType, ignoreParam_enum_t, ignoreParam_int_t, _Type2,
-                 _T...>::value;
-};
-
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental::detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

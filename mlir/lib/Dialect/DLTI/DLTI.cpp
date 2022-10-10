@@ -73,11 +73,11 @@ DataLayoutEntryAttr DataLayoutEntryAttr::parse(AsmParser &parser) {
   std::string identifier;
   SMLoc idLoc = parser.getCurrentLocation();
   OptionalParseResult parsedType = parser.parseOptionalType(type);
-  if (parsedType.hasValue() && failed(parsedType.getValue()))
+  if (parsedType.has_value() && failed(parsedType.value()))
     return {};
-  if (!parsedType.hasValue()) {
+  if (!parsedType.has_value()) {
     OptionalParseResult parsedString = parser.parseOptionalString(&identifier);
-    if (!parsedString.hasValue() || failed(parsedString.getValue())) {
+    if (!parsedString.has_value() || failed(parsedString.value())) {
       parser.emitError(idLoc) << "expected a type or a quoted string";
       return {};
     }
@@ -286,14 +286,11 @@ DataLayoutSpecAttr DataLayoutSpecAttr::parse(AsmParser &parser) {
     return get(parser.getContext(), {});
 
   SmallVector<DataLayoutEntryInterface> entries;
-  do {
-    entries.emplace_back();
-    if (failed(parser.parseAttribute(entries.back())))
-      return {};
-  } while (succeeded(parser.parseOptionalComma()));
-
-  if (failed(parser.parseGreater()))
+  if (parser.parseCommaSeparatedList(
+          [&]() { return parser.parseAttribute(entries.emplace_back()); }) ||
+      parser.parseGreater())
     return {};
+
   return getChecked([&] { return parser.emitError(parser.getNameLoc()); },
                     parser.getContext(), entries);
 }

@@ -75,6 +75,8 @@ public:
   OutputBuffer(const OutputBuffer &) = delete;
   OutputBuffer &operator=(const OutputBuffer &) = delete;
 
+  operator StringView() const { return StringView(Buffer, CurrentPosition); }
+
   void reset(char *Buffer_, size_t BufferCapacity_) {
     CurrentPosition = 0;
     Buffer = Buffer_;
@@ -85,6 +87,21 @@ public:
   /// into the pack that we're currently printing.
   unsigned CurrentPackIndex = std::numeric_limits<unsigned>::max();
   unsigned CurrentPackMax = std::numeric_limits<unsigned>::max();
+
+  /// When zero, we're printing template args and '>' needs to be parenthesized.
+  /// Use a counter so we can simply increment inside parentheses.
+  unsigned GtIsGt = 1;
+
+  bool isGtInsideTemplateArgs() const { return GtIsGt == 0; }
+
+  void printOpen(char Open = '(') {
+    GtIsGt++;
+    *this += Open;
+  }
+  void printClose(char Close = ')') {
+    GtIsGt--;
+    *this += Close;
+  }
 
   OutputBuffer &operator+=(StringView R) {
     if (size_t Size = R.size()) {
@@ -154,7 +171,8 @@ public:
   void setCurrentPosition(size_t NewPos) { CurrentPosition = NewPos; }
 
   char back() const {
-    return CurrentPosition ? Buffer[CurrentPosition - 1] : '\0';
+    assert(CurrentPosition);
+    return Buffer[CurrentPosition - 1];
   }
 
   bool empty() const { return CurrentPosition == 0; }
@@ -164,21 +182,20 @@ public:
   size_t getBufferCapacity() const { return BufferCapacity; }
 };
 
-template <class T> class SwapAndRestore {
-  T &Restore;
-  T OriginalValue;
+template <class T> class ScopedOverride {
+  T &Loc;
+  T Original;
 
 public:
-  SwapAndRestore(T &Restore_) : SwapAndRestore(Restore_, Restore_) {}
+  ScopedOverride(T &Loc_) : ScopedOverride(Loc_, Loc_) {}
 
-  SwapAndRestore(T &Restore_, T NewVal)
-      : Restore(Restore_), OriginalValue(Restore) {
-    Restore = std::move(NewVal);
+  ScopedOverride(T &Loc_, T NewVal) : Loc(Loc_), Original(Loc_) {
+    Loc_ = std::move(NewVal);
   }
-  ~SwapAndRestore() { Restore = std::move(OriginalValue); }
+  ~ScopedOverride() { Loc = std::move(Original); }
 
-  SwapAndRestore(const SwapAndRestore &) = delete;
-  SwapAndRestore &operator=(const SwapAndRestore &) = delete;
+  ScopedOverride(const ScopedOverride &) = delete;
+  ScopedOverride &operator=(const ScopedOverride &) = delete;
 };
 
 inline bool initializeOutputBuffer(char *Buf, size_t *N, OutputBuffer &OB,

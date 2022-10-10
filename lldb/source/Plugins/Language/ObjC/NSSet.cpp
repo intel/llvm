@@ -76,7 +76,7 @@ private:
   uint8_t m_ptr_size = 8;
   DataDescriptor_32 *m_data_32 = nullptr;
   DataDescriptor_64 *m_data_64 = nullptr;
-  lldb::addr_t m_data_ptr;
+  lldb::addr_t m_data_ptr = LLDB_INVALID_ADDRESS;
   std::vector<SetItemDescriptor> m_children;
 };
 
@@ -461,7 +461,7 @@ bool lldb_private::formatters::NSSetISyntheticFrontEnd::Update() {
   if (error.Fail())
     return false;
   m_data_ptr = data_location + m_ptr_size;
-  return false;
+  return true;
 }
 
 bool lldb_private::formatters::NSSetISyntheticFrontEnd::MightHaveChildren() {
@@ -635,7 +635,7 @@ lldb_private::formatters::NSCFSetSyntheticFrontEnd::GetChildAtIndex(
   SetItemDescriptor &set_item = m_children[idx];
   if (!set_item.valobj_sp) {
 
-    DataBufferSP buffer_sp(new DataBufferHeap(m_ptr_size, 0));
+    WritableDataBufferSP buffer_sp(new DataBufferHeap(m_ptr_size, 0));
 
     switch (m_ptr_size) {
     case 0: // architecture has no clue - fail
@@ -735,9 +735,7 @@ lldb_private::formatters::
     process_sp->ReadMemory(data_location, m_data_64, sizeof(D64),
                            error);
   }
-  if (error.Fail())
-    return false;
-  return false;
+  return error.Success();
 }
 
 template <typename D32, typename D64>

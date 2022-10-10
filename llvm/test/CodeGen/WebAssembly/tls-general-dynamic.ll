@@ -1,11 +1,8 @@
-; RUN: not --crash llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=+bulk-memory 2>&1 | FileCheck %s --check-prefix=ERROR
-; RUN: not --crash llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=+bulk-memory -fast-isel 2>&1 | FileCheck %s --check-prefix=ERROR
-; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=+bulk-memory --mtriple wasm32-unknown-emscripten | FileCheck %s --check-prefixes=CHECK,TLS
-; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=+bulk-memory --mtriple wasm32-unknown-emscripten -fast-isel | FileCheck %s --check-prefixes=CHECK,TLS
-; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=-bulk-memory | FileCheck %s --check-prefixes=CHECK,NO-TLS
-target triple = "wasm32-unknown-unknown"
-
-; ERROR: LLVM ERROR: only -ftls-model=local-exec is supported for now on non-Emscripten OSes: variable tls
+; This test checks experimental Emscripten-specific `generaldynamic` TLS support. See `tls-local-exec.ll` for non-Emscripten targets (since it lowers all TLS to `localexec`).
+; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=+bulk-memory,atomics | FileCheck %s --check-prefixes=CHECK,TLS
+; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=+bulk-memory,atomics -fast-isel | FileCheck %s --check-prefixes=CHECK,TLS
+; RUN: llc < %s -asm-verbose=false -disable-wasm-fallthrough-return-opt -wasm-disable-explicit-locals -mattr=-bulk-memory,atomics | FileCheck %s --check-prefixes=CHECK,NO-TLS
+target triple = "wasm32-unknown-emscripten"
 
 ; CHECK-LABEL: address_of_tls:
 ; CHECK-NEXT: .functype  address_of_tls () -> (i32)

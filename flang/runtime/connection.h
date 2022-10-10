@@ -28,17 +28,30 @@ struct ConnectionAttributes {
   Access access{Access::Sequential}; // ACCESS='SEQUENTIAL', 'DIRECT', 'STREAM'
   std::optional<bool> isUnformatted; // FORM='UNFORMATTED' if true
   bool isUTF8{false}; // ENCODING='UTF-8'
+  unsigned char internalIoCharKind{0}; // 0->external, 1/2/4->internal
   std::optional<std::int64_t> openRecl; // RECL= on OPEN
 
   bool IsRecordFile() const {
     // Formatted stream files are viewed as having records, at least on input
     return access != Access::Stream || !isUnformatted.value_or(true);
   }
+
+  template <typename CHAR = char> constexpr bool useUTF8() const {
+    // For wide CHARACTER kinds, always use UTF-8 for formatted I/O.
+    // For single-byte CHARACTER, encode characters >= 0x80 with
+    // UTF-8 iff the mode is set.
+    return internalIoCharKind == 0 && (sizeof(CHAR) > 1 || isUTF8);
+  }
 };
 
 struct ConnectionState : public ConnectionAttributes {
   bool IsAtEOF() const; // true when read has hit EOF or endfile record
   bool IsAfterEndfile() const; // true after ENDFILE until repositioned
+
+  // All positions and measurements are always in units of bytes,
+  // not characters.  Multi-byte character encodings are possible in
+  // both internal I/O (when the character kind of the variable is 2 or 4)
+  // and external formatted I/O (when the encoding is UTF-8).
   std::size_t RemainingSpaceInRecord() const;
   bool NeedAdvance(std::size_t) const;
   void HandleAbsolutePosition(std::int64_t);
@@ -47,7 +60,7 @@ struct ConnectionState : public ConnectionAttributes {
   void BeginRecord() {
     positionInRecord = 0;
     furthestPositionInRecord = 0;
-    leftTabLimit.reset();
+    unterminatedRecord = false;
   }
 
   std::optional<std::int64_t> EffectiveRecordLength() const {
@@ -59,9 +72,17 @@ struct ConnectionState : public ConnectionAttributes {
 
   std::optional<std::int64_t> recordLength;
 
-  // Positions in a record file (sequential or direct, not stream)
   std::int64_t currentRecordNumber{1}; // 1 is first
-  std::int64_t positionInRecord{0}; // offset in current record
+
+  // positionInRecord is the 0-based bytes offset in the current recurd
+  // to/from which the next data transfer will occur.  It can be past
+  // furthestPositionInRecord if moved by an X or T or TR control edit
+  // descriptor.
+  std::int64_t positionInRecord{0};
+
+  // furthestPositionInRecord is the 0-based byte offset of the greatest
+  // position in the current record to/from which any data transfer has
+  // occurred, plus one.  It can be viewed as a count of bytes processed.
   std::int64_t furthestPositionInRecord{0}; // max(position+bytes)
 
   // Set at end of non-advancing I/O data transfer
@@ -79,6 +100,10 @@ struct ConnectionState : public ConnectionAttributes {
   // so that backspacing to the beginning of the repeated item doesn't require
   // repositioning the external storage medium when that's impossible.
   bool pinnedFrame{false};
+
+  // Set when the last record of a file is not properly terminated
+  // so that a non-advancing READ will not signal EOR.
+  bool unterminatedRecord{false};
 };
 
 // Utility class for capturing and restoring a position in an input stream.

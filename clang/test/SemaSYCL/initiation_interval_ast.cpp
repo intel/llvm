@@ -17,8 +17,8 @@ sycl::queue deviceQueue;
 // CHECK: FunctionTemplateDecl {{.*}} func2
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK_NEXT: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
-// CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
+// CHECK-NEXT: SYCLIntelFPGAInitiationIntervalAttr {{.*}} initiation_interval
+// CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
 // CHECK-NEXT: TemplateArgument integral 6
 // CHECK-NEXT: CompoundStmt

@@ -1,15 +1,20 @@
 set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
-  BOLTProfile
-  BOLTRewrite
-  BOLTUtils
   MC
   Object
   Support
   )
 
-add_llvm_tool(llvm-bolt-heatmap
+add_bolt_tool(llvm-bolt-heatmap
   heatmap.cpp
+  DISABLE_LLVM_LINK_LLVM_DYLIB
+  )
+
+target_link_libraries(llvm-bolt-heatmap
+  PRIVATE
+  LLVMBOLTProfile
+  LLVMBOLTRewrite
+  LLVMBOLTUtils
   )
 
 set_target_properties(llvm-bolt-heatmap PROPERTIES FOLDER "BOLT")

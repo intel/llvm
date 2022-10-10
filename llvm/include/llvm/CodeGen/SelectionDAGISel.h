@@ -21,6 +21,7 @@
 
 namespace llvm {
 class AAResults;
+class AssumptionCache;
 class TargetInstrInfo;
 class TargetMachine;
 class SelectionDAGBuilder;
@@ -48,12 +49,14 @@ public:
   SelectionDAG *CurDAG;
   std::unique_ptr<SelectionDAGBuilder> SDB;
   AAResults *AA = nullptr;
+  AssumptionCache *AC = nullptr;
   GCFunctionInfo *GFI = nullptr;
   CodeGenOpt::Level OptLevel;
   const TargetInstrInfo *TII;
   const TargetLowering *TLI;
   bool FastISelFailed;
   SmallPtrSet<const Instruction *, 4> ElidedArgCopyInstrs;
+  bool UseInstrRefDebugInfo = false;
 
   /// Current optimization remark emitter.
   /// Used to report things like combines and FastISel failures.
@@ -320,6 +323,11 @@ private:
 
   void Select_FREEZE(SDNode *N);
   void Select_ARITH_FENCE(SDNode *N);
+
+  void pushStackMapLiveVariable(SmallVectorImpl<SDValue> &Ops, SDValue Operand,
+                                SDLoc DL);
+  void Select_STACKMAP(SDNode *N);
+  void Select_PATCHPOINT(SDNode *N);
 
 private:
   void DoInstructionSelection();

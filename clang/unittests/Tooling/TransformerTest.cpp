@@ -12,6 +12,7 @@
 #include "clang/Tooling/Transformer/RangeSelector.h"
 #include "clang/Tooling/Transformer/RewriteRule.h"
 #include "clang/Tooling/Transformer/Stencil.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "gmock/gmock.h"
@@ -82,7 +83,7 @@ static std::string format(StringRef Code) {
 }
 
 static void compareSnippets(StringRef Expected,
-                     const llvm::Optional<std::string> &MaybeActual) {
+                            const llvm::Optional<std::string> &MaybeActual) {
   ASSERT_TRUE(MaybeActual) << "Rewrite failed. Expecting: " << Expected;
   auto Actual = *MaybeActual;
   std::string HL = "#include \"header.h\"\n";
@@ -1265,31 +1266,29 @@ void testIt()
   auto RewriteOutput =
       CodePrefix + RangeLoop + LoopBody + RangeLoop + LoopBody + CodeSuffix;
 
-    auto MatchedLoop = forStmt(
-        has(declStmt(
-            hasSingleDecl(varDecl(hasInitializer(integerLiteral(equals(0))))
-                              .bind("loopVar")))),
-        has(binaryOperator(hasOperatorName("!="),
-                           hasLHS(ignoringImplicit(declRefExpr(
-                               to(varDecl(equalsBoundNode("loopVar")))))),
-                           hasRHS(expr().bind("upperBoundExpr")))),
-        has(unaryOperator(hasOperatorName("++"),
-                          hasUnaryOperand(declRefExpr(
-                              to(varDecl(equalsBoundNode("loopVar"))))))
-                .bind("incrementOp")));
+  auto MatchedLoop = forStmt(
+      has(declStmt(hasSingleDecl(
+          varDecl(hasInitializer(integerLiteral(equals(0)))).bind("loopVar")))),
+      has(binaryOperator(hasOperatorName("!="),
+                         hasLHS(ignoringImplicit(declRefExpr(
+                             to(varDecl(equalsBoundNode("loopVar")))))),
+                         hasRHS(expr().bind("upperBoundExpr")))),
+      has(unaryOperator(hasOperatorName("++"),
+                        hasUnaryOperand(declRefExpr(
+                            to(varDecl(equalsBoundNode("loopVar"))))))
+              .bind("incrementOp")));
 
-    auto RewriteRule =
-        changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
-                 cat("auto ", name("loopVar"), " : boost::irange(",
-                     node("upperBoundExpr"), ")"));
+  auto RewriteRule =
+      changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
+               cat("auto ", name("loopVar"), " : boost::irange(",
+                   node("upperBoundExpr"), ")"));
 
-    testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
-                      RewriteRule),
-             RewriteInput, RewriteOutput);
+  testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
+                    RewriteRule),
+           RewriteInput, RewriteOutput);
 
-    testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
-                    RewriteInput);
-
+  testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
+                  RewriteInput);
 }
 
 TEST_F(TransformerTest, ImplicitNodes_ForStmt2) {
@@ -1338,31 +1337,29 @@ void testIt()
 
   auto RewriteOutput =
       CodePrefix + RangeLoop + LoopBody + RangeLoop + LoopBody + CodeSuffix;
-    auto MatchedLoop = forStmt(
-        hasLoopInit(declStmt(
-            hasSingleDecl(varDecl(hasInitializer(integerLiteral(equals(0))))
-                              .bind("loopVar")))),
-        hasCondition(binaryOperator(hasOperatorName("!="),
-                                    hasLHS(ignoringImplicit(declRefExpr(to(
-                                        varDecl(equalsBoundNode("loopVar")))))),
-                                    hasRHS(expr().bind("upperBoundExpr")))),
-        hasIncrement(unaryOperator(hasOperatorName("++"),
-                                   hasUnaryOperand(declRefExpr(to(
-                                       varDecl(equalsBoundNode("loopVar"))))))
-                         .bind("incrementOp")));
+  auto MatchedLoop = forStmt(
+      hasLoopInit(declStmt(hasSingleDecl(
+          varDecl(hasInitializer(integerLiteral(equals(0)))).bind("loopVar")))),
+      hasCondition(binaryOperator(hasOperatorName("!="),
+                                  hasLHS(ignoringImplicit(declRefExpr(to(
+                                      varDecl(equalsBoundNode("loopVar")))))),
+                                  hasRHS(expr().bind("upperBoundExpr")))),
+      hasIncrement(unaryOperator(hasOperatorName("++"),
+                                 hasUnaryOperand(declRefExpr(
+                                     to(varDecl(equalsBoundNode("loopVar"))))))
+                       .bind("incrementOp")));
 
-    auto RewriteRule =
-        changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
-                 cat("auto ", name("loopVar"), " : boost::irange(",
-                     node("upperBoundExpr"), ")"));
+  auto RewriteRule =
+      changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
+               cat("auto ", name("loopVar"), " : boost::irange(",
+                   node("upperBoundExpr"), ")"));
 
-    testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
-                      RewriteRule),
-             RewriteInput, RewriteOutput);
+  testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
+                    RewriteRule),
+           RewriteInput, RewriteOutput);
 
-    testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
-                    RewriteInput);
-
+  testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
+                  RewriteInput);
 }
 
 TEST_F(TransformerTest, TemplateInstantiation) {
@@ -1621,10 +1618,9 @@ TEST_F(TransformerTest, MultipleFiles) {
       "clang-tool", std::make_shared<PCHContainerOperations>(),
       {{"input.h", Header}}));
 
-  std::sort(Changes.begin(), Changes.end(),
-            [](const AtomicChange &L, const AtomicChange &R) {
-              return L.getFilePath() < R.getFilePath();
-            });
+  llvm::sort(Changes, [](const AtomicChange &L, const AtomicChange &R) {
+    return L.getFilePath() < R.getFilePath();
+  });
 
   ASSERT_EQ(Changes[0].getFilePath(), "./input.h");
   EXPECT_THAT(Changes[0].getInsertedHeaders(), IsEmpty());

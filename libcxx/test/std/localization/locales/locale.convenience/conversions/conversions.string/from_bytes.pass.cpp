@@ -8,6 +8,8 @@
 
 // <locale>
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 // wstring_convert<Codecvt, Elem, Wide_alloc, Byte_alloc>
 
 // wide_string from_bytes(char byte);
@@ -15,7 +17,7 @@
 // wide_string from_bytes(const byte_string& str);
 // wide_string from_bytes(const char* first, const char* last);
 
-// XFAIL: libcpp-has-no-wide-characters
+// XFAIL: no-wide-characters
 
 #include <locale>
 #include <codecvt>

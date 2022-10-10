@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/sycl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace opencl {
 using namespace detail;
 
@@ -37,24 +37,13 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle) {
 }
 
 //----------------------------------------------------------------------------
-// Implementation of opencl::make<program>
-__SYCL_EXPORT program make_program(const context &Context,
-                                   pi_native_handle NativeHandle) {
-  // Construct the SYCL program from native program.
-  // TODO: move here the code that creates PI program, and remove the
-  // native interop constructor.
-  return detail::createSyclObjFromImpl<program>(
-      std::make_shared<program_impl>(getSyclObjImpl(Context), NativeHandle));
-}
-
-//----------------------------------------------------------------------------
 // Implementation of opencl::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, false,
+  return detail::make_queue(NativeHandle, Context, nullptr, false,
                             ContextImpl->get_async_handler(), backend::opencl);
 }
 } // namespace opencl
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

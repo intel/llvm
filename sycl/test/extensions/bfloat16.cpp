@@ -53,11 +53,11 @@ __attribute__((noinline)) float op(float a, float b) {
 
 int main(int argc, char *argv[]) {
   float data[3] = {7.0, 8.1, 0.0};
-  cl::sycl::queue deviceQueue;
-  cl::sycl::buffer<float, 1> buf{data, cl::sycl::range<1>{3}};
+  sycl::queue deviceQueue;
+  sycl::buffer<float, 1> buf{data, sycl::range<1>{3}};
 
-  deviceQueue.submit([&](cl::sycl::handler &cgh) {
-    auto numbers = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+  deviceQueue.submit([&](sycl::handler &cgh) {
+    auto numbers = buf.get_access<sycl::access::mode::read_write>(cgh);
     cgh.single_task<class simple_kernel>(
         [=]() { numbers[2] = op(numbers[0], numbers[1]); });
   });

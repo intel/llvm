@@ -1,7 +1,7 @@
 # FPGA reg
 
 Intel FPGA extension `fpga_reg()` is implemented in header file
-`#include <CL/sycl/intel/fpga_extensions.hpp>`.
+`#include <sycl/intel/fpga_extensions.hpp>`.
 
 fpga_reg is used to help compiler infer that at least one register is on the corresponding data path.
 
@@ -22,10 +22,10 @@ The implementation is a wrapper class to map fpga_reg function call to a Clang b
 ## Usage
 
 ```c++
-#include <CL/sycl/intel/fpga_extensions.hpp>
+#include <sycl/intel/fpga_extensions.hpp>
 ...
 // force at least one register on data path
-int a = cl::sycl::intel::fpga_reg(a[k]) + b[k];
+int a = sycl::intel::fpga_reg(a[k]) + b[k];
 
 ...
 ```

@@ -3,8 +3,8 @@
 // Test `fir.gentypedesc` conversion to llvm.
 // Not implemented yet.
 
-func @gentypedesc() {
-// CHECK: not yet implemented fir.gentypedesc codegen
+func.func @gentypedesc() {
+// CHECK: not yet implemented: fir.gentypedesc codegen
   %0 = fir.gentypedesc !fir.type<derived3>
   return
 }

@@ -19,7 +19,7 @@ int main() {
   struct_with_pointer obj;
   obj.data_in_struct = 10;
 
-  cl::sycl::kernel_single_task<class test>([=]() {
+  sycl::kernel_single_task<class test>([=]() {
     *ptr = 50;
     int local = obj.data_in_struct;
   });

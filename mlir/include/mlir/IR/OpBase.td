@@ -13,6 +13,8 @@
 #ifndef OP_BASE
 #define OP_BASE
 
+include "mlir/IR/DialectBase.td"
+
 //===----------------------------------------------------------------------===//
 // Common utilities for defining TableGen mechanisms
 //===----------------------------------------------------------------------===//
@@ -259,89 +261,6 @@ def HasStaticShapePred :
 def IsTupleTypePred : CPred<"$_self.isa<::mlir::TupleType>()">;
 
 //===----------------------------------------------------------------------===//
-// Dialect definitions
-//===----------------------------------------------------------------------===//
-
-// "Enum" values for emitAccessorPrefix of Dialect.
-defvar kEmitAccessorPrefix_Raw = 0;      // Don't emit any getter/setter prefix.
-defvar kEmitAccessorPrefix_Prefixed = 1; // Only emit with getter/setter prefix.
-defvar kEmitAccessorPrefix_Both = 2;     // Emit without and with prefix.
-
-class Dialect {
-  // The name of the dialect.
-  string name = ?;
-
-  // Short summary of the dialect.
-  string summary = ?;
-
-  // The description of the dialect.
-  string description = ?;
-
-  // A list of dialects this dialect will load on construction as dependencies.
-  // These are dialects that this dialect may involve in canonicalization
-  // pattern or interfaces.
-  list<string> dependentDialects = [];
-
-  // The C++ namespace that ops of this dialect should be placed into.
-  //
-  // By default, uses the name of the dialect as the only namespace. To avoid
-  // placing in any namespace, use "". To specify nested namespaces, use "::"
-  // as the delimiter, e.g., given "A::B", ops will be placed in
-  // `namespace A { namespace B { <ops> } }`.
-  //
-  // Note that this works in conjunction with dialect C++ code. Depending on how
-  // the generated files are included into the dialect, you may want to specify
-  // a full namespace path or a partial one.
-  string cppNamespace = name;
-
-  // An optional code block containing extra declarations to place in the
-  // dialect declaration.
-  code extraClassDeclaration = "";
-
-  // If this dialect overrides the hook for materializing constants.
-  bit hasConstantMaterializer = 0;
-
-  /// If the dialect definition provides a non-default destructor.
-  /// If false, a default destructor implementation will be generated.
-  bit hasNonDefaultDestructor = 0;
-
-  // If this dialect overrides the hook for verifying operation attributes.
-  bit hasOperationAttrVerify = 0;
-
-  // If this dialect overrides the hook for verifying region argument
-  // attributes.
-  bit hasRegionArgAttrVerify = 0;
-
-  // If this dialect overrides the hook for verifying region result attributes.
-  bit hasRegionResultAttrVerify = 0;
-
-  // If this dialect overrides the hook for op interface fallback.
-  bit hasOperationInterfaceFallback = 0;
-
-  // If this dialect should use default generated attribute parser boilerplate:
-  // it'll dispatch the parsing to every individual attributes directly.
-  bit useDefaultAttributePrinterParser = 1;
-
-  // If this dialect should use default generated type parser boilerplate:
-  // it'll dispatch the parsing to every individual types directly.
-  bit useDefaultTypePrinterParser = 1;
-
-  // If this dialect overrides the hook for canonicalization patterns.
-  bit hasCanonicalizer = 0;
-
-  // Whether to emit raw/with no prefix or format changes, or emit with
-  // accessor with prefix only and UpperCamel suffix or to emit accessors with
-  // both.
-  //
-  // If emitting with prefix is specified then the attribute/operand's
-  // name is converted to UpperCamel from snake_case (which would result in
-  // leaving UpperCamel unchanged while also converting lowerCamel to
-  // UpperCamel) and prefixed with `get` or `set` depending on if it is a getter
-  // or setter.
-  int emitAccessorPrefix = kEmitAccessorPrefix_Raw;
-}
-
-//===----------------------------------------------------------------------===//
 // Type definitions
 //===----------------------------------------------------------------------===//
 
@@ -355,7 +274,7 @@ class Type<Pred condition, string descr = "",
 
 // Allows providing an alternative name and summary to an existing type def.
 class TypeAlias<Type t, string summary = t.summary> :
-    Type<t.predicate, summary> {
+    Type<t.predicate, summary, t.cppClassName> {
   let description = t.description;
   let builderCall = t.builderCall;
 }
@@ -372,12 +291,13 @@ class DialectType<Dialect d, Pred condition, string descr = "",
 class Variadic<Type type> : TypeConstraint<type.predicate, type.summary,
                                            type.cppClassName> {
   Type baseType = type;
+  int minSize = 0;
 }
 
 // A nested variadic type constraint. It expands to zero or more variadic ranges
 // of the base type. This class is used for supporting variadic operands and
 // results. `variadicSegmentAttrName` should correspond to the name of an
-// I32ElementsAttr argument that provides the sizes of the inner variadic
+// DenseI32ArrayAttr argument that provides the sizes of the inner variadic
 // operand groups.
 class VariadicOfVariadic<Type type, string variadicSegmentAttrName>
     : Variadic<type> {
@@ -420,12 +340,28 @@ def NoneType : Type<CPred<"$_self.isa<::mlir::NoneType>()">, "none type",
 // Any type from the given list
 class AnyTypeOf<list<Type> allowedTypes, string summary = "",
                 string cppClassName = "::mlir::Type"> : Type<
-    // Satisfy any of the allowed type's condition
+    // Satisfy any of the allowed types' conditions.
     Or<!foreach(allowedtype, allowedTypes, allowedtype.predicate)>,
     !if(!eq(summary, ""),
         !interleave(!foreach(t, allowedTypes, t.summary), " or "),
         summary),
     cppClassName>;
+
+// A type that satisfies the constraints of all given types.
+class AllOfType<list<Type> allowedTypes, string summary = "",
+                string cppClassName = "::mlir::Type"> : Type<
+    // Satisfy all of the allowedf types' conditions.
+    And<!foreach(allowedType, allowedTypes, allowedType.predicate)>,
+    !if(!eq(summary, ""),
+        !interleave(!foreach(t, allowedTypes, t.summary), " and "),
+        summary),
+    cppClassName>;
+
+// A type that satisfies additional predicates.
+class ConfinedType<Type type, list<Pred> predicates, string summary = "",
+                   string cppClassName = type.cppClassName> : Type<
+    And<!listconcat([type.predicate], !foreach(pred, predicates, pred))>,
+    summary, cppClassName>;
 
 // Integer types.
 
@@ -555,21 +491,20 @@ def F128 : F<128>;
 def BF16 : Type<CPred<"$_self.isBF16()">, "bfloat16 type">,
            BuildableType<"$_builder.getBF16Type()">;
 
+def AnyComplex : Type<CPred<"$_self.isa<::mlir::ComplexType>()">,
+                      "complex-type", "::mlir::ComplexType">;
+
 class Complex<Type type>
-    : Type<And<[
-          CPred<"$_self.isa<::mlir::ComplexType>()">,
+    : ConfinedType<AnyComplex, [
           SubstLeaves<"$_self",
                       "$_self.cast<::mlir::ComplexType>().getElementType()",
-           type.predicate>]>,
+           type.predicate>],
            "complex type with " # type.summary # " elements",
            "::mlir::ComplexType">,
       SameBuildabilityAs<type, "::mlir::ComplexType::get($_builder.get" # type #
                                "Type())"> {
   Type elementType = type;
 }
-
-def AnyComplex : Type<CPred<"$_self.isa<::mlir::ComplexType>()">,
-                      "complex-type", "::mlir::ComplexType">;
 
 class OpaqueType<string dialect, string name, string summary>
   : Type<CPred<"isOpaqueTypeWithName($_self, \""#dialect#"\", \""#name#"\")">,
@@ -652,9 +587,8 @@ class VectorOfRank<list<int> allowedRanks> : Type<
 // Any vector where the rank is from the given `allowedRanks` list and the type
 // is from the given `allowedTypes` list
 class VectorOfRankAndType<list<int> allowedRanks,
-                          list<Type> allowedTypes> : Type<
-  And<[VectorOf<allowedTypes>.predicate,
-       VectorOfRank<allowedRanks>.predicate]>,
+                          list<Type> allowedTypes> : AllOfType<
+  [VectorOf<allowedTypes>, VectorOfRank<allowedRanks>],
   VectorOf<allowedTypes>.summary # VectorOfRank<allowedRanks>.summary,
   "::mlir::VectorType">;
 
@@ -710,18 +644,16 @@ class ScalableVectorOfLength<list<int> allowedLengths> : Type<
 // `allowedLengths` list and the type is from the given `allowedTypes`
 // list
 class VectorOfLengthAndType<list<int> allowedLengths,
-                            list<Type> allowedTypes> : Type<
-  And<[VectorOf<allowedTypes>.predicate,
-       VectorOfLength<allowedLengths>.predicate]>,
+                            list<Type> allowedTypes> : AllOfType<
+  [VectorOf<allowedTypes>, VectorOfLength<allowedLengths>],
   VectorOf<allowedTypes>.summary # VectorOfLength<allowedLengths>.summary,
   "::mlir::VectorType">;
 
 // Any fixed-length vector where the number of elements is from the given
 // `allowedLengths` list and the type is from the given `allowedTypes` list
 class FixedVectorOfLengthAndType<list<int> allowedLengths,
-                                    list<Type> allowedTypes> : Type<
-  And<[FixedVectorOf<allowedTypes>.predicate,
-       FixedVectorOfLength<allowedLengths>.predicate]>,
+                                    list<Type> allowedTypes> : AllOfType<
+  [FixedVectorOf<allowedTypes>, FixedVectorOfLength<allowedLengths>],
   FixedVectorOf<allowedTypes>.summary #
   FixedVectorOfLength<allowedLengths>.summary,
   "::mlir::VectorType">;
@@ -729,9 +661,8 @@ class FixedVectorOfLengthAndType<list<int> allowedLengths,
 // Any scalable vector where the number of elements is from the given
 // `allowedLengths` list and the type is from the given `allowedTypes` list
 class ScalableVectorOfLengthAndType<list<int> allowedLengths,
-                                    list<Type> allowedTypes> : Type<
-  And<[ScalableVectorOf<allowedTypes>.predicate,
-       ScalableVectorOfLength<allowedLengths>.predicate]>,
+                                    list<Type> allowedTypes> : AllOfType<
+  [ScalableVectorOf<allowedTypes>, ScalableVectorOfLength<allowedLengths>],
   ScalableVectorOf<allowedTypes>.summary #
   ScalableVectorOfLength<allowedLengths>.summary,
   "::mlir::VectorType">;
@@ -749,34 +680,29 @@ def AnyScalableVector : ScalableVectorOf<[AnyType]>;
 def AnyShaped: ShapedContainerType<[AnyType], IsShapedTypePred, "shaped",
                                    "::mlir::ShapedType">;
 
+//===----------------------------------------------------------------------===//
 // Tensor types.
 
-// Any tensor type whose element type is from the given `allowedTypes` list
-class TensorOf<list<Type> allowedTypes> :
-  ShapedContainerType<allowedTypes, IsTensorTypePred, "tensor",
-                      "::mlir::TensorType">;
+// Unranked tensor type whose element type is from the given
+// `allowedTypes` list.
+class UnrankedTensorOf<list<Type> allowedTypes>
+  : ShapedContainerType<allowedTypes, IsUnrankedTensorTypePred,
+      "unranked.tensor", "::mlir::UnrankedTensorType">;
 
-class RankedTensorOf<list<Type> allowedTypes> :
-  ShapedContainerType<allowedTypes, And<[IsTensorTypePred, HasRankPred]>,
-  "ranked tensor", "::mlir::TensorType">;
+// Any tensor type whose element type is from the given `allowedTypes`
+// list, and which additionally satisfies an optional list of predicates.
+//
+// TODO: use `Constraint` instead of `Pred`, so we can generate a better
+// default summary (a la `ConfinedAttr`).
+class TensorOf<
+    list<Type> allowedTypes,
+    list<Pred> preds = [],
+    string summary = "tensor">
+  : ShapedContainerType<allowedTypes,
+      And<!listconcat([IsTensorTypePred], preds)>,
+      summary, "::mlir::TensorType">;
 
-def AnyTensor : TensorOf<[AnyType]>;
-
-// Unranked Memref type
-class UnrankedTensorOf<list<Type> allowedTypes> :
-    ShapedContainerType<allowedTypes,
-                        IsUnrankedTensorTypePred,
-                        "unranked.tensor", "::mlir::UnrankedTensorType">;
-
-def AnyRankedTensor : RankedTensorOf<[AnyType]>;
-
-// TODO: Have an easy way to add another constraint to a type.
-class StaticShapeTensorOf<list<Type> allowedTypes>
-    : Type<And<[TensorOf<allowedTypes>.predicate, HasStaticShapePred]>,
-           "statically shaped " # TensorOf<allowedTypes>.summary,
-           "::mlir::TensorType">;
-
-def AnyStaticShapeTensor : StaticShapeTensorOf<[AnyType]>;
+def AnyTensor  : TensorOf<[AnyType]>;
 
 def I1Tensor   : TensorOf<[I1]>;
 def I8Tensor   : TensorOf<[I8]>;
@@ -790,17 +716,33 @@ def F16Tensor  : TensorOf<[F16]>;
 def F32Tensor  : TensorOf<[F32]>;
 def F64Tensor  : TensorOf<[F64]>;
 
+class RankedTensorOf<
+    list<Type> allowedTypes,
+    list<Pred> preds = [],
+    string summary = "ranked tensor">
+  : TensorOf<allowedTypes, !listconcat([HasRankPred], preds), summary>;
+
+def AnyRankedTensor : RankedTensorOf<[AnyType]>;
+
 // Ranked tensor type with one of the specified types and ranks.
-class TensorRankOf<list<Type> allowedTypes, list<int> ranks> :
-    Type<And<[TensorOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
-         !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
-         TensorOf<allowedTypes>.summary, "::mlir::TensorType">;
+class TensorRankOf<list<Type> allowedTypes, list<int> ranks>
+  : TensorOf<allowedTypes,
+      [HasAnyRankOfPred<ranks>],
+      !interleave(!foreach(rank, ranks, rank # "D"), "/") # " tensor">;
 
 class 0DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [0]>;
 class 1DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [1]>;
 class 2DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [2]>;
 class 3DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [3]>;
 class 4DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [4]>;
+
+class StaticShapeTensorOf<list<Type> allowedTypes>
+  : TensorOf<allowedTypes, [HasStaticShapePred], "statically shaped tensor">;
+
+def AnyStaticShapeTensor : StaticShapeTensorOf<[AnyType]>;
+
+//===----------------------------------------------------------------------===//
+// Memref type.
 
 // Unranked Memref type
 class UnrankedMemRefOf<list<Type> allowedTypes> :
@@ -809,8 +751,6 @@ class UnrankedMemRefOf<list<Type> allowedTypes> :
                         "::mlir::UnrankedMemRefType">;
 
 def AnyUnrankedMemRef : UnrankedMemRefOf<[AnyType]>;
-
-// Memref type.
 
 // Memrefs are blocks of data with fixed type and rank.
 class MemRefOf<list<Type> allowedTypes> :
@@ -839,34 +779,33 @@ def F64MemRef  : MemRefOf<[F64]>;
 
 // TODO: Have an easy way to add another constraint to a type.
 class MemRefRankOf<list<Type> allowedTypes, list<int> ranks> :
-    Type<And<[MemRefOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
+    ConfinedType<MemRefOf<allowedTypes>, [HasAnyRankOfPred<ranks>],
          !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
          MemRefOf<allowedTypes>.summary,
          "::mlir::MemRefType">;
 
-class StaticShapeMemRefOf<list<Type> allowedTypes>
-    : Type<And<[MemRefOf<allowedTypes>.predicate, HasStaticShapePred]>,
-           "statically shaped " # MemRefOf<allowedTypes>.summary,
-           "::mlir::MemRefType">;
+class StaticShapeMemRefOf<list<Type> allowedTypes> :
+    ConfinedType<MemRefOf<allowedTypes>, [HasStaticShapePred],
+         "statically shaped " # MemRefOf<allowedTypes>.summary,
+         "::mlir::MemRefType">;
 
 def AnyStaticShapeMemRef : StaticShapeMemRefOf<[AnyType]>;
 
 // For a MemRefType, verify that it has strides.
 def HasStridesPred : CPred<[{ isStrided($_self.cast<::mlir::MemRefType>()) }]>;
 
-class StridedMemRefOf<list<Type> allowedTypes>
-    : Type<And<[MemRefOf<allowedTypes>.predicate, HasStridesPred]>,
-           "strided " # MemRefOf<allowedTypes>.summary>;
+class StridedMemRefOf<list<Type> allowedTypes> :
+    ConfinedType<MemRefOf<allowedTypes>, [HasStridesPred],
+         "strided " # MemRefOf<allowedTypes>.summary>;
 
 def AnyStridedMemRef : StridedMemRefOf<[AnyType]>;
 
 class AnyStridedMemRefOfRank<int rank> :
-  Type<And<[AnyStridedMemRef.predicate,
-            MemRefRankOf<[AnyType], [rank]>.predicate]>,
+  AllOfType<[AnyStridedMemRef, MemRefRankOf<[AnyType], [rank]>],
        AnyStridedMemRef.summary # " of rank " # rank>;
 
 class StridedMemRefRankOf<list<Type> allowedTypes, list<int> ranks> :
-    Type<And<[MemRefOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
+    ConfinedType<MemRefOf<allowedTypes>, [HasAnyRankOfPred<ranks>],
          !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
          MemRefOf<allowedTypes>.summary>;
 
@@ -958,8 +897,8 @@ def SignlessIntegerOrFloatLike : TypeConstraint<Or<[
 // Base attribute definition
 
 // Base class for all attributes.
-class Attr<Pred condition, string descr = ""> :
-    AttrConstraint<condition, descr> {
+class Attr<Pred condition, string summary = ""> :
+    AttrConstraint<condition, summary> {
   code storageType = ?; // The backing mlir::Attribute type
   code returnType = ?;  // The underlying C++ value type
 
@@ -1007,11 +946,14 @@ class Attr<Pred condition, string descr = ""> :
 
   // The fully-qualified C++ namespace where the generated class lives.
   string cppNamespace = "";
+
+  // The full description of this attribute.
+  string description = "";
 }
 
 // An attribute of a specific dialect.
-class DialectAttr<Dialect d, Pred condition, string descr = ""> :
-    Attr<condition, descr> {
+class DialectAttr<Dialect d, Pred condition, string summary = ""> :
+    Attr<condition, summary> {
   Dialect dialect = d;
   let cppNamespace = d.cppNamespace;
 }
@@ -1035,6 +977,24 @@ class DefaultValuedAttr<Attr attr, string val> :
   let baseAttr = attr;
 }
 
+// Decorates an optional attribute to have an (unvalidated) default value
+// return by ODS generated accessors if not present.
+class DefaultValuedOptionalAttr<Attr attr, string val> :
+    Attr<attr.predicate, attr.summary> {
+  // Construct this attribute with the input attribute and change only
+  // the default value.
+  // Note: this has to be kept up to date with Attr above.
+  let storageType = attr.storageType;
+  let returnType = attr.returnType;
+  let convertFromStorage = attr.convertFromStorage;
+  let constBuilderCall = attr.constBuilderCall;
+  let defaultValue = val;
+  let valueType = attr.valueType;
+  let isOptional = 1;
+
+  let baseAttr = attr;
+}
+
 // Decorates an attribute as optional. The return type of the generated
 // attribute accessor method will be Optional<>.
 class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
@@ -1054,6 +1014,8 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
 // quotes.
 class DefaultValuedStrAttr<Attr attr, string val>
     : DefaultValuedAttr<attr, "\"" # val # "\"">;
+class DefaultValuedOptionalStrAttr<Attr attr, string val>
+    : DefaultValuedOptionalAttr<attr, "\"" # val # "\"">;
 
 //===----------------------------------------------------------------------===//
 // Primitive attribute kinds
@@ -1292,225 +1254,6 @@ def UnitAttr : Attr<CPred<"$_self.isa<::mlir::UnitAttr>()">, "unit attribute"> {
 }
 
 //===----------------------------------------------------------------------===//
-// Enum attribute kinds
-
-// Additional information for an enum attribute case.
-class EnumAttrCaseInfo<string sym, int intVal, string strVal> {
-  // The C++ enumerant symbol.
-  string symbol = sym;
-
-  // The C++ enumerant value.
-  // If less than zero, there will be no explicit discriminator values assigned
-  // to enumerators in the generated enum class.
-  int value = intVal;
-
-  // The string representation of the enumerant. May be the same as symbol.
-  string str = strVal;
-}
-
-// An enum attribute case stored with StringAttr.
-class StrEnumAttrCase<string sym, int val = -1, string str = sym> :
-    EnumAttrCaseInfo<sym, val, str>,
-    StringBasedAttr<
-      CPred<"$_self.cast<::mlir::StringAttr>().getValue() == \"" # str # "\"">,
-      "case " # str>;
-
-// An enum attribute case stored with IntegerAttr, which has an integer value,
-// its representation as a string and a C++ symbol name which may be different.
-class IntEnumAttrCaseBase<I intType, string sym, string strVal, int intVal> :
-    EnumAttrCaseInfo<sym, intVal, strVal>,
-    SignlessIntegerAttrBase<intType, "case " # strVal> {
-  let predicate =
-    CPred<"$_self.cast<::mlir::IntegerAttr>().getInt() == " # intVal>;
-}
-
-// Cases of integer enum attributes with a specific type. By default, the string
-// representation is the same as the C++ symbol name.
-class I32EnumAttrCase<string sym, int val, string str = sym>
-    : IntEnumAttrCaseBase<I32, sym, str, val>;
-class I64EnumAttrCase<string sym, int val, string str = sym>
-    : IntEnumAttrCaseBase<I64, sym, str, val>;
-
-// A bit enum case stored with 32-bit IntegerAttr. `val` here is *not* the
-// ordinal number of the bit that is set. It is the 32-bit integer with only
-// one bit set.
-class BitEnumAttrCase<string sym, int val, string str = sym>
-    : EnumAttrCaseInfo<sym, val, str>,
-      SignlessIntegerAttrBase<I32, "case " #str>;
-
-// The special bit enum case for no bits set (i.e. value = 0).
-class BitEnumAttrCaseNone<string sym, string str = sym>
-    : BitEnumAttrCase<sym, 0, str>;
-
-// The bit enum case for a single bit, specified by the bit position.
-// The pos argument refers to the index of the bit, and is currently
-// limited to be in the range [0, 31].
-class BitEnumAttrCaseBit<string sym, int pos, string str = sym>
-    : BitEnumAttrCase<sym, !shl(1, pos), str> {
-  assert !and(!ge(pos, 0), !le(pos, 31)),
-      "bit position must be between 0 and 31";
-}
-
-// A bit enum case for a group/list of previously declared single bits,
-// providing a convenient alias for that group.
-class BitEnumAttrCaseGroup<string sym, list<BitEnumAttrCaseBit> cases,
-                           string str = sym>
-    : BitEnumAttrCase<
-          sym, !foldl(0, cases, value, bitcase, !or(value, bitcase.value)),
-          str> {
-}
-
-// Additional information for an enum attribute.
-class EnumAttrInfo<
-    string name, list<EnumAttrCaseInfo> cases, Attr baseClass> :
-      Attr<baseClass.predicate, baseClass.summary> {
-  // The C++ enum class name
-  string className = name;
-
-  // List of all accepted cases
-  list<EnumAttrCaseInfo> enumerants = cases;
-
-  // The following fields are only used by the EnumsGen backend to generate
-  // an enum class definition and conversion utility functions.
-
-  // The underlying type for the C++ enum class. An empty string mean the
-  // underlying type is not explicitly specified.
-  string underlyingType = "";
-
-  // The name of the utility function that converts a value of the underlying
-  // type to the corresponding symbol. It will have the following signature:
-  //
-  // ```c++
-  // llvm::Optional<<qualified-enum-class-name>> <fn-name>(<underlying-type>);
-  // ```
-  string underlyingToSymbolFnName = "symbolize" # name;
-
-  // The name of the utility function that converts a string to the
-  // corresponding symbol. It will have the following signature:
-  //
-  // ```c++
-  // llvm::Optional<<qualified-enum-class-name>> <fn-name>(llvm::StringRef);
-  // ```
-  string stringToSymbolFnName = "symbolize" # name;
-
-  // The name of the utility function that converts a symbol to the
-  // corresponding string. It will have the following signature:
-  //
-  // ```c++
-  // <return-type> <fn-name>(<qualified-enum-class-name>);
-  // ```
-  string symbolToStringFnName = "stringify" # name;
-  string symbolToStringFnRetType = "::llvm::StringRef";
-
-  // The name of the utility function that returns the max enum value used
-  // within the enum class. It will have the following signature:
-  //
-  // ```c++
-  // static constexpr unsigned <fn-name>();
-  // ```
-  string maxEnumValFnName = "getMaxEnumValFor" # name;
-
-  // Generate specialized Attribute class
-  bit genSpecializedAttr = 1;
-  // The underlying Attribute class, which holds the enum value
-  Attr baseAttrClass = baseClass;
-  // The name of specialized Enum Attribute class
-  string specializedAttrClassName = name # Attr;
-
-  // Override Attr class fields for specialized class
-  let predicate = !if(genSpecializedAttr,
-    CPred<"$_self.isa<" # cppNamespace # "::" # specializedAttrClassName # ">()">,
-    baseAttrClass.predicate);
-  let storageType = !if(genSpecializedAttr,
-    cppNamespace # "::" # specializedAttrClassName,
-    baseAttrClass.storageType);
-  let returnType = !if(genSpecializedAttr,
-    cppNamespace # "::" # className,
-    baseAttrClass.returnType);
-  let constBuilderCall = !if(genSpecializedAttr,
-    cppNamespace # "::" # specializedAttrClassName # "::get($_builder.getContext(), $0)",
-    baseAttrClass.constBuilderCall);
-  let valueType = baseAttrClass.valueType;
-}
-
-// An enum attribute backed by StringAttr.
-//
-// Op attributes of this kind are stored as StringAttr. Extra verification will
-// be generated on the string though: only the symbols of the allowed cases are
-// permitted as the string value.
-class StrEnumAttr<string name, string summary, list<StrEnumAttrCase> cases> :
-  EnumAttrInfo<name, cases,
-    StringBasedAttr<
-      And<[StrAttr.predicate, Or<!foreach(case, cases, case.predicate)>]>,
-      !if(!empty(summary), "allowed string cases: " #
-          !interleave(!foreach(case, cases, "'" # case.symbol # "'"), ", "),
-          summary)>> {
-  // Disable specialized Attribute class for `StringAttr` backend by default.
-  let genSpecializedAttr = 0;
-}
-
-// An enum attribute backed by IntegerAttr.
-//
-// Op attributes of this kind are stored as IntegerAttr. Extra verification will
-// be generated on the integer though: only the values of the allowed cases are
-// permitted as the integer value.
-class IntEnumAttrBase<I intType, list<IntEnumAttrCaseBase> cases, string summary> :
-    SignlessIntegerAttrBase<intType, summary> {
-  let predicate = And<[
-    SignlessIntegerAttrBase<intType, summary>.predicate,
-    Or<!foreach(case, cases, case.predicate)>]>;
-}
-
-class IntEnumAttr<I intType, string name, string summary,
-                  list<IntEnumAttrCaseBase> cases> :
-  EnumAttrInfo<name, cases,
-    IntEnumAttrBase<intType, cases,
-      !if(!empty(summary), "allowed " # intType.summary # " cases: " #
-          !interleave(!foreach(case, cases, case.value), ", "),
-          summary)>>;
-
-class I32EnumAttr<string name, string summary, list<I32EnumAttrCase> cases> :
-    IntEnumAttr<I32, name, summary, cases> {
-  let underlyingType = "uint32_t";
-}
-class I64EnumAttr<string name, string summary, list<I64EnumAttrCase> cases> :
-    IntEnumAttr<I64, name, summary, cases> {
-  let underlyingType = "uint64_t";
-}
-
-// A bit enum stored with 32-bit IntegerAttr.
-//
-// Op attributes of this kind are stored as IntegerAttr. Extra verification will
-// be generated on the integer to make sure only allowed bits are set. Besides,
-// helper methods are generated to parse a string separated with a specified
-// delimiter to a symbol and vice versa.
-class BitEnumAttrBase<list<BitEnumAttrCase> cases, string summary> :
-    SignlessIntegerAttrBase<I32, summary> {
-  let predicate = And<[
-    I32Attr.predicate,
-    // Make sure we don't have unknown bit set.
-    CPred<"!($_self.cast<::mlir::IntegerAttr>().getValue().getZExtValue() & (~("
-          # !interleave(!foreach(case, cases, case.value # "u"), "|") #
-          ")))">
-  ]>;
-}
-
-class BitEnumAttr<string name, string summary, list<BitEnumAttrCase> cases> :
-    EnumAttrInfo<name, cases, BitEnumAttrBase<cases, summary>> {
-  let underlyingType = "uint32_t";
-
-  // Determine "valid" bits from enum cases for error checking
-  int validBits = !foldl(0, cases, value, bitcase, !or(value, bitcase.value));
-
-  // We need to return a string because we may concatenate symbols for multiple
-  // bits together.
-  let symbolToStringFnRetType = "std::string";
-
-  // The delimiter used to separate bit enum cases in strings.
-  string separator = "|";
-}
-
-//===----------------------------------------------------------------------===//
 // Composite attribute kinds
 
 class DictionaryAttrBase<Pred condition, string summary> :
@@ -1544,6 +1287,21 @@ class IntElementsAttrBase<Pred condition, string summary> :
 
   let convertFromStorage = "$_self";
 }
+
+class DenseArrayAttrBase<string denseAttrName, string cppType, string summaryName> :
+    ElementsAttrBase<CPred<"$_self.isa<::mlir::" # denseAttrName # ">()">,
+                     summaryName # " dense array attribute"> {
+  let storageType = "::mlir::" # denseAttrName;
+  let returnType = "::llvm::ArrayRef<" # cppType # ">";
+  let constBuilderCall = "$_builder.get" # denseAttrName # "($0)";
+}
+def DenseBoolArrayAttr : DenseArrayAttrBase<"DenseBoolArrayAttr", "bool", "i1">;
+def DenseI8ArrayAttr : DenseArrayAttrBase<"DenseI8ArrayAttr", "int8_t", "i8">;
+def DenseI16ArrayAttr : DenseArrayAttrBase<"DenseI16ArrayAttr", "int16_t", "i16">;
+def DenseI32ArrayAttr : DenseArrayAttrBase<"DenseI32ArrayAttr", "int32_t", "i32">;
+def DenseI64ArrayAttr : DenseArrayAttrBase<"DenseI64ArrayAttr", "int64_t", "i64">;
+def DenseF32ArrayAttr : DenseArrayAttrBase<"DenseF32ArrayAttr", "float", "f32">;
+def DenseF64ArrayAttr : DenseArrayAttrBase<"DenseF64ArrayAttr", "double", "f64">;
 
 def IndexElementsAttr
     : IntElementsAttrBase<CPred<[{$_self.cast<::mlir::DenseIntElementsAttr>()
@@ -1708,6 +1466,17 @@ def I64ArrayAttr : TypedArrayAttrBase<I64Attr,
                                       "64-bit integer array attribute"> {
   let constBuilderCall = "$_builder.getI64ArrayAttr($0)";
 }
+// Variant of I64ArrayAttr whose user accessor is SmallVector<in64_t>.
+def I64SmallVectorArrayAttr :
+    TypedArrayAttrBase<I64Attr, "64-bit integer array attribute"> {
+  let returnType = [{ ::llvm::SmallVector<int64_t, 8> }];
+  let convertFromStorage = [{
+    llvm::to_vector<4>(
+      llvm::map_range($_self.getAsRange<mlir::IntegerAttr>(),
+      [](IntegerAttr attr) { return attr.getInt(); }));
+  }];
+  let constBuilderCall = "$_builder.getI64ArrayAttr($0)";
+}
 def F32ArrayAttr : TypedArrayAttrBase<F32Attr, "32-bit float array attribute"> {
   let constBuilderCall = "$_builder.getF32ArrayAttr($0)";
 }
@@ -1722,43 +1491,6 @@ def TypeArrayAttr : TypedArrayAttrBase<TypeAttr, "type array attribute"> {
 }
 def IndexListArrayAttr :
   TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
-
-// Attribute information for an Attribute field within a StructAttr.
-class StructFieldAttr<string thisName, Attr thisType> {
-  // Name of this field in the StructAttr.
-  string name = thisName;
-
-  // Attribute type wrapped by the struct attr.
-  Attr type = thisType;
-}
-
-// Structured attribute that wraps a DictionaryAttr and provides both a
-// validation method and set of accessors for a fixed set of fields. This is
-// useful when representing data that would normally be in a structure.
-class StructAttr<string name, Dialect d,
-                 list<StructFieldAttr> attributes> :
-    DictionaryAttrBase<CPred<"$_self.isa<" # d.cppNamespace
-                                           # "::" # name # ">()">,
-        "DictionaryAttr with field(s): " #
-        !interleave(!foreach(a, attributes, "'" # a.name # "'"), ", ") #
-        " (each field having its own constraints)"> {
-  // Name for this StructAttr.
-  string className = name;
-
-  // Return type should match the name of the structure.
-  let returnType = d.cppNamespace # "::" # name;
-
-  // Storage type should match the name of the structure.
-  let storageType = d.cppNamespace # "::" # name;
-
-  // The dialect this StructAttr belongs to.
-  Dialect dialect = d;
-
-  let cppNamespace = d.cppNamespace;
-
-  // List of fields that the StructAttr contains.
-  list<StructFieldAttr> fields = attributes;
-}
 
 // Attributes containing symbol references.
 def SymbolRefAttr : Attr<CPred<"$_self.isa<::mlir::SymbolRefAttr>()">,
@@ -1813,7 +1545,7 @@ class DerivedAttr<code ret, code b, code convert = ""> :
   // Special placeholders can be used to refer to entities during conversion:
   //
   // * `$_builder` will be replaced by a mlir::Builder instance.
-  // * `$_ctx` will be replaced by the MLIRContext* instance.
+  // * `$_ctxt` will be replaced by the MLIRContext* instance.
   // * `$_self` will be replaced with the derived attribute (value produces
   //    `returnType`).
   let convertFromStorage = convert;
@@ -1856,7 +1588,7 @@ class ConstantStrAttr<Attr attribute, string val>
 // A general mechanism to further confine the given `attr` with all the
 // `constraints`. This allows to compose complex constraints out of a series
 // of more primitive ones.
-class Confined<Attr attr, list<AttrConstraint> constraints> : Attr<
+class ConfinedAttr<Attr attr, list<AttrConstraint> constraints> : Attr<
     And<!listconcat([attr.predicate],
                       !foreach(pred, constraints, pred.predicate))>,
     !foldl(/*init*/attr.summary, /*list*/constraints,
@@ -1874,9 +1606,9 @@ class Confined<Attr attr, list<AttrConstraint> constraints> : Attr<
 
 // An AttrConstraint that holds if all attr constraints specified in
 // 'constraints' hold.
-class AllAttrConstraintsOf<list<AttrConstraint> constraints> : AttrConstraint<
+class AllAttrOf<list<AttrConstraint> constraints> : AttrConstraint<
     And<!listconcat([!head(constraints).predicate],
-                      !foreach(pred, !tail(constraints), pred.predicate))>,
+                    !foreach(pred, !tail(constraints), pred.predicate))>,
     !interleave(!foreach(con, constraints, con.summary), " and ")> {
 }
 
@@ -1922,16 +1654,6 @@ class IntArrayNthElemMinValue<int index, int min> : AttrConstraint<
 
 def IsNullAttr : AttrConstraint<
     CPred<"!$_self">, "empty attribute (for optional attributes)">;
-
-// An attribute constraint on FlatSymbolRefAttr that requires that the
-// reference point to an op of `opClass` within the closest parent with a symbol
-// table.
-// TODO: Add support for nested symbol references.
-class ReferToOp<string opClass> : AttrConstraint<
-    CPred<"isa_and_nonnull<" # opClass # ">("
-            "::mlir::SymbolTable::lookupNearestSymbolFrom("
-              "&$_op, $_self.cast<::mlir::FlatSymbolRefAttr>().getAttr()))">,
-    "referencing to a '" # opClass # "' symbol">;
 
 //===----------------------------------------------------------------------===//
 // Region definitions
@@ -2249,7 +1971,7 @@ class Interface<string name> {
   string description = "";
 
   // The name given to the c++ interface class.
-  string cppClassName = name;
+  string cppInterfaceName = name;
 
   // The C++ namespace that this interface should be placed into.
   //
@@ -2270,13 +1992,25 @@ class Interface<string name> {
 }
 
 // AttrInterface represents an interface registered to an attribute.
-class AttrInterface<string name> : Interface<name>, InterfaceTrait<name>;
+class AttrInterface<string name> : Interface<name>, InterfaceTrait<name>,
+	Attr<CPred<"$_self.isa<"
+		# !if(!empty(cppNamespace),"", cppNamespace # "::") # name # ">()">,
+			name # " instance">
+{
+	let storageType = !if(!empty(cppNamespace), "", cppNamespace # "::") # name;
+	let returnType = storageType;
+	let convertFromStorage = "$_self";
+}
 
 // OpInterface represents an interface registered to an operation.
 class OpInterface<string name> : Interface<name>, OpInterfaceTrait<name>;
 
 // TypeInterface represents an interface registered to a type.
-class TypeInterface<string name> : Interface<name>, InterfaceTrait<name>;
+class TypeInterface<string name> : Interface<name>, InterfaceTrait<name>,
+	Type<CPred<"$_self.isa<"
+		# !if(!empty(cppNamespace),"", cppNamespace # "::") # name # ">()">,
+			name # " instance",
+				!if(!empty(cppNamespace),"", cppNamespace # "::") # name>;
 
 // Whether to declare the interface methods in the user entity's header. This
 // class simply wraps an Interface but is used to indicate that the method
@@ -2292,27 +2026,27 @@ class DeclareInterfaceMethods<list<string> overridenMethods = []> {
 class DeclareAttrInterfaceMethods<AttrInterface interface,
                                   list<string> overridenMethods = []>
       : DeclareInterfaceMethods<overridenMethods>,
-        AttrInterface<interface.cppClassName> {
+        AttrInterface<interface.cppInterfaceName> {
     let description = interface.description;
-    let cppClassName = interface.cppClassName;
+    let cppInterfaceName = interface.cppInterfaceName;
     let cppNamespace = interface.cppNamespace;
     let methods = interface.methods;
 }
 class DeclareOpInterfaceMethods<OpInterface interface,
                                 list<string> overridenMethods = []>
       : DeclareInterfaceMethods<overridenMethods>,
-        OpInterface<interface.cppClassName> {
+        OpInterface<interface.cppInterfaceName> {
     let description = interface.description;
-    let cppClassName = interface.cppClassName;
+    let cppInterfaceName = interface.cppInterfaceName;
     let cppNamespace = interface.cppNamespace;
     let methods = interface.methods;
 }
 class DeclareTypeInterfaceMethods<TypeInterface interface,
                                   list<string> overridenMethods = []>
       : DeclareInterfaceMethods<overridenMethods>,
-        TypeInterface<interface.cppClassName> {
+        TypeInterface<interface.cppInterfaceName> {
     let description = interface.description;
-    let cppClassName = interface.cppClassName;
+    let cppInterfaceName = interface.cppInterfaceName;
     let cppNamespace = interface.cppNamespace;
     let methods = interface.methods;
 }
@@ -2547,8 +2281,11 @@ class ElementCount<string name> :
 class ElementType<string name> : StrFunc<"getElementTypeOrSelf($" # name # ")">;
 
 class AllMatchPred<list<string> values> :
-    CPred<"::llvm::is_splat(::llvm::makeArrayRef({"
-          # !interleave(values, ", ") #"}))">;
+  CPred<!if(!lt(!size(values), 2),
+            "true",
+            !foldl("(" # !head(values) # ")", !tail(values), acc, v,
+                   acc # " == (" # v # ") && (" # v # ")")
+              # " == (" # !head(values) # ")")>;
 
 class AllMatch<list<string> values, string summary> :
     PredOpTrait<summary, AllMatchPred<values>>;
@@ -2685,7 +2422,7 @@ class TCOpIsBroadcastableToRes<int opId, int resId> : And<[
 // 1) all operands involved are of shaped type and
 // 2) the indices are not out of range.
 class TCopVTEtAreSameAt<list<int> indices> : CPred<
-  "::llvm::is_splat(::llvm::map_range("
+  "::llvm::all_equal(::llvm::map_range("
       "::mlir::ArrayRef<unsigned>({" # !interleave(indices, ", ") # "}), "
       "[this](unsigned i) { return getElementTypeOrSelf(this->getOperand(i)); "
       "}))">;

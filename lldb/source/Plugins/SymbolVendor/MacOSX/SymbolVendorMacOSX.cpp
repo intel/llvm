@@ -20,7 +20,6 @@
 #include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/Target.h"
-#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
 
@@ -149,6 +148,12 @@ SymbolVendorMacOSX::CreateInstance(const lldb::ModuleSP &module_sp,
           ObjectFile::FindPlugin(module_sp, &dsym_fspec, 0,
                                  FileSystem::Instance().GetByteSize(dsym_fspec),
                                  dsym_file_data_sp, dsym_file_data_offset);
+      // Important to save the dSYM FileSpec so we don't call
+      // Symbols::LocateExecutableSymbolFile a second time while trying to
+      // add the symbol ObjectFile to this Module.
+      if (dsym_objfile_sp && !module_sp->GetSymbolFileFileSpec()) {
+        module_sp->SetSymbolFileFileSpec(dsym_fspec);
+      }
       if (UUIDsMatch(module_sp.get(), dsym_objfile_sp.get(), feedback_strm)) {
         // We need a XML parser if we hope to parse a plist...
         if (XMLDocument::XMLEnabled()) {
@@ -231,13 +236,6 @@ SymbolVendorMacOSX::CreateInstance(const lldb::ModuleSP &module_sp,
                                   !original_DBGSourcePath_value.empty()) {
                                 DBGSourcePath = original_DBGSourcePath_value;
                               }
-                              if (DBGSourcePath[0] == '~') {
-                                FileSpec resolved_source_path(
-                                    DBGSourcePath.c_str());
-                                FileSystem::Instance().Resolve(
-                                    resolved_source_path);
-                                DBGSourcePath = resolved_source_path.GetPath();
-                              }
                               module_sp->GetSourceMappingList().Append(
                                   key.GetStringRef(), DBGSourcePath, true);
                               // With version 2 of DBGSourcePathRemapping, we
@@ -269,11 +267,6 @@ SymbolVendorMacOSX::CreateInstance(const lldb::ModuleSP &module_sp,
                                            DBGBuildSourcePath);
                     plist.GetValueAsString("DBGSourcePath", DBGSourcePath);
                     if (!DBGBuildSourcePath.empty() && !DBGSourcePath.empty()) {
-                      if (DBGSourcePath[0] == '~') {
-                        FileSpec resolved_source_path(DBGSourcePath.c_str());
-                        FileSystem::Instance().Resolve(resolved_source_path);
-                        DBGSourcePath = resolved_source_path.GetPath();
-                      }
                       module_sp->GetSourceMappingList().Append(
                           DBGBuildSourcePath, DBGSourcePath, true);
                     }
@@ -285,13 +278,6 @@ SymbolVendorMacOSX::CreateInstance(const lldb::ModuleSP &module_sp,
         }
 
         symbol_vendor->AddSymbolFileRepresentation(dsym_objfile_sp);
-        if (!dsym_root.empty()) {
-          if (repro::Generator *g =
-                  repro::Reproducer::Instance().GetGenerator()) {
-            repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
-            fp.RecordInterestingDirectoryRecursive(dsym_root);
-          }
-        }
         return symbol_vendor;
       }
     }

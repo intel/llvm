@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fexceptions -fcxx-exceptions -fms-extensions -fms-compatibility -fms-compatibility-version=19 -std=c++11 -emit-llvm %s -o - -triple=i386-pc-win32 | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -fexceptions -fcxx-exceptions -fms-extensions -fms-compatibility -fms-compatibility-version=19 -std=c++11 -emit-llvm %s -o - -triple=i386-pc-win32 | FileCheck %s
 // REQUIRES: asserts
 
 struct S {
@@ -38,7 +38,8 @@ extern inline S &f() {
 // CHECK-NEXT:  br label %[[init_end:.*]]
 
 // CHECK:     [[init_end]]:
-// CHECK-NEXT:  ret %struct.S* @"?s@?1??f@@YAAAUS@@XZ@4U2@A"
+// CHECK: [[S_ADDR:%.+]] = call align 1 %struct.S* @llvm.threadlocal.address.p0s_struct.Ss(%struct.S* align 1 @"?s@?1??f@@YAAAUS@@XZ@4U2@A")
+// CHECK-NEXT:  ret %struct.S* [[S_ADDR]]
 
 // CHECK:     [[lpad:.*]]:
 // CHECK-NEXT: cleanuppad within none []

@@ -197,6 +197,28 @@ bb3:
   ret void
 }
 
+define i8* @test27_pointer_escape() {
+; CHECK-LABEL: @test27_pointer_escape(
+; CHECK-NEXT:  bb1:
+; CHECK-NEXT:    br i1 true, label [[BB2:%.*]], label [[BB3:%.*]]
+; CHECK:       bb2:
+; CHECK-NEXT:    [[M:%.*]] = call noalias i8* @malloc(i64 10)
+; CHECK-NEXT:    store i8 1, i8* [[M]], align 1
+; CHECK-NEXT:    br label [[BB3]]
+; CHECK:       bb3:
+; CHECK-NEXT:    [[R:%.*]] = phi i8* [ null, [[BB1:%.*]] ], [ [[M]], [[BB2]] ]
+; CHECK-NEXT:    ret i8* [[R]]
+;
+bb1:
+  br i1 true, label %bb2, label %bb3
+bb2:
+  %m = call noalias i8* @malloc(i64 10)
+  store i8 1, i8* %m
+  br label %bb3
+bb3:
+  %r = phi i8* [ null, %bb1 ], [ %m, %bb2 ]
+  ret i8* %r
+}
 
 define i8* @test28() {
 ; CHECK-LABEL: @test28(
@@ -367,9 +389,9 @@ cleanup:                                          ; preds = %entry, %if.end5, %i
   ret %struct.BitfieldStruct* %retval.0
 }
 
-attributes #0 = { nofree nounwind allocsize(0) }
+attributes #0 = { nofree nounwind allocsize(0) allockind("alloc,uninitialized") }
 attributes #1 = { nofree nounwind }
-attributes #2 = { nounwind }
+attributes #2 = { nounwind allockind("free") }
 attributes #3 = { allocsize(0,1) }
 attributes #4 = { allocsize(0) }
-attributes #5 = { nofree nounwind allocsize(0,1) }
+attributes #5 = { nofree nounwind allocsize(0,1) allockind("alloc,zeroed") }

@@ -8,12 +8,9 @@
 
 // REQUIRES: msvc
 
-// This file checks that the built static library doesn't contain dllexport
+// This file checks that the built static libraries don't contain dllexport
 // directives in clang-cl builds.
 
 // RUN: llvm-readobj --coff-directives "%{lib}/libc++.lib" | not grep -i "export:" > /dev/null
 
-// It's a known issue, that when building a shared library at the same time
-// as the static library, the generated static library does contain dllexport
-// directives.
-// XFAIL: windows-dll
+// RUN: llvm-readobj --coff-directives "%{lib}/libc++experimental.lib" | not grep -i "export:" > /dev/null

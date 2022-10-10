@@ -141,6 +141,7 @@ bool AVRExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
     // Continue expanding the block until all pseudos are expanded.
     do {
       assert(ExpandCount < 10 && "pseudo expand limit reached");
+      (void)ExpandCount;
 
       bool BlockModified = expandMBB(MBB);
       Modified |= BlockModified;
@@ -647,45 +648,28 @@ bool AVRExpandPseudo::expand<AVR::LDWRdPtr>(Block &MBB, BlockIt MBBI) {
   MachineInstr &MI = *MBBI;
   Register DstLoReg, DstHiReg;
   Register DstReg = MI.getOperand(0).getReg();
-  Register TmpReg = 0; // 0 for no temporary register
   Register SrcReg = MI.getOperand(1).getReg();
   bool SrcIsKill = MI.getOperand(1).isKill();
   unsigned OpLo = AVR::LDRdPtr;
   unsigned OpHi = AVR::LDDRdPtrQ;
   TRI->splitReg(DstReg, DstLoReg, DstHiReg);
 
-  // Use a temporary register if src and dst registers are the same.
-  if (DstReg == SrcReg)
-    TmpReg = scavengeGPR8(MI);
-
-  Register CurDstLoReg = (DstReg == SrcReg) ? TmpReg : DstLoReg;
-  Register CurDstHiReg = (DstReg == SrcReg) ? TmpReg : DstHiReg;
+  // DstReg has an earlyclobber so the register allocator will allocate them in
+  // separate registers.
+  assert(DstReg != SrcReg && "Dst and Src registers are the same!");
 
   // Load low byte.
-  auto MIBLO = buildMI(MBB, MBBI, OpLo)
-                   .addReg(CurDstLoReg, RegState::Define)
-                   .addReg(SrcReg);
-
-  // Push low byte onto stack if necessary.
-  if (TmpReg)
-    buildMI(MBB, MBBI, AVR::PUSHRr).addReg(TmpReg);
+  buildMI(MBB, MBBI, OpLo)
+      .addReg(DstLoReg, RegState::Define)
+      .addReg(SrcReg)
+      .setMemRefs(MI.memoperands());
 
   // Load high byte.
-  auto MIBHI = buildMI(MBB, MBBI, OpHi)
-                   .addReg(CurDstHiReg, RegState::Define)
-                   .addReg(SrcReg, getKillRegState(SrcIsKill))
-                   .addImm(1);
-
-  if (TmpReg) {
-    // Move the high byte into the final destination.
-    buildMI(MBB, MBBI, AVR::MOVRdRr, DstHiReg).addReg(TmpReg);
-
-    // Move the low byte from the scratch space into the final destination.
-    buildMI(MBB, MBBI, AVR::POPRd, DstLoReg);
-  }
-
-  MIBLO.setMemRefs(MI.memoperands());
-  MIBHI.setMemRefs(MI.memoperands());
+  buildMI(MBB, MBBI, OpHi)
+      .addReg(DstHiReg, RegState::Define)
+      .addReg(SrcReg, getKillRegState(SrcIsKill))
+      .addImm(1)
+      .setMemRefs(MI.memoperands());
 
   MI.eraseFromParent();
   return true;
@@ -762,7 +746,6 @@ bool AVRExpandPseudo::expand<AVR::LDDWRdPtrQ>(Block &MBB, BlockIt MBBI) {
   MachineInstr &MI = *MBBI;
   Register DstLoReg, DstHiReg;
   Register DstReg = MI.getOperand(0).getReg();
-  Register TmpReg = 0; // 0 for no temporary register
   Register SrcReg = MI.getOperand(1).getReg();
   unsigned Imm = MI.getOperand(2).getImm();
   bool SrcIsKill = MI.getOperand(1).isKill();
@@ -774,39 +757,23 @@ bool AVRExpandPseudo::expand<AVR::LDDWRdPtrQ>(Block &MBB, BlockIt MBBI) {
   // highest Imm value allowed for the instruction, 62 is the limit here.
   assert(Imm <= 62 && "Offset is out of range");
 
-  // Use a temporary register if src and dst registers are the same.
-  if (DstReg == SrcReg)
-    TmpReg = scavengeGPR8(MI);
-
-  Register CurDstLoReg = (DstReg == SrcReg) ? TmpReg : DstLoReg;
-  Register CurDstHiReg = (DstReg == SrcReg) ? TmpReg : DstHiReg;
+  // DstReg has an earlyclobber so the register allocator will allocate them in
+  // separate registers.
+  assert(DstReg != SrcReg && "Dst and Src registers are the same!");
 
   // Load low byte.
-  auto MIBLO = buildMI(MBB, MBBI, OpLo)
-                   .addReg(CurDstLoReg, RegState::Define)
-                   .addReg(SrcReg)
-                   .addImm(Imm);
-
-  // Push low byte onto stack if necessary.
-  if (TmpReg)
-    buildMI(MBB, MBBI, AVR::PUSHRr).addReg(TmpReg);
+  buildMI(MBB, MBBI, OpLo)
+      .addReg(DstLoReg, RegState::Define)
+      .addReg(SrcReg)
+      .addImm(Imm)
+      .setMemRefs(MI.memoperands());
 
   // Load high byte.
-  auto MIBHI = buildMI(MBB, MBBI, OpHi)
-                   .addReg(CurDstHiReg, RegState::Define)
-                   .addReg(SrcReg, getKillRegState(SrcIsKill))
-                   .addImm(Imm + 1);
-
-  if (TmpReg) {
-    // Move the high byte into the final destination.
-    buildMI(MBB, MBBI, AVR::MOVRdRr, DstHiReg).addReg(TmpReg);
-
-    // Move the low byte from the scratch space into the final destination.
-    buildMI(MBB, MBBI, AVR::POPRd, DstLoReg);
-  }
-
-  MIBLO.setMemRefs(MI.memoperands());
-  MIBHI.setMemRefs(MI.memoperands());
+  buildMI(MBB, MBBI, OpHi)
+      .addReg(DstHiReg, RegState::Define)
+      .addReg(SrcReg, getKillRegState(SrcIsKill))
+      .addImm(Imm + 1)
+      .setMemRefs(MI.memoperands());
 
   MI.eraseFromParent();
   return true;
@@ -1157,34 +1124,91 @@ bool AVRExpandPseudo::expand<AVR::STWPtrPdRr>(Block &MBB, BlockIt MBBI) {
 template <>
 bool AVRExpandPseudo::expand<AVR::STDWPtrQRr>(Block &MBB, BlockIt MBBI) {
   MachineInstr &MI = *MBBI;
-  Register SrcLoReg, SrcHiReg;
+
   Register DstReg = MI.getOperand(0).getReg();
-  Register SrcReg = MI.getOperand(2).getReg();
-  unsigned Imm = MI.getOperand(1).getImm();
   bool DstIsKill = MI.getOperand(0).isKill();
+  unsigned Imm = MI.getOperand(1).getImm();
+  Register SrcReg = MI.getOperand(2).getReg();
   bool SrcIsKill = MI.getOperand(2).isKill();
-  unsigned OpLo = AVR::STDPtrQRr;
-  unsigned OpHi = AVR::STDPtrQRr;
-  TRI->splitReg(SrcReg, SrcLoReg, SrcHiReg);
 
-  // Since we add 1 to the Imm value for the high byte below, and 63 is the
-  // highest Imm value allowed for the instruction, 62 is the limit here.
-  assert(Imm <= 62 && "Offset is out of range");
+  // STD's maximum displacement is 63, so larger stores have to be split into a
+  // set of operations
+  if (Imm >= 63) {
+    if (!DstIsKill) {
+      buildMI(MBB, MBBI, AVR::PUSHWRr).addReg(DstReg);
+    }
 
-  auto MIBLO = buildMI(MBB, MBBI, OpLo)
-                   .addReg(DstReg)
-                   .addImm(Imm)
-                   .addReg(SrcLoReg, getKillRegState(SrcIsKill));
+    buildMI(MBB, MBBI, AVR::SUBIWRdK)
+        .addReg(DstReg, RegState::Define)
+        .addReg(DstReg, RegState::Kill)
+        .addImm(-Imm);
 
-  auto MIBHI = buildMI(MBB, MBBI, OpHi)
-                   .addReg(DstReg, getKillRegState(DstIsKill))
-                   .addImm(Imm + 1)
-                   .addReg(SrcHiReg, getKillRegState(SrcIsKill));
+    buildMI(MBB, MBBI, AVR::STWPtrRr)
+        .addReg(DstReg, RegState::Kill)
+        .addReg(SrcReg, getKillRegState(SrcIsKill));
 
-  MIBLO.setMemRefs(MI.memoperands());
-  MIBHI.setMemRefs(MI.memoperands());
+    if (!DstIsKill) {
+      buildMI(MBB, MBBI, AVR::POPWRd).addDef(DstReg, RegState::Define);
+    }
+  } else {
+    unsigned OpLo = AVR::STDPtrQRr;
+    unsigned OpHi = AVR::STDPtrQRr;
+    Register SrcLoReg, SrcHiReg;
+    TRI->splitReg(SrcReg, SrcLoReg, SrcHiReg);
+
+    auto MIBLO = buildMI(MBB, MBBI, OpLo)
+                     .addReg(DstReg)
+                     .addImm(Imm)
+                     .addReg(SrcLoReg, getKillRegState(SrcIsKill));
+
+    auto MIBHI = buildMI(MBB, MBBI, OpHi)
+                     .addReg(DstReg, getKillRegState(DstIsKill))
+                     .addImm(Imm + 1)
+                     .addReg(SrcHiReg, getKillRegState(SrcIsKill));
+
+    MIBLO.setMemRefs(MI.memoperands());
+    MIBHI.setMemRefs(MI.memoperands());
+  }
 
   MI.eraseFromParent();
+  return true;
+}
+
+template <>
+bool AVRExpandPseudo::expand<AVR::STDSPQRr>(Block &MBB, BlockIt MBBI) {
+  MachineInstr &MI = *MBBI;
+  const MachineFunction &MF = *MBB.getParent();
+  const AVRSubtarget &STI = MF.getSubtarget<AVRSubtarget>();
+
+  assert(MI.getOperand(0).getReg() == AVR::SP &&
+         "SP is expected as base pointer");
+
+  assert(STI.getFrameLowering()->hasReservedCallFrame(MF) &&
+         "unexpected STDSPQRr pseudo instruction");
+  (void)STI;
+
+  MI.setDesc(TII->get(AVR::STDPtrQRr));
+  MI.getOperand(0).setReg(AVR::R29R28);
+
+  return true;
+}
+
+template <>
+bool AVRExpandPseudo::expand<AVR::STDWSPQRr>(Block &MBB, BlockIt MBBI) {
+  MachineInstr &MI = *MBBI;
+  const MachineFunction &MF = *MBB.getParent();
+  const AVRSubtarget &STI = MF.getSubtarget<AVRSubtarget>();
+
+  assert(MI.getOperand(0).getReg() == AVR::SP &&
+         "SP is expected as base pointer");
+
+  assert(STI.getFrameLowering()->hasReservedCallFrame(MF) &&
+         "unexpected STDWSPQRr pseudo instruction");
+  (void)STI;
+
+  MI.setDesc(TII->get(AVR::STDWPtrQRr));
+  MI.getOperand(0).setReg(AVR::R29R28);
+
   return true;
 }
 
@@ -1324,8 +1348,8 @@ bool AVRExpandPseudo::expand<AVR::ROLBRd>(Block &MBB, BlockIt MBBI) {
                  .addReg(DstReg, getKillRegState(DstIsKill))
                  .addReg(ZERO_REGISTER);
 
-  // SREG is always implicitly killed
-  MIB->getOperand(2).setIsKill();
+  MIB->getOperand(3).setIsDead(); // SREG is always dead
+  MIB->getOperand(4).setIsKill(); // SREG is always implicitly killed
 
   MI.eraseFromParent();
   return true;
@@ -2408,6 +2432,8 @@ bool AVRExpandPseudo::expandMI(Block &MBB, BlockIt MBBI) {
     EXPAND(AVR::STWPtrPiRr);
     EXPAND(AVR::STWPtrPdRr);
     EXPAND(AVR::STDWPtrQRr);
+    EXPAND(AVR::STDSPQRr);
+    EXPAND(AVR::STDWSPQRr);
     EXPAND(AVR::INWRdA);
     EXPAND(AVR::OUTWARr);
     EXPAND(AVR::PUSHWRr);

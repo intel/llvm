@@ -58,6 +58,7 @@ MATCHER_P(scopeRefs, Refs, "") { return arg.ScopeRefsInFile == Refs; }
 MATCHER_P(nameStartsWith, Prefix, "") {
   return llvm::StringRef(arg.Name).startswith(Prefix);
 }
+MATCHER_P(filterText, F, "") { return arg.FilterText == F; }
 MATCHER_P(scope, S, "") { return arg.Scope == S; }
 MATCHER_P(qualifier, Q, "") { return arg.RequiredQualifier == Q; }
 MATCHER_P(labeled, Label, "") {
@@ -91,7 +92,7 @@ Matcher<const std::vector<CodeCompletion> &> has(std::string Name,
                                                  CompletionItemKind K) {
   return Contains(AllOf(named(std::move(Name)), kind(K)));
 }
-MATCHER(isDocumented, "") { return arg.Documentation.hasValue(); }
+MATCHER(isDocumented, "") { return arg.Documentation.has_value(); }
 MATCHER(deprecated, "") { return arg.Deprecated; }
 
 std::unique_ptr<SymbolIndex> memIndex(std::vector<Symbol> Symbols) {
@@ -412,6 +413,23 @@ TEST(CompletionTest, Accessible) {
   )cpp");
   EXPECT_THAT(External.Completions,
               AllOf(has("pub"), Not(has("prot")), Not(has("priv"))));
+
+  auto Results = completions(R"cpp(
+      struct Foo {
+        public: void pub();
+        protected: void prot();
+        private: void priv();
+      };
+      struct Bar : public Foo {
+        private: using Foo::pub;
+      };
+      void test() {
+        Bar B;
+        B.^
+      }
+  )cpp");
+  EXPECT_THAT(Results.Completions,
+              AllOf(Not(has("priv")), Not(has("prot")), Not(has("pub"))));
 }
 
 TEST(CompletionTest, Qualifiers) {
@@ -996,6 +1014,23 @@ TEST(CodeCompleteTest, NoColonColonAtTheEnd) {
   EXPECT_THAT(Results.Completions, Not(Contains(labeled("clang::"))));
 }
 
+TEST(CompletionTests, EmptySnippetDoesNotCrash) {
+    // See https://github.com/clangd/clangd/issues/1216
+    auto Results = completions(R"cpp(
+        int main() {
+          auto w = [&](auto &&f) { return f(f); };
+          auto f = w([&](auto &&f) {
+            return [&](auto &&n) {
+              if (n == 0) {
+                return 1;
+              }
+              return n * ^(f)(n - 1);
+            };
+          })(10);
+        }
+    )cpp");
+}
+
 TEST(CompletionTest, BacktrackCrashes) {
   // Sema calls code completion callbacks twice in these cases.
   auto Results = completions(R"cpp(
@@ -1265,6 +1300,23 @@ TEST(SignatureHelpTest, Overloads) {
   EXPECT_EQ(0, Results.activeParameter);
 }
 
+TEST(SignatureHelpTest, FunctionPointers) {
+  auto FunctionPointerResults = signatures(R"cpp(
+    void (*foo)(int x, int y);
+    int main() { foo(^); }
+  )cpp");
+  EXPECT_THAT(FunctionPointerResults.signatures,
+              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
+
+  auto FunctionPointerTypedefResults = signatures(R"cpp(
+    typedef void (*fn)(int x, int y);
+    fn foo;
+    int main() { foo(^); }
+  )cpp");
+  EXPECT_THAT(FunctionPointerTypedefResults.signatures,
+              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
+}
+
 TEST(SignatureHelpTest, Constructors) {
   std::string Top = R"cpp(
     struct S {
@@ -1458,12 +1510,16 @@ TEST(SignatureHelpTest, StalePreamble) {
 
 class IndexRequestCollector : public SymbolIndex {
 public:
+  IndexRequestCollector(std::vector<Symbol> Syms = {}) : Symbols(Syms) {}
+
   bool
   fuzzyFind(const FuzzyFindRequest &Req,
             llvm::function_ref<void(const Symbol &)> Callback) const override {
     std::unique_lock<std::mutex> Lock(Mut);
     Requests.push_back(Req);
     ReceivedRequestCV.notify_one();
+    for (const auto &Sym : Symbols)
+      Callback(Sym);
     return true;
   }
 
@@ -1498,6 +1554,7 @@ public:
   }
 
 private:
+  std::vector<Symbol> Symbols;
   // We need a mutex to handle async fuzzy find requests.
   mutable std::condition_variable ReceivedRequestCV;
   mutable std::mutex Mut;
@@ -1918,6 +1975,7 @@ TEST(CompletionTest, QualifiedNames) {
 TEST(CompletionTest, Render) {
   CodeCompletion C;
   C.Name = "x";
+  C.FilterText = "x";
   C.Signature = "(bool) const";
   C.SnippetSuffix = "(${0:bool})";
   C.ReturnType = "int";
@@ -1949,6 +2007,11 @@ TEST(CompletionTest, Render) {
   EXPECT_EQ(R.sortText, sortText(1.0, "x"));
   EXPECT_FALSE(R.deprecated);
   EXPECT_EQ(R.score, .5f);
+
+  C.FilterText = "xtra";
+  R = C.render(Opts);
+  EXPECT_EQ(R.filterText, "xtra");
+  EXPECT_EQ(R.sortText, sortText(1.0, "xtra"));
 
   Opts.EnableSnippets = true;
   R = C.render(Opts);
@@ -2548,7 +2611,8 @@ TEST(CompletionTest, EnableSpeculativeIndexRequest) {
   Opts.Index = &Requests;
 
   auto CompleteAtPoint = [&](StringRef P) {
-    cantFail(runCodeComplete(Server, File, Test.point(P), Opts));
+    auto CCR = cantFail(runCodeComplete(Server, File, Test.point(P), Opts));
+    EXPECT_TRUE(CCR.HasMore);
   };
 
   CompleteAtPoint("1");
@@ -3051,6 +3115,25 @@ TEST(CompletionTest, ObjectiveCMethodTwoArgumentsFromMiddle) {
   EXPECT_THAT(C, ElementsAre(snippetSuffix("${1:(unsigned int)}")));
 }
 
+TEST(CompletionTest, ObjectiveCMethodFilterOnEntireSelector) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      + (id)player:(id)player willRun:(id)run;
+      @end
+      id val = [Foo wi^]
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(named("player:")));
+  EXPECT_THAT(C, ElementsAre(filterText("player:willRun:")));
+  EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(returnType("id")));
+  EXPECT_THAT(C, ElementsAre(signature("(id) willRun:(id)")));
+  EXPECT_THAT(C, ElementsAre(snippetSuffix("${1:(id)} willRun:${2:(id)}")));
+}
+
 TEST(CompletionTest, ObjectiveCSimpleMethodDeclaration) {
   auto Results = completions(R"objc(
       @interface Foo
@@ -3083,6 +3166,26 @@ TEST(CompletionTest, ObjectiveCMethodDeclaration) {
 
   auto C = Results.Completions;
   EXPECT_THAT(C, ElementsAre(named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(qualifier("- (int)")));
+  EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
+}
+
+TEST(CompletionTest, ObjectiveCMethodDeclarationFilterOnEntireSelector) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (int)valueForCharacter:(char)c secondArgument:(id)object;
+      @end
+      @implementation Foo
+      secondArg^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(filterText("valueForCharacter:secondArgument:")));
   EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
   EXPECT_THAT(C, ElementsAre(qualifier("- (int)")));
   EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
@@ -3124,6 +3227,80 @@ TEST(CompletionTest, ObjectiveCMethodDeclarationFromMiddle) {
   EXPECT_THAT(C, ElementsAre(signature("(id)object")));
 }
 
+TEST(CompletionTest, ObjectiveCProtocolFromIndex) {
+  Symbol FoodClass = objcClass("FoodClass");
+  Symbol SymFood = objcProtocol("Food");
+  Symbol SymFooey = objcProtocol("Fooey");
+  auto Results = completions("id<Foo^>", {SymFood, FoodClass, SymFooey},
+                             /*Opts=*/{}, "Foo.m");
+
+  // Should only give protocols for ObjC protocol completions.
+  EXPECT_THAT(Results.Completions,
+              UnorderedElementsAre(
+                  AllOf(named("Food"), kind(CompletionItemKind::Interface)),
+                  AllOf(named("Fooey"), kind(CompletionItemKind::Interface))));
+
+  Results = completions("Fo^", {SymFood, FoodClass, SymFooey},
+                        /*Opts=*/{}, "Foo.m");
+  // Shouldn't give protocols for non protocol completions.
+  EXPECT_THAT(
+      Results.Completions,
+      ElementsAre(AllOf(named("FoodClass"), kind(CompletionItemKind::Class))));
+}
+
+TEST(CompletionTest, ObjectiveCProtocolFromIndexSpeculation) {
+  MockFS FS;
+  MockCompilationDatabase CDB;
+  ClangdServer Server(CDB, FS, ClangdServer::optsForTest());
+
+  auto File = testPath("Foo.m");
+  Annotations Test(R"cpp(
+      @protocol Food
+      @end
+      id<Foo$1^> foo;
+      Foo$2^ bar;
+  )cpp");
+  runAddDocument(Server, File, Test.code());
+  clangd::CodeCompleteOptions Opts = {};
+
+  Symbol FoodClass = objcClass("FoodClass");
+  IndexRequestCollector Requests({FoodClass});
+  Opts.Index = &Requests;
+
+  auto CompleteAtPoint = [&](StringRef P) {
+    return cantFail(runCodeComplete(Server, File, Test.point(P), Opts))
+        .Completions;
+  };
+
+  auto C = CompleteAtPoint("1");
+  auto Reqs1 = Requests.consumeRequests(1);
+  ASSERT_EQ(Reqs1.size(), 1u);
+  EXPECT_THAT(C, ElementsAre(AllOf(named("Food"),
+                                   kind(CompletionItemKind::Interface))));
+
+  C = CompleteAtPoint("2");
+  auto Reqs2 = Requests.consumeRequests(1);
+  // Speculation succeeded. Used speculative index result, but filtering now to
+  // now include FoodClass.
+  ASSERT_EQ(Reqs2.size(), 1u);
+  EXPECT_EQ(Reqs2[0], Reqs1[0]);
+  EXPECT_THAT(C, ElementsAre(AllOf(named("FoodClass"),
+                                   kind(CompletionItemKind::Class))));
+}
+
+TEST(CompletionTest, ObjectiveCCategoryFromIndexIgnored) {
+  Symbol FoodCategory = objcCategory("FoodClass", "Extension");
+  auto Results = completions(R"objc(
+      @interface Foo
+      @end
+      @interface Foo (^)
+      @end
+    )objc",
+                             {FoodCategory},
+                             /*Opts=*/{}, "Foo.m");
+  EXPECT_THAT(Results.Completions, IsEmpty());
+}
+
 TEST(CompletionTest, CursorInSnippets) {
   clangd::CodeCompleteOptions Options;
   Options.EnableSnippets = true;
@@ -3137,9 +3314,8 @@ TEST(CompletionTest, CursorInSnippets) {
 
   // Last placeholder in code patterns should be $0 to put the cursor there.
   EXPECT_THAT(Results.Completions,
-              Contains(AllOf(
-                  named("while"),
-                  snippetSuffix(" (${1:condition}) {\n${0:statements}\n}"))));
+              Contains(AllOf(named("while"),
+                             snippetSuffix(" (${1:condition}) {\n$0\n}"))));
   // However, snippets for functions must *not* end with $0.
   EXPECT_THAT(Results.Completions,
               Contains(AllOf(named("while_foo"),
@@ -3563,6 +3739,38 @@ TEST(CompletionTest, CommentParamName) {
   EXPECT_THAT(completions(Code + "fun(/* x^", {}, Opts).Completions, IsEmpty());
   EXPECT_THAT(completions(Code + "fun(/* f ^", {}, Opts).Completions,
               IsEmpty());
+}
+
+TEST(CompletionTest, Concepts) {
+  Annotations Code(R"cpp(
+    template<class T>
+    concept A = sizeof(T) <= 8;
+
+    template<$tparam^A U>
+    int foo();
+
+    template<class T>
+    concept b = $other^A<T> && $other^sizeof(T) % 2 == 0 || $other^A<T> && sizeof(T) == 1;
+
+    $other^A<T> auto i = 19;
+  )cpp");
+  TestTU TU;
+  TU.Code = Code.code().str();
+  TU.ExtraArgs = {"-std=c++20"};
+
+  std::vector<Symbol> Syms = {conceptSym("same_as")};
+  for (auto P : Code.points("tparam")) {
+    ASSERT_THAT(completions(TU, P, Syms).Completions,
+                AllOf(Contains(named("A")), Contains(named("same_as")),
+                      Contains(named("class")), Contains(named("typename"))))
+        << "Completing template parameter at position " << P;
+  }
+
+  for (auto P : Code.points("other")) {
+    EXPECT_THAT(completions(TU, P, Syms).Completions,
+                AllOf(Contains(named("A")), Contains(named("same_as"))))
+        << "Completing 'requires' expression at position " << P;
+  }
 }
 
 TEST(SignatureHelp, DocFormat) {

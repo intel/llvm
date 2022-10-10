@@ -100,8 +100,13 @@ enum GPUKind : uint32_t {
   GK_GFX1035 = 80,
   GK_GFX1036 = 81,
 
+  GK_GFX1100 = 90,
+  GK_GFX1101 = 91,
+  GK_GFX1102 = 92,
+  GK_GFX1103 = 93,
+
   GK_AMDGCN_FIRST = GK_GFX600,
-  GK_AMDGCN_LAST = GK_GFX1036,
+  GK_AMDGCN_LAST = GK_GFX1103,
 };
 
 /// Instruction set architecture version.
@@ -154,6 +159,7 @@ namespace RISCV {
 
 enum CPUKind : unsigned {
 #define PROC(ENUM, NAME, FEATURES, DEFAULT_MARCH) CK_##ENUM,
+#define TUNE_PROC(ENUM, NAME) CK_##ENUM,
 #include "RISCVTargetParser.def"
 };
 
@@ -171,7 +177,6 @@ StringRef getMArchFromMcpu(StringRef CPU);
 void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
 void fillValidTuneCPUArchList(SmallVectorImpl<StringRef> &Values, bool IsRV64);
 bool getCPUFeaturesExceptStdExt(CPUKind Kind, std::vector<StringRef> &Features);
-StringRef resolveTuneCPUAlias(StringRef TuneCPU, bool IsRV64);
 
 } // namespace RISCV
 

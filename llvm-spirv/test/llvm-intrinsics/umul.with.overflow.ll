@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 
 ; On LLVM level, we'll check that the intrinsics were generated again in reverse
 ; translation, replacing the SPIR-V level implementations.
@@ -15,14 +15,10 @@
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 
-; CHECK-LLVM: [[UMUL_8_TY:%structtype]] = type { i8, i1 }
-; CHECK-LLVM: [[UMUL_32_TY:%structtype.[0-9]+]] = type { i32, i1 }
-; CHECK-LLVM: [[UMUL_VEC64_TY:%structtype.[0-9]+]] = type { <2 x i64>, <2 x i1> }
-
 ; Function Attrs: nofree nounwind writeonly
 define dso_local spir_func void @_Z4foo8hhPh(i8 zeroext %a, i8 zeroext %b, i8* nocapture %c) local_unnamed_addr #0 {
 entry:
-  ; CHECK-LLVM: call [[UMUL_8_TY]] @llvm.umul.with.overflow.i8
+  ; CHECK-LLVM: call { i8, i1 } @llvm.umul.with.overflow.i8
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_8]]
   %umul = tail call { i8, i1 } @llvm.umul.with.overflow.i8(i8 %a, i8 %b)
   %cmp = extractvalue { i8, i1 } %umul, 1
@@ -45,7 +41,7 @@ entry:
 ; Function Attrs: nofree nounwind writeonly
 define dso_local spir_func void @_Z5foo32jjPj(i32 %a, i32 %b, i32* nocapture %c) local_unnamed_addr #0 {
 entry:
-  ; CHECK-LLVM: call [[UMUL_32_TY]] @llvm.umul.with.overflow.i32
+  ; CHECK-LLVM: call { i32, i1 } @llvm.umul.with.overflow.i32
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_32]]
   %umul = tail call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %b, i32 %a)
   %umul.val = extractvalue { i32, i1 } %umul, 0
@@ -57,7 +53,7 @@ entry:
 
 ; Function Attrs: nofree nounwind writeonly
 define dso_local spir_func void @umulo_v2i64(<2 x i64> %a, <2 x i64> %b, <2 x i64>* %p) nounwind {
-  ; CHECK-LLVM: call [[UMUL_VEC64_TY]] @llvm.umul.with.overflow.v2i64
+  ; CHECK-LLVM: call { <2 x i64>, <2 x i1> } @llvm.umul.with.overflow.v2i64
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_VEC_I64]]
   %umul = call {<2 x i64>, <2 x i1>} @llvm.umul.with.overflow.v2i64(<2 x i64> %a, <2 x i64> %b)
   %umul.val = extractvalue {<2 x i64>, <2 x i1>} %umul, 0

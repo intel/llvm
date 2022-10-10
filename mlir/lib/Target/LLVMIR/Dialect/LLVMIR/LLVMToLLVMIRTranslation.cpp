@@ -157,13 +157,12 @@ static llvm::FastMathFlags getFastmathFlags(FastmathFlagsInterface &op) {
       {FastmathFlags::contract, &llvmFMF::setAllowContract},
       {FastmathFlags::afn,      &llvmFMF::setApproxFunc},
       {FastmathFlags::reassoc,  &llvmFMF::setAllowReassoc},
-      {FastmathFlags::fast,     &llvmFMF::setFast},
       // clang-format on
   };
   llvm::FastMathFlags ret;
   auto fmf = op.getFastmathFlags();
   for (auto it : handlers)
-    if (bitEnumContains(fmf, it.first))
+    if (bitEnumContainsAll(fmf, it.first))
       (ret.*(it.second))(true);
   return ret;
 }
@@ -220,7 +219,7 @@ static void setLoopMetadata(Operation &opInst, llvm::Instruction &llvmInst,
       auto loopAttr = attr.cast<DictionaryAttr>();
       auto parallelAccessGroup =
           loopAttr.getNamed(LLVMDialect::getParallelAccessAttrName());
-      if (parallelAccessGroup.hasValue()) {
+      if (parallelAccessGroup) {
         SmallVector<llvm::Metadata *> parallelAccess;
         parallelAccess.push_back(
             llvm::MDString::get(ctx, "llvm.loop.parallel_accesses"));
@@ -252,22 +251,23 @@ static void setLoopMetadata(Operation &opInst, llvm::Instruction &llvmInst,
   }
 }
 
+/// Convert the value of a DenseI64ArrayAttr to a vector of unsigned indices.
+static SmallVector<unsigned> extractPosition(ArrayRef<int64_t> indices) {
+  SmallVector<unsigned> position;
+  llvm::append_range(position, indices);
+  return position;
+}
+
 static LogicalResult
 convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
                      LLVM::ModuleTranslation &moduleTranslation) {
-  auto extractPosition = [](ArrayAttr attr) {
-    SmallVector<unsigned, 4> position;
-    position.reserve(attr.size());
-    for (Attribute v : attr)
-      position.push_back(v.cast<IntegerAttr>().getValue().getZExtValue());
-    return position;
-  };
 
   llvm::IRBuilder<>::FastMathFlagGuard fmfGuard(builder);
   if (auto fmf = dyn_cast<FastmathFlagsInterface>(opInst))
     builder.setFastMathFlags(getFastmathFlags(fmf));
 
 #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
+#include "mlir/Dialect/LLVMIR/LLVMIntrinsicConversions.inc"
 
   // Emit function calls.  If the "callee" attribute is present, this is a
   // direct function call and we also need to look up the remapped function
@@ -280,9 +280,10 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
     if (auto attr = op.getAttrOfType<FlatSymbolRefAttr>("callee"))
       return builder.CreateCall(
           moduleTranslation.lookupFunction(attr.getValue()), operandsRef);
-    auto *calleeType = operandsRef.front()->getType();
-    auto *calleeFunctionType =
-        cast<llvm::FunctionType>(calleeType->getPointerElementType());
+    auto calleeType =
+        op.getOperands().front().getType().cast<LLVMPointerType>();
+    auto *calleeFunctionType = cast<llvm::FunctionType>(
+        moduleTranslation.convertType(calleeType.getElementType()));
     return builder.CreateCall(calleeFunctionType, operandsRef.front(),
                               operandsRef.drop_front());
   };
@@ -314,7 +315,7 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
     }
     auto ft = LLVM::LLVMFunctionType::get(resultType, operandTypes);
     llvm::InlineAsm *inlineAsmInst =
-        inlineAsmOp.getAsmDialect().hasValue()
+        inlineAsmOp.getAsmDialect()
             ? llvm::InlineAsm::get(
                   static_cast<llvm::FunctionType *>(
                       moduleTranslation.convertType(ft)),
@@ -367,9 +368,10 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
           moduleTranslation.lookupBlock(invOp.getSuccessor(0)),
           moduleTranslation.lookupBlock(invOp.getSuccessor(1)), operandsRef);
     } else {
-      auto *calleeType = operandsRef.front()->getType();
-      auto *calleeFunctionType =
-          cast<llvm::FunctionType>(calleeType->getPointerElementType());
+      auto calleeType =
+          invOp.getCalleeOperands().front().getType().cast<LLVMPointerType>();
+      auto *calleeFunctionType = cast<llvm::FunctionType>(
+          moduleTranslation.convertType(calleeType.getElementType()));
       result = builder.CreateInvoke(
           calleeFunctionType, operandsRef.front(),
           moduleTranslation.lookupBlock(invOp.getSuccessor(0)),
@@ -464,8 +466,10 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
   // operation and store it in the MLIR-to-LLVM value mapping.  This does not
   // emit any LLVM instruction.
   if (auto addressOfOp = dyn_cast<LLVM::AddressOfOp>(opInst)) {
-    LLVM::GlobalOp global = addressOfOp.getGlobal();
-    LLVM::LLVMFuncOp function = addressOfOp.getFunction();
+    LLVM::GlobalOp global =
+        addressOfOp.getGlobal(moduleTranslation.symbolTable());
+    LLVM::LLVMFuncOp function =
+        addressOfOp.getFunction(moduleTranslation.symbolTable());
 
     // The verifier should not have allowed this.
     assert((global || function) &&

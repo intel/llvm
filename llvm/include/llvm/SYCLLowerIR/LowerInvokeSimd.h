@@ -24,4 +24,8 @@ public:
 
 ModulePass *createSYCLLowerInvokeSimdPass();
 void initializeSYCLLowerInvokeSimdLegacyPassPass(PassRegistry &);
+
+// Attribute added to functions which are known to be invoke_simd targets.
+constexpr char INVOKE_SIMD_DIRECT_TARGET_ATTR[] = "__invoke_simd_target";
+
 } // namespace llvm

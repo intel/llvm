@@ -13,7 +13,7 @@
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 
 using namespace mlir;
 using namespace mlir::tensor;
@@ -25,9 +25,9 @@ PadOp mlir::tensor::createPadScalarOp(Type type, Value source, Value pad,
   auto padTensorOp =
       builder.create<PadOp>(loc, type, source, low, high, nofold);
   int rank = padTensorOp.getResultType().getRank();
-  SmallVector<Type, 4> blockArgTypes(rank, builder.getIndexType());
-  SmallVector<Location, 4> blockArgLocs(rank, loc);
-  auto &region = padTensorOp.region();
+  SmallVector<Type> blockArgTypes(rank, builder.getIndexType());
+  SmallVector<Location> blockArgLocs(rank, loc);
+  auto &region = padTensorOp.getRegion();
   // `builder.createBlock` changes the insertion point within the block. Create
   // a guard to reset the insertion point of the builder after it is destroyed.
   OpBuilder::InsertionGuard guard(builder);
@@ -36,19 +36,46 @@ PadOp mlir::tensor::createPadScalarOp(Type type, Value source, Value pad,
   return padTensorOp;
 }
 
-PadOp mlir::tensor::createPadHighOp(Type type, Value source, Value pad,
-                                    bool nofold, Location loc, OpBuilder &b) {
-  SmallVector<OpFoldResult, 4> low, high;
-  auto rankedTensorType = type.cast<RankedTensorType>();
-  assert(rankedTensorType.hasStaticShape());
-  for (const auto &en : enumerate(rankedTensorType.getShape())) {
+PadOp mlir::tensor::createPadHighOp(RankedTensorType type, Value source,
+                                    Value pad, bool nofold, Location loc,
+                                    OpBuilder &b) {
+  auto zero = b.createOrFold<arith::ConstantIndexOp>(loc, 0);
+  SmallVector<OpFoldResult> low(type.getRank(), zero);
+  SmallVector<OpFoldResult> high(type.getRank(), zero);
+  for (const auto &en : enumerate(type.getShape())) {
+    // Pad only the static dimensions of the result tensor type.
+    if (ShapedType::isDynamic(en.value()))
+      continue;
+    // Compute the padding width.
     AffineExpr d0;
     bindDims(b.getContext(), d0);
     auto dimOp = b.createOrFold<tensor::DimOp>(loc, source, en.index());
-    Value paddingWidth =
-        makeComposedAffineApply(b, loc, en.value() - d0, {dimOp});
-    high.push_back(paddingWidth);
-    low.push_back(b.createOrFold<arith::ConstantIndexOp>(loc, 0));
+    high[en.index()] =
+        makeComposedAffineApply(b, loc, en.value() - d0, {dimOp}).getResult();
   }
   return createPadScalarOp(type, source, pad, low, high, nofold, loc, b);
+}
+
+SmallVector<Value> mlir::tensor::createDynamicDimValues(OpBuilder &b,
+                                                        Location loc,
+                                                        Value rankedTensor) {
+  auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
+  SmallVector<Value> dynamicDims;
+  for (const auto &en : llvm::enumerate(tensorTy.getShape())) {
+    if (en.value() == ShapedType::kDynamicSize)
+      dynamicDims.push_back(
+          b.create<tensor::DimOp>(loc, rankedTensor, en.index()));
+  }
+  return dynamicDims;
+}
+
+SmallVector<Value> mlir::tensor::createDimValues(OpBuilder &b, Location loc,
+                                                 Value rankedTensor) {
+  auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
+  SmallVector<Value> dims;
+  for (const auto &en : llvm::enumerate(tensorTy.getShape())) {
+    dims.push_back(
+        b.createOrFold<tensor::DimOp>(loc, rankedTensor, en.index()));
+  }
+  return dims;
 }

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -triple i386-unknown-unknown -emit-llvm -O1 -relaxed-aliasing -fstrict-enums -std=c++11 -o - | FileCheck %s
-// RUN: %clang_cc1 %s -triple i386-unknown-unknown -emit-llvm -O1 -relaxed-aliasing -std=c++11 -o - | FileCheck --check-prefix=NO-STRICT-ENUMS %s
+// RUN: %clang_cc1 -no-opaque-pointers %s -triple i386-unknown-unknown -emit-llvm -O1 -relaxed-aliasing -fstrict-enums -std=c++11 -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers %s -triple i386-unknown-unknown -emit-llvm -O1 -relaxed-aliasing -std=c++11 -o - | FileCheck --check-prefix=NO-STRICT-ENUMS %s
 
 bool f(bool *x) {
   return *x;
@@ -18,14 +18,14 @@ e1 g1(e1 *x) {
   return *x;
 }
 // CHECK-LABEL: define{{.*}} i32 @_Z2g1P2e1
-// CHECK: ret i32 0
+// CHECK: ret i32 %0
 
 enum e2 { e2_a = 0 };
 e2 g2(e2 *x) {
   return *x;
 }
 // CHECK-LABEL: define{{.*}} i32 @_Z2g2P2e2
-// CHECK: ret i32 0
+// CHECK: ret i32 %0
 
 enum e3 { e3_a = 16 };
 e3 g3(e3 *x) {

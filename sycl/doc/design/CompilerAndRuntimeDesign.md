@@ -90,7 +90,7 @@ work:
 int foo(int x) { return ++x; }
 int bar(int x) { throw std::exception{"CPU code only!"}; }
 ...
-using namespace cl::sycl;
+using namespace sycl;
 queue Q;
 buffer<int, 1> a{range<1>{1024}};
 Q.submit([&](handler& cgh) {
@@ -103,17 +103,17 @@ Q.submit([&](handler& cgh) {
 ```
 
 In this example, the compiler needs to compile the lambda expression passed
-to the `cl::sycl::handler::parallel_for` method, as well as the function `foo`
+to the `sycl::handler::parallel_for` method, as well as the function `foo`
 called from the lambda expression for the device.
 
 The compiler must also ignore the `bar` function when we compile the
 "device" part of the single source code, as it's unused inside the device
 portion of the source code (the contents of the lambda expression passed to the
-`cl::sycl::handler::parallel_for` and any function called from this lambda
+`sycl::handler::parallel_for` and any function called from this lambda
 expression).
 
 The current approach is to use the SYCL kernel attribute in the runtime to
-mark code passed to `cl::sycl::handler::parallel_for` as "kernel functions".
+mark code passed to `sycl::handler::parallel_for` as "kernel functions".
 The runtime library can't mark foo as "device" code - this is a compiler
 job: to traverse all symbols accessible from kernel functions and add them to
 the "device part" of the code marking them with the new SYCL device attribute.
@@ -659,11 +659,12 @@ PI interface.
 The CUDA API does not natively support the global offset parameter
 expected by the SYCL.
 
-In order to emulate this and make generated kernel compliant, an
-intrinsic `llvm.nvvm.implicit.offset` (clang builtin
-`__builtin_ptx_implicit_offset`) was introduced materializing the use
-of this implicit parameter for the NVPTX backend. The intrinsic returns
-a pointer to `i32` referring to a 3 elements array.
+In order to emulate this and make generated kernel compliant, an intrinsic
+`llvm.nvvm.implicit.offset` (clang builtin `__builtin_ptx_implicit_offset`) was
+introduced materializing the use of this implicit parameter for the NVPTX
+backend. AMDGCN uses the same approach with `llvm.amdgpu.implicit.offset` and
+`__builtin_amdgcn_implicit_offset`. The intrinsic returns a pointer to `i32`
+referring to a 3 elements array.
 
 Each non-kernel function reaching the implicit offset intrinsic in the
 call graph is augmented with an extra implicit parameter of type
@@ -682,7 +683,7 @@ on the following logic:
 
 - If the 2 versions exist, the original kernel is called if global
   offset is 0 otherwise it will call the cloned one and pass the
-  offset by value;
+  offset by value (for CUDA backend), or by ref for AMD;
 - If only 1 function exist, it is assumed that the kernel makes no use
   of this parameter and therefore ignores it.
 
@@ -854,7 +855,7 @@ For instance:
 template <typename T, address_space AS> class multi_ptr {
   // DecoratedType applies corresponding address space attribute to the type T
   // DecoratedType<T, global_space>::type == "__attribute__((opencl_global)) T"
-  // See sycl/include/CL/sycl/access/access.hpp for more details
+  // See sycl/include/sycl/access/access.hpp for more details
   using pointer_t = typename DecoratedType<T, AS>::type *;
  
   pointer_t m_Pointer;

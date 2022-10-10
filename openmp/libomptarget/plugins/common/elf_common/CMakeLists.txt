@@ -10,7 +10,7 @@
 #
 ##===----------------------------------------------------------------------===##
 
-add_library(elf_common OBJECT elf_common.cpp)
+add_library(elf_common OBJECT elf_common.cpp ELFSymbols.cpp)
 
 # Build elf_common with PIC to be able to link it with plugin shared libraries.
 set_property(TARGET elf_common PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -27,3 +27,4 @@ target_link_libraries(elf_common INTERFACE ${OPENMP_PTHREAD_LIB})
 
 # Expose elf_common.h directory to the users of this library.
 target_include_directories(elf_common INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(elf_common PRIVATE ${LIBOMPTARGET_INCLUDE_DIR})

@@ -5,12 +5,12 @@
 
 #include "sycl.hpp"
 
-// CHECK-NOT: class.cl::sycl::queue
+// CHECK-NOT: {{class.sycl::.*queue}}
 
 // CHECK: @_ZZ4mainE3Loc = internal addrspace(1) constant i32 42, align 4
 // CHECK: @_ZZ4mainE6Struct = internal addrspace(1) constant %struct.S { i32 38 }, align 4
 // CHECK: @_ZL4Glob = internal addrspace(1) constant i64 100500, align 8
-// CHECK: @_ZZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE_clEvE6InKern = internal addrspace(1) constant i32 2022, align 4
+// CHECK: @_ZZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEvE6InKern = internal addrspace(1) constant i32 2022, align 4
 // CHECK: @_ZN1SIiE6MemberE = available_externally addrspace(1) constant i32 1, align 4
 // CHECK: @_ZZ3fooiE5InFoo = internal addrspace(1) constant i32 300, align 4
 

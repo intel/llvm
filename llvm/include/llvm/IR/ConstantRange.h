@@ -44,7 +44,7 @@ class raw_ostream;
 struct KnownBits;
 
 /// This class represents a range of values.
-class LLVM_NODISCARD ConstantRange {
+class [[nodiscard]] ConstantRange {
   APInt Lower, Upper;
 
   /// Create empty constant range with same bitwidth.
@@ -552,6 +552,9 @@ public:
 
   /// Return whether unsigned mul of the two ranges always/never overflows.
   OverflowResult unsignedMulMayOverflow(const ConstantRange &Other) const;
+
+  /// Return known bits for values in this range.
+  KnownBits toKnownBits() const;
 
   /// Print out the bounds to a stream.
   void print(raw_ostream &OS) const;

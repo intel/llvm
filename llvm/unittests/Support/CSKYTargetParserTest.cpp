@@ -1061,18 +1061,11 @@ TEST(TargetParserTest, CSKYExtensionFeatures) {
   EXPECT_FALSE(CSKY::getExtensionFeatures(CSKY::AEK_INVALID, Features));
 
   for (auto &E : Extensions) {
-    // test +extension
-    Features.clear();
     CSKY::getExtensionFeatures(E.first, Features);
     EXPECT_TRUE(llvm::is_contained(Features, E.second.at(0)));
-    EXPECT_EQ(Extensions.size(), Features.size());
-
-    // test -extension
-    Features.clear();
-    CSKY::getExtensionFeatures(~E.first, Features);
-    EXPECT_TRUE(llvm::is_contained(Features, E.second.at(1)));
-    EXPECT_EQ(Extensions.size(), Features.size());
   }
+
+  EXPECT_EQ(Extensions.size(), Features.size());
 }
 
 TEST(TargetParserTest, CSKYFPUFeatures) {
@@ -1142,7 +1135,7 @@ TEST(TargetParserTest, CSKYArchExtFeature) {
       {"10e60", "no10e60", "+10e60", "-10e60"},
   };
 
-  for (unsigned i = 0; i < array_lengthof(ArchExt); i++) {
+  for (unsigned i = 0; i < std::size(ArchExt); i++) {
     EXPECT_EQ(StringRef(ArchExt[i][2]), CSKY::getArchExtFeature(ArchExt[i][0]));
     EXPECT_EQ(StringRef(ArchExt[i][3]), CSKY::getArchExtFeature(ArchExt[i][1]));
   }

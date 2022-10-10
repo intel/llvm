@@ -4,6 +4,12 @@ if(POLICY CMP0116)
   cmake_policy(SET CMP0116 OLD)
 endif()
 
+if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
+  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+endif()
+
+list(APPEND CMAKE_MODULE_PATH "${LLVM_COMMON_CMAKE_UTILS}/Modules")
+
 option(LLVM_INSTALL_TOOLCHAIN_ONLY "Only include toolchain files in the 'install' target." OFF)
 
 find_package(LLVM REQUIRED CONFIG HINTS ${LLVM_DIR} NO_CMAKE_FIND_ROOT_PATH)
@@ -91,6 +97,18 @@ include(LLVMDistributionSupport)
 set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
 set(LLVM_INCLUDE_TESTS ON CACHE INTERNAL "")
 
+# Build the gtest library needed for unittests, if we have LLVM sources
+# handy.
+if (EXISTS ${LLVM_MAIN_SRC_DIR}/utils/unittest AND NOT TARGET llvm_gtest)
+  add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/unittest utils/unittest)
+endif()
+# LLVMTestingSupport library is needed for Process/gdb-remote.
+if (EXISTS ${LLVM_MAIN_SRC_DIR}/lib/Testing/Support
+    AND NOT TARGET LLVMTestingSupport)
+  add_subdirectory(${LLVM_MAIN_SRC_DIR}/lib/Testing/Support
+    lib/Testing/Support)
+endif()
+
 option(LLVM_USE_FOLDERS "Enable solution folders in Visual Studio. Disable for Express versions." ON)
 if(LLVM_USE_FOLDERS)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -104,6 +122,10 @@ include_directories(
   "${CMAKE_BINARY_DIR}/include"
   "${LLVM_INCLUDE_DIRS}"
   "${CLANG_INCLUDE_DIRS}")
+
+if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
+  set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX})

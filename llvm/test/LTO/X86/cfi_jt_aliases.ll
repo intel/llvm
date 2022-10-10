@@ -1,6 +1,7 @@
 ; Full LTO test
 ; RUN: opt %s -o %t.bc
 ; RUN: llvm-lto2 run -o %t.o %t.bc -save-temps \
+; RUN:   -opaque-pointers \
 ; RUN:   -r=%t.bc,a,px \
 ; RUN:   -r=%t.bc,b,px \
 ; RUN:   -r=%t.bc,c,px \
@@ -11,6 +12,7 @@
 ; Thin LTO test
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %s -o %t.bc
 ; RUN: llvm-lto2 run -o %t.o %t.bc \
+; RUN:   -opaque-pointers \
 ; RUN:   -r=%t.bc,a,px \
 ; RUN:   -r=%t.bc,b,px \
 ; RUN:   -r=%t.bc,c,px \
@@ -46,7 +48,7 @@
 ; CHECK-THIN-OD:      jmp {{.*}} <a.cfi_jt
 ; CHECK-THIN-OD-NEXT: R_X86_64_PLT32 a
 
-; CHECK-USED: @llvm.used = appending global [3 x i8*] [i8* bitcast (void ()* @a.cfi_jt to i8*), i8* bitcast (void ()* @b.cfi_jt to i8*), i8* bitcast (void ()* @c.cfi_jt to i8*)], section "llvm.metadata"
+; CHECK-USED: @llvm.used = appending global [3 x ptr] [ptr @a.cfi_jt, ptr @b.cfi_jt, ptr @c.cfi_jt], section "llvm.metadata"
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

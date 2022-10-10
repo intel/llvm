@@ -113,6 +113,18 @@ TypeCode::TypeCode(TypeCategory f, int kind) {
 std::optional<std::pair<TypeCategory, int>>
 TypeCode::GetCategoryAndKind() const {
   switch (raw_) {
+  case CFI_type_signed_char:
+    return std::make_pair(TypeCategory::Character, sizeof(signed char));
+  case CFI_type_short:
+    return std::make_pair(TypeCategory::Integer, sizeof(short));
+  case CFI_type_int:
+    return std::make_pair(TypeCategory::Integer, sizeof(int));
+  case CFI_type_long:
+    return std::make_pair(TypeCategory::Integer, sizeof(long));
+  case CFI_type_long_long:
+    return std::make_pair(TypeCategory::Integer, sizeof(long long));
+  case CFI_type_size_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::size_t));
   case CFI_type_int8_t:
     return std::make_pair(TypeCategory::Integer, 1);
   case CFI_type_int16_t:
@@ -123,6 +135,32 @@ TypeCode::GetCategoryAndKind() const {
     return std::make_pair(TypeCategory::Integer, 8);
   case CFI_type_int128_t:
     return std::make_pair(TypeCategory::Integer, 16);
+  case CFI_type_int_least8_t:
+    return std::make_pair(TypeCategory::Logical, 1);
+  case CFI_type_int_least16_t:
+    return std::make_pair(TypeCategory::Logical, 2);
+  case CFI_type_int_least32_t:
+    return std::make_pair(TypeCategory::Logical, 4);
+  case CFI_type_int_least64_t:
+    return std::make_pair(TypeCategory::Logical, 8);
+  case CFI_type_int_least128_t:
+    return std::make_pair(TypeCategory::Integer, 16);
+  case CFI_type_int_fast8_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::int_fast8_t));
+  case CFI_type_int_fast16_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::int_fast16_t));
+  case CFI_type_int_fast32_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::int_fast32_t));
+  case CFI_type_int_fast64_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::int_fast64_t));
+  case CFI_type_int_fast128_t:
+    return std::make_pair(TypeCategory::Integer, 16);
+  case CFI_type_intmax_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::intmax_t));
+  case CFI_type_intptr_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::intptr_t));
+  case CFI_type_ptrdiff_t:
+    return std::make_pair(TypeCategory::Integer, sizeof(std::ptrdiff_t));
   case CFI_type_half_float:
     return std::make_pair(TypeCategory::Real, 2);
   case CFI_type_bfloat:
@@ -134,11 +172,7 @@ TypeCode::GetCategoryAndKind() const {
   case CFI_type_extended_double:
     return std::make_pair(TypeCategory::Real, 10);
   case CFI_type_long_double:
-#if __x86_64__
-    return std::make_pair(TypeCategory::Real, 10);
-#else
     return std::make_pair(TypeCategory::Real, 16);
-#endif
   case CFI_type_float128:
     return std::make_pair(TypeCategory::Real, 16);
   case CFI_type_half_float_Complex:
@@ -152,31 +186,21 @@ TypeCode::GetCategoryAndKind() const {
   case CFI_type_extended_double_Complex:
     return std::make_pair(TypeCategory::Complex, 10);
   case CFI_type_long_double_Complex:
-#if __x86_64__
-    return std::make_pair(TypeCategory::Complex, 10);
-#else
     return std::make_pair(TypeCategory::Complex, 16);
-#endif
   case CFI_type_float128_Complex:
     return std::make_pair(TypeCategory::Complex, 16);
+  case CFI_type_Bool:
+    return std::make_pair(TypeCategory::Logical, 1);
   case CFI_type_char:
     return std::make_pair(TypeCategory::Character, 1);
+  case CFI_type_cptr:
+    return std::make_pair(TypeCategory::Integer, sizeof(void *));
+  case CFI_type_struct:
+    return std::make_pair(TypeCategory::Derived, 0);
   case CFI_type_char16_t:
     return std::make_pair(TypeCategory::Character, 2);
   case CFI_type_char32_t:
     return std::make_pair(TypeCategory::Character, 4);
-  case CFI_type_Bool:
-    return std::make_pair(TypeCategory::Logical, 1);
-  case CFI_type_int_least8_t:
-    return std::make_pair(TypeCategory::Logical, 1);
-  case CFI_type_int_least16_t:
-    return std::make_pair(TypeCategory::Logical, 2);
-  case CFI_type_int_least32_t:
-    return std::make_pair(TypeCategory::Logical, 4);
-  case CFI_type_int_least64_t:
-    return std::make_pair(TypeCategory::Logical, 8);
-  case CFI_type_struct:
-    return std::make_pair(TypeCategory::Derived, 0);
   default:
     return std::nullopt;
   }

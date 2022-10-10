@@ -14,6 +14,7 @@
 #ifndef MLIR_DIALECTS_CONTROLFLOW_IR_CONTROLFLOWOPS_TD
 #define MLIR_DIALECTS_CONTROLFLOW_IR_CONTROLFLOWOPS_TD
 
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -21,8 +22,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def ControlFlow_Dialect : Dialect {
   let name = "cf";
   let cppNamespace = "::mlir::cf";
-  let dependentDialects = ["arith::ArithmeticDialect"];
-  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
+  let dependentDialects = ["arith::ArithDialect"];
   let description = [{
     This dialect contains low-level, i.e. non-region based, control flow
     constructs. These constructs generally represent control flow directly
@@ -132,7 +132,7 @@ def CondBranchOp : CF_Op<"cond_br",
     Example:
 
     ```mlir
-    func @select(%a: i32, %b: i32, %flag: i1) -> i32 {
+    func.func @select(%a: i32, %b: i32, %flag: i1) -> i32 {
       // Both targets are the same, operands differ
       cond_br %flag, ^bb1(%a : i32), ^bb1(%b : i32)
 
@@ -253,7 +253,7 @@ def SwitchOp : CF_Op<"switch",
     Variadic<AnyType>:$defaultOperands,
     VariadicOfVariadic<AnyType, "case_operand_segments">:$caseOperands,
     OptionalAttr<AnyIntElementsAttr>:$case_values,
-    I32ElementsAttr:$case_operand_segments
+    DenseI32ArrayAttr:$case_operand_segments
   );
   let successors = (successor
     AnySuccessor:$defaultDestination,

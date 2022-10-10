@@ -6,35 +6,42 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/event.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <memory>
 #include <unordered_set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-event::event() : impl(std::make_shared<detail::event_impl>()) {}
+event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
-          detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {}
+          detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {
+  // This is a special interop constructor for OpenCL, so the event must be
+  // retained.
+  impl->getPlugin().call<detail::PiApiKind::piEventRetain>(
+      detail::pi::cast<RT::PiEvent>(ClEvent));
+}
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-cl_event event::get() const { return impl->get(); }
-
-bool event::is_host() const { return impl->is_host(); }
+bool event::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "event::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 void event::wait() { impl->wait(impl); }
 
@@ -64,25 +71,28 @@ std::vector<event> event::get_wait_list() {
 event::event(std::shared_ptr<detail::event_impl> event_impl)
     : impl(event_impl) {}
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template <>                                                                  \
-  __SYCL_EXPORT ret_type event::get_info<info::param_type::param>() const {    \
-    return impl->get_info<info::param_type::param>();                          \
-  }
+template <typename Param>
+typename detail::is_event_info_desc<Param>::return_type
+event::get_info() const {
+  return impl->template get_info<Param>();
+}
 
-#include <CL/sycl/info/event_traits.def>
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
+
+#include <sycl/info/event_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <>                                                                  \
-  __SYCL_EXPORT ret_type event::get_profiling_info<info::param_type::param>()  \
+  __SYCL_EXPORT ReturnT event::get_profiling_info<info::DescType::Desc>()      \
       const {                                                                  \
     impl->wait(impl);                                                          \
-    return impl->get_profiling_info<info::param_type::param>();                \
+    return impl->get_profiling_info<info::DescType::Desc>();                   \
   }
 
-#include <CL/sycl/info/event_profiling_traits.def>
+#include <sycl/info/event_profiling_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -95,5 +105,5 @@ std::vector<pi_native_handle> event::getNativeVector() const {
   return ReturnVector;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

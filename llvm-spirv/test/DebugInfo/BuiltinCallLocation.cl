@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -triple spir -fdeclare-opencl-builtins -finclude-default-header %s -disable-llvm-passes -emit-llvm-bc -debug-info-kind=line-tables-only -o %t.bc
 // RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
-// RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 // CHECK-SPIRV: Label
 // CHECK-SPIRV: ExtInst {{.*}} DebugScope

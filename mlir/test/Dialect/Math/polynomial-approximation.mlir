@@ -76,7 +76,7 @@
 // CHECK:         %[[val_36:.*]] = arith.select %[[val_0]], %[[val_35]], %[[val_34]] : f32
 // CHECK:         return %[[val_36]] : f32
 // CHECK:       }
-func @erf_scalar(%arg0: f32) -> f32 {
+func.func @erf_scalar(%arg0: f32) -> f32 {
   %0 = math.erf %arg0 : f32
   return %0 : f32
 }
@@ -89,7 +89,7 @@ func @erf_scalar(%arg0: f32) -> f32 {
 // CHECK:           %[[res:.*]] = arith.select
 // CHECK:           return %[[res]] : vector<8xf32>
 // CHECK:         }
-func @erf_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
+func.func @erf_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
   %0 = math.erf %arg0 : vector<8xf32>
   return %0 : vector<8xf32>
 }
@@ -139,7 +139,7 @@ func @erf_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_40:.*]] = arith.select %[[VAL_33]], %[[VAL_9]], %[[VAL_39]] : f32
 // CHECK:           %[[VAL_41:.*]] = arith.select %[[IS_NAN]], %[[VAL_0]], %[[VAL_40]] : f32
 // CHECK:           return %[[VAL_41]] : f32
-func @exp_scalar(%arg0: f32) -> f32 {
+func.func @exp_scalar(%arg0: f32) -> f32 {
   %0 = math.exp %arg0 : f32
   return %0 : f32
 }
@@ -151,7 +151,7 @@ func @exp_scalar(%arg0: f32) -> f32 {
 // CHECK-COUNT-4:   select
 // CHECK:           %[[VAL_40:.*]] = arith.select
 // CHECK:           return %[[VAL_40]] : vector<8xf32>
-func @exp_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
+func.func @exp_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
   %0 = math.exp %arg0 : vector<8xf32>
   return %0 : vector<8xf32>
 }
@@ -179,7 +179,7 @@ func @exp_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_109:.*]] = arith.select %[[IS_ONE_OR_NAN]], %[[X]], %[[VAL_108]] : f32
 // CHECK:           return %[[VAL_109]] : f32
 // CHECK:         }
-func @expm1_scalar(%arg0: f32) -> f32 {
+func.func @expm1_scalar(%arg0: f32) -> f32 {
   %0 = math.expm1 %arg0 : f32
   return %0 : f32
 }
@@ -196,7 +196,7 @@ func @expm1_scalar(%arg0: f32) -> f32 {
 // CHECK:           %[[VAL_115:.*]] = arith.select
 // CHECK:           return %[[VAL_115]] : vector<8x8xf32>
 // CHECK:         }
-func @expm1_vector(%arg0: vector<8x8xf32>) -> vector<8x8xf32> {
+func.func @expm1_vector(%arg0: vector<8x8xf32>) -> vector<8x8xf32> {
   %0 = math.expm1 %arg0 : vector<8x8xf32>
   return %0 : vector<8x8xf32>
 }
@@ -264,7 +264,7 @@ func @expm1_vector(%arg0: vector<8x8xf32>) -> vector<8x8xf32> {
 // CHECK:           %[[VAL_58:.*]] = arith.select %[[VAL_54]], %[[VAL_5]], %[[VAL_57]] : f32
 // CHECK:           return %[[VAL_58]] : f32
 // CHECK:         }
-func @log_scalar(%arg0: f32) -> f32 {
+func.func @log_scalar(%arg0: f32) -> f32 {
   %0 = math.log %arg0 : f32
   return %0 : f32
 }
@@ -276,7 +276,7 @@ func @log_scalar(%arg0: f32) -> f32 {
 // CHECK:           %[[VAL_71:.*]] = arith.select
 // CHECK:           return %[[VAL_71]] : vector<8xf32>
 // CHECK:         }
-func @log_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
+func.func @log_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
   %0 = math.log %arg0 : vector<8xf32>
   return %0 : vector<8xf32>
 }
@@ -288,7 +288,7 @@ func @log_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_65:.*]] = arith.select
 // CHECK:           return %[[VAL_65]] : f32
 // CHECK:         }
-func @log2_scalar(%arg0: f32) -> f32 {
+func.func @log2_scalar(%arg0: f32) -> f32 {
   %0 = math.log2 %arg0 : f32
   return %0 : f32
 }
@@ -300,7 +300,7 @@ func @log2_scalar(%arg0: f32) -> f32 {
 // CHECK:           %[[VAL_71:.*]] = arith.select
 // CHECK:           return %[[VAL_71]] : vector<8xf32>
 // CHECK:         }
-func @log2_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
+func.func @log2_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
   %0 = math.log2 %arg0 : vector<8xf32>
   return %0 : vector<8xf32>
 }
@@ -321,7 +321,7 @@ func @log2_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[APPROX:.*]] = arith.select %[[VAL_72]], %[[X]], %[[LOG_LARGE]] : f32
 // CHECK:           return %[[APPROX]] : f32
 // CHECK:         }
-func @log1p_scalar(%arg0: f32) -> f32 {
+func.func @log1p_scalar(%arg0: f32) -> f32 {
   %0 = math.log1p %arg0 : f32
   return %0 : f32
 }
@@ -333,7 +333,7 @@ func @log1p_scalar(%arg0: f32) -> f32 {
 // CHECK:           %[[VAL_79:.*]] = arith.select
 // CHECK:           return %[[VAL_79]] : vector<8xf32>
 // CHECK:         }
-func @log1p_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
+func.func @log1p_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
   %0 = math.log1p %arg0 : vector<8xf32>
   return %0 : vector<8xf32>
 }
@@ -359,7 +359,7 @@ func @log1p_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_16:.*]] = arith.select %[[VAL_15]], %[[VAL_0]], %[[VAL_2]] : f32
 // CHECK:           %[[VAL_17:.*]] = arith.cmpf ugt, %[[VAL_16]], %[[VAL_1]] : f32
 // CHECK:           %[[VAL_18:.*]] = arith.select %[[VAL_17]], %[[VAL_16]], %[[VAL_1]] : f32
-// CHECK:           %[[VAL_19:.*]] = math.abs %[[VAL_0]] : f32
+// CHECK:           %[[VAL_19:.*]] = math.absf %[[VAL_0]] : f32
 // CHECK:           %[[VAL_20:.*]] = arith.cmpf olt, %[[VAL_19]], %[[VAL_3]] : f32
 // CHECK:           %[[VAL_21:.*]] = arith.mulf %[[VAL_18]], %[[VAL_18]] : f32
 // CHECK:           %[[VAL_22:.*]] = math.fma %[[VAL_21]], %[[VAL_10]], %[[VAL_9]] : f32
@@ -376,7 +376,7 @@ func @log1p_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:           %[[VAL_33:.*]] = arith.select %[[VAL_20]], %[[VAL_18]], %[[VAL_32]] : f32
 // CHECK:           return %[[VAL_33]] : f32
 // CHECK:         }
-func @tanh_scalar(%arg0: f32) -> f32 {
+func.func @tanh_scalar(%arg0: f32) -> f32 {
   %0 = math.tanh %arg0 : f32
   return %0 : f32
 }
@@ -389,7 +389,7 @@ func @tanh_scalar(%arg0: f32) -> f32 {
 // CHECK:           %[[VAL_33:.*]] = arith.select
 // CHECK:           return %[[VAL_33]] : vector<8xf32>
 // CHECK:         }
-func @tanh_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
+func.func @tanh_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
   %0 = math.tanh %arg0 : vector<8xf32>
   return %0 : vector<8xf32>
 }
@@ -399,7 +399,7 @@ func @tanh_vector(%arg0: vector<8xf32>) -> vector<8xf32> {
 // AVX2-LABEL:    func @rsqrt_scalar
 // CHECK:           math.rsqrt
 // AVX2:            math.rsqrt
-func @rsqrt_scalar(%arg0: f32) -> f32 {
+func.func @rsqrt_scalar(%arg0: f32) -> f32 {
   %0 = math.rsqrt %arg0 : f32
   return %0 : f32
 }
@@ -423,7 +423,7 @@ func @rsqrt_scalar(%arg0: f32) -> f32 {
 // AVX2:   %[[VAL_13:.*]] = arith.select %[[VAL_8]], %[[VAL_9]], %[[VAL_12]] : vector<8xi1>, vector<8xf32>
 // AVX2:   return %[[VAL_13]] : vector<8xf32>
 // AVX2: }
-func @rsqrt_vector_8xf32(%arg0: vector<8xf32>) -> vector<8xf32> {
+func.func @rsqrt_vector_8xf32(%arg0: vector<8xf32>) -> vector<8xf32> {
   %0 = math.rsqrt %arg0 : vector<8xf32>
   return %0 : vector<8xf32>
 }
@@ -434,7 +434,7 @@ func @rsqrt_vector_8xf32(%arg0: vector<8xf32>) -> vector<8xf32> {
 // CHECK:          math.rsqrt
 // AVX2-LABEL:   func @rsqrt_vector_5xf32
 // AVX2:           math.rsqrt
-func @rsqrt_vector_5xf32(%arg0: vector<5xf32>) -> vector<5xf32> {
+func.func @rsqrt_vector_5xf32(%arg0: vector<5xf32>) -> vector<5xf32> {
   %0 = math.rsqrt %arg0 : vector<5xf32>
   return %0 : vector<5xf32>
 }
@@ -456,7 +456,7 @@ func @rsqrt_vector_5xf32(%arg0: vector<5xf32>) -> vector<5xf32> {
 // AVX2:          %[[RESULT0:.*]] = vector.insert %[[RSQRT0]], %[[INIT]] [0]
 // AVX2:          %[[RESULT1:.*]] = vector.insert %[[RSQRT1]], %[[RESULT0]] [1]
 // AVX2:          %[[RSQRT:.*]] = vector.shape_cast %[[RESULT1]] : vector<2x8xf32> to vector<16xf32>
-func @rsqrt_vector_16xf32(%arg0: vector<16xf32>) -> vector<16xf32> {
+func.func @rsqrt_vector_16xf32(%arg0: vector<16xf32>) -> vector<16xf32> {
   %0 = math.rsqrt %arg0 : vector<16xf32>
   return %0 : vector<16xf32>
 }
@@ -477,7 +477,7 @@ func @rsqrt_vector_16xf32(%arg0: vector<16xf32>) -> vector<16xf32> {
 // AVX2:          %[[RESULT0:.*]] = vector.insert %[[RSQRT0]], %[[INIT]] [0]
 // AVX2:          %[[RESULT1:.*]] = vector.insert %[[RSQRT1]], %[[RESULT0]] [1]
 // AVX2-NOT:      vector.shape_cast
-func @rsqrt_vector_2x8xf32(%arg0: vector<2x8xf32>) -> vector<2x8xf32> {
+func.func @rsqrt_vector_2x8xf32(%arg0: vector<2x8xf32>) -> vector<2x8xf32> {
   %0 = math.rsqrt %arg0 : vector<2x8xf32>
   return %0 : vector<2x8xf32>
 }
@@ -505,7 +505,7 @@ func @rsqrt_vector_2x8xf32(%arg0: vector<2x8xf32>) -> vector<2x8xf32> {
 // AVX2:          %[[RESULT2:.*]] = vector.insert %[[RSQRT10]], %[[RESULT1]] [1, 0]
 // AVX2:          %[[RESULT3:.*]] = vector.insert %[[RSQRT11]], %[[RESULT2]] [1, 1]
 // AVX2:          %[[RSQRT:.*]] = vector.shape_cast %[[RESULT3]] : vector<2x2x8xf32> to vector<2x16xf32>
-func @rsqrt_vector_2x16xf32(%arg0: vector<2x16xf32>) -> vector<2x16xf32> {
+func.func @rsqrt_vector_2x16xf32(%arg0: vector<2x16xf32>) -> vector<2x16xf32> {
   %0 = math.rsqrt %arg0 : vector<2x16xf32>
   return %0 : vector<2x16xf32>
 }
@@ -517,7 +517,7 @@ func @rsqrt_vector_2x16xf32(%arg0: vector<2x16xf32>) -> vector<2x16xf32> {
 // CHECK-DAG:  %[[N3:.+]] = arith.constant -0.0106783099
 // CHECK-DAG:  %[[N4:.+]] = arith.constant 1.00209987
 // CHECK-DAG:  %[[HALF_PI:.+]] = arith.constant 1.57079637
-// CHECK-DAG:  %[[ABS:.+]] = math.abs %arg0
+// CHECK-DAG:  %[[ABS:.+]] = math.absf %arg0
 // CHECK-DAG:  %[[DIV:.+]] = arith.divf %cst, %[[ABS]]
 // CHECK-DAG:  %[[CMP:.+]] = arith.cmpf olt, %[[ABS]], %[[DIV]]
 // CHECK-DAG:  %[[SEL:.+]] = arith.select %[[CMP]], %[[ABS]], %[[DIV]]
@@ -529,7 +529,7 @@ func @rsqrt_vector_2x16xf32(%arg0: vector<2x16xf32>) -> vector<2x16xf32> {
 // CHECK-DAG:  %[[EST:.+]] = arith.select %[[CMP]], %[[P3]], %[[SUB]]
 // CHECK-DAG:  %[[RES:.+]] = math.copysign %[[EST]], %arg0
 // CHECK:  return %[[RES]]
-func @atan_scalar(%arg0: f32) -> f32 {
+func.func @atan_scalar(%arg0: f32) -> f32 {
   %0 = math.atan %arg0 : f32
   return %0 : f32
 }
@@ -547,7 +547,7 @@ func @atan_scalar(%arg0: f32) -> f32 {
 // CHECK-DAG:  %[[ARG0:.+]] = arith.extf %arg0 : f16 to f32
 // CHECK-DAG:  %[[ARG1:.+]] = arith.extf %arg1 : f16 to f32
 // CHECK-DAG:  %[[RATIO:.+]] = arith.divf %[[ARG0]], %[[ARG1]]
-// CHECK-DAG:  %[[ABS:.+]] = math.abs %[[RATIO]]
+// CHECK-DAG:  %[[ABS:.+]] = math.absf %[[RATIO]]
 // CHECK-DAG:  %[[DIV:.+]] = arith.divf %cst, %[[ABS]]
 // CHECK-DAG:  %[[CMP:.+]] = arith.cmpf olt, %[[ABS]], %[[DIV]]
 // CHECK-DAG:  %[[SEL:.+]] = arith.select %[[CMP]], %[[ABS]], %[[DIV]]
@@ -589,8 +589,7 @@ func @atan_scalar(%arg0: f32) -> f32 {
 // CHECK: %[[RET:.+]] = arith.truncf %[[EDGE3]]
 // CHECK: return %[[RET]]
 
-func @atan2_scalar(%arg0: f16, %arg1: f16) -> f16 {
+func.func @atan2_scalar(%arg0: f16, %arg1: f16) -> f16 {
   %0 = math.atan2 %arg0, %arg1 : f16
   return %0 : f16
 }
-

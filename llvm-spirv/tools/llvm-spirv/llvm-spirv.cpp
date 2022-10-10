@@ -153,6 +153,19 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
+#if ENABLE_OPAQUE_POINTERS
+constexpr static bool SPIRVOpaquePointersDefault = true;
+#else
+constexpr static bool SPIRVOpaquePointersDefault = false;
+#endif
+
+static cl::opt<bool>
+    EmitOpaquePointers("emit-opaque-pointers",
+                       cl::init(SPIRVOpaquePointersDefault),
+                       cl::desc("Emit opaque instead of typed LLVM pointers "
+                                "for the translation from SPIR-V."),
+                       cl::Hidden);
+
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -344,6 +357,8 @@ static bool isFileEmpty(const std::string &FileName) {
 
 static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
+  Context.setOpaquePointers(EmitOpaquePointers);
+
   std::ifstream IFS(InputFile, std::ios::binary);
   Module *M;
   std::string Err;
@@ -482,7 +497,8 @@ static int parseSPVExtOption(
 
   for (unsigned i = 0; i < SPVExt.size(); ++i) {
     const std::string &ExtString = SPVExt[i];
-    if ('+' != ExtString.front() && '-' != ExtString.front()) {
+    if (ExtString.empty() ||
+        ('+' != ExtString.front() && '-' != ExtString.front())) {
       errs() << "Invalid value of --spirv-ext, expected format is:\n"
              << "\t--spirv-ext=+EXT_NAME,-EXT_NAME\n";
       return -1;
@@ -572,7 +588,7 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
       }
       APInt Value;
       bool Err = Params[2].getAsInteger(10, Value);
-      if (Err || Value.getNumWords() > 1 ||
+      if (Err || Value.getActiveWords() > 1 ||
           (Width < 64 && Value.getZExtValue() >> Width)) {
         errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
                << "' option! In \"" << Option << "\": can't convert \""

@@ -90,7 +90,8 @@ struct DlsymAlloc : public DlSymAllocator<DlsymAlloc> {
 #define CHECK_UNPOISONED_0(x, n)                                  \
   do {                                                            \
     sptr __offset = __msan_test_shadow(x, n);                     \
-    if (__msan::IsInSymbolizer()) break;                          \
+    if (__msan::IsInSymbolizerOrUnwider())                        \
+      break;                                                      \
     if (__offset >= 0 && __msan::flags()->report_umrs) {          \
       GET_CALLER_PC_BP_SP;                                        \
       (void)sp;                                                   \
@@ -943,6 +944,22 @@ void __sanitizer_dtor_callback(const void *data, uptr size) {
   }
 }
 
+void __sanitizer_dtor_callback_fields(const void *data, uptr size) {
+  if (flags()->poison_in_dtor) {
+    GET_MALLOC_STACK_TRACE;
+    stack.tag = STACK_TRACE_TAG_FIELDS;
+    PoisonMemory(data, size, &stack);
+  }
+}
+
+void __sanitizer_dtor_callback_vptr(const void *data) {
+  if (flags()->poison_in_dtor) {
+    GET_MALLOC_STACK_TRACE;
+    stack.tag = STACK_TRACE_TAG_VPTR;
+    PoisonMemory(data, sizeof(void *), &stack);
+  }
+}
+
 template <class Mmap>
 static void *mmap_interceptor(Mmap real_mmap, void *addr, SIZE_T length,
                               int prot, int flags, int fd, OFF64_T offset) {
@@ -1599,7 +1616,7 @@ void __msan_clear_and_unpoison(void *a, uptr size) {
 
 void *__msan_memcpy(void *dest, const void *src, SIZE_T n) {
   if (!msan_inited) return internal_memcpy(dest, src, n);
-  if (msan_init_is_running || __msan::IsInSymbolizer())
+  if (msan_init_is_running || __msan::IsInSymbolizerOrUnwider())
     return REAL(memcpy)(dest, src, n);
   ENSURE_MSAN_INITED();
   GET_STORE_STACK_TRACE;

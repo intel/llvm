@@ -12,7 +12,7 @@
 //  CHECK-SAME:   %[[UB:[a-zA-Z0-9]*]]: index,
 //  CHECK-SAME:   %[[STEP:[a-zA-Z0-9]*]]: index,
 //  CHECK-SAME:   %[[CMP:[a-zA-Z0-9]*]]: i1
-func @hoist_vector_transfer_pairs(
+func.func @hoist_vector_transfer_pairs(
     %memref0: memref<?x?xf32>, %memref1: memref<?x?xf32>, %memref2: memref<?x?xf32>,
     %memref3: memref<?x?xf32>, %memref4: memref<?x?xf32>, %memref5: memref<?x?xf32>,
     %val: index, %lb : index, %ub : index, %step: index, %cmp: i1) {
@@ -87,7 +87,7 @@ func @hoist_vector_transfer_pairs(
 //  CHECK-SAME:   %[[STEP:[a-zA-Z0-9]*]]: index,
 //  CHECK-SAME:   %[[RANDOM:[a-zA-Z0-9]*]]: index,
 //  CHECK-SAME:   %[[CMP:[a-zA-Z0-9]*]]: i1
-func @hoist_vector_transfer_pairs_disjoint(
+func.func @hoist_vector_transfer_pairs_disjoint(
     %memref0: memref<?x?xf32>, %memref1: memref<?x?xf32>,
     %memref2: memref<?x?xf32>, %memref3: memref<?x?xf32>, %val: index, %lb : index, %ub : index,
     %step: index, %random_index : index, %cmp: i1) {
@@ -158,7 +158,7 @@ func @hoist_vector_transfer_pairs_disjoint(
 // -----
 
 // CHECK-LABEL: func @hoist_vector_transfer_pairs_tensor
-func @hoist_vector_transfer_pairs_tensor(
+func.func @hoist_vector_transfer_pairs_tensor(
     %tensor0: tensor<?x?xf32>, %tensor1: tensor<?x?xf32>, %tensor2: tensor<?x?xf32>,
     %tensor3: tensor<?x?xf32>, %tensor4: tensor<?x?xf32>, %tensor5: tensor<?x?xf32>,
     %val: index, %lb : index, %ub : index, %step: index) ->
@@ -243,7 +243,7 @@ func @hoist_vector_transfer_pairs_tensor(
 //  CHECK-SAME:   %[[TENSOR1:[a-zA-Z0-9]*]]: tensor<?x?xf32>,
 //  CHECK-SAME:   %[[TENSOR2:[a-zA-Z0-9]*]]: tensor<?x?xf32>,
 //  CHECK-SAME:   %[[TENSOR3:[a-zA-Z0-9]*]]: tensor<?x?xf32>,
-func @hoist_vector_transfer_pairs_disjoint_tensor(
+func.func @hoist_vector_transfer_pairs_disjoint_tensor(
     %tensor0: tensor<?x?xf32>, %tensor1: tensor<?x?xf32>,
     %tensor2: tensor<?x?xf32>, %tensor3: tensor<?x?xf32>,
     %val: index, %lb : index, %ub : index, %step: index,
@@ -332,7 +332,7 @@ func @hoist_vector_transfer_pairs_disjoint_tensor(
 //  CHECK-SAME:   %[[TENSOR3:[a-zA-Z0-9]*]]: tensor<?x?xf32>,
 //  CHECK-SAME:   %[[TENSOR4:[a-zA-Z0-9]*]]: tensor<?x?xf32>,
 //  CHECK-SAME:   %[[TENSOR5:[a-zA-Z0-9]*]]: tensor<?x?xf32>
-func @hoist_vector_transfer_pairs_tensor_and_slices(
+func.func @hoist_vector_transfer_pairs_tensor_and_slices(
     %tensor0: tensor<?x?xf32>, %tensor1: tensor<?x?xf32>, %tensor2: tensor<?x?xf32>,
     %tensor3: tensor<?x?xf32>, %tensor4: tensor<?x?xf32>, %tensor5: tensor<?x?xf32>,
     %val: index, %lb : index, %ub : index, %step: index) ->
@@ -431,3 +431,41 @@ func @hoist_vector_transfer_pairs_tensor_and_slices(
   }
   return %0#0, %0#1, %0#2 : tensor<?x?xf32>, tensor<?x?xf32>, tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func @hoist_vector_transfer_write_pairs_disjoint_tensor(
+//  CHECK-SAME:   %[[T:.*]]: tensor<?x?xf32>,
+//   CHECK-DAG:   %[[C0:.*]] = arith.constant 0 : index
+//   CHECK-DAG:   %[[C3:.*]] = arith.constant 3 : index
+//   CHECK-DAG:   %[[R0:.*]] = vector.transfer_read %[[T]][%[[C0]], %[[C0]]], %{{.*}} : tensor<?x?xf32>, vector<2xf32>
+//   CHECK-DAG:   %[[R1:.*]] = vector.transfer_read %[[T]][%[[C0]], %[[C3]]], %{{.*}} : tensor<?x?xf32>, vector<2xf32>
+//       CHECK:   %[[F:.*]]:2 = scf.for %{{.*}} = %{{.*}} to %{{.*}} step %{{.*}} iter_args(%[[R3:.*]] = %[[R1:.*]], %[[R2:.*]] = %[[R0]]) -> (vector<2xf32>, vector<2xf32>) {
+//       CHECK:     %[[R4:.*]] = "some_use"(%[[R2]]) : (vector<2xf32>) -> vector<2xf32>
+//       CHECK:     %[[R5:.*]] = "some_use"(%[[R3]]) : (vector<2xf32>) -> vector<2xf32>
+//       CHECK:     scf.yield %[[R5]], %[[R4]] : vector<2xf32>, vector<2xf32>
+//       CHECK:   }
+//       CHECK:   %[[W0:.*]] = vector.transfer_write %[[F]]#1, %[[T]][%[[C0]], %[[C0]]] : vector<2xf32>, tensor<?x?xf32>
+//       CHECK:   %[[W1:.*]] = vector.transfer_write %[[F]]#0, %[[W0]][%[[C0]], %[[C3]]] : vector<2xf32>, tensor<?x?xf32>
+//       CHECK:  return %[[W1]] : tensor<?x?xf32>
+func.func @hoist_vector_transfer_write_pairs_disjoint_tensor(
+    %tensor: tensor<?x?xf32>,
+    %val: index, %lb : index, %ub : index, %step: index) ->
+    (tensor<?x?xf32>) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c3 = arith.constant 3 : index
+  %cst = arith.constant 0.0 : f32
+  %1 = scf.for %j = %lb to %ub step %step iter_args(%arg5 = %tensor)
+    -> (tensor<?x?xf32>) {
+    %r00 = vector.transfer_read %arg5[%c0, %c0], %cst: tensor<?x?xf32>, vector<2xf32>
+    %u00 = "some_use"(%r00) : (vector<2xf32>) -> vector<2xf32>
+    %w10 = vector.transfer_write %u00, %arg5[%c0, %c0] : vector<2xf32>, tensor<?x?xf32>
+    %r01 = vector.transfer_read %w10[%c0, %c3], %cst: tensor<?x?xf32>, vector<2xf32>
+    %u01 = "some_use"(%r01) : (vector<2xf32>) -> vector<2xf32>
+    %w11 = vector.transfer_write %u01, %w10[%c0, %c3] : vector<2xf32>, tensor<?x?xf32>
+    scf.yield %w11 : tensor<?x?xf32>
+  }
+  return %1 : tensor<?x?xf32>
+}
+

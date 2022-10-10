@@ -31,7 +31,6 @@ list(APPEND SYCL_TEST_DEPS
   sycl-toolchain
   FileCheck
   not
-  get_device_count_by_type
   llvm-config
   llvm-cxxdump
   llvm-dis
@@ -57,7 +56,6 @@ add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression test
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
   DEPENDS ${SYCL_TEST_DEPS}
-  EXCLUDE_FROM_CHECK_ALL
   )
 
 add_custom_target(check-sycl)
@@ -70,7 +68,6 @@ if(SYCL_BUILD_PI_CUDA)
     ARGS ${RT_TEST_ARGS}
     PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=cuda"
     DEPENDS ${SYCL_TEST_DEPS}
-    EXCLUDE_FROM_CHECK_ALL
   )
 
   add_custom_target(check-sycl-cuda)
@@ -86,7 +83,6 @@ if(SYCL_BUILD_PI_HIP)
       ARGS ${RT_TEST_ARGS}
       PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=hip"
       DEPENDS ${SYCL_TEST_DEPS}
-      EXCLUDE_FROM_CHECK_ALL
     )
 
     add_dependencies(check-sycl-hip check-sycl-hip-ptx)
@@ -96,7 +92,6 @@ if(SYCL_BUILD_PI_HIP)
       ARGS ${RT_TEST_ARGS}
       PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa;SYCL_PLUGIN=hip"
       DEPENDS ${SYCL_TEST_DEPS}
-      EXCLUDE_FROM_CHECK_ALL
     )
 
     add_dependencies(check-sycl-hip check-sycl-hip-gcn)

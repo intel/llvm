@@ -28,7 +28,7 @@ constexpr void test(const CharT* fmt) {
   }
   {
     std::basic_string_view view{fmt};
-    std::basic_format_parse_context context(view);
+    std::basic_format_parse_context<CharT> context(view);
     assert(context.begin() == view.begin());
     ASSERT_NOEXCEPT(context.begin());
   }
@@ -40,10 +40,8 @@ constexpr bool test() {
 #ifndef TEST_HAS_NO_CHAR8_T
   test(u8"abc");
 #endif
-#ifndef TEST_HAS_NO_UNICODE_CHARS
   test(u"abc");
   test(U"abc");
-#endif
 
   return true;
 }

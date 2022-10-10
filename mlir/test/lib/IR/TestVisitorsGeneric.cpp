@@ -22,9 +22,10 @@ static std::string getStageDescription(const WalkStage &stage) {
 namespace {
 /// This pass exercises generic visitor with void callbacks and prints the order
 /// and stage in which operations are visited.
-class TestGenericIRVisitorPass
+struct TestGenericIRVisitorPass
     : public PassWrapper<TestGenericIRVisitorPass, OperationPass<>> {
-public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestGenericIRVisitorPass)
+
   StringRef getArgument() const final { return "test-generic-ir-visitors"; }
   StringRef getDescription() const final { return "Test generic IR visitors."; }
   void runOnOperation() override {
@@ -46,9 +47,11 @@ public:
 /// This pass exercises the generic visitor with non-void callbacks and prints
 /// the order and stage in which operations are visited. It will interrupt the
 /// walk based on attributes peesent in the IR.
-class TestGenericIRVisitorInterruptPass
+struct TestGenericIRVisitorInterruptPass
     : public PassWrapper<TestGenericIRVisitorInterruptPass, OperationPass<>> {
-public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
+      TestGenericIRVisitorInterruptPass)
+
   StringRef getArgument() const final {
     return "test-generic-ir-visitors-interrupt";
   }
@@ -110,6 +113,68 @@ public:
   }
 };
 
+struct TestGenericIRBlockVisitorInterruptPass
+    : public PassWrapper<TestGenericIRBlockVisitorInterruptPass,
+                         OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
+      TestGenericIRBlockVisitorInterruptPass)
+
+  StringRef getArgument() const final {
+    return "test-generic-ir-block-visitors-interrupt";
+  }
+  StringRef getDescription() const final {
+    return "Test generic IR visitors with interrupts, starting with Blocks.";
+  }
+
+  void runOnOperation() override {
+    int stepNo = 0;
+
+    auto walker = [&](Block *block) {
+      for (Operation &op : *block)
+        if (op.getAttrOfType<BoolAttr>("interrupt"))
+          return WalkResult::interrupt();
+
+      llvm::outs() << "step " << stepNo++ << "\n";
+      return WalkResult::advance();
+    };
+
+    auto result = getOperation()->walk(walker);
+    if (result.wasInterrupted())
+      llvm::outs() << "step " << stepNo++ << " walk was interrupted\n";
+  }
+};
+
+struct TestGenericIRRegionVisitorInterruptPass
+    : public PassWrapper<TestGenericIRRegionVisitorInterruptPass,
+                         OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
+      TestGenericIRRegionVisitorInterruptPass)
+
+  StringRef getArgument() const final {
+    return "test-generic-ir-region-visitors-interrupt";
+  }
+  StringRef getDescription() const final {
+    return "Test generic IR visitors with interrupts, starting with Regions.";
+  }
+
+  void runOnOperation() override {
+    int stepNo = 0;
+
+    auto walker = [&](Region *region) {
+      for (Operation &op : region->getOps())
+        if (op.getAttrOfType<BoolAttr>("interrupt"))
+          return WalkResult::interrupt();
+
+      llvm::outs() << "step " << stepNo++ << "\n";
+      return WalkResult::advance();
+    };
+
+    auto result = getOperation()->walk(walker);
+    if (result.wasInterrupted())
+      llvm::outs() << "step " << stepNo++ << " walk was interrupted\n";
+  }
+};
+
 } // namespace
 
 namespace mlir {
@@ -117,6 +182,8 @@ namespace test {
 void registerTestGenericIRVisitorsPass() {
   PassRegistration<TestGenericIRVisitorPass>();
   PassRegistration<TestGenericIRVisitorInterruptPass>();
+  PassRegistration<TestGenericIRBlockVisitorInterruptPass>();
+  PassRegistration<TestGenericIRRegionVisitorInterruptPass>();
 }
 
 } // namespace test

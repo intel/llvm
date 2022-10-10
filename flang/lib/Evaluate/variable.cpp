@@ -69,11 +69,11 @@ Triplet &Triplet::set_stride(Expr<SubscriptInteger> &&expr) {
   return *this;
 }
 
-bool Triplet::IsStrideOne() const {
+std::optional<bool> Triplet::IsStrideOne() const {
   if (auto stride{ToInt64(stride_.value())}) {
     return stride == 1;
   } else {
-    return false;
+    return std::nullopt;
   }
 }
 
@@ -267,7 +267,10 @@ static std::optional<Expr<SubscriptInteger>> SymbolLEN(const Symbol &symbol) {
   }
   if (auto dyType{DynamicType::From(ultimate)}) {
     if (auto len{dyType->GetCharLength()}) {
-      if (ultimate.owner().IsDerivedType() || IsScopeInvariantExpr(*len)) {
+      if (auto constLen{ToInt64(*len)}) {
+        return Expr<SubscriptInteger>{std::max<std::int64_t>(*constLen, 0)};
+      } else if (ultimate.owner().IsDerivedType() ||
+          IsScopeInvariantExpr(*len)) {
         return AsExpr(Extremum<SubscriptInteger>{
             Ordering::Greater, Expr<SubscriptInteger>{0}, std::move(*len)});
       }

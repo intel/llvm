@@ -16,7 +16,6 @@
 #include "llvm-c/Initialization.h"
 #include "llvm/Analysis/ObjCARCUtil.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -36,7 +35,6 @@ void llvm::initializeObjCARCOpts(PassRegistry &Registry) {
   initializeObjCARCExpandPass(Registry);
   initializeObjCARCContractLegacyPassPass(Registry);
   initializeObjCARCOptLegacyPassPass(Registry);
-  initializePAEvalPass(Registry);
 }
 
 void LLVMInitializeObjCARCOpts(LLVMPassRegistryRef R) {

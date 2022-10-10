@@ -41,6 +41,7 @@ def Named : DeclNode<Decl, "named declarations", 1>;
     def OMPDeclareReduction : DeclNode<Value>, DeclContext;
     def OMPDeclareMapper : DeclNode<Value>, DeclContext;
     def MSGuid : DeclNode<Value>;
+    def UnnamedGlobalConstant : DeclNode<Value>;
     def TemplateParamObject : DeclNode<Value>;
     def Declarator : DeclNode<Value, "declarators", 1>;
       def Field : DeclNode<Declarator, "non-static data members">;
@@ -107,4 +108,4 @@ def OMPRequires : DeclNode<Decl>;
 def Empty : DeclNode<Decl>;
 def RequiresExprBody : DeclNode<Decl>, DeclContext;
 def LifetimeExtendedTemporary : DeclNode<Decl>;
-
+def HLSLBuffer : DeclNode<Named, "HLSLBuffer">, DeclContext;

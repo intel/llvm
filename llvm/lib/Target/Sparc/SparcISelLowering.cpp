@@ -1018,8 +1018,7 @@ SparcTargetLowering::LowerCall_32(TargetLowering::CallLoweringInfo &CLI,
   Chain = DAG.getNode(SPISD::CALL, dl, NodeTys, Ops);
   InFlag = Chain.getValue(1);
 
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(ArgsSize, dl, true),
-                             DAG.getIntPtrConstant(0, dl, true), InFlag, dl);
+  Chain = DAG.getCALLSEQ_END(Chain, ArgsSize, 0, InFlag, dl);
   InFlag = Chain.getValue(1);
 
   // Assign locations to each value returned by this call.
@@ -1324,8 +1323,7 @@ SparcTargetLowering::LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
   InGlue = Chain.getValue(1);
 
   // Revert the stack pointer immediately after the call.
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(ArgsSize, DL, true),
-                             DAG.getIntPtrConstant(0, DL, true), InGlue, DL);
+  Chain = DAG.getCALLSEQ_END(Chain, ArgsSize, 0, InGlue, DL);
   InGlue = Chain.getValue(1);
 
   // Now extract the return values. This is more or less the same as
@@ -1454,7 +1452,7 @@ static SPCC::CondCodes FPCondCCodeToFCC(ISD::CondCode CC) {
 SparcTargetLowering::SparcTargetLowering(const TargetMachine &TM,
                                          const SparcSubtarget &STI)
     : TargetLowering(TM), Subtarget(&STI) {
-  MVT PtrVT = MVT::getIntegerVT(8 * TM.getPointerSize(0));
+  MVT PtrVT = MVT::getIntegerVT(TM.getPointerSizeInBits(0));
 
   // Instructions which use registers as conditionals examine all the
   // bits (as does the pseudo SELECT_CC expansion). I don't think it
@@ -1900,6 +1898,7 @@ const char *SparcTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case SPISD::TLS_LD:          return "SPISD::TLS_LD";
   case SPISD::TLS_CALL:        return "SPISD::TLS_CALL";
   case SPISD::TAIL_CALL:       return "SPISD::TAIL_CALL";
+  case SPISD::LOAD_GDOP:       return "SPISD::LOAD_GDOP";
   }
   return nullptr;
 }
@@ -2124,8 +2123,7 @@ SDValue SparcTargetLowering::LowerGlobalTLSAddress(SDValue Op,
                      InFlag};
     Chain = DAG.getNode(SPISD::TLS_CALL, DL, NodeTys, Ops);
     InFlag = Chain.getValue(1);
-    Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(1, DL, true),
-                               DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
+    Chain = DAG.getCALLSEQ_END(Chain, 1, 0, InFlag, DL);
     InFlag = Chain.getValue(1);
     SDValue Ret = DAG.getCopyFromReg(Chain, DL, SP::O0, PtrVT, InFlag);
 
@@ -3175,6 +3173,11 @@ SparcTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   case SP::SELECT_CC_DFP_ICC:
   case SP::SELECT_CC_QFP_ICC:
     return expandSelectCC(MI, BB, SP::BCOND);
+  case SP::SELECT_CC_Int_XCC:
+  case SP::SELECT_CC_FP_XCC:
+  case SP::SELECT_CC_DFP_XCC:
+  case SP::SELECT_CC_QFP_XCC:
+    return expandSelectCC(MI, BB, SP::BPXCC);
   case SP::SELECT_CC_Int_FCC:
   case SP::SELECT_CC_FP_FCC:
   case SP::SELECT_CC_DFP_FCC:
@@ -3325,6 +3328,9 @@ std::pair<unsigned, const TargetRegisterClass *>
 SparcTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                                   StringRef Constraint,
                                                   MVT VT) const {
+  if (Constraint.empty())
+    return std::make_pair(0U, nullptr);
+
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     case 'r':
@@ -3353,46 +3359,60 @@ SparcTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
       // This will generate an error message
       return std::make_pair(0U, nullptr);
     }
-  } else if (!Constraint.empty() && Constraint.size() <= 5
-              && Constraint[0] == '{' && *(Constraint.end()-1) == '}') {
-    // constraint = '{r<d>}'
-    // Remove the braces from around the name.
-    StringRef name(Constraint.data()+1, Constraint.size()-2);
-    // Handle register aliases:
-    //       r0-r7   -> g0-g7
-    //       r8-r15  -> o0-o7
-    //       r16-r23 -> l0-l7
-    //       r24-r31 -> i0-i7
-    uint64_t intVal = 0;
-    if (name.substr(0, 1).equals("r")
-        && !name.substr(1).getAsInteger(10, intVal) && intVal <= 31) {
-      const char regTypes[] = { 'g', 'o', 'l', 'i' };
-      char regType = regTypes[intVal/8];
-      char regIdx = '0' + (intVal % 8);
-      char tmp[] = { '{', regType, regIdx, '}', 0 };
-      std::string newConstraint = std::string(tmp);
-      return TargetLowering::getRegForInlineAsmConstraint(TRI, newConstraint,
-                                                          VT);
-    }
-    if (name.substr(0, 1).equals("f") &&
-        !name.substr(1).getAsInteger(10, intVal) && intVal <= 63) {
-      std::string newConstraint;
+  }
 
-      if (VT == MVT::f32 || VT == MVT::Other) {
-        newConstraint = "{f" + utostr(intVal) + "}";
-      } else if (VT == MVT::f64 && (intVal % 2 == 0)) {
-        newConstraint = "{d" + utostr(intVal / 2) + "}";
-      } else if (VT == MVT::f128 && (intVal % 4 == 0)) {
-        newConstraint = "{q" + utostr(intVal / 4) + "}";
-      } else {
-        return std::make_pair(0U, nullptr);
-      }
-      return TargetLowering::getRegForInlineAsmConstraint(TRI, newConstraint,
-                                                          VT);
+  if (Constraint.front() != '{')
+    return std::make_pair(0U, nullptr);
+
+  assert(Constraint.back() == '}' && "Not a brace enclosed constraint?");
+  StringRef RegName(Constraint.data() + 1, Constraint.size() - 2);
+  if (RegName.empty())
+    return std::make_pair(0U, nullptr);
+
+  unsigned long long RegNo;
+  // Handle numbered register aliases.
+  if (RegName[0] == 'r' &&
+      getAsUnsignedInteger(RegName.begin() + 1, 10, RegNo)) {
+    // r0-r7   -> g0-g7
+    // r8-r15  -> o0-o7
+    // r16-r23 -> l0-l7
+    // r24-r31 -> i0-i7
+    if (RegNo > 31)
+      return std::make_pair(0U, nullptr);
+    const char RegTypes[] = {'g', 'o', 'l', 'i'};
+    char RegType = RegTypes[RegNo / 8];
+    char RegIndex = '0' + (RegNo % 8);
+    char Tmp[] = {'{', RegType, RegIndex, '}', 0};
+    return getRegForInlineAsmConstraint(TRI, Tmp, VT);
+  }
+
+  // Rewrite the fN constraint according to the value type if needed.
+  if (VT != MVT::f32 && VT != MVT::Other && RegName[0] == 'f' &&
+      getAsUnsignedInteger(RegName.begin() + 1, 10, RegNo)) {
+    if (VT == MVT::f64 && (RegNo % 2 == 0)) {
+      return getRegForInlineAsmConstraint(
+          TRI, StringRef("{d" + utostr(RegNo / 2) + "}"), VT);
+    } else if (VT == MVT::f128 && (RegNo % 4 == 0)) {
+      return getRegForInlineAsmConstraint(
+          TRI, StringRef("{q" + utostr(RegNo / 4) + "}"), VT);
+    } else {
+      return std::make_pair(0U, nullptr);
     }
   }
 
-  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+  auto ResultPair =
+      TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+  if (!ResultPair.second)
+    return std::make_pair(0U, nullptr);
+
+  // Force the use of I64Regs over IntRegs for 64-bit values.
+  if (Subtarget->is64Bit() && VT == MVT::i64) {
+    assert(ResultPair.second == &SP::IntRegsRegClass &&
+           "Unexpected register class");
+    return std::make_pair(ResultPair.first, &SP::I64RegsRegClass);
+  }
+
+  return ResultPair;
 }
 
 bool

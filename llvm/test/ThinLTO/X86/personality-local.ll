@@ -2,6 +2,7 @@
 ; RUN: opt -module-summary %S/Inputs/personality-local.ll -o %t2.bc
 
 ; RUN: llvm-lto2 run -o %t.o %t1.bc %t2.bc -save-temps \
+; RUN:   -opaque-pointers \
 ; RUN:   -r %t2.bc,foo,p \
 ; RUN:   -r %t1.bc,foo,l \
 ; RUN:   -r %t1.bc,bar,p \
@@ -23,11 +24,11 @@ target triple = "x86_64-pc-linux-gnu"
 
 declare void @foo()
 
-define void @bar() personality i32 (i32, i32, i64, i8*, i8*)* @personality_routine {
+define void @bar() personality ptr @personality_routine {
  ret void
 }
 
-define internal i32 @personality_routine(i32, i32, i64, i8*, i8*) {
+define internal i32 @personality_routine(i32, i32, i64, ptr, ptr) {
   call void @foo()
   ret i32 0
 }

@@ -937,13 +937,13 @@ TEST(APFloatTest, fromStringSpecials) {
   };
 
   // Convert payload integer to decimal string representation.
-  std::string NaNPayloadDecStrings[array_lengthof(NaNPayloads)];
-  for (size_t I = 0; I < array_lengthof(NaNPayloads); ++I)
+  std::string NaNPayloadDecStrings[std::size(NaNPayloads)];
+  for (size_t I = 0; I < std::size(NaNPayloads); ++I)
     NaNPayloadDecStrings[I] = utostr(NaNPayloads[I]);
 
   // Convert payload integer to hexadecimal string representation.
-  std::string NaNPayloadHexStrings[array_lengthof(NaNPayloads)];
-  for (size_t I = 0; I < array_lengthof(NaNPayloads); ++I)
+  std::string NaNPayloadHexStrings[std::size(NaNPayloads)];
+  for (size_t I = 0; I < std::size(NaNPayloads); ++I)
     NaNPayloadHexStrings[I] = "0x" + utohexstr(NaNPayloads[I]);
 
   // Fix payloads to expected result.
@@ -967,7 +967,7 @@ TEST(APFloatTest, fromStringSpecials) {
     for (char TypeChar : NaNTypes) {
       bool Signaling = (TypeChar == 's' || TypeChar == 'S');
 
-      for (size_t J = 0; J < array_lengthof(NaNPayloads); ++J) {
+      for (size_t J = 0; J < std::size(NaNPayloads); ++J) {
         uint64_t Payload = (Signaling && !NaNPayloads[J]) ? SNaNDefaultPayload
                                                           : NaNPayloads[J];
         std::string &PayloadDec = NaNPayloadDecStrings[J];
@@ -1859,6 +1859,48 @@ TEST(APFloatTest, convert) {
   EXPECT_EQ(0x7fc00000, test.bitcastToAPInt());
   EXPECT_TRUE(losesInfo);
   EXPECT_EQ(status, APFloat::opOK);
+
+  // Test that subnormals are handled correctly in double to float conversion
+  test = APFloat(APFloat::IEEEdouble(), "0x0.0000010000000p-1022");
+  test.convert(APFloat::IEEEsingle(), APFloat::rmNearestTiesToEven, &losesInfo);
+  EXPECT_EQ(0.0f, test.convertToFloat());
+  EXPECT_TRUE(losesInfo);
+
+  test = APFloat(APFloat::IEEEdouble(), "0x0.0000010000001p-1022");
+  test.convert(APFloat::IEEEsingle(), APFloat::rmNearestTiesToEven, &losesInfo);
+  EXPECT_EQ(0.0f, test.convertToFloat());
+  EXPECT_TRUE(losesInfo);
+
+  test = APFloat(APFloat::IEEEdouble(), "-0x0.0000010000001p-1022");
+  test.convert(APFloat::IEEEsingle(), APFloat::rmNearestTiesToEven, &losesInfo);
+  EXPECT_EQ(0.0f, test.convertToFloat());
+  EXPECT_TRUE(losesInfo);
+
+  test = APFloat(APFloat::IEEEdouble(), "0x0.0000020000000p-1022");
+  test.convert(APFloat::IEEEsingle(), APFloat::rmNearestTiesToEven, &losesInfo);
+  EXPECT_EQ(0.0f, test.convertToFloat());
+  EXPECT_TRUE(losesInfo);
+
+  test = APFloat(APFloat::IEEEdouble(), "0x0.0000020000001p-1022");
+  test.convert(APFloat::IEEEsingle(), APFloat::rmNearestTiesToEven, &losesInfo);
+  EXPECT_EQ(0.0f, test.convertToFloat());
+  EXPECT_TRUE(losesInfo);
+
+  // Test subnormal conversion to bfloat
+  test = APFloat(APFloat::IEEEsingle(), "0x0.01p-126");
+  test.convert(APFloat::BFloat(), APFloat::rmNearestTiesToEven, &losesInfo);
+  EXPECT_EQ(0.0f, test.convertToFloat());
+  EXPECT_TRUE(losesInfo);
+
+  test = APFloat(APFloat::IEEEsingle(), "0x0.02p-126");
+  test.convert(APFloat::BFloat(), APFloat::rmNearestTiesToEven, &losesInfo);
+  EXPECT_EQ(0x01, test.bitcastToAPInt());
+  EXPECT_FALSE(losesInfo);
+
+  test = APFloat(APFloat::IEEEsingle(), "0x0.01p-126");
+  test.convert(APFloat::BFloat(), APFloat::rmNearestTiesToAway, &losesInfo);
+  EXPECT_EQ(0x01, test.bitcastToAPInt());
+  EXPECT_TRUE(losesInfo);
 }
 
 TEST(APFloatTest, PPCDoubleDouble) {
@@ -2220,7 +2262,7 @@ TEST(APFloatTest, add) {
     { MSmallestNormalized, MSmallestNormalized, "-0x1p-125", APFloat::opOK, APFloat::fcNormal }
   };
 
-  for (size_t i = 0; i < array_lengthof(SpecialCaseTests); ++i) {
+  for (size_t i = 0; i < std::size(SpecialCaseTests); ++i) {
     APFloat x(SpecialCaseTests[i].x);
     APFloat y(SpecialCaseTests[i].y);
     APFloat::opStatus status = x.add(y, APFloat::rmNearestTiesToEven);
@@ -2460,7 +2502,7 @@ TEST(APFloatTest, subtract) {
     { MSmallestNormalized, MSmallestNormalized, "0x0p+0", APFloat::opOK, APFloat::fcZero }
   };
 
-  for (size_t i = 0; i < array_lengthof(SpecialCaseTests); ++i) {
+  for (size_t i = 0; i < std::size(SpecialCaseTests); ++i) {
     APFloat x(SpecialCaseTests[i].x);
     APFloat y(SpecialCaseTests[i].y);
     APFloat::opStatus status = x.subtract(y, APFloat::rmNearestTiesToEven);
@@ -2764,7 +2806,7 @@ TEST(APFloatTest, multiply) {
      APFloat::rmNearestTiesToAway},
   };
 
-  for (size_t i = 0; i < array_lengthof(SpecialCaseTests); ++i) {
+  for (size_t i = 0; i < std::size(SpecialCaseTests); ++i) {
     APFloat x(SpecialCaseTests[i].x);
     APFloat y(SpecialCaseTests[i].y);
     APFloat::opStatus status = x.multiply(y, SpecialCaseTests[i].roundingMode);
@@ -3046,7 +3088,7 @@ TEST(APFloatTest, divide) {
      APFloat::rmNearestTiesToAway},
   };
 
-  for (size_t i = 0; i < array_lengthof(SpecialCaseTests); ++i) {
+  for (size_t i = 0; i < std::size(SpecialCaseTests); ++i) {
     APFloat x(SpecialCaseTests[i].x);
     APFloat y(SpecialCaseTests[i].y);
     APFloat::opStatus status = x.divide(y, SpecialCaseTests[i].roundingMode);
@@ -4006,7 +4048,7 @@ TEST(APFloatTest, remainder) {
     { MVal6, MVal6, "-0x0p+0", APFloat::opOK, APFloat::fcZero },
   };
 
-  for (size_t i = 0; i < array_lengthof(SpecialCaseTests); ++i) {
+  for (size_t i = 0; i < std::size(SpecialCaseTests); ++i) {
     APFloat x(SpecialCaseTests[i].x);
     APFloat y(SpecialCaseTests[i].y);
     APFloat::opStatus status = x.remainder(y);

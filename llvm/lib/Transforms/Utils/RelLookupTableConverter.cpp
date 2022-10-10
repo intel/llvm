@@ -57,11 +57,15 @@ static bool shouldConvertToRelLookupTable(Module &M, GlobalVariable &GV) {
     return false;
 
   ConstantArray *Array = dyn_cast<ConstantArray>(GV.getInitializer());
-  // If values are not pointers, do not generate a relative lookup table.
-  if (!Array || !Array->getType()->getElementType()->isPointerTy())
+  if (!Array)
     return false;
 
+  // If values are not 64-bit pointers, do not generate a relative lookup table.
   const DataLayout &DL = M.getDataLayout();
+  Type *ElemType = Array->getType()->getElementType();
+  if (!ElemType->isPointerTy() || DL.getPointerTypeSizeInBits(ElemType) != 64)
+    return false;
+
   for (const Use &Op : Array->operands()) {
     Constant *ConstOp = cast<Constant>(&Op);
     GlobalValue *GVOp;
@@ -143,7 +147,7 @@ static void convertToRelLookupTable(GlobalVariable &LookupTable) {
   Value *Offset =
       Builder.CreateShl(Index, ConstantInt::get(IntTy, 2), "reltable.shift");
 
-  // Insert the call to load.relative instrinsic before LOAD.
+  // Insert the call to load.relative intrinsic before LOAD.
   // GEP might not be immediately followed by a LOAD, like it can be hoisted
   // outside the loop or another instruction might be inserted them in between.
   Builder.SetInsertPoint(Load);

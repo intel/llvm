@@ -13,6 +13,7 @@
 #include "InputSection.h"
 #include "lld/Common/ErrorHandler.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/MathExtras.h"
 #include <array>
 
@@ -88,6 +89,9 @@ public:
   void relocateNoSym(uint8_t *loc, RelType type, uint64_t val) const {
     relocate(loc, Relocation{R_NONE, type, 0, 0, nullptr}, val);
   }
+
+  // Do a linker relaxation pass and return true if we changed something.
+  virtual bool relaxOnce(int pass) const { return false; }
 
   virtual void applyJumpInstrMod(uint8_t *loc, JumpModType type,
                                  JumpModType val) const {}
@@ -221,6 +225,7 @@ void writePrefixedInstruction(uint8_t *loc, uint64_t insn);
 void addPPC64SaveRestore();
 uint64_t getPPC64TocBase();
 uint64_t getAArch64Page(uint64_t expr);
+void riscvFinalizeRelax(int passes);
 
 class AArch64Relaxer {
   bool safeToRelaxAdrpLdr = true;
@@ -234,7 +239,7 @@ public:
                        uint64_t secAddr, uint8_t *buf) const;
 };
 
-extern const TargetInfo *target;
+LLVM_LIBRARY_VISIBILITY extern const TargetInfo *target;
 TargetInfo *getTarget();
 
 template <class ELFT> bool isMipsPIC(const Defined *sym);

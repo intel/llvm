@@ -1,11 +1,10 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %RUN_ON_HOST %t.out
+// RUN: %clangxx -fsycl %s -c -o %t.o
 
 // This test performs basic check of supporting user defined class that are
 // implicitly converted from sycl::item/sycl::nd_item in parallel_for.
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 template <int Dimensions> class item_wrapper {
 public:

@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+# RUN: SUPPORT_LIB=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
 # RUN:   %PYTHON %s | FileCheck %s
 
 import ctypes
@@ -8,7 +8,6 @@ import sys
 
 from mlir import ir
 from mlir import runtime as rt
-from mlir import execution_engine
 
 from mlir.dialects import sparse_tensor as st
 from mlir.dialects import builtin
@@ -58,7 +57,7 @@ def boilerplate(attr: st.EncodingAttr):
   this part is purely done as string input.
   """
   return f"""
-func @main(%ad: tensor<3x4xf64>, %b: tensor<4x2xf64>, %c: tensor<3x2xf64>) -> tensor<3x2xf64>
+func.func @main(%ad: tensor<3x4xf64>, %b: tensor<4x2xf64>, %c: tensor<3x2xf64>) -> tensor<3x2xf64>
   attributes {{ llvm.emit_c_interface }} {{
   %a = sparse_tensor.convert %ad : tensor<3x4xf64> to tensor<3x4xf64, {attr}>
   %0 = call @spMxM(%a, %b, %c) : (tensor<3x4xf64, {attr}>,
@@ -69,17 +68,14 @@ func @main(%ad: tensor<3x4xf64>, %b: tensor<4x2xf64>, %c: tensor<3x2xf64>) -> te
 """
 
 
-def build_compile_and_run_SpMM(attr: st.EncodingAttr, support_lib: str,
-                               compiler):
+def build_compile_and_run_SpMM(attr: st.EncodingAttr, compiler):
   # Build.
   module = build_SpMM(attr)
   func = str(module.operation.regions[0].blocks[0].operations[0].operation)
   module = ir.Module.parse(func + boilerplate(attr))
 
   # Compile.
-  compiler(module)
-  engine = execution_engine.ExecutionEngine(
-      module, opt_level=0, shared_libs=[support_lib])
+  engine = compiler.compile_and_jit(module)
 
   # Set up numpy input and buffer for output.
   a = np.array(
@@ -124,12 +120,11 @@ def main():
     # a *single* sparse tensor. Note that we deliberate do not exhaustively
     # search the full state space to reduce runtime of the test. It is
     # straightforward to adapt the code below to explore more combinations.
-    par = 0
-    vec = 0
+
     vl = 1
     e = False
-    opt = (f'parallelization-strategy={par} '
-           f'vectorization-strategy={vec} '
+    opt = (f'parallelization-strategy=none '
+           f'vectorization-strategy=none '
            f'vl={vl} enable-simd-index32={e}')
     levels = [[st.DimLevelType.dense, st.DimLevelType.dense],
               [st.DimLevelType.dense, st.DimLevelType.compressed],
@@ -140,13 +135,14 @@ def main():
         ir.AffineMap.get_permutation([1, 0])
     ]
     bitwidths = [0]
+    compiler = sparse_compiler.SparseCompiler(
+        options=opt, opt_level=0, shared_libs=[support_lib])
     for level in levels:
       for ordering in orderings:
         for pwidth in bitwidths:
           for iwidth in bitwidths:
             attr = st.EncodingAttr.get(level, ordering, pwidth, iwidth)
-            compiler = sparse_compiler.SparseCompiler(options=opt)
-            build_compile_and_run_SpMM(attr, support_lib, compiler)
+            build_compile_and_run_SpMM(attr, compiler)
             count = count + 1
     # CHECK: Passed 8 tests
     print('Passed ', count, 'tests')

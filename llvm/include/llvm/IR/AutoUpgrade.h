@@ -14,6 +14,7 @@
 #define LLVM_IR_AUTOUPGRADE_H
 
 #include "llvm/ADT/StringRef.h"
+#include <vector>
 
 namespace llvm {
   class AttrBuilder;
@@ -27,6 +28,9 @@ namespace llvm {
   class StringRef;
   class Type;
   class Value;
+
+  template <typename T> class OperandBundleDefT;
+  using OperandBundleDef = OperandBundleDefT<Value *>;
 
   /// This is a more granular function that simply checks an intrinsic function
   /// for upgrading, and returns true if it requires upgrading. It may return
@@ -78,7 +82,7 @@ namespace llvm {
   /// This is an auto-upgrade for bitcast constant expression between pointers
   /// with different address spaces: the instruction is replaced by a pair
   /// ptrtoint+inttoptr.
-  Value *UpgradeBitCastExpr(unsigned Opc, Constant *C, Type *DestTy);
+  Constant *UpgradeBitCastExpr(unsigned Opc, Constant *C, Type *DestTy);
 
   /// Check the debug info version number, if it is out-dated, drop the debug
   /// info. Return true if module is modified.
@@ -98,6 +102,9 @@ namespace llvm {
 
   /// Upgrade attributes that changed format or kind.
   void UpgradeAttributes(AttrBuilder &B);
+
+  /// Upgrade operand bundles (without knowing about their user instruction).
+  void UpgradeOperandBundles(std::vector<OperandBundleDef> &OperandBundles);
 
 } // End llvm namespace
 

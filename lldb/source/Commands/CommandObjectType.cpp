@@ -15,6 +15,7 @@
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandObject.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionGroupFormat.h"
@@ -119,12 +120,12 @@ private:
     // Instance variables to hold the values for command options.
 
     TypeSummaryImpl::Flags m_flags;
-    bool m_regex;
+    bool m_regex = false;
     std::string m_format_string;
     ConstString m_name;
     std::string m_python_script;
     std::string m_python_function;
-    bool m_is_add_script;
+    bool m_is_add_script = false;
     std::string m_category;
   };
 
@@ -286,7 +287,7 @@ class CommandObjectTypeSynthAdd : public CommandObjectParsed,
 private:
   class CommandOptions : public Options {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -498,7 +499,7 @@ class CommandObjectTypeFormatAdd : public CommandObjectParsed {
 private:
   class CommandOptions : public OptionGroup {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -707,7 +708,7 @@ class CommandObjectTypeFormatterDelete : public CommandObjectParsed {
 protected:
   class CommandOptions : public Options {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -782,27 +783,27 @@ public:
 
     DataVisualization::Categories::ForEach(
         [this, &request](const lldb::TypeCategoryImplSP &category_sp) {
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemValue))
+          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemFormat)) {
             category_sp->GetTypeFormatsContainer()->AutoComplete(request);
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemRegexValue))
             category_sp->GetRegexTypeFormatsContainer()->AutoComplete(request);
+          }
 
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemSummary))
+          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemSummary)) {
             category_sp->GetTypeSummariesContainer()->AutoComplete(request);
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemRegexSummary))
             category_sp->GetRegexTypeSummariesContainer()->AutoComplete(
                 request);
+          }
 
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemFilter))
+          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemFilter)) {
             category_sp->GetTypeFiltersContainer()->AutoComplete(request);
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemRegexFilter))
             category_sp->GetRegexTypeFiltersContainer()->AutoComplete(request);
+          }
 
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemSynth))
+          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemSynth)) {
             category_sp->GetTypeSyntheticsContainer()->AutoComplete(request);
-          if (CHECK_FORMATTER_KIND_MASK(eFormatCategoryItemRegexSynth))
             category_sp->GetRegexTypeSyntheticsContainer()->AutoComplete(
                 request);
+          }
           return true;
         });
   }
@@ -872,7 +873,7 @@ class CommandObjectTypeFormatterClear : public CommandObjectParsed {
 private:
   class CommandOptions : public Options {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -914,7 +915,10 @@ public:
                                   uint32_t formatter_kind_mask,
                                   const char *name, const char *help)
       : CommandObjectParsed(interpreter, name, help, nullptr),
-        m_formatter_kind_mask(formatter_kind_mask) {}
+        m_formatter_kind_mask(formatter_kind_mask) {
+    CommandArgumentData category_arg{eArgTypeName, eArgRepeatOptional};
+    m_arguments.push_back({category_arg});
+  }
 
   ~CommandObjectTypeFormatterClear() override = default;
 
@@ -954,9 +958,7 @@ class CommandObjectTypeFormatDelete : public CommandObjectTypeFormatterDelete {
 public:
   CommandObjectTypeFormatDelete(CommandInterpreter &interpreter)
       : CommandObjectTypeFormatterDelete(
-            interpreter,
-            eFormatCategoryItemValue | eFormatCategoryItemRegexValue,
-            "type format delete",
+            interpreter, eFormatCategoryItemFormat, "type format delete",
             "Delete an existing formatting style for a type.") {}
 
   ~CommandObjectTypeFormatDelete() override = default;
@@ -967,10 +969,9 @@ public:
 class CommandObjectTypeFormatClear : public CommandObjectTypeFormatterClear {
 public:
   CommandObjectTypeFormatClear(CommandInterpreter &interpreter)
-      : CommandObjectTypeFormatterClear(
-            interpreter,
-            eFormatCategoryItemValue | eFormatCategoryItemRegexValue,
-            "type format clear", "Delete all existing format styles.") {}
+      : CommandObjectTypeFormatterClear(interpreter, eFormatCategoryItemFormat,
+                                        "type format clear",
+                                        "Delete all existing format styles.") {}
 };
 
 #define LLDB_OPTIONS_type_formatter_list
@@ -1051,6 +1052,15 @@ protected:
     return false;
   }
 
+  static bool ShouldListItem(llvm::StringRef s, RegularExpression *regex) {
+    // If we have a regex, it can match two kinds of results:
+    //   - An item created with that same regex string (exact string match), so
+    //     the user can list it using the same string it used at creation time.
+    //   - Items that match the regex.
+    // No regex means list everything.
+    return regex == nullptr || s == regex->GetText() || regex->Execute(s);
+  }
+
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     const size_t argc = command.GetArgumentCount();
 
@@ -1092,24 +1102,13 @@ protected:
         .SetExact([&result, &formatter_regex, &any_printed](
                       const TypeMatcher &type_matcher,
                       const FormatterSharedPointer &format_sp) -> bool {
-          if (formatter_regex) {
-            bool escape = true;
-            if (type_matcher.CreatedBySameMatchString(
-                    ConstString(formatter_regex->GetText()))) {
-              escape = false;
-            } else if (formatter_regex->Execute(
-                           type_matcher.GetMatchString().GetStringRef())) {
-              escape = false;
-            }
-
-            if (escape)
-              return true;
+          if (ShouldListItem(type_matcher.GetMatchString().GetStringRef(),
+                             formatter_regex.get())) {
+            any_printed = true;
+            result.GetOutputStream().Printf(
+                "%s: %s\n", type_matcher.GetMatchString().GetCString(),
+                format_sp->GetDescription().c_str());
           }
-
-          any_printed = true;
-          result.GetOutputStream().Printf(
-              "%s: %s\n", type_matcher.GetMatchString().GetCString(),
-              format_sp->GetDescription().c_str());
           return true;
         });
 
@@ -1117,24 +1116,13 @@ protected:
         .SetWithRegex([&result, &formatter_regex, &any_printed](
                           const TypeMatcher &type_matcher,
                           const FormatterSharedPointer &format_sp) -> bool {
-          if (formatter_regex) {
-            bool escape = true;
-            if (type_matcher.CreatedBySameMatchString(
-                    ConstString(formatter_regex->GetText()))) {
-              escape = false;
-            } else if (formatter_regex->Execute(
-                           type_matcher.GetMatchString().GetStringRef())) {
-              escape = false;
-            }
-
-            if (escape)
-              return true;
+          if (ShouldListItem(type_matcher.GetMatchString().GetStringRef(),
+                             formatter_regex.get())) {
+            any_printed = true;
+            result.GetOutputStream().Printf(
+                "%s: %s\n", type_matcher.GetMatchString().GetCString(),
+                format_sp->GetDescription().c_str());
           }
-
-          any_printed = true;
-          result.GetOutputStream().Printf(
-              "%s: %s\n", type_matcher.GetMatchString().GetCString(),
-              format_sp->GetDescription().c_str());
           return true;
         });
 
@@ -1151,20 +1139,9 @@ protected:
       DataVisualization::Categories::ForEach(
           [&category_regex, &category_closure](
               const lldb::TypeCategoryImplSP &category) -> bool {
-            if (category_regex) {
-              bool escape = true;
-              if (category->GetName() == category_regex->GetText()) {
-                escape = false;
-              } else if (category_regex->Execute(category->GetName())) {
-                escape = false;
-              }
-
-              if (escape)
-                return true;
+            if (ShouldListItem(category->GetName(), category_regex.get())) {
+              category_closure(category);
             }
-
-            category_closure(category);
-
             return true;
           });
 
@@ -1649,9 +1626,8 @@ class CommandObjectTypeSummaryDelete : public CommandObjectTypeFormatterDelete {
 public:
   CommandObjectTypeSummaryDelete(CommandInterpreter &interpreter)
       : CommandObjectTypeFormatterDelete(
-            interpreter,
-            eFormatCategoryItemSummary | eFormatCategoryItemRegexSummary,
-            "type summary delete", "Delete an existing summary for a type.") {}
+            interpreter, eFormatCategoryItemSummary, "type summary delete",
+            "Delete an existing summary for a type.") {}
 
   ~CommandObjectTypeSummaryDelete() override = default;
 
@@ -1666,10 +1642,9 @@ protected:
 class CommandObjectTypeSummaryClear : public CommandObjectTypeFormatterClear {
 public:
   CommandObjectTypeSummaryClear(CommandInterpreter &interpreter)
-      : CommandObjectTypeFormatterClear(
-            interpreter,
-            eFormatCategoryItemSummary | eFormatCategoryItemRegexSummary,
-            "type summary clear", "Delete all existing summaries.") {}
+      : CommandObjectTypeFormatterClear(interpreter, eFormatCategoryItemSummary,
+                                        "type summary clear",
+                                        "Delete all existing summaries.") {}
 
 protected:
   void FormatterSpecificDeletion() override {
@@ -1815,7 +1790,7 @@ protected:
 class CommandObjectTypeCategoryEnable : public CommandObjectParsed {
   class CommandOptions : public Options {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1992,7 +1967,7 @@ protected:
 class CommandObjectTypeCategoryDisable : public CommandObjectParsed {
   class CommandOptions : public Options {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -2201,9 +2176,8 @@ class CommandObjectTypeFilterDelete : public CommandObjectTypeFormatterDelete {
 public:
   CommandObjectTypeFilterDelete(CommandInterpreter &interpreter)
       : CommandObjectTypeFormatterDelete(
-            interpreter,
-            eFormatCategoryItemFilter | eFormatCategoryItemRegexFilter,
-            "type filter delete", "Delete an existing filter for a type.") {}
+            interpreter, eFormatCategoryItemFilter, "type filter delete",
+            "Delete an existing filter for a type.") {}
 
   ~CommandObjectTypeFilterDelete() override = default;
 };
@@ -2216,9 +2190,7 @@ class CommandObjectTypeSynthDelete : public CommandObjectTypeFormatterDelete {
 public:
   CommandObjectTypeSynthDelete(CommandInterpreter &interpreter)
       : CommandObjectTypeFormatterDelete(
-            interpreter,
-            eFormatCategoryItemSynth | eFormatCategoryItemRegexSynth,
-            "type synthetic delete",
+            interpreter, eFormatCategoryItemSynth, "type synthetic delete",
             "Delete an existing synthetic provider for a type.") {}
 
   ~CommandObjectTypeSynthDelete() override = default;
@@ -2231,10 +2203,9 @@ public:
 class CommandObjectTypeFilterClear : public CommandObjectTypeFormatterClear {
 public:
   CommandObjectTypeFilterClear(CommandInterpreter &interpreter)
-      : CommandObjectTypeFormatterClear(
-            interpreter,
-            eFormatCategoryItemFilter | eFormatCategoryItemRegexFilter,
-            "type filter clear", "Delete all existing filter.") {}
+      : CommandObjectTypeFormatterClear(interpreter, eFormatCategoryItemFilter,
+                                        "type filter clear",
+                                        "Delete all existing filter.") {}
 };
 
 #if LLDB_ENABLE_PYTHON
@@ -2244,9 +2215,7 @@ class CommandObjectTypeSynthClear : public CommandObjectTypeFormatterClear {
 public:
   CommandObjectTypeSynthClear(CommandInterpreter &interpreter)
       : CommandObjectTypeFormatterClear(
-            interpreter,
-            eFormatCategoryItemSynth | eFormatCategoryItemRegexSynth,
-            "type synthetic clear",
+            interpreter, eFormatCategoryItemSynth, "type synthetic clear",
             "Delete all existing synthetic providers.") {}
 };
 
@@ -2366,9 +2335,7 @@ bool CommandObjectTypeSynthAdd::AddSynth(ConstString type_name,
       type = eRegexSynth;
   }
 
-  if (category->AnyMatches(
-          type_name, eFormatCategoryItemFilter | eFormatCategoryItemRegexFilter,
-          false)) {
+  if (category->AnyMatches(type_name, eFormatCategoryItemFilter, false)) {
     if (error)
       error->SetErrorStringWithFormat("cannot add synthetic for type %s when "
                                       "filter is defined in same category!",
@@ -2405,7 +2372,7 @@ private:
     typedef std::vector<std::string> option_vector;
 
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -2491,9 +2458,7 @@ private:
         type = eRegexFilter;
     }
 
-    if (category->AnyMatches(
-            type_name, eFormatCategoryItemSynth | eFormatCategoryItemRegexSynth,
-            false)) {
+    if (category->AnyMatches(type_name, eFormatCategoryItemSynth, false)) {
       if (error)
         error->SetErrorStringWithFormat("cannot add filter for type %s when "
                                         "synthetic is defined in same "
@@ -2661,7 +2626,7 @@ protected:
 
   class CommandOptions : public OptionGroup {
   public:
-    CommandOptions() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 

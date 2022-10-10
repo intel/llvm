@@ -32,7 +32,7 @@ static cl::list<std::string> DebugFunctions(
     cl::desc("Allow calls to the specified functions in SCoPs even if their "
              "side-effects are unknown. This can be used to do debug output in "
              "Polly-transformed code."),
-    cl::Hidden, cl::ZeroOrMore, cl::CommaSeparated, cl::cat(PollyCategory));
+    cl::Hidden, cl::CommaSeparated, cl::cat(PollyCategory));
 
 // Ensures that there is just one predecessor to the entry node from outside the
 // region.
@@ -233,7 +233,7 @@ void polly::recordAssumption(polly::RecordedAssumptionsTy *RecordedAssumptions,
 /// and we generate code outside/in front of that region. Hence, we generate the
 /// code for the SDiv/SRem operands in front of the analyzed region and then
 /// create a new SDiv/SRem operation there too.
-struct ScopExpander : SCEVVisitor<ScopExpander, const SCEV *> {
+struct ScopExpander final : SCEVVisitor<ScopExpander, const SCEV *> {
   friend struct SCEVVisitor<ScopExpander, const SCEV *>;
 
   explicit ScopExpander(const Region &R, ScalarEvolution &SE,
@@ -747,13 +747,13 @@ static Optional<bool> getOptionalBoolLoopAttribute(MDNode *LoopID,
 }
 
 bool polly::getBooleanLoopAttribute(MDNode *LoopID, StringRef Name) {
-  return getOptionalBoolLoopAttribute(LoopID, Name).getValueOr(false);
+  return getOptionalBoolLoopAttribute(LoopID, Name).value_or(false);
 }
 
 llvm::Optional<int> polly::getOptionalIntLoopAttribute(MDNode *LoopID,
                                                        StringRef Name) {
   const MDOperand *AttrMD =
-      findNamedMetadataArg(LoopID, Name).getValueOr(nullptr);
+      findNamedMetadataArg(LoopID, Name).value_or(nullptr);
   if (!AttrMD)
     return None;
 

@@ -26,6 +26,7 @@ piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
 piSamplerCreate
+piPluginGetLastError
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle

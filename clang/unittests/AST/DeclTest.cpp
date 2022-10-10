@@ -179,7 +179,14 @@ TEST(Decl, InConsistLinkageForTemplates) {
     void f() {}
 
     template <>
-    void f<int>() {})");
+    void f<int>() {}
+
+    export template <class T>
+    class C {};
+
+    template<>
+    class C<int> {};
+    )");
 
   auto AST =
       tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
@@ -193,4 +200,179 @@ TEST(Decl, InConsistLinkageForTemplates) {
   const FunctionDecl *SpecializedF = Funcs[1].getNodeAs<FunctionDecl>("f");
   EXPECT_EQ(TemplateF->getLinkageInternal(),
             SpecializedF->getLinkageInternal());
+
+  llvm::SmallVector<ast_matchers::BoundNodes, 1> ClassTemplates =
+      match(classTemplateDecl().bind("C"), Ctx);
+  llvm::SmallVector<ast_matchers::BoundNodes, 1> ClassSpecializations =
+      match(classTemplateSpecializationDecl().bind("C"), Ctx);
+
+  EXPECT_EQ(ClassTemplates.size(), 1U);
+  EXPECT_EQ(ClassSpecializations.size(), 1U);
+  const NamedDecl *TemplatedC = ClassTemplates[0].getNodeAs<NamedDecl>("C");
+  const NamedDecl *SpecializedC = ClassSpecializations[0].getNodeAs<NamedDecl>("C");
+  EXPECT_EQ(TemplatedC->getLinkageInternal(),
+            SpecializedC->getLinkageInternal());
+}
+
+TEST(Decl, ModuleAndInternalLinkage) {
+  llvm::Annotations Code(R"(
+    export module M;
+    static int a;
+    static int f(int x);
+
+    int b;
+    int g(int x);)");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  const auto *a =
+      selectFirst<VarDecl>("a", match(varDecl(hasName("a")).bind("a"), Ctx));
+  const auto *f = selectFirst<FunctionDecl>(
+      "f", match(functionDecl(hasName("f")).bind("f"), Ctx));
+
+  EXPECT_EQ(a->getLinkageInternal(), InternalLinkage);
+  EXPECT_EQ(f->getLinkageInternal(), InternalLinkage);
+
+  const auto *b =
+      selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), Ctx));
+  const auto *g = selectFirst<FunctionDecl>(
+      "g", match(functionDecl(hasName("g")).bind("g"), Ctx));
+
+  EXPECT_EQ(b->getLinkageInternal(), ModuleLinkage);
+  EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
+
+  AST = tooling::buildASTFromCodeWithArgs(
+      Code.code(), /*Args=*/{"-std=c++20", "-fmodules-ts"});
+  ASTContext &CtxTS = AST->getASTContext();
+  a = selectFirst<VarDecl>("a", match(varDecl(hasName("a")).bind("a"), CtxTS));
+  f = selectFirst<FunctionDecl>(
+      "f", match(functionDecl(hasName("f")).bind("f"), CtxTS));
+
+  EXPECT_EQ(a->getLinkageInternal(), ModuleInternalLinkage);
+  EXPECT_EQ(f->getLinkageInternal(), ModuleInternalLinkage);
+
+  b = selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), CtxTS));
+  g = selectFirst<FunctionDecl>(
+      "g", match(functionDecl(hasName("g")).bind("g"), CtxTS));
+
+  EXPECT_EQ(b->getLinkageInternal(), ModuleLinkage);
+  EXPECT_EQ(g->getLinkageInternal(), ModuleLinkage);
+}
+
+TEST(Decl, GetNonTransparentDeclContext) {
+  llvm::Annotations Code(R"(
+    export module m3;
+    export template <class> struct X {
+      template <class Self> friend void f(Self &&self) {
+        (Self&)self;
+      }
+    };)");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto *f = selectFirst<FunctionDecl>(
+      "f", match(functionDecl(hasName("f")).bind("f"), Ctx));
+
+  EXPECT_TRUE(f->getNonTransparentDeclContext()->isFileContext());
+}
+
+TEST(Decl, MemberFunctionInModules) {
+  llvm::Annotations Code(R"(
+    module;
+    class G {
+      void bar() {}
+    };
+    export module M;
+    class A {
+      void foo() {}
+    };
+    )");
+
+  auto AST =
+      tooling::buildASTFromCodeWithArgs(Code.code(), /*Args=*/{"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto *foo = selectFirst<FunctionDecl>(
+      "foo", match(functionDecl(hasName("foo")).bind("foo"), Ctx));
+
+  // The function defined within a class definition is not implicitly inline
+  // if it is not attached to global module
+  EXPECT_FALSE(foo->isInlined());
+
+  auto *bar = selectFirst<FunctionDecl>(
+      "bar", match(functionDecl(hasName("bar")).bind("bar"), Ctx));
+
+  // In global module, the function defined within a class definition is
+  // implicitly inline.
+  EXPECT_TRUE(bar->isInlined());
+}
+
+TEST(Decl, MemberFunctionInHeaderUnit) {
+  llvm::Annotations Code(R"(
+    class foo {
+    public:
+      int memFn() {
+        return 43;
+      }
+    };
+    )");
+
+  auto AST = tooling::buildASTFromCodeWithArgs(
+      Code.code(), {"-std=c++20", " -xc++-user-header ", "-emit-header-unit"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto *memFn = selectFirst<FunctionDecl>(
+      "memFn", match(functionDecl(hasName("memFn")).bind("memFn"), Ctx));
+
+  EXPECT_TRUE(memFn->isInlined());
+}
+
+TEST(Decl, FriendFunctionWithinClassInHeaderUnit) {
+  llvm::Annotations Code(R"(
+    class foo {
+      int value;
+    public:
+      foo(int v) : value(v) {}
+
+      friend int getFooValue(foo f) {
+        return f.value;
+      }
+    };
+    )");
+
+  auto AST = tooling::buildASTFromCodeWithArgs(
+      Code.code(), {"-std=c++20", " -xc++-user-header ", "-emit-header-unit"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto *getFooValue = selectFirst<FunctionDecl>(
+      "getFooValue",
+      match(functionDecl(hasName("getFooValue")).bind("getFooValue"), Ctx));
+
+  EXPECT_TRUE(getFooValue->isInlined());
+}
+
+TEST(Decl, NoProtoFunctionDeclAttributes) {
+  llvm::Annotations Code(R"(
+    void f();
+    )");
+
+  auto AST = tooling::buildASTFromCodeWithArgs(
+      Code.code(),
+      /*Args=*/{"-target", "i386-apple-darwin", "-x", "objective-c",
+                "-std=c89"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto *f = selectFirst<FunctionDecl>(
+      "f", match(functionDecl(hasName("f")).bind("f"), Ctx));
+
+  const auto *FPT = f->getType()->getAs<FunctionNoProtoType>();
+
+  // Functions without prototypes always have 0 initialized qualifiers
+  EXPECT_FALSE(FPT->isConst());
+  EXPECT_FALSE(FPT->isVolatile());
+  EXPECT_FALSE(FPT->isRestrict());
 }

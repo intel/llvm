@@ -456,10 +456,8 @@ static bool violatesPrivateInclude(Module *RequestingModule,
         &Header.getModule()->Headers[Module::HK_Private],
         &Header.getModule()->Headers[Module::HK_PrivateTextual]};
     for (auto *Hs : HeaderList)
-      IsPrivate |=
-          std::find_if(Hs->begin(), Hs->end(), [&](const Module::Header &H) {
-            return H.Entry == IncFileEnt;
-          }) != Hs->end();
+      IsPrivate |= llvm::any_of(
+          *Hs, [&](const Module::Header &H) { return H.Entry == IncFileEnt; });
     assert(IsPrivate && "inconsistent headers and roles");
   }
 #endif
@@ -473,8 +471,7 @@ static Module *getTopLevelOrNull(Module *M) {
 void ModuleMap::diagnoseHeaderInclusion(Module *RequestingModule,
                                         bool RequestingModuleIsModuleInterface,
                                         SourceLocation FilenameLoc,
-                                        StringRef Filename,
-                                        const FileEntry *File) {
+                                        StringRef Filename, FileEntryRef File) {
   // No errors for indirect modules. This may be a bit of a problem for modules
   // with no source files.
   if (getTopLevelOrNull(RequestingModule) != getTopLevelOrNull(SourceModule))
@@ -542,7 +539,7 @@ void ModuleMap::diagnoseHeaderInclusion(Module *RequestingModule,
         diag::warn_non_modular_include_in_framework_module :
         diag::warn_non_modular_include_in_module;
     Diags.Report(FilenameLoc, DiagID) << RequestingModule->getFullModuleName()
-        << File->getName();
+        << File.getName();
   }
 }
 
@@ -570,9 +567,11 @@ static bool isBetterKnownHeader(const ModuleMap::KnownHeader &New,
 }
 
 ModuleMap::KnownHeader ModuleMap::findModuleForHeader(const FileEntry *File,
-                                                      bool AllowTextual) {
+                                                      bool AllowTextual,
+                                                      bool AllowExcluded) {
   auto MakeResult = [&](ModuleMap::KnownHeader R) -> ModuleMap::KnownHeader {
-    if (!AllowTextual && R.getRole() & ModuleMap::TextualHeader)
+    if ((!AllowTextual && R.getRole() & ModuleMap::TextualHeader) ||
+        (!AllowExcluded && R.getRole() & ModuleMap::ExcludedHeader))
       return {};
     return R;
   };
@@ -702,6 +701,9 @@ ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
              I = Known->second.begin(),
              E = Known->second.end();
          I != E; ++I) {
+
+      if (I->getRole() == ModuleMap::ExcludedHeader)
+        continue;
 
       if (I->isAvailable() &&
           (!RequestingModule ||
@@ -1220,8 +1222,8 @@ void ModuleMap::resolveHeaderDirectives(
     Module *Mod, llvm::Optional<const FileEntry *> File) const {
   bool NeedsFramework = false;
   SmallVector<Module::UnresolvedHeaderDirective, 1> NewHeaders;
-  const auto Size = File ? File.getValue()->getSize() : 0;
-  const auto ModTime = File ? File.getValue()->getModificationTime() : 0;
+  const auto Size = File ? File.value()->getSize() : 0;
+  const auto ModTime = File ? File.value()->getModificationTime() : 0;
 
   for (auto &Header : Mod->UnresolvedHeaders) {
     if (File && ((Header.ModTime && Header.ModTime != ModTime) ||
@@ -1264,11 +1266,13 @@ void ModuleMap::addHeader(Module *Mod, Module::Header Header,
 }
 
 void ModuleMap::excludeHeader(Module *Mod, Module::Header Header) {
+  KnownHeader KH(Mod, ModuleHeaderRole::ExcludedHeader);
+
   // Add this as a known header so we won't implicitly add it to any
   // umbrella directory module.
   // FIXME: Should we only exclude it from umbrella modules within the
   // specified module?
-  (void) Headers[Header.Entry];
+  Headers[Header.Entry].push_back(KH);
 
   Mod->Headers[Module::HK_Excluded].push_back(std::move(Header));
 }
@@ -1671,7 +1675,7 @@ retry:
         break;
       }
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   default:
     Diags.Report(Tok.getLocation(), diag::err_mmap_unknown_token);
@@ -2029,8 +2033,7 @@ void ModuleMapParser::parseModuleDecl() {
     ActiveModule->IsSystem = true;
   if (Attrs.IsExternC)
     ActiveModule->IsExternC = true;
-  if (Attrs.NoUndeclaredIncludes ||
-      (!ActiveModule->Parent && ModuleName == "Darwin"))
+  if (Attrs.NoUndeclaredIncludes)
     ActiveModule->NoUndeclaredIncludes = true;
   ActiveModule->Directory = Directory;
 

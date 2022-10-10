@@ -25,35 +25,15 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/MC/StringTableBuilder.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/Threading.h"
 
-namespace lld {
-namespace elf {
+namespace lld::elf {
 class Defined;
 struct PhdrEntry;
 class SymbolTableBaseSection;
-
-class SyntheticSection : public InputSection {
-public:
-  SyntheticSection(uint64_t flags, uint32_t type, uint32_t alignment,
-                   StringRef name)
-      : InputSection(nullptr, flags, type, alignment, {}, name,
-                     InputSectionBase::Synthetic) {}
-
-  virtual ~SyntheticSection() = default;
-  virtual void writeTo(uint8_t *buf) = 0;
-  virtual size_t getSize() const = 0;
-  virtual void finalizeContents() {}
-  // If the section has the SHF_ALLOC flag and the size may be changed if
-  // thunks are added, update the section size.
-  virtual bool updateAllocSize() { return false; }
-  virtual bool isNeeded() const { return true; }
-
-  static bool classof(const SectionBase *d) {
-    return d->kind() == InputSectionBase::Synthetic;
-  }
-};
 
 struct CieRecord {
   EhSectionPiece *cie = nullptr;
@@ -72,8 +52,6 @@ public:
   static bool classof(const SectionBase *d) {
     return SyntheticSection::classof(d) && d->name == ".eh_frame";
   }
-
-  void addSection(EhInputSection *sec);
 
   SmallVector<EhInputSection *, 0> sections;
   size_t numFdes = 0;
@@ -139,7 +117,7 @@ public:
 
   // Flag to force GOT to be in output if we have relocations
   // that relies on its address.
-  bool hasGotOffRel = false;
+  std::atomic<bool> hasGotOffRel = false;
 
 protected:
   size_t numEntries = 0;
@@ -186,9 +164,7 @@ private:
 class BssSection final : public SyntheticSection {
 public:
   BssSection(StringRef name, uint64_t size, uint32_t alignment);
-  void writeTo(uint8_t *) override {
-    llvm_unreachable("unexpected writeTo() call for SHT_NOBITS section");
-  }
+  void writeTo(uint8_t *) override {}
   bool isNeeded() const override { return size != 0; }
   size_t getSize() const override { return size; }
 
@@ -383,7 +359,7 @@ public:
 
   // Flag to force GotPlt to be in output if we have relocations
   // that relies on its address.
-  bool hasGotPltOffRel = false;
+  std::atomic<bool> hasGotPltOffRel = false;
 
 private:
   SmallVector<const Symbol *, 0> entries;
@@ -512,32 +488,55 @@ private:
 class RelocationBaseSection : public SyntheticSection {
 public:
   RelocationBaseSection(StringRef name, uint32_t type, int32_t dynamicTag,
-                        int32_t sizeDynamicTag, bool combreloc);
+                        int32_t sizeDynamicTag, bool combreloc,
+                        unsigned concurrency);
   /// Add a dynamic relocation without writing an addend to the output section.
   /// This overload can be used if the addends are written directly instead of
   /// using relocations on the input section (e.g. MipsGotSection::writeTo()).
-  void addReloc(const DynamicReloc &reloc) { relocs.push_back(reloc); }
+  template <bool shard = false> void addReloc(const DynamicReloc &reloc) {
+    relocs.push_back(reloc);
+  }
   /// Add a dynamic relocation against \p sym with an optional addend.
   void addSymbolReloc(RelType dynType, InputSectionBase &isec,
                       uint64_t offsetInSec, Symbol &sym, int64_t addend = 0,
                       llvm::Optional<RelType> addendRelType = llvm::None);
   /// Add a relative dynamic relocation that uses the target address of \p sym
   /// (i.e. InputSection::getRelocTargetVA()) + \p addend as the addend.
+  /// This function should only be called for non-preemptible symbols or
+  /// RelExpr values that refer to an address inside the output file (e.g. the
+  /// address of the GOT entry for a potentially preemptible symbol).
+  template <bool shard = false>
   void addRelativeReloc(RelType dynType, InputSectionBase &isec,
                         uint64_t offsetInSec, Symbol &sym, int64_t addend,
-                        RelType addendRelType, RelExpr expr);
+                        RelType addendRelType, RelExpr expr) {
+    assert(expr != R_ADDEND && "expected non-addend relocation expression");
+    addReloc<shard>(DynamicReloc::AddendOnlyWithTargetVA, dynType, isec,
+                    offsetInSec, sym, addend, expr, addendRelType);
+  }
   /// Add a dynamic relocation using the target address of \p sym as the addend
   /// if \p sym is non-preemptible. Otherwise add a relocation against \p sym.
   void addAddendOnlyRelocIfNonPreemptible(RelType dynType,
                                           InputSectionBase &isec,
                                           uint64_t offsetInSec, Symbol &sym,
                                           RelType addendRelType);
-  void addReloc(DynamicReloc::Kind kind, RelType dynType,
-                InputSectionBase &inputSec, uint64_t offsetInSec, Symbol &sym,
-                int64_t addend, RelExpr expr, RelType addendRelType);
-  bool isNeeded() const override { return !relocs.empty(); }
+  template <bool shard = false>
+  void addReloc(DynamicReloc::Kind kind, RelType dynType, InputSectionBase &sec,
+                uint64_t offsetInSec, Symbol &sym, int64_t addend, RelExpr expr,
+                RelType addendRelType) {
+    // Write the addends to the relocated address if required. We skip
+    // it if the written value would be zero.
+    if (config->writeAddends && (expr != R_ADDEND || addend != 0))
+      sec.relocations.push_back(
+          {expr, addendRelType, offsetInSec, addend, &sym});
+    addReloc<shard>({dynType, &sec, offsetInSec, kind, sym, addend, expr});
+  }
+  bool isNeeded() const override {
+    return !relocs.empty() ||
+           llvm::any_of(relocsVec, [](auto &v) { return !v.empty(); });
+  }
   size_t getSize() const override { return relocs.size() * this->entsize; }
   size_t getRelativeRelocCount() const { return numRelativeRelocs; }
+  void mergeRels();
   void partitionRels();
   void finalizeContents() override;
   static bool classof(const SectionBase *d) {
@@ -550,9 +549,17 @@ public:
 
 protected:
   void computeRels();
+  // Used when parallel relocation scanning adds relocations. The elements
+  // will be moved into relocs by mergeRel().
+  SmallVector<SmallVector<DynamicReloc, 0>, 0> relocsVec;
   size_t numRelativeRelocs = 0; // used by -z combreloc
   bool combreloc;
 };
+
+template <>
+inline void RelocationBaseSection::addReloc<true>(const DynamicReloc &reloc) {
+  relocsVec[llvm::parallel::getThreadIndex()].push_back(reloc);
+}
 
 template <class ELFT>
 class RelocationSection final : public RelocationBaseSection {
@@ -560,7 +567,7 @@ class RelocationSection final : public RelocationBaseSection {
   using Elf_Rela = typename ELFT::Rela;
 
 public:
-  RelocationSection(StringRef name, bool combreloc);
+  RelocationSection(StringRef name, bool combreloc, unsigned concurrency);
   void writeTo(uint8_t *buf) override;
 };
 
@@ -570,7 +577,7 @@ class AndroidPackedRelocationSection final : public RelocationBaseSection {
   using Elf_Rela = typename ELFT::Rela;
 
 public:
-  AndroidPackedRelocationSection(StringRef name);
+  AndroidPackedRelocationSection(StringRef name, unsigned concurrency);
 
   bool updateAllocSize() override;
   size_t getSize() const override { return relocData.size(); }
@@ -591,9 +598,14 @@ struct RelativeReloc {
 
 class RelrBaseSection : public SyntheticSection {
 public:
-  RelrBaseSection();
-  bool isNeeded() const override { return !relocs.empty(); }
+  RelrBaseSection(unsigned concurrency);
+  void mergeRels();
+  bool isNeeded() const override {
+    return !relocs.empty() ||
+           llvm::any_of(relocsVec, [](auto &v) { return !v.empty(); });
+  }
   SmallVector<RelativeReloc, 0> relocs;
+  SmallVector<SmallVector<RelativeReloc, 0>, 0> relocsVec;
 };
 
 // RelrSection is used to encode offsets for relative relocations.
@@ -604,7 +616,7 @@ template <class ELFT> class RelrSection final : public RelrBaseSection {
   using Elf_Relr = typename ELFT::Relr;
 
 public:
-  RelrSection();
+  RelrSection(unsigned concurrency);
 
   bool updateAllocSize() override;
   size_t getSize() const override { return relrRelocs.size() * this->entsize; }
@@ -813,7 +825,6 @@ private:
     llvm::support::ulittle32_t constantPoolOff;
   };
 
-  void initOutputSize();
   size_t computeSymtabSize() const;
 
   // Each chunk contains information gathered from debug sections of a
@@ -957,7 +968,7 @@ private:
   // The reason why we don't want to use the least significant bits is
   // because DenseMap also uses lower bits to determine a bucket ID.
   // If we use lower bits, it significantly increases the probability of
-  // hash collisons.
+  // hash collisions.
   size_t getShardId(uint32_t hash) {
     assert((hash >> 31) == 0);
     return hash >> (31 - llvm::countTrailingZeros(numShards));
@@ -1189,9 +1200,31 @@ public:
   void writeTo(uint8_t *buf) override;
 };
 
+// See the following link for the Android-specific loader code that operates on
+// this section:
+// https://cs.android.com/android/platform/superproject/+/master:bionic/libc/bionic/libc_init_static.cpp;drc=9425b16978f9c5aa8f2c50c873db470819480d1d;l=192
+class MemtagAndroidNote : public SyntheticSection {
+public:
+  MemtagAndroidNote()
+      : SyntheticSection(llvm::ELF::SHF_ALLOC, llvm::ELF::SHT_NOTE,
+                         /*alignment=*/4, ".note.android.memtag") {}
+  void writeTo(uint8_t *buf) override;
+  size_t getSize() const override;
+};
+
+class PackageMetadataNote : public SyntheticSection {
+public:
+  PackageMetadataNote()
+      : SyntheticSection(llvm::ELF::SHF_ALLOC, llvm::ELF::SHT_NOTE,
+                         /*alignment=*/4, ".note.package") {}
+  void writeTo(uint8_t *buf) override;
+  size_t getSize() const override;
+};
+
 InputSection *createInterpSection();
 MergeInputSection *createCommentSection();
 template <class ELFT> void splitSections();
+void combineEhSections();
 
 template <typename ELFT> void writeEhdr(uint8_t *buf, Partition &part);
 template <typename ELFT> void writePhdrs(uint8_t *buf, Partition &part);
@@ -1219,6 +1252,8 @@ struct Partition {
   std::unique_ptr<EhFrameSection> ehFrame;
   std::unique_ptr<GnuHashTableSection> gnuHashTab;
   std::unique_ptr<HashTableSection> hashTab;
+  std::unique_ptr<MemtagAndroidNote> memtagAndroidNote;
+  std::unique_ptr<PackageMetadataNote> packageMetadataNote;
   std::unique_ptr<RelocationBaseSection> relaDyn;
   std::unique_ptr<RelrBaseSection> relrDyn;
   std::unique_ptr<VersionDefinitionSection> verDef;
@@ -1228,7 +1263,7 @@ struct Partition {
   unsigned getNumber() const { return this - &partitions[0] + 1; }
 };
 
-extern Partition *mainPart;
+LLVM_LIBRARY_VISIBILITY extern Partition *mainPart;
 
 inline Partition &SectionBase::getPartition() const {
   assert(isLive());
@@ -1266,9 +1301,8 @@ struct InStruct {
   void reset();
 };
 
-extern InStruct in;
+LLVM_LIBRARY_VISIBILITY extern InStruct in;
 
-} // namespace elf
-} // namespace lld
+} // namespace lld::elf
 
 #endif

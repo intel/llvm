@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "CSKYFixupKinds.h"
-#include "CSKYMCTargetDesc.h"
 #include "CSKYMCExpr.h"
+#include "CSKYMCTargetDesc.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCObjectWriter.h"
@@ -121,6 +121,7 @@ unsigned CSKYELFObjectWriter::getRelocType(MCContext &Ctx,
         return ELF::R_CKCORE_ADDR32;
       }
     }
+    return ELF::R_CKCORE_NONE;
   case FK_Data_8:
     Ctx.reportError(Fixup.getLoc(), "8-byte data relocations not supported");
     return ELF::R_CKCORE_NONE;

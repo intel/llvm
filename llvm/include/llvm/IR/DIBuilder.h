@@ -282,10 +282,12 @@ namespace llvm {
     /// \param LineNo      Line number.
     /// \param Context     The surrounding context for the typedef.
     /// \param AlignInBits Alignment. (optional)
+    /// \param Flags       Flags to describe inheritance attribute, e.g. private
     /// \param Annotations Annotations. (optional)
     DIDerivedType *createTypedef(DIType *Ty, StringRef Name, DIFile *File,
                                  unsigned LineNo, DIScope *Context,
                                  uint32_t AlignInBits = 0,
+                                 DINode::DIFlags Flags = DINode::FlagZero,
                                  DINodeArray Annotations = nullptr);
 
     /// Create debugging information entry for a 'friend'.
@@ -752,6 +754,8 @@ namespace llvm {
     /// \param TParams       Function template parameters.
     /// \param ThrownTypes   Exception types this function may throw.
     /// \param Annotations   Attribute Annotations.
+    /// \param TargetFuncName The name of the target function if this is
+    ///                       a trampoline.
     DISubprogram *
     createFunction(DIScope *Scope, StringRef Name, StringRef LinkageName,
                    DIFile *File, unsigned LineNo, DISubroutineType *Ty,
@@ -760,7 +764,8 @@ namespace llvm {
                    DITemplateParameterArray TParams = nullptr,
                    DISubprogram *Decl = nullptr,
                    DITypeArray ThrownTypes = nullptr,
-                   DINodeArray Annotations = nullptr);
+                   DINodeArray Annotations = nullptr,
+                   StringRef TargetFuncName = "");
 
     /// Identical to createFunction,
     /// except that the resulting DbgNode is meant to be RAUWed.

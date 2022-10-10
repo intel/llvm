@@ -9,7 +9,6 @@
 // <algorithm>
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // template<input_iterator I, sentinel_for<I> S, class T, class Proj = identity>
 //   requires indirect_binary_predicate<ranges::equal_to, projected<I, Proj>, const T*>
@@ -25,6 +24,7 @@
 #include <ranges>
 
 #include "almost_satisfies_types.h"
+#include "boolean_testable.h"
 #include "test_iterators.h"
 
 struct NotEqualityComparable {};
@@ -244,6 +244,20 @@ constexpr bool test() {
       std::array<int, 0> a = {};
       auto ret = std::ranges::find(a, 1);
       assert(ret == a.begin());
+    }
+  }
+
+  {
+    // check that the implicit conversion to bool works
+    {
+      StrictComparable<int> a[] = {1, 2, 3, 4};
+      auto ret = std::ranges::find(a, a + 4, StrictComparable<int>{2});
+      assert(ret == a + 1);
+    }
+    {
+      StrictComparable<int> a[] = {1, 2, 3, 4};
+      auto ret = std::ranges::find(a, StrictComparable<int>{2});
+      assert(ret == a + 1);
     }
   }
 

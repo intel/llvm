@@ -141,7 +141,7 @@ int RTNAME(PointerDeallocate)(Descriptor &pointer, bool hasStat,
   if (!pointer.IsAllocated()) {
     return ReturnError(terminator, StatBaseNull, errMsg, hasStat);
   }
-  return ReturnError(terminator, pointer.Destroy(true), errMsg, hasStat);
+  return ReturnError(terminator, pointer.Destroy(true, true), errMsg, hasStat);
 }
 
 bool RTNAME(PointerIsAssociated)(const Descriptor &pointer) {
@@ -165,8 +165,9 @@ bool RTNAME(PointerIsAssociatedWith)(
   for (int j{0}; j < rank; ++j) {
     const Dimension &pDim{pointer.GetDimension(j)};
     const Dimension &tDim{target->GetDimension(j)};
-    if (pDim.Extent() != tDim.Extent() ||
-        pDim.ByteStride() != tDim.ByteStride()) {
+    auto pExtent{pDim.Extent()};
+    if (pExtent == 0 || pExtent != tDim.Extent() ||
+        (pExtent != 1 && pDim.ByteStride() != tDim.ByteStride())) {
       return false;
     }
   }

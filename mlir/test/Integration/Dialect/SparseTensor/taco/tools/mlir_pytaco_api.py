@@ -35,11 +35,15 @@ index_expression = mlir_pytaco.IndexExpr
 access = mlir_pytaco.Access
 
 # Data type constants defined by PyTACO API.
+int8 = mlir_pytaco.DType(mlir_pytaco.Type.INT8)
 int16 = mlir_pytaco.DType(mlir_pytaco.Type.INT16)
 int32 = mlir_pytaco.DType(mlir_pytaco.Type.INT32)
 int64 = mlir_pytaco.DType(mlir_pytaco.Type.INT64)
+float16 = mlir_pytaco.DType(mlir_pytaco.Type.FLOAT16)
 float32 = mlir_pytaco.DType(mlir_pytaco.Type.FLOAT32)
 float64 = mlir_pytaco.DType(mlir_pytaco.Type.FLOAT64)
+complex64 = mlir_pytaco.DType(mlir_pytaco.Type.COMPLEX64)
+complex128 = mlir_pytaco.DType(mlir_pytaco.Type.COMPLEX128)
 
 # Storage format constants defined by the PyTACO API. In PyTACO, each storage
 # format constant has two aliasing names.

@@ -211,8 +211,8 @@ define half @movmsk(half %x) {
 define half @bitcast_fabs(half %x) {
 ; CHECK-LABEL: bitcast_fabs:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vpbroadcastw {{.*#+}} xmm1 = [NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN]
-; CHECK-NEXT:    vpand %xmm1, %xmm0, %xmm0
+; CHECK-NEXT:    vmovsh {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; CHECK-NEXT:    vandps %xmm1, %xmm0, %xmm0
 ; CHECK-NEXT:    retq
   %bc1 = bitcast half %x to i16
   %and = and i16 %bc1, 32767
@@ -223,8 +223,8 @@ define half @bitcast_fabs(half %x) {
 define half @bitcast_fneg(half %x) {
 ; CHECK-LABEL: bitcast_fneg:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vpbroadcastw {{.*#+}} xmm1 = [-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0]
-; CHECK-NEXT:    vpxor %xmm1, %xmm0, %xmm0
+; CHECK-NEXT:    vmovsh {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; CHECK-NEXT:    vxorps %xmm1, %xmm0, %xmm0
 ; CHECK-NEXT:    retq
   %bc1 = bitcast half %x to i16
   %xor = xor i16 %bc1, 32768
@@ -285,8 +285,8 @@ define half @fsub_bitcast_fneg(half %x, half %y) {
 define half @nabs(half %a) {
 ; CHECK-LABEL: nabs:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vpbroadcastw {{.*#+}} xmm1 = [-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0]
-; CHECK-NEXT:    vpor %xmm1, %xmm0, %xmm0
+; CHECK-NEXT:    vmovsh {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; CHECK-NEXT:    vorps %xmm1, %xmm0, %xmm0
 ; CHECK-NEXT:    retq
   %conv = bitcast half %a to i16
   %and = or i16 %conv, -32768
@@ -357,7 +357,7 @@ define <8 x half> @fsub_bitcast_fneg_vec_undef_elts(<8 x half> %x, <8 x half> %y
 define <8 x half> @fadd_bitcast_fneg_vec_width(<8 x half> %x, <8 x half> %y) {
 ; CHECK-LABEL: fadd_bitcast_fneg_vec_width:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vxorps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
+; CHECK-NEXT:    vxorpd {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm1, %xmm1
 ; CHECK-NEXT:    vaddph %xmm1, %xmm0, %xmm0
 ; CHECK-NEXT:    retq
   %bc1 = bitcast <8 x half> %y to <2 x i64>
@@ -370,7 +370,7 @@ define <8 x half> @fadd_bitcast_fneg_vec_width(<8 x half> %x, <8 x half> %y) {
 define <8 x half> @fsub_bitcast_fneg_vec_width(<8 x half> %x, <8 x half> %y) {
 ; CHECK-LABEL: fsub_bitcast_fneg_vec_width:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vxorps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
+; CHECK-NEXT:    vxorpd {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm1, %xmm1
 ; CHECK-NEXT:    vsubph %xmm1, %xmm0, %xmm0
 ; CHECK-NEXT:    retq
   %bc1 = bitcast <8 x half> %y to <2 x i64>

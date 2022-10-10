@@ -17,7 +17,9 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <memory>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 namespace llvm {
 

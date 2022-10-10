@@ -237,7 +237,8 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
         Subscripts.push_back(
             Builder.getOrCreateSubrange(CountAsMD, nullptr, nullptr, nullptr));
       }
-      TotalCount *= static_cast<uint64_t>(Count);
+      // Count = -1 means that the array is empty
+      TotalCount *= Count > 0 ? static_cast<size_t>(Count) : 0;
       continue;
     }
   }
@@ -1115,7 +1116,7 @@ SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
     auto Checksum = Text.substr(ColonPos).ltrim(':');
     if (auto Kind = DIFile::getChecksumKind(KindStr)) {
       size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
-      CS.emplace(Kind.getValue(), Checksum.substr(0, ChecksumEndPos));
+      CS.emplace(Kind.value(), Checksum.substr(0, ChecksumEndPos));
     }
   }
   return CS;

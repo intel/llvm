@@ -3,14 +3,16 @@
 ; RUN: FileCheck < %t.spt %s -check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s -check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: String [[#VarNameId:]] "A$1$upperbound"
 ; CHECK-SPIRV: [[#FuncNameId:]] "random_fill_sp"
-; CHECK-SPIRV: TypeInt [[#TypeIntId:]] 64 0
-; CHECK-SPIRV: Constant [[#TypeIntId]] [[#LowerBoundId:]] 1 0
+; CHECK-SPIRV: TypeInt [[#TypeInt64Id:]] 64 0
+; CHECK-SPIRV: Constant [[#TypeInt64Id]] [[#LowerBoundId:]] 1 0
+; CHECK-SPIRV: Constant [[#TypeInt64Id]] [[#NegativeCount:]] 4294967295 4294967295
+
 ; CHECK-SPIRV: [[#DbgFuncId:]] [[#]] DebugFunction [[#FuncNameId]]
 ; CHECK-SPIRV: [[#DbgTemplateId:]] [[#]] DebugTemplate [[#DbgFuncId]]
 ; CHECK-SPIRV: [[#]] [[#DbgLocVarId:]] [[#]] DebugLocalVariable [[#VarNameId]] [[#]] [[#]] [[#]] [[#]] [[#DbgTemplateId]]
@@ -18,6 +20,8 @@
 
 ; CHECK-SPIRV: [[#DbgExprId:]] [[#]] DebugExpression
 ; CHECK-SPIRV: DebugTypeArray [[#]] [[#DbgExprId]] [[#DbgExprId]]
+
+; CHECK-SPIRV: DebugTypeArray [[#]] [[#NegativeCount]] [[#]]
 
 ; CHECK-LLVM: !DICompositeType(tag: DW_TAG_array_type, baseType: ![[#BaseType:]], size: 32, elements: ![[#Subrange1:]])
 ; CHECK-LLVM: [[#BaseType]] = !DIBasicType(name: "REAL*4", size: 32, encoding: DW_ATE_float)
@@ -31,6 +35,11 @@
 
 ; CHECK-LLVM: !DISubrange(count: 1000, lowerBound: 1)
 
+; CHECK-LLVM: !DICompositeType(tag: DW_TAG_array_type, baseType: ![[#BaseType:]], elements: ![[#Subrage:]])
+; CHECK-LLVM: ![[#BaseType]] = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+; CHECK-LLVM: ![[#Subrage]] = !{![[#Subrage:]]}
+; CHECK-LLVM: ![[#Subrage]] = !DISubrange(count: -1
+
 ; ModuleID = 'DebugInfoSubrangeUpperBound.bc'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
 target triple = "spir64-unknown-unknown"
@@ -40,12 +49,13 @@ target triple = "spir64-unknown-unknown"
 %structtype2 = type { i64, i64, i64 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @__omp_offloading_811_198142f_random_fill_sp_l25(%structtype* byval(%structtype) %"ascast$val", [1000 x i32] addrspace(1)* noalias %"ascastB$val") #0 !kernel_arg_addr_space !9 !kernel_arg_access_qual !10 !kernel_arg_type !11 !kernel_arg_type_qual !12 !kernel_arg_base_type !11 {
+define spir_kernel void @__omp_offloading_811_198142f_random_fill_sp_l25(i32 addrspace(1)* noalias %0, %structtype* byval(%structtype) %"ascast$val", [1000 x i32] addrspace(1)* noalias %"ascastB$val") #0 !kernel_arg_addr_space !9 !kernel_arg_access_qual !10 !kernel_arg_type !11 !kernel_arg_type_qual !12 !kernel_arg_base_type !11 {
 newFuncRoot:
   %.ascast = bitcast %structtype* %"ascast$val" to %"QNCA_a0$float"*
   call void @llvm.dbg.value(metadata %"QNCA_a0$float"* %.ascast, metadata !13, metadata !DIExpression(DW_OP_deref)), !dbg !27
   call void @llvm.dbg.value(metadata %"QNCA_a0$float"* %.ascast, metadata !28, metadata !DIExpression(DW_OP_deref)), !dbg !42
-  call void @llvm.dbg.value(metadata [1000 x i32] addrspace(1)* %"ascastB$val", metadata !47, metadata !DIExpression(DW_OP_deref)), !dbg !56
+  call void @llvm.dbg.value(metadata [1000 x i32] addrspace(1)* %"ascastB$val", metadata !47, metadata !DIExpression(DW_OP_deref)), !dbg !51
+  call void @llvm.dbg.value(metadata i32 addrspace(1)* %0, metadata !54, metadata !DIExpression(DW_OP_deref)), !dbg !59
   ret void
 }
 
@@ -117,4 +127,12 @@ attributes #1 = { nofree nosync nounwind readnone speculatable willreturn }
 !48 = !DICompositeType(tag: DW_TAG_array_type, baseType: !43, elements: !49)
 !49 = !{!50}
 !50 = !DISubrange(count: 1000, lowerBound: 1)
-!56 = !DILocation(line: 27, column: 24, scope: !46)
+!51 = !DILocation(line: 27, column: 24, scope: !46)
+!52 = distinct !DISubprogram(name: "test", scope: !3, file: !3, line: 51, type: !53, scopeLine: 51, flags: DIFlagArtificial, spFlags: DISPFlagLocalToUnit | DISPFlagDefinition, unit: !2)
+!53 = !DISubroutineType(types: !7)
+!54 = !DILocalVariable(name: "isHost", scope: !52, file: !3, line: 34, type: !55)
+!55 = !DICompositeType(tag: DW_TAG_array_type, baseType: !56, elements: !57)
+!56 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
+!57 = !{!58}
+!58 = !DISubrange(count: -1)
+!59 = !DILocation(line: 34, column: 33, scope: !52)

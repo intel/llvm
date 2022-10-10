@@ -9,8 +9,6 @@ import os, signal, subprocess
 
 class SBModuleAPICase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         TestBase.setUp(self)
         self.background_pid = None
@@ -21,6 +19,7 @@ class SBModuleAPICase(TestBase):
             os.kill(self.background_pid, signal.SIGKILL)
 
     @skipUnlessDarwin
+    @skipIfRemote
     def test_module_is_file_backed(self):
         """Test the SBModule::IsFileBacked() method"""
         self.build()
@@ -48,8 +47,8 @@ class SBModuleAPICase(TestBase):
         process = target.AttachToProcessWithID(self.dbg.GetListener(),
                                                self.background_pid, error)
         self.assertTrue(error.Success() and process,  PROCESS_IS_VALID)
-        main_module = target.GetModuleAtIndex(0)
-        self.assertEqual(main_module.GetFileSpec().GetFilename(), "a.out")
+        main_module = target.FindModule(lldb.SBFileSpec("a.out"))
+        self.assertTrue(main_module is not None)
         self.assertFalse(main_module.IsFileBacked(),
                          "The module should not be backed by a file on disk.")
 

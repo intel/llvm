@@ -6,15 +6,15 @@
 // RUN:               -reconcile-unrealized-casts                              \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:     -e main -entry-point-result=void -O0                               \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_c_runner_utils%shlibext  \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_runner_utils%shlibext    \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext  \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext    \
 // RUN: | FileCheck %s
 
 // -------------------------------------------------------------------------- //
 // rsqrt.
 // -------------------------------------------------------------------------- //
 
-func @rsqrt() {
+func.func @rsqrt() {
   // Sanity-check that the scalar rsqrt still works OK.
   // CHECK: inf
   %0 = arith.constant 0.0 : f32
@@ -34,7 +34,7 @@ func @rsqrt() {
   return
 }
 
-func @main() {
+func.func @main() {
   call @rsqrt(): () -> ()
   return
 }

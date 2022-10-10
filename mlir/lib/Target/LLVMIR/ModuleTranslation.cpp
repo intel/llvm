@@ -52,8 +52,8 @@ using namespace mlir::LLVM::detail;
 #include "mlir/Dialect/LLVMIR/LLVMConversionEnumsToLLVM.inc"
 
 /// Translates the given data layout spec attribute to the LLVM IR data layout.
-/// Only integer, float and endianness entries are currently supported.
-FailureOr<llvm::DataLayout>
+/// Only integer, float, pointer and endianness entries are currently supported.
+static FailureOr<llvm::DataLayout>
 translateDataLayout(DataLayoutSpecInterface attribute,
                     const DataLayout &dataLayout,
                     Optional<Location> loc = llvm::None) {
@@ -80,8 +80,8 @@ translateDataLayout(DataLayoutSpecInterface attribute,
   }
 
   // Go through the list of entries to check which types are explicitly
-  // specified in entries. Don't use the entries directly though but query the
-  // data from the layout.
+  // specified in entries. Where possible, data layout queries are used instead
+  // of directly inspecting the entries.
   for (DataLayoutEntryInterface entry : attribute.getEntries()) {
     auto type = entry.getKey().dyn_cast<Type>();
     if (!type)
@@ -89,32 +89,47 @@ translateDataLayout(DataLayoutSpecInterface attribute,
     // Data layout for the index type is irrelevant at this point.
     if (type.isa<IndexType>())
       continue;
-    FailureOr<std::string> prefix =
-        llvm::TypeSwitch<Type, FailureOr<std::string>>(type)
-            .Case<IntegerType>(
-                [loc](IntegerType integerType) -> FailureOr<std::string> {
-                  if (integerType.getSignedness() == IntegerType::Signless)
-                    return std::string("i");
-                  emitError(*loc)
-                      << "unsupported data layout for non-signless integer "
-                      << integerType;
-                  return failure();
-                })
-            .Case<Float16Type, Float32Type, Float64Type, Float80Type,
-                  Float128Type>([](Type) { return std::string("f"); })
-            .Default([loc](Type type) -> FailureOr<std::string> {
-              emitError(*loc) << "unsupported type in data layout: " << type;
-              return failure();
+    layoutStream << "-";
+    LogicalResult result =
+        llvm::TypeSwitch<Type, LogicalResult>(type)
+            .Case<IntegerType, Float16Type, Float32Type, Float64Type,
+                  Float80Type, Float128Type>([&](Type type) -> LogicalResult {
+              if (auto intType = type.dyn_cast<IntegerType>()) {
+                if (intType.getSignedness() != IntegerType::Signless)
+                  return emitError(*loc)
+                         << "unsupported data layout for non-signless integer "
+                         << intType;
+                layoutStream << "i";
+              } else {
+                layoutStream << "f";
+              }
+              unsigned size = dataLayout.getTypeSizeInBits(type);
+              unsigned abi = dataLayout.getTypeABIAlignment(type) * 8u;
+              unsigned preferred =
+                  dataLayout.getTypePreferredAlignment(type) * 8u;
+              layoutStream << size << ":" << abi;
+              if (abi != preferred)
+                layoutStream << ":" << preferred;
+              return success();
+            })
+            .Case([&](LLVMPointerType ptrType) {
+              layoutStream << "p" << ptrType.getAddressSpace() << ":";
+              unsigned size = dataLayout.getTypeSizeInBits(type);
+              unsigned abi = dataLayout.getTypeABIAlignment(type) * 8u;
+              unsigned preferred =
+                  dataLayout.getTypePreferredAlignment(type) * 8u;
+              layoutStream << size << ":" << abi << ":" << preferred;
+              if (Optional<unsigned> index = extractPointerSpecValue(
+                      entry.getValue(), PtrDLEntryPos::Index))
+                layoutStream << ":" << *index;
+              return success();
+            })
+            .Default([loc](Type type) {
+              return emitError(*loc)
+                     << "unsupported type in data layout: " << type;
             });
-    if (failed(prefix))
+    if (failed(result))
       return failure();
-
-    unsigned size = dataLayout.getTypeSizeInBits(type);
-    unsigned abi = dataLayout.getTypeABIAlignment(type) * 8u;
-    unsigned preferred = dataLayout.getTypePreferredAlignment(type) * 8u;
-    layoutStream << "-" << *prefix << size << ":" << abi;
-    if (abi != preferred)
-      layoutStream << ":" << preferred;
   }
   layoutStream.flush();
   StringRef layoutSpec(llvmDataLayout);
@@ -214,7 +229,7 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
       (type.isa<VectorType>() || hasVectorElementType)) {
     llvm::Constant *splatValue = LLVM::detail::getLLVMConstant(
         innermostLLVMType, denseElementsAttr.getSplatValue<Attribute>(), loc,
-        moduleTranslation, /*isTopLevel=*/false);
+        moduleTranslation);
     llvm::Constant *splatVector =
         llvm::ConstantDataVector::getSplat(0, splatValue);
     SmallVector<llvm::Constant *> constants(numAggregates, splatVector);
@@ -272,22 +287,22 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
 /// report it to `loc` and return nullptr.
 llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
     llvm::Type *llvmType, Attribute attr, Location loc,
-    const ModuleTranslation &moduleTranslation, bool isTopLevel) {
+    const ModuleTranslation &moduleTranslation) {
   if (!attr)
     return llvm::UndefValue::get(llvmType);
   if (auto *structType = dyn_cast<::llvm::StructType>(llvmType)) {
-    if (!isTopLevel) {
-      emitError(loc, "nested struct types are not supported in constants");
+    auto arrayAttr = attr.dyn_cast<ArrayAttr>();
+    if (!arrayAttr || arrayAttr.size() != 2) {
+      emitError(loc, "expected struct type to be a complex number");
       return nullptr;
     }
-    auto arrayAttr = attr.cast<ArrayAttr>();
     llvm::Type *elementType = structType->getElementType(0);
-    llvm::Constant *real = getLLVMConstant(elementType, arrayAttr[0], loc,
-                                           moduleTranslation, false);
+    llvm::Constant *real =
+        getLLVMConstant(elementType, arrayAttr[0], loc, moduleTranslation);
     if (!real)
       return nullptr;
-    llvm::Constant *imag = getLLVMConstant(elementType, arrayAttr[1], loc,
-                                           moduleTranslation, false);
+    llvm::Constant *imag =
+        getLLVMConstant(elementType, arrayAttr[1], loc, moduleTranslation);
     if (!imag)
       return nullptr;
     return llvm::ConstantStruct::get(structType, {real, imag});
@@ -336,7 +351,7 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
         elementType,
         elementTypeSequential ? splatAttr
                               : splatAttr.getSplatValue<Attribute>(),
-        loc, moduleTranslation, false);
+        loc, moduleTranslation);
     if (!child)
       return nullptr;
     if (llvmType->isVectorTy())
@@ -367,7 +382,7 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
     llvm::Type *innermostType = getInnermostElementType(llvmType);
     for (auto n : elementsAttr.getValues<Attribute>()) {
       constants.push_back(
-          getLLVMConstant(innermostType, n, loc, moduleTranslation, false));
+          getLLVMConstant(innermostType, n, loc, moduleTranslation));
       if (!constants.back())
         return nullptr;
     }
@@ -441,10 +456,9 @@ static Value getPHISourceValue(Block *current, Block *pred,
   for (unsigned i = 0, e = terminator.getNumSuccessors(); i < e; ++i) {
     Block *successor = terminator.getSuccessor(i);
     auto branch = cast<BranchOpInterface>(terminator);
-    Optional<OperandRange> successorOperands = branch.getSuccessorOperands(i);
+    SuccessorOperands successorOperands = branch.getSuccessorOperands(i);
     assert(
-        (!seenSuccessors.contains(successor) ||
-         (successorOperands && successorOperands->empty())) &&
+        (!seenSuccessors.contains(successor) || successorOperands.empty()) &&
         "successors with arguments in LLVM branches must be different blocks");
     seenSuccessors.insert(successor);
   }
@@ -486,17 +500,15 @@ void mlir::LLVM::detail::connectPHINodes(Region &region,
                                          const ModuleTranslation &state) {
   // Skip the first block, it cannot be branched to and its arguments correspond
   // to the arguments of the LLVM function.
-  for (auto it = std::next(region.begin()), eit = region.end(); it != eit;
-       ++it) {
-    Block *bb = &*it;
-    llvm::BasicBlock *llvmBB = state.lookupBlock(bb);
+  for (Block &bb : llvm::drop_begin(region)) {
+    llvm::BasicBlock *llvmBB = state.lookupBlock(&bb);
     auto phis = llvmBB->phis();
-    auto numArguments = bb->getNumArguments();
+    auto numArguments = bb.getNumArguments();
     assert(numArguments == std::distance(phis.begin(), phis.end()));
     for (auto &numberedPhiNode : llvm::enumerate(phis)) {
       auto &phiNode = numberedPhiNode.value();
       unsigned index = numberedPhiNode.index();
-      for (auto *pred : bb->getPredecessors()) {
+      for (auto *pred : bb.getPredecessors()) {
         // Find the LLVM IR block that contains the converted terminator
         // instruction and use it in the PHI node. Note that this block is not
         // necessarily the same as state.lookupBlock(pred), some operations
@@ -505,9 +517,9 @@ void mlir::LLVM::detail::connectPHINodes(Region &region,
         llvm::Instruction *terminator =
             state.lookupBranch(pred->getTerminator());
         assert(terminator && "missing the mapping for a terminator");
-        phiNode.addIncoming(
-            state.lookupValue(getPHISourceValue(bb, pred, numArguments, index)),
-            terminator->getParent());
+        phiNode.addIncoming(state.lookupValue(getPHISourceValue(
+                                &bb, pred, numArguments, index)),
+                            terminator->getParent());
       }
     }
   }
@@ -662,19 +674,22 @@ LogicalResult ModuleTranslation::convertGlobals() {
 
     auto *var = new llvm::GlobalVariable(
         *llvmModule, type, op.getConstant(), linkage, cst, op.getSymName(),
-        /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal, addrSpace);
+        /*InsertBefore=*/nullptr,
+        op.getThreadLocal_() ? llvm::GlobalValue::GeneralDynamicTLSModel
+                             : llvm::GlobalValue::NotThreadLocal,
+        addrSpace);
 
-    if (op.getUnnamedAddr().hasValue())
+    if (op.getUnnamedAddr().has_value())
       var->setUnnamedAddr(convertUnnamedAddrToLLVM(*op.getUnnamedAddr()));
 
-    if (op.getSection().hasValue())
+    if (op.getSection().has_value())
       var->setSection(*op.getSection());
 
     addRuntimePreemptionSpecifier(op.getDsoLocal(), var);
 
     Optional<uint64_t> alignment = op.getAlignment();
-    if (alignment.hasValue())
-      var->setAlignment(llvm::MaybeAlign(alignment.getValue()));
+    if (alignment.has_value())
+      var->setAlignment(llvm::MaybeAlign(alignment.value()));
 
     globalsMapping.try_emplace(op, var);
   }
@@ -840,23 +855,57 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
                            .addAlignmentAttr(llvm::Align(attr.getInt())));
     }
 
-    if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.sret")) {
+    if (auto attr = func.getArgAttrOfType<TypeAttr>(
+            argIdx, LLVMDialect::getStructRetAttrName())) {
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
       if (!argTy)
         return func.emitError(
             "llvm.sret attribute attached to LLVM non-pointer argument");
-      llvmArg.addAttrs(
-          llvm::AttrBuilder(llvmArg.getContext())
-              .addStructRetAttr(convertType(argTy.getElementType())));
+      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+        return func.emitError("llvm.sret attribute attached to LLVM pointer "
+                              "argument of a different type");
+      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                           .addStructRetAttr(convertType(attr.getValue())));
     }
 
-    if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.byval")) {
+    if (auto attr = func.getArgAttrOfType<TypeAttr>(
+            argIdx, LLVMDialect::getByValAttrName())) {
       auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
       if (!argTy)
         return func.emitError(
             "llvm.byval attribute attached to LLVM non-pointer argument");
+      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+        return func.emitError("llvm.byval attribute attached to LLVM pointer "
+                              "argument of a different type");
       llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
-                           .addByValAttr(convertType(argTy.getElementType())));
+                           .addByValAttr(convertType(attr.getValue())));
+    }
+
+    if (auto attr = func.getArgAttrOfType<TypeAttr>(
+            argIdx, LLVMDialect::getByRefAttrName())) {
+      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
+      if (!argTy)
+        return func.emitError(
+            "llvm.byref attribute attached to LLVM non-pointer argument");
+      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+        return func.emitError("llvm.byref attribute attached to LLVM pointer "
+                              "argument of a different type");
+      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                           .addByRefAttr(convertType(attr.getValue())));
+    }
+
+    if (auto attr = func.getArgAttrOfType<TypeAttr>(
+            argIdx, LLVMDialect::getInAllocaAttrName())) {
+      auto argTy = mlirArg.getType().dyn_cast<LLVM::LLVMPointerType>();
+      if (!argTy)
+        return func.emitError(
+            "llvm.inalloca attribute attached to LLVM non-pointer argument");
+      if (!argTy.isOpaque() && argTy.getElementType() != attr.getValue())
+        return func.emitError(
+            "llvm.inalloca attribute attached to LLVM pointer "
+            "argument of a different type");
+      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                           .addInAllocaAttr(convertType(attr.getValue())));
     }
 
     if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.nest")) {
@@ -873,7 +922,7 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
   }
 
   // Check the personality and set it.
-  if (func.getPersonality().hasValue()) {
+  if (func.getPersonality()) {
     llvm::Type *ty = llvm::Type::getInt8PtrTy(llvmFunc->getContext());
     if (llvm::Constant *pfunc = getLLVMConstant(ty, func.getPersonalityAttr(),
                                                 func.getLoc(), *this))
@@ -926,6 +975,9 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     llvmFunc->setLinkage(convertLinkageToLLVM(function.getLinkage()));
     mapFunction(function.getName(), llvmFunc);
     addRuntimePreemptionSpecifier(function.getDsoLocal(), llvmFunc);
+
+    if (function->getAttrOfType<UnitAttr>(LLVMDialect::getReadnoneAttrName()))
+      llvmFunc->addFnAttr(llvm::Attribute::ReadNone);
 
     // Forward the pass-through attributes to LLVM.
     if (failed(forwardPassthroughAttributes(
@@ -1003,7 +1055,7 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       llvm::SmallVector<llvm::Metadata *, 2> operands;
       operands.push_back({}); // Placeholder for self-reference
       if (Optional<StringRef> description = op.getDescription())
-        operands.push_back(llvm::MDString::get(ctx, description.getValue()));
+        operands.push_back(llvm::MDString::get(ctx, *description));
       llvm::MDNode *domain = llvm::MDNode::get(ctx, operands);
       domain->replaceOperandWith(0, domain); // Self-reference for uniqueness
       aliasScopeDomainMetadataMapping.insert({op, domain});
@@ -1022,7 +1074,7 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       operands.push_back({}); // Placeholder for self-reference
       operands.push_back(domain);
       if (Optional<StringRef> description = op.getDescription())
-        operands.push_back(llvm::MDString::get(ctx, description.getValue()));
+        operands.push_back(llvm::MDString::get(ctx, *description));
       llvm::MDNode *scope = llvm::MDNode::get(ctx, operands);
       scope->replaceOperandWith(0, scope); // Self-reference for uniqueness
       aliasScopeMetadataMapping.insert({op, scope});

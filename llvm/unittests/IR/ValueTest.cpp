@@ -46,6 +46,7 @@ TEST(ValueTest, UsedInBasicBlock) {
 
 TEST(GlobalTest, CreateAddressSpace) {
   LLVMContext Ctx;
+  Ctx.setOpaquePointers(true);
   std::unique_ptr<Module> M(new Module("TestModule", Ctx));
   Type *Int8Ty = Type::getInt8Ty(Ctx);
   Type *Int32Ty = Type::getInt32Ty(Ctx);
@@ -85,8 +86,8 @@ TEST(GlobalTest, CreateAddressSpace) {
 
   // Make sure the address space isn't dropped when returning this.
   Constant *DummyCast1 = M->getOrInsertGlobal("dummy_cast", Int8Ty);
+  EXPECT_EQ(DummyCast0, DummyCast1);
   EXPECT_EQ(1u, DummyCast1->getType()->getPointerAddressSpace());
-  EXPECT_NE(DummyCast0, DummyCast1) << *DummyCast1;
 }
 
 #ifdef GTEST_HAS_DEATH_TEST
@@ -111,6 +112,7 @@ TEST(ValueTest, printSlots) {
   // Check that Value::print() and Value::printAsOperand() work with and
   // without a slot tracker.
   LLVMContext C;
+  C.setOpaquePointers(true);
 
   const char *ModuleString = "@g0 = external global %500\n"
                              "@g1 = external global %900\n"
@@ -183,8 +185,8 @@ TEST(ValueTest, printSlots) {
   CHECK_PRINT_AS_OPERAND(I1, false, "%1");
   CHECK_PRINT_AS_OPERAND(I0, true, "i32 %0");
   CHECK_PRINT_AS_OPERAND(I1, true, "i32 %1");
-  CHECK_PRINT_AS_OPERAND(G0, true, "%0* @g0");
-  CHECK_PRINT_AS_OPERAND(G1, true, "%1* @g1");
+  CHECK_PRINT_AS_OPERAND(G0, true, "ptr @g0");
+  CHECK_PRINT_AS_OPERAND(G1, true, "ptr @g1");
 #undef CHECK_PRINT_AS_OPERAND
 }
 

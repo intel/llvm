@@ -84,6 +84,13 @@ inline auto visit(VISITOR &&visitor, VARIANT &&...u)
 
 } // namespace log2visit
 
+// Some versions of clang have bugs that cause compilation to hang
+// on these templates.  MSVC and older GCC versions may work but are
+// not well tested.  So enable only for GCC 9 and better.
+#if __GNUC__ < 9
+#define FLANG_USE_STD_VISIT
+#endif
+
 #ifdef FLANG_USE_STD_VISIT
 using ::std::visit;
 #else

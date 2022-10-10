@@ -646,6 +646,65 @@ define i32 @select_or_icmp_bad(i32 %x, i32 %y, i32 %z) {
   ret i32 %C
 }
 
+define i32 @select_lshr_icmp_const(i32 %x) {
+; CHECK-LABEL: @select_lshr_icmp_const(
+; CHECK-NEXT:    [[B:%.*]] = lshr i32 %x, 5
+; CHECK-NEXT:    ret i32 [[B]]
+;
+  %A = icmp ugt i32 %x, 31
+  %B = lshr i32 %x, 5
+  %C = select i1 %A, i32 %B, i32 0
+  ret i32 %C
+}
+
+define i32 @select_lshr_icmp_const_reordered(i32 %x) {
+; CHECK-LABEL: @select_lshr_icmp_const_reordered(
+; CHECK-NEXT:    [[B:%.*]] = lshr i32 %x, 5
+; CHECK-NEXT:    ret i32 [[B]]
+;
+  %A = icmp ult i32 %x, 32
+  %B = lshr i32 %x, 5
+  %C = select i1 %A, i32 0, i32 %B
+  ret i32 %C
+}
+
+define i32 @select_exact_lshr_icmp_const(i32 %x) {
+; CHECK-LABEL: @select_exact_lshr_icmp_const(
+; CHECK-NEXT:    [[B:%.*]] = lshr i32 %x, 5
+; CHECK-NEXT:    ret i32 [[B]]
+;
+  %A = icmp ugt i32 %x, 31
+  %B = lshr exact i32 %x, 5
+  %C = select i1 %A, i32 %B, i32 0
+  ret i32 %C
+}
+
+define i32 @select_lshr_icmp_const_large_exact_range(i32 %x) {
+; CHECK-LABEL: @select_lshr_icmp_const_large_exact_range(
+; CHECK-NEXT:    [[A:%.*]] = icmp ugt i32 %x, 63
+; CHECK-NEXT:    [[B:%.*]] = lshr i32 %x, 5
+; CHECK-NEXT:    [[C:%.*]] = select i1 [[A]], i32 [[B]], i32 0
+; CHECK-NEXT:    ret i32 [[C]]
+;
+  %A = icmp ugt i32 %x, 63
+  %B = lshr i32 %x, 5
+  %C = select i1 %A, i32 %B, i32 0
+  ret i32 %C
+}
+
+define i32 @select_lshr_icmp_const_different_values(i32 %x, i32 %y) {
+; CHECK-LABEL: @select_lshr_icmp_const_different_values(
+; CHECK-NEXT:    [[A:%.*]] = icmp ugt i32 %x, 31
+; CHECK-NEXT:    [[B:%.*]] = lshr i32 %y, 5
+; CHECK-NEXT:    [[C:%.*]] = select i1 [[A]], i32 [[B]], i32 0
+; CHECK-NEXT:    ret i32 [[C]]
+;
+  %A = icmp ugt i32 %x, 31
+  %B = lshr i32 %y, 5
+  %C = select i1 %A, i32 %B, i32 0
+  ret i32 %C
+}
+
 ; Invalid identity constant for FP op
 define float @select_fadd_fcmp_bad(float %x, float %y, float %z) {
 ; CHECK-LABEL: @select_fadd_fcmp_bad(
@@ -1167,12 +1226,12 @@ define i32 @select_replace_nested(i32 %x, i32 %y, i32 %z) {
 ; loops.
 define i32 @select_replace_constexpr(i32 %x, i32 %y, i32 %z) {
 ; CHECK-LABEL: @select_replace_constexpr(
-; CHECK-NEXT:    [[C:%.*]] = icmp eq i32 [[X:%.*]], ptrtoint (i32* @g to i32)
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i32 [[X:%.*]], ptrtoint (ptr @g to i32)
 ; CHECK-NEXT:    [[ADD:%.*]] = add i32 [[X]], [[Y:%.*]]
 ; CHECK-NEXT:    [[S:%.*]] = select i1 [[C]], i32 [[ADD]], i32 [[Z:%.*]]
 ; CHECK-NEXT:    ret i32 [[S]]
 ;
-  %c = icmp eq i32 %x, ptrtoint (i32* @g to i32)
+  %c = icmp eq i32 %x, ptrtoint (ptr @g to i32)
   %add = add i32 %x, %y
   %s = select i1 %c, i32 %add, i32 %z
   ret i32 %s
