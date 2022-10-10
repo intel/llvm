@@ -107,7 +107,7 @@ def check_symbols(ref_path, target_path):
     # is used. Ignore it for the purpose of the library ABI check.
     ignore_symbols = ["_dl_relocate_static_pie"]
 
-    # MSVC and clang-cl some differences in regards to exported symbols generated in some scenarios.
+    # In some scenarios MSVC and clang-cl exhibit differences in regards to the exported symbols they generate.
     # Some of them happen in the SYCL RT library and we think clang-cl's behavior is more reasonable.
     #
     # Case 1:
