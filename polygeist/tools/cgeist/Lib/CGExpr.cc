@@ -8,6 +8,7 @@
 
 #include "clang-mlir.h"
 #include "utils.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
@@ -1004,6 +1005,103 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
   return std::make_pair(ValueCategory(), false);
 }
 
+static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &builder,
+                                          mlir::Type baseType,
+                                          llvm::StringRef typeName,
+                                          llvm::StringRef functionName,
+                                          llvm::StringRef mangledFunctionName) {
+  NamedAttrList attrs;
+  attrs.set(mlir::sycl::SYCLDialect::getBaseTypeAttrName(),
+            mlir::TypeAttr::get(baseType));
+  attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr(functionName)));
+  attrs.set(mlir::sycl::SYCLDialect::getMangledFunctionNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr(mangledFunctionName)));
+  attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr(typeName)));
+  return attrs;
+}
+
+/// Returns the SYCL cast originating this value if such operation exists; None
+/// otherwise.
+///
+/// This function relies on how arguments are casted to perform a function call.
+/// Should be updated if this changes.
+static llvm::Optional<mlir::sycl::SYCLCastOp> trackSYCLCast(Value val) {
+  const auto trackWithOperand =
+      [](Operation *Op) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
+    return trackSYCLCast(Op->getOperand(0));
+  };
+  const auto DefiningOp = val.getDefiningOp();
+  if (!DefiningOp) {
+    return llvm::None;
+  }
+  return TypeSwitch<mlir::Operation *, llvm::Optional<mlir::sycl::SYCLCastOp>>(
+             DefiningOp)
+      .Case<mlir::sycl::SYCLCastOp>(
+          [](auto Cast) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
+            return Cast;
+          })
+      .Case<mlir::LLVM::AddrSpaceCastOp>(trackWithOperand)
+      .Case<mlir::polygeist::Memref2PointerOp>(trackWithOperand)
+      .Case<mlir::polygeist::Pointer2MemrefOp>(trackWithOperand)
+      .Default([](auto) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
+        return llvm::None;
+      });
+}
+
+llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
+    llvm::StringRef typeName, llvm::StringRef functionName,
+    mlir::ValueRange operands, mlir::TypeRange returnType,
+    llvm::StringRef mangledFunctionName) {
+  // Expecting a MemRef as the first argument, as the first operand to a method
+  // call should be a pointer to `this`.
+  if (operands.empty() || !operands[0].getType().isa<MemRefType>()) {
+    return llvm::None;
+  }
+
+  auto *SYCLDialect =
+      operands[0].getContext()->getLoadedDialect<mlir::sycl::SYCLDialect>();
+  assert(SYCLDialect && "MLIR-SYCL dialect not loaded.");
+
+  // Need to copy to avoid overriding elements in the input argument.
+  SmallVector<mlir::Value> operandsCpy(operands);
+
+  // SYCLCastOps are abstracted to avoid missing method calls due to
+  // implementation details.
+  if (const llvm::Optional<sycl::SYCLCastOp> Cast =
+          trackSYCLCast(operandsCpy[0])) {
+    auto NewArg = (*Cast)->getOperand(0);
+    // Make sure the memory space is not changed:
+    const auto MemSpace =
+        operandsCpy[0].getType().cast<MemRefType>().getMemorySpaceAsInt();
+    if (NewArg.getType().cast<MemRefType>().getMemorySpaceAsInt() != MemSpace) {
+      NewArg = castToMemSpace(NewArg, MemSpace);
+    }
+    operandsCpy[0] = NewArg;
+    LLVM_DEBUG(llvm::dbgs() << "Abstracting cast to " << NewArg.getType()
+                            << " to insert a SYCL method\n");
+  }
+
+  auto BaseType = operandsCpy[0].getType().cast<MemRefType>();
+  const llvm::Optional<llvm::StringRef> OptOpName = SYCLDialect->findMethod(
+      BaseType.getElementType().getTypeID(), functionName);
+
+  if (!OptOpName) {
+    LLVM_DEBUG(llvm::dbgs() << "SYCL method not inserted. Type: " << BaseType
+                            << " Name: " << functionName << "\n");
+    return llvm::None;
+  }
+
+  LLVM_DEBUG(llvm::dbgs() << "Inserting operation " << OptOpName
+                          << " to replace SYCL method call.\n");
+
+  return static_cast<sycl::SYCLMethodOpInterface>(builder.create(
+      loc, builder.getStringAttr(*OptOpName), operandsCpy, returnType,
+      getSYCLMethodOpAttrs(builder, operands[0].getType(), typeName,
+                           functionName, mangledFunctionName)));
+}
+
 mlir::Operation *
 MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
                          const llvm::SmallVectorImpl<mlir::Value> &Args) {
@@ -1044,8 +1142,18 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
       }
 
       std::string name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
-      Op = builder.create<mlir::sycl::SYCLCallOp>(
-          loc, OptRetType, OptFuncType, Func->getNameAsString(), name, Args);
+      if (OptFuncType) {
+        // Attempt to create a SYCL method call first, if that fails create a
+        // generic SYCLCallOp.
+        Op = createSYCLMethodOp(
+                 *OptFuncType, Func->getNameAsString(), Args,
+                 OptRetType ? TypeRange{*OptRetType} : TypeRange{}, name)
+                 .value_or(nullptr);
+      }
+      if (!Op) {
+        Op = builder.create<mlir::sycl::SYCLCallOp>(
+            loc, OptRetType, OptFuncType, Func->getNameAsString(), name, Args);
+      }
     }
   }
 
