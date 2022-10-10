@@ -726,7 +726,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
   }
 
   bool EmitBC = EmitLLVM && !EmitAssembly;
-  bool EmitMLIR = EmitAssembly;
+  bool EmitMLIR = EmitAssembly && !EmitLLVM;
   if (EmitMLIR) {
     if (Output == "-") {
       // Write the MLIR to stdout.
