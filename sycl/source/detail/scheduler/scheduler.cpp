@@ -442,7 +442,7 @@ void Scheduler::releaseResources() {
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
   while (!isDeferredMemObjectsEmpty()) {
-    std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING)" std::endl;
+    std::cout << "cleanupDeferredMemObjects(BlockingT::BLOCKING)" << std::endl;
     cleanupDeferredMemObjects(BlockingT::BLOCKING);
   }
 }
