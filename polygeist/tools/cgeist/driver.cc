@@ -713,8 +713,8 @@ static int createAndExecutePassPipeline(
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
 static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
-                         mlir::MLIRContext &context, llvm::DataLayout &DL,
-                         llvm::Triple &triple,
+                         StringRef moduleId, mlir::MLIRContext &context,
+                         llvm::DataLayout &DL, llvm::Triple &triple,
                          const SmallVectorImpl<const char *> &LinkArgs,
                          const char *Argv0) {
   bool LinkOMP = FOpenMP;
@@ -742,7 +742,8 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
   } else {
     // Generate LLVM IR.
     llvm::LLVMContext llvmContext;
-    auto llvmModule = mlir::translateModuleToLLVMIR(module.get(), llvmContext);
+    auto llvmModule =
+        mlir::translateModuleToLLVMIR(module.get(), llvmContext, moduleId);
     if (!llvmModule) {
       module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
@@ -1008,5 +1009,8 @@ int main(int argc, char **argv) {
   });
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return compileModule(module, context, DL, triple, LinkageArgs, argv[0]);
+  return compileModule(module,
+                       inputFileNames.size() == 1 ? inputFileNames[0]
+                                                  : "LLVMDialectModule",
+                       context, DL, triple, LinkageArgs, argv[0]);
 }

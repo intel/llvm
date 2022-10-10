@@ -156,13 +156,13 @@ public:
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       clang::Preprocessor &PP, clang::ASTContext &astContext,
       mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
-      clang::CodeGenOptions &codegenops)
+      clang::CodeGenOptions &codegenops, std::string moduleId)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), deviceFunctions(deviceFunctions),
         llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), typeCache(),
         functionsToEmit(), module(module), SM(SM), lcontext(),
-        llvmMod("tmp", lcontext),
+        llvmMod(moduleId, lcontext),
         CGM(astContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),

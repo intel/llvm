@@ -28,10 +28,11 @@
 
 // CHECK-MLIR: gpu.module @device_functions
 // CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
+// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #0
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #1
 
 class kernel_1 {
  sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
@@ -59,10 +60,10 @@ void host_1() {
 }
 
 // CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, %arg1: !sycl_range_1_, %arg2: !sycl_range_1_, %arg3: !sycl_id_1_)
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, [[PASSTHROUGH]]
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #0
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #1
 
 void host_2() {
   auto q = sycl::queue{};
@@ -85,4 +86,4 @@ SYCL_EXTERNAL void function_1(sycl::item<2, true> item) {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM: attributes #0 = { convergent mustprogress norecurse nounwind }
+// CHECK-LLVM: attributes #1 = { convergent mustprogress norecurse nounwind "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp" }
