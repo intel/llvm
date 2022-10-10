@@ -7,7 +7,8 @@ set(imf_fp32_fallback_src_list imf_utils/integer_misc.cpp
 set(imf_fp64_fallback_src_list imf_utils/double_convert.cpp
                                imf/imf_inline_fp64.cpp)
 
-set(imf_bf16_fallback_src_list imf_utils/bfloat16_convert.cpp)
+set(imf_bf16_fallback_src_list imf_utils/bfloat16_convert.cpp
+                               imf/imf_inline_bf16.cpp)
 
 if (IMF_TARGET STREQUAL "FP32")
   set(imf_fallback_src_list ${imf_fp32_fallback_src_list})

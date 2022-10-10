@@ -138,7 +138,8 @@ set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp
                            imf_utils/double_convert.cpp
                            imf/imf_inline_fp64.cpp)
 set(imf_fallback_bf16_deps device.h device_imf.hpp imf_bf16.hpp
-                           imf_utils/bfloat16_convert.cpp)
+                           imf_utils/bfloat16_convert.cpp
+                           imf/imf_inline_bf16.cpp)
 
 set(imf_fp32_fallback_src ${imf_fallback_src_dir}/imf_fp32_fallback.cpp)
 set(imf_fp64_fallback_src ${imf_fallback_src_dir}/imf_fp64_fallback.cpp)

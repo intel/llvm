@@ -27,4 +27,15 @@ _iml_bf16_internal __imf_float2bfloat16(float f) {
   return __devicelib_imf_float2bfloat16(f);
 }
 
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_fmabf16(_iml_bf16_internal,
+                                           _iml_bf16_internal,
+                                           _iml_bf16_internal);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_fmabf16(_iml_bf16_internal a, _iml_bf16_internal b,
+                                 _iml_bf16_internal c) {
+  return __devicelib_imf_fmabf16(a, b, c);
+}
+
 #endif // __LIBDEVICE_IMF_ENABLED__

@@ -145,6 +145,15 @@ static inline _iml_half __fma(_iml_half x, _iml_half y, _iml_half z) {
 #endif
 }
 
+// Currently, we used fp32 to emulate all bf16 arithmetic
+static inline _iml_bf16 __fma(_iml_bf16 x, _iml_bf16 y, _iml_bf16 z) {
+  float tmp_x = __bfloat162float(x.get_internal());
+  float tmp_y = __bfloat162float(y.get_internal());
+  float tmp_z = __bfloat162float(z.get_internal());
+  float res = __fma<float>(tmp_x, tmp_y, tmp_z);
+  return _iml_bf16(res);
+}
+
 // sqrt for float, double, half math, covers both device and host.
 static inline float __sqrt(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
