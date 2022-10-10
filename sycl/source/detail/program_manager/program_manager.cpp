@@ -754,41 +754,44 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
   return Prog != nullptr;
 }
 
-static const std::map<DeviceLibExt,
-                      std::pair<const std::string, const std::string>>
+// For each extension, a pair of library names. The first uses native support,
+// the second emulates functionality in software.
+static const std::map<DeviceLibExt, std::pair<const char *, const char *>>
     DeviceLibNames = {
         {DeviceLibExt::cl_intel_devicelib_assert,
-         {"libsycl-fallback-cassert.spv", ""}},
+         {nullptr, "libsycl-fallback-cassert.spv"}},
         {DeviceLibExt::cl_intel_devicelib_math,
-         {"libsycl-fallback-cmath.spv", ""}},
+         {nullptr, "libsycl-fallback-cmath.spv"}},
         {DeviceLibExt::cl_intel_devicelib_math_fp64,
-         {"libsycl-fallback-cmath-fp64.spv", ""}},
+         {nullptr, "libsycl-fallback-cmath-fp64.spv"}},
         {DeviceLibExt::cl_intel_devicelib_complex,
-         {"libsycl-fallback-complex.spv", ""}},
+         {nullptr, "libsycl-fallback-complex.spv"}},
         {DeviceLibExt::cl_intel_devicelib_complex_fp64,
-         {"libsycl-fallback-complex-fp64.spv", ""}},
+         {nullptr, "libsycl-fallback-complex-fp64.spv"}},
         {DeviceLibExt::cl_intel_devicelib_cstring,
-         {"libsycl-fallback-cstring.spv", ""}},
+         {nullptr, "libsycl-fallback-cstring.spv"}},
         {DeviceLibExt::cl_intel_devicelib_imf,
-         {"libsycl-fallback-imf.spv", ""}},
+         {nullptr, "libsycl-fallback-imf.spv"}},
         {DeviceLibExt::cl_intel_devicelib_imf_fp64,
-         {"libsycl-fallback-imf-fp64.spv", ""}},
+         {nullptr, "libsycl-fallback-imf-fp64.spv"}},
         {DeviceLibExt::cl_intel_devicelib_bfloat16,
-         {"libsycl-fallback-bfloat16.spv", "libsycl-native-bfloat16.spv"}}};
+         {"libsycl-native-bfloat16.spv", "libsycl-fallback-bfloat16.spv"}}};
 
-static const std::string getDeviceLibFilename(DeviceLibExt Extension,
-                                              bool Native) {
+static const char *getDeviceLibFilename(DeviceLibExt Extension, bool Native) {
   auto LibPair = DeviceLibNames.find(Extension);
-  std::string Lib;
+  const char *Lib = nullptr;
   if (LibPair != DeviceLibNames.end())
-    Lib = Native ? LibPair->second.second : LibPair->second.first;
-  if (Lib.empty())
+    Lib = Native ? LibPair->second.first : LibPair->second.second;
+  if (Lib == nullptr)
     throw compile_program_error("Unhandled (new?) device library extension",
                                 PI_ERROR_INVALID_OPERATION);
   return Lib;
 }
 
-static const std::map<DeviceLibExt, std::string> DeviceLibExtensionStrs = {
+// For each extension understood by the SYCL runtime, the string representation
+// of its name. Names with devicelib in them are internal to the runtime. Others
+// are actual OpenCL extensions.
+static const std::map<DeviceLibExt, const char *> DeviceLibExtensionStrs = {
     {DeviceLibExt::cl_intel_devicelib_assert, "cl_intel_devicelib_assert"},
     {DeviceLibExt::cl_intel_devicelib_math, "cl_intel_devicelib_math"},
     {DeviceLibExt::cl_intel_devicelib_math_fp64,
@@ -802,7 +805,7 @@ static const std::map<DeviceLibExt, std::string> DeviceLibExtensionStrs = {
     {DeviceLibExt::cl_intel_devicelib_bfloat16,
      "cl_intel_bfloat16_conversions"}};
 
-static const std::string getDeviceLibExtensionStr(DeviceLibExt Extension) {
+static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   auto Ext = DeviceLibExtensionStrs.find(Extension);
   if (Ext == DeviceLibExtensionStrs.end())
     throw compile_program_error("Unhandled (new?) device library extension",
@@ -815,8 +818,7 @@ static RT::PiProgram loadDeviceLibFallback(const ContextImplPtr Context,
                                            const RT::PiDevice &Device,
                                            bool UseNativeLib) {
 
-  auto LibFileNameStr = getDeviceLibFilename(Extension, UseNativeLib);
-  auto LibFileName = LibFileNameStr.c_str();
+  auto LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
 
   auto LockedCache = Context->acquireCachedLibPrograms();
   auto CachedLibPrograms = LockedCache.get();
@@ -1000,8 +1002,7 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       continue;
     }
 
-    auto ExtStr = getDeviceLibExtensionStr(Ext);
-    auto ExtName = ExtStr.c_str();
+    auto ExtName = getDeviceLibExtensionStr(Ext);
 
     bool InhibitNativeImpl = false;
     if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
