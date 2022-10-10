@@ -9,8 +9,9 @@
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
 DEVICE_EXTERN_C_INLINE
-_iml_bf16_internal __devicelib_imf_fmabf16(
-    _iml_bf16_internal a, _iml_bf16_internal b, _iml_bf16_internal c) {
+_iml_bf16_internal __devicelib_imf_fmabf16(_iml_bf16_internal a,
+                                           _iml_bf16_internal b,
+                                           _iml_bf16_internal c) {
   return __fma(_iml_bf16(a), _iml_bf16(b), _iml_bf16(c)).get_internal();
 }
 #endif
