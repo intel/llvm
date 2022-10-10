@@ -753,7 +753,15 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     llvmModule->setTargetTriple(triple.getTriple());
     LLVM_DEBUG(dbgs() << "*** Translated MLIR to LLVM IR successfully ***\n");
 
-    if (EmitLLVM) {
+    if (EmitBC) {
+      assert(Output != "-" && "Expecting output file");
+      // Write the LLVM BC to a file.
+      std::error_code EC;
+      llvm::raw_fd_ostream out(Output, EC);
+      WriteBitcodeToFile(*llvmModule, out);
+      LLVM_DEBUG(dbgs() << "*** Dumped LLVM BC in file '" << Output
+                        << "' ***\n");
+    } else if (EmitLLVM) {
       if (Output == "-") {
         // Write the LLVM IR to stdout.
         LLVM_DEBUG(dbgs() << "*** LLVM IR Produced ***\n");
@@ -766,14 +774,6 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
         LLVM_DEBUG(dbgs() << "*** Dumped LLVM IR in file '" << Output
                           << "' ***\n");
       }
-    } else if (EmitBC) {
-      assert(Output != "-" && "Expecting output file");
-      // Write the LLVM BC to a file.
-      std::error_code EC;
-      llvm::raw_fd_ostream out(Output, EC);
-      WriteBitcodeToFile(*llvmModule, out);
-      LLVM_DEBUG(dbgs() << "*** Dumped LLVM BC in file '" << Output
-                        << "' ***\n");
     } else {
       // Compile the LLVM IR.
       auto tmpFile =
