@@ -143,6 +143,24 @@ bool CodeGenUtils::isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   return false;
 }
 
+void CodeGenUtils::TypeAndAttrs::getTypes(
+    const SmallVectorImpl<TypeAndAttrs> &descriptors,
+    SmallVectorImpl<mlir::Type> &types) {
+  assert(types.empty() && "Expecting 'types' to be empty");
+
+  for (const TypeAndAttrs &desc : descriptors)
+    types.push_back(desc.type);
+}
+
+void CodeGenUtils::TypeAndAttrs::getAttributes(
+    const SmallVectorImpl<TypeAndAttrs> &descriptors,
+    SmallVectorImpl<std::vector<mlir::NamedAttribute>> &attrs) {
+  assert(attrs.empty() && "Expecting 'attrs' to be empty");
+
+  for (const TypeAndAttrs &desc : descriptors)
+    attrs.push_back(desc.attrs);
+}
+
 /******************************************************************************/
 /*                               MLIRScanner                                  */
 /******************************************************************************/
@@ -266,8 +284,8 @@ static void checkFunctionParent(const FunctionOpInterface F,
 }
 
 void MLIRScanner::init(mlir::FunctionOpInterface func,
-                       const FunctionToEmit &f) {
-  const clang::FunctionDecl *FD = &f.getDecl();
+                       const FunctionToEmit &FTE) {
+  const clang::FunctionDecl *FD = &FTE.getDecl();
 
   function = func;
   EmittingFunctionDecl = FD;
@@ -338,9 +356,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
 
   if (FD->hasAttr<CUDAGlobalAttr>() && Glob.getCGM().getLangOpts().CUDA &&
       !Glob.getCGM().getLangOpts().CUDAIsDevice) {
-    FunctionToEmit F(*FD);
+    FunctionToEmit FTE(*FD);
     auto deviceStub = cast<func::FuncOp>(
-        Glob.GetOrCreateMLIRFunction(F, true, /* getDeviceStub */ true));
+        Glob.GetOrCreateMLIRFunction(FTE, true, /* getDeviceStub */ true));
 
     builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
     builder.create<ReturnOp>(loc);
@@ -518,7 +536,7 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
   else
     builder.create<ReturnOp>(loc);
 
-  checkFunctionParent(function, f.getContext(), module);
+  checkFunctionParent(function, FTE.getContext(), module);
 }
 
 mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
@@ -2890,76 +2908,38 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 }
 
 mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
-    FunctionToEmit &F, const bool ShouldEmit, bool getDeviceStub) {
-  assert(F.getDecl().getTemplatedKind() !=
+    FunctionToEmit &FTE, const bool ShouldEmit, bool getDeviceStub) {
+  assert(FTE.getDecl().getTemplatedKind() !=
              FunctionDecl::TemplatedKind::TK_FunctionTemplate &&
-         F.getDecl().getTemplatedKind() !=
+         FTE.getDecl().getTemplatedKind() !=
              FunctionDecl::TemplatedKind::
                  TK_DependentFunctionTemplateSpecialization &&
          "Unexpected template kind");
 
-  const clang::FunctionDecl *FD = &F.getDecl();
+  const clang::FunctionDecl &FD = FTE.getDecl();
   const std::string mangledName =
       (getDeviceStub)
           ? PrefixABI +
-                CGM.getMangledName(GlobalDecl(FD, KernelReferenceKind::Kernel))
+                CGM.getMangledName(GlobalDecl(&FD, KernelReferenceKind::Kernel))
                     .str()
-          : PrefixABI + MLIRScanner::getMangledFuncName(*FD, CGM);
+          : PrefixABI + MLIRScanner::getMangledFuncName(FD, CGM);
   assert(mangledName != "free");
 
   // Early exit if the function has already been generated.
   if (Optional<FunctionOpInterface> optFunction =
-          getFunction(mangledName, F.getContext()))
+          getMLIRFunction(mangledName, FTE.getContext()))
     return *optFunction;
 
-  // Compute the MLIR types for the function parameters and return value(s).
-  SmallVector<mlir::Type, 4> parmTypes, retTypes;
-  createMLIRParametersTypes(*FD, parmTypes);
-  createMLIRReturnTypes(*FD, retTypes);
-
-  // Utility function used to inject a function declaration in either the device
-  // module (a GPUModuleOp) or in the host module (a ModuleOp), depending on its
-  // calling context.
-  const auto createFunction = [&](FunctionToEmit &F) -> FunctionOpInterface {
-    const auto insert = [mangledName](auto function, auto module, auto &map) {
-      module.push_back(function);
-      map[mangledName] = function;
-      return function;
-    };
-
-    mlir::OpBuilder builder(module->getContext());
-    auto funcType = builder.getFunctionType(parmTypes, retTypes);
-    Location loc = getMLIRLocation(F.getDecl().getLocation());
-
-    if (F.getDecl().hasAttr<SYCLKernelAttr>()) {
-      auto function = builder.create<gpu::GPUFuncOp>(loc, mangledName, funcType,
-                                                     TypeRange{}, TypeRange{});
-      return insert(function, getDeviceModule(*module), deviceFunctions);
-    }
-
-    auto function = builder.create<func::FuncOp>(loc, mangledName, funcType);
-    switch (F.getContext()) {
-    case FunctionContext::Host:
-      return insert(function, *module, functions);
-    case FunctionContext::SYCLDevice:
-      return insert(function, getDeviceModule(*module), deviceFunctions);
-    }
-    llvm_unreachable("Invalid function context");
-  };
-
-  // Create the MLIR function and set its visibility and function attributes.
-  FunctionOpInterface function = createFunction(F);
-  LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(*FD, ShouldEmit));
-  setMLIRFunctionVisibility(function, *FD, ShouldEmit);
-  setMLIRFunctionAttributes(function, F, lnk, module->getContext());
-  checkFunctionParent(function, F.getContext(), module);
-
-  LLVM_DEBUG(llvm::dbgs() << "Created MLIR function:" << function << "\n");
+  // Create the MLIR function and set its various attributes.
+  FunctionOpInterface function =
+      createMLIRFunction(FTE, mangledName, ShouldEmit);
+  checkFunctionParent(function, FTE.getContext(), module);
+  LLVM_DEBUG(llvm::dbgs() << "Created MLIR function: " << function << "\n");
 
   // Decide whether the MLIR function should be emitted.
   const FunctionDecl *Def = nullptr;
-  if (!FD->isDefined(Def, /*checkforfriend*/ true))
-    Def = FD;
+  if (!FD.isDefined(Def, /*checkforfriend*/ true))
+    Def = &FD;
 
   if (Def->isThisDeclarationADefinition()) {
     assert(Def->getTemplatedKind() !=
@@ -2969,9 +2949,9 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
                    TK_DependentFunctionTemplateSpecialization);
     if (ShouldEmit) {
       LLVM_DEBUG(llvm::dbgs()
-                 << __LINE__ << ": Pushing " << F.getContext() << " function "
+                 << __LINE__ << ": Pushing " << FTE.getContext() << " function "
                  << Def->getNameAsString() << " to functionsToEmit\n");
-      functionsToEmit.emplace_back(*Def, F.getContext());
+      functionsToEmit.emplace_back(*Def, FTE.getContext());
     }
   } else if (ShouldEmit) {
     emitIfFound.insert(mangledName);
@@ -2982,38 +2962,37 @@ mlir::FunctionOpInterface MLIRASTConsumer::GetOrCreateMLIRFunction(
 
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
-    FunctionToEmit &F = functionsToEmit.front();
+    FunctionToEmit &FTE = functionsToEmit.front();
     functionsToEmit.pop_front();
 
-    const FunctionDecl *FD = &F.getDecl();
+    const FunctionDecl &FD = FTE.getDecl();
 
-    assert(FD->getBody());
-    assert(FD->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate);
-    assert(FD->getTemplatedKind() !=
+    assert(FD.getBody());
+    assert(FD.getTemplatedKind() != FunctionDecl::TK_FunctionTemplate);
+    assert(FD.getTemplatedKind() !=
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
 
-    std::string mangledName = MLIRScanner::getMangledFuncName(*FD, CGM);
-
-    const std::pair<FunctionContext, std::string> doneKey(F.getContext(),
+    std::string mangledName = MLIRScanner::getMangledFuncName(FD, CGM);
+    const std::pair<FunctionContext, std::string> doneKey(FTE.getContext(),
                                                           mangledName);
     if (done.count(doneKey))
       continue;
 
     LLVM_DEBUG({
       StringRef funcKind =
-          (FD->hasAttr<clang::SYCLKernelAttr>()   ? "SYCL KERNEL"
-           : FD->hasAttr<clang::SYCLDeviceAttr>() ? "SYCL DEVICE"
-                                                  : "");
-      llvm::dbgs() << "\n-- " << funcKind << " FUNCTION (" << F.getContext()
-                   << " context) BEING EMITTED: " << FD->getNameAsString()
+          (FD.hasAttr<clang::SYCLKernelAttr>()   ? "SYCL KERNEL"
+           : FD.hasAttr<clang::SYCLDeviceAttr>() ? "SYCL DEVICE"
+                                                 : "");
+      llvm::dbgs() << "\n-- " << funcKind << " FUNCTION (" << FTE.getContext()
+                   << " context) BEING EMITTED: " << FD.getNameAsString()
                    << " --\n\n";
     });
 
     done.insert(doneKey);
     MLIRScanner ms(*this, module, LTInfo);
-    FunctionOpInterface function = GetOrCreateMLIRFunction(F, true);
-    ms.init(function, F);
+    FunctionOpInterface function = GetOrCreateMLIRFunction(FTE, true);
+    ms.init(function, FTE);
 
     LLVM_DEBUG({
       llvm::dbgs() << "\n";
@@ -3023,8 +3002,8 @@ void MLIRASTConsumer::run() {
       if (functionsToEmit.size()) {
         llvm::dbgs() << "-- FUNCTION(S) LEFT TO BE EMITTED --\n";
 
-        for (const auto &F : functionsToEmit) {
-          const clang::FunctionDecl &FD = F.getDecl();
+        for (const auto &FTE : functionsToEmit) {
+          const clang::FunctionDecl &FD = FTE.getDecl();
           llvm::dbgs() << "  [+] " << FD.getNameAsString() << "(";
           for (unsigned int index = 0; index < FD.getNumParams(); index += 1) {
             printf("%s",
@@ -3093,11 +3072,11 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
         emitIfFound.count(name)) {
-      FunctionToEmit F(*fd);
+      FunctionToEmit FTE(*fd);
       LLVM_DEBUG(llvm::dbgs()
-                 << __LINE__ << ": Pushing " << F.getContext() << " function "
+                 << __LINE__ << ": Pushing " << FTE.getContext() << " function "
                  << fd->getNameAsString() << " to functionsToEmit\n");
-      functionsToEmit.push_back(F);
+      functionsToEmit.push_back(FTE);
     }
   }
 }
@@ -3196,11 +3175,11 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
          externLinkage) ||
         emitIfFound.count(name) || fd->hasAttr<OpenCLKernelAttr>() ||
         fd->hasAttr<SYCLDeviceAttr>()) {
-      FunctionToEmit F(*fd);
+      FunctionToEmit FTE(*fd);
       LLVM_DEBUG(llvm::dbgs()
-                 << __LINE__ << ": Pushing " << F.getContext() << " function "
+                 << __LINE__ << ": Pushing " << FTE.getContext() << " function "
                  << fd->getNameAsString() << " to functionsToEmit\n");
-      functionsToEmit.push_back(F);
+      functionsToEmit.push_back(FTE);
     }
   }
 
@@ -3264,27 +3243,10 @@ MLIRASTConsumer::getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV) {
   llvm_unreachable("Unexpected linkage");
 }
 
-void MLIRASTConsumer::setMLIRFunctionVisibility(
-    mlir::FunctionOpInterface function, const clang::FunctionDecl &FD,
-    bool shouldEmit) {
-  SymbolTable::Visibility visibility = SymbolTable::Visibility::Public;
-
-  if (!shouldEmit || !FD.isDefined() || FD.hasAttr<CUDAGlobalAttr>() ||
-      FD.hasAttr<CUDADeviceAttr>())
-    visibility = SymbolTable::Visibility::Private;
-  else {
-    llvm::GlobalValue::LinkageTypes LV = getLLVMLinkageType(FD, shouldEmit);
-    if (LV == llvm::GlobalValue::InternalLinkage ||
-        LV == llvm::GlobalValue::PrivateLinkage)
-      visibility = SymbolTable::Visibility::Private;
-  }
-
-  SymbolTable::setSymbolVisibility(function, visibility);
-}
-
-void MLIRASTConsumer::createMLIRParametersTypes(
-    const clang::FunctionDecl &FD, SmallVectorImpl<mlir::Type> &parmTypes) {
-  assert(parmTypes.empty() && "Expecting parmTypes to be empty");
+void MLIRASTConsumer::createMLIRParameterDescriptors(
+    const clang::FunctionDecl &FD,
+    SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) {
+  assert(parmDescriptors.empty() && "Expecting 'parmDescriptors' to be empty");
 
   bool isMethodDecl = isa<CXXMethodDecl>(FD);
   bool isMethodInstance = isMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
@@ -3313,19 +3275,29 @@ void MLIRASTConsumer::createMLIRParametersTypes(
     assert((mlirThisType.isa<LLVM::LLVMPointerType, MemRefType>()) &&
            "Unexpected type");
 
-    parmTypes.push_back(mlirThisType);
+    parmDescriptors.push_back(mlirThisType);
   }
 
   const bool isKernel = FD.hasAttr<SYCLKernelAttr>();
+  mlir::MLIRContext *ctx = module->getContext();
+  mlir::OpBuilder builder(ctx);
 
   // Handle the remaining parameters.
-  for (ParmVarDecl *parm : FD.parameters()) {
+  for (const ParmVarDecl *parm : FD.parameters()) {
     QualType parmType = parm->getType();
 
-    // SPIR ABI compliance: aggregates need to be passed as pointers.
+    // SPIR ABI compliance: aggregates need to be passed indirectly as pointers
+    // (in MLIR, we pass it as MemRefs with unknown size).
+    // Note: indirect arguments are always on the stack (i.e. using alloca addr
+    // space).
     if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
-      auto mlirType = mlir::MemRefType::get(-1, getMLIRType(parmType));
-      parmTypes.push_back(mlirType);
+      auto mt = mlir::MemRefType::get(-1, getMLIRType(parmType), {},
+                                      CGM.getDataLayout().getAllocaAddrSpace());
+      mlir::NamedAttribute byvalAttr(StringAttr::get(ctx, "llvm.byval"),
+                                     builder.getUnitAttr());
+      std::vector<mlir::NamedAttribute> attrs{byvalAttr};
+      CodeGenUtils::ParmDesc parmDesc(mt, attrs);
+      parmDescriptors.push_back(parmDesc);
       continue;
     }
 
@@ -3334,7 +3306,7 @@ void MLIRASTConsumer::createMLIRParametersTypes(
     if (ArrayStruct)
       mlirType = getMLIRType(CGM.getContext().getLValueReferenceType(parmType));
 
-    parmTypes.push_back(mlirType);
+    parmDescriptors.push_back(mlirType);
   }
 
   bool isArrayReturn = false;
@@ -3345,14 +3317,59 @@ void MLIRASTConsumer::createMLIRParametersTypes(
         getMLIRType(CGM.getContext().getLValueReferenceType(FD.getReturnType()))
             .cast<MemRefType>();
     assert(mt.getShape().size() == 2);
-    parmTypes.push_back(mt);
+    parmDescriptors.push_back(mt);
   }
 }
 
-void MLIRASTConsumer::createMLIRReturnTypes(
+mlir::FunctionOpInterface
+MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
+                                    std::string mangledName, bool ShouldEmit) {
+  const FunctionDecl &FD = FTE.getDecl();
+  Location loc = getMLIRLocation(FD.getLocation());
+  mlir::OpBuilder builder(module->getContext());
+
+  SmallVector<CodeGenUtils::ParmDesc, 4> parmDescriptors;
+  createMLIRParameterDescriptors(FD, parmDescriptors);
+
+  SmallVector<CodeGenUtils::ResultDesc, 4> resDescriptors;
+  createMLIRResultDescriptors(FD, resDescriptors);
+
+  SmallVector<mlir::Type, 4> parmTypes, retTypes;
+  CodeGenUtils::ParmDesc::getTypes(parmDescriptors, parmTypes);
+  CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
+
+  auto funcType = builder.getFunctionType(parmTypes, retTypes);
+  mlir::FunctionOpInterface function =
+      FD.hasAttr<SYCLKernelAttr>()
+          ? builder.create<gpu::GPUFuncOp>(loc, mangledName, funcType)
+          : builder.create<func::FuncOp>(loc, mangledName, funcType);
+
+  LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+  setMLIRFunctionVisibility(function, FTE, ShouldEmit);
+  setMLIRFunctionAttributes(function, FTE, lnk);
+  setMLIRFunctionParmsAttributes(function, parmDescriptors);
+  setMLIRFunctionResultAttributes(function, resDescriptors);
+
+  /// Inject the MLIR function created in either the device module or in the
+  /// host module, depending on the calling context.
+  switch (FTE.getContext()) {
+  case FunctionContext::Host:
+    module->push_back(function);
+    functions[mangledName] = cast<func::FuncOp>(function);
+    break;
+  case FunctionContext::SYCLDevice:
+    getDeviceModule(*module).push_back(function);
+    deviceFunctions[mangledName] = function;
+    break;
+  }
+
+  return function;
+}
+
+void MLIRASTConsumer::createMLIRResultDescriptors(
     const clang::FunctionDecl &FD,
-    llvm::SmallVectorImpl<mlir::Type> &retTypes) {
-  assert(retTypes.empty() && "Expecting retTypes to be empty");
+    llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors) {
+  assert(resDescriptors.empty() && "Expecting 'resDescriptors' to be empty");
 
   bool isArrayReturn = false;
   getMLIRType(FD.getReturnType(), &isArrayReturn);
@@ -3360,39 +3377,61 @@ void MLIRASTConsumer::createMLIRReturnTypes(
   if (!isArrayReturn) {
     auto rt = getMLIRType(FD.getReturnType());
     if (!rt.isa<mlir::NoneType>())
-      retTypes.push_back(rt);
+      resDescriptors.push_back(rt);
   }
 }
 
+void MLIRASTConsumer::setMLIRFunctionVisibility(
+    mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
+    bool shouldEmit) {
+  const FunctionDecl &FD = FTE.getDecl();
+  SymbolTable::Visibility visibility = SymbolTable::Visibility::Public;
+
+  if (!shouldEmit || !FD.isDefined() || FD.hasAttr<CUDAGlobalAttr>() ||
+      FD.hasAttr<CUDADeviceAttr>())
+    visibility = SymbolTable::Visibility::Private;
+  else {
+    llvm::GlobalValue::LinkageTypes LV = getLLVMLinkageType(FD, shouldEmit);
+    if (LV == llvm::GlobalValue::InternalLinkage ||
+        LV == llvm::GlobalValue::PrivateLinkage)
+      visibility = SymbolTable::Visibility::Private;
+  }
+
+  SymbolTable::setSymbolVisibility(function, visibility);
+}
+
 void MLIRASTConsumer::setMLIRFunctionAttributes(
-    mlir::FunctionOpInterface function, const FunctionToEmit &F,
-    LLVM::Linkage lnk, MLIRContext *ctx) const {
+    mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
+    LLVM::Linkage lnk) const {
+  const FunctionDecl &FD = FTE.getDecl();
+  MLIRContext *ctx = module->getContext();
+
   NamedAttrList attrs(function->getAttrDictionary());
   attrs.set("llvm.linkage", mlir::LLVM::LinkageAttr::get(ctx, lnk));
 
-  bool isDeviceContext = (F.getContext() == FunctionContext::SYCLDevice);
+  bool isDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
   if (!isDeviceContext) {
     LLVM_DEBUG(llvm::dbgs()
                << "Not in a device context - skipping setting attributes for "
-               << F.getDecl().getNameAsString() << "\n");
+               << FD.getNameAsString() << "\n");
 
     // HACK: we want to avoid setting additional attributes on non-sycl
     // functions because we do not want to adjust the test cases at this time
     // (if we did we would have merge conflicts if we ever update polygeist).
-    function->setAttrs(attrs.getDictionary(ctx));
+    function->setAttrs(attrs.getDictionary(module->getContext()));
     return;
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "Setting attributes for "
-                          << F.getDecl().getNameAsString() << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Setting attributes for " << FD.getNameAsString()
+                          << "\n");
 
   // Mark as kernel.
-  if (F.getDecl().hasAttr<SYCLKernelAttr>())
+  if (FD.hasAttr<SYCLKernelAttr>())
     attrs.set(gpu::GPUDialect::getKernelFuncAttrName(), UnitAttr::get(ctx));
 
   // Calling conventions for SPIRV functions.
   attrs.set("llvm.cconv", mlir::LLVM::CConvAttr::get(
-                              ctx, F.getDecl().hasAttr<SYCLKernelAttr>()
+                              ctx, FD.hasAttr<SYCLKernelAttr>()
                                        ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
                                        : mlir::LLVM::cconv::CConv::SPIR_FUNC));
 
@@ -3422,9 +3461,35 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   function->setAttrs(attrs.getDictionary(ctx));
 }
 
+void MLIRASTConsumer::setMLIRFunctionParmsAttributes(
+    mlir::FunctionOpInterface function,
+    const SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) const {
+  assert(function.getNumArguments() == parmDescriptors.size() && "Mismatch");
+
+  SmallVector<std::vector<mlir::NamedAttribute>, 4> parmAttrs;
+  CodeGenUtils::ParmDesc::getAttributes(parmDescriptors, parmAttrs);
+
+  for (unsigned argIndex : llvm::seq<unsigned>(0, function.getNumArguments()))
+    for (mlir::NamedAttribute attr : parmAttrs[argIndex])
+      function.setArgAttr(argIndex, attr.getName(), attr.getValue());
+}
+
+void MLIRASTConsumer::setMLIRFunctionResultAttributes(
+    mlir::FunctionOpInterface function,
+    const SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors) const {
+  assert(function.getNumResults() == resDescriptors.size() && "Mismatch");
+
+  SmallVector<std::vector<mlir::NamedAttribute>, 2> resAttrs;
+  CodeGenUtils::ResultDesc::getAttributes(resDescriptors, resAttrs);
+
+  for (unsigned retIndex : llvm::seq<unsigned>(0, function.getNumResults()))
+    for (mlir::NamedAttribute attr : resAttrs[retIndex])
+      function.setResultAttr(retIndex, attr.getName(), attr.getValue());
+}
+
 llvm::Optional<mlir::FunctionOpInterface>
-MLIRASTConsumer::getFunction(const std::string &mangledName,
-                             FunctionContext context) const {
+MLIRASTConsumer::getMLIRFunction(const std::string &mangledName,
+                                 FunctionContext context) const {
   const auto find = [&](const auto &map) {
     const auto Iter = map.find(mangledName);
     return Iter == map.end()
@@ -3952,8 +4017,8 @@ public:
 
 mlir::FunctionOpInterface
 MLIRScanner::EmitDirectCallee(const FunctionDecl *FD, FunctionContext Context) {
-  FunctionToEmit F(*FD, Context);
-  return Glob.GetOrCreateMLIRFunction(F, true);
+  FunctionToEmit FTE(*FD, Context);
+  return Glob.GetOrCreateMLIRFunction(FTE, true);
 }
 
 mlir::Location MLIRScanner::getMLIRLocation(clang::SourceLocation loc) {
