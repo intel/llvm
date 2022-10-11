@@ -108,8 +108,7 @@ enum class layout {
   row_major,
   col_major,
   packed,
-  dynamic,
-  invalid
+  dynamic
 };
 }
 ```
