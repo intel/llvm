@@ -965,12 +965,13 @@ public:
   ///
   /// By default, performs semantic analysis when building the typeof type.
   /// Subclasses may override this routine to provide different behavior.
-  QualType RebuildTypeOfExprType(Expr *Underlying, SourceLocation Loc);
+  QualType RebuildTypeOfExprType(Expr *Underlying, SourceLocation Loc,
+                                 TypeOfKind Kind);
 
   /// Build a new typeof(type) type.
   ///
   /// By default, builds a new TypeOfType with the given underlying type.
-  QualType RebuildTypeOfType(QualType Underlying);
+  QualType RebuildTypeOfType(QualType Underlying, TypeOfKind Kind);
 
   /// Build a new unary transform type.
   QualType RebuildUnaryTransformType(QualType BaseType,
@@ -4882,7 +4883,8 @@ QualType TreeTransform<Derived>::RebuildQualifiedType(QualType T,
         Replacement = SemaRef.Context.getQualifiedType(
             Replacement.getUnqualifiedType(), Qs);
         T = SemaRef.Context.getSubstTemplateTypeParmType(
-            SubstTypeParam->getReplacedParameter(), Replacement);
+            SubstTypeParam->getReplacedParameter(), Replacement,
+            SubstTypeParam->getPackIndex());
       } else if ((AutoTy = dyn_cast<AutoType>(T)) && AutoTy->isDeduced()) {
         // 'auto' types behave the same way as template parameters.
         QualType Deduced = AutoTy->getDeducedType();
@@ -6228,13 +6230,15 @@ QualType TreeTransform<Derived>::TransformTypeOfExprType(TypeLocBuilder &TLB,
     return QualType();
 
   QualType Result = TL.getType();
+  bool IsUnqual = Result->getAs<TypeOfExprType>()->isUnqual();
   if (getDerived().AlwaysRebuild() ||
       E.get() != TL.getUnderlyingExpr()) {
-    Result = getDerived().RebuildTypeOfExprType(E.get(), TL.getTypeofLoc());
+    Result = getDerived().RebuildTypeOfExprType(
+        E.get(), TL.getTypeofLoc(),
+        IsUnqual ? TypeOfKind::Unqualified : TypeOfKind::Qualified);
     if (Result.isNull())
       return QualType();
   }
-  else E.get();
 
   TypeOfExprTypeLoc NewTL = TLB.push<TypeOfExprTypeLoc>(Result);
   NewTL.setTypeofLoc(TL.getTypeofLoc());
@@ -6247,14 +6251,17 @@ QualType TreeTransform<Derived>::TransformTypeOfExprType(TypeLocBuilder &TLB,
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypeOfType(TypeLocBuilder &TLB,
                                                      TypeOfTypeLoc TL) {
-  TypeSourceInfo* Old_Under_TI = TL.getUnderlyingTInfo();
+  TypeSourceInfo* Old_Under_TI = TL.getUnmodifiedTInfo();
   TypeSourceInfo* New_Under_TI = getDerived().TransformType(Old_Under_TI);
   if (!New_Under_TI)
     return QualType();
 
   QualType Result = TL.getType();
+  bool IsUnqual = Result->getAs<TypeOfType>()->isUnqual();
   if (getDerived().AlwaysRebuild() || New_Under_TI != Old_Under_TI) {
-    Result = getDerived().RebuildTypeOfType(New_Under_TI->getType());
+    Result = getDerived().RebuildTypeOfType(New_Under_TI->getType(),
+                                            IsUnqual ? TypeOfKind::Unqualified
+                                                     : TypeOfKind::Qualified);
     if (Result.isNull())
       return QualType();
   }
@@ -6263,7 +6270,7 @@ QualType TreeTransform<Derived>::TransformTypeOfType(TypeLocBuilder &TLB,
   NewTL.setTypeofLoc(TL.getTypeofLoc());
   NewTL.setLParenLoc(TL.getLParenLoc());
   NewTL.setRParenLoc(TL.getRParenLoc());
-  NewTL.setUnderlyingTInfo(New_Under_TI);
+  NewTL.setUnmodifiedTInfo(New_Under_TI);
 
   return Result;
 }
@@ -6437,11 +6444,8 @@ QualType TreeTransform<Derived>::TransformSubstTemplateTypeParmType(
   if (Replacement.isNull())
     return QualType();
 
-  // Always canonicalize the replacement type.
-  Replacement = SemaRef.Context.getCanonicalType(Replacement);
-  QualType Result
-    = SemaRef.Context.getSubstTemplateTypeParmType(T->getReplacedParameter(),
-                                                   Replacement);
+  QualType Result = SemaRef.Context.getSubstTemplateTypeParmType(
+      T->getReplacedParameter(), Replacement, T->getPackIndex());
 
   // Propagate type-source information.
   SubstTemplateTypeParmTypeLoc NewTL
@@ -13194,13 +13198,6 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
                                                         NewCallOpType);
   }
 
-  // Transform the trailing requires clause
-  ExprResult NewTrailingRequiresClause;
-  if (Expr *TRC = E->getCallOperator()->getTrailingRequiresClause())
-    // FIXME: Concepts: Substitution into requires clause should only happen
-    //                  when checking satisfaction.
-    NewTrailingRequiresClause = getDerived().TransformExpr(TRC);
-
   // Create the local class that will describe the lambda.
 
   // FIXME: DependencyKind below is wrong when substituting inside a templated
@@ -13235,7 +13232,8 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
       E->getCallOperator()->getEndLoc(),
       NewCallOpTSI->getTypeLoc().castAs<FunctionProtoTypeLoc>().getParams(),
       E->getCallOperator()->getConstexprKind(),
-      NewTrailingRequiresClause.get());
+      E->getCallOperator()->getStorageClass(),
+      E->getCallOperator()->getTrailingRequiresClause());
 
   LSI->CallOperator = NewCallOperator;
 
@@ -14843,14 +14841,15 @@ QualType TreeTransform<Derived>::RebuildUnresolvedUsingType(SourceLocation Loc,
 }
 
 template <typename Derived>
-QualType TreeTransform<Derived>::RebuildTypeOfExprType(Expr *E,
-                                                       SourceLocation) {
-  return SemaRef.BuildTypeofExprType(E);
+QualType TreeTransform<Derived>::RebuildTypeOfExprType(Expr *E, SourceLocation,
+                                                       TypeOfKind Kind) {
+  return SemaRef.BuildTypeofExprType(E, Kind);
 }
 
 template<typename Derived>
-QualType TreeTransform<Derived>::RebuildTypeOfType(QualType Underlying) {
-  return SemaRef.Context.getTypeOfType(Underlying);
+QualType TreeTransform<Derived>::RebuildTypeOfType(QualType Underlying,
+                                                   TypeOfKind Kind) {
+  return SemaRef.Context.getTypeOfType(Underlying, Kind);
 }
 
 template <typename Derived>

@@ -200,18 +200,18 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivial>([=]() { return NonTrivialStructWithPtr.i;});
     });
-    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__wrapper_class, int)'
+    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__generated_NonTrivialType)'
 
     NonTrivialType NonTrivialTypeArray[2]{0,0};
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class ArrayOfNonTrivialStruct>([=]() { return NonTrivialTypeArray[0].i;});
     });
-    // CHECK: FunctionDecl {{.*}}ArrayOfNonTrivialStruct{{.*}} 'void (__wrapper_class, int, __wrapper_class, int)'
+    // CHECK: FunctionDecl {{.*}}ArrayOfNonTrivialStruct{{.*}} 'void (__generated_NonTrivialType, __generated_NonTrivialType)'
 
     NonTrivialDerived NonTrivialDerivedStructWithPtr(10);
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivialStructInBase>([=]() { return NonTrivialDerivedStructWithPtr.i;});
     });
-    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__wrapper_class, int, int)'
+    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__generated_NonTrivialDerived)'
   }
 }

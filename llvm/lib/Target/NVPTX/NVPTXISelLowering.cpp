@@ -54,6 +54,7 @@
 #include "llvm/Target/TargetOptions.h"
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <sstream>
@@ -1891,9 +1892,8 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
   }
 
-  Chain = DAG.getCALLSEQ_END(
-      Chain, DAG.getIntPtrConstant(UniqueCallSite, dl, true),
-      DAG.getIntPtrConstant(UniqueCallSite + 1, dl, true), InFlag, dl);
+  Chain =
+      DAG.getCALLSEQ_END(Chain, UniqueCallSite, UniqueCallSite + 1, InFlag, dl);
   InFlag = Chain.getValue(1);
 
   // Append ProxyReg instructions to the chain to make sure that `callseq_end`

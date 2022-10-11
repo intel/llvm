@@ -15,6 +15,8 @@
 #include "llvm/Support/PointerLikeTypeTraits.h"
 
 namespace mlir {
+class AsmState;
+
 /// Instances of the Type class are uniqued, have an immutable identifier and an
 /// optional mutable component.  They wrap a pointer to the storage object owned
 /// by MLIRContext.  Therefore, instances of Type are passed around by value.
@@ -162,6 +164,7 @@ public:
 
   /// Print the current type.
   void print(raw_ostream &os) const;
+  void print(raw_ostream &os, AsmState &state) const;
   void dump() const;
 
   friend ::llvm::hash_code hash_value(Type arg);
@@ -331,16 +334,16 @@ struct CastInfo<
                      std::is_base_of_v<mlir::Type, From>>>
     : NullableValueCastFailed<To>,
       DefaultDoCastIfPossible<To, From, CastInfo<To, From>> {
-  /// Arguments are taken as mlir::Type here and not as From.
-  /// Because when casting from an intermediate type of the hierarchy to one of
-  /// its children, the val.getTypeID() inside T::classof will use the static
-  /// getTypeID of the parent instead of the non-static Type::getTypeID return
-  /// the dynamic ID. so T::classof would end up comparing the static TypeID of
-  /// The children to the static TypeID of its parent making it impossible to
-  /// downcast from the parent to the child
+  /// Arguments are taken as mlir::Type here and not as `From`, because when
+  /// casting from an intermediate type of the hierarchy to one of its children,
+  /// the val.getTypeID() inside T::classof will use the static getTypeID of the
+  /// parent instead of the non-static Type::getTypeID that returns the dynamic
+  /// ID. This means that T::classof would end up comparing the static TypeID of
+  /// the children to the static TypeID of its parent, making it impossible to
+  /// downcast from the parent to the child.
   static inline bool isPossible(mlir::Type ty) {
     /// Return a constant true instead of a dynamic true when casting to self or
-    /// up the hierarchy
+    /// up the hierarchy.
     return std::is_same_v<To, std::remove_const_t<From>> ||
            std::is_base_of_v<To, From> || To::classof(ty);
   }

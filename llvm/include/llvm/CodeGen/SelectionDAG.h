@@ -275,6 +275,7 @@ class SelectionDAG {
   struct NodeExtraInfo {
     CallSiteInfo CSInfo;
     MDNode *HeapAllocSite = nullptr;
+    MDNode *PCSections = nullptr;
     bool NoMerge = false;
   };
   /// Out-of-line extra information for SDNodes.
@@ -333,6 +334,19 @@ public:
     void NodeDeleted(SDNode *N, SDNode *E) override { Callback(N, E); }
 
    private:
+    virtual void anchor();
+  };
+
+  struct DAGNodeInsertedListener : public DAGUpdateListener {
+    std::function<void(SDNode *)> Callback;
+
+    DAGNodeInsertedListener(SelectionDAG &DAG,
+                            std::function<void(SDNode *)> Callback)
+        : DAGUpdateListener(DAG), Callback(std::move(Callback)) {}
+
+    void NodeInserted(SDNode *N) override { Callback(N); }
+
+  private:
     virtual void anchor();
   };
 
@@ -848,6 +862,16 @@ public:
     return getNode(ISD::SPLAT_VECTOR, DL, VT, Op);
   }
 
+  /// Returns a node representing a splat of one value into all lanes
+  /// of the provided vector type.  This is a utility which returns
+  /// either a BUILD_VECTOR or SPLAT_VECTOR depending on the
+  /// scalability of the desired vector type.
+  SDValue getSplat(EVT VT, const SDLoc &DL, SDValue Op) {
+    assert(VT.isVector() && "Can't splat to non-vector type");
+    return VT.isScalableVector() ?
+      getSplatVector(VT, DL, Op) : getSplatBuildVector(VT, DL, Op);
+  }
+
   /// Returns a vector of type ResVT whose elements contain the linear sequence
   ///   <0, Step, Step * 2, Step * 3, ...>
   SDValue getStepVector(const SDLoc &DL, EVT ResVT, APInt StepVal);
@@ -962,6 +986,13 @@ public:
     if (InGlue.getNode())
       Ops.push_back(InGlue);
     return getNode(ISD::CALLSEQ_END, DL, NodeTys, Ops);
+  }
+
+  SDValue getCALLSEQ_END(SDValue Chain, uint64_t Size1, uint64_t Size2,
+                         SDValue Glue, const SDLoc &DL) {
+    return getCALLSEQ_END(
+        Chain, getIntPtrConstant(Size1, DL, /*isTarget=*/true),
+        getIntPtrConstant(Size2, DL, /*isTarget=*/true), Glue, DL);
   }
 
   /// Return true if the result of this operation is always undefined.
@@ -2006,9 +2037,9 @@ public:
   ///     X|Cst == X+Cst iff X&Cst = 0.
   bool isBaseWithConstantOffset(SDValue Op) const;
 
-  /// Test whether the given SDValue is known to never be NaN. If \p SNaN is
-  /// true, returns if \p Op is known to never be a signaling NaN (it may still
-  /// be a qNaN).
+  /// Test whether the given SDValue (or all elements of it, if it is a
+  /// vector) is known to never be NaN. If \p SNaN is true, returns if \p Op is
+  /// known to never be a signaling NaN (it may still be a qNaN).
   bool isKnownNeverNaN(SDValue Op, bool SNaN = false, unsigned Depth = 0) const;
 
   /// \returns true if \p Op is known to never be a signaling NaN.
@@ -2183,6 +2214,15 @@ public:
   MDNode *getHeapAllocSite(const SDNode *Node) const {
     auto I = SDEI.find(Node);
     return I != SDEI.end() ? I->second.HeapAllocSite : nullptr;
+  }
+  /// Set PCSections to be associated with Node.
+  void addPCSections(const SDNode *Node, MDNode *MD) {
+    SDEI[Node].PCSections = MD;
+  }
+  /// Return PCSections associated with Node, or nullptr if none exists.
+  MDNode *getPCSections(const SDNode *Node) const {
+    auto It = SDEI.find(Node);
+    return It != SDEI.end() ? It->second.PCSections : nullptr;
   }
   /// Set NoMergeSiteInfo to be associated with Node if NoMerge is true.
   void addNoMergeSiteInfo(const SDNode *Node, bool NoMerge) {

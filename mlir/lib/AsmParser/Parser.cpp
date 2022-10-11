@@ -802,7 +802,7 @@ ParseResult OperationParser::finalize() {
     return failure();
 
   // Verify that the parsed operations are valid.
-  if (failed(verify(topLevelOp)))
+  if (state.config.shouldVerifyAfterParse() && failed(verify(topLevelOp)))
     return failure();
 
   // If we are populating the parser state, finalize the top-level operation.
@@ -2343,6 +2343,14 @@ public:
   StringRef getKey() const final { return key; }
 
   InFlightDiagnostic emitError() const final { return p.emitError(keyLoc); }
+
+  AsmResourceEntryKind getKind() const final {
+    if (value.isAny(Token::kw_true, Token::kw_false))
+      return AsmResourceEntryKind::Bool;
+    return value.getSpelling().startswith("\"0x")
+               ? AsmResourceEntryKind::Blob
+               : AsmResourceEntryKind::String;
+  }
 
   FailureOr<bool> parseAsBool() const final {
     if (value.is(Token::kw_true))
