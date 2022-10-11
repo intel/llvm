@@ -238,7 +238,7 @@ static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
     EventImpl->flushIfNeeded(Queue);
   }
 }
-
+using namespace std::chrono_literals;
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
@@ -324,7 +324,8 @@ public:
     // unblock user empty command here
     EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
     assert(EmptyCmd && "No empty command found");
-
+    std::this_thread::sleep_for(2000ms);
+    std::cout << "wake up" << std::endl;
     // Completing command's event along with unblocking enqueue readiness of
     // empty command may lead to quick deallocation of MThisCmd by some cleanup
     // process. Thus we'll copy deps prior to completing of event and unblocking
