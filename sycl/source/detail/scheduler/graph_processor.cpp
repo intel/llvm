@@ -52,13 +52,12 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   BlockingT Blocking) {
   if (Cmd == RootCommand || !Cmd->isBlocking() || Blocking)
     return true;
-  if (!Blocking) {
-    const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
-    if (!Cmd->containsBlockedUser(RootCmdEvent))
-      Cmd->addBlockedUser(RootCmdEvent);
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
-  }
+
+  const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
+  if (!Cmd->containsBlockedUser(RootCmdEvent))
+    Cmd->addBlockedUser(RootCmdEvent);
+  EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+  return false;
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(
