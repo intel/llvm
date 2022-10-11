@@ -1193,11 +1193,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     // function, the global should be in the gpu module (which is nested inside
     // another main module).
     std::pair<mlir::memref::GlobalOp, bool> gv;
-    if (function->getParentOp() != module.get()) {
-      // Device function
-      gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"", true, true);
-    } else
-      gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"", true, false);
+    gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"", true, function->getParentOp() != module.get());
 
     auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.type(),
                                                    gv.first.getName());
