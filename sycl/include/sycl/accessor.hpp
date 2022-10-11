@@ -1164,10 +1164,15 @@ public:
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {
 #ifndef NDEBUG
+    const auto *this_const = this;
     (void)getMemoryRange();
+    (void)this_const->getMemoryRange();
     (void)getOffset();
+    (void)this_const->getOffset();
     (void)getPtr();
+    (void)this_const->getPtr();
     (void)getAccessRange();
+    (void)this_const->getAccessRange();
 #endif
   }
 
@@ -2439,8 +2444,11 @@ protected:
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {
 #ifndef NDEBUG
+    const auto *this_const = this;
     (void)getSize();
+    (void)this_const->getSize();
     (void)getPtr();
+    (void)this_const->getPtr();
 #endif
   }
 
