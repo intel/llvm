@@ -17,9 +17,43 @@
 #include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
+namespace mlir {
+namespace sycl {
+/// Table in which operations implementing SYCL methods are registered.
+class MethodRegistry {
+public:
+  /// Register a SYCL method \p methodName for the SYCL type identified by
+  /// \p typeID, being \p opName the name of the SYCL operation representing
+  /// this method.
+  ///
+  /// Calls to `lookupMethod(typeID, methodName)` will return `opName`.
+  ///
+  /// \return Whether the insertion happened.
+  bool registerMethod(mlir::TypeID typeID, llvm::StringRef methodName,
+                      llvm::StringRef opName);
+
+  /// Returns the name of the operation implementing the queried
+  /// method, if present.
+  ///
+  /// For a method to be queried, it must have been registered
+  /// first.
+  llvm::Optional<llvm::StringRef> lookupMethod(::mlir::TypeID Type,
+                                               llvm::StringRef Name) const;
+
+private:
+  llvm::DenseMap<std::pair<mlir::TypeID, llvm::StringRef>, llvm::StringRef>
+      methods;
+};
+} // namespace sycl
+} // namespace mlir
+
 /// Include the auto-generated header file containing the declaration of the
 /// sycl dialect.
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
+
+/// Include the header file containing the declaration of the sycl operation
+/// interfaces.
+#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
 
 /// Include the auto-generated header file containing the declarations of the
 /// sycl operations.

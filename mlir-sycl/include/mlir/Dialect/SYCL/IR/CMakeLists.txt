@@ -1,2 +1,8 @@
 add_mlir_dialect(SYCLOps sycl)
-add_mlir_doc(SYCLOps SYCLOps Dialects/ -gen-op-doc)
+add_mlir_doc(SYCLOps SYCLOps Dialects/ -gen-op-doc -gen-op-interface-doc)
+
+set(LLVM_TARGET_DEFINITIONS SYCLOpInterfaces.td)
+mlir_tablegen(SYCLOpInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(SYCLOpInterfaces.cpp.inc -gen-op-interface-defs)
+add_public_tablegen_target(SYCLOpInterfacesIncGen)
+add_dependencies(mlir-generic-headers SYCLOpInterfacesIncGen)

@@ -9,10 +9,7 @@
 #include "clang-mlir.h"
 #include "utils.h"
 
-#define GET_OP_CLASSES
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
 #define DEBUG_TYPE "CGExpr"
 
@@ -837,9 +834,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
       mlirclang::isNamespaceSYCL(ctorDecl->getEnclosingNamespaceContext());
   bool ShouldEmit = !isSyclCtor;
 
-  std::string mangledName;
-  MLIRScanner::getMangledFuncName(mangledName, cast<FunctionDecl>(ctorDecl),
-                                  Glob.getCGM());
+  std::string mangledName = MLIRScanner::getMangledFuncName(
+      cast<FunctionDecl>(*ctorDecl), Glob.getCGM());
   mangledName = (PrefixABI + mangledName);
   if (isSupportedFunctions(mangledName))
     ShouldEmit = true;
@@ -1018,8 +1014,8 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
 
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())) {
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
-        std::string name;
-        MLIRScanner::getMangledFuncName(name, Func, Glob.getCGM());
+        std::string name =
+            MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
         Op = builder.create<mlir::sycl::SYCLConstructorOp>(loc, RD->getName(),
                                                            name, Args);
       }
@@ -1047,8 +1043,7 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
         OptRetType = RetType;
       }
 
-      std::string name;
-      MLIRScanner::getMangledFuncName(name, Func, Glob.getCGM());
+      std::string name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
       Op = builder.create<mlir::sycl::SYCLCallOp>(
           loc, OptRetType, OptFuncType, Func->getNameAsString(), name, Args);
     }

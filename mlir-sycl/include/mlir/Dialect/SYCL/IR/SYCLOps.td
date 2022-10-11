@@ -15,6 +15,7 @@ include "mlir/IR/OpBase.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "SYCLOpInterfaces.td"
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPE DECLARATIONS
@@ -24,10 +25,49 @@ def SYCL_Dialect : Dialect {
   let name = "sycl";
   let cppNamespace = "::mlir::sycl";
   let useDefaultTypePrinterParser = 1;
+  let extraClassDeclaration = [{
+    MethodRegistry methods;
+
+    /// Each operation will be registered as usual in an MLIR dialect
+    /// and also will be registered as a SYCL method if it implements one.
+    template <typename... Args> void addOperations();
+
+    /// Returns the name of the operation implementing the queried
+    /// method, if present.
+    ///
+    /// For a method to be queried, it must have been registered
+    /// first.
+    llvm::Optional<llvm::StringRef> findMethod(::mlir::TypeID Type,
+                                               llvm::StringRef Name) const;
+  }];
 }
 
 class SYCL_Op<string mnemonic, list<Trait> traits = []>
     : Op<SYCL_Dialect, mnemonic, traits>;
+
+class SYCLMethodOpInterfaceImpl<
+    string mnemonic, string type, list<string> methodNames, list<Trait> traits = []>
+        : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface])> {
+  string baseType = type;
+  list<string> memberFunctionNames = methodNames;
+  int arrSize = !size(memberFunctionNames);
+
+  let extraClassDeclaration = [{
+    static constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> methods{{ }] #
+      !interleave(!foreach(name, memberFunctionNames, "\"" # name # "\""), ", ") # [{
+     }};
+    static ::mlir::TypeID getTypeID() { return ::mlir::sycl::}] # type # [{::getTypeID(); }
+    static constexpr llvm::ArrayRef<llvm::StringLiteral> getMethodNames() { return methods; }
+    ::mlir::Type getBaseType() { return BaseType(); }
+    llvm::StringRef getMangledFunctionName() { return MangledFunctionName(); }
+    llvm::StringRef getFunctionName() { return FunctionName(); }
+    llvm::StringRef getTypeName() { return TypeName(); }
+  }];
+
+  let extraClassDefinition = [{
+  constexpr std::array<llvm::StringLiteral, }] # arrSize # [{> $cppClass::methods;
+  }];
+}
 
 def SYCL_IDType : DialectType<SYCL_Dialect, CPred<"$_self.isa<IDType>()">, "sycl::id type">;
 def SYCL_AccessorCommonType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorCommonType>()">, "sycl::accessor_common type">;
