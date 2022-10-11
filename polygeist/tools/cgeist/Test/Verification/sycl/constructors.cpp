@@ -31,7 +31,7 @@
 // CHECK-NEXT: memref.global @__spirv_BuiltInGlobalSize : memref<3xi64>
 // CHECK-NEXT: memref.global @__spirv_BuiltInGlobalInvocationId : memref<3xi64>
 
-// Ensure the spriv functions that reference these globals are not filtered out
+// Ensure the spirv functions that reference these globals are not filtered out
 // CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_xv()
 // CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_yv()
 // CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_zv()
