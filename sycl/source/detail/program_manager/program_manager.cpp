@@ -564,11 +564,10 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     switch (AspectNum) {
 #include <sycl/info/aspects.def>
 #include <sycl/info/aspects_deprecated.def>
-    default:
-      throw sycl::exception(
-          errc::kernel_not_supported,
-          "Unknown aspect " + std::to_string(static_cast<unsigned>(AspectNum)));
     }
+    throw sycl::exception(errc::kernel_not_supported,
+                          "Unknown aspect " +
+                              std::to_string(static_cast<unsigned>(AspectNum)));
   };
 #undef __SYCL_ASPECT_DEPRECATED_ALIAS
 #undef __SYCL_ASPECT_DEPRECATED
@@ -594,7 +593,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   }
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
-                 &LinkOpts, SpecConsts, &KernelName] {
+                 &LinkOpts, SpecConsts] {
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
 
     const detail::plugin &Plugin = ContextImpl->getPlugin();
