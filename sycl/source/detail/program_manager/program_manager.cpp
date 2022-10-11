@@ -580,11 +580,11 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
       continue;
     ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
     // 8 because we need to skip 64-bits of size of the byte array
-    auto *AIt = reinterpret_cast<const std::uint32_t *>(&Aspects[8]);
-    auto *AEnd =
-        reinterpret_cast<const std::uint32_t *>(&Aspects[0] + Aspects.size());
+    const uint8_t *AIt = &Aspects[8];
+    const uint8_t *AEnd = &Aspects[0] + Aspects.size();
     while (AIt != AEnd) {
-      auto Aspect = static_cast<aspect>(*AIt);
+      aspect Aspect;
+      std::memcpy(&Aspect, AIt, sizeof(aspect));
       if (!Dev->has(Aspect))
         throw sycl::exception(errc::kernel_not_supported,
                               "Required aspect " + getAspectNameStr(Aspect) +
