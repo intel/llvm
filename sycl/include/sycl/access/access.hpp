@@ -58,8 +58,7 @@ enum class address_space : int {
 enum class decorated : int {
   no = 0,
   yes = 1,
-  legacy __SYCL2020_DEPRECATED(
-      "Legacy 'multi_ptr' is deprecated since SYCL 2020") = 2
+  legacy = 2
 };
 } // namespace access
 

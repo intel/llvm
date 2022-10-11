@@ -639,8 +639,8 @@ private:
   decorated_type *m_Pointer;
 };
 
-// Legacy specialization of multi_ptr. Deprecated through deprecation of legacy
-// decoration.
+// Legacy specialization of multi_ptr.
+// TODO: Add deprecation warning here when possible.
 template <typename ElementType, access::address_space Space>
 class multi_ptr<ElementType, Space, access::decorated::legacy> {
 public:
@@ -984,8 +984,8 @@ private:
   pointer_t m_Pointer;
 };
 
-// Legacy specialization of multi_ptr for void. Deprecated through deprecation
-// of legacy decoration.
+// Legacy specialization of multi_ptr for void.
+// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
 class multi_ptr<void, Space, access::decorated::legacy> {
 public:
@@ -1125,8 +1125,8 @@ private:
   pointer_t m_Pointer;
 };
 
-// Legacy specialization of multi_ptr for const void. Deprecated through
-// deprecation of legacy decoration.
+// Legacy specialization of multi_ptr for const void.
+// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
 class multi_ptr<const void, Space, access::decorated::legacy> {
 public:
