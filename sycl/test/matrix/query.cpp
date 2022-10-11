@@ -1,4 +1,4 @@
-// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX=1 -fsycl -o query %s
+// RUN: %clangxx -fsycl -o query %s
 #include <iostream>
 #include <sycl/sycl.hpp>
 
