@@ -2755,7 +2755,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
 
 std::pair<mlir::memref::GlobalOp, bool>
 MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
-                                   bool tryInit, bool isGPU) {
+                                   bool tryInit, FunctionContext funcContext) {
   std::string name = prefix + CGM.getMangledName(FD).str();
 
   name = (PrefixABI + name);
@@ -2784,7 +2784,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   mlir::Attribute initial_value;
 
   mlir::OpBuilder builder(module->getContext());
-  if (isGPU)
+  if (funcContext == FunctionContext::SYCLDevice)
     builder.setInsertionPointToStart(
         &(getDeviceModule(*module).body().front()));
   else
@@ -2835,7 +2835,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
       // In case of device function, we will put the block in the forefront of
       // the GPU module, else the block will go at the forefront of the main
       // module.
-      if (isGPU) {
+      if (funcContext == FunctionContext::SYCLDevice) {
         B->moveBefore(&(getDeviceModule(*module).body().front()));
         ms.getBuilder().setInsertionPointToStart(B);
       } else
