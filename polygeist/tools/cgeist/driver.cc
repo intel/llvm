@@ -49,6 +49,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
@@ -724,7 +725,21 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     return rc;
   }
 
-  if (EmitLLVM || !EmitAssembly) {
+  bool EmitBC = EmitLLVM && !EmitAssembly;
+  bool EmitMLIR = EmitAssembly && !EmitLLVM;
+  if (EmitMLIR) {
+    if (Output == "-") {
+      // Write the MLIR to stdout.
+      LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
+      module->print(outs());
+    } else {
+      // Write the MLIR to a file.
+      std::error_code EC;
+      llvm::raw_fd_ostream out(Output, EC);
+      module->print(out);
+      LLVM_DEBUG(dbgs() << "*** Dumped MLIR in file '" << Output << "' ***\n");
+    }
+  } else {
     // Generate LLVM IR.
     llvm::LLVMContext llvmContext;
     auto llvmModule = mlir::translateModuleToLLVMIR(module.get(), llvmContext);
@@ -738,7 +753,28 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     llvmModule->setTargetTriple(triple.getTriple());
     LLVM_DEBUG(dbgs() << "*** Translated MLIR to LLVM IR successfully ***\n");
 
-    if (!EmitAssembly) {
+    if (EmitBC) {
+      assert(Output != "-" && "Expecting output file");
+      // Write the LLVM BC to a file.
+      std::error_code EC;
+      llvm::raw_fd_ostream out(Output, EC);
+      WriteBitcodeToFile(*llvmModule, out);
+      LLVM_DEBUG(dbgs() << "*** Dumped LLVM BC in file '" << Output
+                        << "' ***\n");
+    } else if (EmitLLVM) {
+      if (Output == "-") {
+        // Write the LLVM IR to stdout.
+        LLVM_DEBUG(dbgs() << "*** LLVM IR Produced ***\n");
+        llvm::outs() << *llvmModule << "\n";
+      } else {
+        // Write the LLVM IR to a file.
+        std::error_code EC;
+        llvm::raw_fd_ostream out(Output, EC);
+        out << *llvmModule << "\n";
+        LLVM_DEBUG(dbgs() << "*** Dumped LLVM IR in file '" << Output
+                          << "' ***\n");
+      }
+    } else {
       // Compile the LLVM IR.
       auto tmpFile =
           llvm::sys::fs::TempFile::create("/tmp/intermediate%%%%%%%.ll");
@@ -759,28 +795,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
         return -1;
       }
       return res;
-    } else if (Output == "-") {
-      // Write the LLVM IR to stdout.
-      LLVM_DEBUG(dbgs() << "*** LLVM IR Produced ***\n");
-      llvm::outs() << *llvmModule << "\n";
-    } else {
-      // Write the LLVM IR to a file.
-      std::error_code EC;
-      llvm::raw_fd_ostream out(Output, EC);
-      out << *llvmModule << "\n";
-      LLVM_DEBUG(dbgs() << "*** Dumped LLVM IR in file '" << Output
-                        << "' ***\n");
     }
-  } else if (Output == "-") {
-    // Write the MLIR to stdout.
-    LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
-    module->print(outs());
-  } else {
-    // Write the MLIR to a file.
-    std::error_code EC;
-    llvm::raw_fd_ostream out(Output, EC);
-    module->print(out);
-    LLVM_DEBUG(dbgs() << "*** Dumped MLIR in file '" << Output << "' ***\n");
   }
 
   return 0;
