@@ -729,8 +729,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
           varLoc, Glob.GetOrCreateLLVMGlobal(
                       decl, (function.getName() + "@static@").str()));
     } else {
-      auto gv = Glob.GetOrCreateGlobal(
-          decl, (function.getName() + "@static@").str(), /*tryInit*/ false);
+      auto gv =
+          Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str(),
+                                 /*tryInit*/ false);
       op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.type(),
                                                 gv.first.getName());
     }
@@ -2754,7 +2755,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
 
 std::pair<mlir::memref::GlobalOp, bool>
 MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
-                                   bool tryInit) {
+                                   bool tryInit, FunctionContext funcContext) {
   std::string name = prefix + CGM.getMangledName(FD).str();
 
   name = (PrefixABI + name);
@@ -2783,7 +2784,11 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   mlir::Attribute initial_value;
 
   mlir::OpBuilder builder(module->getContext());
-  builder.setInsertionPointToStart(module->getBody());
+  if (funcContext == FunctionContext::SYCLDevice)
+    builder.setInsertionPointToStart(
+        &(getDeviceModule(*module).body().front()));
+  else
+    builder.setInsertionPointToStart(module->getBody());
 
   auto VD = dyn_cast<VarDecl>(FD);
   if (!VD)
@@ -2815,7 +2820,6 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
     lnk = mlir::SymbolTable::Visibility::Public;
     break;
   }
-
   auto globalOp = builder.create<mlir::memref::GlobalOp>(
       module->getLoc(), builder.getStringAttr(name),
       /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
@@ -2828,7 +2832,14 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
     if (auto init = VD->getInit()) {
       MLIRScanner ms(*this, module, LTInfo);
       mlir::Block *B = new Block();
-      ms.setEntryAndAllocBlock(B);
+      // In case of device function, we will put the block in the forefront of
+      // the GPU module, else the block will go at the forefront of the main
+      // module.
+      if (funcContext == FunctionContext::SYCLDevice) {
+        B->moveBefore(&(getDeviceModule(*module).body().front()));
+        ms.getBuilder().setInsertionPointToStart(B);
+      } else
+        ms.setEntryAndAllocBlock(B);
       OpBuilder builder(module->getContext());
       builder.setInsertionPointToEnd(B);
       auto op = builder.create<memref::AllocaOp>(module->getLoc(), mr);
@@ -3158,36 +3169,6 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     if (StringRef(name).startswith("_ZN9__gnu"))
       continue;
     if (name == "cudaGetDevice" || name == "cudaMalloc")
-      continue;
-
-    // Temp HACK: filter out SPIRV builtins that reference global variables.
-    // The correct fix is to bring into the GPU module the global variable
-    // these builtin function reference.
-    if (StringRef(name).startswith("_Z28__spirv_GlobalInvocationId"))
-      continue;
-    if (StringRef(name).startswith("_Z20__spirv_GlobalSize"))
-      continue;
-    if (StringRef(name).startswith("_Z22__spirv_GlobalOffset"))
-      continue;
-    if (StringRef(name).startswith("_Z23__spirv_NumWorkgroups"))
-      continue;
-    if (StringRef(name).startswith("_Z23__spirv_WorkgroupSize"))
-      continue;
-    if (StringRef(name).startswith("_Z23__spirv_WorkgroupSize"))
-      continue;
-    if (StringRef(name).startswith("_Z21__spirv_WorkgroupId"))
-      continue;
-    if (StringRef(name).startswith("_Z27__spirv_LocalInvocationId"))
-      continue;
-    if (StringRef(name).startswith("_Z20__spirv_SubgroupSizev"))
-      continue;
-    if (StringRef(name).startswith("_Z23__spirv_SubgroupMaxSizev"))
-      continue;
-    if (StringRef(name).startswith("_Z20__spirv_NumSubgroupsv"))
-      continue;
-    if (StringRef(name).startswith("_Z18__spirv_SubgroupIdv"))
-      continue;
-    if (StringRef(name).startswith("_Z33__spirv_SubgroupLocalInvocationIdv"))
       continue;
 
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&

@@ -1189,7 +1189,15 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
                            /*isReference*/ true);
     }
 
-    auto gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"");
+    // We need to decide where to put the Global.  If we are in a device
+    // module, the global should be in the gpu module (which is nested inside
+    // another main module).
+    std::pair<mlir::memref::GlobalOp, bool> gv = Glob.GetOrCreateGlobal(
+        VD, /*prefix=*/"", true,
+        isa<mlir::gpu::GPUModuleOp>(function->getParentOp())
+            ? FunctionContext::SYCLDevice
+            : FunctionContext::Host);
+
     auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.type(),
                                                    gv.first.getName());
     bool isArray = gv.second;

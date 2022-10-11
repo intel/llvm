@@ -200,7 +200,8 @@ public:
 
   std::pair<mlir::memref::GlobalOp, bool>
   GetOrCreateGlobal(const clang::ValueDecl *VD, std::string prefix,
-                    bool tryInit = true);
+                    bool tryInit = true,
+                    FunctionContext funcContext = FunctionContext::Host);
 
   void run();
 
