@@ -73,7 +73,7 @@ We introduce a new class called `joint_matrix`. The user needs to specify the ty
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename T, use Use,
           size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent,
-          layout Layout, typename Group = sub_group>
+          layout Layout = layout::dynamic, typename Group = sub_group>
 struct joint_matrix {
     joint_matrix(Group g) {}
 };
@@ -147,7 +147,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
           use Use, access::address_space Space>
   void joint_matrix_load(Group sg,
-    joint_matrix<T, Use, NumRows, NumCols, Layout::dynamic, Group> &res,
+    joint_matrix<T, Use, NumRows, NumCols, layout::dynamic, Group> &res,
     multi_ptr<T, Space> src, size_t stride, layout memL);
     
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
