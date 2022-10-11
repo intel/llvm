@@ -2834,7 +2834,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
       mlir::Block *B = new Block();
       // In case of device function, we will put the block in the forefront of
       // the GPU module, else the blokc will go at the forefront of the main
-      // module
+      // module.
       if (isGPU) {
         B->moveBefore(&(getDeviceModule(*module).body().front()));
         ms.getBuilder().setInsertionPointToStart(B);
