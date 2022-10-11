@@ -127,9 +127,9 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
   auto DecorIt = SpirvDecorMap.find(Attr.getKindAsString());
   if (DecorIt == SpirvDecorMap.end())
     return nullptr;
-  Decor Decor = DecorIt->second;
-  uint32_t DecorCode = Decor.Code;
-  switch (Decor.Type) {
+  Decor DecorFound = DecorIt->second;
+  uint32_t DecorCode = DecorFound.Code;
+  switch (DecorFound.Type) {
     case DecorValueTy::uint32:
       return buildSpirvDecorMetadata(Ctx, DecorCode,
                                      getAttributeAsInteger<uint32_t>(Attr));
@@ -143,14 +143,17 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
 /// Tries to generate a SPIR-V execution mode metadata node from an attribute.
 /// If the attribute is unknown \c None will be returned.
 ///
-/// @param Ctx   [in] the LLVM context.
+/// @param M     [in] the LLVM module.
 /// @param Attr  [in] the LLVM attribute to generate metadata for.
 ///
 /// @returns a pair with the name of the resulting metadata and a pointer to
 ///          the metadata node with its values if the attribute has a
 ///          corresponding SPIR-V execution mode. Otherwise \c None is returned.
 Optional<std::pair<std::string, MDNode *>>
-attributeToExecModeMetadata(LLVMContext &Ctx, const Attribute &Attr) {
+attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
+  LLVMContext &Ctx = M.getContext();
+  const DataLayout &DLayout = M.getDataLayout();
+
   // Currently, only string attributes are supported
   if (!Attr.isStringAttribute())
     return None;
@@ -172,18 +175,22 @@ attributeToExecModeMetadata(LLVMContext &Ctx, const Attribute &Attr) {
     // SYCL work-group sizes must be reversed for SPIR-V.
     std::reverse(ValStrs.begin(), ValStrs.end());
 
+    // Use integer pointer size as closest analogue to size_t.
+    IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
+    IntegerType *SizeTTy = Type::getIntNTy(Ctx, IntPtrTy->getBitWidth());
+    unsigned SizeTBitSize = SizeTTy->getBitWidth();
+
     // Get the integers from the strings.
-    IntegerType *SizeTTy = Type::getIntNTy(Ctx, sizeof(size_t) * 8);
     SmallVector<Metadata *, 3> MDVals;
     for (StringRef ValStr : ValStrs)
       MDVals.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
-          SizeTTy, APInt(sizeof(size_t) * 8, ValStr, 10))));
+          SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
 
     // The SPIR-V translator expects 3 values, so we pad the remaining
     // dimensions with 1.
     for (size_t I = MDVals.size(); I < 3; ++I)
       MDVals.push_back(ConstantAsMetadata::get(
-          Constant::getIntegerValue(SizeTTy, APInt(sizeof(size_t) * 8, 1))));
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, 1))));
 
     const char *MDName = (AttrKindStr == "sycl-work-group-size")
                              ? "reqd_work_group_size"
@@ -258,7 +265,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
       if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
         MDOps.push_back(SPIRVMetadata);
-      else if (auto NamedMetadata = attributeToExecModeMetadata(Ctx, Attribute))
+      else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
         NamedMDOps.push_back(*NamedMetadata);
     }
 
