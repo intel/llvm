@@ -10,6 +10,7 @@ __attribute__((sycl_device)) __attribute__((sycl_explicit_simd)) void esimd_func
 // CHECK-ESIMD-DAG: define {{.*}}spir_kernel void @{{.*}}kernel_cm() #{{[0-9]+}} !sycl_explicit_simd !{{[0-9]+}} !intel_reqd_sub_group_size ![[SGSIZE1:[0-9]+]] {{.*}}{
 // CHECK-ESIMD-DAG: define {{.*}}spir_func void @{{.*}}esimd_funcv() #{{[0-9]+}} !sycl_explicit_simd !{{[0-9]+}} !intel_reqd_sub_group_size ![[SGSIZE1]] {
 // CHECK-ESIMD-DAG: define {{.*}}spir_func void @{{.*}}shared_funcv() #{{[0-9]+}} {
+// CHECK-ESIMD-DAG: define linkonce_odr spir_func void @_ZN12ESIMDFunctorclEv({{.*}}) #{{[0-9]+}} {{.*}} !sycl_explicit_simd !{{[0-9]+}} {
 
 class ESIMDFunctor {
 public:

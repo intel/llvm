@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 enum class test_type { value1, value2, value3 };
 
@@ -23,18 +23,19 @@ int main() {
   kernel<class test_kernel>([=]() {
     // Global variables used directly
     foo(global_value);
-    // CHECK:  [[LOAD:%[a-z0-9.]+]] = load ptr addrspace(4){{.*}}
     // CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable(4) addrspacecast (ptr addrspace(1) @{{.*}}global_value to ptr addrspace(4)))
     int a = my_array[0];
-    // CHECK: store i32 42, ptr addrspace(4) %a
+    // CHECK: [[LOAD:%[0-9]+]] = load i32, ptr addrspace(4)
+    // CHECK: store i32 [[LOAD]], ptr addrspace(4) %a
     int b = some_const;
     // Constant used directly
     // CHECK: store i32 1, ptr addrspace(4) %b
     foo(local_value);
     // Local variables and constexprs captured by lambda
-    // CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable(4) [[LOAD]])
+    // CHECK:  [[GEP:%[a-z_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) %{{.*}}, i32 0, i32 0
+    // CHECK: call spir_func void @{{.*}}foo{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable(4) [[GEP]])
     int some_device_local_var = some_local_var;
-    // CHECK:  [[GEP1:%[a-z_.]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) %{{.*}}, i32 0, i32 1
+    // CHECK:  [[GEP1:%[a-z_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) %{{.*}}, i32 0, i32 1
     // CHECK:  [[LOAD1:%[0-9]+]] = load i32, ptr addrspace(4) [[GEP1]]
     // CHECK:  store i32 [[LOAD1]], ptr addrspace(4) %some_device_local_var
   });

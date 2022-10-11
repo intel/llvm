@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // This test checks a kernel argument that is union with both array and non-array fields.
 
@@ -39,3 +39,4 @@ int main() {
 // CHECK: [[MEMCPY_DST:%[0-9a-zA-Z_]+]] = bitcast %union.{{.*}}MyUnion addrspace(4)* [[L_STRUCT_ADDR]] to i8 addrspace(4)*
 // CHECK: [[MEMCPY_SRC:%[0-9a-zA-Z_]+]] = bitcast %union.{{.*}}MyUnion addrspace(4)* [[MEM_ARGAS]] to i8 addrspace(4)*
 // CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[MEMCPY_DST]], i8 addrspace(4)* align 4 [[MEMCPY_SRC]], i64 12, i1 false)
+// CHECK: call spir_func void @{{.*}}(%class.anon addrspace(4)* {{[^,]*}} [[LOCAL_OBJECTAS]])
