@@ -292,6 +292,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
       ReadLockT Lock(MGraphLock);
+      std::cout << "waitForRecordToFinish before" << std::endl;
       waitForRecordToFinish(Record, Lock);
     }
     std::cout << "waited" << std::endl;
@@ -527,7 +528,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       MDeferredMemObjRelease.swap(MTempStorage);
     }
-    for (auto entry : MTempStorage) {
+    for (auto &entry : MTempStorage) {
       entry.reset();
       std::cout << "entry is deleted" << std::endl;
     }
