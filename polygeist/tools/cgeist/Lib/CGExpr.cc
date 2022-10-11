@@ -1190,7 +1190,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     }
 
     // We need to decide where to put the Global.  If we are in a device
-    // function, the global should be in the gpu module (which is nested inside
+    // module, the global should be in the gpu module (which is nested inside
     // another main module).
     std::pair<mlir::memref::GlobalOp, bool> gv = Glob.GetOrCreateGlobal(
         VD, /*prefix=*/"", true,
