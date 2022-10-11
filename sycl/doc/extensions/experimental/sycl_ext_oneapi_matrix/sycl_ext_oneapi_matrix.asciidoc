@@ -20,20 +20,20 @@
 
 == Notice
 
-Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-This extension is written against the SYCL 2020 revision 3 specification.  All
+This extension is written against the SYCL 2020 revision 5 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 
 **_NOTE:_** _This document describes the current design and API for the matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX) and DPAS_
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX), DPAS and Nvidia(R) Tensor Cores._
 
 ## Introduction
 This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, DPAS in Intel GPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
@@ -271,7 +271,7 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 
 IMPORTANT: The WI data to joint matrix mapping coordinates information is not implemented yet.
 
-IMPORTANT: In the Tensore Cores implementation, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the Tensor Cores backend.
+IMPORTANT: In the Tensor Cores implementation, it is possible to know how many elements are owned by each WI at compile time. In this case, `wi_data` can be of type `marray`. An additional interface will be provided for the Tensor Cores backend.
 
 ## VNNI/Packed Layout
 Intel AMX and DPAS compute assumes that the B tile register (src1) is in the VNNI format as they need 32bit of K-data in A and B to be contiguous in memory. 
@@ -640,6 +640,8 @@ for (int i = 0; i < length; ++i) {
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
 
 - In the future looking APIs, `get_wi_data` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
+
+- `dynamic_extent` on the shape of `joint_matrix` is only available on Intel AMX. Should this be part of the API?  
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
