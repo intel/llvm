@@ -1498,7 +1498,7 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
     visitComplexArray(Owner, Field, ArrayTy, Handlers...);
   } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
                  Value) {
-    // We are currently in PointerHandler visitor
+    // We are currently in PointerHandler visitor.
     if (Field->hasAttr<SYCLGenerateNewTypeAttr>()) {
       // This is an array of pointers, or an array of a type containing
       // pointers.
@@ -1877,7 +1877,7 @@ static QualType ModifyAddressSpace(Sema &SemaRef, QualType Ty) {
   Qualifiers Quals = PointeeTy.getQualifiers();
   auto AS = Quals.getAddressSpace();
   // Leave global_device and global_host address spaces as is to help FPGA
-  // device in memory allocations
+  // device in memory allocations.
   if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
       AS != LangAS::sycl_global_host)
     Quals.setAddressSpace(LangAS::sycl_global);
@@ -1975,9 +1975,10 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-
     CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
 
+    // Add this record as a field of it's parent record if it is not an
+    // array element.
     if (!isArrayElement(FD, Ty))
       addField(FD, QualType(ModifiedRD->getTypeForDecl(), 0));
     else
@@ -2019,7 +2020,7 @@ public:
       // Add this array field as a field of it's parent record.
       addField(FD, ModifiedArray);
     } else {
-      // Multi-dimensional array element
+      // Multi-dimensional array element.
       ModifiedArrayElementsOrArray.push_back(ModifiedArray);
     }
 
@@ -3202,17 +3203,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   Expr *createArraySubscriptExpr(uint64_t Index, Expr *ArrayRef) {
     QualType SizeT = SemaRef.getASTContext().getSizeType();
-
     llvm::APInt IndexVal{
         static_cast<unsigned>(SemaRef.getASTContext().getTypeSize(SizeT)),
         Index, SizeT->isSignedIntegerType()};
-
     auto IndexLiteral = IntegerLiteral::Create(
         SemaRef.getASTContext(), IndexVal, SizeT, KernelCallerSrcLoc);
-
     ExprResult IndexExpr = SemaRef.CreateBuiltinArraySubscriptExpr(
         ArrayRef, KernelCallerSrcLoc, IndexLiteral, KernelCallerSrcLoc);
-
     assert(!IndexExpr.isInvalid());
     return IndexExpr.get();
   }
@@ -3449,6 +3446,7 @@ public:
     CollectionInitExprs.pop_back();
     ArrayInfos.pop_back();
 
+    // Remove the IndexExpr.
     if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
       MemberExprBases.pop_back();
     else
