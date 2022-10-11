@@ -9407,9 +9407,19 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
       Targets += ',';
     Targets += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Targets += '-';
-    std::string NormalizedTriple =
-        Dep.DependentToolChain->getTriple().normalize();
-    Targets += NormalizedTriple;
+    // When -fsycl-force-target is used, this value overrides the expected
+    // output type we are creating deps for.
+    if (Dep.DependentOffloadKind == Action::OFK_SYCL &&
+        TCArgs.hasArg(options::OPT_fsycl_force_target_EQ)) {
+      StringRef Val(
+          TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      Targets += TT.normalize();
+    } else {
+      std::string NormalizedTriple =
+          Dep.DependentToolChain->getTriple().normalize();
+      Targets += NormalizedTriple;
+    }
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
