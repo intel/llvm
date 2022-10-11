@@ -9,7 +9,7 @@
 
 // Only runs on DPAS because AMX implementation does not support half data type
 // yet
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX=1
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include <iostream>
