@@ -289,12 +289,14 @@ public:
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
+    std::cout << "started" << std::endl;
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
+      std::cout << "waitForEvents failed" << std::endl;
       std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
           std::string("Couldn't wait for host-task's dependencies"),
           WaitResult));
@@ -306,6 +308,8 @@ public:
     }
 
     try {
+      std::cout << " we're ready to call the user-defined lambda now" << std::endl;
+
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         interop_handle IH{MReqToMem, HostTask.MQueue,
@@ -319,13 +323,12 @@ public:
       HostTask.MQueue->reportAsyncException(std::current_exception());
     }
 
+    std::cout << " we called the user-defined lambda now" << std::endl;
     HostTask.MHostTask.reset();
 
     // unblock user empty command here
     EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
     assert(EmptyCmd && "No empty command found");
-    std::this_thread::sleep_for(2000ms);
-    std::cout << "wake up" << std::endl;
     // Completing command's event along with unblocking enqueue readiness of
     // empty command may lead to quick deallocation of MThisCmd by some cleanup
     // process. Thus we'll copy deps prior to completing of event and unblocking
@@ -343,6 +346,8 @@ public:
       MThisCmd->MEvent->setComplete();
 
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+      std::this_thread::sleep_for(2000ms);
+      std::cout << "wake up" << std::endl;
 
       for (const DepDesc &Dep : Deps)
         Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
