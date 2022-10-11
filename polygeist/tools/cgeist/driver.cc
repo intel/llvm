@@ -725,9 +725,9 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     return rc;
   }
 
-  bool EmitBC = EmitLLVM && !EmitAssembly;
-  bool EmitMLIR = EmitAssembly && !EmitLLVM;
-  if (EmitMLIR) {
+  bool emitBC = EmitLLVM && !EmitAssembly;
+  bool emitMLIR = EmitAssembly && !EmitLLVM;
+  if (emitMLIR) {
     if (Output == "-") {
       // Write the MLIR to stdout.
       LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
@@ -754,7 +754,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     llvmModule->setTargetTriple(triple.getTriple());
     LLVM_DEBUG(dbgs() << "*** Translated MLIR to LLVM IR successfully ***\n");
 
-    if (EmitBC) {
+    if (emitBC) {
       assert(Output != "-" && "Expecting output file");
       // Write the LLVM BC to a file.
       std::error_code EC;
