@@ -150,7 +150,7 @@ static inline _iml_bf16 __fma(_iml_bf16 x, _iml_bf16 y, _iml_bf16 z) {
   float tmp_x = __bfloat162float(x.get_internal());
   float tmp_y = __bfloat162float(y.get_internal());
   float tmp_z = __bfloat162float(z.get_internal());
-  float res = __fma<float>(tmp_x, tmp_y, tmp_z);
+  float res = __fma(tmp_x, tmp_y, tmp_z);
   return _iml_bf16(res);
 }
 
