@@ -1195,7 +1195,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     std::pair<mlir::memref::GlobalOp, bool> gv;
     if (isa<mlir::gpu::GPUModuleOp>(function->getParentOp()))
       gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"", true,
-                                FunctionContext::SYCLDevice);
+                                  FunctionContext::SYCLDevice);
     else
       gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"", true);
 
