@@ -308,7 +308,8 @@ public:
     }
 
     try {
-      std::cout << " we're ready to call the user-defined lambda now" << std::endl;
+      std::cout << " we're ready to call the user-defined lambda now"
+                << std::endl;
 
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
