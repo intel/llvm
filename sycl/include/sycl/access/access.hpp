@@ -55,11 +55,7 @@ enum class address_space : int {
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
-enum class decorated : int {
-  no = 0,
-  yes = 1,
-  legacy = 2
-};
+enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 } // namespace access
 
 using access::target;
