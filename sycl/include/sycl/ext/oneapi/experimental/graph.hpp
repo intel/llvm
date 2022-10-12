@@ -125,12 +125,6 @@ struct graph_impl {
 
 } // namespace detail
 
-class node;
-
-class graph;
-
-class executable_graph;
-
 struct node {
   // TODO: add properties to distinguish between empty, host, device nodes.
   detail::node_ptr my_node;
@@ -147,31 +141,20 @@ struct node {
   // TODO: Add query functions: is_root, ...
 };
 
-class executable_graph {
-public:
-  int my_tag;
-  sycl::queue my_queue;
-
-  void exec_and_wait(); // { my_queue.wait(); }
-
-  executable_graph(detail::graph_ptr g, sycl::queue q)
-      : my_queue(q), my_tag(rand()) {
-    g->exec(my_queue);
-  }
+enum class graph_state{
+  modifiable,
+  executable
 };
 
-class graph {
+template<graph_state State=graph_state::modifiable>
+class command_graph {
 public:
   // Adding empty node with [0..n] predecessors:
-  node add_empty_node(const std::vector<node> &dep = {});
-
-  // Adding node for host task
-  template <typename T>
-  node add_host_node(T hostTaskCallable, const std::vector<node> &dep = {});
+  node add(const std::vector<node> &dep = {});
 
   // Adding device node:
   template <typename T>
-  node add_device_node(T cgf, const std::vector<node> &dep = {});
+  node add(T cgf, const std::vector<node> &dep = {});
 
   // Adding dependency between two nodes.
   void make_edge(node sender, node receiver);
@@ -179,25 +162,33 @@ public:
   // TODO: Extend queue to directly submit graph
   void exec_and_wait(sycl::queue q);
 
-  executable_graph exec(sycl::queue q) {
-    return executable_graph{my_graph, q};
-  };
+  command_graph<graph_state::executable> finalize(const sycl::context &syclContext) const;
 
-  graph() : my_graph(new detail::graph_impl()) {}
-
-  // Creating a subgraph (with predecessors)
-  graph(graph &parent, const std::vector<node> &dep = {}) {}
-
-  bool is_subgraph();
+  command_graph() : my_graph(new detail::graph_impl()) {}
 
 private:
   detail::graph_ptr my_graph;
 };
 
-void executable_graph::exec_and_wait() { my_queue.wait(); }
+template<>
+class command_graph<graph_state::executable>{
+public:
+  int my_tag;
+  const sycl::context& my_ctx;
 
-template <typename T>
-node graph::add_device_node(T cgf, const std::vector<node> &dep) {
+  void exec_and_wait(sycl::queue q);
+
+  command_graph() = delete;
+
+  command_graph(detail::graph_ptr g, const sycl::context& ctx)
+      : my_graph(g) , my_ctx(ctx), my_tag(rand()) {}
+
+private:
+  detail::graph_ptr my_graph;
+};
+
+template<> template<typename T>
+node command_graph<graph_state::modifiable>::add(T cgf, const std::vector<node> &dep) {
   node _node(my_graph, cgf);
   if (!dep.empty()) {
     for (auto n : dep)
@@ -208,13 +199,19 @@ node graph::add_device_node(T cgf, const std::vector<node> &dep) {
   return _node;
 }
 
-void graph::make_edge(node sender, node receiver) {
+template<>
+void command_graph<graph_state::modifiable>::make_edge(node sender, node receiver) {
   sender.register_successor(receiver);     // register successor
   my_graph->remove_root(receiver.my_node); // remove receiver from root node
                                            // list
 }
 
-void graph::exec_and_wait(sycl::queue q) { my_graph->exec_and_wait(q); };
+template<>
+command_graph<graph_state::executable> command_graph<graph_state::modifiable>::finalize(const sycl::context &ctx) const {
+  return command_graph<graph_state::executable>{ this->my_graph, ctx };
+}
+
+void command_graph<graph_state::executable>::exec_and_wait(sycl::queue q) { my_graph->exec_and_wait(q); };
 
 } // namespace experimental
 } // namespace oneapi
