@@ -110,7 +110,7 @@ and not recommended to use in production environment.
 **`-f[no-]sycl-force-inline-kernel-lambda`**
 
   Enables/Disables inlining of the kernel lambda operator into the compiler
-  generated generated entry point function. This flag does not apply to ESIMD
+  generated entry point function. This flag does not apply to ESIMD
   kernels.
   Enabled by default.
 
