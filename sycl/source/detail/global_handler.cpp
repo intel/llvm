@@ -145,6 +145,8 @@ void GlobalHandler::unloadPlugins() {
 }
 
 void shutdown() {
+  if (GlobalHandler::instance().MScheduler.Inst)
+    GlobalHandler::instance().MScheduler.Inst->releaseResources();
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
   if (GlobalHandler::instance().MHostTaskThreadPool.Inst)
@@ -159,8 +161,6 @@ void shutdown() {
 
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
-  if (GlobalHandler::instance().MScheduler.Inst)
-    GlobalHandler::instance().MScheduler.Inst->releaseResources();
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
 
