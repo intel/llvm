@@ -317,48 +317,72 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
 template <typename dataT>
 extern __attribute__((opencl_global)) dataT *
-__SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
+__SYCL_GenericCastToPtrExplicit_ToGlobal(void *Ptr) noexcept {
   return (__attribute__((opencl_global)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToGlobal(
           Ptr, __spv::StorageClass::CrossWorkgroup);
 }
 
 template <typename dataT>
-extern volatile __attribute__((opencl_global)) dataT *
+extern const __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToGlobal(
+          Ptr, __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_global)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToGlobal(const volatile void *Ptr) noexcept {
-  return (__attribute__((opencl_global)) dataT *)
+  return (const volatile __attribute__((opencl_global)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToGlobal(
           Ptr, __spv::StorageClass::CrossWorkgroup);
 }
 
 template <typename dataT>
 extern __attribute__((opencl_local)) dataT *
-__SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr) noexcept {
+__SYCL_GenericCastToPtrExplicit_ToLocal(void *Ptr) noexcept {
   return (__attribute__((opencl_local)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
                                                __spv::StorageClass::Workgroup);
 }
 
 template <typename dataT>
-extern volatile __attribute__((opencl_local)) dataT *
+extern const __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
+                                               __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_local)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToLocal(const volatile void *Ptr) noexcept {
-  return (__attribute__((opencl_local)) dataT *)
+  return (const volatile __attribute__((opencl_local)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
                                                __spv::StorageClass::Workgroup);
 }
 
 template <typename dataT>
 extern __attribute__((opencl_private)) dataT *
-__SYCL_GenericCastToPtrExplicit_ToPrivate(const void *Ptr) noexcept {
+__SYCL_GenericCastToPtrExplicit_ToPrivate(void *Ptr) noexcept {
   return (__attribute__((opencl_private)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
                                                  __spv::StorageClass::Function);
 }
 
 template <typename dataT>
-extern volatile __attribute__((opencl_private)) dataT *
+extern const __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToPrivate(const void *Ptr) noexcept {
+  return (const __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
+                                                 __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern const volatile __attribute__((opencl_private)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToPrivate(const volatile void *Ptr) noexcept {
-  return (__attribute__((opencl_private)) dataT *)
+  return (const volatile __attribute__((opencl_private)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
                                                  __spv::StorageClass::Function);
 }
