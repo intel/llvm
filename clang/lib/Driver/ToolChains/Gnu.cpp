@@ -755,7 +755,9 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           SmallString<256> DefaultLibPath =
               llvm::sys::path::parent_path(ToolChain.getDriver().Dir);
           llvm::sys::path::append(DefaultLibPath,
-                                  Twine("lib") + CLANG_LIBDIR_SUFFIX);
+                                  CLANG_INSTALL_LIBDIR_BASENAME);
+          std::error_code EC = llvm::sys::fs::make_absolute(DefaultLibPath);
+          assert(!EC && "Invalid aboslute path for SYCL implicit rpath");
           CmdArgs.push_back("-rpath");
           CmdArgs.push_back(Args.MakeArgString(DefaultLibPath));
         }
