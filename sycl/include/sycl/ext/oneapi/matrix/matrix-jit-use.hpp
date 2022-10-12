@@ -12,6 +12,7 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/feature_test.hpp>
+#include <tuple>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -256,6 +257,18 @@ public:
   wi_element(joint_matrix<T, NumRows, NumCols, Use, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
+
+  // Functions
+  std::tuple<size_t, size_t> get_coord() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  // Various Operations
   operator T() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_VectorExtractDynamic(M.spvm, idx);
