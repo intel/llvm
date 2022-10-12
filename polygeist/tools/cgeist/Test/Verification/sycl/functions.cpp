@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s | FileCheck %s
+// RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -o - | FileCheck %s
 
 #include <sycl/sycl.hpp>
 

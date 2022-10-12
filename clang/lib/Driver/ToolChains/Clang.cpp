@@ -9951,6 +9951,11 @@ void Cgeist::ConstructJob(Compilation &C, const JobAction &JA,
       I.getInputArg().renderAsInput(TCArgs, CmdArgs);
   }
 
+  if (Output.isFilename()) {
+    CmdArgs.push_back("-o");
+    CmdArgs.push_back(Output.getFilename());
+  }
+
   CmdArgs.push_back("--args");
   CmdArgs.insert(CmdArgs.end(), ClangCommand.getArguments().begin(),
                  ClangCommand.getArguments().end());

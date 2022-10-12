@@ -66,25 +66,33 @@
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-LLVM-BC %s
 //
-// CHK-INVOKE-LLVM-BC: "{{.*}}cgeist" "-emit-llvm" "{{.*}}.cpp" "--args" "-cc1"
+// CHK-INVOKE-LLVM-BC: "{{.*}}cgeist" "-emit-llvm" "{{.*}}.cpp" "-o" "{{.*}}.bc" "--args" "-cc1"
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c  -S -emit-llvm       \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-LLVM %s
 //
-// CHK-INVOKE-LLVM: "{{.*}}cgeist" "-emit-llvm" "-S" "{{.*}}.cpp" "--args" "-cc1"
+// CHK-INVOKE-LLVM: "{{.*}}cgeist" "-emit-llvm" "-S" "{{.*}}.cpp" "-o" "{{.*}}.ll" "--args" "-cc1"
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only      \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -emit-mlir          \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1         \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-MLIR %s
 //
-// CHK-INVOKE-MLIR: "{{.*}}cgeist" "-S" "{{.*}}.cpp" "--args" "-cc1"
+// CHK-INVOKE-MLIR: "{{.*}}cgeist" "-S" "{{.*}}.cpp" "-o" "{{.*}}.mlir" "--args" "-cc1"
+
+// RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only      \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl -c -emit-mlir          \
+// RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s              \
+// RUN: -o foo.mlir 2>&1                                               \
+// RUN: | FileCheck -check-prefix=CHK-INVOKE-MLIR %s
+//
+// CHK-INVOKE-MLIR-O: "{{.*}}cgeist" "-S" "{{.*}}.cpp" "-o" "foo.mlir" "--args" "-cc1"
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
 // RUN: | FileCheck -check-prefix=CHK-INVOKE-ARG-PASS %s
 //
-// CHK-INVOKE-ARG-PASS: "{{.*}}cgeist" "-emit-llvm" "-S" "{{.*}}.cpp" "--args" "-cc1"
+// CHK-INVOKE-ARG-PASS: "{{.*}}cgeist" "-emit-llvm" "-S" "{{.*}}.cpp" "-o" "{{.*}}.bc" "--args" "-cc1"
