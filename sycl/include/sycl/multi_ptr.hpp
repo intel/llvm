@@ -217,20 +217,22 @@ public:
     m_Pointer = nullptr;
     return *this;
   }
-  template <access::address_space OtherSpace,
-            access::decorated OtherIsDecorated>
-  std::enable_if_t<Space == access::address_space::generic_space &&
-                       OtherSpace != access::address_space::constant_space,
-                   multi_ptr> &
+  template <
+      access::address_space OtherSpace, access::decorated OtherIsDecorated,
+      typename =
+          std::enable_if_t<Space == access::address_space::generic_space &&
+                           OtherSpace != access::address_space::constant_space>>
+  multi_ptr &
   operator=(const multi_ptr<value_type, OtherSpace, OtherIsDecorated> &Other) {
     m_Pointer = detail::cast_AS<decorated_type *>(Other.get_decorated());
     return *this;
   }
-  template <access::address_space OtherSpace,
-            access::decorated OtherIsDecorated>
-  std::enable_if_t<Space == access::address_space::generic_space &&
-                       OtherSpace != access::address_space::constant_space,
-                   multi_ptr> &
+  template <
+      access::address_space OtherSpace, access::decorated OtherIsDecorated,
+      typename =
+          std::enable_if_t<Space == access::address_space::generic_space &&
+                           OtherSpace != access::address_space::constant_space>>
+  multi_ptr &
   operator=(multi_ptr<value_type, OtherSpace, OtherIsDecorated> &&Other) {
     m_Pointer = detail::cast_AS<decorated_type *>(std::move(Other.m_Pointer));
     return *this;
