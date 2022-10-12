@@ -1383,6 +1383,14 @@ class SyclKernelFieldHandler : public SyclKernelFieldHandlerBase {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
+
+  // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
+  // is an element of an array. FD will always be the array field. When
+  // traversing the array field, Ty will be the type of the array field or the
+  // type of array element (or some decomposed type from array).
+  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
+    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
+  }
 };
 
 // A class to represent the 'do nothing' case for filtering purposes.
@@ -1955,10 +1963,6 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
     return ModifiedRD;
   }
 
-  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
-    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
-  }
-
 public:
   static constexpr const bool VisitInsideSimpleContainersWithPointer = true;
   static constexpr const bool VisitNthArrayElement = false;
@@ -2065,7 +2069,7 @@ public:
   }
 
 public:
-  QualType getNewType() {
+  QualType getNewRecordType() {
     CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
     ModifiedRD->completeDefinition();
 
@@ -2270,14 +2274,14 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // defines a PointerHandler visitor which visits this record
   // recursively and modifies the address spaces of any pointer
   // found as required, thereby generating a new record with all
-  // pointers in 'right' address space. PointerHandler.getNewType()
+  // pointers in 'right' address space. PointerHandler.getNewRecordType()
   // returns this generated type.
-  QualType GenerateNewType(const CXXRecordDecl *RD) {
+  QualType GenerateNewRecordType(const CXXRecordDecl *RD) {
     SyclKernelPointerHandler PointerHandler(SemaRef, RD);
     KernelObjVisitor Visitor{SemaRef};
     Visitor.VisitRecordBases(RD, PointerHandler);
     Visitor.VisitRecordFields(RD, PointerHandler);
-    return PointerHandler.getNewType();
+    return PointerHandler.getNewRecordType();
   }
 
   // If the array has been marked with SYCLGenerateNewTypeAttr,
@@ -2285,7 +2289,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // of a type which contains pointers. This function generates
   // a new array with all pointers in the required address space.
   QualType GenerateNewArrayType(FieldDecl *FD, QualType FieldTy) {
-    const CXXRecordDecl *Owner = dyn_cast<CXXRecordDecl>(FD->getParent());
+    const auto *Owner = dyn_cast<CXXRecordDecl>(FD->getParent());
     SyclKernelPointerHandler PointerHandler(SemaRef);
     KernelObjVisitor Visitor{SemaRef};
     Visitor.visitArray(Owner, FD, FieldTy, PointerHandler);
@@ -2441,7 +2445,7 @@ public:
     // Check if we need to generate a new type for this record,
     // i.e. this record contains pointers.
     if (FieldRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
-      addParam(FD, GenerateNewType(FieldRecordDecl));
+      addParam(FD, GenerateNewRecordType(FieldRecordDecl));
     else
       addParam(FD, Ty);
     return true;
@@ -2455,7 +2459,7 @@ public:
     // Check if we need to generate a new type for this record,
     // i.e. this record contains pointers.
     if (BaseRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
-      addParam(BS, GenerateNewType(BaseRecordDecl));
+      addParam(BS, GenerateNewRecordType(BaseRecordDecl));
     else
       addParam(BS, Ty);
     return true;
@@ -2897,14 +2901,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return buildMemberExpr(DRE, ArrayField);
   }
 
-  // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
-  // is an element of an array.  This will determine whether we do
-  // MemberExprBases in some cases or not, AND determines how we initialize
-  // values.
-  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
-    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
-  }
-
   // Creates an initialized entity for a field/item. In the case where this is a
   // field, returns a normal member initializer, if we're in a sub-array of a MD
   // array, returns an element initializer.
@@ -3232,6 +3228,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldInit(FD, T, Initializer);
   }
 
+  // This function is recursive in order to handle
+  // multi-dimensional arrays. If the array element is
+  // an array, it implies that the array is multi-dimensional.
+  // We continue recursion till we reach a non-array element to
+  // generate required array subscript expressions.
   void createArrayInit(FieldDecl *FD, QualType T) {
     const ConstantArrayType *CAT =
         SemaRef.getASTContext().getAsConstantArrayType(T);
@@ -3256,6 +3257,18 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     leaveArray(FD, T, ET);
   }
 
+  // This function is used to create initializers for a top
+  // level array which contains pointers. The openCl kernel
+  // parameter for this array will be a wrapper class
+  // which contains the generated type. This function generates
+  // code equivalent to:
+  // void ocl_kernel(__wrapper_class WrappedGT) {
+  //   Kernel KernelObjClone {
+  //   *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[0]),
+  //                           *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[1]),
+  //                           *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[2])
+  //                         };
+  // }
   void handleGeneratedArrayType(FieldDecl *FD, QualType FieldTy) {
     ArrayParamBases.push_back(createSimpleArrayParamReferenceExpr(FieldTy));
     createArrayInit(FD, FieldTy);
@@ -3498,14 +3511,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(CurOffset + OffsetAdj));
-  }
-
-  // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
-  // is an element of an array.  This will determine whether we do
-  // MemberExprBases in some cases or not, AND determines how we initialize
-  // values.
-  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
-    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
 
 public:
