@@ -51,7 +51,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 
 ### Documentation
 
-- Added stateful to stateless mem access conversion [design doc *LINK TBD*]. [3e03f300]
+- Added stateful to stateless mem access conversion [design document](sycl/doc/design/ESIMDStatelesAccessors.md). [3e03f300]
 - Added [`sycl_ext_oneapi_complex`](sycl/doc/extensions/proposed/sycl_ext_oneapi_complex.asciidoc) extension proposal. [01589da5]
 - Updated [`sycl_ext_intel_fpga_device_selector`](sycl/doc/extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc)
   extension to revision 2. [9bef890d]
