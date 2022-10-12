@@ -15,7 +15,8 @@
 #define N 32
 
 // CHECK-MLIR:      gpu.func {{.*}}vec_add_simple({{.*}})
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
+// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR:      func.call [[FUNC:@.*vec_add_device_simple.*]]({{.*}}) :
 // CHECK-MLIR-NEXT: gpu.return
 
@@ -32,7 +33,7 @@
 // CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
 // CHECK-LLVM:       store float [[RESULT]], float addrspace(4)* {{.*}}, align 4
 
-// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #0
+// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #1
 // CHECK-LLVM:       call void [[FUNC]]
 
 void vec_add_device_simple(std::array<float, N> &VA, std::array<float, N> &VB,
@@ -105,4 +106,5 @@ int main() {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM: attributes #0 = { convergent mustprogress norecurse nounwind }
+// CHECK-LLVM:          attributes #0 = { convergent mustprogress norecurse nounwind }
+// CHECK-LLVM-NEXT:     attributes #1 = { convergent mustprogress norecurse nounwind "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }

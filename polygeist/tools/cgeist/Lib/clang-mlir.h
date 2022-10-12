@@ -105,6 +105,26 @@ private:
 
 class CodeGenUtils {
 public:
+  class TypeAndAttrs {
+  public:
+    mlir::Type type;
+    std::vector<mlir::NamedAttribute> attrs;
+
+    TypeAndAttrs(mlir::Type type) : type(type), attrs() {}
+    TypeAndAttrs(mlir::Type type, std::vector<mlir::NamedAttribute> attrs)
+        : type(type), attrs(attrs) {}
+
+    // Collect the types of the given parameter descriptors.
+    static void getTypes(const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
+                         llvm::SmallVectorImpl<mlir::Type> &types);
+    static void getAttributes(
+        const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
+        llvm::SmallVectorImpl<std::vector<mlir::NamedAttribute>> &attrs);
+  };
+
+  using ParmDesc = TypeAndAttrs;
+  using ResultDesc = TypeAndAttrs;
+
   /// Wraps \p memorySpace into an integer attribute.
   static mlir::IntegerAttr wrapIntegerMemorySpace(unsigned memorySpace,
                                                   mlir::MLIRContext *ctx);
@@ -156,13 +176,13 @@ public:
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       clang::Preprocessor &PP, clang::ASTContext &astContext,
       mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
-      clang::CodeGenOptions &codegenops)
+      clang::CodeGenOptions &codegenops, std::string moduleId)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), deviceFunctions(deviceFunctions),
         llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), typeCache(),
         functionsToEmit(), module(module), SM(SM), lcontext(),
-        llvmMod("tmp", lcontext),
+        llvmMod(moduleId, lcontext),
         CGM(astContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
@@ -182,7 +202,7 @@ public:
   }
   ScopLocList &getScopLocList() { return scopLocList; }
 
-  mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &F,
+  mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &FTE,
                                                     const bool ShouldEmit,
                                                     bool getDeviceStub = false);
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const clang::FunctionDecl *FD);
@@ -192,8 +212,8 @@ public:
   mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const clang::ValueDecl *VD,
                                              std::string prefix = "");
 
-  /// Return a value representing an access into a global string with the given
-  /// name, creating the string if necessary.
+  /// Return a value representing an access into a global string with the
+  /// given name, creating the string if necessary.
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
                                           mlir::OpBuilder &builder,
                                           clang::StringRef value);
@@ -227,30 +247,52 @@ private:
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
 
-  /// Compute and set the symbol visibility on the given \p function.
-  void setMLIRFunctionVisibility(mlir::FunctionOpInterface function,
-                                 const clang::FunctionDecl &FD,
-                                 bool shouldEmit);
-
-  /// Fill in \p parmTypes with the MLIR types of the \p FD function
-  /// declaration's parameters.
-  void createMLIRParametersTypes(const clang::FunctionDecl &FD,
-                                 llvm::SmallVectorImpl<mlir::Type> &parmTypes);
-
-  /// Fill in \p retTypes with the MLIR types of the \p FD function
-  /// declaration's return value(s).
-  void createMLIRReturnTypes(const clang::FunctionDecl &FD,
-                             llvm::SmallVectorImpl<mlir::Type> &retTypes);
-
-  /// Compute and set the MLIR function attributes for the given \p function.
-  void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
-                                 const FunctionToEmit &F,
-                                 mlir::LLVM::Linkage lnk,
-                                 mlir::MLIRContext *ctx) const;
-
   /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>
-  getFunction(const std::string &mangledName, FunctionContext context) const;
+  getMLIRFunction(const std::string &mangledName,
+                  FunctionContext context) const;
+
+  /// Create the MLIR function corresponding to the given \p FTE.
+  /// The MLIR function is created in either the device module (GPUModuleOp) or
+  /// in the host module (ModuleOp), depending on the calling context embedded
+  /// in the FTE).
+  mlir::FunctionOpInterface createMLIRFunction(const FunctionToEmit &FTE,
+                                               std::string mangledName,
+                                               bool ShouldEmit);
+
+  /// Fill in \p parmDescriptors with the MLIR types of the \p FD function
+  /// declaration's parameters.
+  void createMLIRParameterDescriptors(
+      const clang::FunctionDecl &FD,
+      llvm::SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors);
+
+  /// Fill in \p resDescriptors with the MLIR types of the \p FD function
+  /// declaration's return value(s).
+  void createMLIRResultDescriptors(
+      const clang::FunctionDecl &FD,
+      llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors);
+
+  /// Set the symbol visibility on the given \p function.
+  void setMLIRFunctionVisibility(mlir::FunctionOpInterface function,
+                                 const FunctionToEmit &FTE, bool shouldEmit);
+
+  /// Set the MLIR function attributes for the given \p function.
+  void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
+                                 const FunctionToEmit &FTE,
+                                 mlir::LLVM::Linkage lnk) const;
+
+  /// Set the MLIR function parameters attributes for the given \p function.
+  void setMLIRFunctionParmsAttributes(
+      mlir::FunctionOpInterface function,
+      const llvm::SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors)
+      const;
+
+  /// Set the MLIR function result value(s) attributes for the given \p
+  /// function.
+  void setMLIRFunctionResultAttributes(
+      mlir::FunctionOpInterface function,
+      const llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors)
+      const;
 };
 
 class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
@@ -350,7 +392,7 @@ public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
 
-  void init(mlir::FunctionOpInterface function, const FunctionToEmit &fd);
+  void init(mlir::FunctionOpInterface function, const FunctionToEmit &FTE);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
     allocationScope = entryBlock = B;
