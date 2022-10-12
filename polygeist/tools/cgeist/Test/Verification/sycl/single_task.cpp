@@ -1,3 +1,4 @@
+// clang-format off
 // RUN: clang++ -fsycl -fsycl-device-only -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -verify -disable-output < %t.bc
@@ -9,7 +10,8 @@
 // XFAIL: *
 
 // Test that the kernel named `kernel_single_task` is generated with the correct signature.
-// CHECK: define weak_odr spir_kernel void {{.*}}kernel_single_task(i32 addrspace(1)* {{.*}}, %"class.sycl::_V1::range.1" {{.*}}, %"class.sycl::_V1::range.1" {{.*}}, %"class.sycl::_V1::id.1" {{.*}})
+// CHECK: define weak_odr spir_kernel void {{.*}}kernel_single_task(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* byval([[RANGE_TY]]) {{.*}}, [[RANGE_TY]]* byval([[RANGE_TY]]) {{.*}}, [[ID_TY:%"class.sycl::_V1::id.1"]]* byval([[ID_TY]]) {{.*}})
+
 // Test that all referenced sycl header functions are generated.
 // CHECK-NOT: declare {{.*}} spir_func
 
