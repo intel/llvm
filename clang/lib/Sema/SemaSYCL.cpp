@@ -1883,7 +1883,7 @@ static QualType ModifyAddressSpace(Sema &SemaRef, QualType Ty) {
   // CodeGen.
   QualType PointeeTy = Ty->getPointeeType();
   Qualifiers Quals = PointeeTy.getQualifiers();
-  auto AS = Quals.getAddressSpace();
+  LangAS AS = Quals.getAddressSpace();
   // Leave global_device and global_host address spaces as is to help FPGA
   // device in memory allocations.
   if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
