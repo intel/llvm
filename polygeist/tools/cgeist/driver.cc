@@ -713,8 +713,8 @@ static int createAndExecutePassPipeline(
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
 static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
-                         mlir::MLIRContext &context, llvm::DataLayout &DL,
-                         llvm::Triple &triple,
+                         StringRef moduleId, mlir::MLIRContext &context,
+                         llvm::DataLayout &DL, llvm::Triple &triple,
                          const SmallVectorImpl<const char *> &LinkArgs,
                          const char *Argv0) {
   bool LinkOMP = FOpenMP;
@@ -725,9 +725,9 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     return rc;
   }
 
-  bool EmitBC = EmitLLVM && !EmitAssembly;
-  bool EmitMLIR = EmitAssembly && !EmitLLVM;
-  if (EmitMLIR) {
+  bool emitBC = EmitLLVM && !EmitAssembly;
+  bool emitMLIR = EmitAssembly && !EmitLLVM;
+  if (emitMLIR) {
     if (Output == "-") {
       // Write the MLIR to stdout.
       LLVM_DEBUG(dbgs() << "*** MLIR Produced ***\n");
@@ -742,7 +742,8 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
   } else {
     // Generate LLVM IR.
     llvm::LLVMContext llvmContext;
-    auto llvmModule = mlir::translateModuleToLLVMIR(module.get(), llvmContext);
+    auto llvmModule =
+        mlir::translateModuleToLLVMIR(module.get(), llvmContext, moduleId);
     if (!llvmModule) {
       module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
@@ -753,7 +754,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     llvmModule->setTargetTriple(triple.getTriple());
     LLVM_DEBUG(dbgs() << "*** Translated MLIR to LLVM IR successfully ***\n");
 
-    if (EmitBC) {
+    if (emitBC) {
       assert(Output != "-" && "Expecting output file");
       // Write the LLVM BC to a file.
       std::error_code EC;
@@ -1008,5 +1009,8 @@ int main(int argc, char **argv) {
   });
 
   // Lower the MLIR to LLVM IR, compile the generated LLVM IR.
-  return compileModule(module, context, DL, triple, LinkageArgs, argv[0]);
+  return compileModule(module,
+                       inputFileNames.size() == 1 ? inputFileNames[0]
+                                                  : "LLVMDialectModule",
+                       context, DL, triple, LinkageArgs, argv[0]);
 }

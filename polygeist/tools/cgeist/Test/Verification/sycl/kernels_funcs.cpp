@@ -16,9 +16,10 @@
 // CHECK-MLIR: gpu.module @device_functions
 //
 // CHECK-MLIR-DAG:  gpu.func @_ZTS8kernel_1
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
+// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR-DAG:  gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, [[PASSTHROUGH]]} {
 // CHECK-MLIR-DAG:  func.func @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEC1ENS1_8accessorIiLi1ELS3_1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS1_3ext6oneapi22accessor_property_listIJEEEEENS1_2idILi1EEERKi
 // CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<linkonce_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 // COM: StoreWrapper constructor:
@@ -27,9 +28,10 @@
 
 // COM: StoreWrapper constructor:
 // CHECK-LLVM-DAG:      define linkonce_odr spir_func void @_ZN12StoreWrapperIiLi1ELN4sycl3_V16access4modeE1026EEclEv({{.*}}) #0 
-// CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #0
-// CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #0
+// CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #1
+// CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #1
 // CHECK-LLVM:          attributes #0 = { convergent mustprogress norecurse nounwind }
+// CHECK-LLVM-NEXT:     attributes #1 = { convergent mustprogress norecurse nounwind "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp" }
 
 template <typename DataT,
           int Dimensions = 1,

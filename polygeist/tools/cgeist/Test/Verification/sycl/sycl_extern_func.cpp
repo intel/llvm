@@ -17,7 +17,8 @@
 // CHECK-MLIR: gpu.module @device_functions
 
 // CHECK-MLIR-LABEL: gpu.func @_ZTSZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_E18kernel_single_task
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
+// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 
 // CHECK-MLIR-LABEL: func.func private @_ZZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv
 // CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<internal>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
@@ -28,7 +29,7 @@
 // CHECK-MLIR-NEXT:      return
 
 // CHECK-LLMV-LABEL: define weak_odr spir_kernel void @_ZTSZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_E18kernel_single_task
-// CHECK-SAME: #0
+// CHECK-SAME: #1
 
 // CHECK-LLVM-LABEL: define internal spir_func void @_ZZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv
 // CHECK-LLVM-SAME: #0
@@ -57,4 +58,5 @@ void host_single_task() {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM: attributes #0 = { convergent mustprogress norecurse nounwind }
+// CHECK-LLVM:          attributes #0 = { convergent mustprogress norecurse nounwind }
+// CHECK-LLVM-NEXT:     attributes #1 = { convergent mustprogress norecurse nounwind "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" }

@@ -3406,9 +3406,14 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   LLVM_DEBUG(llvm::dbgs() << "Setting attributes for " << FD.getNameAsString()
                           << "\n");
 
+  std::vector<mlir::Attribute> passThroughAttrs;
   // Mark as kernel.
-  if (FD.hasAttr<SYCLKernelAttr>())
+  if (FD.hasAttr<SYCLKernelAttr>()) {
     attrs.set(gpu::GPUDialect::getKernelFuncAttrName(), UnitAttr::get(ctx));
+    passThroughAttrs.push_back(ArrayAttr::get(
+        ctx, {StringAttr::get(ctx, "sycl-module-id"),
+              StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
+  }
 
   // Calling conventions for SPIRV functions.
   attrs.set("llvm.cconv", mlir::LLVM::CConvAttr::get(
@@ -3420,7 +3425,6 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   //   kernels and device function cannot include RTTI information,
   //   exception classes, recursive code, virtual functions or make use of
   //   C++ libraries that are not compiled for the device.
-  std::vector<mlir::Attribute> passThroughAttrs;
   passThroughAttrs.push_back(StringAttr::get(ctx, "norecurse"));
   passThroughAttrs.push_back(StringAttr::get(ctx, "nounwind"));
 
@@ -3982,8 +3986,10 @@ public:
   std::map<std::string, mlir::FunctionOpInterface> deviceFunctions;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
-  MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module)
-      : module(module) {
+  std::string moduleId;
+  MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module,
+             std::string moduleId)
+      : module(module), moduleId(moduleId) {
     emitIfFound.insert(fn);
   }
   std::unique_ptr<clang::ASTConsumer>
@@ -3991,8 +3997,8 @@ public:
     return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
         emitIfFound, done, llvmStringGlobals, globals, functions,
         deviceFunctions, llvmGlobals, llvmFunctions, CI.getPreprocessor(),
-        CI.getASTContext(), module, CI.getSourceManager(),
-        CI.getCodeGenOpts()));
+        CI.getASTContext(), module, CI.getSourceManager(), CI.getCodeGenOpts(),
+        moduleId));
   }
 };
 
@@ -4206,7 +4212,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     CommandList.push_back(&InputCommandArgList);
   }
 
-  MLIRAction Act(fn, module);
+  MLIRAction Act(fn, module,
+                 filenames.size() == 1 ? filenames[0] : "LLVMDialectModule");
 
   for (const ArgStringList *args : CommandList) {
     std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
