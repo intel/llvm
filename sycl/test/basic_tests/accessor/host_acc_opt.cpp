@@ -1,20 +1,16 @@
-// RUN: %clangxx -O2 -std=c++17 -I %sycl_include/sycl -I %sycl_include -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -O2 -isystem %sycl_include/sycl -isystem %sycl_include -S -emit-llvm %s -o - | FileCheck %s
 
 // The test verifies that the accessor::operator[] implementation is
 // good enough for compiler to optimize away calls to getOffset and
-// getMemoryRange and vectorize the loop.
+// getMemoryRange.
 
 #include <sycl/sycl.hpp>
 
 // CHECK: define {{.*}}foo{{.*}} {
-// CHECK-NOT: call
-// CHECK-NOT: invoke
-// CHECK: load <4 x i32>
-// CHECK-NOT: call
-// CHECK-NOT: invoke
-// CHECK: store <4 x i32>
-// CHECK-NOT: call
-// CHECK-NOT: invoke
+// CHECK-NOT: call{{.*}}getOffset
+// CHECK-NOT: invoke{{.*}}getOffset
+// CHECK-NOT: call{{.*}}getMemoryRange
+// CHECK-NOT: invoke{{.*}}getMemoryRange
 // CHECK: }
 void foo(sycl::accessor<int, 1, sycl::access::mode::read_write,
                         sycl::target::host_buffer> &Acc,
