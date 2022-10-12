@@ -564,11 +564,10 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     switch (AspectNum) {
 #include <sycl/info/aspects.def>
 #include <sycl/info/aspects_deprecated.def>
-    default:
-      throw sycl::exception(
-          errc::kernel_not_supported,
-          "Unknown aspect " + std::to_string(static_cast<unsigned>(AspectNum)));
     }
+    throw sycl::exception(errc::kernel_not_supported,
+                          "Unknown aspect " +
+                              std::to_string(static_cast<unsigned>(AspectNum)));
   };
 #undef __SYCL_ASPECT_DEPRECATED_ALIAS
 #undef __SYCL_ASPECT_DEPRECATED
@@ -594,7 +593,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   }
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
-                 &LinkOpts, SpecConsts, &KernelName] {
+                 &LinkOpts, SpecConsts] {
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
 
     const detail::plugin &Plugin = ContextImpl->getPlugin();
@@ -1278,11 +1277,10 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           // * 4 bytes - Size of the underlying type in the device_global.
           // * 4 bytes - 0 if device_global has device_image_scope and any value
           //             otherwise.
-          assert(DeviceGlobalInfo.size() == 16 && "Unexpected property size");
-          const std::uint32_t TypeSize =
-              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[8]);
-          const std::uint32_t DeviceImageScopeDecorated =
-              *reinterpret_cast<const std::uint32_t *>(&DeviceGlobalInfo[12]);
+          DeviceGlobalInfo.dropBytes(8);
+          auto [TypeSize, DeviceImageScopeDecorated] =
+              DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
+          assert(DeviceGlobalInfo.empty() && "Extra data left!");
 
           auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
           if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
