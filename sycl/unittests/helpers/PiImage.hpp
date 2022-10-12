@@ -129,13 +129,20 @@ public:
       updateEntries();
     }
 
+    if (MEntries.empty())
+      return nullptr;
+
     return &*MEntries.begin();
   }
   typename T::NativeType *end() {
     if (MEntriesNeedUpdate) {
       updateEntries();
     }
-    return &*MEntries.end();
+
+    if (MEntries.empty())
+      return nullptr;
+
+    return &*MEntries.rbegin() + 1;
   }
 
 private:
