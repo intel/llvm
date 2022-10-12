@@ -12,7 +12,13 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
+#define __SYCL_ASPECT(ASPECT, ID) ASPECT = ID,
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)                          \
+  ASPECT __SYCL2020_DEPRECATED(MESSAGE) = ID,
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)                    \
+  __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
 enum class __SYCL_TYPE(aspect) aspect {
+<<<<<<< HEAD
   host = 0,
   cpu = 1,
   gpu = 2,
@@ -53,7 +59,14 @@ enum class __SYCL_TYPE(aspect) aspect {
   ext_oneapi_bfloat16 = 35,
   ext_intel_free_memory = 36,
   ext_oneapi_bfloat16_math_functions = 37,
+=======
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+>>>>>>> a32021ba066ecbf842136a973dd35d700c983cea
 };
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

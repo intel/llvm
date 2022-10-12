@@ -73,8 +73,7 @@ struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<
       T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value,
-      spv_scope_traits<Group>::value,
-      spv_matrix_use_traits<matrix_use::unnecessary>::value> *spvm;
+      spv_scope_traits<Group>::value> *spvm;
   joint_matrix(Group sg) {
 #ifndef __SYCL_DEVICE_ONLY__
     (void)sg;
