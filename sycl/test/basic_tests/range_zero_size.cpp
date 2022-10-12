@@ -13,5 +13,5 @@ using namespace sycl;
 
 int main() {
   queue q;
-  q.submit([&](handler cgh) { cgh.parallel_for(range<1>(0), [=](id<1> i) {}); });
+  q.submit([&](handler& cgh) { cgh.parallel_for(range<1>(0), [=](id<1> i) {}); });
 }
