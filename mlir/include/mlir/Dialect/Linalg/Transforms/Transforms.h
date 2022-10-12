@@ -772,35 +772,25 @@ struct DownscaleDepthwiseConv2DNhwcHwcOp final
 /// Linalg generalization pattern.
 ///
 /// Apply the `generalization` transformation as a pattern.
-/// `filter` controls LinalgTransformMarker matching and update when specified.
 /// See `generalization` for more details.
+//
+// TODO: Automatic default pattern class that just unwraps a function returning
+// FailureOr<GenericOp>.
 struct LinalgGeneralizationPattern
     : public OpInterfaceRewritePattern<LinalgOp> {
-  /// Construct a generic pattern applied to all LinalgOp that verify `filter`.
-  LinalgGeneralizationPattern(
-      MLIRContext *context,
-      LinalgTransformationFilter f = LinalgTransformationFilter(),
-      PatternBenefit benefit = 1);
-
-  /// Construct a pattern specifically applied to `opName`.
-  LinalgGeneralizationPattern(
-      StringRef opName, MLIRContext *context,
-      LinalgTransformationFilter f = LinalgTransformationFilter(),
-      PatternBenefit benefit = 1);
+  using OpInterfaceRewritePattern<LinalgOp>::OpInterfaceRewritePattern;
 
   /// `matchAndRewrite` implementation that returns the significant transformed
   /// pieces of IR.
   FailureOr<GenericOp>
-  returningMatchAndRewrite(LinalgOp op, PatternRewriter &rewriter) const;
+  returningMatchAndRewrite(LinalgOp op, PatternRewriter &rewriter) const {
+    return generalizeNamedOp(rewriter, op);
+  }
 
   LogicalResult matchAndRewrite(LinalgOp op,
                                 PatternRewriter &rewriter) const override {
     return returningMatchAndRewrite(op, rewriter);
   }
-
-private:
-  /// LinalgTransformMarker handles special attribute manipulations.
-  LinalgTransformationFilter filter;
 };
 
 ///
@@ -852,74 +842,12 @@ struct LinalgEnablingOptions {
 //===----------------------------------------------------------------------===//
 // Transformations exposed as rewrite patterns.
 //===----------------------------------------------------------------------===//
-///
-/// Linalg lowering patterns.
-///
-/// Apply the `linalgLowerOpToLoops` transformation as a pattern.
-/// `filter` controls LinalgTransformMarker matching and update when specified.
-/// See `linalgLowerOpToLoops` for more details.
-enum class LinalgLoweringType {
-  LibraryCall = 0,
-  Loops = 1,
-  AffineLoops = 2,
-  ParallelLoops = 3
-};
-
-template <typename OpTy>
-struct LinalgLoweringPattern : public RewritePattern {
-  LinalgLoweringPattern(
-      MLIRContext *context, LinalgLoweringType loweringType,
-      LinalgTransformationFilter f = LinalgTransformationFilter(),
-      PatternBenefit benefit = 1)
-      : RewritePattern(OpTy::getOperationName(), benefit, context),
-        filter(std::move(f)), loweringType(loweringType) {}
-
-  // TODO: Move implementation to .cpp once named ops are auto-generated.
-  LogicalResult matchAndRewrite(Operation *op,
-                                PatternRewriter &rewriter) const override {
-    LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
-    if (!linalgOp)
-      return failure();
-    if (failed(filter.checkAndNotify(rewriter, linalgOp)))
-      return failure();
-
-    switch (loweringType) {
-    case LinalgLoweringType::LibraryCall:
-      // TODO: Move lowering to library calls here.
-      return failure();
-    case LinalgLoweringType::Loops:
-      if (failed(linalgOpToLoops(rewriter, op)))
-        return failure();
-      break;
-    case LinalgLoweringType::AffineLoops:
-      if (failed(linalgOpToAffineLoops(rewriter, op)))
-        return failure();
-      break;
-    case LinalgLoweringType::ParallelLoops:
-      if (failed(linalgOpToParallelLoops(rewriter, op)))
-        return failure();
-      break;
-    }
-
-    rewriter.eraseOp(op);
-    return success();
-  }
-
-private:
-  /// LinalgTransformMarker handles special attribute manipulations.
-  LinalgTransformationFilter filter;
-  /// Controls whether the pattern lowers to library calls, scf.for, affine.for
-  /// or scf.parallel.
-  LinalgLoweringType loweringType;
-};
 
 /// Linalg generalization patterns
 
 /// Populates `patterns` with patterns to convert spec-generated named ops to
 /// linalg.generic ops.
-void populateLinalgNamedOpsGeneralizationPatterns(
-    RewritePatternSet &patterns,
-    const LinalgTransformationFilter &filter = LinalgTransformationFilter());
+void populateLinalgNamedOpsGeneralizationPatterns(RewritePatternSet &patterns);
 
 /// Linalg decompose convolutions patterns
 
@@ -1122,7 +1050,6 @@ using ControlSplitReductionFn =
 void populateSplitReductionPattern(
     RewritePatternSet &patterns,
     const ControlSplitReductionFn &controlSplitReductionFn,
-    const LinalgTransformationFilter &f = LinalgTransformationFilter(),
     bool useAlloc = false);
 
 /// Apply transformation to split the single linalg op reduction into a parallel
@@ -1166,14 +1093,6 @@ void populateSplitReductionPattern(
 ///   linalg.yield %5 : f32
 /// } -> tensor<f32>
 /// ```
-FailureOr<LinalgOp>
-splitReduction(PatternRewriter &b, LinalgOp op,
-               const ControlSplitReductionFn &controlSplitReductionFn,
-               const LinalgTransformationFilter &f, bool useAlloc = false);
-
-/// Filterless version of the above.
-/// Returns both the new linalg ops as well as the fillOp needed to initialize
-/// the temporary expanded tensor with the proper neutral element.
 struct SplitReductionResult {
   Operation *initOrAlloc;
   FillOp fillOp;
