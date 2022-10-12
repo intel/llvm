@@ -2947,7 +2947,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   Expr *createReinterpretCastExpr(Expr *E, QualType To) {
     return CXXReinterpretCastExpr::Create(
         SemaRef.Context, To, VK_PRValue, CK_BitCast, E,
-        /*Path=*/nullptr, SemaRef.Context.CreateTypeSourceInfo(To),
+        /*Path=*/nullptr, SemaRef.Context.getTrivialTypeSourceInfo(To),
         SourceLocation(), SourceLocation(), SourceRange());
   }
 
