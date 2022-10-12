@@ -183,7 +183,7 @@ public:
   _pi_device_binary_property_set_struct *end() {
     if (MProperties.empty())
       return nullptr;
-    return &*MProperties.end();
+    return &*MProperties.rbegin() + 1;
   }
 
 private:
