@@ -16,6 +16,49 @@
 // CHECK-DAG: !sycl_item_2_1_ = !sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<1>
 
+// Check globals referenced in device functions are created in the GPU module
+// CHECK: gpu.module @device_functions {
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupLocalInvocationId : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupId : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInNumSubgroups : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupMaxSize : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInSubgroupSize : memref<1xi32>
+// CHECK-NEXT: memref.global @__spirv_BuiltInLocalInvocationId : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInWorkgroupId : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInWorkgroupSize : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInNumWorkgroups : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInGlobalOffset : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInGlobalSize : memref<3xi64>
+// CHECK-NEXT: memref.global @__spirv_BuiltInGlobalInvocationId : memref<3xi64>
+
+// Ensure the spirv functions that reference these globals are not filtered out
+// CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_xv()
+// CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_yv()
+// CHECK-DAG: func.func @_Z28__spirv_GlobalInvocationId_zv()
+// CHECK-DAG: func.func @_Z20__spirv_GlobalSize_xv()
+// CHECK-DAG: func.func @_Z20__spirv_GlobalSize_yv()
+// CHECK-DAG: func.func @_Z20__spirv_GlobalSize_zv()
+// CHECK-DAG: func.func @_Z22__spirv_GlobalOffset_xv()
+// CHECK-DAG: func.func @_Z22__spirv_GlobalOffset_yv()
+// CHECK-DAG: func.func @_Z22__spirv_GlobalOffset_zv()
+// CHECK-DAG: func.func @_Z23__spirv_NumWorkgroups_xv()
+// CHECK-DAG: func.func @_Z23__spirv_NumWorkgroups_yv()
+// CHECK-DAG: func.func @_Z23__spirv_NumWorkgroups_zv()
+// CHECK-DAG: func.func @_Z23__spirv_WorkgroupSize_xv()
+// CHECK-DAG: func.func @_Z23__spirv_WorkgroupSize_yv()
+// CHECK-DAG: func.func @_Z23__spirv_WorkgroupSize_zv()
+// CHECK-DAG: func.func @_Z21__spirv_WorkgroupId_xv()
+// CHECK-DAG: func.func @_Z21__spirv_WorkgroupId_yv()
+// CHECK-DAG: func.func @_Z21__spirv_WorkgroupId_zv()
+// CHECK-DAG: func.func @_Z27__spirv_LocalInvocationId_xv()
+// CHECK-DAG: func.func @_Z27__spirv_LocalInvocationId_yv()
+// CHECK-DAG: func.func @_Z27__spirv_LocalInvocationId_zv()
+// CHECK-DAG: func.func @_Z18__spirv_SubgroupIdv()
+// CHECK-DAG: func.func @_Z33__spirv_SubgroupLocalInvocationIdv()
+// CHECK-DAG: func.func @_Z23__spirv_SubgroupMaxSizev()
+// CHECK-DAG: func.func @_Z20__spirv_NumSubgroupsv()
+
+
 // Ensure the constructors are NOT filtered out, and sycl.cast is generated for cast from sycl.id or sycl.range to sycl.array.
 // CHECK-LABEL: func.func @_ZN4sycl3_V12idILi1EEC1ERKS2_(%arg0: memref<?x!sycl_id_1_, 4>, %arg1: memref<?x!sycl_id_1_, 4>)
 // CHECK-SAME:  attributes {[[SPIR_FUNCCC:llvm.cconv = #llvm.cconv<spir_funccc>]], [[LINKONCE:llvm.linkage = #llvm.linkage<linkonce_odr>]], 
@@ -65,7 +108,7 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-LLVM: [[CAST1:%.*]] = bitcast [[ID_TYPE]]* %1 to i8*
 // CHECK-LLVM: call void @llvm.memset.p0i8.i64(i8* %2, i8 0, i64 16, i1 false)
 // CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID1]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1Ev([[ID_TYPE]] addrspace(4)* [[ID1_AS]], [[ID_TYPE]] addrspace(4)* [[ID1_AS]], i64 0, i64 -1, i64 1)  
+// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1Ev([[ID_TYPE]] addrspace(4)* [[ID1_AS]])  
 
 extern "C" SYCL_EXTERNAL void cons_1() {
   auto id = sycl::id<2>{};
@@ -82,7 +125,7 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 // CHECK-LLVM-LABEL: define spir_func void @cons_2(i64 %0, i64 %1) #0
 // CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]
 // CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID1]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm([[ID_TYPE]] addrspace(4)* [[ID1_AS]], [[ID_TYPE]] addrspace(4)* [[ID1_AS]], i64 0, i64 -1, i64 1, i64 %0, i64 %1)
+// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm([[ID_TYPE]] addrspace(4)* [[ID1_AS]], i64 %0, i64 %1)
 
 extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
   auto id = sycl::id<2>{a, b};
@@ -107,7 +150,7 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-LLVM: store [[ITEM_TYPE]] [[ARG0]], [[ITEM_TYPE]]* [[ITEM]], align 8
 // CHECK-LLVM: [[ID_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID]] to [[ID_TYPE]] addrspace(4)*
 // CHECK-LLVM: [[ITEM_AS:%.*]] = addrspacecast [[ITEM_TYPE]]* [[ITEM]] to [[ITEM_TYPE]] addrspace(4)*
-// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE([[ID_TYPE]] addrspace(4)* [[ID_AS]], [[ID_TYPE]] addrspace(4)* [[ID_AS]], i64 0, i64 -1, i64 1, [[ITEM_TYPE]] addrspace(4)* [[ITEM_AS]], [[ITEM_TYPE]] addrspace(4)* [[ITEM_AS]], i64 0, i64 -1, i64 1)
+// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE([[ID_TYPE]] addrspace(4)* [[ID_AS]], [[ITEM_TYPE]] addrspace(4)* [[ITEM_AS]])
 
 extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
   auto id = sycl::id<2>{val};
@@ -132,7 +175,7 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-LLVM: store [[ID_TYPE]] [[ARG0]], [[ID_TYPE]]* [[ID2]], align 8
 // CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID1]] to [[ID_TYPE]] addrspace(4)*
 // CHECK-LLVM: [[ID2_AS:%.*]] = addrspacecast [[ID_TYPE]]* [[ID2]] to [[ID_TYPE]] addrspace(4)*
-// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ERKS2_([[ID_TYPE]] addrspace(4)* [[ID1_AS]], [[ID_TYPE]] addrspace(4)* [[ID1_AS]], i64 0, i64 -1, i64 1, [[ID_TYPE]] addrspace(4)* [[ID2_AS]], [[ID_TYPE]] addrspace(4)* [[ID2_AS]], i64 0, i64 -1, i64 1)
+// CHECK-LLVM: call void @_ZN4sycl3_V12idILi2EEC1ERKS2_([[ID_TYPE]] addrspace(4)* [[ID1_AS]], [[ID_TYPE]] addrspace(4)* [[ID2_AS]])
 
 extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
   auto id = sycl::id<2>{val};
@@ -146,7 +189,7 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 // CHECK-LLVM-LABEL: define spir_func void @cons_5() #0
 // CHECK-LLVM: [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
 // CHECK-LLVM: [[ACAST:%.*]] = addrspacecast %"class.sycl::_V1::accessor.1"* [[ACCESSOR]] to %"class.sycl::_V1::accessor.1" addrspace(4)*
-// CHECK-LLVM: call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]], %"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]], i64 0, i64 -1, i64 1)
+// CHECK-LLVM: call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]])
 
 extern "C" SYCL_EXTERNAL void cons_5() {
   auto accessor = sycl::accessor<sycl::cl_int, 1, sycl::access::mode::write>{};

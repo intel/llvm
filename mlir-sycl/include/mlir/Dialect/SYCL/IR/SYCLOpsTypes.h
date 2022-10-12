@@ -432,7 +432,8 @@ public:
 
 class NdItemType
     : public Type::TypeBase<NdItemType, Type, detail::NdItemTypeStorage,
-                            mlir::MemRefElementTypeInterface::Trait> {
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 
