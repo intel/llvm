@@ -6,7 +6,6 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 
 - commit 2ffd50a8cf8aefec0582da0ab5908c1665dcdbb6
 - commit 7c58b9a63cc7797dea5bc4037e2ef880a16785e2
-- commit acf9daba324e2eeea4862627c6921292dbd102e6
 
 ## New features
 
