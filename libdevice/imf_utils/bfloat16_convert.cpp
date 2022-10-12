@@ -19,4 +19,24 @@ DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __devicelib_imf_float2bfloat16(float f) {
   return __float2bfloat16(f, __IML_RTE);
 }
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_rd(float f) {
+  return __float2bfloat16(f, __IML_RTN);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_rn(float f) {
+  return __float2bfloat16(f, __IML_RTE);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_ru(float f) {
+  return __float2bfloat16(f, __IML_RTP);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_rz(float f) {
+  return __float2bfloat16(f, __IML_RTZ);
+}
 #endif

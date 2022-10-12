@@ -419,6 +419,14 @@ SYCLDeviceLibFuncMap SDLMap = {
      DeviceLibExt::cl_intel_devicelib_imf_bf16},
     {"__devicelib_imf_float2bfloat16",
      DeviceLibExt::cl_intel_devicelib_imf_bf16},
+    {"__devicelib_imf_float2bfloat16_rd",
+     DeviceLibExt::cl_intel_devicelib_imf_bf16},
+    {"__devicelib_imf_float2bfloat16_rn",
+     DeviceLibExt::cl_intel_devicelib_imf_bf16},
+    {"__devicelib_imf_float2bfloat16_ru",
+     DeviceLibExt::cl_intel_devicelib_imf_bf16},
+    {"__devicelib_imf_float2bfloat16_rz",
+     DeviceLibExt::cl_intel_devicelib_imf_bf16},
     {"__devicelib_imf_fmabf16", DeviceLibExt::cl_intel_devicelib_imf_bf16},
 };
 

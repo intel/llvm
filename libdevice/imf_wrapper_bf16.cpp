@@ -28,6 +28,38 @@ _iml_bf16_internal __imf_float2bfloat16(float f) {
 }
 
 DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_rd(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_float2bfloat16_rd(float f) {
+  return __devicelib_imf_float2bfloat16_rd(f);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_rn(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_float2bfloat16_rn(float f) {
+  return __devicelib_imf_float2bfloat16_rn(f);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_ru(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_float2bfloat16_ru(float f) {
+  return __devicelib_imf_float2bfloat16_ru(f);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_float2bfloat16_rz(float);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_float2bfloat16_rz(float f) {
+  return __devicelib_imf_float2bfloat16_rz(f);
+}
+
+DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __devicelib_imf_fmabf16(_iml_bf16_internal,
                                            _iml_bf16_internal,
                                            _iml_bf16_internal);
