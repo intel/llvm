@@ -2489,6 +2489,10 @@ pi_result hip_piEnqueueKernelLaunch(
   assert(work_dim > 0);
   assert(work_dim < 4);
 
+  if (*global_work_size == 0) {
+    return PI_SUCCESS;
+  }
+
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
   int threadsPerBlock[3] = {32, 1, 1};
