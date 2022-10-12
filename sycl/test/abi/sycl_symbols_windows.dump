@@ -40,6 +40,7 @@
 ??$get_info@Ucontext@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AVcontext@12@XZ
 ??$get_info@Ucontext@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVcontext@12@XZ
 ??$get_info@Udevice@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdevice@12@XZ
+??$get_info@Udevice_id@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Udevice_type@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AW4device_type@info@12@XZ
 ??$get_info@Udevices@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Udouble_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
