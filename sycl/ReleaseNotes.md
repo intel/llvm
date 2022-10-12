@@ -51,16 +51,20 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 
 ### Documentation
 
-- Added stateful to stateless mem access conversion [design document](sycl/doc/design/ESIMDStatelesAccessors.md). [3e03f300]
-- Added [`sycl_ext_oneapi_complex`](sycl/doc/extensions/proposed/sycl_ext_oneapi_complex.asciidoc) extension proposal. [01589da5]
+- Added stateful to stateless mem access conversion
+  [design document](sycl/doc/design/ESIMDStatelesAccessors.md). [3e03f300]
+- Added [`sycl_ext_oneapi_complex`](sycl/doc/extensions/proposed/sycl_ext_oneapi_complex.asciidoc)
+  extension proposal. [01589da5]
 - Updated [`sycl_ext_intel_fpga_device_selector`](sycl/doc/extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc)
-  extension to revision 2. [9bef890d]
+  extension to add `fpga_simulator_accessor`. [9bef890d]
 - Added [`sycl_ext_intel_fpga_kernel_interface_properties`](sycl/doc/extension/proposed/sycl_ext_intel_fpga_kernel_interface_properties.asciidoc) extension proposal. [4b6bd14b]
-- Updated [`sycl_ext_oneapi_complex_algorithms`](sycl/doc/extensions/proposed/sycl_ext_oneapi_complex_algorithms.asciidoc) extension to revision 2. [07c5b48f]
+- Updated [`sycl_ext_oneapi_complex_algorithms`](sycl/doc/extensions/proposed/sycl_ext_oneapi_complex_algorithms.asciidoc)
+  extension to include `sycl::complex` as supported type for algorithms. [07c5b48f]
 - Clarified sub-group size calculation in [`sycl_ext_oneapi_invoke_simd`](sycl/doc/extensions/experimental/sycl_ext_oneapi_invoke_simd.asciidoc) extension spec. [9b33ad0f]
-- Updated [`sycl_ext_oneapi_accessor_properties`](sycl/doc/extensions/supported/sycl_ext_oneapi_accessor_properties.asciidoc) to mark `has_property` API as `noexcept`. [7805aa3f]
-- Updated [`sycl_ext_intel_device_info`](sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) to
-  support querying free device memory. [0eeef2b3]
+- Updated [`sycl_ext_oneapi_accessor_properties`](sycl/doc/extensions/supported/sycl_ext_oneapi_accessor_properties.asciidoc)
+  to mark `has_property` API as `noexcept`. [7805aa3f]
+- Updated [`sycl_ext_intel_device_info`](sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
+  to support querying free device memory. [0eeef2b3]
 - Updated [`sycl_ext_oneapi_matrix`](sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
   with description of new matrix features. [770f540d]
 - Moved [`sycl_ext_oneapi_invoke_simd`](sycl/doc/extensions/experimental/sycl_ext_oneapi_invoke_simd.asciidoc)
