@@ -71,10 +71,11 @@ https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 "Feature test macros". Therefore, an implementation
 supporting this extension must predefine the macro 
-`SYCL_EXT_ONEAPI_BFLOAT16_MATH` to one of the values defined in the table
-below. Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
+`SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS` to one of the values defined in the
+table below. Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's APIs the implementation
+supports.
  
 [%header,cols="1,5"]
 |===

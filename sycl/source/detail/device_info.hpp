@@ -279,22 +279,6 @@ struct get_device_info_impl<std::vector<memory_scope>,
   }
 };
 
-// Specialization for bf16 conversions
-template <>
-struct get_device_info_impl<bool, info::device::ext_oneapi_bfloat16> {
-  static bool get(RT::PiDevice dev, const plugin &Plugin) {
-    bool result = false;
-
-    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, PiInfoCode<info::device::ext_oneapi_bfloat16>::value,
-        sizeof(result), &result, nullptr);
-    if (Err != PI_SUCCESS) {
-      return false;
-    }
-    return result;
-  }
-};
-
 // Specialization for bf16 math functions
 template <>
 struct get_device_info_impl<bool,
@@ -1016,11 +1000,6 @@ inline std::vector<memory_scope>
 get_device_info_host<info::device::atomic_memory_scope_capabilities>() {
   return {memory_scope::work_item, memory_scope::sub_group,
           memory_scope::work_group, memory_scope::device, memory_scope::system};
-}
-
-template <>
-inline bool get_device_info_host<info::device::ext_oneapi_bfloat16>() {
-  return true;
 }
 
 template <>
