@@ -874,7 +874,7 @@ bool _pi_queue::isInOrderQueue() const {
 
 bool _pi_queue::isEagerExec() const {
   // If lazy exec queue property is not set, then it's an eager queue.
-  return ((this->Properties & (1 << 11)) == 0);
+  return ((this->Properties & PI_QUEUE_LAZY_EXECUTION) == 0);
 }
 
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
