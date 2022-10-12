@@ -50,8 +50,7 @@ private:
     assert(sizeof(T) <= Size && "Out of bounds!");
     T Val;
     std::memcpy(&Val, Ptr, sizeof(T));
-    Ptr += sizeof(T);
-    Size -= sizeof(T);
+    drop<T>();
     return Val;
   }
 
