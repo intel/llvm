@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/DivisionByConstantInfo.h"
 #include "llvm/Support/MathExtras.h"
@@ -2823,12 +2824,6 @@ bool CombinerHelper::matchRedundantAnd(MachineInstr &MI,
     return false;
 
   Register AndDst = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(AndDst);
-
-  // FIXME: This should be removed once GISelKnownBits supports vectors.
-  if (DstTy.isVector())
-    return false;
-
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
   KnownBits LHSBits = KB->getKnownBits(LHS);
@@ -2869,12 +2864,6 @@ bool CombinerHelper::matchRedundantOr(MachineInstr &MI, Register &Replacement) {
     return false;
 
   Register OrDst = MI.getOperand(0).getReg();
-  LLT DstTy = MRI.getType(OrDst);
-
-  // FIXME: This should be removed once GISelKnownBits supports vectors.
-  if (DstTy.isVector())
-    return false;
-
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
   KnownBits LHSBits = KB->getKnownBits(LHS);
@@ -6058,6 +6047,38 @@ bool CombinerHelper::matchSimplifySelectToMinMax(MachineInstr &MI,
   Register TrueVal = MI.getOperand(2).getReg();
   Register FalseVal = MI.getOperand(3).getReg();
   return matchFPSelectToMinMax(Dst, Cond, TrueVal, FalseVal, MatchInfo);
+}
+
+bool CombinerHelper::matchRedundantBinOpInEquality(MachineInstr &MI,
+                                                   BuildFnTy &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_ICMP);
+  // (X + Y) == X --> Y == 0
+  // (X + Y) != X --> Y != 0
+  // (X - Y) == X --> Y == 0
+  // (X - Y) != X --> Y != 0
+  // (X ^ Y) == X --> Y == 0
+  // (X ^ Y) != X --> Y != 0
+  Register Dst = MI.getOperand(0).getReg();
+  CmpInst::Predicate Pred;
+  Register X, Y, OpLHS, OpRHS;
+  bool MatchedSub = mi_match(
+      Dst, MRI,
+      m_c_GICmp(m_Pred(Pred), m_Reg(X), m_GSub(m_Reg(OpLHS), m_Reg(Y))));
+  if (MatchedSub && X != OpLHS)
+    return false;
+  if (!MatchedSub) {
+    if (!mi_match(Dst, MRI,
+                  m_c_GICmp(m_Pred(Pred), m_Reg(X),
+                            m_any_of(m_GAdd(m_Reg(OpLHS), m_Reg(OpRHS)),
+                                     m_GXor(m_Reg(OpLHS), m_Reg(OpRHS))))))
+      return false;
+    Y = X == OpLHS ? OpRHS : X == OpRHS ? OpLHS : Register();
+  }
+  MatchInfo = [=](MachineIRBuilder &B) {
+    auto Zero = B.buildConstant(MRI.getType(Y), 0);
+    B.buildICmp(Pred, Dst, Y, Zero);
+  };
+  return CmpInst::isEquality(Pred) && Y.isValid();
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {

@@ -34,6 +34,7 @@ class TestCase(TestBase):
 
         # Test that minimum and maximum values for each data type are right.
         self.expect_expr("A::char_max == char_max", result_value="true")
+        self.expect_expr("A::schar_max == schar_max", result_value="true")
         self.expect_expr("A::uchar_max == uchar_max", result_value="true")
         self.expect_expr("A::int_max == int_max", result_value="true")
         self.expect_expr("A::uint_max == uint_max", result_value="true")
@@ -41,8 +42,10 @@ class TestCase(TestBase):
         self.expect_expr("A::ulong_max == ulong_max", result_value="true")
         self.expect_expr("A::longlong_max == longlong_max", result_value="true")
         self.expect_expr("A::ulonglong_max == ulonglong_max", result_value="true")
+        self.expect_expr("A::wchar_max == wchar_max", result_value="true")
 
         self.expect_expr("A::char_min == char_min", result_value="true")
+        self.expect_expr("A::schar_min == schar_min", result_value="true")
         self.expect_expr("A::uchar_min == uchar_min", result_value="true")
         self.expect_expr("A::int_min == int_min", result_value="true")
         self.expect_expr("A::uint_min == uint_min", result_value="true")
@@ -50,6 +53,7 @@ class TestCase(TestBase):
         self.expect_expr("A::ulong_min == ulong_min", result_value="true")
         self.expect_expr("A::longlong_min == longlong_min", result_value="true")
         self.expect_expr("A::ulonglong_min == ulonglong_min", result_value="true")
+        self.expect_expr("A::wchar_min == wchar_min", result_value="true")
 
         # Test an unscoped enum.
         self.expect_expr("A::enum_val", result_value="enum_case2")

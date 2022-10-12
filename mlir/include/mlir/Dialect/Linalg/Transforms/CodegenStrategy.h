@@ -30,74 +30,8 @@ struct Transformation {
   LinalgTransformationFilter::FilterFunction filter = nullptr;
 };
 
-/// Represent one application of LinalgStrategyTileAndFusePass.
-struct TileAndFuse : public Transformation {
-  TileAndFuse(StringRef name, linalg::LinalgTilingAndFusionOptions options,
-              LinalgTransformationFilter::FilterFunction f = nullptr)
-      : Transformation(std::move(f)), opName(name),
-        options(std::move(options)) {}
-
-  void addToPassPipeline(OpPassManager &pm,
-                         LinalgTransformationFilter m) const override {
-    pm.addPass(createLinalgStrategyTileAndFusePass(opName, options, m));
-  }
-
-private:
-  std::string opName;
-  linalg::LinalgTilingAndFusionOptions options;
-};
-
-/// Represent one application of LinalgStrategyTilePass.
-struct Tile : public Transformation {
-  Tile(StringRef name, linalg::LinalgTilingOptions options,
-       LinalgTransformationFilter::FilterFunction f = nullptr)
-      : Transformation(std::move(f)), opName(name),
-        options(std::move(options)) {}
-
-  void addToPassPipeline(OpPassManager &pm,
-                         LinalgTransformationFilter m) const override {
-    pm.addPass(createLinalgStrategyTilePass(opName, options, m));
-  }
-
-private:
-  std::string opName;
-  linalg::LinalgTilingOptions options;
-};
-
 /// Codegen strategy controls how a Linalg op is progressively lowered.
 struct CodegenStrategy {
-  /// Append a pattern to tile the Op `opName` and fuse its producers with
-  /// tiling and fusion `options`.
-  CodegenStrategy &
-  tileAndFuse(StringRef opName, const LinalgTilingAndFusionOptions &options,
-              const LinalgTransformationFilter::FilterFunction &f = nullptr) {
-    transformationSequence.emplace_back(
-        std::make_unique<TileAndFuse>(opName, options, f));
-    return *this;
-  }
-  /// Conditionally append a pattern to tile the Op `opName` and fuse its
-  /// producers with tiling and fusion `options`.
-  CodegenStrategy &
-  tileAndFuseIf(bool b, StringRef opName, LinalgTilingAndFusionOptions options,
-                LinalgTransformationFilter::FilterFunction f = nullptr) {
-    return b ? tileAndFuse(opName, std::move(options), std::move(f)) : *this;
-  }
-  /// Append a pattern to add a level of tiling for Op `opName` with tiling
-  /// `options`.
-  CodegenStrategy &
-  tile(StringRef opName, const linalg::LinalgTilingOptions &options,
-       const LinalgTransformationFilter::FilterFunction &f = nullptr) {
-    transformationSequence.emplace_back(
-        std::make_unique<Tile>(opName, options, f));
-    return *this;
-  }
-  /// Conditionally append a pattern to add a level of tiling for
-  /// `LinalgOpType` with tiling `options`.
-  CodegenStrategy &
-  tileIf(bool b, StringRef opName, linalg::LinalgTilingOptions options,
-         LinalgTransformationFilter::FilterFunction f = nullptr) {
-    return b ? tile(opName, std::move(options), std::move(f)) : *this;
-  }
   /// Configure the post staged-patterns global enabling passes options.
   CodegenStrategy &
   setVectorTransferToSCFOptions(LinalgEnablingOptions options) {

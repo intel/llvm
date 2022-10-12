@@ -92,7 +92,6 @@ public:
   int getSizeOf(const Value *Val, SizeKind Kind = Store) const;
   int getSizeOf(const Type *Ty, SizeKind Kind = Store) const;
   int getTypeAlignment(Type *Ty) const;
-  size_t length(Value *Val) const;
   size_t length(Type *Ty) const;
 
   Constant *getNullValue(Type *Ty) const;
@@ -1031,10 +1030,6 @@ auto HexagonVectorCombine::getTypeAlignment(Type *Ty) const -> int {
   return DL.getABITypeAlign(Ty).value();
 }
 
-auto HexagonVectorCombine::length(Value *Val) const -> size_t {
-  return length(Val->getType());
-}
-
 auto HexagonVectorCombine::length(Type *Ty) const -> size_t {
   auto *VecTy = dyn_cast<VectorType>(Ty);
   assert(VecTy && "Must be a vector type");
@@ -1095,13 +1090,10 @@ auto HexagonVectorCombine::vlalignb(IRBuilder<> &Builder, Value *Lo, Value *Hi,
                            VecLen);
 
   if (HST.isTypeForHVX(Hi->getType())) {
-    int HwLen = HST.getVectorLength();
-    assert(VecLen == HwLen && "Expecting an exact HVX type");
-    Intrinsic::ID V6_vlalignb = HwLen == 64
-                                    ? Intrinsic::hexagon_V6_vlalignb
-                                    : Intrinsic::hexagon_V6_vlalignb_128B;
-    return createHvxIntrinsic(Builder, V6_vlalignb, Hi->getType(),
-                              {Hi, Lo, Amt});
+    assert(static_cast<unsigned>(VecLen) == HST.getVectorLength() &&
+           "Expecting an exact HVX type");
+    return createHvxIntrinsic(Builder, HST.getIntrinsicId(Hexagon::V6_vlalignb),
+                              Hi->getType(), {Hi, Lo, Amt});
   }
 
   if (VecLen == 4) {
@@ -1127,12 +1119,10 @@ auto HexagonVectorCombine::vralignb(IRBuilder<> &Builder, Value *Lo, Value *Hi,
     return getElementRange(Builder, Lo, Hi, IntAmt->getSExtValue(), VecLen);
 
   if (HST.isTypeForHVX(Lo->getType())) {
-    int HwLen = HST.getVectorLength();
-    assert(VecLen == HwLen && "Expecting an exact HVX type");
-    Intrinsic::ID V6_valignb = HwLen == 64 ? Intrinsic::hexagon_V6_valignb
-                                           : Intrinsic::hexagon_V6_valignb_128B;
-    return createHvxIntrinsic(Builder, V6_valignb, Lo->getType(),
-                              {Hi, Lo, Amt});
+    assert(static_cast<unsigned>(VecLen) == HST.getVectorLength() &&
+           "Expecting an exact HVX type");
+    return createHvxIntrinsic(Builder, HST.getIntrinsicId(Hexagon::V6_valignb),
+                              Lo->getType(), {Hi, Lo, Amt});
   }
 
   if (VecLen == 4) {
