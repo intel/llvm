@@ -1,6 +1,6 @@
 # TBD'22 release notes
 
-Release notes for commit range [`6647cfdb..0f579bae`](https://github.com/intel/llvm/compare/6647cfdb...0f579bae)
+Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/llvm/compare/4043dda3...0f579bae)
 
 **TODO**
 
