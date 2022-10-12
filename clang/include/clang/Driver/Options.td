@@ -2942,7 +2942,7 @@ defm sycl_unnamed_lambda
               " >= clang::LangOptions::SYCLMajorVersion::SYCL_2020")>,
           PosFlag<SetTrue, [], "Allow">, NegFlag<SetFalse, [], "Disallow">,
           BothFlags<[CC1Option, CoreOption], " unnamed SYCL lambda kernels">>;
-defm sycl_inline_kernel_lambda
+defm sycl_force_inline_kernel_lambda
     : BoolFOption<
           "sycl-force-inline-kernel-lambda", LangOpts<"SYCLForceInlineKernelLambda">,
           DefaultTrue,
