@@ -144,8 +144,9 @@ public:
                              sycl::detail::EnqueueResultT &EnqueueResult,
                              sycl::detail::BlockingT Blocking) {
     std::vector<sycl::detail::Command *> ToCleanUp;
+    std::vector<sycl::detail::EventImplPtr> WaitList;
     return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp,
-                                          Blocking);
+                                          WaitList, Blocking);
   }
 
   sycl::detail::AllocaCommandBase *
@@ -156,7 +157,7 @@ public:
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   }
 
-  ReadLockT acquireGraphReadLock() { return ReadLockT{MGraphLock}; }
+  ReadLockT acquireGraphReadLock() { return acquireReadLock(); }
 
   sycl::detail::Command *
   insertMemoryMove(sycl::detail::MemObjRecord *Record,

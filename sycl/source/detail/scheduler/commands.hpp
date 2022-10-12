@@ -47,23 +47,23 @@ class EmptyCommand;
 enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
 /// Result of command enqueueing.
-struct EnqueueResultT {
-  enum ResultT {
-    SyclEnqueueReady,
-    SyclEnqueueSuccess,
-    SyclEnqueueBlocked,
-    SyclEnqueueFailed
-  };
-  EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
-                 pi_int32 ErrCode = PI_SUCCESS)
-      : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
-  /// Indicates the result of enqueueing.
-  ResultT MResult;
-  /// Pointer to the command which failed to enqueue.
-  Command *MCmd;
-  /// Error code which is set when enqueueing fails.
-  pi_int32 MErrCode;
-};
+/* struct EnqueueResultT { */
+/*   enum ResultT { */
+/*     SyclEnqueueReady, */
+/*     SyclEnqueueSuccess, */
+/*     SyclEnqueueBlocked, */
+/*     SyclEnqueueFailed */
+/*   }; */
+/*   EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr, */
+/*                  pi_int32 ErrCode = PI_SUCCESS) */
+/*       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {} */
+/*   /// Indicates the result of enqueueing. */
+/*   ResultT MResult; */
+/*   /// Pointer to the command which failed to enqueue. */
+/*   Command *MCmd; */
+/*   /// Error code which is set when enqueueing fails. */
+/*   pi_int32 MErrCode; */
+/* }; */
 
 /// Dependency between two commands.
 struct DepDesc {
@@ -148,8 +148,6 @@ public:
 
   const QueueImplPtr &getQueue() const { return MQueue; }
 
-  const QueueImplPtr &getSubmittedQueue() const { return MSubmittedQueue; }
-
   const EventImplPtr &getEvent() const { return MEvent; }
 
   // Methods needed to support SYCL instrumentation
@@ -216,7 +214,6 @@ public:
 
 protected:
   QueueImplPtr MQueue;
-  QueueImplPtr MSubmittedQueue;
   EventImplPtr MEvent;
   QueueImplPtr MWorkerQueue;
 
@@ -264,6 +261,10 @@ public:
     return MPreparedDepsEvents;
   }
 
+  const std::atomic<EnqueueResultT::ResultT> &getEnqueueStatus() const {
+    return MEnqueueStatus;
+  }
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -287,8 +288,8 @@ public:
   // Only have reasonable value while MIsBlockable is true
   BlockReason MBlockReason;
 
-  /// Describes the status of the command.
-  std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
+  // Describes the status of the command.
+  std::atomic<EnqueueResultT::ResultT> &MEnqueueStatus;
 
   // All member variable defined here  are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION

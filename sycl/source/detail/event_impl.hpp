@@ -25,6 +25,27 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
+
+class Command;
+
+struct EnqueueResultT {
+  enum ResultT {
+    SyclEnqueueReady,
+    SyclEnqueueSuccess,
+    SyclEnqueueBlocked,
+    SyclEnqueueFailed
+  };
+  EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
+                 pi_int32 ErrCode = PI_SUCCESS)
+      : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
+  /// Indicates the result of enqueueing.
+  ResultT MResult;
+  /// Pointer to the command which failed to enqueue.
+  Command *MCmd;
+  /// Error code which is set when enqueueing fails.
+  pi_int32 MErrCode;
+};
+
 class plugin;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
@@ -113,6 +134,8 @@ public:
 
   /// Waits for the event with respect to device type.
   void waitInternal();
+
+  void waitStateChange();
 
   /// Marks this event as completed.
   void setComplete();
@@ -225,6 +248,17 @@ public:
     MWorkerQueue = WorkerQueue;
   };
 
+  /// Sets original queue used for submission.
+  ///
+  /// @return
+  void setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
+    MSubmittedQueue = SubmittedQueue;
+  };
+
+  QueueImplPtr getSubmittedQueue() const {
+    return MSubmittedQueue.lock();
+  };
+
   /// Checks if an event is in a fully intialized state. Default-constructed
   /// events will return true only after having initialized its native event,
   /// while other events will assume that they are fully initialized at
@@ -233,6 +267,15 @@ public:
   /// \return true if the event is considered to be in a fully initialized
   /// state.
   bool isInitialized() const noexcept { return MIsInitialized; }
+
+  std::atomic<EnqueueResultT::ResultT> &getEnqueueStatus() {
+    return MEnqueueStatus;
+  }
+
+  void attachEventToComplete(const EventImplPtr &Event) {
+    std::unique_lock<std::mutex> lock(MMutex);
+    MPostCompleteEvents.push_back(Event);
+  }
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -257,10 +300,13 @@ private:
   const bool MIsProfilingEnabled = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
+  std::weak_ptr<queue_impl> MSubmittedQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
+
+  std::vector<EventImplPtr> MPostCompleteEvents;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
@@ -279,6 +325,9 @@ private:
 
   std::mutex MMutex;
   std::condition_variable cv;
+
+  /// Describes the status of the command.
+  std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
   friend std::vector<RT::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

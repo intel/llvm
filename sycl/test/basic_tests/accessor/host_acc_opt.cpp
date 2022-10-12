@@ -17,8 +17,7 @@
 // CHECK-NOT: invoke
 // CHECK: }
 void foo(sycl::accessor<int, 1, sycl::access::mode::read_write,
-                        sycl::target::host_buffer> &Acc,
-         int *Src) {
+                        sycl::target::host_buffer> &Acc, int *Src) {
   for (size_t I = 0; I < 64; ++I)
-    Acc[I] = Src[I];
+    Acc[I] += Src[I];
 }

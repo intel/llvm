@@ -364,7 +364,7 @@ public:
   /// \param CommandGroup is a unique_ptr to a command group to be added.
   /// \return an event object to wait on for command group completion.
   EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                     QueueImplPtr Queue);
+                     const QueueImplPtr &Queue);
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -380,7 +380,7 @@ public:
   /// corresponding function of device API.
   ///
   /// \param Event is a pointer to event to wait on.
-  void waitForEvent(EventImplPtr Event);
+  void waitForEvent(const EventImplPtr &Event);
 
   /// Removes buffer from the graph.
   ///
@@ -441,15 +441,13 @@ public:
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
-  static MemObjRecord *getMemObjRecord(const Requirement *const Req);
+  void NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd);
 
   Scheduler();
   ~Scheduler();
 
 protected:
-  // TODO: after switching to C++17, change std::shared_timed_mutex to
-  // std::shared_mutex
-  using RWLockT = std::shared_timed_mutex;
+  using RWLockT = std::shared_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
   using WriteLockT = std::unique_lock<RWLockT>;
 
@@ -457,12 +455,34 @@ protected:
   /// avoidance
   ///
   /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
-  void acquireWriteLock(WriteLockT &Lock);
+  WriteLockT acquireWriteLock() {
+#ifdef _WIN32
+    WriteLockT Lock(MGraphLock, std::defer_lock);
+    while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
+      // Without yield while loop acts like endless while loop and occupies the
+      // whole CPU when multiple command groups are created in multiple host
+      // threads
+      std::this_thread::yield();
+    }
+#else
+    WriteLockT Lock(MGraphLock);
+    // It is a deadlock on UNIX in implementation of lock and lock_shared, if
+    // try_lock in the loop above will be executed, so using a single lock here
+#endif // _WIN32
+    return std::move(Lock);
+  }
 
+  ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
+
+  // Read lock required
+  static MemObjRecord *getMemObjRecord(const Requirement *const Req);
+
+  // Write lock required
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
-  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
-                                         std::vector<Command *> &ToCleanUp);
+  // Read lock required
+  static void enqueueLeavesOfReq(const Requirement *const Req,
+                                 std::vector<Command *> &ToCleanUp);
 
   /// Graph builder class.
   ///
@@ -738,10 +758,15 @@ protected:
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
-    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
-                             std::vector<Command *> &ToCleanUp,
-                             bool LockTheLock = true);
+    /* static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock, */
+    /*                          std::vector<Command *> &ToCleanUp, */
+    /*                          bool LockTheLock = true); */
 
+    /* static void tryToEnqueue(const EventImplPtr &Event, */
+    /*                          std::vector<Command *> &ToCleanUp); */
+
+    static std::vector<EventImplPtr>
+    collectEventsForRecToFinish(MemObjRecord *Record);
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
@@ -752,7 +777,10 @@ protected:
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
+                               std::vector<EventImplPtr> &WaitList,
                                BlockingT Blocking = NON_BLOCKING);
+
+    static Command *getCommand(const EventImplPtr &Event);
   };
 
   /// This function waits on all of the graph leaves which somehow use the
@@ -763,7 +791,7 @@ protected:
   ///
   /// GraphReadLock will be unlocked/locked as needed. Upon return from the
   /// function, GraphReadLock will be left in locked state.
-  void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
+  /* void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock); */
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;

@@ -289,6 +289,9 @@ public:
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
+
+    //std::cout << "Starting " << MThisCmd << std::endl;
+
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
@@ -325,28 +328,7 @@ public:
     EmptyCommand *EmptyCmd = MThisCmd->MEmptyCmd;
     assert(EmptyCmd && "No empty command found");
 
-    // Completing command's event along with unblocking enqueue readiness of
-    // empty command may lead to quick deallocation of MThisCmd by some cleanup
-    // process. Thus we'll copy deps prior to completing of event and unblocking
-    // of empty command.
-    // Also, it's possible to have record deallocated prior to enqueue process.
-    // Thus we employ read-lock of graph.
-    std::vector<Command *> ToCleanUp;
-    Scheduler &Sched = Scheduler::getInstance();
-    {
-      Scheduler::ReadLockT Lock(Sched.MGraphLock);
-
-      std::vector<DepDesc> Deps = MThisCmd->MDeps;
-
-      // update self-event status
-      MThisCmd->MEvent->setComplete();
-
-      EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-      for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
-    }
-    Sched.cleanupCommands(ToCleanUp);
+    Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd, EmptyCmd);
   }
 };
 
@@ -413,11 +395,11 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
-      MType(Type) {
-  MSubmittedQueue = MQueue;
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MEnqueueStatus(MEvent->getEnqueueStatus()) {
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
@@ -1733,8 +1715,8 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
-    MSubmittedQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setSubmittedQueue(
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
     MEvent->setNeedsCleanupAfterWait(true);
   } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
              (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||

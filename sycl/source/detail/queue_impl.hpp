@@ -450,6 +450,11 @@ public:
     return MAssertHappenedBuffer;
   }
 
+  void registerStreamServiceEvent(const EventImplPtr &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MStreamsServiceEvents.push_back(Event);
+  }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -613,6 +618,8 @@ private:
   CG::CGTYPE MLastCGType = CG::CGTYPE::None;
 
   const bool MIsInorder;
+
+  std::vector<EventImplPtr> MStreamsServiceEvents;
 
 public:
   // Queue constructed with the discard_events property

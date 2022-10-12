@@ -60,20 +60,42 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
+    // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-    return;
-  }
-
-  if (MState == HES_Discarded)
+  } else if (MState != HES_Complete) {
+    // Wait for the host event
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] { return MState == HES_Complete; });
+  } else if (MState == HES_Discarded) {
+    // Waiting for the discarded event is invalid
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
+  }
 
-  if (MState == HES_Complete)
-    return;
+  // Wait for connected events(e.g. streams prints)
+  for (const EventImplPtr &Event : MPostCompleteEvents)
+    Event->waitInternal();
+}
 
-  std::unique_lock<std::mutex> lock(MMutex);
-  cv.wait(lock, [this] { return MState == HES_Complete; });
+void event_impl::waitStateChange() {
+  // If the command enqueued we can wait for its event completion directly
+  if (getEnqueueStatus() == EnqueueResultT::SyclEnqueueSuccess) {
+    waitInternal();
+  }
+  // Otherwise wait until unblocked and move further(we will enqueue it
+  // during the next attempt)
+  else {
+    const static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+    while (getEnqueueStatus() == EnqueueResultT::SyclEnqueueBlocked) {
+      if (ThrowOnBlock)
+        throw sycl::runtime_error(
+            std::string("Waiting for blocked command. Block reason: "),
+            PI_ERROR_INVALID_OPERATION);
+      // TODO: Sleep
+    }
+  }
+  // TODO: Handle other statuses?
 }
 
 void event_impl::setComplete() {
@@ -236,27 +258,12 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
 
 void event_impl::wait_and_throw(
     std::shared_ptr<sycl::detail::event_impl> Self) {
-  Scheduler &Sched = Scheduler::getInstance();
 
-  QueueImplPtr submittedQueue = nullptr;
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    Command *Cmd = static_cast<Command *>(Self->getCommand());
-    if (Cmd)
-      submittedQueue = Cmd->getSubmittedQueue();
-  }
+
   wait(Self);
 
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    for (auto &EventImpl : getWaitList()) {
-      Command *Cmd = (Command *)EventImpl->getCommand();
-      if (Cmd)
-        Cmd->getSubmittedQueue()->throw_asynchronous();
-    }
-  }
-  if (submittedQueue)
-    submittedQueue->throw_asynchronous();
+  if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
+    SubmittedQueue->throw_asynchronous();
 }
 
 void event_impl::cleanupCommand(
@@ -266,9 +273,7 @@ void event_impl::cleanupCommand(
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  std::weak_ptr<queue_impl> EmptyPtr;
-
-  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
+  if (!isInitialized()) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
                           "Profiling information is unavailable as the event "
                           "has no associated queue.");

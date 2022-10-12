@@ -68,7 +68,10 @@ public:
   ~ThreadPool() { finishAndWait(); }
 
   void finishAndWait() {
-    MStop.store(true);
+    {
+      std::unique_lock<std::mutex> Lock(MJobQueueMutex);
+      MStop.store(true);
+    }
 
     MDoSmthOrStop.notify_all();
 
