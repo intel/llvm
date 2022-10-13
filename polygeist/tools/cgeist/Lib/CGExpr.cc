@@ -1052,7 +1052,7 @@ static llvm::Optional<mlir::sycl::SYCLCastOp> trackSYCLCast(Value val) {
 
 llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
     llvm::StringRef typeName, llvm::StringRef functionName,
-    mlir::ValueRange operands, mlir::TypeRange returnType,
+    mlir::ValueRange operands, llvm::Optional<mlir::Type> returnType,
     llvm::StringRef mangledFunctionName) {
   // Expecting a MemRef as the first argument, as the first operand to a method
   // call should be a pointer to `this`.
@@ -1097,7 +1097,8 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
                           << " to replace SYCL method call.\n");
 
   return static_cast<sycl::SYCLMethodOpInterface>(builder.create(
-      loc, builder.getStringAttr(*OptOpName), operandsCpy, returnType,
+      loc, builder.getStringAttr(*OptOpName), operandsCpy,
+      returnType ? mlir::TypeRange{*returnType} : mlir::TypeRange{},
       getSYCLMethodOpAttrs(builder, operands[0].getType(), typeName,
                            functionName, mangledFunctionName)));
 }
@@ -1145,9 +1146,8 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
       if (OptFuncType) {
         // Attempt to create a SYCL method call first, if that fails create a
         // generic SYCLCallOp.
-        Op = createSYCLMethodOp(
-                 *OptFuncType, Func->getNameAsString(), Args,
-                 OptRetType ? TypeRange{*OptRetType} : TypeRange{}, name)
+        Op = createSYCLMethodOp(*OptFuncType, Func->getNameAsString(), Args,
+                                OptRetType, name)
                  .value_or(nullptr);
       }
       if (!Op) {

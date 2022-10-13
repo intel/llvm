@@ -392,13 +392,14 @@ private:
   /// Creates an instance of SYCLMethodOpInterface if the SYCLCallOp with base
   /// type name \param typeName, function name \param functionName, mangled
   /// function name \param mangledFunctionName, parameters \param operands and
-  /// return type \param returnType can be represented as such.
+  /// (optional) return type \param returnType can be represented as such.
   ///
   /// E.g., the SYCLCallOp to the accessor member function
   /// accessor::operator[] can be represented using a SYCLAccessorSubscriptOp.
   llvm::Optional<mlir::sycl::SYCLMethodOpInterface>
   createSYCLMethodOp(llvm::StringRef typeName, llvm::StringRef functionName,
-                     mlir::ValueRange operands, mlir::TypeRange returnType,
+                     mlir::ValueRange operands,
+                     llvm::Optional<mlir::Type> returnType,
                      llvm::StringRef mangledFunctionName);
 
 public:
