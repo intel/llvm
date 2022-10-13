@@ -16,8 +16,6 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <algorithm>
-#include <cmath>
 #include <numeric>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
@@ -30,25 +28,17 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
   auto size = size_t{128};
 
   auto vec_0 = std::vector<int>(size);
-  auto vec_1 = std::vector<int>(size);
   auto vec_2 = std::vector<int>(size);
-  auto vec_3 = std::vector<int>(size);
 
   std::iota(vec_0.begin(), vec_0.end(), 0);
-  std::iota(vec_1.begin(), vec_1.end(), 0);
   std::iota(vec_2.begin(), vec_2.end(), 0);
-  std::iota(vec_3.begin(), vec_3.end(), 0);
   auto buf_0 = buffer{vec_0};
-  auto buf_1 = buffer{vec_1};
   auto buf_2 = buffer{vec_2};
-  auto buf_3 = buffer{vec_3};
 
   try {
     q.submit([&](handler &h) {
       auto access_0 = buf_0.template get_access<access::mode::read_write>(h);
-      auto access_1 = buf_1.template get_access<access::mode::read_write>(h);
       auto access_2 = buf_2.template get_access<access::mode::read_write>(h);
-      auto access_3 = buf_3.template get_access<access::mode::read_write>(h);
 
       h.parallel_for(
           range<1>{size / SIMDSize}, [=](id<1> id) SYCL_ESIMD_KERNEL {
@@ -63,27 +53,15 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
             lsc_block_store<int, SIMDSize>(access_0, offset, data_0 * 2,
                                            pred_enable);
 
-            auto data_1 =
-                lsc_block_load<int, SIMDSize>(access_1, offset, pred_disable);
-            lsc_block_store<int, SIMDSize>(access_1, offset, data_1 * 2,
-                                           pred_enable);
-
             auto data_2 =
                 lsc_block_load<int, SIMDSize>(access_2, offset, pred_enable);
             lsc_block_store<int, SIMDSize>(access_2, offset, data_2 * 2,
-                                           pred_disable);
-
-            auto data_3 =
-                lsc_block_load<int, SIMDSize>(access_3, offset, pred_disable);
-            lsc_block_store<int, SIMDSize>(access_3, offset, data_3 * 2,
                                            pred_disable);
           });
     });
     q.wait();
     buf_0.template get_access<access::mode::read_write>();
-    buf_1.template get_access<access::mode::read_write>();
     buf_2.template get_access<access::mode::read_write>();
-    buf_3.template get_access<access::mode::read_write>();
   } catch (sycl::exception e) {
     std::cout << "SYCL exception caught: " << e.what();
     return 1;
@@ -91,11 +69,20 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
 
   auto error = 0;
   for (auto i = 0; i != size; ++i) {
-    error += vec_0[i] != 2 * i;
-    error += vec_1[i] > 0;
-    error += vec_2[i] != i;
-    error += vec_3[i] != i;
+    if (vec_0[i] != 2 * i) {
+      ++error;
+      std::cout << " Accessor Test 1 out[" << i << "] = 0x" << std::hex
+                << vec_0[i] << " vs etalon = 0x" << 2 * i << std::dec
+                << std::endl;
+    }
+
+    if (vec_2[i] != i) {
+      ++error;
+      std::cout << " Accessor Test 2 out[" << i << "] = 0x" << std::hex
+                << vec_2[i] << " vs etalon = 0x" << i << std::dec << std::endl;
+    }
   }
+
   std::cout << "Accessor lsc predicate test ";
   std::cout << (error != 0 ? "FAILED" : "passed") << std::endl;
   return error;
