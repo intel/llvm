@@ -50,7 +50,6 @@ def SYCL_Dialect : Dialect {
 class SYCL_Op<string mnemonic, list<Trait> traits = []>
     : Op<SYCL_Dialect, mnemonic, traits>;
 
-// methodNames
 class SYCLMethodOpInterfaceImpl<
     string mnemonic, string type, list<string> methodNames, list<Trait> traits = []>
         : SYCL_Op<mnemonic, !listconcat(traits, [SYCLMethodOpInterface])> {
