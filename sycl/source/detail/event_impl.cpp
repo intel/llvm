@@ -59,6 +59,9 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal() {
+  std::cout << "waitInternal"
+            << " MHostEvent = " << !!MHostEvent << " MEvent = " << !!MEvent
+            << std::endl;
   if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
     return;
@@ -73,6 +76,7 @@ void event_impl::waitInternal() {
     return;
 
   std::unique_lock<std::mutex> lock(MMutex);
+  std::cout << "will wait on MState == HES_Complete" << std::endl;
   cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 

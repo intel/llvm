@@ -84,10 +84,12 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Report these dependencies to the Command so these dependencies can be
     // reported as edges
+    std::cout << "release command enqueued" << std::endl;
     ReleaseCmd->resolveReleaseDependencies(DepCommands);
 #endif
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
+    std::cout << "release command waited" << std::endl;
   }
 }
 
