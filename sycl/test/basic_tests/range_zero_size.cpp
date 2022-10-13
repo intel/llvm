@@ -1,6 +1,6 @@
 // REQUIRES:cuda || hip_amd || opencl || host
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-//==--------------- range_zero_size.cpp - SYCL range test ----------------------==//
+//==--------------- range_zero_size.cpp - SYCL range test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,5 +13,6 @@ using namespace sycl;
 
 int main() {
   queue q;
-  q.submit([&](handler& cgh) { cgh.parallel_for(range<1>(0), [=](id<1> i) {}); });
+  q.submit(
+      [&](handler &cgh) { cgh.parallel_for(range<1>(0), [=](id<1> i) {}); });
 }
