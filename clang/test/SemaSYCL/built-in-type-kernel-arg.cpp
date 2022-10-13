@@ -181,7 +181,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr_array' '__global int *'
 
-// CHECK: FunctionDecl {{.*}}kernel_nns 'void (__generated_test_struct_simple)'
+// CHECK: FunctionDecl {{.*}}kernel_nns{{.*}} 'void (__generated_test_struct_simple)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_tds '__generated_test_struct_simple'
 
 // CHECK: VarDecl {{.*}} used __SYCLKernel
