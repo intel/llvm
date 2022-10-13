@@ -1528,11 +1528,11 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   DiagnosticsEngine &Diag;
   bool IsSIMD = false;
   // Keeps track of whether we are currently handling fields inside a struct.
-  // Fields of kernel functor or direct kernel captures will have a depth 0
+  // Fields of kernel functor or direct kernel captures will have a depth 0.
   int StructFieldDepth = 0;
-  // Initialize with -1 to treat fields of kernel functor base class with depth
-  // 0. Visitor method enterStruct increments this to 0 when the base class is
-  // entered.
+  // Initialize with -1 so that fields of a base class of the kernel functor
+  // has depth 0. Visitor method enterStruct increments this to 0 when the base
+  // class is entered.
   int StructBaseDepth = -1;
 
   // Check whether the object should be disallowed from being copied to kernel.
