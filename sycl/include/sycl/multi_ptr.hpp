@@ -1472,7 +1472,7 @@ bool operator<=(const multi_ptr<ElementType, Space, DecorateAddress> &lhs,
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator<=(std::nullptr_t,
-                const multi_ptr<ElementType, Space, DecorateAddress> &rhs) {
+                const multi_ptr<ElementType, Space, DecorateAddress> &) {
   return true;
 }
 
