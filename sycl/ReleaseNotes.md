@@ -143,35 +143,43 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 
 ### SYCL Library
 
-- Fixed an issue with `queue` shortcuts with offset parameter [f4f83d95]
-- Fixed `sycl::get_pointer_device` free function for cases with descendent
-  devices. [26d5d98b]
-- Fixed memory leak happening when programs/kernel bundles are linked. [980677d9]
-- Fixed USM free for descendent devices. [c49d4944]
+- Fixed a compilation issue where it wasn't possible to pass an initializer list
+  for dependency events vector in `queue` shortcuts with `offset`
+  parameter. [f4f83d95]
+- Fixed `sycl::get_pointer_device` throwing an exception when it passed a
+  descendent device (sub-device) instead of a root device. [26d5d98b]
+- Fixed memory leak happening when kernel bundles are linked. [980677d9]
+- Fixed USM free throwing an exception when it passed a context created for
+  a descendent device. [c49d4944]
 - Fixed `accessor`'s CTAD for `g++` host compiler. [57aabe7e]
-- Fixed template argument propagation in `accessor` subscript operator. [22e3fc56]
-- Fixed issues with multiple buffer reductions. [a0a4d721]
-- Fixed an issue with SYCL math built-ins when GCC < 11.1 is used as a host
-  compiler. [c786894f]
-- Fixed an issue with SYCL math built-ins not accepting pointers to `half`. [e2861665]
+- Fixed a compilation issue when using multi-dimensional `accessor`'s subscript
+  operator. [22e3fc56]
+- Fixed "definition with the same mangled name" error happenning when used
+  multiple buffer reductions in a kernel. [a0a4d721]
+- Fixed a compilation issue with SYCL math built-ins when GCC < 11.1 is used as
+  a host compiler. [c786894f]
+- Fixed a compilation issue with SYCL math built-ins (such as `sycl::modf`,
+  for example) not accepting pointers to `half`. [e2861665]
 - Fixed an issues with `reduction`s when MSVC is used as host compiler. [94c4b80a]
-- Fixed a compilation issue with fully specialized `sycl::span`. [2b50820b]
+- Fixed a compilation issue when fully specialized `sycl::span` is initalized
+  from an array. [2b50820b]
 - Fixed a crash in Level Zero PI plugins caused by specialization constants not
   being used on device side, but present in a program. [9500875f]
 - Fixed event leak in Level Zero plugin. [6d04aa64]
 - Fixed an issue with sub-sub-devices in Level Zero plugin. [4b1b01bd]
-- Fixed an issue in OpenCL PI plugin when creating a `queue` with properties
-  unsupported by OpenCL. [c0d639e0]
 - Fixed an issue with incorrect `half` conversion on ESIMD emulator. [6143e55a]
 - Fixed a compilation issue with `abs` ESIMD function. [c72a85dd]
-- Fixed C++14/C++20 compatibilitye issues. [12ac4c36]
-- Fixed a compilation issue with using multiple bit shifts in ESIMD. [40d08c23]
+- Fixed some warning coming out of SYCL headers when compiled in C++20 mode. [12ac4c36]
+- Fixed a compilation issue when using multiple bitswise shift operations
+  in ESIMD. [40d08c23]
 - Fixed a crash in Level Zero PI plugin. [a61ac7a0]
-- Fixed too many streams getting synchronized on CUDA backend. [5352b423]
-- Fixed `get_native` interop function for `device` on CUDA backend. [4d69c297]
+- Fixed a performance issue with excesseive streams synchronization
+  on CUDA backend. [5352b423]
+- Fixed a compilation issue with
+  `sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl::device)` free
+  function (intel/llvm#6653). [4d69c297]
 - Fixed synchronization issue for explicit dependencies (`depends_on` usage)
   which is blocked by host task or host accessor. [346a6c53]
-- Fixed `depends_on` with default-constructed events. [728e5b4c]
 - Fixed an issue in Level Zero plugin which could cause barriers to not be
   correctly applied for an entire queue. [d01371b3]
 - Fixed a synchronization issue on CUDA backend. [e848c15f]
