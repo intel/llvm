@@ -334,6 +334,19 @@ q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {
 }).wait();
 ```
 
+NOTE: It is currently not possible to use the same kernel function in two
+commands with different properties. For example, the following will result in an
+error at compile-time:
+
+```c++
+  auto kernelFunc = [=](){};
+  q.single_task(kernelFunc);
+  q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::sub_group_size<8>},
+      kernelFunc);
+```
+
 == Embedding Properties into a Kernel
 
 In other situations it may be useful to embed a kernel's properties directly
