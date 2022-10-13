@@ -24,7 +24,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 
 - Implemented SYCL 2020 callable device selectors. [64f0db7a]
 - Implemented SYCL 2020 standalone device selectors. [bfc7e984]
-- Added SYCL 2020 property iterfaces for `local_accessor`, `usm_allocator`,
+- Added SYCL 2020 property interfaces for `local_accessor`, `usm_allocator`,
   `accessor` and `host_accessor` classes. [1136b403] [da7dcf82]
 - Added support for `fpga_simulator_selector`. [9bef890d]
 - Added support for `local_accessor`. Deprecated `target::local`. [e4423ef4]
@@ -78,13 +78,13 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Added `group::get_linear_id(int)` method [6e83c127]
 - Added support for `ZEBIN` format to persistent caching mechanism [34dcf83d]
 - Added identification mechanism for binaries in newer `ZEBIN` format. [f4dee549]
-- Fixed uses of common macro names in the imlementation's header files [e87adfd2]
+- Fixed uses of common macro names in the implementation's header files [e87adfd2]
 - Switched to use `struct` information descriptors in accordance with SYCL 2020.
-  Removed some deprecated infromation queries. [b3cbda57]
+  Removed some deprecated information queries. [b3cbda57]
 - Updated `kernel_device_specific::max_sub_group_size` query to match SYCL 2020
   spec. Deprecated the old variant. [7842d056]
 - Deprecated SYCL 1.2.1 device selectors. [c058380f]
-- Improved error messages reported for unsupported devie partitioning. [1c9ddbaa]
+- Improved error messages reported for unsupported device partitioning. [1c9ddbaa]
 - Made `device` and `platform` default to `default_selector_v`. [b32dd41a]
 - Deprecated `address_space::constant_space`. [351b123a]
 - Marked `sycl::exception::has_context` as `noexcept`. [ad923c9a]
@@ -104,11 +104,11 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Enabled event caching in Level Zero PI plugin. [a41b33c3]
 - Optimized some reductions for discrete GPUs. [c22a5d3f]
 - Improved performance of event synchronization on CUDA backend. [c4f326aa]
-- Added ability to use descendent devices of context members can now be used
-  within that context. Not supported with OpenCL backend yet. [a0c8c503] [78a483c7]
+- Added ability to use descendent devices of context members within that
+  context. Not supported with OpenCL backend yet. [a0c8c503] [78a483c7]
 - Added support for querying `atomic64` device capability with HIP backend. [cb190fc2]
 - Enabled FTZ operations for CUDA/PTX backend via
-  `-fcyda-flush-denormals-to-zero`. [e8e7ae83]
+  `-fcuda-flush-denormals-to-zero`. [e8e7ae83]
 - Improved error message about incorrect kernel argument types with CUDA backend. [2542e6a8]
 - Limited allowed argument types for `rol/ror` ESIMD functions to better
   represent HW capabilities. [b05f256c]
@@ -131,14 +131,14 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Improved linking with `sycl.lib` on Windows. [404d2816]
 - Implemented more diagnostics about incorrect `device_global` usages. [12657218]
 - Improved library resolution for `libsycl.so`. [4ce19d69]
-- Improved diagnostics when linkind with mismatched objects. [0e0202ee]
+- Improved diagnostics when linking with mismatched objects. [0e0202ee]
 - Added a warning for floating-point size changes after implicit conversions. [e4f5d55f]
 - Made `invoke_simd` convert its argument to appropriate types. [038764fd]
 
 ### Documentation
 
 - Removed explicit `cl` namespace references. [433ea5c7]
-- Added a short guildeline on using CMake with SYCL compiler. [fa603c3e]
+- Added a short guideline on using CMake with SYCL compiler. [fa603c3e]
 
 ## Bug fixes
 
