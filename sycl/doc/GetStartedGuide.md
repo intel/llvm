@@ -647,7 +647,7 @@ necessary if an application aims to use newer hardware features, such as
 native atomic operations or tensor core operations.
 Moreover, it is possible to pass specific options to CUDA `ptxas` (such as
 `--maxrregcount=<n>` for limiting the register usage or `--verbose` for
-printing generation statitistics) using the `-Xcuda-ptxas` flag.
+printing generation statistics) using the `-Xcuda-ptxas` flag.
 
 ```bash
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
