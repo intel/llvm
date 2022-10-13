@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_bfloat16_math
+= sycl_ext_oneapi_bfloat16_math_functions
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -90,12 +90,12 @@ supports.
 namespace sycl {
 enum class aspect {
   ...
-  ext_oneapi_bfloat16_math_functions
+  sycl_ext_oneapi_bfloat16_math_functions
 }
 }
 ----
 
-If a SYCL device has the `ext_oneapi_bfloat16_math_functions` aspect,
+If a SYCL device has the `sycl_ext_oneapi_bfloat16_math_functions` aspect,
 then it supports the `bfloat16` math functions described in the next section.
 
 === Math Functions
