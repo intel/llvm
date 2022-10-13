@@ -203,25 +203,6 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
 
   LLVM_DEBUG(llvm::dbgs() << "  Cast inserted: " << Cast << "\n");
 
-  const auto CurrMemorySpace = ThisType.getMemorySpaceAsInt();
-
-  // Cast address space if needed too.
-  if (TargetMemSpace != CurrMemorySpace) {
-    Cast = Rewriter.create<polygeist::Memref2PointerOp>(
-        Loc, LLVM::LLVMPointerType::get(TargetElementType, CurrMemorySpace),
-        Cast);
-    Cast = Rewriter.create<LLVM::AddrSpaceCastOp>(
-        Loc, LLVM::LLVMPointerType::get(TargetElementType, TargetMemSpace),
-        Cast);
-    Cast = Rewriter.create<polygeist::Pointer2MemrefOp>(
-        Loc,
-        MemRefType::get(TargetShape, TargetElementType, {}, TargetMemSpace),
-        Cast);
-
-    LLVM_DEBUG(llvm::dbgs() << "  Memory space cast from " << CurrMemorySpace
-                            << " to " << TargetMemSpace << " performed\n");
-  }
-
   return Cast;
 }
 
