@@ -9,9 +9,9 @@
 
 #pragma once
 
-#include <string>
 #include <sycl/backend.hpp>
-#include <vector>
+
+#include <string>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -27,10 +27,10 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle);
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle);
 
-bool has_extension(const sycl::platform &syclPlatform,
-                   const std::string &extension);
-bool has_extension(const sycl::device &syclDevice,
-                   const std::string &extension);
+__SYCL_EXPORT bool has_extension(const sycl::platform &syclPlatform,
+                                 const std::string &extension);
+__SYCL_EXPORT bool has_extension(const sycl::device &syclDevice,
+                                 const std::string &extension);
 
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
@@ -64,7 +64,6 @@ T make(const context &Context,
        typename detail::interop<backend::opencl, T>::type Interop) {
   return make_queue(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
-
 } // namespace opencl
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

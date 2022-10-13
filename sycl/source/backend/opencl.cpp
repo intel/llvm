@@ -47,36 +47,38 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 
 // Free functions to query OpenCL backend extensions
 // TODO: Extensions have been deprecated for aspects
-bool has_extension(const sycl::platform &syclPlatform,
-                   const std::string &extension) {
+__SYCL_EXPORT bool has_extension(const sycl::platform &syclPlatform,
+                                 const std::string &extension) {
   if (syclPlatform.get_backend() != sycl::backend::opencl) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        errc::backend_mismatch,
+        "has_extension can only be used with an OpenCL backend",
+        PI_ERROR_INVALID_OPERATION);
   }
 
-  std::vector<device> devices = syclPlatform.get_devices();
-  for (device &currentDevice : devices) {
-    std::vector<std::string> deviceExtensions =
-        currentDevice.get_info<info::device::extensions>();
+  // Returns true if all devices on a platform support the queryed extension
+  for (device &currentDevice : syclPlatform.get_devices()) {
+    auto deviceExtensions = currentDevice.get_info<info::device::extensions>();
 
     auto findResult =
         std::find(deviceExtensions.begin(), deviceExtensions.end(), extension);
-    if (findResult != deviceExtensions.end()) {
-      return true;
+    if (findResult == deviceExtensions.end()) {
+      return false;
     }
   }
-  return false;
+  return true;
 }
 
-bool has_extension(const sycl::device &syclDevice,
-                   const std::string &extension) {
+__SYCL_EXPORT bool has_extension(const sycl::device &syclDevice,
+                                 const std::string &extension) {
   if (syclDevice.get_backend() != sycl::backend::opencl) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(
+        errc::backend_mismatch,
+        "has_extension can only be used with an OpenCL backend",
+        PI_ERROR_INVALID_OPERATION);
   }
 
-  std::vector<std::string> deviceExtensions =
-      syclDevice.get_info<info::device::extensions>();
+  auto deviceExtensions = syclDevice.get_info<info::device::extensions>();
 
   auto findResult =
       std::find(deviceExtensions.begin(), deviceExtensions.end(), extension);
