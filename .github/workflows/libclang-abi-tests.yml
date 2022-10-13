@@ -129,7 +129,7 @@ jobs:
           sed -i 's/LLVM_[0-9]\+/LLVM_NOVERSION/' $lib-${{ matrix.ref }}.abi
         done
     - name: Upload ABI file
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: ${{ matrix.name }}
         path: "*${{ matrix.ref }}.abi"
@@ -159,7 +159,7 @@ jobs:
           done
       - name: Upload ABI Comparison
         if: always()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: compat-report-${{ github.sha }}
           path: compat_reports/

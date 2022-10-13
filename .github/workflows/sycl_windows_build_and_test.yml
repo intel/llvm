@@ -14,7 +14,7 @@ jobs:
     runs-on: [Windows, build]
     # TODO use cached checkout
     steps:
-    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
+    - uses: ilammy/msvc-dev-cmd@f6f64f2dd6793f144d0742f2d362a07009dfc2e5
       with:
         arch: amd64
     - name: Set env
@@ -78,7 +78,7 @@ jobs:
       shell: bash
       run: cmake --build build --target deploy-sycl-toolchain
     - name: Upload toolchain
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
         path: install/**/*
