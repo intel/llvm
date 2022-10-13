@@ -190,6 +190,9 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
   assert(TargetShape == ThisType.getShape() &&
          "Shape should not change when casting to base class for a member "
          "function call.");
+  assert(TargetMemSpace == ThisType.getMemorySpaceAsInt() &&
+         "Memory space of the `this` argument should be preserved when "
+         "creating a SYCLMethodOp instance.");
 
   // The element type will always change here.
   mlir::Value Cast = Rewriter.create<sycl::SYCLCastOp>(

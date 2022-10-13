@@ -395,7 +395,7 @@ private:
   /// return type \param returnType can be represented as such.
   ///
   /// E.g., the SYCLCallOp to the accessor member function
-  /// accessor::operator[] can be represented using a SYCLGEPOp.
+  /// accessor::operator[] can be represented using a SYCLAccessorSubscriptOp.
   llvm::Optional<mlir::sycl::SYCLMethodOpInterface>
   createSYCLMethodOp(llvm::StringRef typeName, llvm::StringRef functionName,
                      mlir::ValueRange operands, mlir::TypeRange returnType,
