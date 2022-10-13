@@ -210,8 +210,11 @@ if (MSVC)
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
 
-# See https://github.com/llvm/llvm-project/issues/58295.
-set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
+check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
+if (HAS_SEMANTIC_INTERPOSITION_FLAG)
+  # See https://github.com/llvm/llvm-project/issues/58295.
+  set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
+endif()
 
 if (WIN32)
 set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
