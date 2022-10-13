@@ -8,6 +8,7 @@ config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.mlir_clang_obj_root = "@MLIR_CLANG_BINARY_DIR@"
 config.target_triple = "@TARGET_TRIPLE@"
 config.llvm_obj_root = path(r"@LLVM_BINARY_DIR@")
+config.sycl_libs_dir = lit_config.params.get('SYCL_LIBS_DIR', "@LLVM_LIBS_DIR@")
 
 # Support substitution of the tools and build_mode with user parameters.
 # This is used when we can't determine the tool dir at configuration time.
