@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -verify %s
 
+// Test diagnostic for nested annotated_arg and annotated_ptr type.
+
 #include "sycl.hpp"
 
 sycl::queue myQueue;
