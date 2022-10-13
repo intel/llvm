@@ -60,6 +60,62 @@ template <typename Acc> struct Wrapper2 {
 
 template <typename Acc> struct Wrapper3 { Wrapper2<Acc> w2; };
 
+template <typename GlobAcc, typename LocAcc>
+void testLocalAccItersImpl(sycl::handler &cgh, GlobAcc &globAcc, LocAcc &locAcc,
+                           bool testConstIter) {
+  if (testConstIter) {
+    cgh.single_task([=]() {
+      size_t Idx = 0;
+      for (auto &It : locAcc) {
+        It = globAcc[Idx++];
+      }
+      Idx = 0;
+      for (auto It = locAcc.cbegin(); It != locAcc.cend(); It++)
+        globAcc[Idx++] = *It * 2 + 1;
+      Idx = locAcc.size() - 1;
+      for (auto It = locAcc.crbegin(); It != locAcc.crend(); It++)
+        globAcc[Idx--] += *It;
+    });
+  } else {
+    cgh.single_task([=]() {
+      size_t Idx = 0;
+      for (auto It = locAcc.begin(); It != locAcc.end(); It++)
+        *It = globAcc[Idx++] * 2;
+      for (auto &It : locAcc) {
+        It++;
+      }
+      for (auto It = locAcc.rbegin(); It != locAcc.rend(); It++) {
+        *It *= 2;
+        *It += 1;
+      }
+      Idx = 0;
+      for (auto &It : locAcc) {
+        globAcc[Idx++] = It;
+      }
+    });
+  }
+}
+
+void testLocalAccIters(std::vector<int> &vec, bool testConstIter = false,
+                       bool test2D = false) {
+  try {
+    sycl::queue queue;
+    sycl::buffer<int, 1> buf(vec.data(), vec.size());
+    queue.submit([&](sycl::handler &cgh) {
+      auto globAcc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      if (test2D) {
+        sycl::local_accessor<int, 2> locAcc(sycl::range<2>{2, 16}, cgh);
+        testLocalAccItersImpl(cgh, globAcc, locAcc, testConstIter);
+      } else {
+        sycl::local_accessor<int, 1> locAcc(32, cgh);
+        testLocalAccItersImpl(cgh, globAcc, locAcc, testConstIter);
+      }
+    });
+  } catch (sycl::exception &e) {
+    std::cout << e.what() << std::endl;
+  }
+}
+
 int main() {
   // Host accessor.
   {
@@ -769,6 +825,41 @@ int main() {
     } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what() << std::endl;
     }
+  }
+
+  // Test iterator methods with 1D local_accessor
+  {
+    std::vector<int> v(32);
+    for (int i = 0; i < v.size(); ++i) {
+      v[i] = i;
+    }
+    testLocalAccIters(v);
+    for (int i = 0; i < v.size(); ++i)
+      assert(v[i] == ((i * 2 + 1) * 2 + 1));
+
+    for (int i = 0; i < v.size(); ++i) {
+      v[i] = i;
+    }
+    testLocalAccIters(v, true);
+    for (int i = 0; i < v.size(); ++i)
+      assert(v[i] == ((i * 2 + 1) + i));
+  }
+  // Test iterator methods with 2D local_accessor
+  {
+    std::vector<int> v(32);
+    for (int i = 0; i < v.size(); ++i) {
+      v[i] = i;
+    }
+    testLocalAccIters(v, false, true);
+    for (int i = 0; i < v.size(); ++i)
+      assert(v[i] == ((i * 2 + 1) * 2 + 1));
+
+    for (int i = 0; i < v.size(); ++i) {
+      v[i] = i;
+    }
+    testLocalAccIters(v, true, true);
+    for (int i = 0; i < v.size(); ++i)
+      assert(v[i] == ((i * 2 + 1) + i));
   }
 
   std::cout << "Test passed" << std::endl;
