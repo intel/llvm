@@ -14,7 +14,7 @@ jobs:
     runs-on: [Windows, build]
     # TODO use cached checkout
     steps:
-    - uses: ilammy/msvc-dev-cmd@f6f64f2dd6793f144d0742f2d362a07009dfc2e5
+    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
       with:
         arch: amd64
     - name: Set env
