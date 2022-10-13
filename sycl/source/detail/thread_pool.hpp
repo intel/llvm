@@ -38,8 +38,10 @@ class ThreadPool {
       MDoSmthOrStop.wait(
           Lock, [this]() { return !MJobQueue.empty() || MStop.load(); });
 
-      if (MStop.load())
+      if (MStop.load()) {
+        std::cout << "MJobQueue.size = " << MJobQueue.size() << std::endl;
         break;
+      }
 
       std::function<void()> Job = std::move(MJobQueue.front());
       MJobQueue.pop();

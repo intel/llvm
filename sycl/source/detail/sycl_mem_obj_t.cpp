@@ -87,7 +87,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 void SYCLMemObjT::updateHostMemory() {
   if ((MUploadDataFunctor != nullptr) && MNeedWriteBack)
     MUploadDataFunctor();
-
+  std::cout << "buffer release happened: updateHostMemory" << std::endl;
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.
   if (MRecord)

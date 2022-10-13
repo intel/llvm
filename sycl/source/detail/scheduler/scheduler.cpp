@@ -55,6 +55,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // Capture the dependencies
     DepCommands.insert(Cmd);
 #endif
+    std::cout << "wait for read leaf, is host = " << Cmd->isHostTask()
+              << std::endl;
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
@@ -66,8 +68,12 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     DepCommands.insert(Cmd);
 #endif
+    std::cout << "wait for write leaf, is host = " << Cmd->isHostTask()
+              << std::endl;
+
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
+  std::cout << "leaves ready" << std::endl;
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
     EnqueueResultT Res;
@@ -508,6 +514,7 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  std::cout << "deferMemObjRelease" << std::endl;
   {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
@@ -517,6 +524,8 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
 
 inline bool Scheduler::isDeferredMemObjectsEmpty() {
   std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+  std::cout << "MDeferredMemObjRelease.size = " << MDeferredMemObjRelease.size()
+            << std::endl;
   return MDeferredMemObjRelease.empty();
 }
 
@@ -553,6 +562,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
           MemObjIt++;
           continue;
         }
+        std::cout << "found mem obj with completed tasks" << std::endl;
         ObjsReadyToRelease.push_back(*MemObjIt);
         MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
       }

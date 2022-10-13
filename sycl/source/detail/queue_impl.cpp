@@ -330,6 +330,7 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
 }
 
 void queue_impl::wait(const detail::code_location &CodeLoc) {
+  std::cout << "queue_impl::wait" << std::endl;
   (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
