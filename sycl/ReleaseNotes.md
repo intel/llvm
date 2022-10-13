@@ -13,8 +13,8 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Added ability to enforce stateless memory accesses for ESIMD. [18111623]
 - Added support for `-fsycl-force-target` compiler option. [1d95f2ec]
 - Added support for `[[intel::max_reinvocation_delay`]] loop attribute. [90fa5bb0]
-- Added support for linking object files larger than 2GB by adding
-  `-fsycl-huge-device-code` compiler option. [f963062c]
+- Added support for `-fsycl-huge-device-code` compiler option, which allows
+  linking object files larger than 2GB. [f963062c]
 - Added support for compiling `.cu` files with SYCL compiler. [e76ad72f]
 - Added support for `assert` on HIP backend. [ade1870a]
 - Enabled CXX standard library functions for CUDA backend. [1fe92c54]
@@ -43,9 +43,12 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Introduced predicates for ESIMD `lsc_block_store/load`. [f44edce3]
 - Added experimental `set_kernel_properties` API and `use_double_grf` property
   for ESIMD. [9a55da53]
-- Added "eager initialization" mode to Level Zero PI plugin. [c1459598]
+- Added "eager initialization" mode to Level Zero PI plugin. It might result
+  in an unnecessary work done by the plugin, but ensures the fastest possible
+  execution on hot and reportable paths. [c1459598]
 - Added full support of element wise operations on `joint_matrix` on CUDA
   backend including `bfloat16` support. [0a1d751b]
+- Implemented `group::get_linear_id(int)` method [6e83c127]
 
 ### Documentation
 
@@ -73,12 +76,11 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 
 ### SYCL Library
 
-- Ensured that a correct errc thrown for unassociated placeholder accessor (4.7.6.9) [4f9935ad]
-- Removed dependency on OpenCL ICD Loader from the runtime [90e8b5ef]
-- Added `group::get_linear_id(int)` method [6e83c127]
-- Added support for `ZEBIN` format to persistent caching mechanism [34dcf83d]
+- Ensured that a correct `errc` thrown for an unassociated placeholder
+  accessor. [4f9935ad]
+- Removed dependency on OpenCL ICD Loader from the runtime. [90e8b5ef]
+- Added support for `ZEBIN` format to persistent caching mechanism. [34dcf83d]
 - Added identification mechanism for binaries in newer `ZEBIN` format. [f4dee549]
-- Fixed uses of common macro names in the implementation's header files [e87adfd2]
 - Switched to use `struct` information descriptors in accordance with SYCL 2020.
   Removed some deprecated information queries. [b3cbda57]
 - Updated `kernel_device_specific::max_sub_group_size` query to match SYCL 2020
@@ -187,6 +189,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Fixed an issue with a context not properly retained with even interop on
   CUDA backend. [2baf1de5]
 - Fixed `accessor` so gdb can parse its template parameters correctly. [372cc948]
+- Fixed uses of common macro names in the implementation's header files. [e87adfd2]
 
 ### SYCL Compiler
 
@@ -195,11 +198,13 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Fixed an issue when compiling and linking with different optimization levels
   could cause runtime errors. [0cc7540e]
 - Fixed description of `-f[no-]sycl-unnamed-lambda` compiler option. [616ecf75]
-- Fixed an issue when compiling on Windows in non-cl mode. [084f34c1]
-- Fixed filenames in SYCL toolchain. [2c217cfd]
+- Fixed an issue when building SYCL programs in Debug mode with
+  `Windows-Clang.cmake`. [084f34c1]
+- Fixed CUDA fat-binaries filename extensions in SYCL toolchain
+  (`.o` -> `.cubin`). [2c217cfd]
 - Fixed an issue causing incorrect conversions involving unsigned types in
   ESIMD. [2a1151b8]
-- Fixed an issue with compilation of a mix of unnamed ESIMD and non-ESIMD
+- Fixed a crash in applications containing a mix of unnamed ESIMD and non-ESIMD
   kernels. [3d54d7ef]
 - Fixed type casting of image coordinates in built-ins implementation for CUDA
   backend. [338b4edc]
