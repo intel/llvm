@@ -53,6 +53,10 @@ struct StructWithPtr {
   int i;
 };
 
+struct Nested {
+typedef StructWithPtr TDStrWithPTR;
+};
+
 struct NonTrivialType {
   int *Ptr;
   int i;
@@ -179,6 +183,12 @@ int main() {
     });
     // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (__generated_StructWithPtr)'
 
+    Nested::TDStrWithPTR TDStructWithPtr;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class TDStr>([=]() { return TDStructWithPtr.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}TDStr{{.*}} 'void (__generated_StructWithPtr)'
+
     // FIXME: Stop decomposition of arrays with pointers
     StructWithArray<StructWithPtr> t1;
     myQueue.submit([&](sycl::handler &h) {
@@ -200,18 +210,18 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivial>([=]() { return NonTrivialStructWithPtr.i;});
     });
-    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__wrapper_class, int)'
+    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__generated_NonTrivialType)'
 
     NonTrivialType NonTrivialTypeArray[2]{0,0};
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class ArrayOfNonTrivialStruct>([=]() { return NonTrivialTypeArray[0].i;});
     });
-    // CHECK: FunctionDecl {{.*}}ArrayOfNonTrivialStruct{{.*}} 'void (__wrapper_class, int, __wrapper_class, int)'
+    // CHECK: FunctionDecl {{.*}}ArrayOfNonTrivialStruct{{.*}} 'void (__generated_NonTrivialType, __generated_NonTrivialType)'
 
     NonTrivialDerived NonTrivialDerivedStructWithPtr(10);
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class NonTrivialStructInBase>([=]() { return NonTrivialDerivedStructWithPtr.i;});
     });
-    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__wrapper_class, int, int)'
+    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__generated_NonTrivialDerived)'
   }
 }

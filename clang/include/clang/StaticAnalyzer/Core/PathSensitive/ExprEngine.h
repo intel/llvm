@@ -732,6 +732,7 @@ public:
   /// A multi-dimensional array is also a continuous memory location in a
   /// row major order, so for arr[0][0] Idx is 0 and for arr[2][2] Idx is 8.
   SVal computeObjectUnderConstruction(const Expr *E, ProgramStateRef State,
+                                      const NodeBuilderContext *BldrCtx,
                                       const LocationContext *LCtx,
                                       const ConstructionContext *CC,
                                       EvalCallOptions &CallOpts,
@@ -748,13 +749,13 @@ public:
 
   /// A convenient wrapper around computeObjectUnderConstruction
   /// and updateObjectsUnderConstruction.
-  std::pair<ProgramStateRef, SVal>
-  handleConstructionContext(const Expr *E, ProgramStateRef State,
-                            const LocationContext *LCtx,
-                            const ConstructionContext *CC,
-                            EvalCallOptions &CallOpts, unsigned Idx = 0) {
+  std::pair<ProgramStateRef, SVal> handleConstructionContext(
+      const Expr *E, ProgramStateRef State, const NodeBuilderContext *BldrCtx,
+      const LocationContext *LCtx, const ConstructionContext *CC,
+      EvalCallOptions &CallOpts, unsigned Idx = 0) {
 
-    SVal V = computeObjectUnderConstruction(E, State, LCtx, CC, CallOpts, Idx);
+    SVal V = computeObjectUnderConstruction(E, State, BldrCtx, LCtx, CC,
+                                            CallOpts, Idx);
     State = updateObjectsUnderConstruction(V, E, State, LCtx, CC, CallOpts);
 
     return std::make_pair(State, V);
@@ -969,6 +970,11 @@ private:
   static ProgramStateRef removePendingInitLoop(ProgramStateRef State,
                                                const CXXConstructExpr *E,
                                                const LocationContext *LCtx);
+
+  static ProgramStateRef
+  removeStateTraitsUsedForArrayEvaluation(ProgramStateRef State,
+                                          const CXXConstructExpr *E,
+                                          const LocationContext *LCtx);
 
   /// Store the location of a C++ object corresponding to a statement
   /// until the statement is actually encountered. For example, if a DeclStmt

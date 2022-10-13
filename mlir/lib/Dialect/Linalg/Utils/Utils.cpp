@@ -17,8 +17,8 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -140,9 +140,11 @@ static void unpackRanges(OpBuilder &builder, Location loc,
                          SmallVectorImpl<Value> &ubs,
                          SmallVectorImpl<Value> &steps) {
   for (Range range : ranges) {
-    lbs.emplace_back(materializeOpFoldResult(builder, loc, range.offset));
-    ubs.emplace_back(materializeOpFoldResult(builder, loc, range.size));
-    steps.emplace_back(materializeOpFoldResult(builder, loc, range.stride));
+    lbs.emplace_back(
+        getValueOrCreateConstantIndexOp(builder, loc, range.offset));
+    ubs.emplace_back(getValueOrCreateConstantIndexOp(builder, loc, range.size));
+    steps.emplace_back(
+        getValueOrCreateConstantIndexOp(builder, loc, range.stride));
   }
 }
 
@@ -178,7 +180,7 @@ bool isElementwise(LinalgOp op) {
 
   // TODO: relax the restrictions on indexing map.
   for (OpOperand *opOperand : op.getOutputOperands()) {
-    if (!op.getTiedIndexingMap(opOperand).isPermutation())
+    if (!op.getMatchingIndexingMap(opOperand).isPermutation())
       return false;
   }
   return hasOnlyScalarElementwiseOp(op->getRegion(0));
@@ -195,6 +197,14 @@ bool isPermutation(ArrayRef<int64_t> permutation) {
   }
   // Return true if all indices appear once.
   return count(indexCounts, 1) == static_cast<int64_t>(permutation.size());
+}
+
+bool isParallelIterator(StringRef iteratorType) {
+  return iteratorType == getParallelIteratorTypeName();
+}
+
+bool isReductionIterator(StringRef iteratorType) {
+  return iteratorType == getReductionIteratorTypeName();
 }
 
 /// Helper function that creates a memref::DimOp or tensor::DimOp depending on
@@ -303,7 +313,7 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
   // of the terminals of the index computation.
   unsigned pos = getPosition(value);
   if (constantRequired) {
-    auto ubConst = constraints.getConstantBound(
+    auto ubConst = constraints.getConstantBound64(
         FlatAffineValueConstraints::BoundType::UB, pos);
     if (!ubConst)
       return;
@@ -472,7 +482,7 @@ GenericOp makeMemRefCopyOp(OpBuilder &b, Location loc, Value from, Value to) {
 template <>
 void GenerateLoopNest<scf::ForOp>::doit(
     OpBuilder &b, Location loc, ArrayRef<Range> loopRanges, LinalgOp linalgOp,
-    ArrayRef<Attribute> iteratorTypes,
+    ArrayRef<StringRef> iteratorTypes,
     function_ref<scf::ValueVector(OpBuilder &, Location, ValueRange,
                                   ValueRange)>
         bodyBuilderFn,
@@ -515,7 +525,7 @@ void GenerateLoopNest<scf::ForOp>::doit(
 template <>
 void GenerateLoopNest<AffineForOp>::doit(
     OpBuilder &b, Location loc, ArrayRef<Range> loopRanges, LinalgOp linalgOp,
-    ArrayRef<Attribute> iteratorTypes,
+    ArrayRef<StringRef> iteratorTypes,
     function_ref<scf::ValueVector(OpBuilder &, Location, ValueRange,
                                   ValueRange)>
         bodyBuilderFn,
@@ -565,7 +575,7 @@ void updateBoundsForCyclicDistribution(OpBuilder &b, Location loc, Value procId,
 // exceeds 10.
 static void generateParallelLoopNest(
     OpBuilder &b, Location loc, ValueRange lbs, ValueRange ubs,
-    ValueRange steps, ArrayRef<Attribute> iteratorTypes,
+    ValueRange steps, ArrayRef<StringRef> iteratorTypes,
     ArrayRef<linalg::ProcInfo> procInfo,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilderFn,
     SmallVectorImpl<Value> &ivStorage) {
@@ -680,7 +690,7 @@ static void generateParallelLoopNest(
 template <>
 void GenerateLoopNest<scf::ParallelOp>::doit(
     OpBuilder &b, Location loc, ArrayRef<Range> loopRanges, LinalgOp linalgOp,
-    ArrayRef<Attribute> iteratorTypes,
+    ArrayRef<StringRef> iteratorTypes,
     function_ref<scf::ValueVector(OpBuilder &, Location, ValueRange,
                                   ValueRange)>
         bodyBuilderFn,
@@ -929,33 +939,6 @@ SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
   return tensorResults;
 }
 
-Value materializeOpFoldResult(ImplicitLocOpBuilder &builder,
-                              OpFoldResult opFoldResult) {
-  if (!opFoldResult)
-    return nullptr;
-
-  if (auto value = opFoldResult.dyn_cast<Value>())
-    return value;
-  auto attr = opFoldResult.get<Attribute>().cast<IntegerAttr>();
-  return builder.create<arith::ConstantIndexOp>(attr.getValue().getSExtValue());
-}
-
-Value materializeOpFoldResult(OpBuilder &builder, Location loc,
-                              OpFoldResult opFoldResult) {
-  ImplicitLocOpBuilder b(loc, builder);
-  return materializeOpFoldResult(b, opFoldResult);
-}
-
-SmallVector<Value>
-materializeOpFoldResults(OpBuilder &builder, Location loc,
-                         ArrayRef<OpFoldResult> opFoldResults) {
-  ImplicitLocOpBuilder b(loc, builder);
-  SmallVector<Value> values;
-  for (const auto &opFoldResult : opFoldResults)
-    values.push_back(materializeOpFoldResult(b, opFoldResult));
-  return values;
-}
-
 SmallVector<Optional<SliceParameters>>
 computeAllSliceParameters(OpBuilder &builder, Location loc, LinalgOp linalgOp,
                           ValueRange valuesToTile, ArrayRef<OpFoldResult> ivs,
@@ -982,7 +965,7 @@ computeAllSliceParameters(OpBuilder &builder, Location loc, LinalgOp linalgOp,
   for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
     Value shapedOp = valuesToTile[opOperand->getOperandNumber()];
     LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for operand " << shapedOp);
-    AffineMap map = linalgOp.getTiedIndexingMap(opOperand);
+    AffineMap map = linalgOp.getMatchingIndexingMap(opOperand);
     // Use `opOperand` as is if it is not tiled and not an output tensor. Having
     // an extract/insert slice pair for all output tensors simplifies follow up
     // transformations such as padding and bufferization since the
@@ -1046,7 +1029,8 @@ void offsetIndices(RewriterBase &b, LinalgOp linalgOp,
     OpFoldResult applied = makeComposedFoldedAffineApply(
         b, indexOp.getLoc(), index + offset,
         {getAsOpFoldResult(indexOp.getResult()), offsets[indexOp.getDim()]});
-    Value materialized = materializeOpFoldResult(b, indexOp.getLoc(), applied);
+    Value materialized =
+        getValueOrCreateConstantIndexOp(b, indexOp.getLoc(), applied);
     b.replaceOpWithIf(indexOp, materialized, [&](OpOperand &use) {
       return use.getOwner() != materialized.getDefiningOp();
     });

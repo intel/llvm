@@ -608,8 +608,6 @@ enum CommandArgumentType {
   eArgTypeConnectURL,
   eArgTypeTargetID,
   eArgTypeStopHookID,
-  eArgTypeReproducerProvider,
-  eArgTypeReproducerSignal,
   eArgTypeLastArg // Always keep this entry as the last entry in this
                   // enumeration!!
 };
@@ -830,6 +828,15 @@ enum TemplateArgumentKind {
   eTemplateArgumentKindExpression,
   eTemplateArgumentKindPack,
   eTemplateArgumentKindNullPtr,
+};
+
+/// Type of match to be performed when looking for a formatter for a data type.
+/// Used by classes like SBTypeNameSpecifier or lldb_private::TypeMatcher.
+enum FormatterMatchType {
+  eFormatterMatchExact,
+  eFormatterMatchRegex,
+
+  eLastFormatterMatchType = eFormatterMatchRegex,
 };
 
 /// Options that can be set for a formatter to alter its behavior. Not

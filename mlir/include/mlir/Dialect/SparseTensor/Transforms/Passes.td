@@ -54,7 +54,7 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   let constructor = "mlir::createSparsificationPass()";
   let dependentDialects = [
     "AffineDialect",
-    "arith::ArithmeticDialect",
+    "arith::ArithDialect",
     "bufferization::BufferizationDialect",
     "LLVM::LLVMDialect",
     "memref::MemRefDialect",
@@ -97,7 +97,9 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
     Option<"enableSIMDIndex32", "enable-simd-index32", "bool", "false",
            "Enable i32 indexing into vectors (for efficiency)">,
     Option<"enableVLAVectorization", "enable-vla-vectorization", "bool",
-           "false", "Enable vector length agnostic vectorization">
+           "false", "Enable vector length agnostic vectorization">,
+    Option<"enableRuntimeLibrary", "enable-runtime-library", "bool",
+           "true", "Enable runtime library for manipulating sparse tensors">
   ];
 }
 
@@ -132,7 +134,7 @@ def SparseTensorConversionPass : Pass<"sparse-tensor-conversion", "ModuleOp"> {
   }];
   let constructor = "mlir::createSparseTensorConversionPass()";
   let dependentDialects = [
-    "arith::ArithmeticDialect",
+    "arith::ArithDialect",
     "bufferization::BufferizationDialect",
     "LLVM::LLVMDialect",
     "linalg::LinalgDialect",
@@ -167,47 +169,28 @@ def SparseTensorCodegen : Pass<"sparse-tensor-codegen", "ModuleOp"> {
   }];
   let constructor = "mlir::createSparseTensorCodegenPass()";
   let dependentDialects = [
-    "arith::ArithmeticDialect",
+    "arith::ArithDialect",
     "bufferization::BufferizationDialect",
+    "linalg::LinalgDialect",
     "memref::MemRefDialect",
     "scf::SCFDialect",
     "sparse_tensor::SparseTensorDialect",
   ];
 }
 
-def SparseTensorStorageExpansion : Pass<"sparse-tensor-storage-expansion", "ModuleOp"> {
-  let summary = "Expand compounded sparse tensor storage into individual SSA values";
+def SparseBufferRewrite : Pass<"sparse-buffer-rewrite", "ModuleOp"> {
+  let summary = "Rewrite sparse primitives on buffers to actual code";
   let description = [{
-    A pass that expands sparse tensor storage (aggregated by tuple) into
-    individual SSA values. It also lowers sparse tensor storage operations,
-    e.g., sparse_tensor.storage_get and sparse_tensor.storage_set.
-
-    Example of the conversion:
-
-    ```mlir
-    Before:
-      func.func @sparse_storage_set(%arg0: tuple<memref<?xf64>,
-                                                 memref<?xf64>,
-                                                 f64>)
-                                        -> tuple<memref<?xf64>,
-                                                 memref<?xf64>,
-                                                 f64> {
-        return %arg0 : tuple<memref<?xf64>, memref<?xf64>, f64>
-      }
-    After:
-      func.func @sparse_storage_set(%arg0: memref<?xf64>,
-                                    %arg1: memref<?xf64>,
-                                    %arg2: f64)
-                                    -> (memref<?xf64>, memref<?xf64>, f64) {
-        return %arg0, %arg1, %arg2 : memref<?xf64>, memref<?xf64>, f64
-      }
-    ```
+    A pass that rewrites sparse primitives on buffers to the MLIR implementation
+    of the primitives. For example, sparse_tensor.sort operator is implemented
+    in this pass.
   }];
-  let constructor = "mlir::createSparseTensorStorageExpansionPass()";
+  let constructor = "mlir::createSparseBufferRewritePass()";
   let dependentDialects = [
+    "arith::ArithDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
     "sparse_tensor::SparseTensorDialect",
   ];
 }
-
-
 #endif // MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_PASSES

@@ -1020,10 +1020,12 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::CTPOP:
   case ISD::FABS: case ISD::VP_FABS:
   case ISD::FCEIL:
+  case ISD::VP_FCEIL:
   case ISD::FCOS:
   case ISD::FEXP:
   case ISD::FEXP2:
   case ISD::FFLOOR:
+  case ISD::VP_FFLOOR:
   case ISD::FLOG:
   case ISD::FLOG10:
   case ISD::FLOG2:
@@ -1041,9 +1043,11 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::VP_FP_TO_UINT:
   case ISD::FRINT:
   case ISD::FROUND:
+  case ISD::VP_FROUND:
   case ISD::FROUNDEVEN:
+  case ISD::VP_FROUNDEVEN:
   case ISD::FSIN:
-  case ISD::FSQRT:
+  case ISD::FSQRT: case ISD::VP_SQRT:
   case ISD::FTRUNC:
   case ISD::SINT_TO_FP:
   case ISD::VP_SINT_TO_FP:
@@ -1071,8 +1075,8 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FADD: case ISD::VP_FADD:
   case ISD::FSUB: case ISD::VP_FSUB:
   case ISD::FMUL: case ISD::VP_FMUL:
-  case ISD::FMINNUM:
-  case ISD::FMAXNUM:
+  case ISD::FMINNUM: case ISD::VP_FMINNUM:
+  case ISD::FMAXNUM: case ISD::VP_FMAXNUM:
   case ISD::FMINIMUM:
   case ISD::FMAXIMUM:
   case ISD::SDIV: case ISD::VP_SDIV:
@@ -1100,6 +1104,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::USHLSAT:
   case ISD::ROTL:
   case ISD::ROTR:
+  case ISD::VP_FCOPYSIGN:
     SplitVecRes_BinOp(N, Lo, Hi);
     break;
   case ISD::FMA: case ISD::VP_FMA:
@@ -2378,7 +2383,7 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
                                          &DL](SmallVectorImpl<int> &Mask) {
     // Check if all inputs are shuffles of the same operands or non-shuffles.
     MapVector<std::pair<SDValue, SDValue>, SmallVector<unsigned>> ShufflesIdxs;
-    for (unsigned Idx = 0; Idx < array_lengthof(Inputs); ++Idx) {
+    for (unsigned Idx = 0; Idx < std::size(Inputs); ++Idx) {
       SDValue Input = Inputs[Idx];
       auto *Shuffle = dyn_cast<ShuffleVectorSDNode>(Input.getNode());
       if (!Shuffle ||
@@ -2425,7 +2430,7 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
       ShufflesIdxs[std::make_pair(P.first.second, P.first.first)].clear();
     }
     // Check if any concat_vectors can be simplified.
-    SmallBitVector UsedSubVector(2 * array_lengthof(Inputs));
+    SmallBitVector UsedSubVector(2 * std::size(Inputs));
     for (int &Idx : Mask) {
       if (Idx == UndefMaskElem)
         continue;
@@ -2445,7 +2450,7 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
     }
     if (UsedSubVector.count() > 1) {
       SmallVector<SmallVector<std::pair<unsigned, int>, 2>> Pairs;
-      for (unsigned I = 0; I < array_lengthof(Inputs); ++I) {
+      for (unsigned I = 0; I < std::size(Inputs); ++I) {
         if (UsedSubVector.test(2 * I) == UsedSubVector.test(2 * I + 1))
           continue;
         if (Pairs.empty() || Pairs.back().size() == 2)
@@ -2489,7 +2494,7 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
       // Try to remove extra shuffles (except broadcasts) and shuffles with the
       // reused operands.
       Changed = false;
-      for (unsigned I = 0; I < array_lengthof(Inputs); ++I) {
+      for (unsigned I = 0; I < std::size(Inputs); ++I) {
         auto *Shuffle = dyn_cast<ShuffleVectorSDNode>(Inputs[I].getNode());
         if (!Shuffle)
           continue;
@@ -2589,7 +2594,7 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
     }
     // Adjust mask in case of reused inputs. Also, need to insert constant
     // inputs at first, otherwise it affects the final outcome.
-    if (UniqueInputs.size() != array_lengthof(Inputs)) {
+    if (UniqueInputs.size() != std::size(Inputs)) {
       auto &&UniqueVec = UniqueInputs.takeVector();
       auto &&UniqueConstantVec = UniqueConstantInputs.takeVector();
       unsigned ConstNum = UniqueConstantVec.size();
@@ -2627,7 +2632,7 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
     // Build a shuffle mask for the output, discovering on the fly which
     // input vectors to use as shuffle operands.
     unsigned FirstMaskIdx = High * NewElts;
-    SmallVector<int> Mask(NewElts * array_lengthof(Inputs), UndefMaskElem);
+    SmallVector<int> Mask(NewElts * std::size(Inputs), UndefMaskElem);
     copy(makeArrayRef(OrigMask).slice(FirstMaskIdx, NewElts), Mask.begin());
     assert(!Output && "Expected default initialized initial value.");
     TryPeekThroughShufflesInputs(Mask);
@@ -2647,7 +2652,7 @@ void DAGTypeLegalizer::SplitVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N,
       return SecondIteration;
     };
     processShuffleMasks(
-        Mask, array_lengthof(Inputs), array_lengthof(Inputs),
+        Mask, std::size(Inputs), std::size(Inputs),
         /*NumOfUsedRegs=*/1,
         [&Output, &DAG = DAG, NewVT]() { Output = DAG.getUNDEF(NewVT); },
         [&Output, &DAG = DAG, NewVT, &DL, &Inputs,
@@ -3924,8 +3929,8 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::SHL: case ISD::VP_SHL:
   case ISD::SRA: case ISD::VP_ASHR:
   case ISD::SRL: case ISD::VP_LSHR:
-  case ISD::FMINNUM:
-  case ISD::FMAXNUM:
+  case ISD::FMINNUM: case ISD::VP_FMINNUM:
+  case ISD::FMAXNUM: case ISD::VP_FMAXNUM:
   case ISD::FMINIMUM:
   case ISD::FMAXIMUM:
   case ISD::SMIN:
@@ -3958,6 +3963,7 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::VP_FMUL:
   case ISD::VP_FDIV:
   case ISD::VP_FREM:
+  case ISD::VP_FCOPYSIGN:
     Res = WidenVecRes_Binary(N);
     break;
 
@@ -4083,6 +4089,11 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::CTTZ_ZERO_UNDEF:
   case ISD::FNEG: case ISD::VP_FNEG:
   case ISD::VP_FABS:
+  case ISD::VP_SQRT:
+  case ISD::VP_FCEIL:
+  case ISD::VP_FFLOOR:
+  case ISD::VP_FROUND:
+  case ISD::VP_FROUNDEVEN:
   case ISD::FREEZE:
   case ISD::ARITH_FENCE:
   case ISD::FCANONICALIZE:

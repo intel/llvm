@@ -23,6 +23,15 @@ void test(const int some_const) {
   });
 }
 
+struct test_struct_simple {
+  int data;
+  int *ptr;
+};
+
+struct Nested {
+typedef test_struct_simple TDS;
+};
+
 int main() {
   int data = 5;
   int* data_addr = &data;
@@ -51,6 +60,15 @@ int main() {
         [=]() {
           new_data_addr[0] = data_addr[0];
           int *local = ptr_array[1];
+        });
+  });
+
+  Nested::TDS tds;
+  deviceQueue.submit([&](sycl::handler &h) {
+    h.single_task<class kernel_nns>(
+        [=]() {
+          test_struct_simple k_s;
+          k_s = tds;
         });
   });
 
@@ -162,3 +180,15 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_ptr_array' '__global int *'
+
+// CHECK: FunctionDecl {{.*}}kernel_nns 'void (__generated_test_struct_simple)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_tds '__generated_test_struct_simple'
+
+// CHECK: VarDecl {{.*}} used __SYCLKernel
+// CHECK: InitListExpr
+// CHECK: CXXConstructExpr {{.*}} 'Nested::TDS':'test_struct_simple' 'void (const test_struct_simple &) noexcept'
+// CHECK: ImplicitCastExpr {{.*}} 'const test_struct_simple' lvalue <NoOp>
+// CHECK: UnaryOperator {{.*}} 'Nested::TDS':'test_struct_simple' lvalue prefix '*' cannot overflow
+// CHECK: CXXReinterpretCastExpr {{.*}} 'Nested::TDS *' reinterpret_cast<struct Nested::TDS *> <BitCast>
+// CHECK: UnaryOperator {{.*}} '__generated_test_struct_simple *' prefix '&' cannot overflow
+// CHECK: DeclRefExpr {{.*}} '__generated_test_struct_simple' lvalue ParmVar {{.*}} '_arg_tds' '__generated_test_struct_simple'
