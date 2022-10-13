@@ -204,16 +204,19 @@ void check_work_group_size_hint() {
   // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
   // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<0, 1, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<0, 1, 1>' requested here}}
-  auto WGSize10 = sycl::ext::oneapi::experimental::work_group_size_hint<0, 1, 1>;
+  auto WGSize10 =
+      sycl::ext::oneapi::experimental::work_group_size_hint<0, 1, 1>;
   // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property must only contain non-zero values.}}
   // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 0, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<1, 0, 1>' requested here}}
-  auto WGSize11 = sycl::ext::oneapi::experimental::work_group_size_hint<1, 0, 1>;
+  auto WGSize11 =
+      sycl::ext::oneapi::experimental::work_group_size_hint<1, 0, 1>;
 
   // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size_hint property currently only supports up to three values.}}
   // expected-error@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{constexpr variable 'work_group_size_hint<1, 1, 1, 1>' must be initialized by a constant expression}}
   // expected-note@+1 {{in instantiation of variable template specialization 'sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1, 1>' requested here}}
-  auto WGSize12 = sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1, 1>;
+  auto WGSize12 =
+      sycl::ext::oneapi::experimental::work_group_size_hint<1, 1, 1, 1>;
 
   sycl::queue Q;
 

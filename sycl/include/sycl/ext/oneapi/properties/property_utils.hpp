@@ -228,17 +228,16 @@ struct SortedAllUnique<std::tuple<L, R, Rest...>>
 // NOTE: This assumes that the properties are in sorted order.
 template <typename LHSPropertyT, typename RHSPropertyT> struct MergeProperties;
 
-template<>
-struct MergeProperties<std::tuple<>, std::tuple<>> {
+template <> struct MergeProperties<std::tuple<>, std::tuple<>> {
   using type = std::tuple<>;
 };
 
-template<typename... LHSPropertyTs>
+template <typename... LHSPropertyTs>
 struct MergeProperties<std::tuple<LHSPropertyTs...>, std::tuple<>> {
   using type = std::tuple<LHSPropertyTs...>;
 };
 
-template<typename... RHSPropertyTs>
+template <typename... RHSPropertyTs>
 struct MergeProperties<std::tuple<>, std::tuple<RHSPropertyTs...>> {
   using type = std::tuple<RHSPropertyTs...>;
 };
