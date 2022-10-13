@@ -11819,6 +11819,8 @@ def err_sycl_num_kernel_wrong_reqd_wg_size : Error<
   "%0 attribute must evenly divide the work-group size for the %1 attribute">;
 def err_sycl_invalid_aspect_argument : Error<
   "%0 attribute argument is invalid; argument must be device aspect of type sycl::aspect">;
+def err_sycl_invalid_usage_annotated_ptr_arg : Error<
+  "Kernel argument of type %0 cannot be nested">;
 
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,
