@@ -36,6 +36,7 @@
 #include <shared_mutex>
 #include <string>
 #include <sycl/detail/pi.h>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -565,7 +566,7 @@ struct _pi_device : _pi_object {
   bool ImmCommandListsPreferred;
 
   // Return whether to use immediate commandlists for this device.
-  bool useImmediateCommandLists();
+  int useImmediateCommandLists();
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
@@ -872,6 +873,9 @@ struct _pi_queue : _pi_object {
     // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
+    // This function sets an immediate commandlist from the interop interface.
+    void setImmCmdList(ze_command_list_handle_t);
+
     // This function returns the next immediate commandlist to use.
     pi_command_list_ptr_t &getImmCmdList();
 
@@ -882,19 +886,34 @@ struct _pi_queue : _pi_object {
     uint32_t NextIndex{0};
   };
 
+  // A group containing compute queue handles when the queue uses standard
+  // command lists.
+  // Used as an initial value when the queue uses immediate commandlists.
   pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
 
-  // Vector of Level Zero copy command command queue handles.
-  // In this vector, main copy engine, if available, come first followed by
-  // link copy engines, if available.
+  // When using immediate command lists, a set of groups per thread id.
+  // Initialized with calling thread's id when queue is constructed.
+  std::map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
+
+  // A group containing copy queue handles when the queue uses standard
+  // command lists. In this vector, main copy engine, if available,
+  // comes first followed by link copy engines, if available.
+  // Used as an initial value when the queue uses immediate commandlists.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
+
+  // When using immediate command lists, copy queue groups per thread id
+  // containing a vector of immediate commandlists. In each, the main copy
+  // engine, if available, comes first followed by link copy engines, if
+  // available.
+  // Initialized with calling thread's id when queue is constructed.
+  std::map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.
   pi_result synchronize();
 
-  pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
-    return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
-  }
+  // Return the queue group to use based on standard/immediate commandlist mode,
+  // and if immediate mode, the thread-specific group.
+  pi_queue_group_t &getQueueGroup(bool UseCopyEngine);
 
   // This function considers multiple factors including copy engine
   // availability and user preference and returns a boolean that is used to
@@ -931,6 +950,10 @@ struct _pi_queue : _pi_object {
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
+
+  // When queue is constructed for interop, an immediate commandlist has already
+  // been created and only needs to be stored in the queue object.
+  void setImmCmdList(bool IsComputeGroup, ze_command_list_handle_t ImmCmdList);
 
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;

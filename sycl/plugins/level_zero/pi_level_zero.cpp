@@ -833,6 +833,8 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
 }
 
 // Get value of immediate commandlists env var setting or -1 if unset
+// A value of 1 specifies a single set of imm cmdlists per queue.
+// A value of 2 specifies a separate set of imm cmdlists per thread per queue.
 static const int ImmediateCommandlistsSetting = [] {
   const char *ImmediateCommandlistsSettingStr =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
@@ -846,7 +848,7 @@ static const int ImmediateCommandlistsSetting = [] {
 // immediate commandlists. Note: when immediate commandlists are used then
 // device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
 // (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
-bool _pi_device::useImmediateCommandLists() {
+int _pi_device::useImmediateCommandLists() {
   if (ImmediateCommandlistsSetting == -1)
     return ImmCommandListsPreferred;
   return ImmediateCommandlistsSetting;
@@ -1194,15 +1196,26 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       ComputeQueueGroup.LowerIndex = FilterLowerIndex;
       ComputeQueueGroup.UpperIndex = FilterUpperIndex;
       ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
-      // Create space to hold immediate commandlists corresponding to the
-      // ZeQueues
-      if (Device->useImmediateCommandLists()) {
-        ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-            ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
-      }
     } else {
       die("No compute queue available/allowed.");
     }
+  }
+
+  if (Device->useImmediateCommandLists()) {
+    auto &ComputeQueueGroupRef = ComputeQueueGroup;
+    bool ThreadSpecificImmCmdLists = Device->useImmediateCommandLists() == 2;
+    if (ThreadSpecificImmCmdLists) {
+      // Thread id will be used to create separate imm cmdlists per thread.
+      auto TID = std::this_thread::get_id();
+      std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+          Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
+      ComputeQueueGroupRef = Result.first->second;
+    }
+    // Create space to hold immediate commandlists corresponding to the
+    // ZeQueues
+    ComputeQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+        ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+    std::cout << "Created space\n";
   }
 
   // Copy group initialization.
@@ -1223,7 +1236,16 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       // Create space to hold immediate commandlists corresponding to the
       // ZeQueues
       if (Device->useImmediateCommandLists()) {
-        CopyQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+        auto TID = std::this_thread::get_id();
+        auto &CopyQueueGroupRef = CopyQueueGroup;
+        bool ThreadSpecificImmCmdLists =
+            Device->useImmediateCommandLists() == 2;
+        if (ThreadSpecificImmCmdLists) {
+          std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+              Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
+          CopyQueueGroupRef = Result.first->second;
+        }
+        CopyQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
     }
@@ -1423,6 +1445,52 @@ pi_result _pi_context::getAvailableCommandList(
   pi_result = Queue->createCommandList(UseCopyEngine, CommandList);
   CommandList->second.ZeFenceInUse = true;
   return pi_result;
+}
+
+_pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
+  if (Device->useImmediateCommandLists()) {
+
+    bool ThreadSpecificImmCmdLists = Device->useImmediateCommandLists() == 2;
+
+    if (ThreadSpecificImmCmdLists) {
+      std::cout << "Thread-specific imm cmdlists\n";
+      // Thread id will be used to create separate imm cmdlists per thread.
+      auto TID = std::this_thread::get_id();
+      if (UseCopyEngine) {
+
+        std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+            Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
+        // If an entry for this thread exists, use it.
+        if (!Result.second) {
+          return Result.first->second;
+        }
+        auto &CopyQueueGroupRef = Result.first->second;
+        // Create space to hold immediate commandlists. They will be created on
+        // demand.
+        CopyQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+            CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
+        return CopyQueueGroupRef;
+      } else {
+        std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+            Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
+        // If an entry for this thread exists, use it.
+        if (!Result.second) {
+          std::cout << "Found existing entry\n";
+          return Result.first->second;
+        }
+        auto &ComputeQueueGroupRef = Result.first->second;
+        // Create space to hold immediate commandlists. They will be created on
+        // demand.
+        ComputeQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+            ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+        std::cout << "Created space for new thread\n";
+        return ComputeQueueGroupRef;
+      }
+    }
+  }
+
+  std::cout << "Returning base imm cmdlists\n";
+  return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
 }
 
 // Helper function to create a new command-list to this queue and associated
@@ -3832,6 +3900,51 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   *Queue =
       new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
   return PI_SUCCESS;
+}
+
+pi_result piextQueueCreateWithNativeImmCmdlist(pi_native_handle ComputeCmdlist,
+                                               pi_native_handle CopyCmdlist,
+                                               pi_context Context,
+                                               pi_device Device,
+                                               bool OwnNativeHandle,
+                                               pi_queue *Queue) {
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+  PI_ASSERT(ComputeCmdlist, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(CopyCmdlist, PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+
+  std::vector<ze_command_queue_handle_t> ComputeQueues;
+  std::vector<ze_command_queue_handle_t> CopyQueues;
+
+  *Queue = new _pi_queue(ComputeQueues, CopyQueues, Context, Device,
+                         OwnNativeHandle);
+  if (ComputeCmdlist)
+    (*Queue)->setImmCmdList(true,
+                            pi_cast<ze_command_list_handle_t>(ComputeCmdlist));
+  if (CopyCmdlist)
+    (*Queue)->setImmCmdList(false,
+                            pi_cast<ze_command_list_handle_t>(CopyCmdlist));
+
+  return PI_SUCCESS;
+}
+
+void _pi_queue::setImmCmdList(bool IsComputeGroup,
+                              ze_command_list_handle_t ImmCmdList) {
+  if (IsComputeGroup)
+    ComputeQueueGroup.setImmCmdList(ImmCmdList);
+  else
+    CopyQueueGroup.setImmCmdList(ImmCmdList);
+}
+
+void _pi_queue::pi_queue_group_t::setImmCmdList(
+    ze_command_list_handle_t ZeCommandList) {
+  ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+      1,
+      Queue->CommandListMap
+          .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
+              ZeCommandList, {nullptr, true, nullptr, 0}})
+          .first);
 }
 
 // If indirect access tracking is enabled then performs reference counting,
