@@ -42,6 +42,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AliasSetTracker.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/GuardUtils.h"
@@ -98,7 +99,9 @@ STATISTIC(NumSunk, "Number of instructions sunk out of loop");
 STATISTIC(NumHoisted, "Number of instructions hoisted out of loop");
 STATISTIC(NumMovedLoads, "Number of load insts hoisted or sunk");
 STATISTIC(NumMovedCalls, "Number of call insts hoisted or sunk");
-STATISTIC(NumPromoted, "Number of memory locations promoted to registers");
+STATISTIC(NumPromotionCandidates, "Number of promotion candidates");
+STATISTIC(NumLoadPromoted, "Number of load-only promotions");
+STATISTIC(NumLoadStorePromoted, "Number of load and store promotions");
 
 /// Memory promotion is enabled by default.
 static cl::opt<bool>
@@ -153,7 +156,7 @@ static bool isSafeToExecuteUnconditionally(
     Instruction &Inst, const DominatorTree *DT, const TargetLibraryInfo *TLI,
     const Loop *CurLoop, const LoopSafetyInfo *SafetyInfo,
     OptimizationRemarkEmitter *ORE, const Instruction *CtxI,
-    bool AllowSpeculation);
+    AssumptionCache *AC, bool AllowSpeculation);
 static bool pointerInvalidatedByLoop(MemorySSA *MSSA, MemoryUse *MU,
                                      Loop *CurLoop, Instruction &I,
                                      SinkAndHoistLICMFlags &Flags);
@@ -178,8 +181,8 @@ collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L);
 namespace {
 struct LoopInvariantCodeMotion {
   bool runOnLoop(Loop *L, AAResults *AA, LoopInfo *LI, DominatorTree *DT,
-                 TargetLibraryInfo *TLI, TargetTransformInfo *TTI,
-                 ScalarEvolution *SE, MemorySSA *MSSA,
+                 AssumptionCache *AC, TargetLibraryInfo *TLI,
+                 TargetTransformInfo *TTI, ScalarEvolution *SE, MemorySSA *MSSA,
                  OptimizationRemarkEmitter *ORE, bool LoopNestMode = false);
 
   LoopInvariantCodeMotion(unsigned LicmMssaOptCap,
@@ -213,21 +216,22 @@ struct LegacyLICMPass : public LoopPass {
     LLVM_DEBUG(dbgs() << "Perform LICM on Loop with header at block "
                       << L->getHeader()->getNameOrAsOperand() << "\n");
 
+    Function *F = L->getHeader()->getParent();
+
     auto *SE = getAnalysisIfAvailable<ScalarEvolutionWrapperPass>();
     MemorySSA *MSSA = &getAnalysis<MemorySSAWrapperPass>().getMSSA();
     // For the old PM, we can't use OptimizationRemarkEmitter as an analysis
     // pass. Function analyses need to be preserved across loop transformations
     // but ORE cannot be preserved (see comment before the pass definition).
     OptimizationRemarkEmitter ORE(L->getHeader()->getParent());
-    return LICM.runOnLoop(L,
-                          &getAnalysis<AAResultsWrapperPass>().getAAResults(),
-                          &getAnalysis<LoopInfoWrapperPass>().getLoopInfo(),
-                          &getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
-                          &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(
-                              *L->getHeader()->getParent()),
-                          &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(
-                              *L->getHeader()->getParent()),
-                          SE ? &SE->getSE() : nullptr, MSSA, &ORE);
+    return LICM.runOnLoop(
+        L, &getAnalysis<AAResultsWrapperPass>().getAAResults(),
+        &getAnalysis<LoopInfoWrapperPass>().getLoopInfo(),
+        &getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
+        &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(*F),
+        &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(*F),
+        &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(*F),
+        SE ? &SE->getSE() : nullptr, MSSA, &ORE);
   }
 
   /// This transformation requires natural loop information & requires that
@@ -240,6 +244,7 @@ struct LegacyLICMPass : public LoopPass {
     AU.addRequired<MemorySSAWrapperPass>();
     AU.addPreserved<MemorySSAWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
+    AU.addRequired<AssumptionCacheTracker>();
     getLoopAnalysisUsage(AU);
     LazyBlockFrequencyInfoPass::getLazyBFIAnalysisUsage(AU);
     AU.addPreserved<LazyBlockFrequencyInfoPass>();
@@ -263,8 +268,8 @@ PreservedAnalyses LICMPass::run(Loop &L, LoopAnalysisManager &AM,
 
   LoopInvariantCodeMotion LICM(Opts.MssaOptCap, Opts.MssaNoAccForPromotionCap,
                                Opts.AllowSpeculation);
-  if (!LICM.runOnLoop(&L, &AR.AA, &AR.LI, &AR.DT, &AR.TLI, &AR.TTI, &AR.SE,
-                      AR.MSSA, &ORE))
+  if (!LICM.runOnLoop(&L, &AR.AA, &AR.LI, &AR.DT, &AR.AC, &AR.TLI, &AR.TTI,
+                      &AR.SE, AR.MSSA, &ORE))
     return PreservedAnalyses::all();
 
   auto PA = getLoopPassPreservedAnalyses();
@@ -301,8 +306,8 @@ PreservedAnalyses LNICMPass::run(LoopNest &LN, LoopAnalysisManager &AM,
                                Opts.AllowSpeculation);
 
   Loop &OutermostLoop = LN.getOutermostLoop();
-  bool Changed = LICM.runOnLoop(&OutermostLoop, &AR.AA, &AR.LI, &AR.DT, &AR.TLI,
-                                &AR.TTI, &AR.SE, AR.MSSA, &ORE, true);
+  bool Changed = LICM.runOnLoop(&OutermostLoop, &AR.AA, &AR.LI, &AR.DT, &AR.AC,
+                                &AR.TLI, &AR.TTI, &AR.SE, AR.MSSA, &ORE, true);
 
   if (!Changed)
     return PreservedAnalyses::all();
@@ -377,10 +382,13 @@ llvm::SinkAndHoistLICMFlags::SinkAndHoistLICMFlags(
 /// Hoist expressions out of the specified loop. Note, alias info for inner
 /// loop is not preserved so it is not a good idea to run LICM multiple
 /// times on one loop.
-bool LoopInvariantCodeMotion::runOnLoop(
-    Loop *L, AAResults *AA, LoopInfo *LI, DominatorTree *DT,
-    TargetLibraryInfo *TLI, TargetTransformInfo *TTI, ScalarEvolution *SE,
-    MemorySSA *MSSA, OptimizationRemarkEmitter *ORE, bool LoopNestMode) {
+bool LoopInvariantCodeMotion::runOnLoop(Loop *L, AAResults *AA, LoopInfo *LI,
+                                        DominatorTree *DT, AssumptionCache *AC,
+                                        TargetLibraryInfo *TLI,
+                                        TargetTransformInfo *TTI,
+                                        ScalarEvolution *SE, MemorySSA *MSSA,
+                                        OptimizationRemarkEmitter *ORE,
+                                        bool LoopNestMode) {
   bool Changed = false;
 
   assert(L->isLCSSAForm(*DT) && "Loop is not in LCSSA form.");
@@ -437,7 +445,7 @@ bool LoopInvariantCodeMotion::runOnLoop(
                          MSSAU, &SafetyInfo, Flags, ORE);
   Flags.setIsSink(false);
   if (Preheader)
-    Changed |= hoistRegion(DT->getNode(L->getHeader()), AA, LI, DT, TLI, L,
+    Changed |= hoistRegion(DT->getNode(L->getHeader()), AA, LI, DT, AC, TLI, L,
                            MSSAU, SE, &SafetyInfo, Flags, ORE, LoopNestMode,
                            LicmAllowSpeculation);
 
@@ -481,7 +489,7 @@ bool LoopInvariantCodeMotion::runOnLoop(
              collectPromotionCandidates(MSSA, AA, L)) {
           LocalPromoted |= promoteLoopAccessesToScalars(
               PointerMustAliases, ExitBlocks, InsertPts, MSSAInsertPts, PIC, LI,
-              DT, TLI, L, MSSAU, &SafetyInfo, ORE, LicmAllowSpeculation);
+              DT, AC, TLI, L, MSSAU, &SafetyInfo, ORE, LicmAllowSpeculation);
         }
         Promoted |= LocalPromoted;
       } while (LocalPromoted);
@@ -510,7 +518,7 @@ bool LoopInvariantCodeMotion::runOnLoop(
     MSSA->verifyMemorySSA();
 
   if (Changed && SE)
-    SE->forgetLoopDispositions(L);
+    SE->forgetLoopDispositions();
   return Changed;
 }
 
@@ -840,7 +848,8 @@ public:
 /// uses, allowing us to hoist a loop body in one pass without iteration.
 ///
 bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
-                       DominatorTree *DT, TargetLibraryInfo *TLI, Loop *CurLoop,
+                       DominatorTree *DT, AssumptionCache *AC,
+                       TargetLibraryInfo *TLI, Loop *CurLoop,
                        MemorySSAUpdater &MSSAU, ScalarEvolution *SE,
                        ICFLoopSafetyInfo *SafetyInfo,
                        SinkAndHoistLICMFlags &Flags,
@@ -896,7 +905,8 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
           canSinkOrHoistInst(I, AA, DT, CurLoop, MSSAU, true, Flags, ORE) &&
           isSafeToExecuteUnconditionally(
               I, DT, TLI, CurLoop, SafetyInfo, ORE,
-              CurLoop->getLoopPreheader()->getTerminator(), AllowSpeculation)) {
+              CurLoop->getLoopPreheader()->getTerminator(), AC,
+              AllowSpeculation)) {
         hoist(I, DT, CurLoop, CFH.getOrCreateHoistedBlock(BB), SafetyInfo,
               MSSAU, SE, ORE);
         HoistedInstructions.push_back(&I);
@@ -1197,13 +1207,13 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
 
     // Handle simple cases by querying alias analysis.
     FunctionModRefBehavior Behavior = AA->getModRefBehavior(CI);
-    if (Behavior == FMRB_DoesNotAccessMemory)
+    if (Behavior.doesNotAccessMemory())
       return true;
-    if (AAResults::onlyReadsMemory(Behavior)) {
+    if (Behavior.onlyReadsMemory()) {
       // A readonly argmemonly function only reads from memory pointed to by
       // it's arguments with arbitrary offsets.  If we can prove there are no
       // writes to this memory in the loop, we can hoist or sink.
-      if (AAResults::onlyAccessesArgPointees(Behavior)) {
+      if (Behavior.onlyAccessesArgPointees()) {
         // TODO: expand to writeable arguments
         for (Value *Op : CI->args())
           if (Op->getType()->isPointerTy() &&
@@ -1735,8 +1745,9 @@ static bool isSafeToExecuteUnconditionally(
     Instruction &Inst, const DominatorTree *DT, const TargetLibraryInfo *TLI,
     const Loop *CurLoop, const LoopSafetyInfo *SafetyInfo,
     OptimizationRemarkEmitter *ORE, const Instruction *CtxI,
-    bool AllowSpeculation) {
-  if (AllowSpeculation && isSafeToSpeculativelyExecute(&Inst, CtxI, DT, TLI))
+    AssumptionCache *AC, bool AllowSpeculation) {
+  if (AllowSpeculation &&
+      isSafeToSpeculativelyExecute(&Inst, CtxI, AC, DT, TLI))
     return true;
 
   bool GuaranteedToExecute =
@@ -1925,9 +1936,10 @@ bool llvm::promoteLoopAccessesToScalars(
     SmallVectorImpl<BasicBlock *> &ExitBlocks,
     SmallVectorImpl<Instruction *> &InsertPts,
     SmallVectorImpl<MemoryAccess *> &MSSAInsertPts, PredIteratorCache &PIC,
-    LoopInfo *LI, DominatorTree *DT, const TargetLibraryInfo *TLI,
-    Loop *CurLoop, MemorySSAUpdater &MSSAU, ICFLoopSafetyInfo *SafetyInfo,
-    OptimizationRemarkEmitter *ORE, bool AllowSpeculation) {
+    LoopInfo *LI, DominatorTree *DT, AssumptionCache *AC,
+    const TargetLibraryInfo *TLI, Loop *CurLoop, MemorySSAUpdater &MSSAU,
+    ICFLoopSafetyInfo *SafetyInfo, OptimizationRemarkEmitter *ORE,
+    bool AllowSpeculation) {
   // Verify inputs.
   assert(LI != nullptr && DT != nullptr && CurLoop != nullptr &&
          SafetyInfo != nullptr &&
@@ -1938,6 +1950,7 @@ bool llvm::promoteLoopAccessesToScalars(
     for (Value *Ptr : PointerMustAliases)
       dbgs() << "  " << *Ptr << "\n";
   });
+  ++NumPromotionCandidates;
 
   Value *SomePtr = *PointerMustAliases.begin();
   BasicBlock *Preheader = CurLoop->getLoopPreheader();
@@ -2042,7 +2055,7 @@ bool llvm::promoteLoopAccessesToScalars(
         if (!DereferenceableInPH || (InstAlignment > Alignment))
           if (isSafeToExecuteUnconditionally(
                   *Load, DT, TLI, CurLoop, SafetyInfo, ORE,
-                  Preheader->getTerminator(), AllowSpeculation)) {
+                  Preheader->getTerminator(), AC, AllowSpeculation)) {
             DereferenceableInPH = true;
             Alignment = std::max(Alignment, InstAlignment);
           }
@@ -2090,10 +2103,10 @@ bool llvm::promoteLoopAccessesToScalars(
         if (!DereferenceableInPH) {
           DereferenceableInPH = isDereferenceableAndAlignedPointer(
               Store->getPointerOperand(), Store->getValueOperand()->getType(),
-              Store->getAlign(), MDL, Preheader->getTerminator(), DT, TLI);
+              Store->getAlign(), MDL, Preheader->getTerminator(), AC, DT, TLI);
         }
       } else
-        return false; // Not a load or store.
+        continue; // Not a load or store.
 
       if (!AccessTy)
         AccessTy = getLoadStoreType(UI);
@@ -2148,19 +2161,21 @@ bool llvm::promoteLoopAccessesToScalars(
     return false;
 
   // Lets do the promotion!
-  if (StoreSafety == StoreSafe)
+  if (StoreSafety == StoreSafe) {
     LLVM_DEBUG(dbgs() << "LICM: Promoting load/store of the value: " << *SomePtr
                       << '\n');
-  else
+    ++NumLoadStorePromoted;
+  } else {
     LLVM_DEBUG(dbgs() << "LICM: Promoting load of the value: " << *SomePtr
                       << '\n');
+    ++NumLoadPromoted;
+  }
 
   ORE->emit([&]() {
     return OptimizationRemark(DEBUG_TYPE, "PromoteLoopAccessesToScalar",
                               LoopUses[0])
            << "Moving accesses to memory location out of the loop";
   });
-  ++NumPromoted;
 
   // Look at all the loop uses, and try to merge their locations.
   std::vector<const DILocation *> LoopUsesLocs;
@@ -2254,12 +2269,13 @@ collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L) {
     return {}; // Nothing to promote...
 
   // Discard any sets for which there is an aliasing non-promotable access.
+  BatchAAResults BatchAA(*AA);
   foreachMemoryAccess(MSSA, L, [&](Instruction *I) {
     if (AttemptingPromotion.contains(I))
       return;
 
     llvm::erase_if(Sets, [&](const AliasSet *AS) {
-      return AS->aliasesUnknownInst(I, *AA);
+      return AS->aliasesUnknownInst(I, BatchAA);
     });
   });
 

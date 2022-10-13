@@ -83,6 +83,9 @@ class UImmAsmOperand<int width, string suffix = "">
     : ImmAsmOperand<"U", width, suffix> {
 }
 
+// A parameterized register class alternative to i32imm/i64imm from Target.td.
+def grlenimm : Operand<GRLenVT>;
+
 def uimm2 : Operand<GRLenVT> {
   let ParserMatchClass = UImmAsmOperand<2>;
 }
@@ -245,6 +248,11 @@ def ImmSubFrom32 : SDNodeXForm<imm, [{
 }]>;
 
 def BaseAddr : ComplexPattern<iPTR, 1, "SelectBaseAddr">;
+
+def fma_nsz : PatFrag<(ops node:$fj, node:$fk, node:$fa),
+                      (fma node:$fj, node:$fk, node:$fa), [{
+  return N->getFlags().hasNoSignedZeros();
+}]>;
 
 //===----------------------------------------------------------------------===//
 // Instruction Formats
@@ -911,6 +919,12 @@ let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(loongarch_ret)]>,
                 PseudoInstExpansion<(JIRL R0, R1, 0)>;
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def PseudoLA_PCREL : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+def PseudoLA_GOT : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+
 /// BSTRINS and BSTRPICK
 
 let Predicates = [IsLA32] in {
@@ -1082,6 +1096,106 @@ defm : LdPat<atomic_load_64, LD_D>;
 defm : StPat<atomic_store_unordered_monotonic_32, ST_W, GPR, i64>;
 defm : StPat<atomic_store_unordered_monotonic_64, ST_D, GPR, i64>;
 } // Predicates = [IsLA64]
+
+/// Atomic Ops
+
+class PseudoMaskedAM
+    : Pseudo<(outs GPR:$res, GPR:$scratch),
+             (ins GPR:$addr, GPR:$incr, GPR:$mask, grlenimm:$ordering), []> {
+  let Constraints = "@earlyclobber $res,@earlyclobber $scratch";
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 0;
+}
+
+def PseudoMaskedAtomicSwap32 : PseudoMaskedAM;
+def PseudoMaskedAtomicLoadAdd32 : PseudoMaskedAM;
+def PseudoMaskedAtomicLoadSub32 : PseudoMaskedAM;
+def PseudoMaskedAtomicLoadNand32 : PseudoMaskedAM;
+
+class PseudoAM : Pseudo<(outs GPR:$res, GPR:$scratch),
+                        (ins GPR:$addr, GPR:$incr), []> {
+  let Constraints = "@earlyclobber $res,@earlyclobber $scratch";
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 0;
+}
+
+def PseudoAtomicSwap32 : PseudoAM;
+def PseudoAtomicLoadNand32 : PseudoAM;
+def PseudoAtomicLoadNand64 : PseudoAM;
+def PseudoAtomicLoadAdd32 : PseudoAM;
+def PseudoAtomicLoadSub32 : PseudoAM;
+def PseudoAtomicLoadAnd32 : PseudoAM;
+def PseudoAtomicLoadOr32 : PseudoAM;
+def PseudoAtomicLoadXor32 : PseudoAM;
+
+class AtomicPat<Intrinsic intrin, Pseudo AMInst>
+    : Pat<(intrin GPR:$addr, GPR:$incr, GPR:$mask, timm:$ordering),
+          (AMInst GPR:$addr, GPR:$incr, GPR:$mask, timm:$ordering)>;
+
+let Predicates = [IsLA64] in {
+def : AtomicPat<int_loongarch_masked_atomicrmw_xchg_i64,
+                PseudoMaskedAtomicSwap32>;
+def : Pat<(atomic_swap_32 GPR:$addr, GPR:$incr),
+          (AMSWAP_DB_W GPR:$incr, GPR:$addr)>;
+def : Pat<(atomic_swap_64 GPR:$addr, GPR:$incr),
+          (AMSWAP_DB_D GPR:$incr, GPR:$addr)>;
+def : Pat<(atomic_load_add_64 GPR:$rj, GPR:$rk),
+          (AMADD_DB_D GPR:$rk, GPR:$rj)>;
+def : AtomicPat<int_loongarch_masked_atomicrmw_add_i64,
+                PseudoMaskedAtomicLoadAdd32>;
+def : Pat<(atomic_load_sub_32 GPR:$rj, GPR:$rk),
+          (AMADD_DB_W (SUB_W R0, GPR:$rk), GPR:$rj)>;
+def : Pat<(atomic_load_sub_64 GPR:$rj, GPR:$rk),
+          (AMADD_DB_D (SUB_D R0, GPR:$rk), GPR:$rj)>;
+def : AtomicPat<int_loongarch_masked_atomicrmw_sub_i64,
+                PseudoMaskedAtomicLoadSub32>;
+def : Pat<(atomic_load_nand_64 GPR:$rj, GPR:$rk),
+          (PseudoAtomicLoadNand64 GPR:$rk, GPR:$rj)>;
+def : AtomicPat<int_loongarch_masked_atomicrmw_nand_i64,
+                PseudoMaskedAtomicLoadNand32>;
+def : Pat<(atomic_load_add_32 GPR:$rj, GPR:$rk),
+          (AMADD_DB_W GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_and_32 GPR:$rj, GPR:$rk),
+          (AMAND_DB_W GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_and_64 GPR:$rj, GPR:$rk),
+          (AMAND_DB_D GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_or_32 GPR:$rj, GPR:$rk),
+          (AMOR_DB_W GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_or_64 GPR:$rj, GPR:$rk),
+          (AMOR_DB_D GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_xor_32 GPR:$rj, GPR:$rk),
+          (AMXOR_DB_W GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_xor_64 GPR:$rj, GPR:$rk),
+          (AMXOR_DB_D GPR:$rk, GPR:$rj)>;
+} // Predicates = [IsLA64]
+
+def : Pat<(atomic_load_nand_32 GPR:$rj, GPR:$rk),
+          (PseudoAtomicLoadNand32 GPR:$rk, GPR:$rj)>;
+
+let Predicates = [IsLA32] in {
+def : AtomicPat<int_loongarch_masked_atomicrmw_xchg_i32,
+                PseudoMaskedAtomicSwap32>;
+def : Pat<(atomic_swap_32 GPR:$addr, GPR:$incr),
+          (PseudoAtomicSwap32 GPR:$incr, GPR:$addr)>;
+def : AtomicPat<int_loongarch_masked_atomicrmw_add_i32,
+                PseudoMaskedAtomicLoadAdd32>;
+def : AtomicPat<int_loongarch_masked_atomicrmw_sub_i32,
+                PseudoMaskedAtomicLoadSub32>;
+def : AtomicPat<int_loongarch_masked_atomicrmw_nand_i32,
+                PseudoMaskedAtomicLoadNand32>;
+def : Pat<(atomic_load_add_32 GPR:$addr, GPR:$incr),
+          (PseudoAtomicLoadAdd32 GPR:$incr, GPR:$addr)>;
+def : Pat<(atomic_load_sub_32 GPR:$addr, GPR:$incr),
+          (PseudoAtomicLoadSub32 GPR:$incr, GPR:$addr)>;
+def : Pat<(atomic_load_and_32 GPR:$addr, GPR:$incr),
+          (PseudoAtomicLoadAnd32 GPR:$incr, GPR:$addr)>;
+def : Pat<(atomic_load_or_32 GPR:$addr, GPR:$incr),
+          (PseudoAtomicLoadOr32 GPR:$incr, GPR:$addr)>;
+def : Pat<(atomic_load_xor_32 GPR:$addr, GPR:$incr),
+          (PseudoAtomicLoadXor32 GPR:$incr, GPR:$addr)>;
+} // Predicates = [IsLA32]
 
 /// Other pseudo-instructions
 

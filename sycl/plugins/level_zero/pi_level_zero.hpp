@@ -564,9 +564,6 @@ struct _pi_device : _pi_object {
   // For some devices (e.g. PVC) immediate commandlists are preferred.
   bool ImmCommandListsPreferred;
 
-  // Return the Events scope to be used in for this device.
-  enum EventsScope eventsScope();
-
   // Return whether to use immediate commandlists for this device.
   bool useImmediateCommandLists();
 

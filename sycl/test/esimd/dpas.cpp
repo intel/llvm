@@ -207,6 +207,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   constexpr int K_half = 8 * 2;
   constexpr int K_bf16 = 8 * 2;
   constexpr int K_int8x2 = 8 * 4;
+  constexpr int K_tf32 = 8 * 1;
   constexpr int N_pvc = 16;
   constexpr int N_dg2 = 8;
 
@@ -336,6 +337,26 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
     R_f = xmx::dpasw<8, 1, float>(B_hf, A_hf);
     zoo(R_f);
     // CHECK: call <8 x float> @llvm.genx.dpasw.nosrc0.v8f32.v64i32.v4i32(<64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17304074)
+  }
+
+  { // ======= DPAS TFLOAT32 ===================================================
+    simd<float, M_one *N_pvc> R_f = 0;
+    simd<float, M_one *N_pvc> C_f = 0;
+
+    simd<sycl::ext::intel::experimental::esimd::tfloat32, K_tf32 *N_pvc> B_tf =
+        0;
+    simd<sycl::ext::intel::experimental::esimd::tfloat32, M_one *K_tf32> A_tf =
+        0;
+
+    // ------------------- TFLOAT32: WITH ACC OPERAND --------------------------
+    R_f = xmx::dpas<8, 1, float>(C_f, B_tf, A_tf);
+    zoo(R_f);
+    // CHECK: call <16 x float> @llvm.genx.dpas2.v16f32.v16f32.v128i32.v8i32(<16 x float> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 12, i32 12, i32 8, i32 1, i32 1, i32 1)
+
+    // ------------------- TFLOAT32: NO ACC OPERAND ----------------------------
+    R_f = xmx::dpas<8, 1, float>(B_tf, A_tf);
+    zoo(R_f);
+    // CHECK: call <16 x float> @llvm.genx.dpas.nosrc0.v16f32.v128i32.v8i32(<128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 17304588)
   }
 
   xmx_func_end();

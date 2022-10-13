@@ -269,14 +269,9 @@ AffineMap StridedLayoutAttr::getAffineMap() const {
 LogicalResult
 StridedLayoutAttr::verify(function_ref<InFlightDiagnostic()> emitError,
                           int64_t offset, ArrayRef<int64_t> strides) {
-  if (offset < 0 && offset != ShapedType::kDynamicStrideOrOffset)
-    return emitError() << "offset must be non-negative or dynamic";
+  if (llvm::any_of(strides, [&](int64_t stride) { return stride == 0; }))
+    return emitError() << "strides must not be zero";
 
-  if (llvm::any_of(strides, [&](int64_t stride) {
-        return stride <= 0 && stride != ShapedType::kDynamicStrideOrOffset;
-      })) {
-    return emitError() << "strides must be positive or dynamic";
-  }
   return success();
 }
 
@@ -1386,8 +1381,6 @@ DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
 
 DenseElementsAttr DenseIntOrFPElementsAttr::getRaw(ShapedType type,
                                                    ArrayRef<char> data) {
-  assert((type.isa<RankedTensorType, VectorType>()) &&
-         "type must be ranked tensor or vector");
   assert(type.hasStaticShape() && "type must have static shape");
   bool isSplat = false;
   bool isValid = isValidRawBuffer(type, data, isSplat);
@@ -1503,16 +1496,7 @@ static ShapedType mappingHelper(Fn mapping, Attr &attr, ShapedType inType,
   size_t bitWidth = getDenseElementBitWidth(newElementType);
   size_t storageBitWidth = getDenseElementStorageWidth(bitWidth);
 
-  ShapedType newArrayType;
-  if (inType.isa<RankedTensorType>())
-    newArrayType = RankedTensorType::get(inType.getShape(), newElementType);
-  else if (inType.isa<UnrankedTensorType>())
-    newArrayType = RankedTensorType::get(inType.getShape(), newElementType);
-  else if (auto vType = inType.dyn_cast<VectorType>())
-    newArrayType = VectorType::get(vType.getShape(), newElementType,
-                                   vType.getNumScalableDims());
-  else
-    assert(newArrayType && "Unhandled tensor type");
+  ShapedType newArrayType = inType.cloneWith(inType.getShape(), newElementType);
 
   size_t numRawElements = attr.isSplat() ? 1 : newArrayType.getNumElements();
   data.resize(llvm::divideCeil(storageBitWidth * numRawElements, CHAR_BIT));
@@ -1526,7 +1510,12 @@ static ShapedType mappingHelper(Fn mapping, Attr &attr, ShapedType inType,
 
   // Check for the splat case.
   if (attr.isSplat()) {
-    processElt(*attr.begin(), /*index=*/0);
+    if (bitWidth == 1) {
+      // Handle the special encoding of splat of bool.
+      data[0] = mapping(*attr.begin()).isZero() ? 0 : -1;
+    } else {
+      processElt(*attr.begin(), /*index=*/0);
+    }
     return newArrayType;
   }
 

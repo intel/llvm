@@ -28,9 +28,6 @@ def OpenMP_Dialect : Dialect {
   let cppNamespace = "::mlir::omp";
   let dependentDialects = ["::mlir::LLVM::LLVMDialect"];
   let useDefaultAttributePrinterParser = 1;
-
-  // TODO: Flip to _Prefixed.
-  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 // OmpCommon requires definition of OpenACC_Dialect.
@@ -114,15 +111,6 @@ def ParallelOp : OpenMP_Op<"parallel", [
     ) $region attr-dict
   }];
   let hasVerifier = 1;
-  let extraClassDeclaration = [{
-    // TODO: remove this once emitAccessorPrefix is set to
-    // kEmitAccessorPrefix_Prefixed for the dialect.
-    /// Returns the reduction variables
-    SmallVector<Value> getReductionVars() {
-      return SmallVector<Value>(reduction_vars().begin(),
-                                reduction_vars().end());
-    }
-  }];
 }
 
 def TerminatorOp : OpenMP_Op<"terminator", [Terminator, NoSideEffect]> {
@@ -221,16 +209,6 @@ def SectionsOp : OpenMP_Op<"sections", [AttrSizedOperandSegments,
 
   let hasVerifier = 1;
   let hasRegionVerifier = 1;
-
-  let extraClassDeclaration = [{
-    // TODO: remove this once emitAccessorPrefix is set to
-    // kEmitAccessorPrefix_Prefixed for the dialect.
-    /// Returns the reduction variables
-    SmallVector<Value> getReductionVars() {
-      return SmallVector<Value>(reduction_vars().begin(),
-                                reduction_vars().end());
-    }
-  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -359,18 +337,10 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
 
   let extraClassDeclaration = [{
     /// Returns the number of loops in the worksharing-loop nest.
-    unsigned getNumLoops() { return lowerBound().size(); }
+    unsigned getNumLoops() { return getLowerBound().size(); }
 
     /// Returns the number of reduction variables.
-    unsigned getNumReductionVars() { return reduction_vars().size(); }
-
-    // TODO: remove this once emitAccessorPrefix is set to
-    // kEmitAccessorPrefix_Prefixed for the dialect.
-    /// Returns the reduction variables
-    SmallVector<Value> getReductionVars() {
-      return SmallVector<Value>(reduction_vars().begin(),
-                                reduction_vars().end());
-    }
+    unsigned getNumReductionVars() { return getReductionVars().size(); }
   }];
   let hasCustomAssemblyFormat = 1;
   let assemblyFormat = [{
@@ -455,7 +425,7 @@ def SimdLoopOp : OpenMP_Op<"simdloop", [AttrSizedOperandSegments,
 
   let extraClassDeclaration = [{
     /// Returns the number of loops in the simd loop nest.
-    unsigned getNumLoops() { return lowerBound().size(); }
+    unsigned getNumLoops() { return getLowerBound().size(); }
 
   }];
 
@@ -565,8 +535,8 @@ def TaskOp : OpenMP_Op<"task", [AttrSizedOperandSegments,
   let extraClassDeclaration = [{
     /// Returns the reduction variables
     SmallVector<Value> getReductionVars() {
-      return SmallVector<Value>(in_reduction_vars().begin(),
-                                in_reduction_vars().end());
+      return SmallVector<Value>(getInReductionVars().begin(),
+                                getInReductionVars().end());
     }
   }];
   let hasVerifier = 1;
@@ -723,7 +693,7 @@ def TaskLoopOp : OpenMP_Op<"taskloop", [AttrSizedOperandSegments,
 
   let extraClassDeclaration = [{
     /// Returns the reduction variables
-    SmallVector<Value> getReductionVars();
+    SmallVector<Value> getAllReductionVars();
     void getEffects(SmallVectorImpl<MemoryEffects::EffectInstance> &effects);
   }];
 
@@ -779,7 +749,7 @@ def TaskGroupOp : OpenMP_Op<"taskgroup", [AttrSizedOperandSegments,
 
   let extraClassDeclaration = [{
     /// Returns the reduction variables
-    operand_range getReductionVars() { return task_reduction_vars(); }
+    operand_range getAllReductionVars() { return getTaskReductionVars(); }
   }];
 
   let hasVerifier = 1;
@@ -1064,15 +1034,15 @@ def AtomicReadOp : OpenMP_Op<"atomic.read", [AllTypesMatch<["x", "v"]>]> {
   let extraClassDeclaration = [{
     /// The number of variable operands.
     unsigned getNumVariableOperands() {
-      assert(x() && "expected 'x' operand");
-      assert(v() && "expected 'v' operand");
+      assert(getX() && "expected 'x' operand");
+      assert(getV() && "expected 'v' operand");
       return 2;
     }
 
     /// The i-th variable operand passed.
     Value getVariableOperand(unsigned i) {
       assert(i < 2 && "invalid index position for an operand");
-      return i == 0 ? x() : v();
+      return i == 0 ? getX() : getV();
     }
   }];
 }
@@ -1112,15 +1082,15 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
   let extraClassDeclaration = [{
     /// The number of variable operands.
     unsigned getNumVariableOperands() {
-      assert(address() && "expected address operand");
-      assert(value() && "expected value operand");
+      assert(getAddress() && "expected address operand");
+      assert(getValue() && "expected value operand");
       return 2;
     }
 
     /// The i-th variable operand passed.
     Value getVariableOperand(unsigned i) {
       assert(i < 2 && "invalid index position for an operand");
-      return i == 0 ? address() : value();
+      return i == 0 ? getAddress() : getValue();
     }
   }];
 }
@@ -1288,14 +1258,14 @@ def ThreadprivateOp : OpenMP_Op<"threadprivate",
   let extraClassDeclaration = [{
     /// The number of variable operands.
     unsigned getNumVariableOperands() {
-      assert(sym_addr() && "expected one variable operand");
+      assert(getSymAddr() && "expected one variable operand");
       return 1;
     }
 
     /// The i-th variable operand passed.
     Value getVariableOperand(unsigned i) {
       assert(i == 0 && "invalid index position for an operand");
-      return sym_addr();
+      return getSymAddr();
     }
   }];
 }
@@ -1380,10 +1350,10 @@ def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol,
 
   let extraClassDeclaration = [{
     PointerLikeType getAccumulatorType() {
-      if (atomicReductionRegion().empty())
+      if (getAtomicReductionRegion().empty())
         return {};
 
-      return atomicReductionRegion().front().getArgument(0).getType();
+      return getAtomicReductionRegion().front().getArgument(0).getType();
     }
   }];
   let hasRegionVerifier = 1;

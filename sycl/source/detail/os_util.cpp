@@ -233,7 +233,20 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   return reinterpret_cast<OSModuleHandle>(Res.dli_fbase);
 }
 
-std::string OSUtil::getCurrentDSODir() { return ""; }
+std::string OSUtil::getCurrentDSODir() {
+  auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
+  Dl_info Info;
+  int RetCode = dladdr(CurrentFunc, &Info);
+  if (0 == RetCode) {
+    // This actually indicates an error
+    return "";
+  }
+
+  auto Path = std::string(Info.dli_fname);
+  auto LastSlashPos = Path.find_last_of('/');
+
+  return Path.substr(0, LastSlashPos);
+}
 
 #endif // __SYCL_RT_OS
 

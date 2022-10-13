@@ -17,7 +17,7 @@
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/IntegerSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
@@ -371,7 +371,7 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
   for (unsigned d = 0; d < rank; d++) {
     SmallVector<int64_t, 4> lb;
     Optional<int64_t> diff =
-        cstWithShapeBounds.getConstantBoundOnDimSize(d, &lb, &lbDivisor);
+        cstWithShapeBounds.getConstantBoundOnDimSize64(d, &lb, &lbDivisor);
     if (diff.has_value()) {
       diffConstant = diff.value();
       assert(diffConstant >= 0 && "Dim size bound can't be negative");

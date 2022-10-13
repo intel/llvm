@@ -379,8 +379,8 @@ public:
   }
 
   bool isCommon() const {
-    return isExternal() && getSectionNumber() == COFF::IMAGE_SYM_UNDEFINED &&
-           getValue() != 0;
+    return (isExternal() || isSection()) &&
+           getSectionNumber() == COFF::IMAGE_SYM_UNDEFINED && getValue() != 0;
   }
 
   bool isUndefined() const {
@@ -913,6 +913,10 @@ public:
   }
 
   uint32_t getStringTableSize() const { return StringTableSize; }
+
+  const export_directory_table_entry *getExportTable() const {
+    return ExportDirectory;
+  }
 
   const coff_load_configuration32 *getLoadConfig32() const {
     assert(!is64());

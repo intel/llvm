@@ -395,9 +395,6 @@
 // RUN:    /wd1234 \
 // RUN:    /Wv \
 // RUN:    /Wv:17 \
-// RUN:    /ZH:MD5 \
-// RUN:    /ZH:SHA1 \
-// RUN:    /ZH:SHA_256 \
 // RUN:    /Zm \
 // RUN:    /Zo \
 // RUN:    /Zo- \
@@ -578,6 +575,17 @@
 // Z7_gdwarf: "-debug-info-kind=constructor"
 // Z7_gdwarf: "-dwarf-version=
 
+// RUN: %clang_cl /ZH:MD5 /c -### -- %s 2>&1 | FileCheck -check-prefix=ZH_MD5 %s
+// ZH_MD5: "-gsrc-hash=md5"
+
+// RUN: %clang_cl /ZH:SHA1 /c -### -- %s 2>&1 \
+// RUN:     | FileCheck -check-prefix=ZH_SHA1 %s
+// ZH_SHA1: "-gsrc-hash=sha1"
+
+// RUN: %clang_cl /ZH:SHA_256 /c -### -- %s 2>&1 \
+// RUN:     | FileCheck -check-prefix=ZH_SHA256 %s
+// ZH_SHA256: "-gsrc-hash=sha256"
+
 // RUN: %clang_cl -fmsc-version=1800 -TP -### -- %s 2>&1 | FileCheck -check-prefix=CXX11 %s
 // CXX11: -std=c++11
 
@@ -711,7 +719,6 @@
 // RUN:     -fimplicit-modules \
 // RUN:     -fno-implicit-modules \
 // RUN:     -ftrivial-auto-var-init=zero \
-// RUN:     -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang \
 // RUN:     --version \
 // RUN:     -Werror /Zs -- %s 2>&1
 
@@ -774,5 +781,9 @@
 // RUN: %clang_cl /external:W4 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
 // EXTERNAL_W0: "-Wno-system-headers"
 // EXTERNAL_Wn: "-Wsystem-headers"
+
+// RUN: %clang_cl -vctoolsdir "" /arm64EC /c -### -- %s 2>&1 | FileCheck %s --check-prefix ARM64EC
+// ARM64EC: "-triple" "arm64ec-pc-windows-msvc19.20.0"
+// ARM64EC-NOT: /arm64EC has been overridden by specified target
 
 void f(void) { }

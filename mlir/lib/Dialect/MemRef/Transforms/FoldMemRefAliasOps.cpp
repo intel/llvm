@@ -14,7 +14,7 @@
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -330,19 +330,16 @@ LogicalResult LoadOpOfSubViewOpFolder<OpTy>::matchAndRewrite(
   if (failed(resolveSourceIndicesSubView(loadOp.getLoc(), rewriter, subViewOp,
                                          indices, sourceIndices)))
     return failure();
+
   llvm::TypeSwitch<Operation *, void>(loadOp)
       .Case<AffineLoadOp, memref::LoadOp>([&](auto op) {
-        rewriter.replaceOpWithNewOp<decltype(op)>(loadOp, subViewOp.source(),
+        rewriter.replaceOpWithNewOp<decltype(op)>(loadOp, subViewOp.getSource(),
                                                   sourceIndices);
       })
       .Case([&](vector::TransferReadOp transferReadOp) {
-        if (transferReadOp.getTransferRank() == 0) {
-          // TODO: Propagate the error.
-          return;
-        }
         rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
-            transferReadOp, transferReadOp.getVectorType(), subViewOp.source(),
-            sourceIndices,
+            transferReadOp, transferReadOp.getVectorType(),
+            subViewOp.getSource(), sourceIndices,
             getPermutationMapAttr(rewriter.getContext(), subViewOp,
                                   transferReadOp.getPermutationMap()),
             transferReadOp.getPadding(),
@@ -439,17 +436,15 @@ LogicalResult StoreOpOfSubViewOpFolder<OpTy>::matchAndRewrite(
   if (failed(resolveSourceIndicesSubView(storeOp.getLoc(), rewriter, subViewOp,
                                          indices, sourceIndices)))
     return failure();
+
   llvm::TypeSwitch<Operation *, void>(storeOp)
       .Case<AffineStoreOp, memref::StoreOp>([&](auto op) {
         rewriter.replaceOpWithNewOp<decltype(op)>(
-            storeOp, storeOp.getValue(), subViewOp.source(), sourceIndices);
+            storeOp, storeOp.getValue(), subViewOp.getSource(), sourceIndices);
       })
       .Case([&](vector::TransferWriteOp op) {
-        // TODO: support 0-d corner case.
-        if (op.getTransferRank() == 0)
-          return;
         rewriter.replaceOpWithNewOp<vector::TransferWriteOp>(
-            op, op.getValue(), subViewOp.source(), sourceIndices,
+            op, op.getValue(), subViewOp.getSource(), sourceIndices,
             getPermutationMapAttr(rewriter.getContext(), subViewOp,
                                   op.getPermutationMap()),
             op.getInBoundsAttr());

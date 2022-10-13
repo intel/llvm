@@ -1298,6 +1298,9 @@ static FastMathFlags getDecodedFastMathFlags(unsigned Val) {
 }
 
 static void upgradeDLLImportExportLinkage(GlobalValue *GV, unsigned Val) {
+  // A GlobalValue with local linkage cannot have a DLL storage class.
+  if (GV->hasLocalLinkage())
+    return;
   switch (Val) {
   case 5: GV->setDLLStorageClass(GlobalValue::DLLImportStorageClass); break;
   case 6: GV->setDLLStorageClass(GlobalValue::DLLExportStorageClass); break;
@@ -1385,10 +1388,15 @@ static bool isConstExprSupported(uint8_t Opcode) {
   if (Opcode >= BitcodeConstant::FirstSpecialOpcode)
     return true;
 
+  // If -expand-constant-exprs is set, we want to consider all expressions
+  // as unsupported.
+  if (ExpandConstantExprs)
+    return false;
+
   if (Instruction::isBinaryOp(Opcode))
     return ConstantExpr::isSupportedBinOp(Opcode);
 
-  return !ExpandConstantExprs;
+  return Opcode != Instruction::FNeg;
 }
 
 Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
@@ -1449,8 +1457,6 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
         C = UpgradeBitCastExpr(BC->Opcode, ConstOps[0], BC->getType());
         if (!C)
           C = ConstantExpr::getCast(BC->Opcode, ConstOps[0], BC->getType());
-      } else if (Instruction::isUnaryOp(BC->Opcode)) {
-        C = ConstantExpr::get(BC->Opcode, ConstOps[0], BC->Flags);
       } else if (Instruction::isBinaryOp(BC->Opcode)) {
         C = ConstantExpr::get(BC->Opcode, ConstOps[0], ConstOps[1], BC->Flags);
       } else {
@@ -1577,8 +1583,6 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
         I->setIsExact();
     } else {
       switch (BC->Opcode) {
-      case BitcodeConstant::ConstantStructOpcode:
-      case BitcodeConstant::ConstantArrayOpcode:
       case BitcodeConstant::ConstantVectorOpcode: {
         Type *IdxTy = Type::getInt32Ty(BC->getContext());
         Value *V = PoisonValue::get(BC->getType());
@@ -1587,6 +1591,15 @@ Expected<Value *> BitcodeReader::materializeValue(unsigned StartValID,
           V = InsertElementInst::Create(V, Pair.value(), Idx, "constexpr.ins",
                                         InsertBB);
         }
+        I = cast<Instruction>(V);
+        break;
+      }
+      case BitcodeConstant::ConstantStructOpcode:
+      case BitcodeConstant::ConstantArrayOpcode: {
+        Value *V = PoisonValue::get(BC->getType());
+        for (auto Pair : enumerate(Ops))
+          V = InsertValueInst::Create(V, Pair.value(), Pair.index(),
+                                      "constexpr.ins", InsertBB);
         I = cast<Instruction>(V);
         break;
       }
@@ -3754,10 +3767,14 @@ Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
   NewGV->setVisibility(Visibility);
   NewGV->setUnnamedAddr(UnnamedAddr);
 
-  if (Record.size() > 10)
-    NewGV->setDLLStorageClass(getDecodedDLLStorageClass(Record[10]));
-  else
+  if (Record.size() > 10) {
+    // A GlobalValue with local linkage cannot have a DLL storage class.
+    if (!NewGV->hasLocalLinkage()) {
+      NewGV->setDLLStorageClass(getDecodedDLLStorageClass(Record[10]));
+    }
+  } else {
     upgradeDLLImportExportLinkage(NewGV, RawLinkage);
+  }
 
   ValueList.push_back(NewGV, getVirtualTypeID(NewGV->getType(), TyID));
 
@@ -3918,10 +3935,14 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
   if (Record.size() > 10)
     OperandInfo.Prologue = Record[10];
 
-  if (Record.size() > 11)
-    Func->setDLLStorageClass(getDecodedDLLStorageClass(Record[11]));
-  else
+  if (Record.size() > 11) {
+    // A GlobalValue with local linkage cannot have a DLL storage class.
+    if (!Func->hasLocalLinkage()) {
+      Func->setDLLStorageClass(getDecodedDLLStorageClass(Record[11]));
+    }
+  } else {
     upgradeDLLImportExportLinkage(Func, RawLinkage);
+  }
 
   if (Record.size() > 12) {
     if (unsigned ComdatID = Record[12]) {
@@ -4024,8 +4045,12 @@ Error BitcodeReader::parseGlobalIndirectSymbolRecord(
   }
   if (BitCode == bitc::MODULE_CODE_ALIAS ||
       BitCode == bitc::MODULE_CODE_ALIAS_OLD) {
-    if (OpNum != Record.size())
-      NewGA->setDLLStorageClass(getDecodedDLLStorageClass(Record[OpNum++]));
+    if (OpNum != Record.size()) {
+      auto S = Record[OpNum++];
+      // A GlobalValue with local linkage cannot have a DLL storage class.
+      if (!NewGA->hasLocalLinkage())
+        NewGA->setDLLStorageClass(getDecodedDLLStorageClass(S));
+    }
     else
       upgradeDLLImportExportLinkage(NewGA, Linkage);
     if (OpNum != Record.size())

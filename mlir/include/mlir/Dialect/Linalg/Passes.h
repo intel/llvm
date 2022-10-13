@@ -26,28 +26,7 @@ namespace bufferization {
 struct OneShotBufferizationOptions;
 } // namespace bufferization
 
-#define GEN_PASS_DECL_CONVERTELEMENTWISETOLINALG
-#define GEN_PASS_DECL_LINALGINITTENSORTOALLOCTENSOR
-#define GEN_PASS_DECL_LINALGFOLDUNITEXTENTDIMS
-#define GEN_PASS_DECL_LINALGELEMENTWISEOPFUSION
-#define GEN_PASS_DECL_LINALGNAMEDOPCONVERSION
-#define GEN_PASS_DECL_LINALGINLINESCALAROPERANDS
-#define GEN_PASS_DECL_LINALGLOWERTOAFFINELOOPS
-#define GEN_PASS_DECL_LINALGLOWERTOLOOPSPASS
-#define GEN_PASS_DECL_LINALGLOWERTOPARALLELLOOPS
-#define GEN_PASS_DECL_LINALGBUFFERIZE
-#define GEN_PASS_DECL_LINALGTILINGPASS
-#define GEN_PASS_DECL_LINALGGENERALIZATION
-#define GEN_PASS_DECL_LINALGDETENSORIZE
-#define GEN_PASS_DECL_LINALGSTRATEGYTILEANDFUSEPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYTILEPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYPADPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYDECOMPOSEPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYPEELPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYVECTORIZEPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYENABLEPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYLOWERVECTORSPASS
-#define GEN_PASS_DECL_LINALGSTRATEGYREMOVEMARKERSPASS
+#define GEN_PASS_DECL
 #include "mlir/Dialect/Linalg/Passes.h.inc"
 
 std::unique_ptr<Pass> createConvertElementwiseToLinalgPass();
@@ -82,8 +61,8 @@ createConvertLinalgToParallelLoopsPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertLinalgToAffineLoopsPass();
 
-/// Create a pass that rewrites init_tensor to alloc_tensor.
-std::unique_ptr<Pass> createLinalgInitTensorToAllocTensorPass();
+/// Create a pass that rewrites tensor.empty to bufferization.alloc_tensor.
+std::unique_ptr<Pass> createEmptyTensorToAllocTensorPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
@@ -131,21 +110,6 @@ std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyDecomposePass(
 std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPeelPass(
     StringRef opName = "",
     const linalg::LinalgPeelOptions &opt = linalg::LinalgPeelOptions(),
-    const linalg::LinalgTransformationFilter &filter =
-        linalg::LinalgTransformationFilter());
-
-/// Create a LinalgStrategyVectorizePass.
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyVectorizePass(
-    StringRef opName = "",
-    linalg::LinalgVectorizationOptions opt =
-        linalg::LinalgVectorizationOptions(),
-    const linalg::LinalgTransformationFilter &filter =
-        linalg::LinalgTransformationFilter(),
-    bool padVectorize = false);
-
-/// Create a LinalgStrategyEnablePass.
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyEnablePass(
-    linalg::LinalgEnablingOptions opt = linalg::LinalgEnablingOptions(),
     const linalg::LinalgTransformationFilter &filter =
         linalg::LinalgTransformationFilter());
 

@@ -45,4 +45,4 @@ int main() {
 // CHECK-SAME: ptr noundef byval(%[[GENERATED_A]]) align 8 %_arg_F3,
 // CHECK-SAME: ptr noundef byval(%[[WRAPPER_F4_1]]) align 8 %_arg_F4
 // CHECK-SAME: ptr noundef byval(%[[WRAPPER_F4_2]]) align 8 %_arg_F41
-// CHECK: define {{.*}}spir_kernel void @{{.*}}lambdas{{.*}}(ptr noundef byval(%[[WRAPPER_LAMBDA_PTR]]) align 8 %_arg_Ptr)
+// CHECK: define {{.*}}spir_kernel void @{{.*}}lambdas{{.*}}(ptr noundef byval(%[[WRAPPER_LAMBDA_PTR]]) align 8 %_arg_Lambda)

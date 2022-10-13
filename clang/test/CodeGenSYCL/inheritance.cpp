@@ -5,6 +5,7 @@
 class second_base {
 public:
   int *e;
+  second_base(int *E) : e(E) {}
 };
 
 class InnerFieldBase {
@@ -23,7 +24,7 @@ public:
 
 struct derived : base, second_base {
   int a;
-
+  derived() : second_base(nullptr) {}
   void operator()() const {
   }
 };
@@ -64,13 +65,14 @@ int main() {
 // Initialize 'base' subobject
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[LOCAL_OBJECT]], ptr addrspace(4) align 4 %[[ARG_BASE]], i64 12, i1 false)
 
-// Initialize field 'a'
-// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 3
-// CHECK: %[[LOAD_A:[0-9]+]] = load i32, ptr addrspace(4) %[[ARG_A]], align 4
-// CHECK: store i32 %[[LOAD_A]], ptr addrspace(4) %[[GEP_A]]
-
 // Initialize 'second_base' subobject
 // First, derived-to-base cast with offset:
 // CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, ptr addrspace(4) %[[LOCAL_OBJECT]], i64 16
 // Initialize 'second_base'
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[OFFSET_CALC]], ptr addrspace(4) align 8 %[[ARG_BASE1]], i64 8, i1 false)
+
+// Initialize field 'a'
+// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 3
+// CHECK: %[[LOAD_A:[0-9]+]] = load i32, ptr addrspace(4) %[[ARG_A]], align 4
+// CHECK: store i32 %[[LOAD_A]], ptr addrspace(4) %[[GEP_A]]
+

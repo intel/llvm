@@ -93,7 +93,9 @@ struct ASTFileSignature : std::array<uint8_t, 20> {
 };
 
 /// Describes a module or submodule.
-class Module {
+///
+/// Aligned to 8 bytes to allow for llvm::PointerIntPair<Module *, 3>.
+class alignas(8) Module {
 public:
   /// The name of this module.
   std::string Name;
@@ -608,8 +610,7 @@ public:
 
   /// Set the serialized AST file for the top-level module of this module.
   void setASTFile(Optional<FileEntryRef> File) {
-    assert((!File || !getASTFile() || getASTFile() == File) &&
-           "file path changed");
+    assert((!getASTFile() || getASTFile() == File) && "file path changed");
     getTopLevelModule()->ASTFile = File;
   }
 
