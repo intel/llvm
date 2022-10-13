@@ -25,18 +25,18 @@ int main() {
   EmptyWrapper.kernel_single_task<class EK3>([]() [[sycl::work_group_size_hint(1,2,3)]] {});
   EmptyWrapper.kernel_single_task<class EK7>([]() [[sycl::reqd_sub_group_size(1)]] {});
 
-  // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
   NonemptyWrapper.kernel_single_task<class NEK1>([]() [[sycl::reqd_work_group_size(1)]] {});
-  // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
   NonemptyWrapper.kernel_single_task<class NEK2>([]() [[sycl::reqd_work_group_size(1,2)]] {});
-  // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'reqd_work_group_size' and kernel properties; conflicting properties are ignored}}
   NonemptyWrapper.kernel_single_task<class NEK3>([]() [[sycl::reqd_work_group_size(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has attribute 'work_group_size_hint' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'work_group_size_hint' and kernel properties; conflicting properties are ignored}}
   NonemptyWrapper.kernel_single_task<class NEK1>([]() [[sycl::work_group_size_hint(1)]] {});
-  // expected-warning@+1 {{kernel has attribute 'work_group_size_hint' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'work_group_size_hint' and kernel properties; conflicting properties are ignored}}
   NonemptyWrapper.kernel_single_task<class NEK2>([]() [[sycl::work_group_size_hint(1,2)]] {});
-  // expected-warning@+1 {{kernel has attribute 'work_group_size_hint' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'work_group_size_hint' and kernel properties; conflicting properties are ignored}}
   NonemptyWrapper.kernel_single_task<class NEK3>([]() [[sycl::work_group_size_hint(1,2,3)]] {});
-  // expected-warning@+1 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has both attribute 'reqd_sub_group_size' and kernel properties; conflicting properties are ignored}}
   NonemptyWrapper.kernel_single_task<class NEK7>([]() [[sycl::reqd_sub_group_size(1)]] {});
 }
