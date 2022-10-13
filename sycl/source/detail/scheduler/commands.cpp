@@ -347,7 +347,7 @@ public:
       MThisCmd->MEvent->setComplete();
 
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-      std::this_thread::sleep_for(2000ms);
+      //      std::this_thread::sleep_for(2000ms);
       std::cout << "wake up" << std::endl;
 
       for (const DepDesc &Dep : Deps)
