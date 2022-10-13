@@ -182,10 +182,9 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
                                   mlir::Value Original,
                                   mlir::MemRefType BaseType) {
   const auto ThisType = Original.getType().cast<MemRefType>();
-
-  const auto TargetShape = BaseType.getShape();
-  const auto TargetElementType = BaseType.getElementType();
-  const auto TargetMemSpace = BaseType.getMemorySpaceAsInt();
+  const llvm::ArrayRef<int64_t> TargetShape = BaseType.getShape();
+  const mlir::Type TargetElementType = BaseType.getElementType();
+  const unsigned TargetMemSpace = BaseType.getMemorySpaceAsInt();
 
   assert(TargetShape == ThisType.getShape() &&
          "Shape should not change when casting to base class for a member "
