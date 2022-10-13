@@ -54,6 +54,10 @@ struct StructWithPtr {
   int i;
 };
 
+struct Nested {
+typedef StructWithPtr TDStrWithPTR;
+};
+
 struct NonTrivialType {
   int *Ptr;
   int i;
@@ -179,6 +183,12 @@ int main() {
       h.single_task<class Pointer>([=]() { return SimpleStructWithPtr.i; });
     });
     // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (__generated_StructWithPtr)'
+
+    Nested::TDStrWithPTR TDStructWithPtr;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class TDStr>([=]() { return TDStructWithPtr.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}TDStr{{.*}} 'void (__generated_StructWithPtr)'
 
     StructWithArray<StructWithPtr> t1;
     myQueue.submit([&](sycl::handler &h) {
