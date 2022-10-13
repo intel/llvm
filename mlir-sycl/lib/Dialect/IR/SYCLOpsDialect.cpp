@@ -18,6 +18,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 void mlir::sycl::SYCLDialect::initialize() {
   mlir::sycl::SYCLDialect::addOperations<
@@ -197,6 +198,91 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
               mlir::sycl::ArrayType>::Trait>();
   const auto IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
   return HasArrayTrait && IsArray;
+}
+
+mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
+  // /* Available only when: (Dimensions > 0) */
+  // reference operator[](id<Dimensions> index) const;
+
+  // /* Available only when: (Dimensions > 1) */
+  // __unspecified__ operator[](size_t index) const;
+
+  // /* Available only when: (AccessMode != access_mode::atomic && Dimensions ==
+  // 1) */
+  // reference operator[](size_t index) const;
+  const auto AccessorTy = getOperand(0)
+                              .getType()
+                              .cast<mlir::MemRefType>()
+                              .getElementType()
+                              .cast<mlir::sycl::AccessorType>();
+
+  const unsigned Dimensions = AccessorTy.getDimension();
+  if (Dimensions == 0)
+    return emitOpError("Dimensions cannot be zero");
+
+  const auto verifyResultType = [&]() -> mlir::LogicalResult {
+    const auto resultType = getResult().getType().dyn_cast<mlir::MemRefType>();
+
+    if (!resultType) {
+      return emitOpError("Expecting memref return type. Got ") << resultType;
+    }
+
+    if (resultType.getElementType() != AccessorTy.getType()) {
+      return emitOpError(
+                 "Expecting a reference to this accessor's value type (")
+             << AccessorTy.getType() << "). Got " << resultType;
+    }
+
+    return success();
+  };
+
+  return mlir::TypeSwitch<mlir::Type, mlir::LogicalResult>(
+             getOperand(1).getType())
+      .Case<mlir::sycl::IDType>([&](auto IDTy) -> mlir::LogicalResult {
+        if (IDTy.getDimension() != Dimensions) {
+          return emitOpError(
+                     "Both the index and the accessor must have the same "
+                     "number of dimensions, but the accessor has ")
+                 << Dimensions << "dimensions and the index, "
+                 << IDTy.getDimension();
+        }
+        return verifyResultType();
+      })
+      .Case<mlir::IntegerType>([&](auto) -> mlir::LogicalResult {
+        if (Dimensions != 1) {
+          // Implementation defined result type.
+          return success();
+        }
+        if (AccessorTy.getAccessMode() ==
+            mlir::sycl::MemoryAccessMode::Atomic) {
+          return emitOpError(
+              "Cannot use this signature when the atomic access mode is used");
+        }
+        return verifyResultType();
+      })
+      .Default([&](auto) -> mlir::LogicalResult {
+        llvm_unreachable("Unhandled input type");
+      });
+}
+
+static mlir::LogicalResult
+verifyGetOperation(mlir::sycl::SYCLMethodOpInterface Op) {
+  // size_t get(int dimension) const;
+  // size_t &operator[](int dimension);
+  // size_t operator[](int dimension) const;
+  if (Op.getFunctionName() == "get" &&
+      Op->getResult(0).getType().isa<mlir::MemRefType>()) {
+    return Op.emitOpError(
+        "The get method cannot return a reference, just a value");
+  }
+  return mlir::success();
+}
+
+mlir::LogicalResult mlir::sycl::SYCLRangeGetOp::verify() {
+  // size_t get(int dimension) const;
+  // size_t &operator[](int dimension);
+  // size_t operator[](int dimension) const;
+  return verifyGetOperation(*this);
 }
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.cpp.inc"

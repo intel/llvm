@@ -28,6 +28,11 @@ def SYCL_Dialect : Dialect {
   let extraClassDeclaration = [{
     MethodRegistry methods;
 
+    static constexpr llvm::StringRef getBaseTypeAttrName() { return "BaseType"; }
+    static constexpr llvm::StringRef getFunctionNameAttrName() { return "FunctionName"; }
+    static constexpr llvm::StringRef getMangledFunctionNameAttrName() { return "MangledFunctionName"; }
+    static constexpr llvm::StringRef getTypeNameAttrName() { return "TypeName"; }
+
     /// Each operation will be registered as usual in an MLIR dialect
     /// and also will be registered as a SYCL method if it implements one.
     template <typename... Args> void addOperations();
@@ -104,6 +109,7 @@ def SYCLMemref : AnyTypeOf<[
   GroupMemRef
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
+def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTRUCTOR OPERATION
@@ -194,6 +200,81 @@ def SYCLCallOp : SYCL_Op<"call", []> {
   let assemblyFormat = [{
     `(` $Args `)` attr-dict `:` functional-type($Args, results)
   }];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// accessor.subscript OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLAccessorSubscriptIndex : AnyTypeOf<[IndexType, SYCL_IDType]>;
+
+def SYCLAccessorSubscriptOp
+    : SYCLMethodOpInterfaceImpl<"accessor.subscript", "AccessorType",
+                                ["operator[]"], [NoSideEffect]> {
+  let summary = "Call to accessor::operator[]";
+  let description = [{
+    This operation represents a call to the accessor::operator[] function.
+  }];
+
+  let arguments = (ins AccessorMemRef:$Acc,
+                       SYCLAccessorSubscriptIndex:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs AnyType:$Res);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $Acc `[` $Index `]` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// range.get OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLRangeGetOp
+    : SYCLMethodOpInterfaceImpl<"range.get", "RangeType",
+                                ["get", "operator[]"], [NoSideEffect]> {
+  let summary = "Call to range::get/operator[]";
+  let description = [{
+    This operation represents a call to the range::get/operator[] functions.
+  }];
+
+  let arguments = (ins RangeMemRef:$Range,
+                       I32:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// range.size OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLRangeSizeOp
+    : SYCLMethodOpInterfaceImpl<"range.size", "RangeType",
+                                ["size"], [NoSideEffect]> {
+  let summary = "Call to range::size[]";
+  let description = [{
+    This operation represents a call to the range::size[] function.
+  }];
+
+  let arguments = (ins RangeMemRef:$Range,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
 }
 
 #endif // SYCL_OPS

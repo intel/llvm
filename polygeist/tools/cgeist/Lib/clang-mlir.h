@@ -21,6 +21,7 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
@@ -387,6 +388,19 @@ private:
   void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                            mlir::Value lb, mlir::Value ub,
                            const mlirclang::AffineLoopDescriptor &descr);
+
+  /// Creates an instance of SYCLMethodOpInterface if the SYCLCallOp with base
+  /// type name \param typeName, function name \param functionName, mangled
+  /// function name \param mangledFunctionName, parameters \param operands and
+  /// (optional) return type \param returnType can be represented as such.
+  ///
+  /// E.g., the SYCLCallOp to the accessor member function
+  /// accessor::operator[] can be represented using a SYCLAccessorSubscriptOp.
+  llvm::Optional<mlir::sycl::SYCLMethodOpInterface>
+  createSYCLMethodOp(llvm::StringRef typeName, llvm::StringRef functionName,
+                     mlir::ValueRange operands,
+                     llvm::Optional<mlir::Type> returnType,
+                     llvm::StringRef mangledFunctionName);
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
