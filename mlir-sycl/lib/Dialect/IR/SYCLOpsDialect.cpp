@@ -216,21 +216,21 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
                               .getElementType()
                               .cast<mlir::sycl::AccessorType>();
 
-  const auto Dimensions = AccessorTy.getDimension();
+  const unsigned Dimensions = AccessorTy.getDimension();
   if (Dimensions == 0)
-    return emitOpError("dimensions cannot be zero");
+    return emitOpError("Dimensions cannot be zero");
 
   const auto verifyResultType = [&]() -> mlir::LogicalResult {
     const auto resultType = getResult().getType().dyn_cast<mlir::MemRefType>();
 
     if (!resultType) {
-      return emitOpError("expecting memref return type. Got ") << resultType;
+      return emitOpError("Expecting memref return type. Got ") << resultType;
     }
 
     if (resultType.getElementType() != AccessorTy.getType()) {
       return emitOpError(
-                 "expecting a reference to this accessor's value type. Got ")
-             << resultType;
+                 "Expecting a reference to this accessor's value type (")
+             << AccessorTy.getType() << "). Got " << resultType;
     }
 
     return success();
@@ -241,7 +241,7 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
       .Case<mlir::sycl::IDType>([&](auto IDTy) -> mlir::LogicalResult {
         if (IDTy.getDimension() != Dimensions) {
           return emitOpError(
-                     "both the index and the accessor must have the same "
+                     "Both the index and the accessor must have the same "
                      "number of dimensions, but the accessor has ")
                  << Dimensions << "dimensions and the index, "
                  << IDTy.getDimension();
