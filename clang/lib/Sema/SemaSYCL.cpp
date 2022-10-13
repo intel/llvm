@@ -837,6 +837,18 @@ class SingleDeviceFunctionTracker {
     CallGraphNode *KernelNode = Parent.getNodeForKernel(SYCLKernel);
     llvm::SmallVector<FunctionDecl *> CallStack;
     VisitCallNode(KernelNode, GetFDFromNode(KernelNode), CallStack);
+
+    // Always inline the KernelBody in the kernel entry point. For ESIMD
+    // inlining is handled later down the pipeline.
+    if (KernelBody &&
+        Parent.SemaRef.getLangOpts().SYCLForceInlineKernelLambda &&
+        !KernelBody->hasAttr<NoInlineAttr>() &&
+        !KernelBody->hasAttr<AlwaysInlineAttr>() &&
+        !KernelBody->hasAttr<SYCLSimdAttr>()) {
+      KernelBody->addAttr(AlwaysInlineAttr::CreateImplicit(
+          KernelBody->getASTContext(), {}, AttributeCommonInfo::AS_Keyword,
+          AlwaysInlineAttr::Keyword_forceinline));
+    }
   }
 
 public:
@@ -2947,7 +2959,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   Expr *createReinterpretCastExpr(Expr *E, QualType To) {
     return CXXReinterpretCastExpr::Create(
         SemaRef.Context, To, VK_PRValue, CK_BitCast, E,
-        /*Path=*/nullptr, SemaRef.Context.CreateTypeSourceInfo(To),
+        /*Path=*/nullptr, SemaRef.Context.getTrivialTypeSourceInfo(To),
         SourceLocation(), SourceLocation(), SourceRange());
   }
 

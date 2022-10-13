@@ -1,4 +1,4 @@
-//==---------------- kernel_properties.hpp - DPC++ Explicit SIMD API -------==//
+//==---------------- kernel_properties.hpp - SYCL Kernel Properties -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,14 +10,13 @@
 
 #pragma once
 
-#include <sycl/ext/intel/experimental/esimd/common.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/misc_intrin.hpp>
+#include <sycl/ext/intel/experimental/detail/misc_intrin.hpp>
 
 #include <sycl/detail/boost/mp11.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext::intel::experimental::esimd {
+namespace ext::intel::experimental {
 
 namespace kernel_properties {
 
@@ -26,7 +25,7 @@ namespace kernel_properties {
 /// </summary>
 
 // Implementation note: <property_class>::value fields should match property IDs
-// specified in llvm/lib/SYCLLowerIR/ESIMD/LowerESIMD.cpp
+// specified in llvm/lib/SYCLLowerIR/LowerKernelProps.cpp
 
 namespace detail {
 // Proxy to access private property classes' fields from the API code.
@@ -65,16 +64,16 @@ void set_kernel_properties(KernelProps... props) {
     constexpr bool IsDoubleGRF =
         std::is_same_v<PropT, kernel_properties::use_double_grf_tag>;
     if constexpr (IsDoubleGRF) {
-      __esimd_set_kernel_properties(
+      __sycl_set_kernel_properties(
           kernel_properties::detail::proxy<
               kernel_properties::use_double_grf_tag>::value);
     } else {
       static_assert(IsDoubleGRF &&
-                    "set_kernel_properties: invalid ESIMD kernel property");
+                    "set_kernel_properties: invalid kernel property");
     }
   });
 }
 
-} // namespace ext::intel::experimental::esimd
+} // namespace ext::intel::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
