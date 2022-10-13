@@ -359,7 +359,7 @@ class AllOfType<list<Type> allowedTypes, string summary = "",
 
 // A type that satisfies additional predicates.
 class ConfinedType<Type type, list<Pred> predicates, string summary = "",
-                   string cppClassName = "::mlir::Type"> : Type<
+                   string cppClassName = type.cppClassName> : Type<
     And<!listconcat([type.predicate], !foreach(pred, predicates, pred))>,
     summary, cppClassName>;
 
@@ -1654,16 +1654,6 @@ class IntArrayNthElemMinValue<int index, int min> : AttrConstraint<
 
 def IsNullAttr : AttrConstraint<
     CPred<"!$_self">, "empty attribute (for optional attributes)">;
-
-// An attribute constraint on FlatSymbolRefAttr that requires that the
-// reference point to an op of `opClass` within the closest parent with a symbol
-// table.
-// TODO: Add support for nested symbol references.
-class ReferToOp<string opClass> : AttrConstraint<
-    CPred<"isa_and_nonnull<" # opClass # ">("
-            "::mlir::SymbolTable::lookupNearestSymbolFrom("
-              "&$_op, $_self.cast<::mlir::FlatSymbolRefAttr>().getAttr()))">,
-    "referencing to a '" # opClass # "' symbol">;
 
 //===----------------------------------------------------------------------===//
 // Region definitions

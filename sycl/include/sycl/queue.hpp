@@ -108,7 +108,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
                  const property_list &PropList = {})
@@ -120,7 +121,8 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const property_list &PropList = {})
       : queue(detail::select_device(deviceSelector), async_handler{},
@@ -133,7 +135,8 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const property_list &propList = {})
@@ -148,7 +151,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
@@ -163,8 +167,8 @@ public:
   ///
   /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const device_selector &DeviceSelector,
         const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), async_handler{}, PropList) {}
@@ -175,8 +179,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
@@ -203,8 +207,8 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const property_list &PropList = {});
 
@@ -216,8 +220,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
-  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
-                        "device_selector subclasses.")
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 

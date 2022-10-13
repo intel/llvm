@@ -7,6 +7,7 @@
 // RUN: %clang_cc1 -emit-llvm-only -verify -triple x86_64-windows-gnu -fdeclspec -DERR1 -o - %s
 // RUN: %clang_cc1 -emit-llvm-only -verify -triple x86_64-windows-gnu -fdeclspec -fvisibility=hidden -DERR1 -o - %s
 // RUN: %clang_cc1 -emit-llvm-only -verify -triple x86_64-windows-gnu -fdeclspec -DERR2 -o - %s
+// RUN: %clang_cc1 -emit-llvm-only -verify -triple x86_64-windows-gnu -fdeclspec -DERR3 -o - %s
 
 #define CONCAT2(x, y) x##y
 #define CONCAT(x, y) CONCAT2(x, y)
@@ -33,16 +34,30 @@ __attribute__((dllexport)) void exported() {}
 __declspec(dllexport) inline void exported_inline() {}
 USE(exported_inline)
 
+__attribute__((dllexport)) DEFAULT void exported_default() {}
+
+// MSVC-DAG: define protected dllexport void @"?exported_protected@@YAXXZ"(
+// GNU-DAG: define protected dllexport void @_Z18exported_protectedv(
+#pragma GCC visibility push(protected)
+__attribute__((dllexport)) void exported_protected() {}
+#pragma GCC visibility pop
+
 #if defined(ERR1)
 // expected-error@+1 {{non-default visibility cannot be applied to 'dllimport' declaration}}
 __attribute__((dllimport)) HIDDEN void imported_hidden();
 
-__attribute__((dllexport)) DEFAULT void exported_default() {}
-// expected-error@+1 {{non-default visibility cannot be applied to 'dllexport' declaration}}
+// expected-error@+1 {{hidden visibility cannot be applied to 'dllexport' declaration}}
 __attribute__((dllexport)) HIDDEN void exported_hidden() { imported_hidden(); }
+
 #elif defined(ERR2)
-struct PROTECTED C {
-  // expected-error@+1 {{non-default visibility cannot be applied to 'dllexport' declaration}}
-  __attribute__((dllexport)) void exported_protected() {}
+// expected-error@+1 {{non-default visibility cannot be applied to 'dllimport' declaration}}
+__attribute__((dllimport)) PROTECTED void imported_protected();
+
+void foo() { imported_protected(); }
+
+#elif defined(ERR3)
+struct HIDDEN C2 {
+  // expected-error@+1 {{hidden visibility cannot be applied to 'dllexport' declaration}}
+  __attribute__((dllexport)) void exported_hidden() {}
 };
 #endif

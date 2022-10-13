@@ -64,6 +64,7 @@ void registerMemRefBoundCheck();
 void registerPatternsTestPass();
 void registerSimpleParametricTilingPass();
 void registerTestAffineLoopParametricTilingPass();
+void registerTestArithEmulateWideIntPass();
 void registerTestAliasAnalysisPass();
 void registerTestBuiltinAttributeInterfaces();
 void registerTestCallGraphPass();
@@ -108,6 +109,7 @@ void registerTestPDLLPasses();
 void registerTestPreparationPassWithAllowedMemrefResults();
 void registerTestRecursiveTypesPass();
 void registerTestSCFUtilsPass();
+void registerTestShapeMappingPass();
 void registerTestSliceAnalysisPass();
 void registerTestTensorTransforms();
 void registerTestTilingInterface();
@@ -121,6 +123,7 @@ void registerTestNvgpuLowerings();
 namespace test {
 void registerTestDialect(DialectRegistry &);
 void registerTestTransformDialectExtension(DialectRegistry &);
+void registerTestDynDialect(DialectRegistry &);
 } // namespace test
 
 #ifdef MLIR_INCLUDE_TESTS
@@ -160,6 +163,7 @@ void registerTestPasses() {
   mlir::test::registerSimpleParametricTilingPass();
   mlir::test::registerTestAffineLoopParametricTilingPass();
   mlir::test::registerTestAliasAnalysisPass();
+  mlir::test::registerTestArithEmulateWideIntPass();
   mlir::test::registerTestBuiltinAttributeInterfaces();
   mlir::test::registerTestCallGraphPass();
   mlir::test::registerTestConstantFold();
@@ -205,6 +209,7 @@ void registerTestPasses() {
   mlir::test::registerTestPDLLPasses();
   mlir::test::registerTestRecursiveTypesPass();
   mlir::test::registerTestSCFUtilsPass();
+  mlir::test::registerTestShapeMappingPass();
   mlir::test::registerTestSliceAnalysisPass();
   mlir::test::registerTestTensorTransforms();
   mlir::test::registerTestTilingInterface();
@@ -225,6 +230,7 @@ int main(int argc, char **argv) {
 #ifdef MLIR_INCLUDE_TESTS
   ::test::registerTestDialect(registry);
   ::test::registerTestTransformDialectExtension(registry);
+  ::test::registerTestDynDialect(registry);
 #endif
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,

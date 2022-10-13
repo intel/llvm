@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/StackSafetyAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -307,7 +308,6 @@ public:
   void getInterestingMemoryOperands(
       Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting);
 
-  bool isInterestingAlloca(const AllocaInst &AI);
   void tagAlloca(IRBuilder<> &IRB, AllocaInst *AI, Value *Tag, size_t Size);
   Value *tagPointer(IRBuilder<> &IRB, Type *Ty, Value *PtrLong, Value *Tag);
   Value *untagPointer(IRBuilder<> &IRB, Value *PtrLong);
@@ -423,9 +423,15 @@ PreservedAnalyses HWAddressSanitizerPass::run(Module &M,
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M)
     Modified |= HWASan.sanitizeFunction(F, FAM);
-  if (Modified)
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
+  if (!Modified)
+    return PreservedAnalyses::all();
+
+  PreservedAnalyses PA = PreservedAnalyses::none();
+  // GlobalsAA is considered stateless and does not get invalidated unless
+  // explicitly invalidated; PreservedAnalyses::none() is not enough. Sanitizers
+  // make changes that require GlobalsAA to be invalidated.
+  PA.abandon<GlobalsAA>();
+  return PA;
 }
 void HWAddressSanitizerPass::printPipeline(
     raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
@@ -1390,24 +1396,6 @@ bool HWAddressSanitizer::instrumentStack(memtag::StackInfo &SInfo,
   return true;
 }
 
-bool HWAddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
-  return (AI.getAllocatedType()->isSized() &&
-          // FIXME: instrument dynamic allocas, too
-          AI.isStaticAlloca() &&
-          // alloca() may be called with 0 size, ignore it.
-          memtag::getAllocaSizeInBytes(AI) > 0 &&
-          // We are only interested in allocas not promotable to registers.
-          // Promotable allocas are common under -O0.
-          !isAllocaPromotable(&AI) &&
-          // inalloca allocas are not treated as static, and we don't want
-          // dynamic alloca instrumentation for them as well.
-          !AI.isUsedWithInAlloca() &&
-          // swifterror allocas are register promoted by ISel
-          !AI.isSwiftError()) &&
-         // safe allocas are not interesting
-         !(SSI && SSI->isSafe(AI));
-}
-
 bool HWAddressSanitizer::sanitizeFunction(Function &F,
                                           FunctionAnalysisManager &FAM) {
   if (&F == HwasanCtorFunction)
@@ -1422,8 +1410,7 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F,
   SmallVector<MemIntrinsic *, 16> IntrinToInstrument;
   SmallVector<Instruction *, 8> LandingPadVec;
 
-  memtag::StackInfoBuilder SIB(
-      [this](const AllocaInst &AI) { return isInterestingAlloca(AI); });
+  memtag::StackInfoBuilder SIB(SSI);
   for (auto &Inst : instructions(F)) {
     if (InstrumentStack) {
       SIB.visit(Inst);
@@ -1496,7 +1483,7 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F,
 
   if (ClInstrumentMemIntrinsics && !IntrinToInstrument.empty()) {
     for (auto *Inst : IntrinToInstrument)
-      instrumentMemIntrinsic(cast<MemIntrinsic>(Inst));
+      instrumentMemIntrinsic(Inst);
   }
 
   ShadowBase = nullptr;

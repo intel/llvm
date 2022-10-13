@@ -17,12 +17,12 @@
 #include "LiveDebugVariables.h"
 #include "RegAllocBase.h"
 #include "RegAllocEvictionAdvisor.h"
+#include "RegAllocPriorityAdvisor.h"
 #include "SpillPlacement.h"
 #include "SplitKit.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/IndexedMap.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -163,6 +163,7 @@ INITIALIZE_PASS_DEPENDENCY(EdgeBundles)
 INITIALIZE_PASS_DEPENDENCY(SpillPlacement)
 INITIALIZE_PASS_DEPENDENCY(MachineOptimizationRemarkEmitterPass)
 INITIALIZE_PASS_DEPENDENCY(RegAllocEvictionAdvisorAnalysis)
+INITIALIZE_PASS_DEPENDENCY(RegAllocPriorityAdvisorAnalysis)
 INITIALIZE_PASS_END(RAGreedy, "greedy",
                 "Greedy Register Allocator", false, false)
 
@@ -219,6 +220,7 @@ void RAGreedy::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<SpillPlacement>();
   AU.addRequired<MachineOptimizationRemarkEmitterPass>();
   AU.addRequired<RegAllocEvictionAdvisorAnalysis>();
+  AU.addRequired<RegAllocPriorityAdvisorAnalysis>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
@@ -316,9 +318,10 @@ unsigned DefaultPriorityAdvisor::getPriority(const LiveInterval &LI) const {
     // Giant live ranges fall back to the global assignment heuristic, which
     // prevents excessive spilling in pathological cases.
     const TargetRegisterClass &RC = *MRI->getRegClass(Reg);
-    bool ForceGlobal = !ReverseLocalAssignment &&
-                       (Size / SlotIndex::InstrDist) >
-                           (2 * RegClassInfo.getNumAllocatableRegs(&RC));
+    bool ForceGlobal = RC.GlobalPriority ||
+                       (!ReverseLocalAssignment &&
+                        (Size / SlotIndex::InstrDist) >
+                            (2 * RegClassInfo.getNumAllocatableRegs(&RC)));
     unsigned GlobalBit = 0;
 
     if (Stage == RS_Assign && !ForceGlobal && !LI.empty() &&
@@ -327,12 +330,12 @@ unsigned DefaultPriorityAdvisor::getPriority(const LiveInterval &LI) const {
       // are singly defined, this produces optimal coloring in the absence of
       // global interference and other constraints.
       if (!ReverseLocalAssignment)
-        Prio = LI.beginIndex().getInstrDistance(Indexes->getLastIndex());
+        Prio = LI.beginIndex().getApproxInstrDistance(Indexes->getLastIndex());
       else {
         // Allocating bottom up may allow many short LRGs to be assigned first
         // to one of the cheap registers. This could be much faster for very
         // large blocks on targets with many physical registers.
-        Prio = Indexes->getZeroIndex().getInstrDistance(LI.endIndex());
+        Prio = Indexes->getZeroIndex().getApproxInstrDistance(LI.endIndex());
       }
     } else {
       // Allocate global and split ranges in long->short order. Long ranges that
@@ -341,6 +344,22 @@ unsigned DefaultPriorityAdvisor::getPriority(const LiveInterval &LI) const {
       Prio = Size;
       GlobalBit = 1;
     }
+
+    // Priority bit layout:
+    // 31 RS_Assign priority
+    // 30 Preference priority
+    // if (RegClassPriorityTrumpsGlobalness)
+    //   29-25 AllocPriority
+    //   24 GlobalBit
+    // else
+    //   29 Global bit
+    //   28-24 AllocPriority
+    // 0-23 Size/Instr distance
+
+    // Clamp the size to fit with the priority masking scheme
+    Prio = std::min(Prio, (unsigned)maxUIntN(24));
+    assert(isUInt<5>(RC.AllocationPriority) && "allocation priority overflow");
+
     if (RegClassPriorityTrumpsGlobalness)
       Prio |= RC.AllocationPriority << 25 | GlobalBit << 24;
     else
@@ -1238,6 +1257,55 @@ static unsigned getNumAllocatableRegsForConstraints(
   return RCI.getNumAllocatableRegs(ConstrainedRC);
 }
 
+static LaneBitmask getInstReadLaneMask(const MachineRegisterInfo &MRI,
+                                       const TargetRegisterInfo &TRI,
+                                       const MachineInstr &MI, Register Reg) {
+  LaneBitmask Mask;
+  for (const MachineOperand &MO : MI.operands()) {
+    if (!MO.isReg() || MO.getReg() != Reg)
+      continue;
+
+    unsigned SubReg = MO.getSubReg();
+    if (SubReg == 0 && MO.isUse()) {
+      Mask |= MRI.getMaxLaneMaskForVReg(Reg);
+      continue;
+    }
+
+    LaneBitmask SubRegMask = TRI.getSubRegIndexLaneMask(SubReg);
+    if (MO.isDef()) {
+      if (!MO.isUndef())
+        Mask |= ~SubRegMask;
+    } else
+      Mask |= SubRegMask;
+  }
+
+  return Mask;
+}
+
+/// Return true if \p MI at \P Use reads a subset of the lanes live in \p
+/// VirtReg.
+static bool readsLaneSubset(const MachineRegisterInfo &MRI,
+                            const MachineInstr *MI, const LiveInterval &VirtReg,
+                            const TargetRegisterInfo *TRI, SlotIndex Use) {
+  // Early check the common case.
+  if (MI->isCopy() &&
+      MI->getOperand(0).getSubReg() == MI->getOperand(1).getSubReg())
+    return false;
+
+  // FIXME: We're only considering uses, but should be consider defs too?
+  LaneBitmask ReadMask = getInstReadLaneMask(MRI, *TRI, *MI, VirtReg.reg());
+
+  LaneBitmask LiveAtMask;
+  for (const LiveInterval::SubRange &S : VirtReg.subranges()) {
+    if (S.liveAt(Use))
+      LiveAtMask |= S.LaneMask;
+  }
+
+  // If the live lanes aren't different from the lanes used by the instruction,
+  // this doesn't help.
+  return (ReadMask & ~(LiveAtMask & TRI->getCoveringLanes())).any();
+}
+
 /// tryInstructionSplit - Split a live range around individual instructions.
 /// This is normally not worthwhile since the spiller is doing essentially the
 /// same thing. However, when the live range is in a constrained register
@@ -1250,8 +1318,13 @@ unsigned RAGreedy::tryInstructionSplit(const LiveInterval &VirtReg,
                                        SmallVectorImpl<Register> &NewVRegs) {
   const TargetRegisterClass *CurRC = MRI->getRegClass(VirtReg.reg());
   // There is no point to this if there are no larger sub-classes.
-  if (!RegClassInfo.isProperSubClass(CurRC))
-    return 0;
+
+  bool SplitSubClass = true;
+  if (!RegClassInfo.isProperSubClass(CurRC)) {
+    if (!VirtReg.hasSubRanges())
+      return 0;
+    SplitSubClass = false;
+  }
 
   // Always enable split spill mode, since we're effectively spilling to a
   // register.
@@ -1274,14 +1347,19 @@ unsigned RAGreedy::tryInstructionSplit(const LiveInterval &VirtReg,
   // Otherwise, splitting just inserts uncoalescable copies that do not help
   // the allocation.
   for (const SlotIndex Use : Uses) {
-    if (const MachineInstr *MI = Indexes->getInstructionFromIndex(Use))
+    if (const MachineInstr *MI = Indexes->getInstructionFromIndex(Use)) {
       if (MI->isFullCopy() ||
-          SuperRCNumAllocatableRegs ==
-              getNumAllocatableRegsForConstraints(MI, VirtReg.reg(), SuperRC,
-                                                  TII, TRI, RegClassInfo)) {
+          (SplitSubClass &&
+           SuperRCNumAllocatableRegs ==
+               getNumAllocatableRegsForConstraints(MI, VirtReg.reg(), SuperRC,
+                                                   TII, TRI, RegClassInfo)) ||
+          // TODO: Handle split for subranges with subclass constraints?
+          (!SplitSubClass && VirtReg.hasSubRanges() &&
+           !readsLaneSubset(*MRI, MI, VirtReg, TRI, Use))) {
         LLVM_DEBUG(dbgs() << "    skip:\t" << Use << '\t' << *MI);
         continue;
       }
+    }
     SE->openIntv();
     SlotIndex SegStart = SE->enterIntvBefore(Use);
     SlotIndex SegStop = SE->leaveIntvAfter(Use);
@@ -2565,7 +2643,8 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   ExtraInfo.emplace();
   EvictAdvisor =
       getAnalysis<RegAllocEvictionAdvisorAnalysis>().getAdvisor(*MF, *this);
-  PriorityAdvisor = std::make_unique<DefaultPriorityAdvisor>(*MF, *this);
+  PriorityAdvisor =
+      getAnalysis<RegAllocPriorityAdvisorAnalysis>().getAdvisor(*MF, *this);
 
   VRAI = std::make_unique<VirtRegAuxInfo>(*MF, *LIS, *VRM, *Loops, *MBFI);
   SpillerInstance.reset(createInlineSpiller(*this, *MF, *VRM, *VRAI));
