@@ -3,10 +3,10 @@
 // This test checks the codegen for the basic usage of __ESIMD_SIMT_BEGIN -
 // __ESIMD_SIMT_END construct.
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 // Wrapper for designating a scalar region of code that will be

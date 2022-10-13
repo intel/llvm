@@ -92,7 +92,7 @@ Matcher<const std::vector<CodeCompletion> &> has(std::string Name,
                                                  CompletionItemKind K) {
   return Contains(AllOf(named(std::move(Name)), kind(K)));
 }
-MATCHER(isDocumented, "") { return arg.Documentation.hasValue(); }
+MATCHER(isDocumented, "") { return arg.Documentation.has_value(); }
 MATCHER(deprecated, "") { return arg.Deprecated; }
 
 std::unique_ptr<SymbolIndex> memIndex(std::vector<Symbol> Symbols) {
@@ -1014,6 +1014,23 @@ TEST(CodeCompleteTest, NoColonColonAtTheEnd) {
   EXPECT_THAT(Results.Completions, Not(Contains(labeled("clang::"))));
 }
 
+TEST(CompletionTests, EmptySnippetDoesNotCrash) {
+    // See https://github.com/clangd/clangd/issues/1216
+    auto Results = completions(R"cpp(
+        int main() {
+          auto w = [&](auto &&f) { return f(f); };
+          auto f = w([&](auto &&f) {
+            return [&](auto &&n) {
+              if (n == 0) {
+                return 1;
+              }
+              return n * ^(f)(n - 1);
+            };
+          })(10);
+        }
+    )cpp");
+}
+
 TEST(CompletionTest, BacktrackCrashes) {
   // Sema calls code completion callbacks twice in these cases.
   auto Results = completions(R"cpp(
@@ -1283,6 +1300,23 @@ TEST(SignatureHelpTest, Overloads) {
   EXPECT_EQ(0, Results.activeParameter);
 }
 
+TEST(SignatureHelpTest, FunctionPointers) {
+  auto FunctionPointerResults = signatures(R"cpp(
+    void (*foo)(int x, int y);
+    int main() { foo(^); }
+  )cpp");
+  EXPECT_THAT(FunctionPointerResults.signatures,
+              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
+
+  auto FunctionPointerTypedefResults = signatures(R"cpp(
+    typedef void (*fn)(int x, int y);
+    fn foo;
+    int main() { foo(^); }
+  )cpp");
+  EXPECT_THAT(FunctionPointerTypedefResults.signatures,
+              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
+}
+
 TEST(SignatureHelpTest, Constructors) {
   std::string Top = R"cpp(
     struct S {
@@ -1476,12 +1510,16 @@ TEST(SignatureHelpTest, StalePreamble) {
 
 class IndexRequestCollector : public SymbolIndex {
 public:
+  IndexRequestCollector(std::vector<Symbol> Syms = {}) : Symbols(Syms) {}
+
   bool
   fuzzyFind(const FuzzyFindRequest &Req,
             llvm::function_ref<void(const Symbol &)> Callback) const override {
     std::unique_lock<std::mutex> Lock(Mut);
     Requests.push_back(Req);
     ReceivedRequestCV.notify_one();
+    for (const auto &Sym : Symbols)
+      Callback(Sym);
     return true;
   }
 
@@ -1516,6 +1554,7 @@ public:
   }
 
 private:
+  std::vector<Symbol> Symbols;
   // We need a mutex to handle async fuzzy find requests.
   mutable std::condition_variable ReceivedRequestCV;
   mutable std::mutex Mut;
@@ -2572,7 +2611,8 @@ TEST(CompletionTest, EnableSpeculativeIndexRequest) {
   Opts.Index = &Requests;
 
   auto CompleteAtPoint = [&](StringRef P) {
-    cantFail(runCodeComplete(Server, File, Test.point(P), Opts));
+    auto CCR = cantFail(runCodeComplete(Server, File, Test.point(P), Opts));
+    EXPECT_TRUE(CCR.HasMore);
   };
 
   CompleteAtPoint("1");
@@ -3131,6 +3171,26 @@ TEST(CompletionTest, ObjectiveCMethodDeclaration) {
   EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
 }
 
+TEST(CompletionTest, ObjectiveCMethodDeclarationFilterOnEntireSelector) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (int)valueForCharacter:(char)c secondArgument:(id)object;
+      @end
+      @implementation Foo
+      secondArg^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(filterText("valueForCharacter:secondArgument:")));
+  EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(qualifier("- (int)")));
+  EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
+}
+
 TEST(CompletionTest, ObjectiveCMethodDeclarationPrefixTyped) {
   auto Results = completions(R"objc(
       @interface Foo
@@ -3171,14 +3231,74 @@ TEST(CompletionTest, ObjectiveCProtocolFromIndex) {
   Symbol FoodClass = objcClass("FoodClass");
   Symbol SymFood = objcProtocol("Food");
   Symbol SymFooey = objcProtocol("Fooey");
-  auto Results = completions(R"objc(
-      id<Foo^>
-    )objc",
-                             {SymFood, FoodClass, SymFooey},
+  auto Results = completions("id<Foo^>", {SymFood, FoodClass, SymFooey},
                              /*Opts=*/{}, "Foo.m");
 
-  auto C = Results.Completions;
-  EXPECT_THAT(C, UnorderedElementsAre(named("Food"), named("Fooey")));
+  // Should only give protocols for ObjC protocol completions.
+  EXPECT_THAT(Results.Completions,
+              UnorderedElementsAre(
+                  AllOf(named("Food"), kind(CompletionItemKind::Interface)),
+                  AllOf(named("Fooey"), kind(CompletionItemKind::Interface))));
+
+  Results = completions("Fo^", {SymFood, FoodClass, SymFooey},
+                        /*Opts=*/{}, "Foo.m");
+  // Shouldn't give protocols for non protocol completions.
+  EXPECT_THAT(
+      Results.Completions,
+      ElementsAre(AllOf(named("FoodClass"), kind(CompletionItemKind::Class))));
+}
+
+TEST(CompletionTest, ObjectiveCProtocolFromIndexSpeculation) {
+  MockFS FS;
+  MockCompilationDatabase CDB;
+  ClangdServer Server(CDB, FS, ClangdServer::optsForTest());
+
+  auto File = testPath("Foo.m");
+  Annotations Test(R"cpp(
+      @protocol Food
+      @end
+      id<Foo$1^> foo;
+      Foo$2^ bar;
+  )cpp");
+  runAddDocument(Server, File, Test.code());
+  clangd::CodeCompleteOptions Opts = {};
+
+  Symbol FoodClass = objcClass("FoodClass");
+  IndexRequestCollector Requests({FoodClass});
+  Opts.Index = &Requests;
+
+  auto CompleteAtPoint = [&](StringRef P) {
+    return cantFail(runCodeComplete(Server, File, Test.point(P), Opts))
+        .Completions;
+  };
+
+  auto C = CompleteAtPoint("1");
+  auto Reqs1 = Requests.consumeRequests(1);
+  ASSERT_EQ(Reqs1.size(), 1u);
+  EXPECT_THAT(C, ElementsAre(AllOf(named("Food"),
+                                   kind(CompletionItemKind::Interface))));
+
+  C = CompleteAtPoint("2");
+  auto Reqs2 = Requests.consumeRequests(1);
+  // Speculation succeeded. Used speculative index result, but filtering now to
+  // now include FoodClass.
+  ASSERT_EQ(Reqs2.size(), 1u);
+  EXPECT_EQ(Reqs2[0], Reqs1[0]);
+  EXPECT_THAT(C, ElementsAre(AllOf(named("FoodClass"),
+                                   kind(CompletionItemKind::Class))));
+}
+
+TEST(CompletionTest, ObjectiveCCategoryFromIndexIgnored) {
+  Symbol FoodCategory = objcCategory("FoodClass", "Extension");
+  auto Results = completions(R"objc(
+      @interface Foo
+      @end
+      @interface Foo (^)
+      @end
+    )objc",
+                             {FoodCategory},
+                             /*Opts=*/{}, "Foo.m");
+  EXPECT_THAT(Results.Completions, IsEmpty());
 }
 
 TEST(CompletionTest, CursorInSnippets) {
@@ -3194,9 +3314,8 @@ TEST(CompletionTest, CursorInSnippets) {
 
   // Last placeholder in code patterns should be $0 to put the cursor there.
   EXPECT_THAT(Results.Completions,
-              Contains(AllOf(
-                  named("while"),
-                  snippetSuffix(" (${1:condition}) {\n${0:statements}\n}"))));
+              Contains(AllOf(named("while"),
+                             snippetSuffix(" (${1:condition}) {\n$0\n}"))));
   // However, snippets for functions must *not* end with $0.
   EXPECT_THAT(Results.Completions,
               Contains(AllOf(named("while_foo"),

@@ -1,8 +1,8 @@
-/* RUN: %clang_cc1 -std=c89 -verify=expected,c89only -pedantic -Wno-c11-extensions %s
-   RUN: %clang_cc1 -std=c99 -verify=expected,c99untilc2x -pedantic -Wno-c11-extensions %s
-   RUN: %clang_cc1 -std=c11 -verify=expected,c99untilc2x -pedantic %s
-   RUN: %clang_cc1 -std=c17 -verify=expected,c99untilc2x -pedantic %s
-   RUN: %clang_cc1 -std=c2x -verify=expected,c2xandup -pedantic %s
+/* RUN: %clang_cc1 -std=c89 -fsyntax-only -verify=expected,c89only -pedantic -Wno-c11-extensions %s
+   RUN: %clang_cc1 -std=c99 -fsyntax-only -verify=expected,c99untilc2x -pedantic -Wno-c11-extensions %s
+   RUN: %clang_cc1 -std=c11 -fsyntax-only -verify=expected,c99untilc2x -pedantic %s
+   RUN: %clang_cc1 -std=c17 -fsyntax-only -verify=expected,c99untilc2x -pedantic %s
+   RUN: %clang_cc1 -std=c2x -fsyntax-only -verify=expected,c2xandup -pedantic %s
  */
 
 /* The following are DRs which do not require tests to demonstrate
@@ -49,6 +49,28 @@
  *
  * WG14 DR146: yes
  * Nugatory constraint
+ *
+ * WG14 DR147: yes
+ * Sequence points in library functions
+ *
+ * WG14 DR148: yes
+ * Defining library functions
+ *
+ * WG14 DR149: yes
+ * The term "variable"
+ *
+ * WG14 DR154: yes
+ * Consistency of implementation-defined values
+ *
+ * WG14 DR159: yes
+ * Consistency of the C Standard Defects exist in the way the Standard refers
+ * to itself
+ *
+ * WG14 DR161: yes
+ * Details of reserved symbols
+ *
+ * WG14 DR169: yes
+ * Trigraphs
  */
 
 
@@ -115,11 +137,21 @@ void dr105(void) {
  */
 void dr106(void *p, int i) {
   /* The behavior changed between C89 and C99. */
-  (void)&*p; /* c89only-warning {{ISO C forbids taking the address of an expression of type 'void'}} */
+  (void)&*p; /* c89only-warning {{ISO C forbids taking the address of an expression of type 'void'}}
+                c89only-warning {{ISO C does not allow indirection on operand of type 'void *'}} */
+
   /* The behavior of all three of these is undefined. */
-  (void)*p;
-  (void)(i ? *p : *p);
-  (void)(*p, *p); /* expected-warning {{left operand of comma operator has no effect}} */
+  (void)*p; /* expected-warning {{ISO C does not allow indirection on operand of type 'void *'}}*/
+
+  (void)&(*p); /* c89only-warning {{ISO C forbids taking the address of an expression of type 'void'}}
+                  expected-warning {{ISO C does not allow indirection on operand of type 'void *'}}*/
+
+  (void)(i ? *p : *p); /* expected-warning {{ISO C does not allow indirection on operand of type 'void *'}}
+                          expected-warning {{ISO C does not allow indirection on operand of type 'void *'}}*/
+
+  (void)(*p, *p); /* expected-warning {{left operand of comma operator has no effect}}
+                     expected-warning {{ISO C does not allow indirection on operand of type 'void *'}}
+		     expected-warning {{ISO C does not allow indirection on operand of type 'void *'}}*/
 }
 
 /* WG14 DR108: yes
@@ -156,10 +188,12 @@ void dr112(void *vp) {
  * Return expressions in functions declared to return qualified void
  */
 volatile void dr113_v(volatile void *vvp) { /* expected-warning {{function cannot return qualified void type 'volatile void'}} */
-  return *vvp; /* expected-warning {{void function 'dr113_v' should not return void expression}} */
+  return *vvp; /* expected-warning {{void function 'dr113_v' should not return void expression}}
+                  expected-warning{{ISO C does not allow indirection on operand of type 'volatile void *'}} */
 }
 const void dr113_c(const void *cvp) { /* expected-warning {{function cannot return qualified void type 'const void'}} */
-  return *cvp; /* expected-warning {{void function 'dr113_c' should not return void expression}} */
+  return *cvp; /* expected-warning {{void function 'dr113_c' should not return void expression}}
+                  expected-warning{{ISO C does not allow indirection on operand of type 'const void *'}} */
 }
 
 /* WG14 DR114: yes
@@ -330,4 +364,32 @@ void dr145(void) {
    * this DR properly or not.
    * static int i = array[0] + array[1]; broken-expected-error {{initializer element is not a compile-time constant}}
    */
+}
+
+/* WG14 DR150: yes
+ * Initialization of a char array from a string literal
+ */
+void dr150(void) {
+  /* Accept even though a string literal is not a constant expression. */
+  static char array[] = "Hello, World";
+}
+
+/* WG14 DR163: yes
+ * Undeclared identifiers
+ */
+void dr163(void) {
+  int i;
+  i = undeclared; /* expected-error {{use of undeclared identifier 'undeclared'}} */
+  sdfsdfsf = 1;   /* expected-error {{use of undeclared identifier 'sdfsdfsf'}} */
+  i = also_undeclared(); /* c99untilc2x-error {{call to undeclared function 'also_undeclared'; ISO C99 and later do not support implicit function declarations}}
+                            c2xandup-error {{use of undeclared identifier 'also_undeclared'}}
+                          */
+}
+
+/* WG14 DR164: yes
+ * Bad declarations
+ */
+void dr164(void) {
+  int a [][5];    /* expected-error {{definition of variable with array type needs an explicit size or an initializer}} */
+  int x, b [][5]; /* expected-error {{definition of variable with array type needs an explicit size or an initializer}} */
 }

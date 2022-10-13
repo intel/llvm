@@ -1,7 +1,7 @@
 ; Translator should not translate llvm intrinsic calls straight forward.
 ; It either represents intrinsic's semantics with SPIRV instruction(s), or
 ; reports an error.
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: not llvm-spirv %t.bc 2>&1 | FileCheck %s
 
 ; CHECK: InvalidFunctionCall: Unexpected llvm intrinsic:

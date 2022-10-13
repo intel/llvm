@@ -12,8 +12,8 @@
 #include "device.h"
 #include "imf_half.hpp"
 #include <cstddef>
+#include <limits>
 #include <type_traits>
-
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
 #if !defined(__SPIR__) && !defined(__LIBDEVICE_HOST_IMPL__)
@@ -91,6 +91,18 @@ static inline TyFP __integral2FP_host(TyINT x, int rdMode) {
   return res;
 }
 #endif // __LIBDEVICE_HOST_IMPL__
+
+template <typename Ty> static inline Ty __imax(Ty x, Ty y) {
+  static_assert(std::is_integral<Ty>::value,
+                "__imax only accepts integral type.");
+  return (x > y) ? x : y;
+}
+
+template <typename Ty> static inline Ty __imin(Ty x, Ty y) {
+  static_assert(std::is_integral<Ty>::value,
+                "__imin only accepts integral type.");
+  return (x < y) ? x : y;
+}
 
 static inline float __fclamp(float x, float y, float z) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
@@ -458,10 +470,19 @@ static inline int __popcll(unsigned long long int x) {
 #endif
 }
 
-static inline unsigned int __abs(int x) { return x < 0 ? -x : x; }
-
-static inline unsigned long long int __abs(long long int x) {
+template <typename T>
+static inline typename std::make_unsigned<T>::type __abs(T x) {
+  static_assert((std::is_signed<T>::value && std::is_integral<T>::value),
+                "__abs can only accept signed integral type.");
   return x < 0 ? -x : x;
+}
+
+template <typename T> static inline void __swap(T &x, T &y) {
+  static_assert(std::is_integral<T>::value,
+                "__swap can only accept integral type.");
+  T tmp = x;
+  x = y;
+  y = tmp;
 }
 
 template <typename Ty1, typename Ty2>

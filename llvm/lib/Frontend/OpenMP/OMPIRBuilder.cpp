@@ -24,6 +24,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/MDBuilder.h"
@@ -34,6 +35,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 #include "llvm/Transforms/Utils/LoopPeel.h"
 #include "llvm/Transforms/Utils/UnrollLoop.h"
@@ -791,6 +793,38 @@ void OpenMPIRBuilder::emitOffloadingEntry(Constant *Addr, StringRef Name,
   Entry->setAlignment(Align(1));
 }
 
+OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::emitTargetKernel(
+    const LocationDescription &Loc, Value *&Return, Value *Ident,
+    Value *DeviceID, Value *NumTeams, Value *NumThreads, Value *HostPtr,
+    ArrayRef<Value *> KernelArgs, ArrayRef<Value *> NoWaitArgs) {
+  if (!updateToLocation(Loc))
+    return Loc.IP;
+
+  auto *KernelArgsPtr =
+      Builder.CreateAlloca(OpenMPIRBuilder::KernelArgs, nullptr, "kernel_args");
+  for (unsigned I = 0, Size = KernelArgs.size(); I != Size; ++I) {
+    llvm::Value *Arg =
+        Builder.CreateStructGEP(OpenMPIRBuilder::KernelArgs, KernelArgsPtr, I);
+    Builder.CreateAlignedStore(
+        KernelArgs[I], Arg,
+        M.getDataLayout().getPrefTypeAlign(KernelArgs[I]->getType()));
+  }
+
+  bool HasNoWait = !NoWaitArgs.empty();
+  SmallVector<Value *> OffloadingArgs{Ident,      DeviceID, NumTeams,
+                                      NumThreads, HostPtr,  KernelArgsPtr};
+  if (HasNoWait)
+    OffloadingArgs.append(NoWaitArgs.begin(), NoWaitArgs.end());
+
+  Return = Builder.CreateCall(
+      HasNoWait
+          ? getOrCreateRuntimeFunction(M, OMPRTL___tgt_target_kernel_nowait)
+          : getOrCreateRuntimeFunction(M, OMPRTL___tgt_target_kernel),
+      OffloadingArgs);
+
+  return Builder.saveIP();
+}
+
 void OpenMPIRBuilder::emitCancelationCheckImpl(Value *CancelFlag,
                                                omp::Directive CanceledDirective,
                                                FinalizeCallbackTy ExitCB) {
@@ -1256,10 +1290,13 @@ void OpenMPIRBuilder::createTaskyield(const LocationDescription &Loc) {
 OpenMPIRBuilder::InsertPointTy
 OpenMPIRBuilder::createTask(const LocationDescription &Loc,
                             InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
-                            bool Tied, Value *Final) {
+                            bool Tied, Value *Final, Value *IfCondition) {
   if (!updateToLocation(Loc))
     return InsertPointTy();
 
+  uint32_t SrcLocStrSize;
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc, SrcLocStrSize);
+  Value *Ident = getOrCreateIdent(SrcLocStr, SrcLocStrSize);
   // The current basic block is split into four basic blocks. After outlining,
   // they will be mapped as follows:
   // ```
@@ -1285,7 +1322,8 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
   OI.EntryBB = TaskAllocaBB;
   OI.OuterAllocaBB = AllocaIP.getBlock();
   OI.ExitBB = TaskExitBB;
-  OI.PostOutlineCB = [this, &Loc, Tied, Final](Function &OutlinedFn) {
+  OI.PostOutlineCB = [this, Ident, Tied, Final,
+                      IfCondition](Function &OutlinedFn) {
     // The input IR here looks like the following-
     // ```
     // func @current_fn() {
@@ -1324,9 +1362,6 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
 
     // Arguments - `loc_ref` (Ident) and `gtid` (ThreadID)
     // call.
-    uint32_t SrcLocStrSize;
-    Constant *SrcLocStr = getOrCreateSrcLocStr(Loc, SrcLocStrSize);
-    Value *Ident = getOrCreateIdent(SrcLocStr, SrcLocStrSize);
     Value *ThreadID = getOrCreateThreadID(Ident);
 
     // Argument - `flags`
@@ -1398,6 +1433,44 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
                            TaskSize);
     }
 
+    // In the presence of the `if` clause, the following IR is generated:
+    //    ...
+    //    %data = call @__kmpc_omp_task_alloc(...)
+    //    br i1 %if_condition, label %then, label %else
+    //  then:
+    //    call @__kmpc_omp_task(...)
+    //    br label %exit
+    //  else:
+    //    call @__kmpc_omp_task_begin_if0(...)
+    //    call @wrapper_fn(...)
+    //    call @__kmpc_omp_task_complete_if0(...)
+    //    br label %exit
+    //  exit:
+    //    ...
+    if (IfCondition) {
+      // `SplitBlockAndInsertIfThenElse` requires the block to have a
+      // terminator.
+      BasicBlock *NewBasicBlock =
+          splitBB(Builder, /*CreateBranch=*/true, "if.end");
+      Instruction *IfTerminator =
+          NewBasicBlock->getSinglePredecessor()->getTerminator();
+      Instruction *ThenTI = IfTerminator, *ElseTI = nullptr;
+      Builder.SetInsertPoint(IfTerminator);
+      SplitBlockAndInsertIfThenElse(IfCondition, IfTerminator, &ThenTI,
+                                    &ElseTI);
+      Builder.SetInsertPoint(ElseTI);
+      Function *TaskBeginFn =
+          getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_begin_if0);
+      Function *TaskCompleteFn =
+          getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_complete_if0);
+      Builder.CreateCall(TaskBeginFn, {Ident, ThreadID, NewTaskData});
+      if (HasTaskData)
+        Builder.CreateCall(WrapperFunc, {ThreadID, NewTaskData});
+      else
+        Builder.CreateCall(WrapperFunc, {ThreadID});
+      Builder.CreateCall(TaskCompleteFn, {Ident, ThreadID, NewTaskData});
+      Builder.SetInsertPoint(ThenTI);
+    }
     // Emit the @__kmpc_omp_task runtime call to spawn the task
     Function *TaskFn = getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task);
     Builder.CreateCall(TaskFn, {Ident, ThreadID, NewTaskData});
@@ -1421,7 +1494,36 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
       InsertPointTy(TaskAllocaBB, TaskAllocaBB->begin());
   InsertPointTy TaskBodyIP = InsertPointTy(TaskBodyBB, TaskBodyBB->begin());
   BodyGenCB(TaskAllocaIP, TaskBodyIP);
-  Builder.SetInsertPoint(TaskExitBB);
+  Builder.SetInsertPoint(TaskExitBB, TaskExitBB->begin());
+
+  return Builder.saveIP();
+}
+
+OpenMPIRBuilder::InsertPointTy
+OpenMPIRBuilder::createTaskgroup(const LocationDescription &Loc,
+                                 InsertPointTy AllocaIP,
+                                 BodyGenCallbackTy BodyGenCB) {
+  if (!updateToLocation(Loc))
+    return InsertPointTy();
+
+  uint32_t SrcLocStrSize;
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc, SrcLocStrSize);
+  Value *Ident = getOrCreateIdent(SrcLocStr, SrcLocStrSize);
+  Value *ThreadID = getOrCreateThreadID(Ident);
+
+  // Emit the @__kmpc_taskgroup runtime call to start the taskgroup
+  Function *TaskgroupFn =
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_taskgroup);
+  Builder.CreateCall(TaskgroupFn, {Ident, ThreadID});
+
+  BasicBlock *TaskgroupExitBB = splitBB(Builder, true, "taskgroup.exit");
+  BodyGenCB(AllocaIP, Builder.saveIP());
+
+  Builder.SetInsertPoint(TaskgroupExitBB);
+  // Emit the @__kmpc_end_taskgroup runtime call to end the taskgroup
+  Function *EndTaskgroupFn =
+      getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_taskgroup);
+  Builder.CreateCall(EndTaskgroupFn, {Ident, ThreadID});
 
   return Builder.saveIP();
 }
@@ -2231,7 +2333,7 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::applyWorkshareLoop(
   case OMPScheduleType::BaseRuntimeSimd:
     assert(!ChunkSize &&
            "schedule type does not support user-defined chunk sizes");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case OMPScheduleType::BaseDynamicChunked:
   case OMPScheduleType::BaseGuidedChunked:
   case OMPScheduleType::BaseGuidedIterativeChunked:
@@ -2778,32 +2880,40 @@ OpenMPIRBuilder::tileLoops(DebugLoc DL, ArrayRef<CanonicalLoopInfo *> Loops,
   return Result;
 }
 
+/// Attach metadata \p Properties to the basic block described by \p BB. If the
+/// basic block already has metadata, the basic block properties are appended.
+static void addBasicBlockMetadata(BasicBlock *BB,
+                                  ArrayRef<Metadata *> Properties) {
+  // Nothing to do if no property to attach.
+  if (Properties.empty())
+    return;
+
+  LLVMContext &Ctx = BB->getContext();
+  SmallVector<Metadata *> NewProperties;
+  NewProperties.push_back(nullptr);
+
+  // If the basic block already has metadata, prepend it to the new metadata.
+  MDNode *Existing = BB->getTerminator()->getMetadata(LLVMContext::MD_loop);
+  if (Existing)
+    append_range(NewProperties, drop_begin(Existing->operands(), 1));
+
+  append_range(NewProperties, Properties);
+  MDNode *BasicBlockID = MDNode::getDistinct(Ctx, NewProperties);
+  BasicBlockID->replaceOperandWith(0, BasicBlockID);
+
+  BB->getTerminator()->setMetadata(LLVMContext::MD_loop, BasicBlockID);
+}
+
 /// Attach loop metadata \p Properties to the loop described by \p Loop. If the
 /// loop already has metadata, the loop properties are appended.
 static void addLoopMetadata(CanonicalLoopInfo *Loop,
                             ArrayRef<Metadata *> Properties) {
   assert(Loop->isValid() && "Expecting a valid CanonicalLoopInfo");
 
-  // Nothing to do if no property to attach.
-  if (Properties.empty())
-    return;
-
-  LLVMContext &Ctx = Loop->getFunction()->getContext();
-  SmallVector<Metadata *> NewLoopProperties;
-  NewLoopProperties.push_back(nullptr);
-
-  // If the loop already has metadata, prepend it to the new metadata.
+  // Attach metadata to the loop's latch
   BasicBlock *Latch = Loop->getLatch();
   assert(Latch && "A valid CanonicalLoopInfo must have a unique latch");
-  MDNode *Existing = Latch->getTerminator()->getMetadata(LLVMContext::MD_loop);
-  if (Existing)
-    append_range(NewLoopProperties, drop_begin(Existing->operands(), 1));
-
-  append_range(NewLoopProperties, Properties);
-  MDNode *LoopID = MDNode::getDistinct(Ctx, NewLoopProperties);
-  LoopID->replaceOperandWith(0, LoopID);
-
-  Latch->getTerminator()->setMetadata(LLVMContext::MD_loop, LoopID);
+  addBasicBlockMetadata(Latch, Properties);
 }
 
 /// Attach llvm.access.group metadata to the memref instructions of \p Block
@@ -2834,11 +2944,77 @@ void OpenMPIRBuilder::unrollLoopHeuristic(DebugLoc, CanonicalLoopInfo *Loop) {
             });
 }
 
-void OpenMPIRBuilder::applySimd(DebugLoc, CanonicalLoopInfo *CanonicalLoop) {
+void OpenMPIRBuilder::createIfVersion(CanonicalLoopInfo *CanonicalLoop,
+                                      Value *IfCond, ValueToValueMapTy &VMap,
+                                      const Twine &NamePrefix) {
+  Function *F = CanonicalLoop->getFunction();
+
+  // Define where if branch should be inserted
+  Instruction *SplitBefore;
+  if (Instruction::classof(IfCond)) {
+    SplitBefore = dyn_cast<Instruction>(IfCond);
+  } else {
+    SplitBefore = CanonicalLoop->getPreheader()->getTerminator();
+  }
+
+  // TODO: We should not rely on pass manager. Currently we use pass manager
+  // only for getting llvm::Loop which corresponds to given CanonicalLoopInfo
+  // object. We should have a method  which returns all blocks between
+  // CanonicalLoopInfo::getHeader() and CanonicalLoopInfo::getAfter()
+  FunctionAnalysisManager FAM;
+  FAM.registerPass([]() { return DominatorTreeAnalysis(); });
+  FAM.registerPass([]() { return LoopAnalysis(); });
+  FAM.registerPass([]() { return PassInstrumentationAnalysis(); });
+
+  // Get the loop which needs to be cloned
+  LoopAnalysis LIA;
+  LoopInfo &&LI = LIA.run(*F, FAM);
+  Loop *L = LI.getLoopFor(CanonicalLoop->getHeader());
+
+  // Create additional blocks for the if statement
+  BasicBlock *Head = SplitBefore->getParent();
+  Instruction *HeadOldTerm = Head->getTerminator();
+  llvm::LLVMContext &C = Head->getContext();
+  llvm::BasicBlock *ThenBlock = llvm::BasicBlock::Create(
+      C, NamePrefix + ".if.then", Head->getParent(), Head->getNextNode());
+  llvm::BasicBlock *ElseBlock = llvm::BasicBlock::Create(
+      C, NamePrefix + ".if.else", Head->getParent(), CanonicalLoop->getExit());
+
+  // Create if condition branch.
+  Builder.SetInsertPoint(HeadOldTerm);
+  Instruction *BrInstr =
+      Builder.CreateCondBr(IfCond, ThenBlock, /*ifFalse*/ ElseBlock);
+  InsertPointTy IP{BrInstr->getParent(), ++BrInstr->getIterator()};
+  // Then block contains branch to omp loop which needs to be vectorized
+  spliceBB(IP, ThenBlock, false);
+  ThenBlock->replaceSuccessorsPhiUsesWith(Head, ThenBlock);
+
+  Builder.SetInsertPoint(ElseBlock);
+
+  // Clone loop for the else branch
+  SmallVector<BasicBlock *, 8> NewBlocks;
+
+  VMap[CanonicalLoop->getPreheader()] = ElseBlock;
+  for (BasicBlock *Block : L->getBlocks()) {
+    BasicBlock *NewBB = CloneBasicBlock(Block, VMap, "", F);
+    NewBB->moveBefore(CanonicalLoop->getExit());
+    VMap[Block] = NewBB;
+    NewBlocks.push_back(NewBB);
+  }
+  remapInstructionsInBlocks(NewBlocks, VMap);
+  Builder.CreateBr(NewBlocks.front());
+}
+
+void OpenMPIRBuilder::applySimd(CanonicalLoopInfo *CanonicalLoop, Value *IfCond,
+                                ConstantInt *Simdlen, ConstantInt *Safelen) {
   LLVMContext &Ctx = Builder.getContext();
 
   Function *F = CanonicalLoop->getFunction();
 
+  // TODO: We should not rely on pass manager. Currently we use pass manager
+  // only for getting llvm::Loop which corresponds to given CanonicalLoopInfo
+  // object. We should have a method  which returns all blocks between
+  // CanonicalLoopInfo::getHeader() and CanonicalLoopInfo::getAfter()
   FunctionAnalysisManager FAM;
   FAM.registerPass([]() { return DominatorTreeAnalysis(); });
   FAM.registerPass([]() { return LoopAnalysis(); });
@@ -2848,6 +3024,24 @@ void OpenMPIRBuilder::applySimd(DebugLoc, CanonicalLoopInfo *CanonicalLoop) {
   LoopInfo &&LI = LIA.run(*F, FAM);
 
   Loop *L = LI.getLoopFor(CanonicalLoop->getHeader());
+
+  if (IfCond) {
+    ValueToValueMapTy VMap;
+    createIfVersion(CanonicalLoop, IfCond, VMap, "simd");
+    // Add metadata to the cloned loop which disables vectorization
+    Value *MappedLatch = VMap.lookup(CanonicalLoop->getLatch());
+    assert(MappedLatch &&
+           "Cannot find value which corresponds to original loop latch");
+    assert(isa<BasicBlock>(MappedLatch) &&
+           "Cannot cast mapped latch block value to BasicBlock");
+    BasicBlock *NewLatchBlock = dyn_cast<BasicBlock>(MappedLatch);
+    ConstantAsMetadata *BoolConst =
+        ConstantAsMetadata::get(ConstantInt::getFalse(Type::getInt1Ty(Ctx)));
+    addBasicBlockMetadata(
+        NewLatchBlock,
+        {MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
+                           BoolConst})});
+  }
 
   SmallSet<BasicBlock *, 8> Reachable;
 
@@ -2862,23 +3056,40 @@ void OpenMPIRBuilder::applySimd(DebugLoc, CanonicalLoopInfo *CanonicalLoop) {
     Reachable.insert(Block);
   }
 
-  // Add access group metadata to memory-access instructions.
-  MDNode *AccessGroup = MDNode::getDistinct(Ctx, {});
-  for (BasicBlock *BB : Reachable)
-    addSimdMetadata(BB, AccessGroup, LI);
+  SmallVector<Metadata *> LoopMDList;
+
+  // In presence of finite 'safelen', it may be unsafe to mark all
+  // the memory instructions parallel, because loop-carried
+  // dependences of 'safelen' iterations are possible.
+  if (Safelen == nullptr) {
+    // Add access group metadata to memory-access instructions.
+    MDNode *AccessGroup = MDNode::getDistinct(Ctx, {});
+    for (BasicBlock *BB : Reachable)
+      addSimdMetadata(BB, AccessGroup, LI);
+    // TODO:  If the loop has existing parallel access metadata, have
+    // to combine two lists.
+    LoopMDList.push_back(MDNode::get(
+        Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"), AccessGroup}));
+  }
 
   // Use the above access group metadata to create loop level
   // metadata, which should be distinct for each loop.
   ConstantAsMetadata *BoolConst =
       ConstantAsMetadata::get(ConstantInt::getTrue(Type::getInt1Ty(Ctx)));
-  // TODO:  If the loop has existing parallel access metadata, have
-  // to combine two lists.
-  addLoopMetadata(
-      CanonicalLoop,
-      {MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"),
-                         AccessGroup}),
-       MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"),
-                         BoolConst})});
+  LoopMDList.push_back(MDNode::get(
+      Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.enable"), BoolConst}));
+
+  if (Simdlen || Safelen) {
+    // If both simdlen and safelen clauses are specified, the value of the
+    // simdlen parameter must be less than or equal to the value of the safelen
+    // parameter. Therefore, use safelen only in the absence of simdlen.
+    ConstantInt *VectorizeWidth = Simdlen == nullptr ? Safelen : Simdlen;
+    LoopMDList.push_back(
+        MDNode::get(Ctx, {MDString::get(Ctx, "llvm.loop.vectorize.width"),
+                          ConstantAsMetadata::get(VectorizeWidth)}));
+  }
+
+  addLoopMetadata(CanonicalLoop, LoopMDList);
 }
 
 /// Create the TargetMachine object to query the backend for optimization
@@ -3040,7 +3251,7 @@ static int32_t computeHeuristicUnrollFactor(CanonicalLoopInfo *CLI) {
   unsigned TripMultiple = 0;
 
   bool UseUpperBound = false;
-  computeUnrollCount(L, TTI, DT, &LI, SE, EphValues, &ORE, TripCount,
+  computeUnrollCount(L, TTI, DT, &LI, &AC, SE, EphValues, &ORE, TripCount,
                      MaxTripCount, MaxOrZero, TripMultiple, LoopSize, UP, PP,
                      UseUpperBound);
   unsigned Factor = UP.Count;
@@ -3223,9 +3434,10 @@ OpenMPIRBuilder::createOrderedDepend(const LocationDescription &Loc,
                                      InsertPointTy AllocaIP, unsigned NumLoops,
                                      ArrayRef<llvm::Value *> StoreValues,
                                      const Twine &Name, bool IsDependSource) {
-  for (size_t I = 0; I < StoreValues.size(); I++)
-    assert(StoreValues[I]->getType()->isIntegerTy(64) &&
-           "OpenMP runtime requires depend vec with i64 type");
+  assert(
+      llvm::all_of(StoreValues,
+                   [](Value *SV) { return SV->getType()->isIntegerTy(64); }) &&
+      "OpenMP runtime requires depend vec with i64 type");
 
   if (!updateToLocation(Loc))
     return Loc.IP;
@@ -3962,6 +4174,8 @@ Value *OpenMPIRBuilder::emitRMWOpAsInstruction(Value *Src1, Value *Src2,
   case AtomicRMWInst::Min:
   case AtomicRMWInst::UMax:
   case AtomicRMWInst::UMin:
+  case AtomicRMWInst::FMax:
+  case AtomicRMWInst::FMin:
     llvm_unreachable("Unsupported atomic update operation");
   }
   llvm_unreachable("Unsupported atomic update operation");
@@ -4126,20 +4340,37 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
 
   assert(X.Var->getType()->isPointerTy() &&
          "OMP atomic expects a pointer to target memory");
-  assert((X.ElemTy->isIntegerTy() || X.ElemTy->isPointerTy()) &&
-         "OMP atomic compare expected a integer scalar type");
   // compare capture
   if (V.Var) {
     assert(V.Var->getType()->isPointerTy() && "v.var must be of pointer type");
     assert(V.ElemTy == X.ElemTy && "x and v must be of same type");
   }
 
+  bool IsInteger = E->getType()->isIntegerTy();
+
   if (Op == OMPAtomicCompareOp::EQ) {
     AtomicOrdering Failure = AtomicCmpXchgInst::getStrongestFailureOrdering(AO);
-    AtomicCmpXchgInst *Result =
-        Builder.CreateAtomicCmpXchg(X.Var, E, D, MaybeAlign(), AO, Failure);
+    AtomicCmpXchgInst *Result = nullptr;
+    if (!IsInteger) {
+      unsigned Addrspace =
+          cast<PointerType>(X.Var->getType())->getAddressSpace();
+      IntegerType *IntCastTy =
+          IntegerType::get(M.getContext(), X.ElemTy->getScalarSizeInBits());
+      Value *XBCast =
+          Builder.CreateBitCast(X.Var, IntCastTy->getPointerTo(Addrspace));
+      Value *EBCast = Builder.CreateBitCast(E, IntCastTy);
+      Value *DBCast = Builder.CreateBitCast(D, IntCastTy);
+      Result = Builder.CreateAtomicCmpXchg(XBCast, EBCast, DBCast, MaybeAlign(),
+                                           AO, Failure);
+    } else {
+      Result =
+          Builder.CreateAtomicCmpXchg(X.Var, E, D, MaybeAlign(), AO, Failure);
+    }
+
     if (V.Var) {
       Value *OldValue = Builder.CreateExtractValue(Result, /*Idxs=*/0);
+      if (!IsInteger)
+        OldValue = Builder.CreateBitCast(OldValue, X.ElemTy);
       assert(OldValue->getType() == V.ElemTy &&
              "OldValue and V must be of same type");
       if (IsPostfixUpdate) {
@@ -4213,19 +4444,29 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
     // x = x <= expr ? x : expr;
     AtomicRMWInst::BinOp NewOp;
     if (IsXBinopExpr) {
-      if (X.IsSigned)
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Min
-                                              : AtomicRMWInst::Max;
-      else
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMin
-                                              : AtomicRMWInst::UMax;
+      if (IsInteger) {
+        if (X.IsSigned)
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Min
+                                                : AtomicRMWInst::Max;
+        else
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMin
+                                                : AtomicRMWInst::UMax;
+      } else {
+        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::FMin
+                                              : AtomicRMWInst::FMax;
+      }
     } else {
-      if (X.IsSigned)
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Max
-                                              : AtomicRMWInst::Min;
-      else
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMax
-                                              : AtomicRMWInst::UMin;
+      if (IsInteger) {
+        if (X.IsSigned)
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Max
+                                                : AtomicRMWInst::Min;
+        else
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMax
+                                                : AtomicRMWInst::UMin;
+      } else {
+        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::FMax
+                                              : AtomicRMWInst::FMin;
+      }
     }
 
     AtomicRMWInst *OldValue =
@@ -4243,11 +4484,17 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
         case AtomicRMWInst::UMax:
           Pred = CmpInst::ICMP_UGT;
           break;
+        case AtomicRMWInst::FMax:
+          Pred = CmpInst::FCMP_OGT;
+          break;
         case AtomicRMWInst::Min:
           Pred = CmpInst::ICMP_SLT;
           break;
         case AtomicRMWInst::UMin:
           Pred = CmpInst::ICMP_ULT;
+          break;
+        case AtomicRMWInst::FMin:
+          Pred = CmpInst::FCMP_OLT;
           break;
         default:
           llvm_unreachable("unexpected comparison op");

@@ -15,6 +15,8 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/IVDescriptors.h"
+#include "llvm/Analysis/VectorUtils.h"
+#include "llvm/IR/Intrinsics.h"
 
 using namespace llvm;
 
@@ -22,7 +24,8 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
     Loop *OrigLoop, VPlanPtr &Plan,
     function_ref<const InductionDescriptor *(PHINode *)>
         GetIntOrFpInductionDescriptor,
-    SmallPtrSetImpl<Instruction *> &DeadInstructions, ScalarEvolution &SE) {
+    SmallPtrSetImpl<Instruction *> &DeadInstructions, ScalarEvolution &SE,
+    const TargetLibraryInfo &TLI) {
 
   ReversePostOrderTraversal<VPBlockRecursiveTraversalWrapper<VPBlockBase *>>
       RPOT(Plan->getEntry());
@@ -74,7 +77,8 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
               GEP, Plan->mapToVPValues(GEP->operands()), OrigLoop);
         } else if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
           NewRecipe =
-              new VPWidenCallRecipe(*CI, Plan->mapToVPValues(CI->args()));
+              new VPWidenCallRecipe(*CI, Plan->mapToVPValues(CI->args()),
+                                    getVectorIntrinsicIDForCall(CI, &TLI));
         } else if (SelectInst *SI = dyn_cast<SelectInst>(Inst)) {
           bool InvariantCond =
               SE.isLoopInvariant(SE.getSCEV(SI->getOperand(0)), OrigLoop);
@@ -362,26 +366,32 @@ void VPlanTransforms::removeRedundantCanonicalIVs(VPlan &Plan) {
 }
 
 void VPlanTransforms::removeDeadRecipes(VPlan &Plan) {
-  VPBasicBlock *Header = Plan.getVectorLoopRegion()->getEntryBasicBlock();
-  // Remove dead recipes in header block. The recipes in the block are processed
-  // in reverse order, to catch chains of dead recipes.
-  // TODO: Remove dead recipes across whole plan.
-  for (VPRecipeBase &R : make_early_inc_range(reverse(*Header))) {
-    if (R.mayHaveSideEffects() || any_of(R.definedValues(), [](VPValue *V) {
-          return V->getNumUsers() > 0;
-        }))
-      continue;
-    R.eraseFromParent();
+  ReversePostOrderTraversal<VPBlockRecursiveTraversalWrapper<VPBlockBase *>>
+      RPOT(Plan.getEntry());
+
+  for (VPBasicBlock *VPBB : reverse(VPBlockUtils::blocksOnly<VPBasicBlock>(RPOT))) {
+    // The recipes in the block are processed in reverse order, to catch chains
+    // of dead recipes.
+    for (VPRecipeBase &R : make_early_inc_range(reverse(*VPBB))) {
+      if (R.mayHaveSideEffects() || any_of(R.definedValues(), [](VPValue *V) {
+            return V->getNumUsers() > 0;
+          }))
+        continue;
+      R.eraseFromParent();
+    }
   }
 }
 
 void VPlanTransforms::optimizeInductions(VPlan &Plan, ScalarEvolution &SE) {
   SmallVector<VPRecipeBase *> ToRemove;
   VPBasicBlock *HeaderVPBB = Plan.getVectorLoopRegion()->getEntryBasicBlock();
+  bool HasOnlyVectorVFs = !Plan.hasVF(ElementCount::getFixed(1));
   for (VPRecipeBase &Phi : HeaderVPBB->phis()) {
     auto *IV = dyn_cast<VPWidenIntOrFpInductionRecipe>(&Phi);
-    if (!IV ||
-        all_of(IV->users(), [IV](VPUser *U) { return !U->usesScalars(IV); }))
+    if (!IV)
+      continue;
+    if (HasOnlyVectorVFs &&
+        none_of(IV->users(), [IV](VPUser *U) { return U->usesScalars(IV); }))
       continue;
 
     const InductionDescriptor &ID = IV->getInductionDescriptor();
@@ -397,7 +407,7 @@ void VPlanTransforms::optimizeInductions(VPlan &Plan, ScalarEvolution &SE) {
     // the list of users doesn't contain duplicates.
     SetVector<VPUser *> Users(IV->user_begin(), IV->user_end());
     for (VPUser *U : Users) {
-      if (!U->usesScalars(IV))
+      if (HasOnlyVectorVFs && !U->usesScalars(IV))
         continue;
       for (unsigned I = 0, E = U->getNumOperands(); I != E; I++) {
         if (U->getOperand(I) != IV)

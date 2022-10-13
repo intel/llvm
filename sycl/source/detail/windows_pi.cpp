@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 
 #include <cassert>
 #include <string>
 #include <windows.h>
 #include <winreg.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -41,6 +41,10 @@ void *loadOsLibrary(const std::string &PluginPath) {
 }
 
 int unloadOsLibrary(void *Library) {
+  // The mock plugin does not have an associated library, so we allow nullptr
+  // here to avoid it trying to free a non-existent library.
+  if (!Library)
+    return 1;
   return (int)FreeLibrary((HMODULE)Library);
 }
 
@@ -51,5 +55,5 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

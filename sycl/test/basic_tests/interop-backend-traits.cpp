@@ -7,7 +7,7 @@
 #ifdef USE_OPENCL
 #include <CL/cl.h>
 
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
 
 constexpr auto Backend = sycl::backend::opencl;
 #endif
@@ -21,13 +21,13 @@ constexpr auto Backend = sycl::backend::ext_oneapi_level_zero;
 #endif
 
 #ifdef USE_CUDA
-#include <CL/sycl/detail/backend_traits_cuda.hpp>
+#include <sycl/detail/backend_traits_cuda.hpp>
 
 constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
 #endif
 
 #ifdef USE_HIP
-#include <CL/sycl/detail/backend_traits_hip.hpp>
+#include <sycl/detail/backend_traits_hip.hpp>
 
 constexpr auto Backend = sycl::backend::ext_oneapi_hip;
 #endif

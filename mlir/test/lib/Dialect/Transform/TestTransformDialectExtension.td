@@ -38,8 +38,10 @@ def TestConsumeOperand : Op<Transform_Dialect, "test_consume_operand",
      [DeclareOpInterfaceMethods<TransformOpInterface>]> {
   let arguments = (ins
     Arg<PDL_Operation, "",
-        [TransformMappingRead, TransformMappingFree]>:$operand);
-  let assemblyFormat = "$operand attr-dict";
+        [TransformMappingRead, TransformMappingFree]>:$operand,
+    Arg<Optional<PDL_Operation>, "",
+        [TransformMappingRead, TransformMappingFree]>:$second_operand);
+  let assemblyFormat = "$operand (`,` $second_operand^)? attr-dict";
   let cppNamespace = "::mlir::test";
 }
 
@@ -48,7 +50,7 @@ def TestConsumeOperandIfMatchesParamOrFail
        [DeclareOpInterfaceMethods<TransformOpInterface>]> {
   let arguments = (ins 
     Arg<PDL_Operation, "",
-        [TransformMappingWrite, TransformMappingFree]>:$operand,
+        [TransformMappingRead, TransformMappingFree]>:$operand,
     I64Attr:$parameter);
   let assemblyFormat = "$operand `[` $parameter `]` attr-dict";
   let cppNamespace = "::mlir::test";
@@ -101,6 +103,16 @@ def TestRemoveTestExtensionOp
   let cppNamespace = "::mlir::test";
 }
 
+def TestReversePayloadOpsOp
+  : Op<Transform_Dialect, "test_reverse_payload_ops",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+     DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$result);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+}
+
 def TestTransformOpWithRegions
   : Op<Transform_Dialect, "test_transform_op_with_regions",
        [DeclareOpInterfaceMethods<TransformOpInterface>,
@@ -126,6 +138,109 @@ def TestEmitRemarkAndEraseOperandOp
                    UnitAttr:$fail_after_erase);
   let assemblyFormat = "$target `,` $remark attr-dict";
   let cppNamespace = "::mlir::test";
+}
+
+def TestWrongNumberOfResultsOp
+  : Op<Transform_Dialect, "test_wrong_number_of_results",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$a,
+                      PDL_Operation:$b,
+                      PDL_Operation:$c);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation * target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def TestWrongNumberOfMultiResultsOp
+  : Op<Transform_Dialect, "test_wrong_number_of_multi_results",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$result);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation * target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def TestCorrectNumberOfMultiResultsOp
+  : Op<Transform_Dialect, "test_correct_number_of_multi_results",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$result1,
+                      PDL_Operation:$result2);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation * target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def TestMixedNullAndNonNullResultsOp
+  : Op<Transform_Dialect, "test_mixed_null_and_non_null_results",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$null,
+                      PDL_Operation:$non_null);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation * target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def TestMixedSuccessAndSilenceableOp
+  : Op<Transform_Dialect, "test_mixed_sucess_and_silenceable",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::Operation * target, 
+        ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def TestPrintNumberOfAssociatedPayloadIROps
+  : Op<Transform_Dialect, "test_print_number_of_associated_payload_ir_ops",
+       [DeclareOpInterfaceMethods<TransformOpInterface>,
+        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let arguments = (ins PDL_Operation:$handle);
+  let assemblyFormat = "$handle attr-dict";
+  let cppNamespace = "::mlir::test";
+}
+
+def TestCopyPayloadOp
+  : Op<Transform_Dialect, "test_copy_payload",
+       [DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let arguments = (ins Arg<PDL_Operation, "", [TransformMappingRead]>:$handle);
+  let results = (outs Res<PDL_Operation, "",
+      [TransformMappingAlloc, TransformMappingWrite]>:$copy);
+  let cppNamespace = "::mlir::test";
+  let assemblyFormat = "$handle attr-dict";
 }
 
 #endif // MLIR_TESTTRANSFORMDIALECTEXTENSION_TD

@@ -4,7 +4,7 @@
 // passed by-valued.
 
 #include "Inputs/sycl.hpp"
-using namespace cl::sycl;
+using namespace sycl;
 
 struct NontriviallyCopyable {
   int I;

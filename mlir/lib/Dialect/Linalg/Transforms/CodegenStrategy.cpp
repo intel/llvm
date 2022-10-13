@@ -14,7 +14,7 @@
 #include "mlir/Dialect/Linalg/Transforms/CodegenStrategy.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/Pass/PassManager.h"
@@ -42,8 +42,6 @@ void mlir::linalg::CodegenStrategy::configurePassPipeline(
                       : linalg::LinalgTransformationFilter(
                             t->filter, currentState, nextState);
     t->addToPassPipeline(pm, filter);
-    if (addEnablePass)
-      pm.addPass(createLinalgStrategyEnablePass(linalgEnablingOptions));
   }
   pm.addPass(createLinalgStrategyRemoveMarkersPass());
 }

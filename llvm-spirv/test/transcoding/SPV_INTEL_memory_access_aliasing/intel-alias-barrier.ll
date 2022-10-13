@@ -1,6 +1,6 @@
 ; The test checks if the translator won't crash
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_memory_access_aliasing -o %t.spv
 
 ; ModuleID = 'main'

@@ -4,16 +4,11 @@
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  sequence %arg0 {
+  sequence %arg0 failures(propagate) {
     ^bb0(%arg1: !pdl.operation):
-      %0 = pdl_match @pdl_target in %arg1
+      %0 = transform.structured.match ops{["func.func"]} in %arg1
       transform.bufferization.one_shot_bufferize %0
           {target_is_module = false}
-  }
-
-  pdl.pattern @pdl_target : benefit(1) {
-    %0 = operation "func.func"
-    rewrite %0 with "transform.dialect"
   }
 }
 
@@ -41,16 +36,11 @@ func.func @test_function(%A : tensor<?xf32>, %v : vector<4xf32>) -> (tensor<?xf3
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  sequence %arg0 {
+  sequence %arg0 failures(propagate) {
     ^bb0(%arg1: !pdl.operation):
-      %0 = pdl_match @pdl_target in %arg1
+      %0 = transform.structured.match ops{["func.func"]} in %arg1
       transform.bufferization.one_shot_bufferize %0
           {target_is_module = false, test_analysis_only = true}
-  }
-
-  pdl.pattern @pdl_target : benefit(1) {
-    %0 = operation "func.func"
-    rewrite %0 with "transform.dialect"
   }
 }
 
@@ -72,16 +62,11 @@ func.func @test_function_analysis(%A : tensor<?xf32>, %v : vector<4xf32>) -> (te
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  sequence %arg0 {
+  sequence %arg0 failures(propagate) {
     ^bb0(%arg1: !pdl.operation):
-      %0 = pdl_match @pdl_target in %arg1
+      %0 = transform.structured.match ops{["func.func"]} in %arg1
       // expected-error @+1 {{bufferization failed}}
       transform.bufferization.one_shot_bufferize %0 {target_is_module = false}
-  }
-
-  pdl.pattern @pdl_target : benefit(1) {
-    %0 = operation "func.func"
-    rewrite %0 with "transform.dialect"
   }
 }
 
@@ -97,7 +82,7 @@ func.func @test_unknown_op_failure() -> (tensor<?xf32>) {
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  sequence %arg0 {
+  sequence %arg0 failures(propagate) {
     ^bb0(%arg1: !pdl.operation):
       // %arg1 is the module
       transform.bufferization.one_shot_bufferize %arg1

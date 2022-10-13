@@ -26,7 +26,7 @@
 ;   intel_sub_group_avc_sic_get_inter_distortions(sic_result);
 ; }
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_device_side_avc_motion_estimation -o - -spirv-text | FileCheck %s
 
 ; The test checks that 'cl_intel_device_side_avc_motion_estimation' wrapper built-ins correctly

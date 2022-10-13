@@ -508,6 +508,8 @@ external array_type : lltype -> int -> lltype = "llvm_array_type"
 external pointer_type : lltype -> lltype = "llvm_pointer_type"
 external qualified_pointer_type : lltype -> int -> lltype
                                 = "llvm_qualified_pointer_type"
+external pointer_type_in_context : llcontext -> int -> lltype
+                                 = "llvm_pointer_type_in_context"
 external vector_type : lltype -> int -> lltype = "llvm_vector_type"
 
 external element_type : lltype -> lltype = "LLVMGetElementType"
@@ -637,27 +639,16 @@ external size_of : lltype -> llvalue = "LLVMSizeOf"
 external const_neg : llvalue -> llvalue = "LLVMConstNeg"
 external const_nsw_neg : llvalue -> llvalue = "LLVMConstNSWNeg"
 external const_nuw_neg : llvalue -> llvalue = "LLVMConstNUWNeg"
-external const_fneg : llvalue -> llvalue = "LLVMConstFNeg"
 external const_not : llvalue -> llvalue = "LLVMConstNot"
 external const_add : llvalue -> llvalue -> llvalue = "LLVMConstAdd"
 external const_nsw_add : llvalue -> llvalue -> llvalue = "LLVMConstNSWAdd"
 external const_nuw_add : llvalue -> llvalue -> llvalue = "LLVMConstNUWAdd"
-external const_fadd : llvalue -> llvalue -> llvalue = "LLVMConstFAdd"
 external const_sub : llvalue -> llvalue -> llvalue = "LLVMConstSub"
 external const_nsw_sub : llvalue -> llvalue -> llvalue = "LLVMConstNSWSub"
 external const_nuw_sub : llvalue -> llvalue -> llvalue = "LLVMConstNUWSub"
-external const_fsub : llvalue -> llvalue -> llvalue = "LLVMConstFSub"
 external const_mul : llvalue -> llvalue -> llvalue = "LLVMConstMul"
 external const_nsw_mul : llvalue -> llvalue -> llvalue = "LLVMConstNSWMul"
 external const_nuw_mul : llvalue -> llvalue -> llvalue = "LLVMConstNUWMul"
-external const_fmul : llvalue -> llvalue -> llvalue = "LLVMConstFMul"
-external const_udiv : llvalue -> llvalue -> llvalue = "LLVMConstUDiv"
-external const_sdiv : llvalue -> llvalue -> llvalue = "LLVMConstSDiv"
-external const_exact_sdiv : llvalue -> llvalue -> llvalue = "LLVMConstExactSDiv"
-external const_fdiv : llvalue -> llvalue -> llvalue = "LLVMConstFDiv"
-external const_urem : llvalue -> llvalue -> llvalue = "LLVMConstURem"
-external const_srem : llvalue -> llvalue -> llvalue = "LLVMConstSRem"
-external const_frem : llvalue -> llvalue -> llvalue = "LLVMConstFRem"
 external const_and : llvalue -> llvalue -> llvalue = "LLVMConstAnd"
 external const_or : llvalue -> llvalue -> llvalue = "LLVMConstOr"
 external const_xor : llvalue -> llvalue -> llvalue = "LLVMConstXor"
@@ -704,10 +695,6 @@ external const_insertelement : llvalue -> llvalue -> llvalue -> llvalue
                              = "LLVMConstInsertElement"
 external const_shufflevector : llvalue -> llvalue -> llvalue -> llvalue
                              = "LLVMConstShuffleVector"
-external const_extractvalue : llvalue -> int array -> llvalue
-                            = "llvm_const_extractvalue"
-external const_insertvalue : llvalue -> llvalue -> int array -> llvalue
-                           = "llvm_const_insertvalue"
 external const_inline_asm : lltype -> string -> string -> bool -> bool ->
                             llvalue
                           = "llvm_const_inline_asm"

@@ -83,6 +83,7 @@ private:
   Mutex *MMutex;
   bool MIsWriter = false;
 };
+template <typename Mutex> SharedLock(Mutex &) -> SharedLock<Mutex>;
 
 /// SpinLock is a synchronization primitive, that uses atomic variable and
 /// causes thread trying acquire lock wait in loop while repeatedly check if

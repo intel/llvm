@@ -581,6 +581,11 @@ LLVMTypeRef llvm_qualified_pointer_type(LLVMTypeRef ElementTy,
   return LLVMPointerType(ElementTy, Int_val(AddressSpace));
 }
 
+/* llcontext -> int -> lltype */
+LLVMTypeRef llvm_pointer_type_in_context(LLVMContextRef C, value AddressSpace) {
+  return LLVMPointerTypeInContext(C, Int_val(AddressSpace));
+}
+
 /* lltype -> int -> lltype */
 LLVMTypeRef llvm_vector_type(LLVMTypeRef ElementTy, value Count) {
   return LLVMVectorType(ElementTy, Int_val(Count));
@@ -1011,39 +1016,6 @@ LLVMValueRef llvm_const_in_bounds_gep(LLVMValueRef ConstantVal, value Indices) {
 LLVMValueRef llvm_const_intcast(LLVMValueRef CV, LLVMTypeRef T,
                                 value IsSigned) {
   return LLVMConstIntCast(CV, T, Bool_val(IsSigned));
-}
-
-/* llvalue -> int array -> llvalue */
-LLVMValueRef llvm_const_extractvalue(LLVMValueRef Aggregate, value Indices) {
-  int size = Wosize_val(Indices);
-  int i;
-  LLVMValueRef result;
-
-  unsigned *idxs = (unsigned *)malloc(size * sizeof(unsigned));
-  for (i = 0; i < size; i++) {
-    idxs[i] = Int_val(Field(Indices, i));
-  }
-
-  result = LLVMConstExtractValue(Aggregate, idxs, size);
-  free(idxs);
-  return result;
-}
-
-/* llvalue -> llvalue -> int array -> llvalue */
-LLVMValueRef llvm_const_insertvalue(LLVMValueRef Aggregate, LLVMValueRef Val,
-                                    value Indices) {
-  int size = Wosize_val(Indices);
-  int i;
-  LLVMValueRef result;
-
-  unsigned *idxs = (unsigned *)malloc(size * sizeof(unsigned));
-  for (i = 0; i < size; i++) {
-    idxs[i] = Int_val(Field(Indices, i));
-  }
-
-  result = LLVMConstInsertValue(Aggregate, Val, idxs, size);
-  free(idxs);
-  return result;
 }
 
 /* lltype -> string -> string -> bool -> bool -> llvalue */

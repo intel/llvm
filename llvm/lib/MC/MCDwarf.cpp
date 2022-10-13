@@ -266,7 +266,7 @@ void MCDwarfLineTable::emit(MCStreamer *MCOS, MCDwarfLineTableParams Params) {
   // In a v5 non-split line table, put the strings in a separate section.
   Optional<MCDwarfLineStr> LineStr;
   if (context.getDwarfVersion() >= 5)
-    LineStr = MCDwarfLineStr(context);
+    LineStr.emplace(context);
 
   // Switch to the section where the table will be emitted into.
   MCOS->switchSection(context.getObjectFileInfo()->getDwarfLineSection());
@@ -306,7 +306,7 @@ MCDwarfLineTableHeader::Emit(MCStreamer *MCOS, MCDwarfLineTableParams Params,
       0, // length of DW_LNS_set_epilogue_begin
       1  // DW_LNS_set_isa
   };
-  assert(array_lengthof(StandardOpcodeLengths) >=
+  assert(std::size(StandardOpcodeLengths) >=
          (Params.DWARF2LineOpcodeBase - 1U));
   return Emit(
       MCOS, Params,
@@ -397,11 +397,10 @@ static void emitOneV5FileEntry(MCStreamer *MCOS, const MCDwarfFile &DwarfFile,
   }
   if (HasSource) {
     if (LineStr)
-      LineStr->emitRef(MCOS, DwarfFile.Source.getValueOr(StringRef()));
+      LineStr->emitRef(MCOS, DwarfFile.Source.value_or(StringRef()));
     else {
-      MCOS->emitBytes(
-          DwarfFile.Source.getValueOr(StringRef())); // Source and...
-      MCOS->emitBytes(StringRef("\0", 1));           // its null terminator.
+      MCOS->emitBytes(DwarfFile.Source.value_or(StringRef())); // Source and...
+      MCOS->emitBytes(StringRef("\0", 1)); // its null terminator.
     }
   }
 }
@@ -417,9 +416,15 @@ void MCDwarfLineTableHeader::emitV5FileDirTables(
                                     : dwarf::DW_FORM_string);
   MCOS->emitULEB128IntValue(MCDwarfDirs.size() + 1);
   // Try not to emit an empty compilation directory.
-  const StringRef CompDir = CompilationDir.empty()
-                                ? MCOS->getContext().getCompilationDir()
-                                : StringRef(CompilationDir);
+  SmallString<256> Dir;
+  StringRef CompDir = MCOS->getContext().getCompilationDir();
+  if (!CompilationDir.empty()) {
+    Dir = CompilationDir;
+    MCOS->getContext().remapDebugPath(Dir);
+    CompDir = Dir.str();
+    if (LineStr)
+      CompDir = LineStr->getSaver().save(CompDir);
+  }
   if (LineStr) {
     // Record path strings, emit references here.
     LineStr->emitRef(MCOS, CompDir);
@@ -588,7 +593,7 @@ MCDwarfLineTableHeader::tryGetFile(StringRef &Directory,
   // Keep track of whether any or all files have an MD5 checksum.
   // If any files have embedded source, they all must.
   if (MCDwarfFiles.empty()) {
-    trackMD5Usage(Checksum.hasValue());
+    trackMD5Usage(Checksum.has_value());
     HasSource = (Source != None);
   }
   if (DwarfVersion >= 5 && isRootFile(RootFile, Directory, FileName, Checksum))
@@ -651,7 +656,7 @@ MCDwarfLineTableHeader::tryGetFile(StringRef &Directory,
   File.Name = std::string(FileName);
   File.DirIndex = DirIndex;
   File.Checksum = Checksum;
-  trackMD5Usage(Checksum.hasValue());
+  trackMD5Usage(Checksum.has_value());
   File.Source = Source;
   if (Source)
     HasSource = true;

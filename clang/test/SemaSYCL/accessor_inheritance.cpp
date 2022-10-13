@@ -61,8 +61,8 @@ int main() {
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} .__init
 // CHECK-NEXT: MemberExpr {{.*}} .AccField
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'AccessorBase' lvalue <DerivedToBase (AccessorBase)>
-// CHECK-NEXT: MemberExpr {{.*}} 'AccessorDerived' lvalue .
+// CHECK-NEXT: ImplicitCastExpr {{.*}}'AccessorBase' lvalue <DerivedToBase (AccessorBase)>
+// CHECK-NEXT: MemberExpr {{.*}}'AccessorDerived' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}}'(lambda at {{.*}}accessor_inheritance.cpp
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg_AccField' '__global char *'

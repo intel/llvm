@@ -9,7 +9,7 @@
 ; type should be split 8/6 and not 7/7. This also accounts for hi masked
 ; load that get zero storage size (and are unused).
 
-define <9 x float> @mload_split9(<9 x i1> %mask, <9 x float>* %addr, <9 x float> %dst) {
+define <9 x float> @mload_split9(<9 x i1> %mask, ptr %addr, <9 x float> %dst) {
 ; CHECK-LABEL: mload_split9:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movq %rdi, %rax
@@ -49,11 +49,11 @@ define <9 x float> @mload_split9(<9 x i1> %mask, <9 x float>* %addr, <9 x float>
 ; CHECK-NEXT:    vmovaps %ymm0, (%rax)
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    retq
-  %res = call <9 x float> @llvm.masked.load.v9f32.p0v9f32(<9 x float>* %addr, i32 4, <9 x i1>%mask, <9 x float> %dst)
+  %res = call <9 x float> @llvm.masked.load.v9f32.p0(ptr %addr, i32 4, <9 x i1>%mask, <9 x float> %dst)
   ret <9 x float> %res
 }
 
-define <13 x float> @mload_split13(<13 x i1> %mask, <13 x float>* %addr, <13 x float> %dst) {
+define <13 x float> @mload_split13(<13 x i1> %mask, ptr %addr, <13 x float> %dst) {
 ; CHECK-LABEL: mload_split13:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movq %rdi, %rax
@@ -112,11 +112,11 @@ define <13 x float> @mload_split13(<13 x i1> %mask, <13 x float>* %addr, <13 x f
 ; CHECK-NEXT:    vmovaps %ymm2, (%rax)
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    retq
-  %res = call <13 x float> @llvm.masked.load.v13f32.p0v13f32(<13 x float>* %addr, i32 4, <13 x i1>%mask, <13 x float> %dst)
+  %res = call <13 x float> @llvm.masked.load.v13f32.p0(ptr %addr, i32 4, <13 x i1>%mask, <13 x float> %dst)
   ret <13 x float> %res
 }
 
-define <14 x float> @mload_split14(<14 x i1> %mask, <14 x float>* %addr, <14 x float> %dst) {
+define <14 x float> @mload_split14(<14 x i1> %mask, ptr %addr, <14 x float> %dst) {
 ; CHECK-LABEL: mload_split14:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movq %rdi, %rax
@@ -178,11 +178,11 @@ define <14 x float> @mload_split14(<14 x i1> %mask, <14 x float>* %addr, <14 x f
 ; CHECK-NEXT:    vmovaps %ymm2, (%rax)
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    retq
-  %res = call <14 x float> @llvm.masked.load.v14f32.p0v14f32(<14 x float>* %addr, i32 4, <14 x i1>%mask, <14 x float> %dst)
+  %res = call <14 x float> @llvm.masked.load.v14f32.p0(ptr %addr, i32 4, <14 x i1>%mask, <14 x float> %dst)
   ret <14 x float> %res
 }
 
-define <17 x float> @mload_split17(<17 x i1> %mask, <17 x float>* %addr, <17 x float> %dst) {
+define <17 x float> @mload_split17(<17 x i1> %mask, ptr %addr, <17 x float> %dst) {
 ; CHECK-LABEL: mload_split17:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movq %rdi, %rax
@@ -203,8 +203,8 @@ define <17 x float> @mload_split17(<17 x i1> %mask, <17 x float>* %addr, <17 x f
 ; CHECK-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0,1,2],mem[0]
 ; CHECK-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm1
 ; CHECK-NEXT:    vmovd {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; CHECK-NEXT:    movzbl {{[0-9]+}}(%rsp), %edi
-; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %r10
+; CHECK-NEXT:    movzbl {{[0-9]+}}(%rsp), %r10d
+; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %rdi
 ; CHECK-NEXT:    vmovd %esi, %xmm3
 ; CHECK-NEXT:    vpinsrb $2, %edx, %xmm3, %xmm3
 ; CHECK-NEXT:    vpinsrb $4, %ecx, %xmm3, %xmm3
@@ -218,7 +218,7 @@ define <17 x float> @mload_split17(<17 x i1> %mask, <17 x float>* %addr, <17 x f
 ; CHECK-NEXT:    vpunpckhwd {{.*#+}} xmm3 = xmm3[4,4,5,5,6,6,7,7]
 ; CHECK-NEXT:    vpslld $31, %xmm3, %xmm3
 ; CHECK-NEXT:    vinsertf128 $1, %xmm3, %ymm4, %ymm3
-; CHECK-NEXT:    vmaskmovps (%r10), %ymm3, %ymm4
+; CHECK-NEXT:    vmaskmovps (%rdi), %ymm3, %ymm4
 ; CHECK-NEXT:    vblendvps %ymm3, %ymm4, %ymm2, %ymm2
 ; CHECK-NEXT:    vmovd {{.*#+}} xmm3 = mem[0],zero,zero,zero
 ; CHECK-NEXT:    vpinsrb $2, {{[0-9]+}}(%rsp), %xmm3, %xmm3
@@ -233,23 +233,23 @@ define <17 x float> @mload_split17(<17 x i1> %mask, <17 x float>* %addr, <17 x f
 ; CHECK-NEXT:    vpunpckhwd {{.*#+}} xmm3 = xmm3[4,4,5,5,6,6,7,7]
 ; CHECK-NEXT:    vpslld $31, %xmm3, %xmm3
 ; CHECK-NEXT:    vinsertf128 $1, %xmm3, %ymm4, %ymm3
-; CHECK-NEXT:    vmaskmovps 32(%r10), %ymm3, %ymm4
+; CHECK-NEXT:    vmaskmovps 32(%rdi), %ymm3, %ymm4
 ; CHECK-NEXT:    vblendvps %ymm3, %ymm4, %ymm1, %ymm1
-; CHECK-NEXT:    vmovd %edi, %xmm3
+; CHECK-NEXT:    vmovd %r10d, %xmm3
 ; CHECK-NEXT:    vpmovzxwd {{.*#+}} xmm3 = xmm3[0],zero,xmm3[1],zero,xmm3[2],zero,xmm3[3],zero
 ; CHECK-NEXT:    vpslld $31, %xmm3, %xmm3
-; CHECK-NEXT:    vmaskmovps 64(%r10), %ymm3, %ymm4
+; CHECK-NEXT:    vmaskmovps 64(%rdi), %ymm3, %ymm4
 ; CHECK-NEXT:    vblendvps %xmm3, %xmm4, %xmm0, %xmm0
 ; CHECK-NEXT:    vmovss %xmm0, 64(%rax)
 ; CHECK-NEXT:    vmovaps %ymm1, 32(%rax)
 ; CHECK-NEXT:    vmovaps %ymm2, (%rax)
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    retq
-  %res = call <17 x float> @llvm.masked.load.v17f32.p0v17f32(<17 x float>* %addr, i32 4, <17 x i1>%mask, <17 x float> %dst)
+  %res = call <17 x float> @llvm.masked.load.v17f32.p0(ptr %addr, i32 4, <17 x i1>%mask, <17 x float> %dst)
   ret <17 x float> %res
 }
 
-define <23 x float> @mload_split23(<23 x i1> %mask, <23 x float>* %addr, <23 x float> %dst) {
+define <23 x float> @mload_split23(<23 x i1> %mask, ptr %addr, <23 x float> %dst) {
 ; CHECK-LABEL: mload_split23:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movq %rdi, %rax
@@ -276,8 +276,8 @@ define <23 x float> @mload_split23(<23 x i1> %mask, <23 x float>* %addr, <23 x f
 ; CHECK-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; CHECK-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0],mem[0],xmm1[2,3]
 ; CHECK-NEXT:    vinsertps {{.*#+}} xmm1 = xmm1[0,1],mem[0],xmm1[3]
-; CHECK-NEXT:    movzbl {{[0-9]+}}(%rsp), %edi
-; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %r10
+; CHECK-NEXT:    movzbl {{[0-9]+}}(%rsp), %r10d
+; CHECK-NEXT:    movq {{[0-9]+}}(%rsp), %rdi
 ; CHECK-NEXT:    vmovd %esi, %xmm4
 ; CHECK-NEXT:    vpinsrb $2, %edx, %xmm4, %xmm4
 ; CHECK-NEXT:    vpinsrb $4, %ecx, %xmm4, %xmm4
@@ -291,7 +291,7 @@ define <23 x float> @mload_split23(<23 x i1> %mask, <23 x float>* %addr, <23 x f
 ; CHECK-NEXT:    vpunpckhwd {{.*#+}} xmm4 = xmm4[4,4,5,5,6,6,7,7]
 ; CHECK-NEXT:    vpslld $31, %xmm4, %xmm4
 ; CHECK-NEXT:    vinsertf128 $1, %xmm4, %ymm5, %ymm4
-; CHECK-NEXT:    vmaskmovps (%r10), %ymm4, %ymm5
+; CHECK-NEXT:    vmaskmovps (%rdi), %ymm4, %ymm5
 ; CHECK-NEXT:    vblendvps %ymm4, %ymm5, %ymm3, %ymm3
 ; CHECK-NEXT:    vmovd {{.*#+}} xmm4 = mem[0],zero,zero,zero
 ; CHECK-NEXT:    vpinsrb $2, {{[0-9]+}}(%rsp), %xmm4, %xmm4
@@ -306,9 +306,9 @@ define <23 x float> @mload_split23(<23 x i1> %mask, <23 x float>* %addr, <23 x f
 ; CHECK-NEXT:    vpunpckhwd {{.*#+}} xmm4 = xmm4[4,4,5,5,6,6,7,7]
 ; CHECK-NEXT:    vpslld $31, %xmm4, %xmm4
 ; CHECK-NEXT:    vinsertf128 $1, %xmm4, %ymm5, %ymm4
-; CHECK-NEXT:    vmaskmovps 32(%r10), %ymm4, %ymm5
+; CHECK-NEXT:    vmaskmovps 32(%rdi), %ymm4, %ymm5
 ; CHECK-NEXT:    vblendvps %ymm4, %ymm5, %ymm2, %ymm2
-; CHECK-NEXT:    vmovd %edi, %xmm4
+; CHECK-NEXT:    vmovd %r10d, %xmm4
 ; CHECK-NEXT:    vpinsrb $2, {{[0-9]+}}(%rsp), %xmm4, %xmm4
 ; CHECK-NEXT:    vpinsrb $4, {{[0-9]+}}(%rsp), %xmm4, %xmm4
 ; CHECK-NEXT:    vpinsrb $6, {{[0-9]+}}(%rsp), %xmm4, %xmm4
@@ -320,7 +320,7 @@ define <23 x float> @mload_split23(<23 x i1> %mask, <23 x float>* %addr, <23 x f
 ; CHECK-NEXT:    vpunpckhwd {{.*#+}} xmm4 = xmm4[4,4,5,5,6,6,7,7]
 ; CHECK-NEXT:    vpslld $31, %xmm4, %xmm4
 ; CHECK-NEXT:    vinsertf128 $1, %xmm4, %ymm5, %ymm6
-; CHECK-NEXT:    vmaskmovps 64(%r10), %ymm6, %ymm6
+; CHECK-NEXT:    vmaskmovps 64(%rdi), %ymm6, %ymm6
 ; CHECK-NEXT:    vmovaps %ymm2, 32(%rax)
 ; CHECK-NEXT:    vextractf128 $1, %ymm6, %xmm2
 ; CHECK-NEXT:    vblendvps %xmm4, %xmm2, %xmm1, %xmm1
@@ -331,12 +331,12 @@ define <23 x float> @mload_split23(<23 x i1> %mask, <23 x float>* %addr, <23 x f
 ; CHECK-NEXT:    vmovaps %ymm3, (%rax)
 ; CHECK-NEXT:    vzeroupper
 ; CHECK-NEXT:    retq
-  %res = call <23 x float> @llvm.masked.load.v23f32.p0v23f32(<23 x float>* %addr, i32 4, <23 x i1>%mask, <23 x float> %dst)
+  %res = call <23 x float> @llvm.masked.load.v23f32.p0(ptr %addr, i32 4, <23 x i1>%mask, <23 x float> %dst)
   ret <23 x float> %res
 }
 
-declare <9 x float> @llvm.masked.load.v9f32.p0v9f32(<9 x float>* %addr, i32 %align, <9 x i1> %mask, <9 x float> %dst)
-declare <13 x float> @llvm.masked.load.v13f32.p0v13f32(<13 x float>* %addr, i32 %align, <13 x i1> %mask, <13 x float> %dst)
-declare <14 x float> @llvm.masked.load.v14f32.p0v14f32(<14 x float>* %addr, i32 %align, <14 x i1> %mask, <14 x float> %dst)
-declare <17 x float> @llvm.masked.load.v17f32.p0v17f32(<17 x float>* %addr, i32 %align, <17 x i1> %mask, <17 x float> %dst)
-declare <23 x float> @llvm.masked.load.v23f32.p0v23f32(<23 x float>* %addr, i32 %align, <23 x i1> %mask, <23 x float> %dst)
+declare <9 x float> @llvm.masked.load.v9f32.p0(ptr %addr, i32 %align, <9 x i1> %mask, <9 x float> %dst)
+declare <13 x float> @llvm.masked.load.v13f32.p0(ptr %addr, i32 %align, <13 x i1> %mask, <13 x float> %dst)
+declare <14 x float> @llvm.masked.load.v14f32.p0(ptr %addr, i32 %align, <14 x i1> %mask, <14 x float> %dst)
+declare <17 x float> @llvm.masked.load.v17f32.p0(ptr %addr, i32 %align, <17 x i1> %mask, <17 x float> %dst)
+declare <23 x float> @llvm.masked.load.v23f32.p0(ptr %addr, i32 %align, <23 x i1> %mask, <23 x float> %dst)

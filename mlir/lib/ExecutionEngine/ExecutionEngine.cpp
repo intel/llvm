@@ -232,7 +232,7 @@ ExecutionEngine::ExecutionEngine(bool enableObjectCache,
 }
 
 Expected<std::unique_ptr<ExecutionEngine>>
-ExecutionEngine::create(ModuleOp m, const ExecutionEngineOptions &options) {
+ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options) {
   auto engine = std::make_unique<ExecutionEngine>(
       options.enableObjectCache, options.enableGDBNotificationListener,
       options.enablePerfNotificationListener);
@@ -303,7 +303,7 @@ ExecutionEngine::create(ModuleOp m, const ExecutionEngineOptions &options) {
   auto compileFunctionCreator = [&](JITTargetMachineBuilder jtmb)
       -> Expected<std::unique_ptr<IRCompileLayer::IRCompiler>> {
     if (options.jitCodeGenOptLevel)
-      jtmb.setCodeGenOptLevel(options.jitCodeGenOptLevel.getValue());
+      jtmb.setCodeGenOptLevel(*options.jitCodeGenOptLevel);
     auto tm = jtmb.createTargetMachine();
     if (!tm)
       return tm.takeError();

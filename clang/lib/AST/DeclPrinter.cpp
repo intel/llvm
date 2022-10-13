@@ -108,6 +108,7 @@ namespace {
     void VisitOMPCapturedExprDecl(OMPCapturedExprDecl *D);
     void VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *TTP);
     void VisitNonTypeTemplateParmDecl(const NonTypeTemplateParmDecl *NTTP);
+    void VisitHLSLBufferDecl(HLSLBufferDecl *D);
 
     void printTemplateParameters(const TemplateParameterList *Params,
                                  bool OmitTemplateKW = false);
@@ -462,12 +463,9 @@ void DeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
         Terminator = nullptr;
       else
         Terminator = ";";
-    } else if (isa<NamespaceDecl>(*D) || isa<LinkageSpecDecl>(*D) ||
-             isa<ObjCImplementationDecl>(*D) ||
-             isa<ObjCInterfaceDecl>(*D) ||
-             isa<ObjCProtocolDecl>(*D) ||
-             isa<ObjCCategoryImplDecl>(*D) ||
-             isa<ObjCCategoryDecl>(*D))
+    } else if (isa<NamespaceDecl, LinkageSpecDecl, ObjCImplementationDecl,
+                   ObjCInterfaceDecl, ObjCProtocolDecl, ObjCCategoryImplDecl,
+                   ObjCCategoryDecl, HLSLBufferDecl>(*D))
       Terminator = nullptr;
     else if (isa<EnumConstantDecl>(*D)) {
       DeclContext::decl_iterator Next = D;
@@ -901,12 +899,15 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
   Expr *Init = D->getInit();
   if (!Policy.SuppressInitializers && Init) {
     bool ImplicitInit = false;
-    if (CXXConstructExpr *Construct =
-            dyn_cast<CXXConstructExpr>(Init->IgnoreImplicit())) {
+    if (D->isCXXForRangeDecl()) {
+      // FIXME: We should print the range expression instead.
+      ImplicitInit = true;
+    } else if (CXXConstructExpr *Construct =
+                   dyn_cast<CXXConstructExpr>(Init->IgnoreImplicit())) {
       if (D->getInitStyle() == VarDecl::CallInit &&
           !Construct->isListInitialization()) {
         ImplicitInit = Construct->getNumArgs() == 0 ||
-          Construct->getArg(0)->isDefaultArgument();
+                       Construct->getArg(0)->isDefaultArgument();
       }
     }
     if (!ImplicitInit) {
@@ -1007,6 +1008,12 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
             Args = TST->template_arguments();
       printTemplateArguments(
           Args, S->getSpecializedTemplate()->getTemplateParameters());
+    }
+  }
+
+  if (D->hasDefinition()) {
+    if (D->hasAttr<FinalAttr>()) {
+      Out << " final";
     }
   }
 
@@ -1653,6 +1660,21 @@ void DeclPrinter::VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D) {
     }
     Out << ")";
   }
+}
+
+void DeclPrinter::VisitHLSLBufferDecl(HLSLBufferDecl *D) {
+  if (D->isCBuffer())
+    Out << "cbuffer ";
+  else
+    Out << "tbuffer ";
+
+  Out << *D;
+
+  prettyPrintAttributes(D);
+
+  Out << " {\n";
+  VisitDeclContext(D);
+  Indent() << "}";
 }
 
 void DeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {

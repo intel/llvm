@@ -10,7 +10,7 @@
 
 #include "pi_arguments_handler.hpp"
 
-#include <CL/sycl/detail/pi.h>
+#include <sycl/detail/pi.h>
 
 #include <array>
 

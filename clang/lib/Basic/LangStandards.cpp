@@ -61,8 +61,8 @@ LangStandard::Kind clang::getDefaultLanguageStandard(clang::Language Lang,
     if (CLANG_DEFAULT_STD_C != LangStandard::lang_unspecified)
       return CLANG_DEFAULT_STD_C;
 
-    // The PS4 and PS5 use C99 as the default C standard.
-    if (T.isPS())
+    // The PS4 uses C99 as the default C standard.
+    if (T.isPS4())
       return LangStandard::lang_gnu99;
     return LangStandard::lang_gnu17;
   case Language::ObjC:
@@ -75,10 +75,9 @@ LangStandard::Kind clang::getDefaultLanguageStandard(clang::Language Lang,
     if (CLANG_DEFAULT_STD_CXX != LangStandard::lang_unspecified)
       return CLANG_DEFAULT_STD_CXX;
 
-    if (T.isDriverKit())
-      return LangStandard::lang_gnucxx17;
-    else
+    if (T.isPS())
       return LangStandard::lang_gnucxx14;
+    return LangStandard::lang_gnucxx17;
   case Language::RenderScript:
     return LangStandard::lang_c99;
   case Language::HIP:

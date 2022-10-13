@@ -447,6 +447,10 @@ class DebugCommunication(object):
         return self.get_scope_variables('Locals', frameIndex=frameIndex,
                                         threadId=threadId)
 
+    def get_registers(self, frameIndex=0, threadId=None):
+        return self.get_scope_variables('Registers', frameIndex=frameIndex,
+                                        threadId=threadId)
+
     def get_local_variable(self, name, frameIndex=0, threadId=None):
         locals = self.get_local_variables(frameIndex=frameIndex,
                                           threadId=threadId)
@@ -750,8 +754,11 @@ class DebugCommunication(object):
         }
         return self.send_recv(command_dict)
 
-    def request_setBreakpoints(self, file_path, line_array, condition=None,
-                               hitCondition=None):
+    def request_setBreakpoints(self, file_path, line_array, data=None):
+        ''' data is array of parameters for breakpoints in line_array.
+            Each parameter object is 1:1 mapping with entries in line_entry.
+            It contains optional location/hitCondition/logMessage parameters.
+        '''
         (dir, base) = os.path.split(file_path)
         source_dict = {
             'name': base,
@@ -764,12 +771,18 @@ class DebugCommunication(object):
         if line_array is not None:
             args_dict['lines'] = '%s' % line_array
             breakpoints = []
-            for line in line_array:
+            for i, line in enumerate(line_array):
+                breakpoint_data = None
+                if data is not None and i < len(data):
+                    breakpoint_data = data[i]
                 bp = {'line': line}
-                if condition is not None:
-                    bp['condition'] = condition
-                if hitCondition is not None:
-                    bp['hitCondition'] = hitCondition
+                if breakpoint_data is not None:
+                    if 'condition' in breakpoint_data and breakpoint_data['condition']:
+                        bp['condition'] = breakpoint_data['condition']
+                    if 'hitCondition' in breakpoint_data and breakpoint_data['hitCondition']:
+                        bp['hitCondition'] = breakpoint_data['hitCondition']
+                    if 'logMessage' in breakpoint_data and breakpoint_data['logMessage']:
+                        bp['logMessage'] = breakpoint_data['logMessage']
                 breakpoints.append(bp)
             args_dict['breakpoints'] = breakpoints
 

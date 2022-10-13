@@ -9,7 +9,7 @@ extern "C++" {
 #include "Inputs/sycl.hpp"
 }
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   accessor<int, 1, access::mode::read_write> ok_acc;

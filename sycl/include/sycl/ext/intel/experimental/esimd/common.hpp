@@ -5,40 +5,28 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// definitions used in experimental Explicit SIMD APIs.
+// Common definitions used in experimental Explicit SIMD APIs.
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
-#include <sycl/ext/intel/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/native/common.hpp>
+#include <sycl/ext/intel/esimd/xmx/common.hpp>
 
-/// @cond ESIMD_DETAIL
+#include <cstdint>
+#include <type_traits>
 
-// Macros for internal use
-#define __ESIMD_ENS sycl::ext::intel::experimental::esimd
-#define __ESIMD_EDNS sycl::ext::intel::experimental::esimd::detail
-
-/// @endcond ESIMD_DETAIL
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_ENS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
 
-enum class argument_type {
-  U1 = 0,   // unsigned 1 bit
-  S1 = 1,   // signed 1 bit
-  U2 = 2,   // unsigned 2 bits
-  S2 = 3,   // signed 2 bits
-  U4 = 4,   // unsigned 4 bits
-  S4 = 5,   // signed 4 bits
-  U8 = 6,   // unsigned 8 bits
-  S8 = 7,   // signed 8 bits
-  BF16 = 8, // bfloat 16
-  FP16 = 9, // half float
-  TF32 = 11 // tensorfloat 32
-};
+using argument_type
+    __SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas_argument_type") =
+        __ESIMD_NS::xmx::dpas_argument_type;
 
 /// The scope that lsc_fence operation should apply to
 /// Supported platforms: DG2, PVC
@@ -86,28 +74,6 @@ enum class lsc_data_size : uint8_t {
 };
 
 namespace detail {
-/// LSC atomic operations op codes
-enum class lsc_atomic_op : uint8_t {
-  iinc = 0x08,    // atomic integer increment
-  idec = 0x09,    // atomic integer decrement
-  load = 0x0a,    // atomic load
-  store = 0x0b,   // atomic store
-  iadd = 0x0c,    // atomic integer add
-  isub = 0x0d,    // atomic integer subtract
-  smin = 0x0e,    // atomic signed int min
-  smax = 0x0f,    // atomic signed int max
-  umin = 0x10,    // atomic unsigned int min
-  umax = 0x11,    // atomic unsigned int max
-  icas = 0x12,    // atomic int compare and swap
-  fadd = 0x13,    // floating-point add
-  fsub = 0x14,    // floating-point subtract
-  fmin = 0x15,    // floating-point min
-  fmax = 0x16,    // floating-point max
-  fcas = 0x17,    // floating-point CAS
-  bit_and = 0x18, // logical (bitwise) AND
-  bit_or = 0x19,  // logical (bitwise) OR
-  bit_xor = 0x1a, // logical (bitwise) XOR
-};
 
 enum class lsc_vector_size : uint8_t {
   n1 = 1,
@@ -133,7 +99,7 @@ template <lsc_vector_size VS> constexpr void check_lsc_vector_size() {
                 "Unsupported vector size");
 }
 
-template <uint8_t VS> constexpr void check_lsc_vector_size() {
+template <int VS> constexpr void check_lsc_vector_size() {
   static_assert(VS == 1 || VS == 2 || VS == 3 || VS == 4 || VS == 8 ||
                     VS == 16 || VS == 32 || VS == 64,
                 "Unsupported vector size");
@@ -143,106 +109,6 @@ template <typename T, lsc_data_size DS> constexpr void check_lsc_data_size() {
   static_assert(DS != lsc_data_size::default_size || sizeof(T) == 1 ||
                     sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
                 "Unsupported data type");
-}
-
-template <__ESIMD_NS::atomic_op Op> constexpr void check_lsc_atomic_op() {
-  static_assert(Op == __ESIMD_NS::atomic_op::add ||
-                    Op == __ESIMD_NS::atomic_op::sub ||
-                    Op == __ESIMD_NS::atomic_op::inc ||
-                    Op == __ESIMD_NS::atomic_op::dec ||
-                    Op == __ESIMD_NS::atomic_op::min ||
-                    Op == __ESIMD_NS::atomic_op::max ||
-                    Op == __ESIMD_NS::atomic_op::cmpxchg ||
-                    Op == __ESIMD_NS::atomic_op::bit_and ||
-                    Op == __ESIMD_NS::atomic_op::bit_or ||
-                    Op == __ESIMD_NS::atomic_op::bit_xor ||
-                    Op == __ESIMD_NS::atomic_op::minsint ||
-                    Op == __ESIMD_NS::atomic_op::maxsint ||
-                    Op == __ESIMD_NS::atomic_op::fmax ||
-                    Op == __ESIMD_NS::atomic_op::fmin ||
-                    Op == __ESIMD_NS::atomic_op::fcmpwr ||
-                    Op == __ESIMD_NS::atomic_op::fadd ||
-                    Op == __ESIMD_NS::atomic_op::fsub ||
-                    Op == __ESIMD_NS::atomic_op::load ||
-                    Op == __ESIMD_NS::atomic_op::store,
-                "Unsupported operation for LSC atomics");
-}
-
-/// Check the legality of lsc xatomic call in terms of size and type.
-template <__ESIMD_NS::atomic_op Op, unsigned NumSrc>
-constexpr void check_lsc_atomic() {
-  check_lsc_atomic_op<Op>();
-  if constexpr (Op == __ESIMD_NS::atomic_op::inc ||
-                Op == __ESIMD_NS::atomic_op::dec ||
-                Op == __ESIMD_NS::atomic_op::load) {
-    static_assert(NumSrc == 0, "No source operands are expected");
-  }
-  if constexpr (Op == __ESIMD_NS::atomic_op::store ||
-                Op == __ESIMD_NS::atomic_op::add ||
-                Op == __ESIMD_NS::atomic_op::sub ||
-                Op == __ESIMD_NS::atomic_op::minsint ||
-                Op == __ESIMD_NS::atomic_op::maxsint ||
-                Op == __ESIMD_NS::atomic_op::min ||
-                Op == __ESIMD_NS::atomic_op::max ||
-                Op == __ESIMD_NS::atomic_op::fadd ||
-                Op == __ESIMD_NS::atomic_op::fsub ||
-                Op == __ESIMD_NS::atomic_op::fmin ||
-                Op == __ESIMD_NS::atomic_op::fmax ||
-                Op == __ESIMD_NS::atomic_op::bit_and ||
-                Op == __ESIMD_NS::atomic_op::bit_or ||
-                Op == __ESIMD_NS::atomic_op::bit_xor) {
-    static_assert(NumSrc == 1, "One source operand is expected");
-  }
-  if constexpr (Op == __ESIMD_NS::atomic_op::cmpxchg ||
-                Op == __ESIMD_NS::atomic_op::fcmpwr) {
-    static_assert(NumSrc == 2, "Two source operands are expected");
-  }
-}
-
-template <__ESIMD_NS::atomic_op Op> constexpr lsc_atomic_op to_lsc_atomic_op() {
-  check_lsc_atomic_op<Op>();
-  switch (Op) {
-  case __ESIMD_NS::atomic_op::add:
-    return lsc_atomic_op::iadd;
-  case __ESIMD_NS::atomic_op::sub:
-    return lsc_atomic_op::isub;
-  case __ESIMD_NS::atomic_op::inc:
-    return lsc_atomic_op::iinc;
-  case __ESIMD_NS::atomic_op::dec:
-    return lsc_atomic_op::idec;
-  case __ESIMD_NS::atomic_op::min:
-    return lsc_atomic_op::umin;
-  case __ESIMD_NS::atomic_op::max:
-    return lsc_atomic_op::umax;
-  case __ESIMD_NS::atomic_op::cmpxchg:
-    return lsc_atomic_op::icas;
-  case __ESIMD_NS::atomic_op::bit_and:
-    return lsc_atomic_op::bit_and;
-  case __ESIMD_NS::atomic_op::bit_or:
-    return lsc_atomic_op::bit_or;
-  case __ESIMD_NS::atomic_op::bit_xor:
-    return lsc_atomic_op::bit_xor;
-  case __ESIMD_NS::atomic_op::minsint:
-    return lsc_atomic_op::smin;
-  case __ESIMD_NS::atomic_op::maxsint:
-    return lsc_atomic_op::smax;
-  case __ESIMD_NS::atomic_op::fmax:
-    return lsc_atomic_op::fmax;
-  case __ESIMD_NS::atomic_op::fmin:
-    return lsc_atomic_op::fmin;
-  case __ESIMD_NS::atomic_op::fcmpwr:
-    return lsc_atomic_op::fcas;
-  case __ESIMD_NS::atomic_op::fadd:
-    return lsc_atomic_op::fadd;
-  case __ESIMD_NS::atomic_op::fsub:
-    return lsc_atomic_op::fsub;
-  case __ESIMD_NS::atomic_op::load:
-    return lsc_atomic_op::load;
-  case __ESIMD_NS::atomic_op::store:
-    return lsc_atomic_op::store;
-  default:
-    return lsc_atomic_op::iinc;
-  }
 }
 
 template <lsc_vector_size VS> constexpr uint8_t to_int() {
@@ -269,7 +135,7 @@ template <lsc_vector_size VS> constexpr uint8_t to_int() {
   }
 }
 
-template <uint8_t VS> constexpr lsc_vector_size to_lsc_vector_size() {
+template <int VS> constexpr lsc_vector_size to_lsc_vector_size() {
   check_lsc_vector_size<VS>();
   switch (VS) {
   case 1:
@@ -319,17 +185,20 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
 }
 
 template <typename T> struct lsc_expand_type {
-  using type = typename std::conditional<sizeof(T) < 4, uint32_t, T>::type;
+  using type = std::conditional_t<
+      sizeof(T) <= 4,
+      std::conditional_t<std::is_signed<T>::value, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>>;
 };
 
 template <typename T> struct lsc_bitcast_type {
-private:
-  using _type1 = typename std::conditional<sizeof(T) == 2, uint16_t, T>::type;
-  using _type2 = typename std::conditional<sizeof(T) == 1, uint8_t, T>::type;
-
 public:
-  using type =
-      typename std::conditional<sizeof(_type2) == 1, _type2, _type1>::type;
+  using type = std::conditional_t<
+      sizeof(T) == 1, uint8_t,
+      std::conditional_t<
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
 };
 
 } // namespace detail
@@ -348,7 +217,7 @@ enum class cache_hint : uint8_t {
 namespace detail {
 
 template <cache_hint Hint> class cache_hint_wrap {
-  template <cache_hint...> class is_one_of_t;
+  template <cache_hint...> struct is_one_of_t;
   template <cache_hint Last>
   struct is_one_of_t<Last>
       : std::conditional<Last == Hint, std::true_type, std::false_type>::type {
@@ -420,5 +289,6 @@ enum class split_barrier_action : uint8_t {
 
 /// @} sycl_esimd_core
 
-} // namespace __ESIMD_ENS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::experimental::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

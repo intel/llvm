@@ -48,7 +48,6 @@ static mlir::Value genScalarValue(Fortran::lower::AbstractConverter &converter,
   return fir::getBase(Fortran::lower::createSomeExtendedExpression(
       loc, converter, expr, symMap, context));
 }
-
 /// Does this variable have a default initialization?
 static bool hasDefaultInitialization(const Fortran::semantics::Symbol &sym) {
   if (sym.has<Fortran::semantics::ObjectEntityDetails>() && sym.size())
@@ -103,6 +102,15 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
                                   llvm::StringRef globalName,
                                   mlir::StringAttr linkage);
 
+static mlir::Location genLocation(Fortran::lower::AbstractConverter &converter,
+                                  const Fortran::semantics::Symbol &sym) {
+  // Compiler generated name cannot be used as source location, their name
+  // is not pointing to the source files.
+  if (!sym.test(Fortran::semantics::Symbol::Flag::CompilerCreated))
+    return converter.genLocation(sym.name());
+  return converter.getCurrentLocation();
+}
+
 /// Create the global op declaration without any initializer
 static fir::GlobalOp declareGlobal(Fortran::lower::AbstractConverter &converter,
                                    const Fortran::lower::pft::Variable &var,
@@ -117,13 +125,13 @@ static fir::GlobalOp declareGlobal(Fortran::lower::AbstractConverter &converter,
       linkage == builder.createLinkOnceLinkage())
     return defineGlobal(converter, var, globalName, linkage);
   const Fortran::semantics::Symbol &sym = var.getSymbol();
-  mlir::Location loc = converter.genLocation(sym.name());
+  mlir::Location loc = genLocation(converter, sym);
   // Resolve potential host and module association before checking that this
   // symbol is an object of a function pointer.
   const Fortran::semantics::Symbol &ultimate = sym.GetUltimate();
   if (!ultimate.has<Fortran::semantics::ObjectEntityDetails>() &&
       !Fortran::semantics::IsProcedurePointer(ultimate))
-    mlir::emitError(loc, "lowering global declaration: symbol '")
+    mlir::emitError(loc, "processing global declaration: symbol '")
         << toStringRef(sym.name()) << "' has unexpected details\n";
   return builder.createGlobal(loc, converter.genType(var), globalName, linkage,
                               mlir::Attribute{}, isConstant(ultimate));
@@ -181,17 +189,41 @@ mlir::Value Fortran::lower::genInitialDataTarget(
     return fir::factory::createUnallocatedBox(builder, loc, boxType,
                                               /*nonDeferredParams=*/llvm::None);
   // Pointer initial data target, and NULL(mold).
-  if (const Fortran::semantics::Symbol *sym =
-          Fortran::evaluate::GetFirstSymbol(initialTarget)) {
+  for (const auto &sym : Fortran::evaluate::CollectSymbols(initialTarget)) {
     // Length parameters processing will need care in global initializer
     // context.
-    if (hasDerivedTypeWithLengthParameters(*sym))
+    if (hasDerivedTypeWithLengthParameters(sym))
       TODO(loc, "initial-data-target with derived type length parameters");
 
-    auto var = Fortran::lower::pft::Variable(*sym, /*global=*/true);
+    auto var = Fortran::lower::pft::Variable(sym, /*global=*/true);
     Fortran::lower::instantiateVariable(converter, var, globalOpSymMap,
                                         storeMap);
   }
+
+  // Handle NULL(mold) as a special case. Return an unallocated box of MOLD
+  // type. The return box is correctly created as a fir.box<fir.ptr<T>> where
+  // T is extracted from the MOLD argument.
+  if (const Fortran::evaluate::ProcedureRef *procRef =
+          Fortran::evaluate::GetProcedureRef(initialTarget)) {
+    const Fortran::evaluate::SpecificIntrinsic *intrinsic =
+        procRef->proc().GetSpecificIntrinsic();
+    if (intrinsic && intrinsic->name == "null") {
+      assert(procRef->arguments().size() == 1 &&
+             "Expecting mold argument for NULL intrinsic");
+      const auto *argExpr = procRef->arguments()[0].value().UnwrapExpr();
+      assert(argExpr);
+      const Fortran::semantics::Symbol *sym =
+          Fortran::evaluate::GetFirstSymbol(*argExpr);
+      fir::ExtendedValue exv =
+          globalOpSymMap.lookupSymbol(sym).toExtendedValue();
+      const auto *mold = exv.getBoxOf<fir::MutableBoxValue>();
+      fir::BaseBoxType boxType = mold->getBoxTy();
+      mlir::Value box =
+          fir::factory::createUnallocatedBox(builder, loc, boxType, {});
+      return box;
+    }
+  }
+
   mlir::Value box;
   if (initialTarget.Rank() > 0) {
     box = fir::getBase(Fortran::lower::createSomeArrayBox(
@@ -352,9 +384,9 @@ static bool globalIsInitialized(fir::GlobalOp global) {
 }
 
 /// Call \p genInit to generate code inside \p global initializer region.
-static void
-createGlobalInitialization(fir::FirOpBuilder &builder, fir::GlobalOp global,
-                           std::function<void(fir::FirOpBuilder &)> genInit) {
+void Fortran::lower::createGlobalInitialization(
+    fir::FirOpBuilder &builder, fir::GlobalOp global,
+    std::function<void(fir::FirOpBuilder &)> genInit) {
   mlir::Region &region = global.getRegion();
   region.push_back(new mlir::Block);
   mlir::Block &block = region.back();
@@ -371,7 +403,7 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
                                   mlir::StringAttr linkage) {
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   const Fortran::semantics::Symbol &sym = var.getSymbol();
-  mlir::Location loc = converter.genLocation(sym.name());
+  mlir::Location loc = genLocation(converter, sym);
   bool isConst = isConstant(sym);
   fir::GlobalOp global = builder.getNamedGlobal(globalName);
   mlir::Type symTy = converter.genType(var);
@@ -416,24 +448,26 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
         sym.detailsIf<Fortran::semantics::ObjectEntityDetails>();
     if (details && details->init()) {
       auto expr = *details->init();
-      createGlobalInitialization(builder, global, [&](fir::FirOpBuilder &b) {
-        mlir::Value box =
-            Fortran::lower::genInitialDataTarget(converter, loc, symTy, expr);
-        b.create<fir::HasValueOp>(loc, box);
-      });
+      Fortran::lower::createGlobalInitialization(
+          builder, global, [&](fir::FirOpBuilder &b) {
+            mlir::Value box = Fortran::lower::genInitialDataTarget(
+                converter, loc, symTy, expr);
+            b.create<fir::HasValueOp>(loc, box);
+          });
     } else {
       // Create unallocated/disassociated descriptor if no explicit init
-      createGlobalInitialization(builder, global, [&](fir::FirOpBuilder &b) {
-        mlir::Value box =
-            fir::factory::createUnallocatedBox(b, loc, symTy, llvm::None);
-        b.create<fir::HasValueOp>(loc, box);
-      });
+      Fortran::lower::createGlobalInitialization(
+          builder, global, [&](fir::FirOpBuilder &b) {
+            mlir::Value box =
+                fir::factory::createUnallocatedBox(b, loc, symTy, llvm::None);
+            b.create<fir::HasValueOp>(loc, box);
+          });
     }
 
   } else if (const auto *details =
                  sym.detailsIf<Fortran::semantics::ObjectEntityDetails>()) {
     if (details->init()) {
-      createGlobalInitialization(
+      Fortran::lower::createGlobalInitialization(
           builder, global, [&](fir::FirOpBuilder &builder) {
             Fortran::lower::StatementContext stmtCtx(
                 /*cleanupProhibited=*/true);
@@ -444,7 +478,7 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
             builder.create<fir::HasValueOp>(loc, castTo);
           });
     } else if (hasDefaultInitialization(sym)) {
-      createGlobalInitialization(
+      Fortran::lower::createGlobalInitialization(
           builder, global, [&](fir::FirOpBuilder &builder) {
             Fortran::lower::StatementContext stmtCtx(
                 /*cleanupProhibited=*/true);
@@ -460,12 +494,21 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
     TODO(loc, "global"); // Procedure pointer or something else
   }
   // Creates undefined initializer for globals without initializers
-  if (!globalIsInitialized(global))
-    createGlobalInitialization(
+  if (!globalIsInitialized(global)) {
+    // TODO: Is it really required to add the undef init if the Public
+    // visibility is set ? We need to make sure the global is not optimized out
+    // by LLVM if unused in the current compilation unit, but at least for
+    // BIND(C) variables, an initial value may be given in another compilation
+    // unit (on the C side), and setting an undef init here creates linkage
+    // conflicts.
+    if (sym.attrs().test(Fortran::semantics::Attr::BIND_C))
+      TODO(loc, "BIND(C) module variable linkage");
+    Fortran::lower::createGlobalInitialization(
         builder, global, [&](fir::FirOpBuilder &builder) {
           builder.create<fir::HasValueOp>(
               loc, builder.create<fir::UndefOp>(loc, symTy));
         });
+  }
   // Set public visibility to prevent global definition to be optimized out
   // even if they have no initializer and are unused in this compilation unit.
   global.setVisibility(mlir::SymbolTable::Visibility::Public);
@@ -499,7 +542,7 @@ static void instantiateGlobal(Fortran::lower::AbstractConverter &converter,
   assert(!var.isAlias() && "must be handled in instantiateAlias");
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   std::string globalName = Fortran::lower::mangle::mangleName(sym);
-  mlir::Location loc = converter.genLocation(sym.name());
+  mlir::Location loc = genLocation(converter, sym);
   fir::GlobalOp global = builder.getNamedGlobal(globalName);
   mlir::StringAttr linkage = getLinkageAttribute(builder, var);
   if (var.isModuleVariable()) {
@@ -584,6 +627,46 @@ defaultInitializeAtRuntime(Fortran::lower::AbstractConverter &converter,
   }
 }
 
+// Fortran 2018 - 9.7.3.2 point 6
+// When a procedure is invoked, any allocated allocatable object that is an
+// actual argument corresponding to an INTENT(OUT) allocatable dummy argument
+// is deallocated; any allocated allocatable object that is a subobject of an
+// actual argument corresponding to an INTENT(OUT) dummy argument is
+// deallocated.
+static void deallocateIntentOut(Fortran::lower::AbstractConverter &converter,
+                                const Fortran::lower::pft::Variable &var,
+                                Fortran::lower::SymMap &symMap) {
+  if (!var.hasSymbol())
+    return;
+
+  const Fortran::semantics::Symbol &sym = var.getSymbol();
+  if (Fortran::semantics::IsDummy(sym) &&
+      Fortran::semantics::IsIntentOut(sym) &&
+      Fortran::semantics::IsAllocatable(sym)) {
+    if (auto symbox = symMap.lookupSymbol(sym)) {
+      fir::ExtendedValue extVal = symbox.toExtendedValue();
+      if (auto mutBox = extVal.getBoxOf<fir::MutableBoxValue>()) {
+        // The dummy argument is not passed in the ENTRY so it should not be
+        // deallocated.
+        if (mlir::Operation *op = mutBox->getAddr().getDefiningOp())
+          if (mlir::isa<fir::AllocaOp>(op))
+            return;
+        mlir::Location loc = converter.getCurrentLocation();
+        if (Fortran::semantics::IsOptional(sym)) {
+          fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+          auto isPresent = builder.create<fir::IsPresentOp>(
+              loc, builder.getI1Type(), fir::getBase(extVal));
+          builder.genIfThen(loc, isPresent)
+              .genThen([&]() { genDeallocateBox(converter, *mutBox, loc); })
+              .end();
+        } else {
+          genDeallocateBox(converter, *mutBox, loc);
+        }
+      }
+    }
+  }
+}
+
 /// Instantiate a local variable. Precondition: Each variable will be visited
 /// such that if its properties depend on other variables, the variables upon
 /// which its properties depend will already have been visited.
@@ -593,6 +676,7 @@ static void instantiateLocal(Fortran::lower::AbstractConverter &converter,
   assert(!var.isAlias());
   Fortran::lower::StatementContext stmtCtx;
   mapSymbolAttributes(converter, var, symMap, stmtCtx);
+  deallocateIntentOut(converter, var, symMap);
   if (mustBeDefaultInitializedAtRuntime(var))
     defaultInitializeAtRuntime(converter, var, symMap);
 }
@@ -666,7 +750,7 @@ static fir::GlobalOp defineGlobalAggregateStore(
     if (const auto *objectDetails =
             initSym->detailsIf<Fortran::semantics::ObjectEntityDetails>())
       if (objectDetails->init()) {
-        createGlobalInitialization(
+        Fortran::lower::createGlobalInitialization(
             builder, global, [&](fir::FirOpBuilder &builder) {
               Fortran::lower::StatementContext stmtCtx;
               mlir::Value initVal = fir::getBase(genInitializerExprValue(
@@ -678,11 +762,12 @@ static fir::GlobalOp defineGlobalAggregateStore(
   // Equivalence has no Fortran initial value. Create an undefined FIR initial
   // value to ensure this is consider an object definition in the IR regardless
   // of the linkage.
-  createGlobalInitialization(builder, global, [&](fir::FirOpBuilder &builder) {
-    Fortran::lower::StatementContext stmtCtx;
-    mlir::Value initVal = builder.create<fir::UndefOp>(loc, aggTy);
-    builder.create<fir::HasValueOp>(loc, initVal);
-  });
+  Fortran::lower::createGlobalInitialization(
+      builder, global, [&](fir::FirOpBuilder &builder) {
+        Fortran::lower::StatementContext stmtCtx;
+        mlir::Value initVal = builder.create<fir::UndefOp>(loc, aggTy);
+        builder.create<fir::HasValueOp>(loc, initVal);
+      });
   return global;
 }
 
@@ -771,7 +856,7 @@ static void instantiateAlias(Fortran::lower::AbstractConverter &converter,
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   assert(var.isAlias());
   const Fortran::semantics::Symbol &sym = var.getSymbol();
-  const mlir::Location loc = converter.genLocation(sym.name());
+  const mlir::Location loc = genLocation(converter, sym);
   mlir::IndexType idxTy = builder.getIndexType();
   std::size_t aliasOffset = var.getAlias();
   mlir::Value store = getAggregateStore(storeMap, var);
@@ -877,8 +962,7 @@ getCommonMembersWithInitAliases(const Fortran::semantics::Symbol &common) {
           if (!details->init() || com != &common)
             continue;
           // This is an alias with an init that belongs to the list
-          if (std::find(members.begin(), members.end(), obj.symbol) ==
-              members.end())
+          if (!llvm::is_contained(members, obj.symbol))
             members.emplace_back(obj.symbol);
         }
       }
@@ -996,7 +1080,7 @@ static void finalizeCommonBlockDefinition(
     LLVM_DEBUG(llvm::dbgs() << "}\n");
     builder.create<fir::HasValueOp>(loc, cb);
   };
-  createGlobalInitialization(builder, global, initFunc);
+  Fortran::lower::createGlobalInitialization(builder, global, initFunc);
 }
 
 void Fortran::lower::defineCommonBlocks(
@@ -1190,6 +1274,24 @@ static mlir::Value genExtentValue(fir::FirOpBuilder &builder,
   return builder.create<fir::UndefOp>(loc, idxTy);
 }
 
+/// If a symbol is an array, it may have been declared with unknown extent
+/// parameters (e.g., `*`), but if it has an initial value then the actual size
+/// may be available from the initial array value's type.
+inline static llvm::SmallVector<std::int64_t>
+recoverShapeVector(llvm::ArrayRef<std::int64_t> shapeVec, mlir::Value initVal) {
+  llvm::SmallVector<std::int64_t> result;
+  if (initVal) {
+    if (auto seqTy = fir::unwrapUntilSeqType(initVal.getType())) {
+      for (auto [fst, snd] : llvm::zip(shapeVec, seqTy.getShape()))
+        result.push_back(fst == fir::SequenceType::getUnknownExtent() ? snd
+                                                                      : fst);
+      return result;
+    }
+  }
+  result.assign(shapeVec.begin(), shapeVec.end());
+  return result;
+}
+
 /// Lower specification expressions and attributes of variable \p var and
 /// add it to the symbol map.  For a global or an alias, the address must be
 /// pre-computed and provided in \p preAlloc.  A dummy argument for the current
@@ -1201,7 +1303,7 @@ void Fortran::lower::mapSymbolAttributes(
     mlir::Value preAlloc) {
   fir::FirOpBuilder &builder = converter.getFirOpBuilder();
   const Fortran::semantics::Symbol &sym = var.getSymbol();
-  const mlir::Location loc = converter.genLocation(sym.name());
+  const mlir::Location loc = genLocation(converter, sym);
   mlir::IndexType idxTy = builder.getIndexType();
   const bool isDeclaredDummy = Fortran::semantics::IsDummy(sym);
   // An active dummy from the current entry point.
@@ -1383,7 +1485,7 @@ void Fortran::lower::mapSymbolAttributes(
           auto expr = Fortran::lower::SomeExpr{*low};
           lb = builder.createConvert(loc, idxTy, genValue(expr));
         } else {
-          TODO(loc, "assumed rank lowering");
+          TODO(loc, "support for assumed rank entities");
         }
         lbounds.emplace_back(lb);
 
@@ -1449,13 +1551,16 @@ void Fortran::lower::mapSymbolAttributes(
         auto charLen = x.charLen();
         if (replace) {
           Fortran::lower::SymbolBox symBox = symMap.lookupSymbol(sym);
-          std::pair<mlir::Value, mlir::Value> unboxchar =
-              charHelp.createUnboxChar(symBox.getAddr());
-          mlir::Value boxAddr = unboxchar.first;
-          // Set/override LEN with a constant
-          mlir::Value len = builder.createIntegerConstant(loc, idxTy, charLen);
-          symMap.addCharSymbol(sym, boxAddr, len, true);
-          return;
+          if (symBox) {
+            std::pair<mlir::Value, mlir::Value> unboxchar =
+                charHelp.createUnboxChar(symBox.getAddr());
+            mlir::Value boxAddr = unboxchar.first;
+            // Set/override LEN with a constant
+            mlir::Value len =
+                builder.createIntegerConstant(loc, idxTy, charLen);
+            symMap.addCharSymbol(sym, boxAddr, len, true);
+            return;
+          }
         }
         mlir::Value len = builder.createIntegerConstant(loc, idxTy, charLen);
         if (preAlloc) {
@@ -1509,7 +1614,7 @@ void Fortran::lower::mapSymbolAttributes(
         if (x.lboundAllOnes()) {
           // if lower bounds are all ones, build simple shaped object
           llvm::SmallVector<mlir::Value> shape;
-          for (int64_t i : x.shapes)
+          for (int64_t i : recoverShapeVector(x.shapes, preAlloc))
             shape.push_back(genExtentValue(builder, loc, idxTy, i));
           mlir::Value local =
               isDummy ? addr : createNewLocal(converter, loc, var, preAlloc);
@@ -1520,14 +1625,17 @@ void Fortran::lower::mapSymbolAttributes(
         // constructing constants and populating the lbounds and extents.
         llvm::SmallVector<mlir::Value> extents;
         llvm::SmallVector<mlir::Value> lbounds;
-        for (auto [fst, snd] : llvm::zip(x.lbounds, x.shapes)) {
+        for (auto [fst, snd] :
+             llvm::zip(x.lbounds, recoverShapeVector(x.shapes, preAlloc))) {
           lbounds.emplace_back(builder.createIntegerConstant(loc, idxTy, fst));
           extents.emplace_back(genExtentValue(builder, loc, idxTy, snd));
         }
         mlir::Value local =
             isDummy ? addr
                     : createNewLocal(converter, loc, var, preAlloc, extents);
-        assert(isDummy || Fortran::lower::isExplicitShape(sym));
+        // Must be a dummy argument, have an explicit shape, or be a PARAMETER.
+        assert(isDummy || Fortran::lower::isExplicitShape(sym) ||
+               Fortran::semantics::IsNamedConstant(sym));
         symMap.addSymbolWithBounds(sym, local, extents, lbounds, isDummy);
       },
 
@@ -1542,7 +1650,7 @@ void Fortran::lower::mapSymbolAttributes(
         mlir::Value argBox;
         mlir::Type castTy = builder.getRefType(varType);
         if (addr) {
-          if (auto boxTy = addr.getType().dyn_cast<fir::BoxType>()) {
+          if (auto boxTy = addr.getType().dyn_cast<fir::BaseBoxType>()) {
             argBox = addr;
             mlir::Type refTy = builder.getRefType(boxTy.getEleTy());
             addr = builder.create<fir::BoxAddrOp>(loc, refTy, argBox);
@@ -1607,7 +1715,7 @@ void Fortran::lower::mapSymbolAttributes(
         if (x.lboundAllOnes()) {
           // if lower bounds are all ones, build simple shaped object
           llvm::SmallVector<mlir::Value> shape;
-          for (int64_t i : x.shapes)
+          for (int64_t i : recoverShapeVector(x.shapes, preAlloc))
             shape.push_back(genExtentValue(builder, loc, idxTy, i));
           mlir::Value local =
               isDummy ? addr : createNewLocal(converter, loc, var, preAlloc);
@@ -1619,7 +1727,8 @@ void Fortran::lower::mapSymbolAttributes(
         llvm::SmallVector<mlir::Value> extents;
         llvm::SmallVector<mlir::Value> lbounds;
         // construct constants and populate `bounds`
-        for (auto [fst, snd] : llvm::zip(x.lbounds, x.shapes)) {
+        for (auto [fst, snd] :
+             llvm::zip(x.lbounds, recoverShapeVector(x.shapes, preAlloc))) {
           lbounds.emplace_back(builder.createIntegerConstant(loc, idxTy, fst));
           extents.emplace_back(genExtentValue(builder, loc, idxTy, snd));
         }
@@ -1673,7 +1782,7 @@ void Fortran::lower::mapSymbolAttributes(
         if (x.lboundAllOnes()) {
           // if lower bounds are all ones, build simple shaped object
           llvm::SmallVector<mlir::Value> shape;
-          for (int64_t i : x.shapes)
+          for (int64_t i : recoverShapeVector(x.shapes, preAlloc))
             shape.push_back(genExtentValue(builder, loc, idxTy, i));
           if (isDummy) {
             symMap.addCharSymbolWithShape(sym, addr, len, shape, true);
@@ -1691,7 +1800,8 @@ void Fortran::lower::mapSymbolAttributes(
         llvm::SmallVector<mlir::Value> lbounds;
 
         // construct constants and populate `bounds`
-        for (auto [fst, snd] : llvm::zip(x.lbounds, x.shapes)) {
+        for (auto [fst, snd] :
+             llvm::zip(x.lbounds, recoverShapeVector(x.shapes, preAlloc))) {
           lbounds.emplace_back(builder.createIntegerConstant(loc, idxTy, fst));
           extents.emplace_back(genExtentValue(builder, loc, idxTy, snd));
         }

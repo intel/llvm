@@ -15,9 +15,29 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
   let description = [{
     An op interface for One-Shot Bufferize. Ops that implement this interface
     interface can be analyzed and bufferized using One-Shot Bufferize.
+
+    Note: All "bufferizesTo*" and "getAliasing*" interface methods must be
+    implemented conservatively. If it is not statically known whether an
+    OpOperand/OpResult bufferizes in a certain way (e.g., to a memory write),
+    the worst case must be assumed (e.g., that it does). Similarly,
+    "getAliasing*" interface methods may always return additional OpOperands or
+    OpResults, but must not miss an OpOperand or OpResult that could potentially
+    alias at runtime.
   }];
   let cppNamespace = "::mlir::bufferization";
   let methods = [
+      InterfaceMethod<
+        /*desc=*/[{
+          Return `true` if the given OpResult may bufferize to a new buffer
+          allocation. If it is statically unknown if the given OpResult
+          bufferizes to a buffer allocation, `true` should be returned.
+        }],
+        /*retType=*/"bool",
+        /*methodName=*/"bufferizesToAllocation",
+        /*args=*/(ins "OpResult":$opResult),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/"return false;"
+      >,
       InterfaceMethod<
         /*desc=*/[{
           Return `true` if the given OpOperand bufferizes to a memory read. This
@@ -221,7 +241,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
       InterfaceMethod<
         /*desc=*/[{
           Bufferize this op, i.e., rewrite it into a memref-based equivalent.
-          Buffers of tensor SSA values can be retrieved via `state.getBuffer`.
+          Buffers of tensor SSA values can be retrieved via `getBuffer`.
           Uses of tensor results of the existing tensor op can be replaced with
           `replaceOpWithBufferizedValues` or `replaceOpWithNewBufferizedOp`.
           These two functions automatically handle the tensor-to-memref type
@@ -232,12 +252,6 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           tensor result `r` may only be replaced with:
           a) A buffer that aliases one of buffers in getAliasingOpOperand(r).
           b) Or: A newly allocated buffer.
-
-          Regions of an op should be inlined into the new op instead of cloning
-          them. This is not only more efficient, but also necessary so that no
-          analysis results are lost. (Bufferization decisions are tracked via
-          OpOperand pointers and cloned ops have new OpOperands.) If regions are
-          cloned instead of inlined, additional buffer copies may be inserted.
 
           This method will never be called on ops that do not have at least one
           tensor operand/result.
@@ -252,7 +266,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*retType=*/"LogicalResult",
         /*methodName=*/"bufferize",
         /*args=*/(ins "RewriterBase &":$rewriter,
-                      "BufferizationState &":$state),
+                      "const BufferizationOptions &":$options),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           llvm_unreachable("bufferize not implemented");
@@ -323,6 +337,51 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*defaultImplementation=*/[{
           return success();
         }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Return the bufferized type of the given tensor value (without
+          bufferizing the IR). The value is either a BlockArgument of a block
+          that belongs to this op or an OpResult of the given op.
+
+          This method is useful when the bufferized type of value must be
+          predicted before modifying any IR.
+        }],
+        /*retType=*/"FailureOr<BaseMemRefType>",
+        /*methodName=*/"getBufferType",
+        /*args=*/(ins "Value":$value,
+                      "const BufferizationOptions &":$options,
+                      "const DenseMap<Value, BaseMemRefType>":$fixedTypes),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          assert(getOwnerOfValue(value) == $_op.getOperation() &&
+                 "expected that value belongs to this op");
+          return bufferization::detail::defaultGetBufferType(
+              value, options, fixedTypes);
+        }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Return `true` if the given region of this op is repetitive. By default
+          this information is queried from the `RegionBranchOpInterface`. Ops
+          that do not implement this inferface can override this method to
+          declare regions as repetitive.
+
+          The RaW conflict detection of One-Shot Analysis is more strict inside
+          repetitive regions: Op dominance cannot always be used to rule out
+          certain potential conflicts (e.g., a conflicting write happening after
+          a read), because there may not be a meaningful ordering of certain ops
+          that are executed multiple times. This is described in more detail in
+          documentation of One-Shot Analysis.
+        }],
+        /*retType=*/"bool",
+        /*methodName=*/"isRepetitiveRegion",
+        /*args=*/(ins "unsigned":$index),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return mlir::bufferization::detail::defaultIsRepetitiveRegion(
+              cast<BufferizableOpInterface>($_op.getOperation()), index);
+        }]
       >
   ];
 
@@ -346,13 +405,6 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           && !bufferizableOp.bufferizesToMemoryWrite(opOperand, state)
           && !bufferizableOp.getAliasingOpResult(opOperand, state).empty();
     }
-
-    // TODO: This attribute is deprecated. Use `bufferization.writable` or add
-    // a new attribute in a different dialect.
-    /// Attribute name used to mark region arguments that can be bufferized
-    /// in-place during one-shot bufferization.
-    constexpr const static ::llvm::StringLiteral
-        kInplaceableAttrName = "linalg.inplaceable";
   }];
 }
 

@@ -3,7 +3,7 @@
 // The test checks support and functionality of [[intel:::max_work_group_size()]] attribute.
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 [[intel::max_work_group_size(2, 2, 2)]] void func_do_not_ignore() {}

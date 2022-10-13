@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 #include <cstring>
 
 #include "ocloc_api.h"
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -143,7 +143,7 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 
   uint32_t NumOutputs = 0;
   byte **Outputs = nullptr;
-  size_t *OutputLengths = nullptr;
+  uint64_t *OutputLengths = nullptr;
   char **OutputNames = nullptr;
 
   const byte *Sources[] = {reinterpret_cast<const byte *>(Source.c_str())};
@@ -235,13 +235,13 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
 namespace ext {
 namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") intel {
-  using namespace ext::intel::experimental;
-} // namespace intel
+using namespace ext::intel::experimental;
+}
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") INTEL {
-  using namespace ext::intel::experimental;
-} // namespace INTEL
+using namespace ext::intel::experimental;
+}
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

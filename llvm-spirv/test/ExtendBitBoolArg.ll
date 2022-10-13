@@ -1,11 +1,11 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv -s %t.bc -o %t.regulzarized.bc
 ; RUN: llvm-dis %t.regulzarized.bc -o %t.regulzarized.ll
 ; RUN: FileCheck < %t.regulzarized.ll %s
 
 ; Translation cycle should be successfull:
 ; RUN: llvm-spirv %t.regulzarized.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 
 ; CHECK: %[[#Base:]] = load i1, i1 addrspace(4)*{{.*}}, align 1
 ; CHECK: %[[#LoadShift:]] = load i32, i32 addrspace(4)*{{.*}} align 4

@@ -41,6 +41,7 @@
 #define SPIRV_OCLTOSPIRV_H
 
 #include "OCLUtil.h"
+#include "SPIRVBuiltinHelper.h"
 
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/PassManager.h"
@@ -50,9 +51,11 @@ namespace SPIRV {
 
 class OCLTypeToSPIRVBase;
 
-class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
+class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase>, BuiltinCallHelper {
 public:
-  OCLToSPIRVBase() : M(nullptr), Ctx(nullptr), CLVer(0) {}
+  OCLToSPIRVBase()
+      : BuiltinCallHelper(ManglingRules::SPIRV), Ctx(nullptr), CLVer(0),
+        OCLTypeToSPIRVPtr(nullptr) {}
   virtual ~OCLToSPIRVBase() {}
   bool runOCLToSPIRV(Module &M);
 
@@ -168,7 +171,8 @@ public:
   /// read_image(image, sampler, ...) =>
   ///   sampled_image = __spirv_SampledImage(image, sampler);
   ///   return __spirv_ImageSampleExplicitLod_R{ReturnType}(sampled_image, ...);
-  void visitCallReadImageWithSampler(CallInst *CI, StringRef MangledName);
+  void visitCallReadImageWithSampler(CallInst *CI, StringRef MangledName,
+                                     StringRef DemangledName);
 
   /// Transform read_image with msaa image arguments.
   /// Sample argument must be acoded as Image Operand.
@@ -208,6 +212,11 @@ public:
   /// Transforms OpDot instructions with a scalar type to a fmul instruction
   void visitCallDot(CallInst *CI);
 
+  /// Transforms OpDot instructions with a vector or scalar (packed vector) type
+  /// to dot or dot_acc_sat instructions
+  void visitCallDot(CallInst *CI, StringRef MangledName,
+                    StringRef DemangledName);
+
   /// Fixes for built-in functions with vector+scalar arguments that are
   /// translated to the SPIR-V instructions where all arguments must have the
   /// same type.
@@ -240,6 +249,9 @@ public:
   void visitSubgroupAVCBuiltinCallWithSampler(CallInst *CI,
                                               StringRef DemangledName);
 
+  /// For cl_intel_split_work_group_barrier built-ins:
+  void visitCallSplitBarrierINTEL(CallInst *CI, StringRef DemangledName);
+
   void visitCallLdexp(CallInst *CI, StringRef MangledName,
                       StringRef DemangledName);
 
@@ -254,7 +266,6 @@ public:
   OCLTypeToSPIRVBase *getOCLTypeToSPIRV() { return OCLTypeToSPIRVPtr; }
 
 private:
-  Module *M;
   LLVMContext *Ctx;
   unsigned CLVer; /// OpenCL version as major*10+minor
   std::set<Value *> ValuesToDelete;
@@ -269,6 +280,10 @@ private:
   /// Transform OpenCL vload/vstore function name.
   void transVecLoadStoreName(std::string &DemangledName,
                              const std::string &Stem, bool AlwaysN);
+
+  void processSubgroupBlockReadWriteINTEL(CallInst *CI,
+                                          OCLBuiltinTransInfo &Info,
+                                          const Type *DataTy);
 };
 
 class OCLToSPIRVLegacy : public OCLToSPIRVBase, public llvm::ModulePass {

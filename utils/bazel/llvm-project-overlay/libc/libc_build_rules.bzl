@@ -31,6 +31,7 @@ def libc_function(name, srcs, deps = None, copts = None, **kwargs):
     deps.append(LIBC_ROOT_TARGET)
     copts = copts or []
     copts.append("-O3")
+    copts.append("-fno-builtin")
 
     # We compile the code twice, the first target is suffixed with ".__internal__" and contains the
     # C++ functions in the "__llvm_libc" namespace. This allows us to test the function in the
@@ -78,9 +79,25 @@ def libc_math_function(
         select_map[PLATFORM_CPU_ARM64] = ["src/math/aarch64/" + name + ".cpp"]
     if "x86_64" in specializations:
         select_map[PLATFORM_CPU_X86_64] = ["src/math/x86_64/" + name + ".cpp"]
+
+    #TODO(michaelrj): Fix the floating point dependencies
+    OLD_FPUTIL_DEPS = [
+        ":__support_fputil_basic_operations",
+        ":__support_fputil_division_and_remainder_operations",
+        ":__support_fputil_fenv_impl",
+        ":__support_fputil_fp_bits",
+        ":__support_fputil_float_properties",
+        ":__support_fputil_hypot",
+        ":__support_fputil_manipulation_functions",
+        ":__support_fputil_nearest_integer_operations",
+        ":__support_fputil_normal_float",
+        ":__support_fputil_platform_defs",
+        ":__support_builtin_wrappers",
+        ":__support_fputil_except_value_utils",
+    ]
     libc_function(
         name = name,
         srcs = selects.with_or(select_map),
         hdrs = ["src/math/" + name + ".h"],
-        deps = [":__support_common", ":__support_fputil"] + additional_deps,
+        deps = [":__support_common"] + OLD_FPUTIL_DEPS + additional_deps,
     )

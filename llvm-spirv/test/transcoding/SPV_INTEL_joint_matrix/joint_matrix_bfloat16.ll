@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: llvm-as < %s -o %t.bc
 
 ; RUN: llvm-spirv -s %t.bc -o %t.regularized.bc
 ; RUN: llvm-dis %t.regularized.bc -o %t.regularized.ll

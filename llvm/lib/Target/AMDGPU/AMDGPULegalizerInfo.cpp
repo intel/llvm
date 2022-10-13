@@ -795,13 +795,24 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .narrowScalarFor({{S64, S16}}, changeTo(0, S32))
     .scalarize(0);
 
-  getActionDefinitionsBuilder(G_FSUB)
+  auto &FSubActions = getActionDefinitionsBuilder(G_FSUB);
+  if (ST.has16BitInsts()) {
+    FSubActions
+      // Use actual fsub instruction
+      .legalFor({S32, S16})
+      // Must use fadd + fneg
+      .lowerFor({S64, V2S16});
+  } else {
+    FSubActions
       // Use actual fsub instruction
       .legalFor({S32})
       // Must use fadd + fneg
-      .lowerFor({S64, S16, V2S16})
-      .scalarize(0)
-      .clampScalar(0, S32, S64);
+      .lowerFor({S64, S16, V2S16});
+  }
+
+  FSubActions
+    .scalarize(0)
+    .clampScalar(0, S32, S64);
 
   // Whether this is legal depends on the floating point mode for the function.
   auto &FMad = getActionDefinitionsBuilder(G_FMAD);
@@ -1330,12 +1341,13 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   }
   if (ST.hasAtomicFaddInsts())
     Atomic.legalFor({{S32, GlobalPtr}});
+  if (ST.hasFlatAtomicFaddF32Inst())
+    Atomic.legalFor({{S32, FlatPtr}});
 
   if (ST.hasGFX90AInsts()) {
     // These are legal with some caveats, and should have undergone expansion in
     // the IR in most situations
     // TODO: Move atomic expansion into legalizer
-    // TODO: Also supports <2 x f16>
     Atomic.legalFor({
         {S32, GlobalPtr},
         {S64, GlobalPtr},
@@ -1515,13 +1527,11 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     BuildVector
       // FIXME: Should probably widen s1 vectors straight to s32
       .minScalarOrElt(0, S16)
-      // Widen source elements and produce a G_BUILD_VECTOR_TRUNC
-      .minScalar(1, S32);
+      .minScalar(1, S16);
 
     getActionDefinitionsBuilder(G_BUILD_VECTOR_TRUNC)
       .legalFor({V2S16, S32})
       .lower();
-    BuildVector.minScalarOrElt(0, S32);
   } else {
     BuildVector.customFor({V2S16, S16});
     BuildVector.minScalarOrElt(0, S32);
@@ -2332,7 +2342,7 @@ bool AMDGPULegalizerInfo::legalizeExtractVectorElt(
       getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
   if (!MaybeIdxVal) // Dynamic case will be selected to register indexing.
     return true;
-  const int64_t IdxVal = MaybeIdxVal->Value.getSExtValue();
+  const uint64_t IdxVal = MaybeIdxVal->Value.getZExtValue();
 
   Register Dst = MI.getOperand(0).getReg();
   Register Vec = MI.getOperand(1).getReg();
@@ -2367,7 +2377,7 @@ bool AMDGPULegalizerInfo::legalizeInsertVectorElt(
   if (!MaybeIdxVal) // Dynamic case will be selected to register indexing.
     return true;
 
-  int64_t IdxVal = MaybeIdxVal->Value.getSExtValue();
+  const uint64_t IdxVal = MaybeIdxVal->Value.getZExtValue();
   Register Dst = MI.getOperand(0).getReg();
   Register Vec = MI.getOperand(1).getReg();
   Register Ins = MI.getOperand(2).getReg();
@@ -4186,6 +4196,35 @@ bool AMDGPULegalizerInfo::legalizeImplicitArgPtr(MachineInstr &MI,
   return true;
 }
 
+bool AMDGPULegalizerInfo::getLDSKernelId(Register DstReg,
+                                         MachineRegisterInfo &MRI,
+                                         MachineIRBuilder &B) const {
+  Function &F = B.getMF().getFunction();
+  Optional<uint32_t> KnownSize =
+      AMDGPUMachineFunction::getLDSKernelIdMetadata(F);
+  if (KnownSize.has_value())
+    B.buildConstant(DstReg, KnownSize.value());
+  return false;
+}
+
+bool AMDGPULegalizerInfo::legalizeLDSKernelId(MachineInstr &MI,
+                                              MachineRegisterInfo &MRI,
+                                              MachineIRBuilder &B) const {
+
+  const SIMachineFunctionInfo *MFI = B.getMF().getInfo<SIMachineFunctionInfo>();
+  if (!MFI->isEntryFunction()) {
+    return legalizePreloadedArgIntrin(MI, MRI, B,
+                                      AMDGPUFunctionArgInfo::LDS_KERNEL_ID);
+  }
+
+  Register DstReg = MI.getOperand(0).getReg();
+  if (!getLDSKernelId(DstReg, MRI, B))
+    return false;
+
+  MI.eraseFromParent();
+  return true;
+}
+
 bool AMDGPULegalizerInfo::legalizeIsAddrSpace(MachineInstr &MI,
                                               MachineRegisterInfo &MRI,
                                               MachineIRBuilder &B,
@@ -4822,6 +4861,7 @@ bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
     MachineInstr &MI, MachineIRBuilder &B, GISelChangeObserver &Observer,
     const AMDGPU::ImageDimIntrinsicInfo *Intr) const {
 
+  const MachineFunction &MF = *MI.getMF();
   const unsigned NumDefs = MI.getNumExplicitDefs();
   const unsigned ArgOffset = NumDefs + 1;
   bool IsTFE = NumDefs == 2;
@@ -4925,7 +4965,8 @@ bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
                                 IsG16);
 
       // See also below in the non-a16 branch
-      const bool UseNSA = ST.hasNSAEncoding() && PackedRegs.size() >= 3 &&
+      const bool UseNSA = ST.hasNSAEncoding() &&
+                          PackedRegs.size() >= ST.getNSAThreshold(MF) &&
                           PackedRegs.size() <= ST.getNSAMaxSize();
 
       if (!UseNSA && PackedRegs.size() > 1) {
@@ -4967,7 +5008,8 @@ bool AMDGPULegalizerInfo::legalizeImageIntrinsic(
     // TODO: we can actually allow partial NSA where the final register is a
     // contiguous set of the remaining addresses.
     // This could help where there are more addresses than supported.
-    const bool UseNSA = ST.hasNSAEncoding() && CorrectedNumVAddrs >= 3 &&
+    const bool UseNSA = ST.hasNSAEncoding() &&
+                        CorrectedNumVAddrs >= ST.getNSAThreshold(MF) &&
                         CorrectedNumVAddrs <= ST.getNSAMaxSize();
 
     if (!UseNSA && Intr->NumVAddrs > 1)
@@ -5625,6 +5667,9 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_workgroup_id_z:
     return legalizePreloadedArgIntrin(MI, MRI, B,
                                       AMDGPUFunctionArgInfo::WORKGROUP_ID_Z);
+  case Intrinsic::amdgcn_lds_kernel_id:
+    return legalizePreloadedArgIntrin(MI, MRI, B,
+                                      AMDGPUFunctionArgInfo::LDS_KERNEL_ID);
   case Intrinsic::amdgcn_dispatch_ptr:
     return legalizePreloadedArgIntrin(MI, MRI, B,
                                       AMDGPUFunctionArgInfo::DISPATCH_PTR);
@@ -5723,23 +5768,9 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_struct_buffer_atomic_fmin:
   case Intrinsic::amdgcn_raw_buffer_atomic_fmax:
   case Intrinsic::amdgcn_struct_buffer_atomic_fmax:
-    return legalizeBufferAtomic(MI, B, IntrID);
   case Intrinsic::amdgcn_raw_buffer_atomic_fadd:
-  case Intrinsic::amdgcn_struct_buffer_atomic_fadd: {
-    Register DstReg = MI.getOperand(0).getReg();
-    if (!MRI.use_empty(DstReg) && !ST.hasGFX90AInsts()) {
-      Function &F = B.getMF().getFunction();
-      DiagnosticInfoUnsupported NoFpRet(
-          F, "return versions of fp atomics not supported", B.getDebugLoc(),
-          DS_Error);
-      F.getContext().diagnose(NoFpRet);
-      B.buildUndef(DstReg);
-      MI.eraseFromParent();
-      return true;
-    }
-
+  case Intrinsic::amdgcn_struct_buffer_atomic_fadd:
     return legalizeBufferAtomic(MI, B, IntrID);
-  }
   case Intrinsic::amdgcn_atomic_inc:
     return legalizeAtomicIncDec(MI, B, true);
   case Intrinsic::amdgcn_atomic_dec:

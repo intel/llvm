@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build + LIT
     runs-on: [Windows, build]
     # TODO use cached checkout
     steps:

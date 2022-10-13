@@ -45,10 +45,12 @@ UdtRecordCompleter::UdtRecordCompleter(
     break;
   case LF_UNION:
     llvm::cantFail(TypeDeserializer::deserializeAs<UnionRecord>(cvt, m_cvr.ur));
+    m_layout.bit_size = m_cvr.ur.getSize() * 8;
     break;
   case LF_CLASS:
   case LF_STRUCTURE:
     llvm::cantFail(TypeDeserializer::deserializeAs<ClassRecord>(cvt, m_cvr.cr));
+    m_layout.bit_size = m_cvr.cr.getSize() * 8;
     break;
   default:
     llvm_unreachable("unreachable!");
@@ -66,12 +68,12 @@ clang::QualType UdtRecordCompleter::AddBaseClassForTypeIndex(
   std::unique_ptr<clang::CXXBaseSpecifier> base_spec =
       m_ast_builder.clang().CreateBaseClassSpecifier(
           qt.getAsOpaquePtr(), TranslateMemberAccess(access),
-          vtable_idx.hasValue(), udt_cvt.kind() == LF_CLASS);
+          vtable_idx.has_value(), udt_cvt.kind() == LF_CLASS);
   if (!base_spec)
     return {};
 
   m_bases.push_back(
-      std::make_pair(vtable_idx.getValueOr(0), std::move(base_spec)));
+      std::make_pair(vtable_idx.value_or(0), std::move(base_spec)));
 
   return qt;
 }
@@ -312,6 +314,6 @@ void UdtRecordCompleter::complete() {
   TypeSystemClang::CompleteTagDeclarationDefinition(m_derived_ct);
 
   if (auto *record_decl = llvm::dyn_cast<clang::CXXRecordDecl>(&m_tag_decl)) {
-    m_ast_builder.importer().SetRecordLayout(record_decl, m_layout);
+    m_ast_builder.GetClangASTImporter().SetRecordLayout(record_decl, m_layout);
   }
 }

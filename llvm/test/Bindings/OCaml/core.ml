@@ -41,6 +41,10 @@ let test_contained_types () =
   insist (i32_type = (Array.get (subtypes ar)) 0);
   insist (i8_type = (Array.get (subtypes ar)) 1)
 
+(*===-- Pointer types  ----------------------------------------------------===*)
+let test_pointer_types () =
+  insist (address_space (pointer_type_in_context context 0) = 0);
+  insist (address_space (pointer_type_in_context context 1) = 1)
 
 (*===-- Conversion --------------------------------------------------------===*)
 
@@ -239,27 +243,16 @@ let test_constants () =
   (* CHECK: @const_neg = global i64 sub
    * CHECK: @const_nsw_neg = global i64 sub nsw
    * CHECK: @const_nuw_neg = global i64 sub nuw
-   * CHECK: @const_fneg = global double fneg
    * CHECK: @const_not = global i64 xor
    * CHECK: @const_add = global i64 add
    * CHECK: @const_nsw_add = global i64 add nsw
    * CHECK: @const_nuw_add = global i64 add nuw
-   * CHECK: @const_fadd = global double fadd
    * CHECK: @const_sub = global i64 sub
    * CHECK: @const_nsw_sub = global i64 sub nsw
    * CHECK: @const_nuw_sub = global i64 sub nuw
-   * CHECK: @const_fsub = global double fsub
    * CHECK: @const_mul = global i64 mul
    * CHECK: @const_nsw_mul = global i64 mul nsw
    * CHECK: @const_nuw_mul = global i64 mul nuw
-   * CHECK: @const_fmul = global double fmul
-   * CHECK: @const_udiv = global i64 udiv
-   * CHECK: @const_sdiv = global i64 sdiv
-   * CHECK: @const_exact_sdiv = global i64 sdiv exact
-   * CHECK: @const_fdiv = global double fdiv
-   * CHECK: @const_urem = global i64 urem
-   * CHECK: @const_srem = global i64 srem
-   * CHECK: @const_frem = global double frem
    * CHECK: @const_and = global i64 and
    * CHECK: @const_or = global i64 or
    * CHECK: @const_xor = global i64 xor
@@ -275,27 +268,16 @@ let test_constants () =
   ignore (define_global "const_neg" (const_neg foldbomb) m);
   ignore (define_global "const_nsw_neg" (const_nsw_neg foldbomb) m);
   ignore (define_global "const_nuw_neg" (const_nuw_neg foldbomb) m);
-  ignore (define_global "const_fneg" (const_fneg ffoldbomb) m);
   ignore (define_global "const_not" (const_not foldbomb) m);
   ignore (define_global "const_add" (const_add foldbomb five) m);
   ignore (define_global "const_nsw_add" (const_nsw_add foldbomb five) m);
   ignore (define_global "const_nuw_add" (const_nuw_add foldbomb five) m);
-  ignore (define_global "const_fadd" (const_fadd ffoldbomb ffive) m);
   ignore (define_global "const_sub" (const_sub foldbomb five) m);
   ignore (define_global "const_nsw_sub" (const_nsw_sub foldbomb five) m);
   ignore (define_global "const_nuw_sub" (const_nuw_sub foldbomb five) m);
-  ignore (define_global "const_fsub" (const_fsub ffoldbomb ffive) m);
   ignore (define_global "const_mul" (const_mul foldbomb five) m);
   ignore (define_global "const_nsw_mul" (const_nsw_mul foldbomb five) m);
   ignore (define_global "const_nuw_mul" (const_nuw_mul foldbomb five) m);
-  ignore (define_global "const_fmul" (const_fmul ffoldbomb ffive) m);
-  ignore (define_global "const_udiv" (const_udiv foldbomb five) m);
-  ignore (define_global "const_sdiv" (const_sdiv foldbomb five) m);
-  ignore (define_global "const_exact_sdiv" (const_exact_sdiv foldbomb five) m);
-  ignore (define_global "const_fdiv" (const_fdiv ffoldbomb ffive) m);
-  ignore (define_global "const_urem" (const_urem foldbomb five) m);
-  ignore (define_global "const_srem" (const_srem foldbomb five) m);
-  ignore (define_global "const_frem" (const_frem ffoldbomb ffive) m);
   ignore (define_global "const_and" (const_and foldbomb five) m);
   ignore (define_global "const_or" (const_or foldbomb five) m);
   ignore (define_global "const_xor" (const_xor foldbomb five) m);
@@ -1524,6 +1506,7 @@ let test_writer () =
 
 let _ =
   suite "contained types"  test_contained_types;
+  suite "pointer types"    test_pointer_types;
   suite "conversion"       test_conversion;
   suite "target"           test_target;
   suite "constants"        test_constants;

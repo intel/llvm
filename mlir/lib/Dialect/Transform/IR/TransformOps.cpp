@@ -23,6 +23,16 @@
 
 using namespace mlir;
 
+static ParseResult parsePDLOpTypedResults(
+    OpAsmParser &parser, SmallVectorImpl<Type> &types,
+    const SmallVectorImpl<OpAsmParser::UnresolvedOperand> &handles) {
+  types.resize(handles.size(), pdl::OperationType::get(parser.getContext()));
+  return success();
+}
+
+static void printPDLOpTypedResults(OpAsmPrinter &, Operation *, TypeRange,
+                                   ValueRange) {}
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Transform/IR/TransformOps.cpp.inc"
 
@@ -124,7 +134,7 @@ LogicalResult PatternApplicatorExtension::findAllMatches(
 
 OperandRange
 transform::AlternativesOp::getSuccessorEntryOperands(Optional<unsigned> index) {
-  if (index.hasValue() && getOperation()->getNumOperands() == 1)
+  if (index && getOperation()->getNumOperands() == 1)
     return getOperation()->getOperands();
   return OperandRange(getOperation()->operand_end(),
                       getOperation()->operand_end());
@@ -133,13 +143,13 @@ transform::AlternativesOp::getSuccessorEntryOperands(Optional<unsigned> index) {
 void transform::AlternativesOp::getSuccessorRegions(
     Optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
-  for (Region &alternative :
-       llvm::drop_begin(getAlternatives(), index.hasValue() ? *index + 1 : 0)) {
+  for (Region &alternative : llvm::drop_begin(
+           getAlternatives(), index.has_value() ? *index + 1 : 0)) {
     regions.emplace_back(&alternative, !getOperands().empty()
                                            ? alternative.getArguments()
                                            : Block::BlockArgListType());
   }
-  if (index.hasValue())
+  if (index.has_value())
     regions.emplace_back(getOperation()->getResults());
 }
 
@@ -201,8 +211,7 @@ transform::AlternativesOp::apply(transform::TransformResults &results,
       for (Operation *clone : clones)
         clone->erase();
     });
-    if (failed(state.mapBlockArguments(reg.front().getArgument(0), clones)))
-      return DiagnosedSilenceableFailure::definiteFailure();
+    state.mapBlockArguments(reg.front().getArgument(0), clones);
 
     bool failed = false;
     for (Operation &transform : reg.front().without_terminator()) {
@@ -264,6 +273,95 @@ LogicalResult transform::AlternativesOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// ForeachOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::ForeachOp::apply(transform::TransformResults &results,
+                            transform::TransformState &state) {
+  ArrayRef<Operation *> payloadOps = state.getPayloadOps(getTarget());
+  SmallVector<SmallVector<Operation *>> resultOps(getNumResults(), {});
+
+  for (Operation *op : payloadOps) {
+    auto scope = state.make_region_scope(getBody());
+    state.mapBlockArguments(getIterationVariable(), {op});
+
+    // Execute loop body.
+    for (Operation &transform : getBody().front().without_terminator()) {
+      DiagnosedSilenceableFailure result = state.applyTransform(
+          cast<transform::TransformOpInterface>(transform));
+      if (!result.succeeded())
+        return result;
+    }
+
+    // Append yielded payload ops to result list (if any).
+    for (unsigned i = 0; i < getNumResults(); ++i) {
+      ArrayRef<Operation *> yieldedOps =
+          state.getPayloadOps(getYieldOp().getOperand(i));
+      resultOps[i].append(yieldedOps.begin(), yieldedOps.end());
+    }
+  }
+
+  for (unsigned i = 0; i < getNumResults(); ++i)
+    results.set(getResult(i).cast<OpResult>(), resultOps[i]);
+
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::ForeachOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  BlockArgument iterVar = getIterationVariable();
+  if (any_of(getBody().front().without_terminator(), [&](Operation &op) {
+        return isHandleConsumed(iterVar, cast<TransformOpInterface>(&op));
+      })) {
+    consumesHandle(getTarget(), effects);
+  } else {
+    onlyReadsHandle(getTarget(), effects);
+  }
+
+  for (Value result : getResults())
+    producesHandle(result, effects);
+}
+
+void transform::ForeachOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  Region *bodyRegion = &getBody();
+  if (!index) {
+    regions.emplace_back(bodyRegion, bodyRegion->getArguments());
+    return;
+  }
+
+  // Branch back to the region or the parent.
+  assert(*index == 0 && "unexpected region index");
+  regions.emplace_back(bodyRegion, bodyRegion->getArguments());
+  regions.emplace_back();
+}
+
+OperandRange
+transform::ForeachOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+  // The iteration variable op handle is mapped to a subset (one op to be
+  // precise) of the payload ops of the ForeachOp operand.
+  assert(index && *index == 0 && "unexpected region index");
+  return getOperation()->getOperands();
+}
+
+transform::YieldOp transform::ForeachOp::getYieldOp() {
+  return cast<transform::YieldOp>(getBody().front().getTerminator());
+}
+
+LogicalResult transform::ForeachOp::verify() {
+  auto yieldOp = getYieldOp();
+  if (getNumResults() != yieldOp.getNumOperands())
+    return emitOpError() << "expects the same number of results as the "
+                            "terminator has operands";
+  for (Value v : yieldOp.getOperands())
+    if (!v.getType().isa<pdl::OperationType>())
+      return yieldOp->emitOpError("expects only PDL_Operation operands");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // GetClosestIsolatedParentOp
 //===----------------------------------------------------------------------===//
 
@@ -284,6 +382,74 @@ DiagnosedSilenceableFailure transform::GetClosestIsolatedParentOp::apply(
   }
   results.set(getResult().cast<OpResult>(), parents.getArrayRef());
   return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// GetProducerOfOperand
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::GetProducerOfOperand::apply(transform::TransformResults &results,
+                                       transform::TransformState &state) {
+  int64_t operandNumber = getOperandNumber();
+  SmallVector<Operation *> producers;
+  for (Operation *target : state.getPayloadOps(getTarget())) {
+    Operation *producer =
+        target->getNumOperands() <= operandNumber
+            ? nullptr
+            : target->getOperand(operandNumber).getDefiningOp();
+    if (!producer) {
+      DiagnosedSilenceableFailure diag =
+          emitSilenceableError()
+          << "could not find a producer for operand number: " << operandNumber
+          << " of " << *target;
+      diag.attachNote(target->getLoc()) << "target op";
+      results.set(getResult().cast<OpResult>(),
+                  SmallVector<mlir::Operation *>{});
+      return diag;
+    }
+    producers.push_back(producer);
+  }
+  results.set(getResult().cast<OpResult>(), producers);
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// MergeHandlesOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::MergeHandlesOp::apply(transform::TransformResults &results,
+                                 transform::TransformState &state) {
+  SmallVector<Operation *> operations;
+  for (Value operand : getHandles())
+    llvm::append_range(operations, state.getPayloadOps(operand));
+  if (!getDeduplicate()) {
+    results.set(getResult().cast<OpResult>(), operations);
+    return DiagnosedSilenceableFailure::success();
+  }
+
+  SetVector<Operation *> uniqued(operations.begin(), operations.end());
+  results.set(getResult().cast<OpResult>(), uniqued.getArrayRef());
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::MergeHandlesOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  consumesHandle(getHandles(), effects);
+  producesHandle(getResult(), effects);
+
+  // There are no effects on the Payload IR as this is only a handle
+  // manipulation.
+}
+
+OpFoldResult transform::MergeHandlesOp::fold(ArrayRef<Attribute> operands) {
+  if (getDeduplicate() || getHandles().size() != 1)
+    return {};
+
+  // If deduplication is not required and there is only one operand, it can be
+  // used directly instead of merging.
+  return getHandles().front();
 }
 
 //===----------------------------------------------------------------------===//
@@ -309,6 +475,33 @@ transform::PDLMatchOp::apply(transform::TransformResults &results,
 }
 
 //===----------------------------------------------------------------------===//
+// ReplicateOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::ReplicateOp::apply(transform::TransformResults &results,
+                              transform::TransformState &state) {
+  unsigned numRepetitions = state.getPayloadOps(getPattern()).size();
+  for (const auto &en : llvm::enumerate(getHandles())) {
+    Value handle = en.value();
+    ArrayRef<Operation *> current = state.getPayloadOps(handle);
+    SmallVector<Operation *> payload;
+    payload.reserve(numRepetitions * current.size());
+    for (unsigned i = 0; i < numRepetitions; ++i)
+      llvm::append_range(payload, current);
+    results.set(getReplicated()[en.index()].cast<OpResult>(), payload);
+  }
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::ReplicateOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsHandle(getPattern(), effects);
+  consumesHandle(getHandles(), effects);
+  producesHandle(getReplicated(), effects);
+}
+
+//===----------------------------------------------------------------------===//
 // SequenceOp
 //===----------------------------------------------------------------------===//
 
@@ -317,15 +510,20 @@ transform::SequenceOp::apply(transform::TransformResults &results,
                              transform::TransformState &state) {
   // Map the entry block argument to the list of operations.
   auto scope = state.make_region_scope(*getBodyBlock()->getParent());
-  if (failed(mapBlockArguments(state)))
-    return DiagnosedSilenceableFailure::definiteFailure();
+  mapBlockArguments(state);
 
   // Apply the sequenced ops one by one.
   for (Operation &transform : getBodyBlock()->without_terminator()) {
     DiagnosedSilenceableFailure result =
         state.applyTransform(cast<TransformOpInterface>(transform));
-    if (!result.succeeded())
+    if (result.isDefiniteFailure())
       return result;
+
+    if (result.isSilenceableFailure()) {
+      if (getFailurePropagationMode() == FailurePropagationMode::Propagate)
+        return result;
+      (void)result.silence();
+    }
   }
 
   // Forward the operation mapping for values yielded from the sequence to the
@@ -338,16 +536,11 @@ transform::SequenceOp::apply(transform::TransformResults &results,
 /// the Transform IR. That is, if it may have a Free effect on it.
 static bool isValueUsePotentialConsumer(OpOperand &use) {
   // Conservatively assume the effect being present in absence of the interface.
-  auto memEffectInterface = dyn_cast<MemoryEffectOpInterface>(use.getOwner());
-  if (!memEffectInterface)
+  auto iface = dyn_cast<transform::TransformOpInterface>(use.getOwner());
+  if (!iface)
     return true;
 
-  SmallVector<MemoryEffects::EffectInstance, 2> effects;
-  memEffectInterface.getEffectsOnValue(use.get(), effects);
-  return llvm::any_of(effects, [](const MemoryEffects::EffectInstance &effect) {
-    return isa<transform::TransformMappingResource>(effect.getResource()) &&
-           isa<MemoryEffects::Free>(effect.getEffect());
-  });
+  return isHandleConsumed(use.get(), iface);
 }
 
 LogicalResult
@@ -471,7 +664,7 @@ transform::SequenceOp::getSuccessorEntryOperands(Optional<unsigned> index) {
 void transform::SequenceOp::getSuccessorRegions(
     Optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
-  if (!index.hasValue()) {
+  if (!index) {
     Region *bodyRegion = &getBody();
     regions.emplace_back(bodyRegion, !operands.empty()
                                          ? bodyRegion->getArguments()
@@ -511,8 +704,7 @@ transform::WithPDLPatternsOp::apply(transform::TransformResults &results,
       [&]() { state.removeExtension<PatternApplicatorExtension>(); });
 
   auto scope = state.make_region_scope(getBody());
-  if (failed(mapBlockArguments(state)))
-    return DiagnosedSilenceableFailure::definiteFailure();
+  mapBlockArguments(state);
   return state.applyTransform(transformOp);
 }
 

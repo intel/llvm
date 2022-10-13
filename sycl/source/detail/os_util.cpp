@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/exception.hpp>
 
 #include <cassert>
 
@@ -42,8 +42,8 @@
 
 #endif // __SYCL_RT_OS
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -123,7 +123,7 @@ std::string OSUtil::getCurrentDSODir() {
   //
   //  4) Extract an absolute path to a filename and get a dirname from it.
   //
-  uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
+  uintptr_t CurrentFunc = (uintptr_t)&getCurrentDSODir;
   std::ifstream Stream("/proc/self/maps");
   Stream >> std::hex;
   while (!Stream.eof()) {
@@ -168,7 +168,7 @@ std::string OSUtil::getCurrentDSODir() {
   return "";
 }
 
-std::string OSUtil::getDirName(const char* Path) {
+std::string OSUtil::getDirName(const char *Path) {
   std::string Tmp(Path);
   // dirname(3) needs a writable C string: a null-terminator is written where a
   // path should split.
@@ -233,6 +233,21 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   return reinterpret_cast<OSModuleHandle>(Res.dli_fbase);
 }
 
+std::string OSUtil::getCurrentDSODir() {
+  auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
+  Dl_info Info;
+  int RetCode = dladdr(CurrentFunc, &Info);
+  if (0 == RetCode) {
+    // This actually indicates an error
+    return "";
+  }
+
+  auto Path = std::string(Info.dli_fname);
+  auto LastSlashPos = Path.find_last_of('/');
+
+  return Path.substr(0, LastSlashPos);
+}
+
 #endif // __SYCL_RT_OS
 
 size_t OSUtil::getOSMemSize() {
@@ -288,7 +303,7 @@ int OSUtil::makeDir(const char *Dir) {
   do {
     pos = Path.find_first_of("/\\", ++pos);
     CurPath = Path.substr(0, pos);
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
     auto Res = mkdir(CurPath.c_str(), 0777);
 #else
     auto Res = _mkdir(CurPath.c_str());
@@ -300,5 +315,5 @@ int OSUtil::makeDir(const char *Dir) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

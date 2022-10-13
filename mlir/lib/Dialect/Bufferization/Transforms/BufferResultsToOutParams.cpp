@@ -6,12 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
+
+namespace mlir {
+namespace bufferization {
+#define GEN_PASS_DEF_BUFFERRESULTSTOOUTPARAMS
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h.inc"
+} // namespace bufferization
+} // namespace mlir
 
 using namespace mlir;
 
@@ -21,9 +28,7 @@ static bool hasFullyDynamicLayoutMap(MemRefType type) {
   SmallVector<int64_t, 4> strides;
   if (failed(getStridesAndOffset(type, strides, offset)))
     return false;
-  if (!llvm::all_of(strides, [](int64_t stride) {
-        return ShapedType::isDynamicStrideOrOffset(stride);
-      }))
+  if (!llvm::all_of(strides, ShapedType::isDynamicStrideOrOffset))
     return false;
   if (!ShapedType::isDynamicStrideOrOffset(offset))
     return false;
@@ -181,7 +186,8 @@ mlir::bufferization::promoteBufferResultsToOutParams(ModuleOp module) {
 
 namespace {
 struct BufferResultsToOutParamsPass
-    : BufferResultsToOutParamsBase<BufferResultsToOutParamsPass> {
+    : bufferization::impl::BufferResultsToOutParamsBase<
+          BufferResultsToOutParamsPass> {
   void runOnOperation() override {
     if (failed(bufferization::promoteBufferResultsToOutParams(getOperation())))
       return signalPassFailure();

@@ -13,8 +13,12 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::oneapi::experimental::cuda {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+namespace cuda {
 
 class barrier {
   int64_t state;
@@ -141,6 +145,9 @@ public:
   static constexpr uint64_t max() { return (1 << 20) - 1; }
 #pragma pop_macro("max")
 };
-
-} // namespace sycl::ext::oneapi::experimental::cuda
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace cuda
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

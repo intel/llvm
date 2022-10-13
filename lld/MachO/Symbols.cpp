@@ -37,6 +37,9 @@ std::string lld::toMachOString(const object::Archive::Symbol &b) {
 }
 
 uint64_t Symbol::getStubVA() const { return in.stubs->getVA(stubsIndex); }
+uint64_t Symbol::getLazyPtrVA() const {
+  return in.lazyPointers->getVA(stubsIndex);
+}
 uint64_t Symbol::getGotVA() const { return in.got->getVA(gotIndex); }
 uint64_t Symbol::getTlvVA() const { return in.tlvPointers->getVA(gotIndex); }
 
@@ -98,6 +101,12 @@ void Defined::canonicalize() {
     unwindEntry = unwindEntry->canonical();
   if (isec)
     isec = isec->canonical();
+}
+
+std::string Defined::getSourceLocation() {
+  if (!isec)
+    return {};
+  return isec->getSourceLocation(value);
 }
 
 uint64_t DylibSymbol::getVA() const {

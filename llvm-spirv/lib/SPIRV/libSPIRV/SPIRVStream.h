@@ -172,7 +172,7 @@ const SPIRVDecoder &operator>>(const SPIRVDecoder &I, std::vector<T> &V) {
 template <typename T>
 const SPIRVDecoder &operator>>(const SPIRVDecoder &I, llvm::Optional<T> &V) {
   if (V)
-    I >> V.getValue();
+    I >> V.value();
   return I;
 }
 
@@ -206,7 +206,7 @@ template <typename T>
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O,
                                const llvm::Optional<T> &V) {
   if (V)
-    O << V.getValue();
+    O << V.value();
   return O;
 }
 

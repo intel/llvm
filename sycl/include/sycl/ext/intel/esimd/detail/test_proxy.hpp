@@ -53,8 +53,9 @@
     M_testProxy = std::move(other.M_testProxy);                                \
   } while (false)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::intel::esimd::detail::test {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd::detail::test {
 
 // The test_proxy class.
 // Being intended solely for the test purposes, it is enabled only if the
@@ -101,8 +102,9 @@ public:
   bool was_move_destination() const { return M_move_destination; }
 };
 
-} // namespace sycl::ext::intel::esimd::detail::test
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd::detail::test
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 #endif // __ESIMD_ENABLE_TEST_PROXY
 

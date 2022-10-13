@@ -7,14 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <type_traits>
 
 using namespace std;
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = sycl;
+namespace d = sycl::detail;
 
 template <typename T, bool Expected = true> void test_is_integral() {
   static_assert(d::is_integral<T>::value == Expected, "");

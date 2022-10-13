@@ -1,9 +1,9 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: not llvm-spirv %t.bc -spirv-text -o %t.txt 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_integer_dot_product -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv --spirv-ext=+SPV_KHR_integer_dot_product %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-ERROR: Feature requires the following SPIR-V extension:
@@ -291,6 +291,6 @@ attributes #0 = { nounwind }
 !5 = !{i32 0, i32 0}
 !6 = !{!"none", !"none", !"none", !"none", !"none", !"none"}
 !7 = !{!"int", !"int", !"char", !"short", !"int", !"long"}
-!8 = !{!"", !"", !"", !"", !"", !"", !""}
+!8 = !{!"", !"", !"", !"", !"", !""}
 !9 = !{!"char4", !"char4", !"char", !"short", !"int", !"long"}
 !10 = !{!"short2", !"short2", !"char", !"short", !"int", !"long"}

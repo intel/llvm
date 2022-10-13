@@ -31,6 +31,14 @@ For any DPC++-related commit, the `[SYCL]` tag should be present in the
 commit message title. To a reasonable extent, additional tags can be used
 to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
 
+## Using \<iostream\> 
+According to [LLVM Coding Standards](https://llvm.org/docs/CodingStandards.html#include-iostream-is-forbidden),
+the use `#include <iostream>` is forbidden in library files. Instead, the
+sycl/detail/iostream_proxy.hpp header offers the functionality of <iostream>
+without its static constructor.
+This header should be used in place of <iostream> in DPC++ headers 
+and runtime library files.
+
 ## Tests development
 
 Every product change should be accompanied with corresponding test modification
@@ -57,7 +65,7 @@ end-to-end or SYCL-CTS tests.
 
 #### General guidelines
 
-- Use `sycl::` namespace instead of `cl::sycl::`
+- Use `sycl::` namespace instead of `sycl::`
 
 - Add a helpful comment describing what the test does at the beginning and
   other comments throughout the test as necessary.
@@ -85,7 +93,7 @@ end-to-end or SYCL-CTS tests.
   ```C++
   `#include "Inputs/sycl.hpp"`
   sycl::queue q;
-  q.submit([&](cl::sycl::handler &h) {
+  q.submit([&](sycl::handler &h) {
   h.single_task( { //code });
   });
   ```

@@ -14,8 +14,10 @@
 #include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/TargetOptions.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Host.h"
@@ -23,6 +25,10 @@
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
+#include <memory>
+
+#include "SimpleDiagnosticConsumer.h"
+
 using namespace clang;
 using namespace clang::driver;
 
@@ -388,180 +394,6 @@ struct SimpleDiagnosticConsumer : public DiagnosticConsumer {
   std::vector<SmallString<32>> Errors;
 };
 
-static void validateTargetProfile(StringRef TargetProfile,
-                                  StringRef ExpectTriple, Driver &TheDriver,
-                                  DiagnosticsEngine &Diags) {
-  EXPECT_TRUE(TheDriver.BuildCompilation(
-      {"clang", "--driver-mode=dxc", TargetProfile.data(), "foo.hlsl"}));
-  EXPECT_STREQ(TheDriver.getTargetTriple().c_str(), ExpectTriple.data());
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-}
-
-static void validateTargetProfile(StringRef TargetProfile,
-                                  StringRef ExpectError, Driver &TheDriver,
-                                  DiagnosticsEngine &Diags,
-                                  SimpleDiagnosticConsumer *DiagConsumer,
-                                  unsigned NumOfErrors) {
-  EXPECT_TRUE(TheDriver.BuildCompilation(
-      {"clang", "--driver-mode=dxc", TargetProfile.data(), "foo.hlsl"}));
-  EXPECT_EQ(Diags.getNumErrors(), NumOfErrors);
-  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(), ExpectError.data());
-  Diags.Clear();
-  DiagConsumer->clear();
-}
-
-TEST(DxcModeTest, TargetProfileValidation) {
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-
-  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
-      new llvm::vfs::InMemoryFileSystem);
-
-  InMemoryFileSystem->addFile("foo.hlsl", 0,
-                              llvm::MemoryBuffer::getMemBuffer("\n"));
-
-  auto *DiagConsumer = new SimpleDiagnosticConsumer;
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagConsumer);
-  Driver TheDriver("/bin/clang", "", Diags, "", InMemoryFileSystem);
-
-  validateTargetProfile("-Tvs_6_0", "dxil--shadermodel6.0-vertex", TheDriver,
-                        Diags);
-  validateTargetProfile("-Ths_6_1", "dxil--shadermodel6.1-hull", TheDriver,
-                        Diags);
-  validateTargetProfile("-Tds_6_2", "dxil--shadermodel6.2-domain", TheDriver,
-                        Diags);
-  validateTargetProfile("-Tds_6_2", "dxil--shadermodel6.2-domain", TheDriver,
-                        Diags);
-  validateTargetProfile("-Tgs_6_3", "dxil--shadermodel6.3-geometry", TheDriver,
-                        Diags);
-  validateTargetProfile("-Tps_6_4", "dxil--shadermodel6.4-pixel", TheDriver,
-                        Diags);
-  validateTargetProfile("-Tcs_6_5", "dxil--shadermodel6.5-compute", TheDriver,
-                        Diags);
-  validateTargetProfile("-Tms_6_6", "dxil--shadermodel6.6-mesh", TheDriver,
-                        Diags);
-  validateTargetProfile("-Tas_6_7", "dxil--shadermodel6.7-amplification",
-                        TheDriver, Diags);
-  validateTargetProfile("-Tlib_6_x", "dxil--shadermodel6.15-library", TheDriver,
-                        Diags);
-
-  // Invalid tests.
-  validateTargetProfile("-Tpss_6_1", "invalid profile : pss_6_1", TheDriver,
-                        Diags, DiagConsumer, 1);
-
-  validateTargetProfile("-Tps_6_x", "invalid profile : ps_6_x", TheDriver,
-                        Diags, DiagConsumer, 2);
-  validateTargetProfile("-Tlib_6_1", "invalid profile : lib_6_1", TheDriver,
-                        Diags, DiagConsumer, 3);
-  validateTargetProfile("-Tfoo", "invalid profile : foo", TheDriver, Diags,
-                        DiagConsumer, 4);
-  validateTargetProfile("", "target profile option (-T) is missing", TheDriver,
-                        Diags, DiagConsumer, 5);
-}
-
-TEST(DxcModeTest, ValidatorVersionValidation) {
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-
-  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
-      new llvm::vfs::InMemoryFileSystem);
-
-  InMemoryFileSystem->addFile("foo.hlsl", 0,
-                              llvm::MemoryBuffer::getMemBuffer("\n"));
-
-  auto *DiagConsumer = new SimpleDiagnosticConsumer;
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagConsumer);
-  Driver TheDriver("/bin/clang", "", Diags, "", InMemoryFileSystem);
-  std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
-      {"clang", "--driver-mode=dxc", "-Tlib_6_7", "foo.hlsl"}));
-  EXPECT_TRUE(C);
-  EXPECT_TRUE(!C->containsError());
-
-  auto &TC = C->getDefaultToolChain();
-  bool ContainsError = false;
-  auto Args = TheDriver.ParseArgStrings({"-validator-version", "1.1"}, false,
-                                        ContainsError);
-  EXPECT_FALSE(ContainsError);
-  auto DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
-  for (auto *A : Args)
-    DAL->append(A);
-
-  auto *TranslatedArgs =
-      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
-  EXPECT_NE(TranslatedArgs, nullptr);
-  if (TranslatedArgs) {
-    auto *A = TranslatedArgs->getLastArg(
-        clang::driver::options::OPT_dxil_validator_version);
-    EXPECT_NE(A, nullptr);
-    if (A)
-      EXPECT_STREQ(A->getValue(), "1.1");
-  }
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  // Invalid tests.
-  Args = TheDriver.ParseArgStrings({"-validator-version", "0.1"}, false,
-                                   ContainsError);
-  EXPECT_FALSE(ContainsError);
-  DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
-  for (auto *A : Args)
-    DAL->append(A);
-
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
-  EXPECT_EQ(Diags.getNumErrors(), 1u);
-  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(),
-               "invalid validator version : 0.1\nIf validator major version is "
-               "0, minor version must also be 0.");
-  Diags.Clear();
-  DiagConsumer->clear();
-
-  Args = TheDriver.ParseArgStrings({"-validator-version", "1"}, false,
-                                   ContainsError);
-  EXPECT_FALSE(ContainsError);
-  DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
-  for (auto *A : Args)
-    DAL->append(A);
-
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
-  EXPECT_EQ(Diags.getNumErrors(), 2u);
-  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(),
-               "invalid validator version : 1\nFormat of validator version is "
-               "\"<major>.<minor>\" (ex:\"1.4\").");
-  Diags.Clear();
-  DiagConsumer->clear();
-
-  Args = TheDriver.ParseArgStrings({"-validator-version", "-Tlib_6_7"}, false,
-                                   ContainsError);
-  EXPECT_FALSE(ContainsError);
-  DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
-  for (auto *A : Args)
-    DAL->append(A);
-
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
-  EXPECT_EQ(Diags.getNumErrors(), 3u);
-  EXPECT_STREQ(
-      DiagConsumer->Errors.back().c_str(),
-      "invalid validator version : -Tlib_6_7\nFormat of validator version is "
-      "\"<major>.<minor>\" (ex:\"1.4\").");
-  Diags.Clear();
-  DiagConsumer->clear();
-
-  Args = TheDriver.ParseArgStrings({"-validator-version", "foo"}, false,
-                                   ContainsError);
-  EXPECT_FALSE(ContainsError);
-  DAL = std::make_unique<llvm::opt::DerivedArgList>(Args);
-  for (auto *A : Args)
-    DAL->append(A);
-
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
-  EXPECT_EQ(Diags.getNumErrors(), 4u);
-  EXPECT_STREQ(
-      DiagConsumer->Errors.back().c_str(),
-      "invalid validator version : foo\nFormat of validator version is "
-      "\"<major>.<minor>\" (ex:\"1.4\").");
-  Diags.Clear();
-  DiagConsumer->clear();
-}
-
 TEST(ToolChainTest, Toolsets) {
   // Ignore this test on Windows hosts.
   llvm::Triple Host(llvm::sys::getProcessTriple());
@@ -649,6 +481,63 @@ TEST(ToolChainTest, Toolsets) {
               "Candidate multilib: .;@m64\n"
               "Selected multilib: .;@m64\n",
               S);
+  }
+}
+
+TEST(ToolChainTest, ConfigFileSearch) {
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  struct TestDiagnosticConsumer : public DiagnosticConsumer {};
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, new TestDiagnosticConsumer);
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> FS(
+      new llvm::vfs::InMemoryFileSystem);
+
+#ifdef _WIN32
+  const char *TestRoot = "C:\\";
+#else
+  const char *TestRoot = "/";
+#endif
+  FS->setCurrentWorkingDirectory(TestRoot);
+
+  FS->addFile(
+      "/opt/sdk/root.cfg", 0,
+      llvm::MemoryBuffer::getMemBuffer("--sysroot=/opt/sdk/platform0\n"));
+  FS->addFile(
+      "/home/test/sdk/root.cfg", 0,
+      llvm::MemoryBuffer::getMemBuffer("--sysroot=/opt/sdk/platform1\n"));
+  FS->addFile(
+      "/home/test/bin/root.cfg", 0,
+      llvm::MemoryBuffer::getMemBuffer("--sysroot=/opt/sdk/platform2\n"));
+
+  {
+    Driver TheDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                     "clang LLVM compiler", FS);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"/home/test/bin/clang", "--config", "root.cfg",
+         "--config-system-dir=/opt/sdk", "--config-user-dir=/home/test/sdk"}));
+    ASSERT_TRUE(C);
+    ASSERT_FALSE(C->containsError());
+    EXPECT_EQ("/opt/sdk/platform1", TheDriver.SysRoot);
+  }
+  {
+    Driver TheDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                     "clang LLVM compiler", FS);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"/home/test/bin/clang", "--config", "root.cfg",
+         "--config-system-dir=/opt/sdk", "--config-user-dir="}));
+    ASSERT_TRUE(C);
+    ASSERT_FALSE(C->containsError());
+    EXPECT_EQ("/opt/sdk/platform0", TheDriver.SysRoot);
+  }
+  {
+    Driver TheDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                     "clang LLVM compiler", FS);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"/home/test/bin/clang", "--config", "root.cfg",
+         "--config-system-dir=", "--config-user-dir="}));
+    ASSERT_TRUE(C);
+    ASSERT_FALSE(C->containsError());
+    EXPECT_EQ("/opt/sdk/platform2", TheDriver.SysRoot);
   }
 }
 

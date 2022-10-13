@@ -8,9 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-
-using namespace cl;
+#include <sycl/sycl.hpp>
 
 int main() {
 

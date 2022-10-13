@@ -53,7 +53,7 @@ def GPU_Dialect : Dialect {
     static unsigned getPrivateAddressSpace() { return 5; }
   }];
 
-  let dependentDialects = ["arith::ArithmeticDialect"];
+  let dependentDialects = ["arith::ArithDialect"];
   let useDefaultAttributePrinterParser = 1;
   let useDefaultTypePrinterParser = 1;
 }
@@ -110,10 +110,7 @@ def GPU_AsyncOpInterface : OpInterface<"AsyncOpInterface"> {
     InterfaceMethod<[{
         Query the result that represents the async token to depend on.
       }],
-      "OpResult", "getAsyncToken", (ins), [{}], [{
-        ConcreteOp op = cast<ConcreteOp>(this->getOperation());
-        return op.asyncToken().template dyn_cast_or_null<OpResult>();
-      }]
+      "Value", "getAsyncToken"
     >
   ];
 }

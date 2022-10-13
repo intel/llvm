@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NONATIVESUPPORT
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NATIVESUPPORT
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NONATIVESUPPORT
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NATIVESUPPORT
 
 // This test checks IR generated when kernel_handler argument
 // (used to handle SYCL 2020 specialization constants) is passed
@@ -7,7 +7,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void test(int val) {
   queue q;
@@ -24,7 +24,7 @@ void test(int val) {
 
 // ALL: define dso_local{{ spir_kernel | }}void @{{.*}}test_kernel_handler{{[^(]*}}
 // ALL-SAME: (i32 noundef %_arg_a, ptr addrspace(1) noundef align 1 %_arg__specialization_constants_buffer)
-// ALL: %kh = alloca %"class.cl::sycl::kernel_handler", align 1
+// ALL: %kh = alloca %"class.sycl::_V1::kernel_handler", align 1
 
 // NONATIVESUPPORT: %[[KH:[0-9]+]] = load ptr addrspace(1), ptr %_arg__specialization_constants_buffer.addr, align 8
 // NONATIVESUPPORT: %[[ADDRSPACECAST:[0-9]+]] = addrspacecast ptr addrspace(1) %[[KH]] to ptr
@@ -35,4 +35,4 @@ void test(int val) {
 // NATIVESUPPORT-NOT: call void @{{.*}}__init_specialization_constants_buffer{{.*}}(ptr noundef align 4 nonnull align 1 dereferenceable(1) %kh, ptr noundef align 4 %{{[0-9]+}})
 
 // ALL: call{{ spir_func | }}void @{{[a-zA-Z0-9_$]+}}kernel_handler{{[a-zA-Z0-9_$]+}}
-// ALL-SAME: noundef byval(%"class.cl::sycl::kernel_handler")
+// ALL-SAME: noundef byval(%"class.sycl::_V1::kernel_handler")

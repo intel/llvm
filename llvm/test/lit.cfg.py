@@ -159,19 +159,19 @@ tools = [
 tools.extend([
     'dsymutil', 'lli', 'lli-child-target', 'llvm-ar', 'llvm-as',
     'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config',
-    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-debuginfod-find',
-    'llvm-diff', 'llvm-dis', 'llvm-dwarfdump', 'llvm-dlltool', 'llvm-exegesis',
-    'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
+    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-debuginfod-find', 'llvm-debuginfod',
+    'llvm-diff', 'llvm-dis', 'llvm-dwarfdump', 'llvm-dwarfutil', 'llvm-dlltool',
+    'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
     'llvm-install-name-tool', 'llvm-jitlink', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump', 'llvm-otool',
     'llvm-pdbutil', 'llvm-profdata', 'llvm-profgen', 'llvm-ranlib', 'llvm-rc', 'llvm-readelf',
     'llvm-readobj', 'llvm-remark-size-diff', 'llvm-rtdyld', 'llvm-sim',
-    'llvm-size', 'llvm-split', 'llvm-stress', 'llvm-strings', 'llvm-strip',
+    'llvm-size', 'llvm-spirv', 'llvm-split', 'llvm-stress', 'llvm-strings', 'llvm-strip',
     'llvm-tblgen', 'llvm-tapi-diff', 'llvm-undname', 'llvm-windres',
     'llvm-c-test', 'llvm-cxxfilt', 'llvm-xray', 'yaml2obj', 'obj2yaml',
     'yaml-bench', 'verify-uselistorder', 'bugpoint', 'llc', 'llvm-symbolizer',
-    'opt', 'sancov', 'sanstats'])
+    'opt', 'sancov', 'sanstats', 'llvm-remarkutil', 'spirv-to-ir-wrapper'])
 
 # The following tools are optional
 tools.extend([
@@ -216,19 +216,23 @@ def enable_ptxas(ptxas_executable):
             (11, 0), (11, 1), (11, 2), (11, 3), (11, 4), (11, 5), (11, 6),
         ]
 
+        def version_int(ver):
+            return ver[0] * 100 + ver[1]
+
         # ignore ptxas if its version is below the minimum supported
         # version
         min_version = ptxas_known_versions[0]
-        if version[0] < min_version[0] or version[1] < min_version[1]:
+        if version_int(version) < version_int(min_version):
             print(
                 'Warning: ptxas version {}.{} is not supported'.format(
                     version[0], version[1]))
             return
 
-        for known_major, known_minor in ptxas_known_versions:
-            if known_major <= version[0] and known_minor <= version[1]:
+        for known_version in ptxas_known_versions:
+            if version_int(known_version) <= version_int(version):
+                major, minor = known_version
                 config.available_features.add(
-                    'ptxas-{}.{}'.format(known_major, known_minor))
+                    'ptxas-{}.{}'.format(major, minor))
 
     config.available_features.add('ptxas')
     tools.extend([ToolSubst('%ptxas', ptxas_executable),
@@ -436,8 +440,9 @@ if 'darwin' == sys.platform:
         if 'hw.optional.fma: 1' in result:
             config.available_features.add('fma3')
 
-# .debug_frame is not emitted for targeting Windows x64, arm64, or AIX.
-if not re.match(r'^(x86_64|arm64|powerpc|powerpc64).*-(windows-gnu|windows-msvc|aix)', config.target_triple):
+# .debug_frame is not emitted for targeting Windows x64, aarch64/arm64, AIX, or Apple Silicon Mac.
+if not re.match(r'^(x86_64|aarch64|arm64|powerpc|powerpc64).*-(windows-gnu|windows-msvc|aix)', config.target_triple) \
+    and not re.match(r'^arm64(e)?-apple-(macos|darwin)', config.target_triple):
     config.available_features.add('debug_frame')
 
 if config.have_libxar:
@@ -479,3 +484,11 @@ if 'aix' in config.target_triple:
     for directory in ('/CodeGen/X86', '/DebugInfo', '/DebugInfo/X86', '/DebugInfo/Generic', '/LTO/X86', '/Linker'):
         exclude_unsupported_files_for_aix(config.test_source_root + directory)
 
+# Some tools support an environment variable "OBJECT_MODE" on AIX OS, which
+# controls the kind of objects they will support. If there is no "OBJECT_MODE"
+# environment variable specified, the default behaviour is to support 32-bit
+# objects only. In order to not affect most test cases, which expect to support
+# 32-bit and 64-bit objects by default, set the environment variable
+# "OBJECT_MODE" to 'any' by default on AIX OS.
+if 'system-aix' in config.available_features:
+    config.environment['OBJECT_MODE'] = 'any'

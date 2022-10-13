@@ -52,12 +52,12 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &state) {
     StringAttr message;
     OptionalParseResult result = parser.parseOptionalAttribute(message);
-    if (!result.hasValue())
+    if (!result.has_value())
       return success();
 
-    if (result.getValue().succeeded())
+    if (result.value().succeeded())
       state.addAttribute("message", message);
-    return result.getValue();
+    return result.value();
   }
 
   void print(OpAsmPrinter &printer) {
@@ -115,7 +115,7 @@ mlir::test::TestProduceParamOrForwardOperandOp::apply(
 }
 
 LogicalResult mlir::test::TestProduceParamOrForwardOperandOp::verify() {
-  if (getParameter().hasValue() ^ (getNumOperands() != 1))
+  if (getParameter().has_value() ^ (getNumOperands() != 1))
     return emitOpError() << "expects either a parameter or an operand";
   return success();
 }
@@ -171,9 +171,13 @@ mlir::test::TestCheckIfTestExtensionPresentOp::apply(
                             << "extension present, " << extension->getMessage();
   for (Operation *payload : state.getPayloadOps(getOperand())) {
     diag.attachNote(payload->getLoc()) << "associated payload op";
-    assert(state.getHandleForPayloadOp(payload) == getOperand() &&
+#ifndef NDEBUG
+    SmallVector<Value> handles;
+    assert(succeeded(state.getHandlesForPayloadOp(payload, handles)));
+    assert(llvm::is_contained(handles, getOperand()) &&
            "inconsistent mapping between transform IR handles and payload IR "
            "operations");
+#endif // NDEBUG
   }
 
   return DiagnosedSilenceableFailure::success();
@@ -198,6 +202,16 @@ DiagnosedSilenceableFailure mlir::test::TestRemoveTestExtensionOp::apply(
   state.removeExtension<TestTransformStateExtension>();
   return DiagnosedSilenceableFailure::success();
 }
+
+DiagnosedSilenceableFailure
+mlir::test::TestReversePayloadOpsOp::apply(transform::TransformResults &results,
+                                           transform::TransformState &state) {
+  ArrayRef<Operation *> payloadOps = state.getPayloadOps(getTarget());
+  auto reversedOps = llvm::to_vector(llvm::reverse(payloadOps));
+  results.set(getResult().cast<OpResult>(), reversedOps);
+  return DiagnosedSilenceableFailure::success();
+}
+
 DiagnosedSilenceableFailure mlir::test::TestTransformOpWithRegions::apply(
     transform::TransformResults &results, transform::TransformState &state) {
   return DiagnosedSilenceableFailure::success();
@@ -222,7 +236,75 @@ DiagnosedSilenceableFailure mlir::test::TestEmitRemarkAndEraseOperandOp::apply(
     op->erase();
 
   if (getFailAfterErase())
-    return emitSilenceableError() << "silencable error";
+    return emitSilenceableError() << "silenceable error";
+  return DiagnosedSilenceableFailure::success();
+}
+
+DiagnosedSilenceableFailure mlir::test::TestWrongNumberOfResultsOp::applyToOne(
+    Operation *target, SmallVectorImpl<Operation *> &results,
+    transform::TransformState &state) {
+  OperationState opState(target->getLoc(), "foo");
+  results.push_back(OpBuilder(target).create(opState));
+  return DiagnosedSilenceableFailure::success();
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestWrongNumberOfMultiResultsOp::applyToOne(
+    Operation *target, SmallVectorImpl<Operation *> &results,
+    transform::TransformState &state) {
+  static int count = 0;
+  if (count++ == 0) {
+    OperationState opState(target->getLoc(), "foo");
+    results.push_back(OpBuilder(target).create(opState));
+  }
+  return DiagnosedSilenceableFailure::success();
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestCorrectNumberOfMultiResultsOp::applyToOne(
+    Operation *target, SmallVectorImpl<Operation *> &results,
+    transform::TransformState &state) {
+  OperationState opState(target->getLoc(), "foo");
+  results.push_back(OpBuilder(target).create(opState));
+  results.push_back(OpBuilder(target).create(opState));
+  return DiagnosedSilenceableFailure::success();
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestMixedNullAndNonNullResultsOp::applyToOne(
+    Operation *target, SmallVectorImpl<Operation *> &results,
+    transform::TransformState &state) {
+  OperationState opState(target->getLoc(), "foo");
+  results.push_back(nullptr);
+  results.push_back(OpBuilder(target).create(opState));
+  return DiagnosedSilenceableFailure::success();
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestMixedSuccessAndSilenceableOp::applyToOne(
+    Operation *target, SmallVectorImpl<Operation *> &results,
+    transform::TransformState &state) {
+  if (target->hasAttr("target_me"))
+    return DiagnosedSilenceableFailure::success();
+  return emitDefaultSilenceableFailure(target);
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestPrintNumberOfAssociatedPayloadIROps::apply(
+    transform::TransformResults &results, transform::TransformState &state) {
+  emitRemark() << state.getPayloadOps(getHandle()).size();
+  return DiagnosedSilenceableFailure::success();
+}
+
+void mlir::test::TestPrintNumberOfAssociatedPayloadIROps::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getHandle(), effects);
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestCopyPayloadOp::apply(transform::TransformResults &results,
+                                     transform::TransformState &state) {
+  results.set(getCopy().cast<OpResult>(), state.getPayloadOps(getHandle()));
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -234,7 +316,9 @@ class TestTransformDialectExtension
     : public transform::TransformDialectExtension<
           TestTransformDialectExtension> {
 public:
-  TestTransformDialectExtension() {
+  using Base::Base;
+
+  void init() {
     declareDependentDialect<pdl::PDLDialect>();
     registerTransformOps<TestTransformOp,
                          TestTransformUnrestrictedOpNoInterface,

@@ -58,23 +58,26 @@ public:
   OCLTypeToSPIRVBase();
 
   bool runOCLTypeToSPIRV(llvm::Module &M);
-  /// \return Adapted type based on kernel argument metadata. If \p V is
-  ///   a function, returns function type.
-  /// E.g. for a function with argument of read only opencl.image_2d_t* type
-  /// returns a function with argument of type opencl.image2d_t.read_only*.
-  llvm::Type *getAdaptedType(llvm::Value *V);
+
+  /// Returns the adapted type of the corresponding argument for a function.
+  /// The first value of the returned pair is the LLVM type of the argument.
+  /// The second value of the returned pair is the pointer element type of the
+  /// argument, if the type is a pointer.
+  std::pair<llvm::Type *, llvm::Type *>
+  getAdaptedArgumentType(llvm::Function *F, unsigned ArgNo);
 
 private:
   llvm::Module *M;
   llvm::LLVMContext *Ctx;
-  std::map<llvm::Value *, llvm::Type *> AdaptedTy; // Adapted types for values
-  std::set<llvm::Function *> WorkSet;              // Functions to be adapted
+  // Map of argument/Function -> {pointee type, address space}
+  std::map<llvm::Value *, std::pair<llvm::Type *, unsigned>> AdaptedTy;
+  std::set<llvm::Function *> WorkSet; // Functions to be adapted
 
   void adaptFunctionArguments(llvm::Function *F);
   void adaptArgumentsByMetadata(llvm::Function *F);
   void adaptArgumentsBySamplerUse(llvm::Module &M);
   void adaptFunction(llvm::Function *F);
-  void addAdaptedType(llvm::Value *V, llvm::Type *T);
+  void addAdaptedType(llvm::Value *V, llvm::Type *PointeeTy, unsigned AS);
   void addWork(llvm::Function *F);
 };
 
@@ -92,7 +95,7 @@ class OCLTypeToSPIRVPass : public OCLTypeToSPIRVBase,
 public:
   using Result = OCLTypeToSPIRVBase;
   static llvm::AnalysisKey Key;
-  OCLTypeToSPIRVBase run(llvm::Module &F, llvm::ModuleAnalysisManager &MAM);
+  OCLTypeToSPIRVBase &run(llvm::Module &F, llvm::ModuleAnalysisManager &MAM);
 };
 
 } // namespace SPIRV

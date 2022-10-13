@@ -7,17 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "IntelPTSingleBufferTrace.h"
-
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
-
 #include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
-
-#include <sstream>
-
 #include <linux/perf_event.h>
+#include <sstream>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -231,10 +227,9 @@ Expected<std::vector<uint8_t>> IntelPTSingleBufferTrace::GetIptTrace() {
   return m_perf_event.GetReadOnlyAuxBuffer();
 }
 
-Expected<IntelPTSingleBufferTrace>
-IntelPTSingleBufferTrace::Start(const TraceIntelPTStartRequest &request,
-                                Optional<lldb::tid_t> tid,
-                                Optional<cpu_id_t> cpu_id, bool disabled) {
+Expected<IntelPTSingleBufferTrace> IntelPTSingleBufferTrace::Start(
+    const TraceIntelPTStartRequest &request, Optional<lldb::tid_t> tid,
+    Optional<cpu_id_t> cpu_id, bool disabled, Optional<int> cgroup_fd) {
 #ifndef PERF_ATTR_SIZE_VER5
   return createStringError(inconvertibleErrorCode(),
                            "Intel PT Linux perf event not supported");
@@ -256,7 +251,7 @@ IntelPTSingleBufferTrace::Start(const TraceIntelPTStartRequest &request,
       (request.ipt_trace_size + page_size - 1) / page_size));
 
   Expected<perf_event_attr> attr = CreateIntelPTPerfEventConfiguration(
-      request.enable_tsc, request.psb_period.map([](int value) {
+      request.enable_tsc, request.psb_period.transform([](int value) {
         return static_cast<uint64_t>(value);
       }));
   if (!attr)
@@ -265,8 +260,14 @@ IntelPTSingleBufferTrace::Start(const TraceIntelPTStartRequest &request,
 
   LLDB_LOG(log, "Will create intel pt trace buffer of size {0}",
            request.ipt_trace_size);
+  unsigned long flags = 0;
+  if (cgroup_fd) {
+    tid = *cgroup_fd;
+    flags |= PERF_FLAG_PID_CGROUP;
+  }
 
-  if (Expected<PerfEvent> perf_event = PerfEvent::Init(*attr, tid, cpu_id)) {
+  if (Expected<PerfEvent> perf_event =
+          PerfEvent::Init(*attr, tid, cpu_id, -1, flags)) {
     if (Error mmap_err = perf_event->MmapMetadataAndBuffers(
             /*num_data_pages=*/0, aux_buffer_numpages,
             /*data_buffer_write=*/true)) {

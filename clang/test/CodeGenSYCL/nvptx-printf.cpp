@@ -8,5 +8,5 @@ int main() {
   // Make sure that device printf is dispatched to CUDA's vprintf syscall.
   // CHECK: alloca %printf_args
   // CHECK: call i32 @vprintf
-  cl::sycl::kernel_single_task<class first_kernel>([]() { cl::sycl::ext::oneapi::experimental::printf(format_2, 123, 1.23); });
+  sycl::kernel_single_task<class first_kernel>([]() { sycl::ext::oneapi::experimental::printf(format_2, 123, 1.23); });
 }

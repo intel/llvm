@@ -59,17 +59,29 @@ module m01
   subroutine intentout(x)
     real, intent(out) :: x
   end subroutine
+  subroutine intentout_arr(x)
+    real, intent(out) :: x(:)
+  end subroutine
   subroutine intentinout(x)
     real, intent(in out) :: x
   end subroutine
+  subroutine intentinout_arr(x)
+    real, intent(in out) :: x(:)
+  end subroutine
   subroutine asynchronous(x)
     real, asynchronous :: x
+  end subroutine
+  subroutine asynchronous_arr(x)
+    real, asynchronous :: x(:)
   end subroutine
   subroutine asynchronousValue(x)
     real, asynchronous, value :: x
   end subroutine
   subroutine volatile(x)
     real, volatile :: x
+  end subroutine
+  subroutine volatile_arr(x)
+    real, volatile :: x(:)
   end subroutine
   subroutine pointer(x)
     real, pointer :: x(:)
@@ -91,7 +103,7 @@ module m01
   end subroutine
 
   subroutine mono(x)
-    type(t), intent(in) :: x
+    type(t), intent(in) :: x(*)
   end subroutine
   subroutine test02(x) ! 15.5.2.4(2)
     class(t), intent(in) :: x(*)
@@ -153,7 +165,7 @@ module m01
     character :: ch1
     !ERROR: Actual argument variable length '1' is less than expected length '2'
     call ch2(ch1)
-    !WARN: Actual argument expression length '0' is less than expected length '2'
+    !WARNING: Actual argument expression length '0' is less than expected length '2'
     call ch2("")
     call pdtdefault(vardefault)
     call pdtdefault(var3)
@@ -269,13 +281,11 @@ module m01
     integer :: j(1)
     j(1) = 1
     !ERROR: Actual argument associated with INTENT(OUT) dummy argument 'x=' must be definable
-    call intentout(a(j))
+    call intentout_arr(a(j))
     !ERROR: Actual argument associated with INTENT(IN OUT) dummy argument 'x=' must be definable
-    call intentinout(a(j))
-    !ERROR: Actual argument associated with ASYNCHRONOUS dummy argument 'x=' must be definable
-    call asynchronous(a(j))
-    !ERROR: Actual argument associated with VOLATILE dummy argument 'x=' must be definable
-    call volatile(a(j))
+    call intentinout_arr(a(j))
+    call asynchronous_arr(a(j)) ! ok
+    call volatile_arr(a(j)) ! ok
   end subroutine
 
   subroutine coarr(x)

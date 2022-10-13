@@ -7,52 +7,59 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/common_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/common_info.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+inline std::string get_platform_info_string_impl(RT::PiPlatform Plt,
+                                                 const plugin &Plugin,
+                                                 pi_platform_info PiCode) {
+  size_t ResultSize;
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piPlatformGetInfo>(Plt, PiCode, 0, nullptr,
+                                            &ResultSize);
+  if (ResultSize == 0) {
+    return "";
+  }
+  std::unique_ptr<char[]> Result(new char[ResultSize]);
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piPlatformGetInfo>(Plt, PiCode, ResultSize,
+                                            Result.get(), nullptr);
+  return Result.get();
+}
 // The platform information methods
-template <typename T, info::platform param> struct get_platform_info {};
+template <typename Param>
+typename std::enable_if<
+    std::is_same<typename Param::return_type, std::string>::value,
+    std::string>::type
+get_platform_info(RT::PiPlatform Plt, const plugin &Plugin) {
+  static_assert(is_platform_info_desc<Param>::value,
+                "Invalid platform information descriptor");
+  return get_platform_info_string_impl(Plt, Plugin,
+                                       detail::PiInfoCode<Param>::value);
+}
 
-template <info::platform param> struct get_platform_info<std::string, param> {
-  static std::string get(RT::PiPlatform plt, const plugin &Plugin) {
-    size_t resultSize;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piPlatformGetInfo>(
-        plt, pi::cast<pi_platform_info>(param), 0, nullptr, &resultSize);
-    if (resultSize == 0) {
-      return "";
-    }
-    std::unique_ptr<char[]> result(new char[resultSize]);
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piPlatformGetInfo>(
-        plt, pi::cast<pi_platform_info>(param), resultSize, result.get(),
-        nullptr);
-    return result.get();
-  }
-};
-
-template <>
-struct get_platform_info<std::vector<std::string>, info::platform::extensions> {
-  static std::vector<std::string> get(RT::PiPlatform plt,
-                                      const plugin &Plugin) {
-    std::string result =
-        get_platform_info<std::string, info::platform::extensions>::get(plt,
-                                                                        Plugin);
-    return split_string(result, ' ');
-  }
-};
+template <typename Param>
+typename std::enable_if<std::is_same<Param, info::platform::extensions>::value,
+                        std::vector<std::string>>::type
+get_platform_info(RT::PiPlatform Plt, const plugin &Plugin) {
+  static_assert(is_platform_info_desc<Param>::value,
+                "Invalid platform information descriptor");
+  std::string Result = get_platform_info_string_impl(
+      Plt, Plugin, detail::PiInfoCode<info::platform::extensions>::value);
+  return split_string(Result, ' ');
+}
 
 // Host platform information methods
-template <info::platform param>
-inline typename info::param_traits<info::platform, param>::return_type
-get_platform_info_host() = delete;
+template <typename Param>
+inline typename Param::return_type get_platform_info_host() = delete;
 
 template <>
 inline std::string get_platform_info_host<info::platform::profile>() {
@@ -81,5 +88,5 @@ get_platform_info_host<info::platform::extensions>() {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

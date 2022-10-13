@@ -27,7 +27,11 @@ combined with other commands:
 
 .. option:: -d, --disassemble
 
-  Disassemble all executable sections found in the input files.
+  Disassemble all executable sections found in the input files. On some
+  architectures (AArch64, PPC64, x86), all known instructions are disassembled by
+  default. On the others, :option:`--mcpu` or :option:`--mattr` is needed to
+  enable some instruction sets. Disabled instructions are displayed as
+  ``<unknown>``.
 
 .. option:: -D, --disassemble-all
 
@@ -125,6 +129,19 @@ OPTIONS
 
   Demangle symbol names in the output.
 
+.. option:: --debug-file-directory <path>
+
+  Provide a path to a directory with a `.build-id` subdirectory to search for
+  debug information for stripped binaries. Multiple instances of this argument
+  are searched in the order given.
+
+.. option:: --debuginfod, --no-debuginfod
+
+  Whether or not to try debuginfod lookups for debug binaries. Unless specified,
+  debuginfod is only enabled if libcurl was compiled in (``LLVM_ENABLE_CURL``)
+  and at least one server URL was provided by the environment variable
+  ``DEBUGINFOD_URLS``.
+
 .. option:: --debug-vars=<format>
 
   Print the locations (in registers or memory) of source-level variables
@@ -178,6 +195,10 @@ OPTIONS
 .. option:: --no-show-raw-insn
 
   When disassembling, do not print the raw bytes of each instruction.
+
+.. option:: --offloading
+
+  Display the content of the LLVM offloading section.
 
 .. option:: --prefix=<prefix>
 
@@ -304,7 +325,11 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Disassemble just the specified symbol's instructions.
 
-.. option:: --dyld_info
+.. option:: --chained-fixups
+
+  Print chained fixup information.
+
+.. option:: --dyld-info
 
   Print bind and rebase information used by dyld to resolve external
   references in a final linked binary.

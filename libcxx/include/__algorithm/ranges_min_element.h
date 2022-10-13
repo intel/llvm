@@ -24,12 +24,13 @@
 #  pragma GCC system_header
 #endif
 
-#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#if _LIBCPP_STD_VER > 17
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace ranges {
 
+// TODO(ranges): `ranges::min_element` can now simply delegate to `std::__min_element`.
 template <class _Ip, class _Sp, class _Proj, class _Comp>
 _LIBCPP_HIDE_FROM_ABI static constexpr
 _Ip __min_element_impl(_Ip __first, _Sp __last, _Comp& __comp, _Proj& __proj) {
@@ -68,6 +69,6 @@ inline namespace __cpo {
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+#endif // _LIBCPP_STD_VER > 17
 
 #endif // _LIBCPP___ALGORITHM_RANGES_MIN_ELEMENT_H

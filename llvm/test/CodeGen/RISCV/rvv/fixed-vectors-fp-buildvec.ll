@@ -53,23 +53,16 @@ define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, 
 ;
 ; LMULMAX2-LABEL: hang_when_merging_stores_after_legalization:
 ; LMULMAX2:       # %bb.0:
-; LMULMAX2-NEXT:    addi sp, sp, -32
-; LMULMAX2-NEXT:    .cfi_def_cfa_offset 32
-; LMULMAX2-NEXT:    addi a0, sp, 24
-; LMULMAX2-NEXT:    vsetivli zero, 1, e32, m2, ta, mu
-; LMULMAX2-NEXT:    vse32.v v10, (a0)
-; LMULMAX2-NEXT:    vslidedown.vi v10, v10, 7
-; LMULMAX2-NEXT:    addi a0, sp, 28
-; LMULMAX2-NEXT:    vse32.v v10, (a0)
-; LMULMAX2-NEXT:    vslidedown.vi v10, v8, 7
-; LMULMAX2-NEXT:    addi a0, sp, 20
-; LMULMAX2-NEXT:    vse32.v v10, (a0)
-; LMULMAX2-NEXT:    addi a0, sp, 16
-; LMULMAX2-NEXT:    vse32.v v8, (a0)
-; LMULMAX2-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
-; LMULMAX2-NEXT:    addi a0, sp, 16
-; LMULMAX2-NEXT:    vle32.v v8, (a0)
-; LMULMAX2-NEXT:    addi sp, sp, 32
+; LMULMAX2-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
+; LMULMAX2-NEXT:    vid.v v12
+; LMULMAX2-NEXT:    li a0, 7
+; LMULMAX2-NEXT:    vmul.vx v14, v12, a0
+; LMULMAX2-NEXT:    vrgather.vv v12, v8, v14
+; LMULMAX2-NEXT:    li a0, 12
+; LMULMAX2-NEXT:    vmv.s.x v0, a0
+; LMULMAX2-NEXT:    vadd.vi v8, v14, -14
+; LMULMAX2-NEXT:    vrgather.vv v12, v10, v8, v0.t
+; LMULMAX2-NEXT:    vmv1r.v v8, v12
 ; LMULMAX2-NEXT:    ret
   %z = shufflevector <8 x float> %x, <8 x float> %y, <4 x i32> <i32 0, i32 7, i32 8, i32 15>
   ret <4 x float> %z
@@ -78,12 +71,9 @@ define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, 
 define void @buildvec_dominant0_v2f32(<2 x float>* %x) {
 ; CHECK-LABEL: buildvec_dominant0_v2f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    lui a1, %hi(.LCPI2_0)
-; CHECK-NEXT:    addi a1, a1, %lo(.LCPI2_0)
 ; CHECK-NEXT:    vsetivli zero, 2, e32, mf2, ta, mu
-; CHECK-NEXT:    vlse32.v v8, (a1), zero
-; CHECK-NEXT:    vsetvli zero, zero, e32, mf2, tu, mu
-; CHECK-NEXT:    vmv.s.x v8, zero
+; CHECK-NEXT:    vid.v v8
+; CHECK-NEXT:    vfcvt.f.x.v v8, v8
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   store <2 x float> <float 0.0, float 1.0>, <2 x float>* %x
@@ -96,10 +86,10 @@ define void @buildvec_dominant0_v2f32(<2 x float>* %x) {
 define void @buildvec_dominant1_v2f32(<2 x float>* %x) {
 ; CHECK-LABEL: buildvec_dominant1_v2f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    lui a1, %hi(.LCPI3_0)
-; CHECK-NEXT:    addi a1, a1, %lo(.LCPI3_0)
 ; CHECK-NEXT:    vsetivli zero, 2, e32, mf2, ta, mu
-; CHECK-NEXT:    vle32.v v8, (a1)
+; CHECK-NEXT:    vid.v v8
+; CHECK-NEXT:    vadd.vi v8, v8, 1
+; CHECK-NEXT:    vfcvt.f.x.v v8, v8
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   store <2 x float> <float 1.0, float 2.0>, <2 x float>* %x
@@ -246,20 +236,19 @@ define <8 x float> @splat_c5_v8f32(<8 x float> %v) {
 define <8 x float> @splat_idx_v8f32(<8 x float> %v, i64 %idx) {
 ; LMULMAX1-LABEL: splat_idx_v8f32:
 ; LMULMAX1:       # %bb.0:
-; LMULMAX1-NEXT:    addi sp, sp, -48
-; LMULMAX1-NEXT:    .cfi_def_cfa_offset 48
+; LMULMAX1-NEXT:    addi sp, sp, -32
+; LMULMAX1-NEXT:    .cfi_def_cfa_offset 32
 ; LMULMAX1-NEXT:    andi a0, a0, 7
 ; LMULMAX1-NEXT:    slli a0, a0, 2
-; LMULMAX1-NEXT:    addi a1, sp, 16
+; LMULMAX1-NEXT:    mv a1, sp
 ; LMULMAX1-NEXT:    add a0, a1, a0
-; LMULMAX1-NEXT:    addi a1, sp, 32
+; LMULMAX1-NEXT:    addi a2, sp, 16
 ; LMULMAX1-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
-; LMULMAX1-NEXT:    vse32.v v9, (a1)
-; LMULMAX1-NEXT:    addi a1, sp, 16
+; LMULMAX1-NEXT:    vse32.v v9, (a2)
 ; LMULMAX1-NEXT:    vse32.v v8, (a1)
 ; LMULMAX1-NEXT:    vlse32.v v8, (a0), zero
 ; LMULMAX1-NEXT:    vmv.v.v v9, v8
-; LMULMAX1-NEXT:    addi sp, sp, 48
+; LMULMAX1-NEXT:    addi sp, sp, 32
 ; LMULMAX1-NEXT:    ret
 ;
 ; LMULMAX2-LABEL: splat_idx_v8f32:

@@ -6,6 +6,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_FFI
   LLVM_ENABLE_THREADS
   LLVM_ENABLE_CURL
+  LLVM_ENABLE_HTTPLIB
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_LIBXML2
   LLVM_INCLUDE_GO_TESTS
@@ -84,6 +85,7 @@ set(LLVM_TEST_DEPENDS
           llvm-dlltool
           dsymutil
           llvm-dwarfdump
+          llvm-dwarfutil
           llvm-dwp
           llvm-exegesis
           llvm-extract
@@ -120,6 +122,7 @@ set(LLVM_TEST_DEPENDS
           llvm-readelf
           llvm-reduce
           llvm-remark-size-diff
+          llvm-remarkutil
           llvm-rtdyld
           llvm-sim
           llvm-size
@@ -170,6 +173,10 @@ endif()
 
 if(TARGET LTO)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} LTO)
+endif()
+
+if(TARGET spirv-to-ir-wrapper)
+  set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-spirv)
 endif()
 
 if(LLVM_BUILD_EXAMPLES)

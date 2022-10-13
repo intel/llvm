@@ -39,6 +39,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/raw_ostream.h"
 #include <functional>
+#include <list>
 #include <map>
 #include <set>
 #include <shared_mutex>
@@ -103,12 +104,9 @@ inline int64_t truncateToSize(int64_t Value, unsigned Bytes) {
 /// Filter iterator.
 template <typename ItrType,
           typename PredType = std::function<bool(const ItrType &)>>
-class FilterIterator
-    : public std::iterator<std::bidirectional_iterator_tag,
-                           typename std::iterator_traits<ItrType>::value_type> {
+class FilterIterator {
+  using inner_traits = std::iterator_traits<ItrType>;
   using Iterator = FilterIterator;
-  using T = typename std::iterator_traits<ItrType>::reference;
-  using PointerT = typename std::iterator_traits<ItrType>::pointer;
 
   PredType Pred;
   ItrType Itr, End;
@@ -127,14 +125,20 @@ class FilterIterator
   }
 
 public:
+  using iterator_category = std::bidirectional_iterator_tag;
+  using value_type = typename inner_traits::value_type;
+  using difference_type = typename inner_traits::difference_type;
+  using pointer = typename inner_traits::pointer;
+  using reference = typename inner_traits::reference;
+
   Iterator &operator++() { next(); return *this; }
   Iterator &operator--() { prev(); return *this; }
   Iterator operator++(int) { auto Tmp(Itr); next(); return Tmp; }
   Iterator operator--(int) { auto Tmp(Itr); prev(); return Tmp; }
   bool operator==(const Iterator &Other) const { return Itr == Other.Itr; }
   bool operator!=(const Iterator &Other) const { return !operator==(Other); }
-  T operator*() { return *Itr; }
-  PointerT operator->() { return &operator*(); }
+  reference operator*() { return *Itr; }
+  pointer operator->() { return &operator*(); }
   FilterIterator(PredType Pred, ItrType Itr, ItrType End)
       : Pred(Pred), Itr(Itr), End(End) {
     nextMatching();
@@ -199,7 +203,7 @@ class BinaryContext {
   uint32_t DuplicatedJumpTables{0x10000000};
 
   /// Function fragments to skip.
-  std::vector<BinaryFunction *> FragmentsToSkip;
+  std::unordered_set<BinaryFunction *> FragmentsToSkip;
 
   /// The runtime library.
   std::unique_ptr<RuntimeLibrary> RtLibrary;
@@ -234,6 +238,18 @@ public:
   void initializeTarget(std::unique_ptr<MCPlusBuilder> TargetBuilder) {
     MIB = std::move(TargetBuilder);
   }
+
+  /// Return function fragments to skip.
+  const std::unordered_set<BinaryFunction *> &getFragmentsToSkip() {
+    return FragmentsToSkip;
+  }
+
+  /// Add function fragment to skip
+  void addFragmentsToSkip(BinaryFunction *Function) {
+    FragmentsToSkip.insert(Function);
+  }
+
+  void clearFragmentsToSkip() { FragmentsToSkip.clear(); }
 
   /// Given DWOId returns CU if it exists in DWOCUs.
   Optional<DWARFUnit *> getDWOCU(uint64_t DWOId);
@@ -370,6 +386,8 @@ public:
   }
 
   unsigned getDWARFEncodingSize(unsigned Encoding) {
+    if (Encoding == dwarf::DW_EH_PE_omit)
+      return 0;
     switch (Encoding & 0x0f) {
     default:
       llvm_unreachable("unknown encoding");
@@ -475,15 +493,15 @@ public:
   /// If \p NextJTAddress is different from zero, it is used as an upper
   /// bound for jump table memory layout.
   ///
-  /// Optionally, populate \p Offsets with jump table entries. The entries
+  /// Optionally, populate \p Address from jump table entries. The entries
   /// could be partially populated if the jump table detection fails.
   bool analyzeJumpTable(const uint64_t Address,
                         const JumpTable::JumpTableType Type, BinaryFunction &BF,
                         const uint64_t NextJTAddress = 0,
-                        JumpTable::OffsetsType *Offsets = nullptr);
+                        JumpTable::AddressesType *EntriesAsAddress = nullptr);
 
   /// After jump table locations are established, this function will populate
-  /// their OffsetEntries based on memory contents.
+  /// their EntriesAsAddress based on memory contents.
   void populateJumpTables();
 
   /// Returns a jump table ID and label pointing to the duplicated jump table.
@@ -498,6 +516,14 @@ public:
   /// to function \p BF.
   std::string generateJumpTableName(const BinaryFunction &BF, uint64_t Address);
 
+  /// Free memory used by JumpTable's EntriesAsAddress
+  void clearJumpTableTempData() {
+    for (auto &JTI : JumpTables) {
+      JumpTable &JT = *JTI.second;
+      JumpTable::AddressesType Temp;
+      Temp.swap(JT.EntriesAsAddress);
+    }
+  }
   /// Return true if the array of bytes represents a valid code padding.
   bool hasValidCodePadding(const BinaryFunction &BF);
 
@@ -564,6 +590,9 @@ public:
   /// Indicates if relocations are available for usage.
   bool HasRelocations{false};
 
+  /// Indicates if the binary is stripped
+  bool IsStripped{false};
+
   /// Is the binary always loaded at a fixed address. Shared objects and
   /// position-independent executables (PIEs) are examples of binaries that
   /// will have HasFixedLoadAddress set to false.
@@ -585,6 +614,9 @@ public:
 
   /// Number of functions with profile information
   uint64_t NumProfiledFuncs{0};
+
+  /// Number of functions with stale profile information
+  uint64_t NumStaleProfileFuncs{0};
 
   /// Number of objects in profile whose profile was ignored.
   uint64_t NumUnusedProfiledObjects{0};
@@ -633,12 +665,15 @@ public:
   /// special linux kernel sections
   std::unordered_map<uint64_t, std::vector<LKInstructionMarkerInfo>> LKMarkers;
 
+  /// List of external addresses in the code that are not a function start
+  /// and are referenced from BinaryFunction.
+  std::list<std::pair<BinaryFunction *, uint64_t>> InterproceduralReferences;
+
   /// PseudoProbe decoder
   MCPseudoProbeDecoder ProbeDecoder;
 
   /// DWARF encoding. Available encoding types defined in BinaryFormat/Dwarf.h
   /// enum Constants, e.g. DW_EH_PE_omit.
-  unsigned TTypeEncoding = dwarf::DW_EH_PE_omit;
   unsigned LSDAEncoding = dwarf::DW_EH_PE_omit;
 
   BinaryContext(std::unique_ptr<MCContext> Ctx,
@@ -876,8 +911,23 @@ public:
   bool registerFragment(BinaryFunction &TargetFunction,
                         BinaryFunction &Function) const;
 
-  /// Resolve inter-procedural dependencies from \p Function.
-  void processInterproceduralReferences(BinaryFunction &Function);
+  /// Add unterprocedural reference for \p Function to \p Address
+  void addInterproceduralReference(BinaryFunction *Function, uint64_t Address) {
+    InterproceduralReferences.push_back({Function, Address});
+  }
+
+  /// Used to fix the target of linker-generated AArch64 adrp + add
+  /// sequence with no relocation info.
+  void addAdrpAddRelocAArch64(BinaryFunction &BF, MCInst &LoadLowBits,
+                              MCInst &LoadHiBits, uint64_t Target);
+
+  /// Return true if AARch64 veneer was successfully matched at a given
+  /// \p Address and register veneer binary function if \p MatchOnly
+  /// argument is false.
+  bool handleAArch64Veneer(uint64_t Address, bool MatchOnly = false);
+
+  /// Resolve inter-procedural dependencies from
+  void processInterproceduralReferences();
 
   /// Skip functions with all parent and child fragments transitively.
   void skipMarkedFragments();

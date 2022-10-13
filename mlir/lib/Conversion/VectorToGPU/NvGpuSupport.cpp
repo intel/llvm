@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "NvGpuSupport.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/NVGPU/NVGPUDialect.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 namespace mlir {
@@ -124,6 +124,14 @@ getMmaSyncRegisterType(const WarpMatrixInfo &type) {
         LLVM::getFixedVectorType(IntegerType::get(ctx, 8), 4), 4, 32,
         inferNumRegistersPerMatrixFragment(type)};
   }
+
+  // int4 operand
+  if (elType.isInteger(4)) {
+    return FragmentElementInfo{
+        LLVM::getFixedVectorType(IntegerType::get(ctx, 4), 8), 8, 32,
+        inferNumRegistersPerMatrixFragment(type)};
+  }
+
   // Integer 32bit acc operands
   if (elType.isInteger(32)) {
     return FragmentElementInfo{
@@ -209,10 +217,10 @@ FailureOr<nvgpu::LdMatrixParams> getLdMatrixParams(const WarpMatrixInfo &type,
     params.targetLayout = NVVM::MMALayout::col;
   }
   ArrayRef<int64_t> shape = type.vectorType.getShape();
-  params.contiguousDimType =
-      transpose ? IteratorType::Parallel : IteratorType::Reduction;
+  params.contiguousDimType = transpose ? vector::IteratorType::parallel
+                                       : vector::IteratorType::reduction;
 
-  if (params.targetLayout == NVVM::MMALayout::row) {
+  if (params.contiguousDimType == vector::IteratorType::reduction) {
     params.numTiles = (shape[0] / kNumRowsPerTile) *
                       ((shape[1] * elType.getIntOrFloatBitWidth()) / 128);
   } else {
@@ -242,7 +250,7 @@ getLaneIdToLdMatrixMatrixCoord(Location loc, OpBuilder &builder,
   };
 
   // This case corresponds to row-major A|C or col-major B operands.
-  if (params.contiguousDimType == IteratorType::Reduction) {
+  if (params.contiguousDimType == vector::IteratorType::reduction) {
     AffineExpr row = d0 % (operandShape[0]);
     AffineExpr col = d0.floorDiv(operandShape[0]) * (kElementsPer128b);
     return makeMap({row, col});
@@ -250,7 +258,7 @@ getLaneIdToLdMatrixMatrixCoord(Location loc, OpBuilder &builder,
 
   // This case Corresponds to col-major A|C or row-major B operands. The
   // operandShape given is already pre-transposed (e.g. 8x16 = KxN).
-  if (params.contiguousDimType == IteratorType::Parallel) {
+  if (params.contiguousDimType == vector::IteratorType::parallel) {
     const int64_t num8x128bCols = (operandShape[0] * bitsPerElement) / 128;
     // Threads are assigned in groups of 8 first across columns, then to
     // rows. This is transpose of what `ldmatrix` expects, but when
@@ -282,12 +290,12 @@ PrepareContractToGPUMMASync::matchAndRewrite(vector::ContractionOp op,
   bindDims(rewriter.getContext(), m, n, k);
   static constexpr std::array<int64_t, 2> perm = {1, 0};
   auto iteratorTypes = op.getIteratorTypes().getValue();
-  SmallVector<AffineMap, 4> maps = op.getIndexingMaps();
+  SmallVector<AffineMap, 4> maps = op.getIndexingMapsArray();
   if (iteratorTypes.size() != 3)
     return failure();
-  if (!(isParallelIterator(iteratorTypes[0]) &&
-        isParallelIterator(iteratorTypes[1]) &&
-        isReductionIterator(iteratorTypes[2])))
+  if (!(vector::isParallelIterator(iteratorTypes[0]) &&
+        vector::isParallelIterator(iteratorTypes[1]) &&
+        vector::isReductionIterator(iteratorTypes[2])))
     return failure();
 
   // The canonical form is "TNT" = A row-major, B col-major, C row-major.

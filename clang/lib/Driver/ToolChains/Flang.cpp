@@ -58,6 +58,27 @@ void Flang::AddOtherOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
                    options::OPT_std_EQ, options::OPT_W_Joined});
 }
 
+void Flang::AddPicOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
+  // ParsePICArgs parses -fPIC/-fPIE and their variants and returns a tuple of
+  // (RelocationModel, PICLevel, IsPIE).
+  llvm::Reloc::Model RelocationModel;
+  unsigned PICLevel;
+  bool IsPIE;
+  std::tie(RelocationModel, PICLevel, IsPIE) =
+      ParsePICArgs(getToolChain(), Args);
+
+  if (auto *RMName = RelocationModelName(RelocationModel)) {
+    CmdArgs.push_back("-mrelocation-model");
+    CmdArgs.push_back(RMName);
+  }
+  if (PICLevel > 0) {
+    CmdArgs.push_back("-pic-level");
+    CmdArgs.push_back(PICLevel == 1 ? "1" : "2");
+    if (IsPIE)
+      CmdArgs.push_back("-pic-is-pie");
+  }
+}
+
 void Flang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
@@ -65,6 +86,7 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
   const llvm::Triple &Triple = TC.getEffectiveTriple();
   const std::string &TripleStr = Triple.getTriple();
 
+  const Driver &D = TC.getDriver();
   ArgStringList CmdArgs;
 
   // Invoke ourselves in -fc1 mode.
@@ -108,6 +130,17 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
 
   AddFortranDialectOptions(Args, CmdArgs);
 
+  // Color diagnostics are parsed by the driver directly from argv and later
+  // re-parsed to construct this job; claim any possible color diagnostic here
+  // to avoid warn_drv_unused_argument.
+  Args.getLastArg(options::OPT_fcolor_diagnostics,
+                  options::OPT_fno_color_diagnostics);
+  if (D.getDiags().getDiagnosticOptions().ShowColors)
+    CmdArgs.push_back("-fcolor-diagnostics");
+
+  // -fPIC and related options.
+  AddPicOptions(Args, CmdArgs);
+
   // Add other compile options
   AddOtherOptions(Args, CmdArgs);
 
@@ -126,6 +159,16 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
     A->render(Args, CmdArgs);
   }
 
+  // Optimization level for CodeGen.
+  if (const Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    if (A->getOption().matches(options::OPT_O4)) {
+      CmdArgs.push_back("-O3");
+      D.Diag(diag::warn_O4_is_O3);
+    } else {
+      A->render(Args, CmdArgs);
+    }
+  }
+
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
@@ -139,7 +182,6 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
 
   CmdArgs.push_back(Input.getFilename());
 
-  const auto& D = C.getDriver();
   // TODO: Replace flang-new with flang once the new driver replaces the
   // throwaway driver
   const char *Exec = Args.MakeArgString(D.GetProgramPath("flang-new", TC));

@@ -166,9 +166,8 @@ mlir::Value fir::FirOpBuilder::allocateLocal(
   llvm::SmallVector<mlir::Value> elidedLenParams =
       elideLengthsAlreadyInType(ty, lenParams);
   auto idxTy = getIndexType();
-  llvm::for_each(elidedShape, [&](mlir::Value sh) {
+  for (mlir::Value sh : elidedShape)
     indices.push_back(createConvert(loc, idxTy, sh));
-  });
   // Add a target attribute, if needed.
   llvm::SmallVector<mlir::NamedAttribute> attrs;
   if (asTarget)
@@ -715,7 +714,7 @@ fir::factory::getNonDefaultLowerBounds(fir::FirOpBuilder &builder,
 }
 
 llvm::SmallVector<mlir::Value>
-fir::factory::getNonDeferredLengthParams(const fir::ExtendedValue &exv) {
+fir::factory::getNonDeferredLenParams(const fir::ExtendedValue &exv) {
   return exv.match(
       [&](const fir::CharArrayBoxValue &character)
           -> llvm::SmallVector<mlir::Value> { return {character.getLen()}; },
@@ -1227,6 +1226,35 @@ llvm::Optional<std::int64_t> fir::factory::getIntIfConstant(mlir::Value value) {
   return {};
 }
 
+llvm::Optional<std::int64_t>
+fir::factory::getExtentFromTriplet(mlir::Value lb, mlir::Value ub,
+                                   mlir::Value stride) {
+  std::function<llvm::Optional<std::int64_t>(mlir::Value)> getConstantValue =
+      [&](mlir::Value value) -> llvm::Optional<std::int64_t> {
+    if (auto valInt = fir::factory::getIntIfConstant(value))
+      return valInt;
+    auto *definingOp = value.getDefiningOp();
+    if (mlir::isa_and_nonnull<fir::ConvertOp>(definingOp)) {
+      auto valOp = mlir::dyn_cast<fir::ConvertOp>(definingOp);
+      return getConstantValue(valOp.getValue());
+    }
+    return {};
+  };
+  if (auto lbInt = getConstantValue(lb)) {
+    if (auto ubInt = getConstantValue(ub)) {
+      if (auto strideInt = getConstantValue(stride)) {
+        if (strideInt.value() != 0) {
+          std::int64_t extent =
+              1 + (ubInt.value() - lbInt.value()) / strideInt.value();
+          if (extent > 0)
+            return extent;
+        }
+      }
+    }
+  }
+  return {};
+}
+
 mlir::Value fir::factory::genMaxWithZero(fir::FirOpBuilder &builder,
                                          mlir::Location loc,
                                          mlir::Value value) {
@@ -1239,4 +1267,21 @@ mlir::Value fir::factory::genMaxWithZero(fir::FirOpBuilder &builder,
       loc, mlir::arith::CmpIPredicate::sgt, value, zero);
   return builder.create<mlir::arith::SelectOp>(loc, valueIsGreater, value,
                                                zero);
+}
+
+mlir::Value fir::factory::genCPtrOrCFunptrAddr(fir::FirOpBuilder &builder,
+                                               mlir::Location loc,
+                                               mlir::Value cPtr,
+                                               mlir::Type ty) {
+  assert(ty.isa<fir::RecordType>());
+  auto recTy = ty.dyn_cast<fir::RecordType>();
+  assert(recTy.getTypeList().size() == 1);
+  auto fieldName = recTy.getTypeList()[0].first;
+  mlir::Type fieldTy = recTy.getTypeList()[0].second;
+  auto fieldIndexType = fir::FieldType::get(ty.getContext());
+  mlir::Value field =
+      builder.create<fir::FieldIndexOp>(loc, fieldIndexType, fieldName, recTy,
+                                        /*typeParams=*/mlir::ValueRange{});
+  return builder.create<fir::CoordinateOp>(loc, builder.getRefType(fieldTy),
+                                           cPtr, field);
 }

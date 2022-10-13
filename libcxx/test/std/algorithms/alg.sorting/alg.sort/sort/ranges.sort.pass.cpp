@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <algorithm>
 
@@ -204,6 +203,26 @@ constexpr bool test() {
   { // `std::ranges::dangling` is returned.
     [[maybe_unused]] std::same_as<std::ranges::dangling> decltype(auto) result = std::ranges::sort(std::array{1, 2, 3});
   }
+
+  // TODO: Enable the tests once the implementation switched to use iter_move/iter_swap
+  /*
+  { // ProxyIterator
+    {
+      std::array in = {2, 1, 3};
+      ProxyRange proxy{in};
+
+      std::ranges::sort(proxy.begin(), proxy.end(), [](auto i, auto j) { return i.data < j.data; });
+      assert((in == std::array{1, 2, 3}));
+    }
+
+    {
+      std::array in = {2, 1, 3};
+      ProxyRange proxy{in};
+      std::ranges::sort(proxy, [](auto i, auto j) { return i.data < j.data; });
+      assert((in == std::array{1, 2, 3}));
+    }
+  }
+  */
 
   return true;
 }

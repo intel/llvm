@@ -14,7 +14,10 @@
 #include "mlir/IR/OpImplementation.h"
 
 namespace mlir {
+class TilingInterface;
+class RewriterBase;
 namespace linalg {
+class GenericOp;
 class LinalgOp;
 } // namespace linalg
 } // namespace mlir
@@ -23,11 +26,24 @@ class LinalgOp;
 // Linalg Transform Operations
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOpsEnums.h.inc"
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.h.inc"
 
 namespace mlir {
 class DialectRegistry;
+
+namespace transform {
+
+/// Implementation of tiling operations using `scf.foreach_thread`.
+DiagnosedSilenceableFailure tileToForeachThreadOpImpl(
+    RewriterBase &rewriter, transform::TransformState &state,
+    TransformOpInterface transformOp, ArrayRef<Operation *> targets,
+    ArrayRef<OpFoldResult> mixedNumThreads,
+    ArrayRef<OpFoldResult> mixedTileSizes, Optional<ArrayAttr> threadDimMapping,
+    SmallVector<Operation *> &tileOps, SmallVector<Operation *> &tiledOps);
+} // namespace transform
 
 namespace linalg {
 void registerTransformDialectExtension(DialectRegistry &registry);

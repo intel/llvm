@@ -11,8 +11,8 @@ struct F : F1, F2 {
 };
 
 int main() {
-  cl::sycl::accessor<F, 1, cl::sycl::access::mode::read_write> accessorA;
-  cl::sycl::handler cgh;
+  sycl::accessor<F, 1, sycl::access::mode::read_write> accessorA;
+  sycl::handler cgh;
   cgh.single_task<class kernel_function>(
       [=]() {
         F f; // needed now to emit the type of F

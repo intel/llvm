@@ -14,8 +14,8 @@
 #include <algorithm>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 constexpr char BackendNameKeyName[] = "BackendName";
@@ -351,16 +351,13 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     }
   }
   // get PlatformVersion value and put it to DeviceDesc
-  DeviceDesc.emplace(
-      PlatformVersionKeyName,
-      sycl::detail::get_platform_info<std::string,
-                                      info::platform::version>::get(PiPlatform,
-                                                                    Plugin));
+  DeviceDesc.emplace(PlatformVersionKeyName,
+                     sycl::detail::get_platform_info<info::platform::version>(
+                         PiPlatform, Plugin));
   // get PlatformName value and put it to DeviceDesc
-  DeviceDesc.emplace(
-      PlatformNameKeyName,
-      sycl::detail::get_platform_info<std::string, info::platform::name>::get(
-          PiPlatform, Plugin));
+  DeviceDesc.emplace(PlatformNameKeyName,
+                     sycl::detail::get_platform_info<info::platform::name>(
+                         PiPlatform, Plugin));
 
   int InsertIDx = 0;
   for (RT::PiDevice Device : PiDevices) {
@@ -379,20 +376,19 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     }
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
-        sycl::detail::get_device_info<uint32_t, info::device::vendor_id>::get(
-            Device, Plugin);
+        sycl::detail::get_device_info<info::device::vendor_id>(Device, Plugin);
     std::stringstream DeviceVendorIdHexStringStream;
     DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
     const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
-    const auto &DriverVersionValue = sycl::detail::get_device_info<
-        std::string, info::device::driver_version>::get(Device, Plugin);
+    const std::string &DriverVersionValue =
+        sycl::detail::get_device_info<info::device::driver_version>(Device,
+                                                                    Plugin);
     DeviceDesc[DriverVersionKeyName] = DriverVersionValue;
     // get DeviceName value and put it to DeviceDesc
-    const auto &DeviceNameValue =
-        sycl::detail::get_device_info<std::string, info::device::name>::get(
-            Device, Plugin);
+    const std::string &DeviceNameValue =
+        sycl::detail::get_device_info<info::device::name>(Device, Plugin);
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc
@@ -404,5 +400,5 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

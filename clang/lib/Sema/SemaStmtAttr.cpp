@@ -219,39 +219,13 @@ static Attr *handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Stmt *,
   return new (S.Context) SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A);
 }
 
-// Handle [[intel:fpga_pipeline]] attribute.
-static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
-                                             const ParsedAttr &A) {
-  // If no attribute argument is specified, set to default value '1'.
-  Expr *E = A.isArgExpr(0)
-                ? A.getArgAsExpr(0)
-                : IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                         S.Context.IntTy, A.getLoc());
-
-  return S.BuildSYCLIntelFPGAPipelineAttr(A, E);
-}
-
-SYCLIntelFPGAPipelineAttr *
-Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A, Expr *E) {
-
-  if (!E->isValueDependent()) {
-    // Check if the expression is not value dependent.
-    llvm::APSInt ArgVal;
-    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
-    if (Res.isInvalid())
-      return nullptr;
-    E = Res.get();
-  }
-
-  return new (Context) SYCLIntelFPGAPipelineAttr(Context, A, E);
-}
-
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
                                            Expr *E) {
-  if (!Value.isStrictlyPositive())
+  // This attribute requires a non-negative value.
+  if (!Value.isNonNegative())
     return S.Diag(E->getExprLoc(),
                   diag::err_attribute_requires_positive_integer)
-           << "'ivdep'" << /* positive */ 0;
+           << "'ivdep'" << /*non-negative*/ 1;
   return false;
 }
 
@@ -276,6 +250,12 @@ static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
     if (checkSYCLIntelFPGAIVDepSafeLen(S, *ArgVal, E))
       return IVDepExprResult::Invalid;
     SafelenValue = ArgVal->getZExtValue();
+    // ivdep attribute allows both safelen = 0 and safelen = 1 with a warning.
+    if (SafelenValue == 0 || SafelenValue == 1) {
+      S.Diag(E->getExprLoc(), diag::warn_ivdep_attribute_argument)
+          << SafelenValue;
+      return IVDepExprResult::Invalid;
+    }
     return IVDepExprResult::SafeLen;
   }
 
@@ -469,6 +449,35 @@ static Attr *handleSYCLIntelFPGALoopCountAttr(Sema &S, Stmt *St,
 static Attr *handleIntelFPGANofusionAttr(Sema &S, Stmt *St,
                                          const ParsedAttr &A) {
   return new (S.Context) SYCLIntelFPGANofusionAttr(S.Context, A);
+}
+
+SYCLIntelFPGAMaxReinvocationDelayAttr *
+Sema::BuildSYCLIntelFPGAMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
+                                                 Expr *E) {
+  if (!E->isValueDependent()) {
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return nullptr;
+    E = Res.get();
+
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return nullptr;
+    }
+  }
+
+  return new (Context) SYCLIntelFPGAMaxReinvocationDelayAttr(Context, CI, E);
+}
+
+static Attr * handleSYCLIntelFPGAMaxReinvocationDelayAttr(Sema &S, Stmt *St,
+                                                      const ParsedAttr &A) {
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
+
+  Expr *E = A.getArgAsExpr(0);
+  return S.BuildSYCLIntelFPGAMaxReinvocationDelayAttr(A, E);
 }
 
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -848,7 +857,8 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAPipelineAttr>(S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAMaxReinvocationDelayAttr>(
+      S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -994,8 +1004,8 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleUnlikely(S, St, A, Range);
   case ParsedAttr::AT_SYCLIntelFPGANofusion:
     return handleIntelFPGANofusionAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelFPGAPipeline:
-    return handleSYCLIntelFPGAPipelineAttr(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFPGAMaxReinvocationDelay:
+    return handleSYCLIntelFPGAMaxReinvocationDelayAttr(S, St, A);
   default:
     // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
     // declaration attribute is not written on a statement, but this code is

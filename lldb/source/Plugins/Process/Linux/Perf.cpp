@@ -10,11 +10,10 @@
 
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
 #include "lldb/Host/linux/Support.h"
-
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
-
+#include <linux/version.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
@@ -26,6 +25,7 @@ using namespace llvm;
 
 Expected<LinuxPerfZeroTscConversion>
 lldb_private::process_linux::LoadPerfTscConversionParameters() {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
   lldb::pid_t pid = getpid();
   perf_event_attr attr;
   memset(&attr, 0, sizeof(attr));
@@ -55,6 +55,10 @@ lldb_private::process_linux::LoadPerfTscConversionParameters() {
                       err_cap);
     return llvm::createStringError(llvm::inconvertibleErrorCode(), err_msg);
   }
+#else
+  std::string err_msg = "PERF_COUNT_SW_DUMMY requires Linux 3.12";
+  return llvm::createStringError(llvm::inconvertibleErrorCode(), err_msg);
+#endif
 }
 
 void resource_handle::MmapDeleter::operator()(void *ptr) {
@@ -77,8 +81,8 @@ llvm::Expected<PerfEvent> PerfEvent::Init(perf_event_attr &attr,
                                           Optional<long> group_fd,
                                           unsigned long flags) {
   errno = 0;
-  long fd = syscall(SYS_perf_event_open, &attr, pid.getValueOr(-1),
-                    cpu.getValueOr(-1), group_fd.getValueOr(-1), flags);
+  long fd = syscall(SYS_perf_event_open, &attr, pid.value_or(-1),
+                    cpu.value_or(-1), group_fd.value_or(-1), flags);
   if (fd == -1) {
     std::string err_msg =
         llvm::formatv("perf event syscall failed: {0}", std::strerror(errno));
@@ -169,13 +173,13 @@ ArrayRef<uint8_t> PerfEvent::GetDataBuffer() const {
   perf_event_mmap_page &mmap_metadata = GetMetadataPage();
   return {reinterpret_cast<uint8_t *>(m_metadata_data_base.get()) +
               mmap_metadata.data_offset,
-           static_cast<size_t>(mmap_metadata.data_size)};
+          static_cast<size_t>(mmap_metadata.data_size)};
 }
 
 ArrayRef<uint8_t> PerfEvent::GetAuxBuffer() const {
   perf_event_mmap_page &mmap_metadata = GetMetadataPage();
   return {reinterpret_cast<uint8_t *>(m_aux_base.get()),
-           static_cast<size_t>(mmap_metadata.aux_size)};
+          static_cast<size_t>(mmap_metadata.aux_size)};
 }
 
 Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyDataBuffer() {

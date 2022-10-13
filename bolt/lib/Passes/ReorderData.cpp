@@ -108,13 +108,9 @@ bool filterSymbol(const BinaryData *BD) {
   bool IsValid = true;
 
   if (!opts::ReorderSymbols.empty()) {
-    IsValid = false;
-    for (const std::string &Name : opts::ReorderSymbols) {
-      if (BD->hasName(Name)) {
-        IsValid = true;
-        break;
-      }
-    }
+    IsValid = llvm::any_of(opts::ReorderSymbols, [&](const std::string &Name) {
+      return BD->hasName(Name);
+    });
   }
 
   if (!IsValid)
@@ -186,14 +182,14 @@ void ReorderData::assignMemData(BinaryContext &BC) {
 
     for (const BinaryBasicBlock &BB : BF) {
       for (const MCInst &Inst : BB) {
-        auto ErrorOrMemAccesssProfile =
+        auto ErrorOrMemAccessProfile =
             BC.MIB->tryGetAnnotationAs<MemoryAccessProfile>(
                 Inst, "MemoryAccessProfile");
-        if (!ErrorOrMemAccesssProfile)
+        if (!ErrorOrMemAccessProfile)
           continue;
 
         const MemoryAccessProfile &MemAccessProfile =
-            ErrorOrMemAccesssProfile.get();
+            ErrorOrMemAccessProfile.get();
         for (const AddressAccess &AccessInfo :
              MemAccessProfile.AddressAccessInfo) {
           if (BinaryData *BD = AccessInfo.MemoryObject) {
@@ -242,14 +238,14 @@ ReorderData::sortedByFunc(BinaryContext &BC, const BinarySection &Section,
         continue;
 
       for (const MCInst &Inst : BB) {
-        auto ErrorOrMemAccesssProfile =
+        auto ErrorOrMemAccessProfile =
             BC.MIB->tryGetAnnotationAs<MemoryAccessProfile>(
                 Inst, "MemoryAccessProfile");
-        if (!ErrorOrMemAccesssProfile)
+        if (!ErrorOrMemAccessProfile)
           continue;
 
         const MemoryAccessProfile &MemAccessProfile =
-            ErrorOrMemAccesssProfile.get();
+            ErrorOrMemAccessProfile.get();
         for (const AddressAccess &AccessInfo :
              MemAccessProfile.AddressAccessInfo) {
           if (AccessInfo.MemoryObject)
@@ -275,8 +271,8 @@ ReorderData::sortedByFunc(BinaryContext &BC, const BinarySection &Section,
   DataOrder Order = baseOrder(BC, Section);
   unsigned SplitPoint = Order.size();
 
-  std::sort(
-      Order.begin(), Order.end(),
+  llvm::sort(
+      Order,
       [&](const DataOrder::value_type &A, const DataOrder::value_type &B) {
         // Total execution counts of functions referencing BD.
         const uint64_t ACount = BDtoFuncCount[A.first];
@@ -307,17 +303,17 @@ ReorderData::sortedByCount(BinaryContext &BC,
   DataOrder Order = baseOrder(BC, Section);
   unsigned SplitPoint = Order.size();
 
-  std::sort(Order.begin(), Order.end(),
-            [](const DataOrder::value_type &A, const DataOrder::value_type &B) {
-              // Weight by number of loads/data size.
-              const double AWeight = double(A.second) / A.first->getSize();
-              const double BWeight = double(B.second) / B.first->getSize();
-              return (AWeight > BWeight ||
-                      (AWeight == BWeight &&
-                       (A.first->getSize() < B.first->getSize() ||
-                        (A.first->getSize() == B.first->getSize() &&
-                         A.first->getAddress() < B.first->getAddress()))));
-            });
+  llvm::sort(Order, [](const DataOrder::value_type &A,
+                       const DataOrder::value_type &B) {
+    // Weight by number of loads/data size.
+    const double AWeight = double(A.second) / A.first->getSize();
+    const double BWeight = double(B.second) / B.first->getSize();
+    return (AWeight > BWeight ||
+            (AWeight == BWeight &&
+             (A.first->getSize() < B.first->getSize() ||
+              (A.first->getSize() == B.first->getSize() &&
+               A.first->getAddress() < B.first->getAddress()))));
+  });
 
   for (unsigned Idx = 0; Idx < Order.size(); ++Idx) {
     if (!Order[Idx].second) {

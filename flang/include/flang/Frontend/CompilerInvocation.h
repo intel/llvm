@@ -13,9 +13,11 @@
 #ifndef FORTRAN_FRONTEND_COMPILERINVOCATION_H
 #define FORTRAN_FRONTEND_COMPILERINVOCATION_H
 
+#include "flang/Frontend/CodeGenOptions.h"
 #include "flang/Frontend/FrontendOptions.h"
 #include "flang/Frontend/PreprocessorOptions.h"
 #include "flang/Frontend/TargetOptions.h"
+#include "flang/Lower/LoweringOptions.h"
 #include "flang/Parser/parsing.h"
 #include "flang/Semantics/semantics.h"
 #include "clang/Basic/Diagnostic.h"
@@ -30,8 +32,7 @@ namespace Fortran::frontend {
 /// When errors are encountered, return false and, if Diags is non-null,
 /// report the error(s).
 bool parseDiagnosticArgs(clang::DiagnosticOptions &opts,
-                         llvm::opt::ArgList &args,
-                         bool defaultDiagColor = true);
+                         llvm::opt::ArgList &args);
 
 class CompilerInvocationBase {
 public:
@@ -68,8 +69,14 @@ class CompilerInvocation : public CompilerInvocationBase {
   // of options.
   Fortran::parser::Options parserOpts;
 
+  /// Options controlling lowering.
+  Fortran::lower::LoweringOptions loweringOpts;
+
   /// Options controlling the target.
   Fortran::frontend::TargetOptions targetOpts;
+
+  /// Options controlling IRgen and the backend.
+  Fortran::frontend::CodeGenOptions codeGenOpts;
 
   // Semantics context
   std::unique_ptr<Fortran::semantics::SemanticsContext> semanticsContext;
@@ -129,6 +136,14 @@ public:
 
   TargetOptions &getTargetOpts() { return targetOpts; }
   const TargetOptions &getTargetOpts() const { return targetOpts; }
+
+  CodeGenOptions &getCodeGenOpts() { return codeGenOpts; }
+  const CodeGenOptions &getCodeGenOpts() const { return codeGenOpts; }
+
+  Fortran::lower::LoweringOptions &getLoweringOpts() { return loweringOpts; }
+  const Fortran::lower::LoweringOptions &getLoweringOpts() const {
+    return loweringOpts;
+  }
 
   Fortran::semantics::SemanticsContext &getSemanticsContext() {
     return *semanticsContext;
@@ -220,6 +235,10 @@ public:
 
   /// Set the Semantic Options
   void setSemanticsOpts(Fortran::parser::AllCookedSources &);
+
+  /// Set \p loweringOptions controlling lowering behavior based
+  /// on the \p optimizationLevel.
+  void setLoweringOptions();
 };
 
 } // end namespace Fortran::frontend

@@ -1,9 +1,9 @@
 ; DWARF linkage name attributes are optional; verify they are missing for
 ; PS4 triple or when tuning for SCE.
 
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE1
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE2

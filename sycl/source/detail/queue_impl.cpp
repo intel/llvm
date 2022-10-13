@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
 
 #include <cstring>
 #include <utility>
@@ -22,8 +22,8 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
@@ -49,6 +49,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
@@ -66,14 +67,34 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  RT::PiEvent NativeEvent{};
-  MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                          getOrWaitEvents(DepEvents, MContext), &NativeEvent);
+  event ResEvent;
+  {
+    // We need to submit command and update the last event under same lock if we
+    // have in-order queue.
+    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
+                                 : std::unique_lock<std::mutex>();
+    // If the last submitted command in the in-order queue is host_task then
+    // wait for it before submitting usm command.
+    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+      MLastEvent.wait();
 
-  if (MContext->is_host())
-    return MDiscardEvents ? createDiscardedEvent() : event();
+    RT::PiEvent NativeEvent{};
+    MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                            getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
-  event ResEvent = prepareUSMEvent(Self, NativeEvent);
+    if (MContext->is_host())
+      return MDiscardEvents ? createDiscardedEvent() : event();
+
+    ResEvent = prepareUSMEvent(Self, NativeEvent);
+    if (isInOrder()) {
+      MLastEvent = ResEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+  }
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
     addSharedEvent(ResEvent);
@@ -88,14 +109,34 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  RT::PiEvent NativeEvent{};
-  MemoryManager::copy_usm(Src, Self, Count, Dest,
-                          getOrWaitEvents(DepEvents, MContext), &NativeEvent);
+  event ResEvent;
+  {
+    // We need to submit command and update the last event under same lock if we
+    // have in-order queue.
+    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
+                                 : std::unique_lock<std::mutex>();
+    // If the last submitted command in the in-order queue is host_task then
+    // wait for it before submitting usm command.
+    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+      MLastEvent.wait();
 
-  if (MContext->is_host())
-    return MDiscardEvents ? createDiscardedEvent() : event();
+    RT::PiEvent NativeEvent{};
+    MemoryManager::copy_usm(Src, Self, Count, Dest,
+                            getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
-  event ResEvent = prepareUSMEvent(Self, NativeEvent);
+    if (MContext->is_host())
+      return MDiscardEvents ? createDiscardedEvent() : event();
+
+    ResEvent = prepareUSMEvent(Self, NativeEvent);
+    if (isInOrder()) {
+      MLastEvent = ResEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+  }
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
     addSharedEvent(ResEvent);
@@ -111,14 +152,35 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                               getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  RT::PiEvent NativeEvent{};
-  MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                            getOrWaitEvents(DepEvents, MContext), &NativeEvent);
+  event ResEvent;
+  {
+    // We need to submit command and update the last event under same lock if we
+    // have in-order queue.
+    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
+                                 : std::unique_lock<std::mutex>();
+    // If the last submitted command in the in-order queue is host_task then
+    // wait for it before submitting usm command.
+    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+      MLastEvent.wait();
 
-  if (MContext->is_host())
-    return MDiscardEvents ? createDiscardedEvent() : event();
+    RT::PiEvent NativeEvent{};
+    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                              getOrWaitEvents(DepEvents, MContext),
+                              &NativeEvent);
 
-  event ResEvent = prepareUSMEvent(Self, NativeEvent);
+    if (MContext->is_host())
+      return MDiscardEvents ? createDiscardedEvent() : event();
+
+    ResEvent = prepareUSMEvent(Self, NativeEvent);
+    if (isInOrder()) {
+      MLastEvent = ResEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+  }
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
     addSharedEvent(ResEvent);
@@ -222,7 +284,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   if (WaitEvent) {
     device D = get_device();
     std::string DevStr;
-    if (D.is_host())
+    if (getSyclObjImpl(D)->is_host())
       DevStr = "HOST";
     else if (D.is_cpu())
       DevStr = "CPU";
@@ -330,5 +392,5 @@ pi_native_handle queue_impl::getNative() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

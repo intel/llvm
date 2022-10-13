@@ -270,8 +270,7 @@ TEST_F(LogChannelTest, List) {
 TEST_F(LogChannelEnabledTest, log_options) {
   std::string Err;
   EXPECT_EQ("Hello World\n", logAndTakeOutput("Hello World"));
-  EXPECT_TRUE(EnableChannel(getLogHandler(), LLDB_LOG_OPTION_THREADSAFE, "chan",
-                            {}, Err));
+  EXPECT_TRUE(EnableChannel(getLogHandler(), 0, "chan", {}, Err));
   EXPECT_EQ("Hello World\n", logAndTakeOutput("Hello World"));
 
   {
@@ -364,8 +363,8 @@ TEST_F(LogChannelEnabledTest, LogGetLogThread) {
 
   // Try fetching the log mask on one thread. Concurrently, try disabling the
   // log channel.
-  uint32_t mask;
-  std::thread log_thread([this, &mask] { mask = getLog()->GetMask().Get(); });
+  uint64_t mask;
+  std::thread log_thread([this, &mask] { mask = getLog()->GetMask(); });
   EXPECT_TRUE(DisableChannel("chan", {}, err));
   log_thread.join();
 

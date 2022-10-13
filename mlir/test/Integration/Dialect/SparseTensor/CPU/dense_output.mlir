@@ -1,8 +1,8 @@
 // RUN: mlir-opt %s --sparse-compiler | \
-// RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
+// RUN: TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 !Filename = !llvm.ptr<i8>
@@ -88,8 +88,8 @@ module {
     vector.print %v : vector<25xf64>
 
     // Release the resources.
-    sparse_tensor.release %a : tensor<?x?xf64, #SparseMatrix>
-    sparse_tensor.release %0 : tensor<?x?xf64, #DenseMatrix>
+    bufferization.dealloc_tensor %a : tensor<?x?xf64, #SparseMatrix>
+    bufferization.dealloc_tensor %0 : tensor<?x?xf64, #DenseMatrix>
 
     return
   }

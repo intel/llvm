@@ -14,4 +14,4 @@
 // DEVICE-DAG: #define SYCL_EXTERNAL
 // DEVICE-DAG: #define __SYCL_DEVICE_ONLY__
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>

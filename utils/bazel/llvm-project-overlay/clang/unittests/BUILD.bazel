@@ -4,8 +4,9 @@
 
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
 )
+
+licenses(["notice"])
 
 cc_test(
     name = "ast_tests",
@@ -134,6 +135,7 @@ cc_test(
         "//clang:serialization",
         "//clang:tooling",
         "//llvm:Support",
+        "//llvm:TestingADT",
         "//llvm:TestingSupport",
         "//llvm:gmock",
         "//llvm:gtest",
@@ -205,6 +207,7 @@ cc_test(
         "//clang:frontend",
         "//clang:tooling_core",
         "//llvm:Support",
+        "//llvm:gmock",
         "//llvm:gtest",
         "//llvm:gtest_main",
     ],
@@ -253,6 +256,7 @@ cc_test(
         "//clang:sema",
         "//clang:serialization",
         "//llvm:Support",
+        "//llvm:TestingSupport",
         "//llvm:gmock",
         "//llvm:gtest",
         "//llvm:gtest_main",

@@ -8,46 +8,38 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/context_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-template <info::context param> struct get_context_info {
-  using RetType =
-      typename info::param_traits<info::context, param>::return_type;
-
-  static RetType get(RT::PiContext ctx, const plugin &Plugin) {
-    RetType Result = 0;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piContextGetInfo>(ctx,
-                                             pi::cast<pi_context_info>(param),
-                                             sizeof(Result), &Result, nullptr);
-    return Result;
-  }
-};
+template <typename Param>
+typename Param::return_type get_context_info(RT::PiContext Ctx,
+                                             const plugin &Plugin) {
+  static_assert(is_context_info_desc<Param>::value,
+                "Invalid context information descriptor");
+  typename Param::return_type Result = 0;
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin.call<PiApiKind::piContextGetInfo>(Ctx, PiInfoCode<Param>::value,
+                                           sizeof(Result), &Result, nullptr);
+  return Result;
+}
 
 // Specialization for atomic_memory_order_capabilities, PI returns a bitfield
 template <>
-struct get_context_info<info::context::atomic_memory_order_capabilities> {
-  using RetType = typename info::param_traits<
-      info::context,
-      info::context::atomic_memory_order_capabilities>::return_type;
-
-  static RetType get(RT::PiContext ctx, const plugin &Plugin) {
-    pi_memory_order_capabilities Result;
-    Plugin.call<PiApiKind::piContextGetInfo>(
-        ctx,
-        pi::cast<pi_context_info>(
-            info::context::atomic_memory_order_capabilities),
-        sizeof(Result), &Result, nullptr);
-    return readMemoryOrderBitfield(Result);
-  }
-};
-
+std::vector<sycl::memory_order>
+get_context_info<info::context::atomic_memory_order_capabilities>(
+    RT::PiContext Ctx, const plugin &Plugin) {
+  pi_memory_order_capabilities Result;
+  Plugin.call<PiApiKind::piContextGetInfo>(
+      Ctx, PiInfoCode<info::context::atomic_memory_order_capabilities>::value,
+      sizeof(Result), &Result, nullptr);
+  return readMemoryOrderBitfield(Result);
+}
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestGetPlugin.hpp"
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <gtest/gtest.h>
+#include <sycl/detail/pi.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 namespace {
 class EnqueueMemTest : public testing::TestWithParam<detail::plugin> {
@@ -80,12 +80,12 @@ protected:
       ASSERT_NE(pattern, inValues[i]);
     }
 
+    pi_event event;
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
                   _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T), inValues,
-                  0, nullptr, nullptr)),
+                  0, nullptr, &event)),
               PI_SUCCESS);
 
-    pi_event event;
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferFill>(
                   _queue, _mem, &pattern, sizeof(T), 0, sizeof(inValues), 0,
                   nullptr, &event)),
@@ -96,7 +96,7 @@ protected:
     T outValues[_numElementsX] = {};
     ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
                   _queue, _mem, PI_TRUE, 0, _numElementsX * sizeof(T),
-                  outValues, 0, nullptr, nullptr)),
+                  outValues, 0, nullptr, &event)),
               PI_SUCCESS);
 
     for (size_t i = 0; i < _numElementsX; ++i) {

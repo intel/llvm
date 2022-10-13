@@ -36,7 +36,6 @@ import sys
 import tempfile
 
 # Third-party modules
-import six
 import unittest2
 
 # LLDB Modules
@@ -280,6 +279,18 @@ def parseOptionsAndInitTestdirs():
     if not configuration.get_filecheck_path():
         logging.warning('No valid FileCheck executable; some tests may fail...')
         logging.warning('(Double-check the --llvm-tools-dir argument to dotest.py)')
+
+    configuration.libcxx_include_dir = args.libcxx_include_dir
+    configuration.libcxx_library_dir = args.libcxx_library_dir
+    if args.libcxx_include_dir or args.libcxx_library_dir:
+        if args.lldb_platform_name:
+            logging.warning('Custom libc++ is not supported for remote runs: ignoring --libcxx arguments')
+        elif args.libcxx_include_dir and args.libcxx_library_dir:
+            configuration.libcxx_include_dir = args.libcxx_include_dir
+            configuration.libcxx_library_dir = args.libcxx_library_dir
+        else:
+            logging.error('Custom libc++ requires both --libcxx-include-dir and --libcxx-library-dir')
+            sys.exit(-1)
 
     if args.channels:
         lldbtest_config.channels = args.channels
@@ -948,7 +959,8 @@ def run_suite():
     # Note that it's not dotest's job to clean this directory.
     lldbutil.mkdir_p(configuration.test_build_dir)
 
-    print("Skipping the following test categories: {}".format(configuration.skip_categories))
+    skipped_categories_list = ", ".join(configuration.skip_categories)
+    print("Skipping the following test categories: {}".format(skipped_categories_list))
 
     for testdir in configuration.testdirs:
         for (dirpath, dirnames, filenames) in os.walk(testdir):

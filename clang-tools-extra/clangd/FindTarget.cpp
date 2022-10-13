@@ -454,6 +454,10 @@ public:
             Outer.add(TD->getTemplatedDecl(), Flags | Rel::TemplatePattern);
         }
       }
+      void
+      VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *STTPT) {
+        Outer.add(STTPT->getReplacementType(), Flags);
+      }
       void VisitTemplateTypeParmType(const TemplateTypeParmType *TTPT) {
         Outer.add(TTPT->getDecl(), Flags);
       }
@@ -950,7 +954,10 @@ public:
     // ElaboratedTypeLoc will reports information for its inner type loc.
     // Otherwise we loose information about inner types loc's qualifier.
     TypeLoc Inner = L.getNamedTypeLoc().getUnqualifiedLoc();
-    TypeLocsToSkip.insert(Inner.getBeginLoc());
+    if (L.getBeginLoc() == Inner.getBeginLoc())
+      return RecursiveASTVisitor::TraverseTypeLoc(Inner);
+    else
+      TypeLocsToSkip.insert(Inner.getBeginLoc());
     return RecursiveASTVisitor::TraverseElaboratedTypeLoc(L);
   }
 

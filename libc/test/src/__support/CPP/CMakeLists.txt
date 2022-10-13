@@ -28,16 +28,7 @@ add_libc_unittest(
     limits_test.cpp
   DEPENDS
     libc.src.__support.CPP.limits
-)
-
-add_libc_unittest(
-  arrayref_test
-  SUITE
-    libc_cpp_utils_unittests
-  SRCS
-    arrayref_test.cpp
-  DEPENDS
-    libc.src.__support.CPP.array_ref
+    libc.src.__support.uint
 )
 
 add_libc_unittest(
@@ -71,11 +62,32 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
-  blockstore_test
+  stringstream_test
   SUITE
     libc_cpp_utils_unittests
   SRCS
-    blockstore_test.cpp
+    stringstream_test.cpp
   DEPENDS
-    libc.src.__support.CPP.blockstore
+    libc.src.__support.CPP.span
+    libc.src.__support.CPP.stringstream
+)
+
+add_libc_unittest(
+  optional_test
+  SUITE
+    libc_cpp_utils_unittests
+  SRCS
+    optional_test.cpp
+  DEPENDS
+  libc.src.__support.CPP.optional
+)
+
+add_libc_unittest(
+  span_test
+  SUITE
+    libc_cpp_utils_unittests
+  SRCS
+    span_test.cpp
+  DEPENDS
+  libc.src.__support.CPP.span
 )

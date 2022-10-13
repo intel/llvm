@@ -14,8 +14,8 @@
 #include "pi_arguments_handler.hpp"
 #include "pi_structs.hpp"
 
-#include <CL/sycl/detail/spinlock.hpp>
 #include <detail/plugin_printers.hpp>
+#include <sycl/detail/spinlock.hpp>
 
 #include <iostream>
 #include <mutex>
@@ -41,7 +41,7 @@ static std::string getResult(pi_result Res) {
   case NAME:                                                                   \
     return #NAME;
 #define _PI_ERRC_WITH_MSG(NAME, VAL, MSG) _PI_ERRC(NAME, VAL)
-#include <CL/sycl/detail/pi_error.def>
+#include <sycl/detail/pi_error.def>
 #undef _PI_ERRC
 #undef _PI_ERRC_WITH_MSG
   }
@@ -58,7 +58,7 @@ static void setupClassicPrinter() {
                   << "\n";                                                     \
         sycl::detail::pi::printArgs(Args...);                                  \
       });
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 
   ResultPrinter = new std::function(
@@ -138,7 +138,7 @@ XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
     return;
 
   // Lock while we print information
-  std::lock_guard _{GlobalLock};
+  std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   if (TraceType == xpti::trace_function_with_args_begin) {
     const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);

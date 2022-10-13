@@ -283,10 +283,10 @@ func.func @vect(%arg0: vector<4xf32>, %arg1: i32, %arg2: f32, %arg3: !llvm.vec<2
   %0 = llvm.extractelement %arg0[%arg1 : i32] : vector<4xf32>
 // CHECK:  = llvm.insertelement {{.*}} : vector<4xf32>
   %1 = llvm.insertelement %arg2, %arg0[%arg1 : i32] : vector<4xf32>
-// CHECK:  = llvm.shufflevector {{.*}} [0 : i32, 0 : i32, 0 : i32, 0 : i32, 7 : i32] : vector<4xf32>, vector<4xf32>
-  %2 = llvm.shufflevector %arg0, %arg0 [0 : i32, 0 : i32, 0 : i32, 0 : i32, 7 : i32] : vector<4xf32>, vector<4xf32>
-// CHECK:  = llvm.shufflevector %{{.+}}, %{{.+}} [1 : i32, 0 : i32] : !llvm.vec<2 x ptr<i32>>, !llvm.vec<2 x ptr<i32>>
-  %3 = llvm.shufflevector %arg3, %arg3 [1 : i32, 0 : i32] : !llvm.vec<2 x ptr<i32>>, !llvm.vec<2 x ptr<i32>>
+// CHECK:  = llvm.shufflevector {{.*}} [0, 0, 0, 0, 7] : vector<4xf32>
+  %2 = llvm.shufflevector %arg0, %arg0 [0, 0, 0, 0, 7] : vector<4xf32>
+// CHECK:  = llvm.shufflevector %{{.+}}, %{{.+}} [1, 0] : !llvm.vec<2 x ptr<i32>>
+  %3 = llvm.shufflevector %arg3, %arg3 [1, 0] : !llvm.vec<2 x ptr<i32>>
 // CHECK:  = llvm.mlir.constant(dense<1.000000e+00> : vector<4xf32>) : vector<4xf32>
   %4 = llvm.mlir.constant(dense<1.0> : vector<4xf32>) : vector<4xf32>
   return
@@ -298,10 +298,27 @@ func.func @scalable_vect(%arg0: vector<[4]xf32>, %arg1: i32, %arg2: f32) {
   %0 = llvm.extractelement %arg0[%arg1 : i32] : vector<[4]xf32>
 // CHECK:  = llvm.insertelement {{.*}} : vector<[4]xf32>
   %1 = llvm.insertelement %arg2, %arg0[%arg1 : i32] : vector<[4]xf32>
-// CHECK:  = llvm.shufflevector {{.*}} [0 : i32, 0 : i32, 0 : i32, 0 : i32] : vector<[4]xf32>, vector<[4]xf32>
-  %2 = llvm.shufflevector %arg0, %arg0 [0 : i32, 0 : i32, 0 : i32, 0 : i32] : vector<[4]xf32>, vector<[4]xf32>
+// CHECK:  = llvm.shufflevector {{.*}} [0, 0, 0, 0] : vector<[4]xf32>
+  %2 = llvm.shufflevector %arg0, %arg0 [0, 0, 0, 0] : vector<[4]xf32>
 // CHECK:  = llvm.mlir.constant(dense<1.000000e+00> : vector<[4]xf32>) : vector<[4]xf32>
   %3 = llvm.mlir.constant(dense<1.0> : vector<[4]xf32>) : vector<[4]xf32>
+  return
+}
+
+// CHECK-LABEL: @mixed_vect
+func.func @mixed_vect(%arg0: vector<8xf32>, %arg1: vector<4xf32>, %arg2: vector<[4]xf32>) {
+  // CHECK: = llvm.intr.vector.insert {{.*}} : vector<8xf32> into vector<[4]xf32>
+  %0 = llvm.intr.vector.insert %arg0, %arg2[0] : vector<8xf32> into vector<[4]xf32>
+  // CHECK: = llvm.intr.vector.insert {{.*}} : vector<4xf32> into vector<[4]xf32>
+  %1 = llvm.intr.vector.insert %arg1, %arg2[0] : vector<4xf32> into vector<[4]xf32>
+  // CHECK: = llvm.intr.vector.insert {{.*}} : vector<4xf32> into vector<[4]xf32>
+  %2 = llvm.intr.vector.insert %arg1, %1[4] : vector<4xf32> into vector<[4]xf32>
+  // CHECK: = llvm.intr.vector.insert {{.*}} : vector<4xf32> into vector<8xf32>
+  %3 = llvm.intr.vector.insert %arg1, %arg0[4] : vector<4xf32> into vector<8xf32>
+  // CHECK: = llvm.intr.vector.extract {{.*}} : vector<8xf32> from vector<[4]xf32>
+  %4 = llvm.intr.vector.extract %2[0] : vector<8xf32> from vector<[4]xf32>
+  // CHECK: = llvm.intr.vector.extract {{.*}} : vector<2xf32> from vector<8xf32>
+  %5 = llvm.intr.vector.extract %arg0[6] : vector<2xf32> from vector<8xf32>
   return
 }
 
@@ -432,7 +449,7 @@ llvm.func @useInlineAsm(%arg0: i32) {
 }
 
 // CHECK-LABEL: @fastmathFlags
-func.func @fastmathFlags(%arg0: f32, %arg1: f32, %arg2: i32) {
+func.func @fastmathFlags(%arg0: f32, %arg1: f32, %arg2: i32, %arg3: vector<2 x f32>, %arg4: vector<2 x f32>) {
 // CHECK: {{.*}} = llvm.fadd %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
 // CHECK: {{.*}} = llvm.fsub %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
 // CHECK: {{.*}} = llvm.fmul %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
@@ -444,8 +461,14 @@ func.func @fastmathFlags(%arg0: f32, %arg1: f32, %arg2: i32) {
   %3 = llvm.fdiv %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
   %4 = llvm.frem %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
 
-// CHECK: {{.*}} = llvm.fcmp "oeq" %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
+// CHECK: %[[SCALAR_PRED0:.+]] = llvm.fcmp "oeq" %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
   %5 = llvm.fcmp "oeq" %arg0, %arg1 {fastmathFlags = #llvm.fastmath<fast>} : f32
+// CHECK: %{{.*}} = llvm.add %[[SCALAR_PRED0]], %[[SCALAR_PRED0]] : i1
+  %typecheck_5 = llvm.add %5, %5 : i1
+// CHECK: %[[VEC_PRED0:.+]] = llvm.fcmp "oeq" %arg3, %arg4 {fastmathFlags = #llvm.fastmath<fast>} : vector<2xf32>
+  %vcmp = llvm.fcmp "oeq" %arg3, %arg4 {fastmathFlags = #llvm.fastmath<fast>} : vector<2xf32>
+// CHECK: %{{.*}} = llvm.add %[[VEC_PRED0]], %[[VEC_PRED0]] : vector<2xi1>
+  %typecheck_vcmp = llvm.add %vcmp, %vcmp : vector<2xi1>
 
 // CHECK: {{.*}} = llvm.fneg %arg0 {fastmathFlags = #llvm.fastmath<fast>} : f32
   %6 = llvm.fneg %arg0 {fastmathFlags = #llvm.fastmath<fast>} : f32
@@ -478,4 +501,40 @@ module {
     llvm.access_group @group1
     llvm.return
   }
+}
+
+// CHECK-LABEL: llvm.func @vararg_func
+llvm.func @vararg_func(%arg0: i32, ...) {
+  // CHECK: %{{.*}} = llvm.mlir.constant(1 : i32) : i32
+  // CHECK: %{{.*}} = llvm.mlir.constant(1 : i32) : i32
+  %0 = llvm.mlir.constant(1 : i32) : i32
+  %1 = llvm.mlir.constant(1 : i32) : i32
+  // CHECK: %[[ALLOCA0:.+]] = llvm.alloca %{{.*}} x !llvm.struct<"struct.va_list", (ptr<i8>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr<struct<"struct.va_list", (ptr<i8>)>>
+  // CHECK: %[[CAST0:.+]] = llvm.bitcast %[[ALLOCA0]] : !llvm.ptr<struct<"struct.va_list", (ptr<i8>)>> to !llvm.ptr<i8>
+  %2 = llvm.alloca %1 x !llvm.struct<"struct.va_list", (ptr<i8>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr<struct<"struct.va_list", (ptr<i8>)>>
+  %3 = llvm.bitcast %2 : !llvm.ptr<struct<"struct.va_list", (ptr<i8>)>> to !llvm.ptr<i8>
+  // CHECK: llvm.intr.vastart %[[CAST0]]
+  llvm.intr.vastart %3
+  // CHECK: %[[ALLOCA1:.+]] = llvm.alloca %{{.*}} x !llvm.ptr<i8> {alignment = 8 : i64} : (i32) -> !llvm.ptr<ptr<i8>>
+  // CHECK: %[[CAST1:.+]] = llvm.bitcast %[[ALLOCA1]] : !llvm.ptr<ptr<i8>> to !llvm.ptr<i8>
+  %4 = llvm.alloca %0 x !llvm.ptr<i8> {alignment = 8 : i64} : (i32) -> !llvm.ptr<ptr<i8>>
+  %5 = llvm.bitcast %4 : !llvm.ptr<ptr<i8>> to !llvm.ptr<i8>
+  // CHECK: llvm.intr.vacopy %[[CAST0]] to %[[CAST1]]
+  llvm.intr.vacopy %3 to %5
+  // CHECK: llvm.intr.vaend %[[CAST1]]
+  // CHECK: llvm.intr.vaend %[[CAST0]]
+  llvm.intr.vaend %5
+  llvm.intr.vaend %3
+  // CHECK: llvm.return
+  llvm.return
+}
+
+// CHECK-LABEL: @lifetime
+// CHECK-SAME: %[[P:.*]]: !llvm.ptr
+llvm.func @lifetime(%p: !llvm.ptr) {
+  // CHECK: llvm.intr.lifetime.start 16, %[[P]]
+  llvm.intr.lifetime.start 16, %p : !llvm.ptr
+  // CHECK: llvm.intr.lifetime.end 16, %[[P]]
+  llvm.intr.lifetime.end 16, %p : !llvm.ptr
+  llvm.return
 }

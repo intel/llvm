@@ -38,6 +38,8 @@ const Scope &GetTopLevelUnitContaining(const Scope &);
 const Scope &GetTopLevelUnitContaining(const Symbol &);
 const Scope &GetProgramUnitContaining(const Scope &);
 const Scope &GetProgramUnitContaining(const Symbol &);
+const Scope &GetProgramUnitOrBlockConstructContaining(const Scope &);
+const Scope &GetProgramUnitOrBlockConstructContaining(const Symbol &);
 
 const Scope *FindModuleContaining(const Scope &);
 const Scope *FindModuleFileContaining(const Scope &);
@@ -86,6 +88,7 @@ bool DoesScopeContain(const Scope *maybeAncestor, const Scope &maybeDescendent);
 bool DoesScopeContain(const Scope *, const Symbol &);
 bool IsUseAssociated(const Symbol &, const Scope &);
 bool IsHostAssociated(const Symbol &, const Scope &);
+bool IsHostAssociatedIntoSubprogram(const Symbol &, const Scope &);
 inline bool IsStmtFunction(const Symbol &symbol) {
   const auto *subprogram{symbol.detailsIf<SubprogramDetails>()};
   return subprogram && subprogram->stmtFunction();
@@ -180,6 +183,7 @@ std::optional<parser::Message> WhyNotModifiable(SourceName, const SomeExpr &,
     const Scope &, bool vectorSubscriptIsOk = false);
 const Symbol *IsExternalInPureContext(const Symbol &, const Scope &);
 bool HasCoarray(const parser::Expr &);
+bool IsPolymorphic(const Symbol &);
 bool IsPolymorphicAllocatable(const Symbol &);
 // Return an error if component symbol is not accessible from scope (7.5.4.8(2))
 std::optional<parser::MessageFormattedText> CheckAccessibleComponent(

@@ -4,7 +4,7 @@
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-define void @test(i256* %a, i256* %b, i256* %out) #0 {
+define void @test(ptr %a, ptr %b, ptr %out) #0 {
 ; X32-LABEL: test:
 ; X32:       # %bb.0: # %entry
 ; X32-NEXT:    pushl %ebp
@@ -312,71 +312,66 @@ define void @test(i256* %a, i256* %b, i256* %out) #0 {
 ; X64-NEXT:    .cfi_def_cfa_offset 16
 ; X64-NEXT:    pushq %r14
 ; X64-NEXT:    .cfi_def_cfa_offset 24
-; X64-NEXT:    pushq %r12
-; X64-NEXT:    .cfi_def_cfa_offset 32
 ; X64-NEXT:    pushq %rbx
-; X64-NEXT:    .cfi_def_cfa_offset 40
-; X64-NEXT:    .cfi_offset %rbx, -40
-; X64-NEXT:    .cfi_offset %r12, -32
+; X64-NEXT:    .cfi_def_cfa_offset 32
+; X64-NEXT:    .cfi_offset %rbx, -32
 ; X64-NEXT:    .cfi_offset %r14, -24
 ; X64-NEXT:    .cfi_offset %r15, -16
-; X64-NEXT:    movq %rdx, %r9
-; X64-NEXT:    movq (%rdi), %r14
-; X64-NEXT:    movq 8(%rdi), %r8
-; X64-NEXT:    movq 16(%rdi), %rcx
-; X64-NEXT:    movq 16(%rsi), %rbx
-; X64-NEXT:    movq (%rsi), %r12
-; X64-NEXT:    movq 8(%rsi), %r15
-; X64-NEXT:    movq 24(%rdi), %rdi
-; X64-NEXT:    imulq %r12, %rdi
-; X64-NEXT:    movq %r12, %rax
-; X64-NEXT:    mulq %rcx
+; X64-NEXT:    movq %rdx, %rcx
+; X64-NEXT:    movq (%rdi), %rbx
+; X64-NEXT:    movq 8(%rdi), %r11
+; X64-NEXT:    movq 16(%rdi), %r10
+; X64-NEXT:    movq 16(%rsi), %r8
+; X64-NEXT:    movq (%rsi), %r9
+; X64-NEXT:    movq 8(%rsi), %r14
+; X64-NEXT:    movq 24(%rdi), %r15
+; X64-NEXT:    imulq %r9, %r15
+; X64-NEXT:    movq %r9, %rax
+; X64-NEXT:    mulq %r10
+; X64-NEXT:    movq %rax, %rdi
+; X64-NEXT:    addq %r15, %rdx
+; X64-NEXT:    imulq %r14, %r10
+; X64-NEXT:    addq %rdx, %r10
+; X64-NEXT:    movq %r8, %r15
+; X64-NEXT:    imulq %r11, %r15
+; X64-NEXT:    movq %r8, %rax
+; X64-NEXT:    mulq %rbx
+; X64-NEXT:    movq %rax, %r8
+; X64-NEXT:    addq %r15, %rdx
+; X64-NEXT:    movq 24(%rsi), %r15
+; X64-NEXT:    imulq %rbx, %r15
+; X64-NEXT:    addq %rdx, %r15
+; X64-NEXT:    addq %rdi, %r8
+; X64-NEXT:    adcq %r10, %r15
+; X64-NEXT:    movq %rbx, %rax
+; X64-NEXT:    mulq %r9
+; X64-NEXT:    movq %rdx, %rsi
 ; X64-NEXT:    movq %rax, %r10
-; X64-NEXT:    addq %rdi, %rdx
-; X64-NEXT:    imulq %r15, %rcx
-; X64-NEXT:    addq %rdx, %rcx
-; X64-NEXT:    movq %rbx, %rdi
-; X64-NEXT:    imulq %r8, %rdi
+; X64-NEXT:    movq %r11, %rax
+; X64-NEXT:    mulq %r9
+; X64-NEXT:    movq %rdx, %rdi
+; X64-NEXT:    movq %rax, %r9
+; X64-NEXT:    addq %rsi, %r9
+; X64-NEXT:    adcq $0, %rdi
 ; X64-NEXT:    movq %rbx, %rax
 ; X64-NEXT:    mulq %r14
-; X64-NEXT:    movq %rax, %r11
-; X64-NEXT:    addq %rdi, %rdx
-; X64-NEXT:    movq 24(%rsi), %rbx
-; X64-NEXT:    imulq %r14, %rbx
-; X64-NEXT:    addq %rdx, %rbx
-; X64-NEXT:    addq %r10, %r11
-; X64-NEXT:    adcq %rcx, %rbx
-; X64-NEXT:    movq %r14, %rax
-; X64-NEXT:    mulq %r12
 ; X64-NEXT:    movq %rdx, %rsi
-; X64-NEXT:    movq %rax, %r10
-; X64-NEXT:    movq %r8, %rax
-; X64-NEXT:    mulq %r12
-; X64-NEXT:    movq %rdx, %rcx
-; X64-NEXT:    movq %rax, %rdi
-; X64-NEXT:    addq %rsi, %rdi
-; X64-NEXT:    adcq $0, %rcx
-; X64-NEXT:    movq %r14, %rax
-; X64-NEXT:    mulq %r15
-; X64-NEXT:    movq %rdx, %rsi
-; X64-NEXT:    movq %rax, %r14
-; X64-NEXT:    addq %rdi, %r14
-; X64-NEXT:    adcq %rcx, %rsi
+; X64-NEXT:    movq %rax, %rbx
+; X64-NEXT:    addq %r9, %rbx
+; X64-NEXT:    adcq %rdi, %rsi
 ; X64-NEXT:    setb %al
-; X64-NEXT:    movzbl %al, %ecx
-; X64-NEXT:    movq %r8, %rax
-; X64-NEXT:    mulq %r15
+; X64-NEXT:    movzbl %al, %edi
+; X64-NEXT:    movq %r11, %rax
+; X64-NEXT:    mulq %r14
 ; X64-NEXT:    addq %rsi, %rax
-; X64-NEXT:    adcq %rcx, %rdx
-; X64-NEXT:    addq %r11, %rax
-; X64-NEXT:    adcq %rbx, %rdx
-; X64-NEXT:    movq %r10, (%r9)
-; X64-NEXT:    movq %r14, 8(%r9)
-; X64-NEXT:    movq %rax, 16(%r9)
-; X64-NEXT:    movq %rdx, 24(%r9)
+; X64-NEXT:    adcq %rdi, %rdx
+; X64-NEXT:    addq %r8, %rax
+; X64-NEXT:    adcq %r15, %rdx
+; X64-NEXT:    movq %r10, (%rcx)
+; X64-NEXT:    movq %rbx, 8(%rcx)
+; X64-NEXT:    movq %rax, 16(%rcx)
+; X64-NEXT:    movq %rdx, 24(%rcx)
 ; X64-NEXT:    popq %rbx
-; X64-NEXT:    .cfi_def_cfa_offset 32
-; X64-NEXT:    popq %r12
 ; X64-NEXT:    .cfi_def_cfa_offset 24
 ; X64-NEXT:    popq %r14
 ; X64-NEXT:    .cfi_def_cfa_offset 16
@@ -384,10 +379,10 @@ define void @test(i256* %a, i256* %b, i256* %out) #0 {
 ; X64-NEXT:    .cfi_def_cfa_offset 8
 ; X64-NEXT:    retq
 entry:
-  %av = load i256, i256* %a
-  %bv = load i256, i256* %b
+  %av = load i256, ptr %a
+  %bv = load i256, ptr %b
   %r = mul i256 %av, %bv
-  store i256 %r, i256* %out
+  store i256 %r, ptr %out
   ret void
 }
 

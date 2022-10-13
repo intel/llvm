@@ -38,7 +38,6 @@ def AsyncDialect : Dialect {
     static constexpr StringRef kAllowedToBlockAttrName =
         "async.allowed_to_block";
   }];
-
 }
 
 #endif // ASYNC_DIALECT_TD

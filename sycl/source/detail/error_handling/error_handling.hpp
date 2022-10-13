@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/pi.h>
 #include <detail/device_impl.hpp>
+#include <sycl/detail/cg.hpp>
+#include <sycl/detail/pi.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 namespace enqueue_kernel_launch {
@@ -30,5 +30,5 @@ void handleErrorOrWarning(pi_result, const device_impl &, pi_kernel,
 } // namespace enqueue_kernel_launch
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

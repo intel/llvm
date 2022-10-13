@@ -6,14 +6,14 @@
 // - emit an error if some of the restrictions on template parameters are
 //   violated
 
-#include <CL/sycl.hpp>
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 // --- Postive tests.
 

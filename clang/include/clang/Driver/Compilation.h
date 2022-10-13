@@ -216,6 +216,7 @@ public:
 
   void addCommand(std::unique_ptr<Command> C) { Jobs.addJob(std::move(C)); }
 
+  TempFileList &getTempFiles() { return TempFiles; }
   const TempFileList &getTempFiles() const { return TempFiles; }
 
   const ArgStringMap &getResultFiles() const { return ResultFiles; }

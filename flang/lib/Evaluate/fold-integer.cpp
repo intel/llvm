@@ -552,6 +552,8 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
   } else if (name == "dim") {
     return FoldElementalIntrinsic<T, T, T>(
         context, std::move(funcRef), &Scalar<T>::DIM);
+  } else if (name == "dot_product") {
+    return FoldDotProduct<T>(context, std::move(funcRef));
   } else if (name == "dshiftl" || name == "dshiftr") {
     const auto fptr{
         name == "dshiftl" ? &Scalar<T>::DSHIFTL : &Scalar<T>::DSHIFTR};
@@ -742,6 +744,37 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
           }
           return i.ISHFT(posVal);
         }));
+  } else if (name == "ishftc") {
+    if (args.at(2)) { // SIZE= is present
+      return FoldElementalIntrinsic<T, T, Int4, Int4>(context,
+          std::move(funcRef),
+          ScalarFunc<T, T, Int4, Int4>(
+              [&](const Scalar<T> &i, const Scalar<Int4> &shift,
+                  const Scalar<Int4> &size) -> Scalar<T> {
+                // Errors are caught in intrinsics.cpp
+                auto shiftVal{static_cast<int>(shift.ToInt64())};
+                auto sizeVal{static_cast<int>(size.ToInt64())};
+                return i.ISHFTC(shiftVal, sizeVal);
+              }));
+    } else { // no SIZE=
+      return FoldElementalIntrinsic<T, T, Int4>(context, std::move(funcRef),
+          ScalarFunc<T, T, Int4>(
+              [&](const Scalar<T> &i, const Scalar<Int4> &count) -> Scalar<T> {
+                auto countVal{static_cast<int>(count.ToInt64())};
+                return i.ISHFTC(countVal);
+              }));
+    }
+  } else if (name == "izext" || name == "jzext") {
+    if (args.size() == 1) {
+      if (auto *expr{UnwrapExpr<Expr<SomeInteger>>(args[0])}) {
+        // Rewrite to IAND(INT(n,k),255_k) for k=KIND(T)
+        intrinsic->name = "iand";
+        auto converted{ConvertToType<T>(std::move(*expr))};
+        *expr = Fold(context, Expr<SomeInteger>{std::move(converted)});
+        args.emplace_back(AsGenericExpr(Expr<T>{Scalar<T>{255}}));
+        return FoldIntrinsicFunction(context, std::move(funcRef));
+      }
+    }
   } else if (name == "lbound") {
     return LBOUND(context, std::move(funcRef));
   } else if (name == "leadz" || name == "trailz" || name == "poppar" ||
@@ -767,7 +800,10 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
                   "missing case to fold intrinsic function %s", name.c_str());
             }
             return FoldElementalIntrinsic<T, TI>(context, std::move(funcRef),
-                ScalarFunc<T, TI>([&fptr](const Scalar<TI> &i) -> Scalar<T> {
+                // `i` should be declared as `const Scalar<TI>&`.
+                // We declare it as `auto` to workaround an msvc bug:
+                // https://developercommunity.visualstudio.com/t/Regression:-nested-closure-assumes-wrong/10130223
+                ScalarFunc<T, TI>([&fptr](const auto &i) -> Scalar<T> {
                   return Scalar<T>{std::invoke(fptr, i)};
                 }));
           },
@@ -947,14 +983,15 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
     }
   } else if (name == "selected_int_kind") {
     if (auto p{GetInt64Arg(args[0])}) {
-      return Expr<T>{SelectedIntKind(*p)};
+      return Expr<T>{context.targetCharacteristics().SelectedIntKind(*p)};
     }
   } else if (name == "selected_real_kind" ||
       name == "__builtin_ieee_selected_real_kind") {
     if (auto p{GetInt64ArgOr(args[0], 0)}) {
       if (auto r{GetInt64ArgOr(args[1], 0)}) {
         if (auto radix{GetInt64ArgOr(args[2], 2)}) {
-          return Expr<T>{SelectedRealKind(*p, *r, *radix)};
+          return Expr<T>{
+              context.targetCharacteristics().SelectedRealKind(*p, *r, *radix)};
         }
       }
     }
@@ -1052,7 +1089,7 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
   } else if (name == "ubound") {
     return UBOUND(context, std::move(funcRef));
   }
-  // TODO: dot_product, ishftc, matmul, sign, transfer
+  // TODO: dot_product, matmul, sign
   return Expr<T>{std::move(funcRef)};
 }
 

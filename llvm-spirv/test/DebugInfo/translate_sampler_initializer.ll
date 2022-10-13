@@ -14,7 +14,7 @@
 ; Command line:
 ; clang -cc1 -triple spir constant_sampler.cl -cl-std=cl2.0 -emit-llvm -o llvm-spirv/test/DebugInfo/translate_sampler_initializer.ll -finclude-default-header -debug-info-kind=standalone
 
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s
 
 ; CHECK: TypeSampler [[#SamplerTy:]]
