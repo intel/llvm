@@ -315,8 +315,7 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
     for (size_t I = 0, E = MD->getNumOperands(); I < E; ++I) {
       Constant *C =
         cast<ConstantAsMetadata>(MD->getOperand(I).get())->getValue();
-      auto Aspect = static_cast<uint32_t>(C->getUniqueInteger().getZExtValue());
-      Aspects.insert(Aspect);
+      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
     }
     FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
   }
