@@ -145,7 +145,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array'
 // CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
 
-// CHECK: FunctionDecl {{.*}}kernel_nns 'void (__generated_test_struct_simple)'
+// CHECK: FunctionDecl {{.*}}kernel_nns{{.*}} 'void (__generated_test_struct_simple)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_tds '__generated_test_struct_simple'
 
 // CHECK: VarDecl {{.*}} used __SYCLKernel
