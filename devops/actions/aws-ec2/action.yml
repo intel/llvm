@@ -62,5 +62,5 @@ inputs:
     default: "us-east-2" # Ohio
 
 runs:
-  using: node12
+  using: node16
   main: ./aws-ec2.js
