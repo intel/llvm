@@ -210,6 +210,9 @@ if (MSVC)
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
 
+# See https://github.com/llvm/llvm-project/issues/58295.
+set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
+
 if (WIN32)
 set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
 else()
