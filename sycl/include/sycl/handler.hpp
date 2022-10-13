@@ -303,8 +303,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
-                     const nd_range<Dims> &Range,
-                     PropertiesT Properties,
+                     const nd_range<Dims> &Range, PropertiesT Properties,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...>);
 
@@ -1374,7 +1373,7 @@ private:
 
     // This should always fail but must be dependent to avoid always failing.
     // It is defined after the shell members to avoid that they are stripped
-    // from the class.                                      
+    // from the class.
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
@@ -1840,8 +1839,8 @@ public:
   parallel_for(range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_impl<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{},
-        Redu, KernelFunc);
+        Range, ext::oneapi::experimental::detail::empty_properties_t{}, Redu,
+        KernelFunc);
   }
 
 // "if constexpr" simplifies implementation/increases readability in comparison

@@ -864,8 +864,7 @@ template <typename KernelName, typename KernelType, int Dims,
 bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                    const range<Dims> &Range,
                                    const nd_range<1> &NDRange,
-                                   PropertiesT Properties,
-                                   Reduction &Redu) {
+                                   PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   auto GroupSum = Reduction::getReadWriteLocalAcc(NElements, CGH);
@@ -1212,8 +1211,8 @@ template <typename KernelName, typename KernelType, int Dims,
 void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
                                          KernelType KernelFunc,
                                          const nd_range<Dims> &Range,
-                                         PropertiesT Properties,
-                                         Reduction &, AccTy Out) {
+                                         PropertiesT Properties, Reduction &,
+                                         AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
 
@@ -1293,8 +1292,8 @@ template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
                                         const nd_range<Dims> &Range,
-                                        PropertiesT Properties,
-                                        Reduction &Redu, AccTy Out) {
+                                        PropertiesT Properties, Reduction &Redu,
+                                        AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserVar =
@@ -1986,8 +1985,7 @@ template <class KernelName, class Accessor> struct NDRangeMulti;
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
-                     const nd_range<Dims> &Range,
-                     PropertiesT Properties,
+                     const nd_range<Dims> &Range, PropertiesT Properties,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = Range.get_local_range().size();

@@ -37,7 +37,7 @@ void check_work_group_size() {
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1>},
-      []() [[sycl::reqd_work_group_size(32)]]{});
+      []() [[sycl::reqd_work_group_size(32)]] {});
 
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
@@ -54,7 +54,7 @@ void check_sub_group_size() {
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::sub_group_size<1>},
-      []() [[sycl::reqd_sub_group_size(32)]]{});
+      []() [[sycl::reqd_sub_group_size(32)]] {});
 
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
