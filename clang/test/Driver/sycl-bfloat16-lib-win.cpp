@@ -17,6 +17,14 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
+// test that unless all targets support bfloat16, AOT compilation uses the fallback library
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc,gen9" %s -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
+
+// test that when all targets support bfloat16, AOT compilation uses the native library
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc-sdv,ats-m75" %s -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+
 // test that a gen9 AOT compilation uses the fallback library
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9" %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
