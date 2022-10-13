@@ -5,7 +5,6 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 **TODO**
 
 - commit 2ffd50a8cf8aefec0582da0ab5908c1665dcdbb6
-- commit 7c58b9a63cc7797dea5bc4037e2ef880a16785e2
 
 ## New features
 
@@ -117,6 +116,8 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Added concurrent memory check to `mem_advise` on CUDA backend. [33746d8d]
 - Enabled multiple HIP streams per SYCL queue. [e0c40a9f]
 - Implemented lazy mechanism of setting context for default-constructed events. [ed92c4ca]
+- Improved performance for multi-dimensional accessors with multiple accesses
+  in a kernel. [7c58b9a6]
 
 ### SYCL Compiler
 
