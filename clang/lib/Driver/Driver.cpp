@@ -102,6 +102,7 @@
 #include <map>
 #include <memory>
 #include <regex>
+#include <sstream>
 #include <utility>
 #if LLVM_ON_UNIX
 #include <unistd.h> // getpid
@@ -5173,9 +5174,8 @@ class OffloadingActionBuilder final {
           TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
           TargetOpt && DeviceOpt) {
 
-        auto checkBF = [=](std::string &Param, size_t Length) {
+        auto checkBF = [=](std::string &Dev) {
           static const std::regex BFFs("pvc.*|ats.*");
-          std::string Dev = Param.substr(0, Length);
           return std::regex_match(Dev, BFFs);
         };
 
@@ -5184,23 +5184,10 @@ class OffloadingActionBuilder final {
         useNative = false;
         if (DevicesPos != std::string::npos) {
           useNative = true;
-          Params.erase(0, DevicesPos + 8);
-          do {
-            size_t Pos = Params.find(',');
-            if (Pos != std::string::npos) {
-              // comma found
-              if (Pos > 0) {
-                std::string ADevice = Params.substr(0, Pos);
-                useNative &= checkBF(ADevice, ADevice.size());
-              }
-              Params.erase(0, Pos + 1);
-              if (Params.size() == 0)
-                break;
-            } else {
-              useNative &= checkBF(Params, Params.size());
-              break;
-            }
-          } while (true);
+          std::istringstream Devices(Params.substr(DevicesPos + 8));
+          for (std::string S; std::getline(Devices, S, ',');) {
+            useNative &= checkBF(S);
+          }
         }
       }
       return needLibs;
