@@ -3,12 +3,12 @@
 #include <sycl/sycl.hpp>
 
 struct KernelFunctorWithOnlyWGSizeAttr {
-  // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' and kernel properties; Conflicting properties are ignored}}
   void operator() [[sycl::reqd_work_group_size(32)]] () const {}
 };
 
 template <size_t... Is> struct KernelFunctorWithWGSizeWithAttr {
-  // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has attribute 'reqd_work_group_size' and kernel properties; Conflicting properties are ignored}}
   void operator() [[sycl::reqd_work_group_size(32)]] () const {}
   auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
@@ -17,12 +17,12 @@ template <size_t... Is> struct KernelFunctorWithWGSizeWithAttr {
 };
 
 struct KernelFunctorWithOnlySGSizeAttr {
-  // expected-warning@+1 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has attribute 'reqd_sub_group_size' and kernel properties; Conflicting properties are ignored}}
   void operator() [[sycl::reqd_sub_group_size(32)]] () const {}
 };
 
 template <uint32_t I> struct KernelFunctorWithSGSizeWithAttr {
-  // expected-warning@+1 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+1 {{kernel has attribute 'reqd_sub_group_size' and kernel properties; Conflicting properties are ignored}}
   void operator() [[sycl::reqd_sub_group_size(32)]] () const {}
   auto get(sycl::ext::oneapi::experimental::properties_tag) {
     return sycl::ext::oneapi::experimental::properties{
@@ -33,7 +33,7 @@ template <uint32_t I> struct KernelFunctorWithSGSizeWithAttr {
 void check_work_group_size() {
   sycl::queue Q;
 
-  // expected-warning@+4 {{kernel has attribute 'reqd_work_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has attribute 'reqd_work_group_size' and kernel properties; Conflicting properties are ignored}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::work_group_size<1>},
@@ -50,7 +50,7 @@ void check_work_group_size() {
 void check_sub_group_size() {
   sycl::queue Q;
 
-  // expected-warning@+4 {{kernel has attribute 'reqd_sub_group_size' but also has kernel properties. Conflicting properties are ignored}}
+  // expected-warning@+4 {{kernel has attribute 'reqd_sub_group_size' and kernel properties; Conflicting properties are ignored}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::sub_group_size<1>},
