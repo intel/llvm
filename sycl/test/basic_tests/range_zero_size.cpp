@@ -1,4 +1,4 @@
-// REQUIRES:cuda || hip_amd
+// REQUIRES:cuda || hip_amd || opencl || host
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 //==--------------- range_zero_size.cpp - SYCL range test ----------------------==//
 //
