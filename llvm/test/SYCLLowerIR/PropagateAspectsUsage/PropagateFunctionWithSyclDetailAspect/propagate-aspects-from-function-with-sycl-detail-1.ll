@@ -1,4 +1,4 @@
-; RUN opt -passes=sycl-propagate-aspects-usage %s -S | FileCheck %s
+; RUN: opt -passes=sycl-propagate-aspects-usage %s -S | FileCheck %s
 
 ; Check that baz() & bar() take the same !sycl_used_aspects as foo()
 

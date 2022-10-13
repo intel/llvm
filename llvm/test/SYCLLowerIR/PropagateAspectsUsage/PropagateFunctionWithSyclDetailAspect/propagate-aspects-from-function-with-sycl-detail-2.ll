@@ -1,6 +1,6 @@
 ; RUN opt -passes=sycl-propagate-aspects-usage %s -S | FileCheck %s
 
-; Check that baz() takes a mix of "!sycl_used_aspects" of bar() & foo()
+; Check: that baz() takes a mix of "!sycl_used_aspects" of bar() & foo()
 
 ;    baz()
 ;   /     \
