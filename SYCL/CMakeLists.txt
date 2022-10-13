@@ -15,6 +15,13 @@ if(CHECK_SYCL_ALL)
     list (GET BE_LIST 0 TARGET_BE)
     list (GET BE_LIST 1 TARGET_DEVICES)
 
+    if ("${TARGET_BE}" STREQUAL "")
+      message(FATAL_ERROR
+        "invalid empty target backend specification in CHECK_SYCL_ALL")
+    elseif("${TARGET_DEVICES}" STREQUAL "")
+      message(FATAL_ERROR
+        "invalid empty target device specification in CHECK_SYCL_ALL")
+    endif()
     message("Run on ${TARGET_DEVICES} for ${TARGET_BE}")
 
     string(REPLACE "," "_" TARGET check-sycl-${TARGET_BE}-${TARGET_DEVICES})
