@@ -170,6 +170,28 @@ SYCL_EXTERNAL void nd_item_get_global_id(sycl::nd_item<2> ndItem) {
   auto id = ndItem.get_global_id();
 }
 
+// CHECK-MLIR-LABEL: func.func @_Z18group_get_group_idN4sycl3_V15groupILi2EEE(%arg0: !sycl_group_2_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR-NEXT: %0 = memref.alloca() : memref<1x!sycl_group_2_>
+// CHECK-MLIR-NEXT:  affine.store %arg0, %0[0] : memref<1x!sycl_group_2_>
+// CHECK-MLIR-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_group_2_>) -> !llvm.ptr<!sycl_group_2_>
+// CHECK-MLIR-NEXT: %2 = llvm.addrspacecast %1 : !llvm.ptr<!sycl_group_2_> to !llvm.ptr<!sycl_group_2_, 4>
+// CHECK-MLIR-NEXT: %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<!sycl_group_2_, 4>) -> memref<?x!sycl_group_2_, 4>
+// CHECK-MLIR-NEXT: %4 = sycl.call(%3) {Function = @get_group_id, MangledName = @_ZNK4sycl3_V15groupILi2EE12get_group_idEv, Type = @group} : (memref<?x!sycl_group_2_, 4>) -> !sycl_id_2_
+// CHECK-MLIR-NEXT:  return
+// CHECK-MLIR-NEXT: }
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z18group_get_group_idN4sycl3_V15groupILi2EEE(%"class.sycl::_V1::group.2" %0) #0 {
+// CHECK-LLVM-NEXT:   %2 = alloca %"class.sycl::_V1::group.2", align 8
+// CHECK-LLVM-NEXT:   store %"class.sycl::_V1::group.2" %0, %"class.sycl::_V1::group.2"* %2, align 8
+// CHECK-LLVM-NEXT:   %3 = addrspacecast %"class.sycl::_V1::group.2"* %2 to %"class.sycl::_V1::group.2" addrspace(4)*
+// CHECK-LLVM-NEXT:   %4 = call %"class.sycl::_V1::id.2" @_ZNK4sycl3_V15groupILi2EE12get_group_idEv(%"class.sycl::_V1::group.2" addrspace(4)* %3)
+// CHECK-LLVM-NEXT:   ret void
+// CHECK-LLVM-NEXT: }
+
+SYCL_EXTERNAL void group_get_group_id(sycl::group<2> group) {
+  auto id = group.get_group_id();
+}
+
 // CHECK-MLIR: func.func @_Z4op_1N4sycl3_V12idILi2EEES2_(%arg0: !sycl_id_2_, %arg1: !sycl_id_2_)
 // CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-MLIR-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
