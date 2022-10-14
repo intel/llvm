@@ -241,7 +241,7 @@ def SYCLAccessorSubscriptOp
 def SYCLRangeGetOp
     : SYCLMethodOpInterfaceImpl<"range.get", "RangeType",
                                 ["get", "operator[]", "operator unsigned long"],
-                                [NoSideEffect]> {
+                                [NoSideEffect, SYCLGetComponent]> {
   let summary = "Call to range::get/operator[]/operator unsigned long";
   let description = [{
     This operation represents a call to the
@@ -256,8 +256,6 @@ def SYCLRangeGetOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +286,7 @@ def SYCLRangeSizeOp
 def SYCLIDGetOp
     : SYCLMethodOpInterfaceImpl<"id.get", "IDType",
                                 ["get", "operator[]", "operator unsigned long"],
-                                [NoSideEffect]> {
+                                [NoSideEffect, SYCLGetComponent]> {
   let summary = "Call to id::get/operator[]/operator size_t";
   let description = [{
     This operation represents a call to the id::get/operator[]/operator size_t functions.
@@ -302,8 +300,6 @@ def SYCLIDGetOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,7 +309,7 @@ def SYCLIDGetOp
 def SYCLItemGetIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_id", "ItemType",
                                 ["get_id", "operator[]", "operator unsigned long"],
-                                [NoSideEffect]> {
+                                [NoSideEffect, SYCLGetID]> {
   let summary = "Call to item::get/operator[]/operator size_t";
   let description = [{
     This operation represents a call to the item::get/operator[]/operator size_t functions.
@@ -327,8 +323,6 @@ def SYCLItemGetIDOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -337,7 +331,7 @@ def SYCLItemGetIDOp
 
 def SYCLItemGetRangeOp
     : SYCLMethodOpInterfaceImpl<"item.get_range", "ItemType",
-                                ["get_range"], [NoSideEffect]> {
+                                ["get_range"], [NoSideEffect, SYCLGetRange]> {
   let summary = "Call to item::get_range";
   let description = [{
     This operation represents a call to the item::get_range function.
@@ -351,8 +345,6 @@ def SYCLItemGetRangeOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -382,7 +374,7 @@ def SYCLItemGetLinearIDOp
 
 def SYCLNDItemGetGlobalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_id", "NdItemType",
-                                ["get_global_id"], [NoSideEffect]> {
+                                ["get_global_id"], [NoSideEffect, SYCLGetID]> {
   let summary = "Call to nd_item::get_global_id";
   let description = [{
     This operation represents a call to the nd_item::get_global_id function.
@@ -396,8 +388,6 @@ def SYCLNDItemGetGlobalIDOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,7 +417,7 @@ def SYCLNDItemGetGlobalLinearIDOp
 
 def SYCLNDItemGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_id", "NdItemType",
-                                ["get_local_id"], [NoSideEffect]> {
+                                ["get_local_id"], [NoSideEffect, SYCLGetID]> {
   let summary = "Call to nd_item::get_local_id";
   let description = [{
     This operation represents a call to the nd_item::get_local_id function.
@@ -441,8 +431,6 @@ def SYCLNDItemGetLocalIDOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -472,7 +460,7 @@ def SYCLNDItemGetLocalLinearIDOp
 
 def SYCLNDItemGetGroupOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_group", "NdItemType",
-                                ["get_group"], [NoSideEffect]> {
+                                ["get_group"], [NoSideEffect, SYCLGetGroup]> {
   let summary = "Call to nd_item::get_group";
   let description = [{
     This operation represents a call to the nd_item::get_group function.
@@ -486,8 +474,6 @@ def SYCLNDItemGetGroupOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs AnyTypeOf<[I64, SYCL_GroupType]>:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -517,7 +503,8 @@ def SYCLNDItemGetGroupLinearIDOp
 
 def SYCLNDItemGetGroupRangeOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_group_range", "NdItemType",
-                                ["get_group_range"], [NoSideEffect]> {
+                                ["get_group_range"],
+                                [NoSideEffect, SYCLGetRange]> {
   let summary = "Call to nd_item::get_group_range";
   let description = [{
     This operation represents a call to the nd_item::get_group_range function.
@@ -531,8 +518,6 @@ def SYCLNDItemGetGroupRangeOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -541,7 +526,8 @@ def SYCLNDItemGetGroupRangeOp
 
 def SYCLNDItemGetGlobalRangeOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_global_range", "NdItemType",
-                                ["get_global_range"], [NoSideEffect]> {
+                                ["get_global_range"],
+                                [NoSideEffect, SYCLGetRange]> {
   let summary = "Call to nd_item::get_global_range";
   let description = [{
     This operation represents a call to the nd_item::get_global_range function.
@@ -555,8 +541,6 @@ def SYCLNDItemGetGlobalRangeOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -565,7 +549,8 @@ def SYCLNDItemGetGlobalRangeOp
 
 def SYCLNDItemGetLocalRangeOp
     : SYCLMethodOpInterfaceImpl<"nd_item.get_local_range", "NdItemType",
-                                ["get_local_range"], [NoSideEffect]> {
+                                ["get_local_range"],
+                                [NoSideEffect, SYCLGetRange]> {
   let summary = "Call to nd_item::get_local_range";
   let description = [{
     This operation represents a call to the nd_item::get_local_range function.
@@ -579,8 +564,6 @@ def SYCLNDItemGetLocalRangeOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -589,7 +572,8 @@ def SYCLNDItemGetLocalRangeOp
 
 def SYCLGroupGetGroupIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_id", "GroupType",
-                                ["get_group_id", "operator[]"], [NoSideEffect]> {
+                                ["get_group_id", "operator[]"],
+                                [NoSideEffect, SYCLGetID]> {
   let summary = "Call to group::get_group_id/operator[]";
   let description = [{
     This operation represents a call to the group::get_group_id/operator[] functions.
@@ -603,8 +587,6 @@ def SYCLGroupGetGroupIDOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -613,7 +595,8 @@ def SYCLGroupGetGroupIDOp
 
 def SYCLGroupGetLocalIDOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_id", "GroupType",
-                                ["get_local_id"], [NoSideEffect]> {
+                                ["get_local_id"],
+                                [NoSideEffect, SYCLGetID]> {
   let summary = "Call to group::get_local_id";
   let description = [{
     This operation represents a call to the group::get_local_id function.
@@ -627,8 +610,6 @@ def SYCLGroupGetLocalIDOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetIDResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -637,7 +618,8 @@ def SYCLGroupGetLocalIDOp
 
 def SYCLGroupGetLocalRangeOp
     : SYCLMethodOpInterfaceImpl<"group.get_local_range", "GroupType",
-                                ["get_local_range"], [NoSideEffect]> {
+                                ["get_local_range"],
+                                [NoSideEffect, SYCLGetRange]> {
   let summary = "Call to group::get_local_range";
   let description = [{
     This operation represents a call to the group::get_local_range function.
@@ -651,8 +633,6 @@ def SYCLGroupGetLocalRangeOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -661,7 +641,8 @@ def SYCLGroupGetLocalRangeOp
 
 def SYCLGroupGetGroupRangeOp
     : SYCLMethodOpInterfaceImpl<"group.get_group_range", "GroupType",
-                                ["get_group_range"], [NoSideEffect]> {
+                                ["get_group_range"],
+                                [NoSideEffect, SYCLGetRange]> {
   let summary = "Call to group::get_group_range";
   let description = [{
     This operation represents a call to the group::get_group_range function.
@@ -675,8 +656,6 @@ def SYCLGroupGetGroupRangeOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
-
-  let hasVerifier = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

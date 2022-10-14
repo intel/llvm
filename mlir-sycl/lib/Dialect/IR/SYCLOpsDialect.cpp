@@ -233,13 +233,13 @@ verifyEqualDimensions(mlir::sycl::SYCLMethodOpInterface Op) {
   return mlir::success();
 }
 
-static mlir::LogicalResult
-verifyGetOperation(mlir::sycl::SYCLMethodOpInterface Op) {
+mlir::LogicalResult mlir::sycl::verifySYCLGetComponentTrait(Operation *OpPtr) {
   // size_t get(int dimension) const;
   // size_t &operator[](int dimension);
   // size_t operator[](int dimension) const;
   // only available if Dimensions == 1
   // size_t operator size_t() const;
+  auto Op = cast<SYCLMethodOpInterface>(OpPtr);
   const llvm::StringRef FunctionName = Op.getFunctionName();
   const bool IsSizeTCast = Op.getFunctionName() == "operator unsigned long";
   const mlir::Type RetTy = Op->getResult(0).getType();
@@ -304,13 +304,13 @@ verifyGetSYCLTyOperation(mlir::sycl::SYCLMethodOpInterface Op,
   }
 }
 
-static mlir::LogicalResult
-verifyGetIDOperation(mlir::sycl::SYCLMethodOpInterface Op) {
+mlir::LogicalResult mlir::sycl::verifySYCLGetIDTrait(Operation *OpPtr) {
   // id<Dimensions> *() const;
   // size_t *(int dimension) const;
   // size_t operator[](int dimension) const;
   // only available if Dimensions == 1
   // operator size_t() const;
+  auto Op = cast<SYCLMethodOpInterface>(OpPtr);
   const llvm::StringRef FuncName = Op.getFunctionName();
   const bool IsSizeTCast = FuncName == "operator unsigned long";
   const bool IsSubscript = FuncName == "operator[]";
@@ -357,14 +357,14 @@ verifyGetIDOperation(mlir::sycl::SYCLMethodOpInterface Op) {
   return mlir::success();
 }
 
-static mlir::LogicalResult
-verifyGetRangeOperation(mlir::sycl::SYCLMethodOpInterface Op) {
-  return verifyGetSYCLTyOperation(Op, "range");
+mlir::LogicalResult mlir::sycl::verifySYCLGetRangeTrait(Operation *Op) {
+  return verifyGetSYCLTyOperation(cast<mlir::sycl::SYCLMethodOpInterface>(Op),
+                                  "range");
 }
 
-static mlir::LogicalResult
-verifyGetGroupOperation(mlir::sycl::SYCLMethodOpInterface Op) {
-  return verifyGetSYCLTyOperation(Op, "group");
+mlir::LogicalResult mlir::sycl::verifySYCLGetGroupTrait(Operation *Op) {
+  return verifyGetSYCLTyOperation(cast<mlir::sycl::SYCLMethodOpInterface>(Op),
+                                  "range");
 }
 
 mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
@@ -430,99 +430,6 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
       .Default([&](auto) -> mlir::LogicalResult {
         llvm_unreachable("Unhandled input type");
       });
-}
-
-mlir::LogicalResult mlir::sycl::SYCLRangeGetOp::verify() {
-  // size_t get(int dimension) const;
-  // size_t &operator[](int dimension);
-  // size_t operator[](int dimension) const;
-  // only available if Dimensions == 1
-  // size_t operator size_t() const;
-  return verifyGetOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLIDGetOp::verify() {
-  // size_t get(int dimension) const;
-  // size_t &operator[](int dimension);
-  // size_t operator[](int dimension) const;
-  // only available if Dimensions == 1
-  // operator size_t() const;
-  return verifyGetOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLItemGetIDOp::verify() {
-  // id<Dimensions> get_id() const;
-  // size_t get_id(int dimension) const;
-  // size_t operator[](int dimension) const;
-  // only available if Dimensions == 1
-  // operator size_t() const;
-  return verifyGetIDOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLItemGetRangeOp::verify() {
-  // range<Dimensions> get_range() const;
-  // size_t get_range(int dimension) const;
-  return verifyGetRangeOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLNDItemGetGlobalIDOp::verify() {
-  // id<Dimensions> get_global_id() const;
-  // size_t get_global_id(int dimension) const;
-  return verifyGetIDOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLNDItemGetLocalIDOp::verify() {
-  // id<Dimensions> get_local_id() const;
-  // size_t get_local_id(int dimension) const;
-  return verifyGetIDOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLNDItemGetGroupOp::verify() {
-  // group<Dimensions> get_group() const;
-  // size_t get_group(int dimension) const;
-  return verifyGetGroupOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLNDItemGetGroupRangeOp::verify() {
-  // range<Dimensions> get_group_range() const;
-  // size_t get_group_range(int dimension) const;
-  return verifyGetRangeOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLNDItemGetGlobalRangeOp::verify() {
-  // range<Dimensions> get_global_range() const;
-  // size_t get_global_range(int dimension) const;
-  return verifyGetRangeOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLNDItemGetLocalRangeOp::verify() {
-  // range<Dimensions> get_local_range() const;
-  // size_t get_local_range(int dimension) const;
-  return verifyGetRangeOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLGroupGetGroupIDOp::verify() {
-  // id<Dimensions> get_group_id() const;
-  // size_t get_group_id(int dimension) const;
-  return verifyGetIDOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLGroupGetLocalIDOp::verify() {
-  // id<Dimensions> get_local_id() const;
-  // size_t get_local_id(int dimension) const;
-  return verifyGetIDOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLGroupGetLocalRangeOp::verify() {
-  // range<Dimensions> get_local_range() const;
-  // size_t get_local_range(int dimension) const;
-  return verifyGetRangeOperation(*this);
-}
-
-mlir::LogicalResult mlir::sycl::SYCLGroupGetGroupRangeOp::verify() {
-  // range<Dimensions> get_group_range() const;
-  // size_t get_group_range(int dimension) const;
-  return verifyGetRangeOperation(*this);
 }
 
 #include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.cpp.inc"

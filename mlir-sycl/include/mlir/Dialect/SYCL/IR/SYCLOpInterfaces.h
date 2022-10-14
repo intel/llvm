@@ -21,6 +21,44 @@ namespace mlir {
 namespace sycl {
 template <typename T>
 using isSYCLMethod = std::is_base_of<SYCLMethodOpInterface::Trait<T>, T>;
+
+LogicalResult verifySYCLGetIDTrait(Operation *Op);
+LogicalResult verifySYCLGetComponentTrait(Operation *Op);
+LogicalResult verifySYCLGetRangeTrait(Operation *Op);
+LogicalResult verifySYCLGetGroupTrait(Operation *Op);
+
+template <typename ConcreteType>
+class SYCLGetID : public OpTrait::TraitBase<ConcreteType, SYCLGetID> {
+public:
+  static LogicalResult verifyTrait(Operation *Op) {
+    return verifySYCLGetIDTrait(Op);
+  }
+};
+
+template <typename ConcreteType>
+class SYCLGetComponent
+    : public OpTrait::TraitBase<ConcreteType, SYCLGetComponent> {
+public:
+  static LogicalResult verifyTrait(Operation *Op) {
+    return verifySYCLGetComponentTrait(Op);
+  }
+};
+
+template <typename ConcreteType>
+class SYCLGetRange : public OpTrait::TraitBase<ConcreteType, SYCLGetRange> {
+public:
+  static LogicalResult verifyTrait(Operation *Op) {
+    return verifySYCLGetRangeTrait(Op);
+  }
+};
+
+template <typename ConcreteType>
+class SYCLGetGroup : public OpTrait::TraitBase<ConcreteType, SYCLGetGroup> {
+public:
+  static LogicalResult verifyTrait(Operation *Op) {
+    return verifySYCLGetGroupTrait(Op);
+  }
+};
 } // namespace sycl
 } // namespace mlir
 
