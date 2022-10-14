@@ -832,23 +832,23 @@ private:
 };
 
 struct _pi_queue : _pi_object {
-  _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
-            std::vector<ze_command_queue_handle_t> &CopyQueues,
-            pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties Properties = 0);
+  _pi_queue(std::vector<ze_command_queue_handle_t>& ComputeQueues,
+    std::vector<ze_command_queue_handle_t>& CopyQueues,
+    pi_context Context, pi_device Device, bool OwnZeCommandQueue,
+    pi_queue_properties Properties = 0);
 
   using queue_type = _pi_device::queue_group_info_t::type;
 
   // PI queue is in general a one to many mapping to L0 native queues.
   struct pi_queue_group_t {
     pi_queue Queue;
-    pi_queue_group_t() = delete;
+    //pi_queue_group_t() = delete;
 
     // The Queue argument captures the enclosing PI queue.
     // The Type argument specifies the type of this queue group.
     // The actual ZeQueues are populated at PI queue construction.
     pi_queue_group_t(pi_queue Queue, queue_type Type)
-        : Queue(Queue), Type(Type) {}
+      : Queue(Queue), Type(Type) {}
 
     // The type of the queue group.
     queue_type Type;
@@ -864,41 +864,35 @@ struct _pi_queue : _pi_object {
 
     // Return the index of the next queue to use based on a
     // round robin strategy and the queue group ordinal.
-    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
+    uint32_t getQueueIndex(uint32_t* QueueGroupOrdinal, uint32_t* QueueIndex);
 
     // Get the ordinal for a command queue handle.
     int32_t getCmdQueueOrdinal(ze_command_queue_handle_t CmdQueue);
 
     // This function will return one of possibly multiple available native
     // queues and the value of the queue group ordinal.
-    ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
-
-    // This function sets an immediate commandlist from the interop interface.
-    void setImmCmdList(ze_command_list_handle_t);
+    ze_command_queue_handle_t& getZeQueue(uint32_t* QueueGroupOrdinal);
 
     // This function returns the next immediate commandlist to use.
-    pi_command_list_ptr_t &getImmCmdList();
+    pi_command_list_ptr_t& getImmCmdList();
 
     // These indices are to filter specific range of the queues to use,
     // and to organize round-robin across them.
-    uint32_t UpperIndex{0};
-    uint32_t LowerIndex{0};
-    uint32_t NextIndex{0};
+    uint32_t UpperIndex{ 0 };
+    uint32_t LowerIndex{ 0 };
+    uint32_t NextIndex{ 0 };
   };
 
-  // A group containing compute queue handles when the queue uses standard
-  // command lists.
-  // Used as an initial value when the queue uses immediate commandlists.
+  // When using standard commandlists, a group containing compute queue handles.
   pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
 
   // When using immediate command lists, a set of groups per thread id.
   // Initialized with calling thread's id when queue is constructed.
   std::map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
 
-  // A group containing copy queue handles when the queue uses standard
-  // command lists. In this vector, main copy engine, if available,
+  // When using standard commandlists, a vector of Level Zero copy command
+  // command queue handles. In this vector, main copy engine, if available,
   // comes first followed by link copy engines, if available.
-  // Used as an initial value when the queue uses immediate commandlists.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
 
   // When using immediate command lists, copy queue groups per thread id
@@ -913,7 +907,7 @@ struct _pi_queue : _pi_object {
 
   // Return the queue group to use based on standard/immediate commandlist mode,
   // and if immediate mode, the thread-specific group.
-  pi_queue_group_t &getQueueGroup(bool UseCopyEngine);
+  pi_queue_group_t& getQueueGroup(bool UseCopyEngine);
 
   // This function considers multiple factors including copy engine
   // availability and user preference and returns a boolean that is used to
@@ -950,10 +944,6 @@ struct _pi_queue : _pi_object {
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
-
-  // When queue is constructed for interop, an immediate commandlist has already
-  // been created and only needs to be stored in the queue object.
-  void setImmCmdList(bool IsComputeGroup, ze_command_list_handle_t ImmCmdList);
 
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;

@@ -3209,9 +3209,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
 
     // intel extensions for GPU information
-  case PI_DEVICE_INFO_DEVICE_ID:
-    return ReturnValue(
-        pi_uint32{Device->ZeDeviceProperties->deviceId});
   case PI_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
@@ -3903,51 +3900,6 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   *Queue =
       new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
   return PI_SUCCESS;
-}
-
-pi_result piextQueueCreateWithNativeImmCmdlist(pi_native_handle ComputeCmdlist,
-                                               pi_native_handle CopyCmdlist,
-                                               pi_context Context,
-                                               pi_device Device,
-                                               bool OwnNativeHandle,
-                                               pi_queue *Queue) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(ComputeCmdlist, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(CopyCmdlist, PI_ERROR_INVALID_VALUE);
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  std::vector<ze_command_queue_handle_t> ComputeQueues;
-  std::vector<ze_command_queue_handle_t> CopyQueues;
-
-  *Queue = new _pi_queue(ComputeQueues, CopyQueues, Context, Device,
-                         OwnNativeHandle);
-  if (ComputeCmdlist)
-    (*Queue)->setImmCmdList(true,
-                            pi_cast<ze_command_list_handle_t>(ComputeCmdlist));
-  if (CopyCmdlist)
-    (*Queue)->setImmCmdList(false,
-                            pi_cast<ze_command_list_handle_t>(CopyCmdlist));
-
-  return PI_SUCCESS;
-}
-
-void _pi_queue::setImmCmdList(bool IsComputeGroup,
-                              ze_command_list_handle_t ImmCmdList) {
-  if (IsComputeGroup)
-    ComputeQueueGroup.setImmCmdList(ImmCmdList);
-  else
-    CopyQueueGroup.setImmCmdList(ImmCmdList);
-}
-
-void _pi_queue::pi_queue_group_t::setImmCmdList(
-    ze_command_list_handle_t ZeCommandList) {
-  ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-      1,
-      Queue->CommandListMap
-          .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
-              ZeCommandList, {nullptr, true, nullptr, 0}})
-          .first);
 }
 
 // If indirect access tracking is enabled then performs reference counting,
