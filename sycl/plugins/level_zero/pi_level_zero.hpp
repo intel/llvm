@@ -1320,7 +1320,10 @@ struct _pi_ze_event_list_t {
 class pi_queue_ref {
 public:
   pi_queue_ref() = default;
-  pi_queue_ref(pi_queue Queue) : Queue(Queue) { Queue->RefCount.increment(); }
+  pi_queue_ref(pi_queue Queue) : Queue(Queue) {
+    if (Queue)
+      Queue->RefCount.increment();
+  }
   ~pi_queue_ref();
 
   pi_queue_ref(const pi_queue_ref &) = delete;
