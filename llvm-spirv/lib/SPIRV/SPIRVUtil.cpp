@@ -896,17 +896,37 @@ void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
   if (!RootNode)
     return;
 
+  // Get the parameter list. If the function is a vararg function, drop the last
+  // parameter.
+  NodeArray Params = RootNode->getParams();
+  if (F->isVarArg()) {
+    bool HasVarArgParam = false;
+    if (!Params.empty()) {
+      if (auto *Name = dyn_cast<NameType>(Params[Params.size() - 1])) {
+        if (stringify(Name) == "...")
+          HasVarArgParam = true;
+      }
+    }
+    if (HasVarArgParam) {
+      Params = NodeArray(Params.begin(), Params.size() - 1);
+    } else {
+      LLVM_DEBUG(dbgs() << "[getParameterTypes] function " << MangledName
+                        << " was expected to have a varargs parameter\n");
+      return;
+    }
+  }
+
   // Sanity check that the name mangling matches up to the expected number of
   // arguments.
-  if (RootNode->getParams().size() != (size_t)(ArgTys.end() - ArgIter)) {
+  if (Params.size() != (size_t)(ArgTys.end() - ArgIter)) {
     LLVM_DEBUG(dbgs() << "[getParameterTypes] function " << MangledName
-                      << " appears to have " << RootNode->getParams().size()
+                      << " appears to have " << Params.size()
                       << " arguments but has " << (ArgTys.end() - ArgIter)
                       << "\n");
     return;
   }
 
-  for (auto *ParamType : RootNode->getParams()) {
+  for (auto *ParamType : Params) {
     Type *ArgTy = F->getArg(ArgIter - ArgTys.begin())->getType();
     TypedPointerType *PointeeTy = parseNode(M, ParamType, GetStructType);
     if (ArgTy->isPointerTy() && PointeeTy == nullptr) {
