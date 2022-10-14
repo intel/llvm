@@ -134,7 +134,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
 // CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
@@ -143,7 +143,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // CHECK: FunctionDecl {{.*}}kernel_nns{{.*}} 'void (__generated_test_struct_simple)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_tds '__generated_test_struct_simple'
