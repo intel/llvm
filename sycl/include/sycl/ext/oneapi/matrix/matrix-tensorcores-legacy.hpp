@@ -714,7 +714,7 @@ void joint_matrix_load(
   std::ignore = src;
   std::ignore = stride;
   throw runtime_error(
-      "When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_load is "
+      "When using SYCL_EXT_ONEAPI_MATRIX_VERSION=3 joint_matrix_load is "
       "only supported by CUDA devices",
       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -736,7 +736,7 @@ void joint_matrix_store(Group sg,
   std::ignore = dst;
   std::ignore = stride;
   throw runtime_error(
-      "When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_store is "
+      "When using SYCL_EXT_ONEAPI_MATRIX_VERSION=3 joint_matrix_store is "
       "only supported by CUDA devices",
       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -759,9 +759,10 @@ joint_matrix_mad(
   std::ignore = A;
   std::ignore = B;
   std::ignore = C;
-  throw runtime_error("When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_mad is "
-                      "only supported by CUDA devices",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error(
+      "When using SYCL_EXT_ONEAPI_MATRIX_VERSION=3 joint_matrix_mad is "
+      "only supported by CUDA devices",
+      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
