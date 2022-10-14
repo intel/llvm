@@ -52,7 +52,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 
 ### Documentation
 
-- Added stateful to stateless mem access conversion
+- Added stateful to stateless memory access conversion
   [design document](sycl/doc/design/ESIMDStatelesAccessors.md). [3e03f300]
 - Added [`sycl_ext_oneapi_complex`](sycl/doc/extensions/proposed/sycl_ext_oneapi_complex.asciidoc)
   extension proposal. [01589da5]
