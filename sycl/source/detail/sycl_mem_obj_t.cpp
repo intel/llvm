@@ -148,14 +148,15 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
     HostPtrReadOnly = false;
 }
 
-void SYCLMemObjT::detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &self,
+void SYCLMemObjT::detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self,
                                      bool DefaultAllocator) const {
-  // Check MRecord without read lock because not found any usages that may bring
-  // corruption. MRecord is nullptr on buffer creation and set to meaningfull
+  //  Check MRecord without read lock because at this point we expect that no
+  //  commands that operate on the buffer can be created. MRecord is nullptr on
+  //  buffer creation and set to meaningfull
   // value only if any operation on buffer submitted inside addCG call. addCG is
   // called from queue::submit and buffer destruction could not overlap with it.
   if (MRecord && !MHostPtrProvided && DefaultAllocator)
-    Scheduler::getInstance().deferMemObjRelease(self);
+    Scheduler::getInstance().deferMemObjRelease(Self);
 }
 
 } // namespace detail

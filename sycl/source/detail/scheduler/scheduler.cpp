@@ -518,16 +518,16 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   if (isDeferredMemObjectsEmpty())
     return;
   if (Blocking == BlockingT::BLOCKING) {
-    std::vector<std::shared_ptr<SYCLMemObjI>> MTempStorage;
+    std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
     {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
-      MDeferredMemObjRelease.swap(MTempStorage);
+      MDeferredMemObjRelease.swap(TempStorage);
     }
-    // if any objects in MTempStorage exist - it is leaving scope and being
+    // if any objects in TempStorage exist - it is leaving scope and being
     // deleted
   }
 
-  std::list<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
+  std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
   {
 
     ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
