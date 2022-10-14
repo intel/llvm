@@ -78,7 +78,7 @@ jobs:
       shell: bash
       run: cmake --build build --target deploy-sycl-toolchain
     - name: Upload toolchain
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
         path: install/**/*
