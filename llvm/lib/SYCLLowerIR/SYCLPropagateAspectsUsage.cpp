@@ -70,8 +70,8 @@ TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
 
     AspectsSetTy &Aspects = Result[T];
     for (const MDOperand &Op : drop_begin(N->operands()))
-      Aspects.insert(cast<ConstantInt>(cast<ConstantAsMetadata>(Op)->getValue())
-                         ->getSExtValue());
+      const Constant *C = cast<ConstantAsMetadata>(Op)->getValue()
+      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
   }
 
   return Result;
