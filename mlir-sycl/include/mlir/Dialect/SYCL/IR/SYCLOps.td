@@ -110,6 +110,8 @@ def SYCLMemref : AnyTypeOf<[
 ]>;
 def IndexType : AnyTypeOf<[I32, I64, Index]>;
 def SYCLGetResult : AnyTypeOf<[I64, MemRefOf<[I64]>]>;
+def SYCLGetIDResult : AnyTypeOf<[I64, SYCL_IDType]>;
+def SYCLGetRangeResult : AnyTypeOf<[I64, SYCL_RangeType]>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTRUCTOR OPERATION
@@ -238,14 +240,16 @@ def SYCLAccessorSubscriptOp
 
 def SYCLRangeGetOp
     : SYCLMethodOpInterfaceImpl<"range.get", "RangeType",
-                                ["get", "operator[]"], [NoSideEffect]> {
-  let summary = "Call to range::get/operator[]";
+                                ["get", "operator[]", "operator unsigned long"],
+                                [NoSideEffect]> {
+  let summary = "Call to range::get/operator[]/operator unsigned long";
   let description = [{
-    This operation represents a call to the range::get/operator[] functions.
+    This operation represents a call to the
+    range::get/operator[]/operator unsigned long functions.
   }];
 
   let arguments = (ins RangeMemRef:$Range,
-                       I32:$Index,
+                       Optional<I32>:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
                        FlatSymbolRefAttr:$MangledFunctionName,
@@ -269,6 +273,509 @@ def SYCLRangeSizeOp
   }];
 
   let arguments = (ins RangeMemRef:$Range,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// id.get OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLIDGetOp
+    : SYCLMethodOpInterfaceImpl<"id.get", "IDType",
+                                ["get", "operator[]", "operator unsigned long"],
+                                [NoSideEffect]> {
+  let summary = "Call to id::get/operator[]/operator size_t";
+  let description = [{
+    This operation represents a call to the id::get/operator[]/operator size_t functions.
+  }];
+
+  let arguments = (ins IDMemRef:$ID,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// item.get_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLItemGetIDOp
+    : SYCLMethodOpInterfaceImpl<"item.get_id", "ItemType",
+                                ["get_id", "operator[]", "operator unsigned long"],
+                                [NoSideEffect]> {
+  let summary = "Call to item::get/operator[]/operator size_t";
+  let description = [{
+    This operation represents a call to the item::get/operator[]/operator size_t functions.
+  }];
+
+  let arguments = (ins ItemMemRef:$Item,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetIDResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// item.get_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLItemGetRangeOp
+    : SYCLMethodOpInterfaceImpl<"item.get_range", "ItemType",
+                                ["get_range"], [NoSideEffect]> {
+  let summary = "Call to item::get_range";
+  let description = [{
+    This operation represents a call to the item::get_range function.
+  }];
+
+  let arguments = (ins ItemMemRef:$Item,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetRangeResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// item.get_linear_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLItemGetLinearIDOp
+    : SYCLMethodOpInterfaceImpl<"item.get_linear_id", "ItemType",
+                                ["get_linear_id"], [NoSideEffect]> {
+  let summary = "Call to item::get_linear_id";
+  let description = [{
+    This operation represents a call to the item::get_linear_id function.
+  }];
+
+  let arguments = (ins ItemMemRef:$Item,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_global_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetGlobalIDOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_global_id", "NdItemType",
+                                ["get_global_id"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_global_id";
+  let description = [{
+    This operation represents a call to the nd_item::get_global_id function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetIDResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_global_linear_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetGlobalLinearIDOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_global_linear_id", "NdItemType",
+                                ["get_global_linear_id"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_global_linear_id";
+  let description = [{
+    This operation represents a call to the nd_item::get_global_linear_id function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_local_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetLocalIDOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_local_id", "NdItemType",
+                                ["get_local_id"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_local_id";
+  let description = [{
+    This operation represents a call to the nd_item::get_local_id function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetIDResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_local_linear_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetLocalLinearIDOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_local_linear_id", "NdItemType",
+                                ["get_local_linear_id"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_local_linear_id";
+  let description = [{
+    This operation represents a call to the nd_item::get_local_linear_id function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_group OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetGroupOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_group", "NdItemType",
+                                ["get_group"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_group";
+  let description = [{
+    This operation represents a call to the nd_item::get_group function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs AnyTypeOf<[I64, SYCL_GroupType]>:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_group_linear_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetGroupLinearIDOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_group_linear_id", "NdItemType",
+                                ["get_group_linear_id"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_group_linear_id";
+  let description = [{
+    This operation represents a call to the nd_item::get_group_linear_id function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_group_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetGroupRangeOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_group_range", "NdItemType",
+                                ["get_group_range"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_group_range";
+  let description = [{
+    This operation represents a call to the nd_item::get_group_range function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetRangeResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_global_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetGlobalRangeOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_global_range", "NdItemType",
+                                ["get_global_range"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_global_range";
+  let description = [{
+    This operation represents a call to the nd_item::get_global_range function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetRangeResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_local_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetLocalRangeOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_local_range", "NdItemType",
+                                ["get_local_range"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_local_range";
+  let description = [{
+    This operation represents a call to the nd_item::get_local_range function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetRangeResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_group_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetGroupIDOp
+    : SYCLMethodOpInterfaceImpl<"group.get_group_id", "GroupType",
+                                ["get_group_id", "operator[]"], [NoSideEffect]> {
+  let summary = "Call to group::get_group_id/operator[]";
+  let description = [{
+    This operation represents a call to the group::get_group_id/operator[] functions.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetIDResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_local_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetLocalIDOp
+    : SYCLMethodOpInterfaceImpl<"group.get_local_id", "GroupType",
+                                ["get_local_id"], [NoSideEffect]> {
+  let summary = "Call to group::get_local_id";
+  let description = [{
+    This operation represents a call to the group::get_local_id function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetIDResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_local_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetLocalRangeOp
+    : SYCLMethodOpInterfaceImpl<"group.get_local_range", "GroupType",
+                                ["get_local_range"], [NoSideEffect]> {
+  let summary = "Call to group::get_local_range";
+  let description = [{
+    This operation represents a call to the group::get_local_range function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetRangeResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_group_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetGroupRangeOp
+    : SYCLMethodOpInterfaceImpl<"group.get_group_range", "GroupType",
+                                ["get_group_range"], [NoSideEffect]> {
+  let summary = "Call to group::get_group_range";
+  let description = [{
+    This operation represents a call to the group::get_group_range function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       Optional<I32>:$Index,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCLGetRangeResult:$Res);
+
+  let hasVerifier = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_max_local_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetMaxLocalRangeOp
+    : SYCLMethodOpInterfaceImpl<"group.get_max_local_range", "GroupType",
+                                ["get_max_local_range"], [NoSideEffect]> {
+  let summary = "Call to group::get_max_local_range";
+  let description = [{
+    This operation represents a call to the group::get_max_local_range function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCL_RangeType:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_group_linear_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetGroupLinearIDOp
+    : SYCLMethodOpInterfaceImpl<"group.get_group_linear_id", "GroupType",
+                                ["get_group_linear_id"], [NoSideEffect]> {
+  let summary = "Call to group::get_group_linear_id";
+  let description = [{
+    This operation represents a call to the group::get_group_linear_id function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_local_linear_id OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetLocalLinearIDOp
+    : SYCLMethodOpInterfaceImpl<"group.get_local_linear_id", "GroupType",
+                                ["get_local_linear_id"], [NoSideEffect]> {
+  let summary = "Call to group::get_local_linear_id";
+  let description = [{
+    This operation represents a call to the group::get_local_linear_id function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_group_linear_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+ def SYCLGroupGetGroupLinearRangeOp
+    : SYCLMethodOpInterfaceImpl<"group.get_group_linear_range", "GroupType",
+                                ["get_group_linear_range"], [NoSideEffect]> {
+  let summary = "Call to group::get_group_linear_range";
+  let description = [{
+    This operation represents a call to the group::get_group_linear_range function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs I64:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// group.get_local_linear_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLGroupGetLocalLinearRangeOp
+    : SYCLMethodOpInterfaceImpl<"group.get_local_linear_range", "GroupType",
+                                ["get_local_linear_range"], [NoSideEffect]> {
+  let summary = "Call to group::get_local_linear_range";
+  let description = [{
+    This operation represents a call to the group::get_local_linear_range function.
+  }];
+
+  let arguments = (ins GroupMemRef:$Group,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
                        FlatSymbolRefAttr:$MangledFunctionName,

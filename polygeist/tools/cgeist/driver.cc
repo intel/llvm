@@ -639,6 +639,10 @@ static int finalize(mlir::MLIRContext &context,
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
       pm3.addPass(polygeist::createConvertToLLVMABIPass());
+      // Needed because SYCLMethodOps lowering might introduce redundant
+      // operations.
+      pm3.addPass(mlir::createCSEPass());
+      pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array
