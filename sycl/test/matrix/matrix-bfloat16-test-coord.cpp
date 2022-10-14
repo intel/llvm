@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 -S -emit-llvm %s -o %t.out
+// RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 %s -o %t.out 
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -32,6 +32,7 @@ unsigned short Bref[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 int32_t *res_local_row;
+int32_t *res_local_row_orig;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -107,9 +108,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            // Element wise operation
            auto tCData = sub_c.get_wi_data();
 
-           for (int i = 0; i < tCData.length(); ++i) {
-             size_t row, col;
-             std::tie(row, col) = tCData[i].get_coord();
+           for (int i = 0; i < tCData.length(); ++i) { 
+             auto [row, col] = tCData[i].get_coord();
              res_local_row_acc[row] += tCData[i];
            }
          }); // parallel for
@@ -143,6 +143,7 @@ void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
           acc += (make_fp32(va[i]) * make_fp32(vb[i]));
         }
         *((float *)(C_mem + m * N + n)) = acc;
+        res_local_row_orig[m] += acc;
       }
     }
 }
@@ -175,6 +176,7 @@ int main() {
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
 
   res_local_row = (int32_t *)calloc(MATRIX_M, sizeof(int32_t));
+  res_local_row_orig = (int32_t *)calloc(MATRIX_M, sizeof(int32_t));
 
   matrix_multiply(MC, MA, MB);
   matrix_multiply_ref((int32_t *)Aref, (int32_t *)Bref, (int32_t *)D, MATRIX_M,
@@ -186,6 +188,10 @@ int main() {
       if (C[i][j] != D[i][j])
         res = false;
     }
+  }
+  for (int i = 0; i < MATRIX_M; i++) {
+      if (res_local_row[i] != res_local_row_orig[i])
+        res = false;
   }
   if (res)
     std::cout << "passed\n";

@@ -258,7 +258,6 @@ public:
              std::size_t i)
       : M(Mat), idx(i) {}
 
-  // Functions
   std::tuple<size_t, size_t> get_coord() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
@@ -352,6 +351,16 @@ public:
   wi_element(joint_matrix<uint16_t, NumRows, NumCols, Use, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
+
+  std::tuple<size_t, size_t> get_coord() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+  
   operator uint16_t() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_VectorExtractDynamic(M.spvm, idx);
@@ -502,6 +511,16 @@ public:
                           NumCols, Use, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
+
+  std::tuple<size_t, size_t> get_coord() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_ERROR_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
   operator sycl::ext::oneapi::experimental::bfloat16() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_VectorExtractDynamic(M.spvm, idx);
