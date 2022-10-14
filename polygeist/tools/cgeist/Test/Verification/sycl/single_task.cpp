@@ -3,6 +3,9 @@
 // TODO: Investigate and remove all "Warning"s.
 // RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.out 2>&1 | FileCheck %s --implicit-check-not="{{warning|error|Error}}:"
 // RUN: env SYCL_DEVICE_FILTER=host %t.out | FileCheck %s --check-prefix=HOST
+// TODO: Add device run:
+// env SYCL_DEVICE_FILTER=cpu %t.out | FileCheck %s --check-prefix=DEVICE
+// REQUIRES: linux
 
 // RUN: clang++ -fsycl -fsycl-device-only -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc 2>/dev/null
 
@@ -24,6 +27,9 @@
 
 // HOST: Using SYCL host device
 // HOST-NEXT: A[0]=2
+
+// DEVICE: Using {{.*}} CPU
+// DEVICE-NEXT: A[0]=1
 
 #include <sycl/sycl.hpp>
 
