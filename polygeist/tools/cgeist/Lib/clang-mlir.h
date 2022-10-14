@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===- clang-mlir.h - Emit MLIR IRs by walking clang AST---------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -105,6 +103,8 @@ private:
 
 class CodeGenUtils {
 public:
+  /// This class groups the type and attributes of a value (e.g. a parameter or
+  /// return value).
   class TypeAndAttrs {
   public:
     mlir::Type type;
@@ -114,9 +114,11 @@ public:
     TypeAndAttrs(mlir::Type type, std::vector<mlir::NamedAttribute> attrs)
         : type(type), attrs(attrs) {}
 
-    // Collect the types of the given parameter descriptors.
+    // Collect the types of the given \p descriptors in \p types.
     static void getTypes(const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
                          llvm::SmallVectorImpl<mlir::Type> &types);
+
+    // Collect the attributes of the given \p descriptors in \p attrs.
     static void getAttributes(
         const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
         llvm::SmallVectorImpl<std::vector<mlir::NamedAttribute>> &attrs);
@@ -135,6 +137,11 @@ public:
 
   static bool isLLVMStructABI(const clang::RecordDecl *RD,
                               llvm::StructType *ST);
+
+  /// Determine whether to use the "noundef" attribute on a parameter or
+  /// function return value.
+  static bool determineNoUndef(clang::QualType QTy,
+                               const clang::CodeGen::ABIArgInfo &AI);
 };
 
 class MLIRASTConsumer : public clang::ASTConsumer {

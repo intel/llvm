@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===- clang-mlir.cc - Emit MLIR IRs by walking clang AST--------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang-mlir.h"
+#include "Attributes.h"
 #include "TypeUtils.h"
 #include "utils.h"
 
@@ -140,6 +139,39 @@ bool CodeGenUtils::isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
        ST->getName() == "class.std::basic_ofstream"))
     return true;
 
+  return false;
+}
+
+bool CodeGenUtils::determineNoUndef(QualType qt,
+                                    const CodeGen::ABIArgInfo &AI) {
+  if (AI.getKind() == CodeGen::ABIArgInfo::Indirect)
+    return true;
+  if (AI.getKind() == CodeGen::ABIArgInfo::Extend)
+    return true;
+
+  if (qt->isBitIntType())
+    return true;
+  if (qt->isReferenceType())
+    return true;
+  if (qt->isNullPtrType())
+    return false;
+  if (qt->isMemberPointerType())
+    // TODO: Some member pointers are `noundef`, but it depends on the ABI. For
+    // now, never mark them.
+    return false;
+  if (qt->isScalarType()) {
+    if (const auto *complex = dyn_cast<clang::ComplexType>(qt))
+      return determineNoUndef(complex->getElementType(), AI);
+    return true;
+  }
+  if (const auto *vector = dyn_cast<clang::VectorType>(qt))
+    return determineNoUndef(vector->getElementType(), AI);
+  if (const auto *matrix = dyn_cast<clang::MatrixType>(qt))
+    return determineNoUndef(matrix->getElementType(), AI);
+  if (const auto *array = dyn_cast<clang::ArrayType>(qt))
+    return determineNoUndef(array->getElementType(), AI);
+
+  // TODO: Some structs may be `noundef`, in specific situations.
   return false;
 }
 
@@ -3261,11 +3293,11 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
 
   const bool isKernel = FD.hasAttr<SYCLKernelAttr>();
   mlir::MLIRContext *ctx = module->getContext();
-  mlir::OpBuilder builder(ctx);
 
   // Handle the remaining parameters.
   for (const ParmVarDecl *parm : FD.parameters()) {
     QualType parmType = parm->getType();
+    mlirclang::AttrBuilder attrBuilder(*ctx);
 
     // SPIR ABI compliance: aggregates need to be passed indirectly as pointers
     // (in MLIR, we pass it as MemRefs with unknown size).
@@ -3274,11 +3306,19 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
       auto mt = mlir::MemRefType::get(-1, getMLIRType(parmType), {},
                                       CGM.getDataLayout().getAllocaAddrSpace());
-      mlir::NamedAttribute byvalAttr(StringAttr::get(ctx, "llvm.byval"),
-                                     builder.getUnitAttr());
-      std::vector<mlir::NamedAttribute> attrs{byvalAttr};
-      CodeGenUtils::ParmDesc parmDesc(mt, attrs);
+      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal);
+      attrBuilder.addAttribute(
+          llvm::Attribute::AttrKind::Alignment,
+          CGM.getContext().getTypeAlignInChars(parmType).getQuantity());
+
+      if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
+          CodeGenUtils::determineNoUndef(parmType,
+                                         CodeGen::ABIArgInfo::Indirect))
+        attrBuilder.addAttribute(llvm::Attribute::AttrKind::NoUndef);
+
+      CodeGenUtils::ParmDesc parmDesc(mt, attrBuilder.getAttrs());
       parmDescriptors.push_back(parmDesc);
+
       continue;
     }
 
@@ -3384,11 +3424,14 @@ void MLIRASTConsumer::setMLIRFunctionVisibility(
 void MLIRASTConsumer::setMLIRFunctionAttributes(
     mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
     LLVM::Linkage lnk) const {
+  using Attribute = llvm::Attribute;
+
   const FunctionDecl &FD = FTE.getDecl();
   MLIRContext *ctx = module->getContext();
+  mlirclang::AttrBuilder attrBuilder(*ctx);
 
-  NamedAttrList attrs(function->getAttrDictionary());
-  attrs.set("llvm.linkage", mlir::LLVM::LinkageAttr::get(ctx, lnk));
+  attrBuilder.addAttribute("llvm.linkage",
+                           mlir::LLVM::LinkageAttr::get(ctx, lnk));
 
   bool isDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
   if (!isDeviceContext) {
@@ -3399,6 +3442,8 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     // HACK: we want to avoid setting additional attributes on non-sycl
     // functions because we do not want to adjust the test cases at this time
     // (if we did we would have merge conflicts if we ever update polygeist).
+    NamedAttrList attrs(function->getAttrDictionary());
+    attrs.append(attrBuilder.getAttrs());
     function->setAttrs(attrs.getDictionary(module->getContext()));
     return;
   }
@@ -3406,43 +3451,44 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   LLVM_DEBUG(llvm::dbgs() << "Setting attributes for " << FD.getNameAsString()
                           << "\n");
 
-  std::vector<mlir::Attribute> passThroughAttrs;
-  // Mark as kernel.
-  if (FD.hasAttr<SYCLKernelAttr>()) {
-    attrs.set(gpu::GPUDialect::getKernelFuncAttrName(), UnitAttr::get(ctx));
-    passThroughAttrs.push_back(ArrayAttr::get(
-        ctx, {StringAttr::get(ctx, "sycl-module-id"),
-              StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
-  }
+  // Mark a SYCL kernel as a SPIRV kernel.
+  if (FD.hasAttr<SYCLKernelAttr>())
+    attrBuilder
+        .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
+                      UnitAttr::get(ctx))
+        .addPassThroughAttribute(ArrayAttr::get(
+            ctx, {StringAttr::get(ctx, "sycl-module-id"),
+                  StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
 
   // Calling conventions for SPIRV functions.
-  attrs.set("llvm.cconv", mlir::LLVM::CConvAttr::get(
-                              ctx, FD.hasAttr<SYCLKernelAttr>()
-                                       ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
-                                       : mlir::LLVM::cconv::CConv::SPIR_FUNC));
+  attrBuilder.addAttribute("llvm.cconv",
+                           mlir::LLVM::CConvAttr::get(
+                               ctx, FD.hasAttr<SYCLKernelAttr>()
+                                        ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
+                                        : mlir::LLVM::cconv::CConv::SPIR_FUNC));
 
   // SYCL v1.2.1 s3.10:
   //   kernels and device function cannot include RTTI information,
   //   exception classes, recursive code, virtual functions or make use of
   //   C++ libraries that are not compiled for the device.
-  passThroughAttrs.push_back(StringAttr::get(ctx, "norecurse"));
-  passThroughAttrs.push_back(StringAttr::get(ctx, "nounwind"));
+  attrBuilder.addPassThroughAttribute(Attribute::AttrKind::NoRecurse)
+      .addPassThroughAttribute(Attribute::AttrKind::NoUnwind);
 
   if (CGM.getLangOpts().assumeFunctionsAreConvergent())
-    passThroughAttrs.push_back(StringAttr::get(ctx, "convergent"));
+    attrBuilder.addPassThroughAttribute(Attribute::AttrKind::Convergent);
 
-  auto functionMustProgress = [&]() -> bool {
+  auto functionMustProgress = [](const CodeGen::CodeGenModule &CGM) -> bool {
     if (CGM.getCodeGenOpts().getFiniteLoops() ==
         CodeGenOptions::FiniteLoopsKind::Never)
       return false;
     return CGM.getLangOpts().CPlusPlus11;
   };
 
-  if (functionMustProgress())
-    passThroughAttrs.push_back(StringAttr::get(ctx, "mustprogress"));
+  if (functionMustProgress(CGM))
+    attrBuilder.addPassThroughAttribute(Attribute::AttrKind::MustProgress);
 
-  attrs.set("passthrough", ArrayAttr::get(ctx, {passThroughAttrs}));
-
+  NamedAttrList attrs(function->getAttrDictionary());
+  attrs.append(attrBuilder.getAttrs());
   function->setAttrs(attrs.getDictionary(ctx));
 }
 
@@ -3975,6 +4021,8 @@ llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
 #include "llvm/Support/Host.h"
 
 #include "clang/Frontend/FrontendAction.h"
+
+#include "clang/Frontend/FrontendAction.h"
 class MLIRAction : public clang::ASTFrontendAction {
 public:
   std::set<std::string> emitIfFound;
@@ -4288,8 +4336,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
-      // Reset the ID tables if we are reusing the SourceManager and parsing
-      // regular files.
+      // Reset the ID tables if we are reusing the
+      // SourceManager and parsing regular files.
       if (Clang->hasSourceManager() && !Act.isModelParsingAction())
         Clang->getSourceManager().clearIDTables();
       if (Act.BeginSourceFile(*Clang, FIF)) {
