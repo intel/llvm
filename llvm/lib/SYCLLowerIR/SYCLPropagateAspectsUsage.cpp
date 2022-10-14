@@ -69,9 +69,10 @@ TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
            "invalid type referenced by intel_types_that_use_aspect metadata");
 
     AspectsSetTy &Aspects = Result[T];
-    for (const MDOperand &Op : drop_begin(N->operands()))
+    for (const MDOperand &Op : drop_begin(N->operands())) {
       const Constant *C = cast<ConstantAsMetadata>(Op)->getValue();
       Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+    }
   }
 
   return Result;
