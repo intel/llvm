@@ -449,7 +449,7 @@ public:
 class GroupType
     : public Type::TypeBase<GroupType, Type, detail::GroupTypeStorage,
                             mlir::MemRefElementTypeInterface::Trait,
-			    mlir::LLVM::PointerElementTypeInterface::Trait> {
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
 public:
   using Base::Base;
 
