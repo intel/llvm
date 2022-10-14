@@ -8,8 +8,8 @@
 // This test checks LSC compare-and-exchange atomic operations.
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
-// TODO: esimd_emulator fails due to unsupported __esimd_svm_atomic0/1/2
-// XFAIL: esimd_emulator
+// TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
+// UNSUPPORTED: esimd_emulator
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
