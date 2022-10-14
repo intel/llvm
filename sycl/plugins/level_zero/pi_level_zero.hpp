@@ -1316,6 +1316,31 @@ struct _pi_ze_event_list_t {
   }
 };
 
+// Represent a reference to a pi_queue that automatically updates RefCount.
+class pi_queue_ref {
+public:
+  pi_queue_ref() = default;
+  pi_queue_ref(pi_queue Queue) : Queue(Queue) { Queue->RefCount.increment(); }
+  ~pi_queue_ref();
+
+  pi_queue_ref(const pi_queue_ref &) = delete;
+  pi_queue_ref(pi_queue_ref &&Other) {
+    Queue = Other.Queue;
+    Other.Queue = nullptr;
+  }
+
+  pi_queue_ref &operator=(pi_queue Other);
+  pi_queue_ref &operator=(pi_queue_ref &&Other) = delete;
+
+  operator pi_queue() { return Queue; }
+
+  operator bool() const { return Queue != nullptr; }
+  pi_queue operator->() const { return Queue; }
+
+private:
+  pi_queue Queue = nullptr;
+};
+
 struct _pi_event : _pi_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
             pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
@@ -1356,7 +1381,7 @@ struct _pi_event : _pi_object {
 
   // Keeps the command-queue and command associated with the event.
   // These are NULL for the user events.
-  pi_queue Queue = {nullptr};
+  pi_queue_ref Queue = {nullptr};
   pi_command_type CommandType;
   // Provide direct access to Context, instead of going via queue.
   // Not every PI event has a queue, and we need a handle to Context

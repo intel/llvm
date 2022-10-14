@@ -40,6 +40,22 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 void enableZeTracing();
 void disableZeTracing();
 
+pi_queue_ref::~pi_queue_ref() {
+  if (Queue)
+    piQueueReleaseInternal(Queue);
+  Queue = nullptr;
+}
+pi_queue_ref &pi_queue_ref::operator=(pi_queue Other) {
+  if (Queue == Other)
+    return *this;
+
+  piQueueReleaseInternal(Queue);
+  Queue = Other;
+  if (Queue)
+    Queue->RefCount.increment();
+  return *this;
+}
+
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -677,13 +693,6 @@ inline static pi_result createEventAndAssociateQueue(
     CommandList->second.append(*Event);
     (*Event)->RefCount.increment();
   }
-
-  // We need to increment the reference counter here to avoid pi_queue
-  // being released before the associated pi_event is released because
-  // piEventRelease requires access to the associated pi_queue.
-  // In piEventRelease, the reference counter of the Queue is decremented
-  // to release it.
-  Queue->RefCount.increment();
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
@@ -1956,7 +1965,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           }
         }
 
-        auto Queue = EventList[I]->Queue;
+        pi_queue Queue = EventList[I]->Queue;
         if (Queue) {
           // The caller of createAndRetainPiZeEventList must already hold
           // a lock of the CurQueue. Additionally lock the Queue if it
@@ -5694,7 +5703,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     // possible that this is trying to query some event's status that
     // is part of the batch.  This isn't strictly required, but it seems
     // like a reasonable thing to do.
-    auto Queue = Event->Queue;
+    pi_queue Queue = Event->Queue;
     if (Queue) {
       // Lock automatically releases when this goes out of scope.
       std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
@@ -5924,7 +5933,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   }
   // Submit dependent open command lists for execution, if any
   for (uint32_t I = 0; I < NumEvents; I++) {
-    auto Queue = EventList[I]->Queue;
+    pi_queue Queue = EventList[I]->Queue;
     if (Queue) {
       // Lock automatically releases when this goes out of scope.
       std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
@@ -5949,7 +5958,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
         zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
         ZE_CALL(zeHostSynchronize, (ZeEvent));
       }
-      if (auto Q = EventList[I]->Queue)
+      if (pi_queue Q = EventList[I]->Queue)
         Queues.insert(Q);
     }
     // NOTE: we are cleaning up after the event here to free resources
@@ -6028,13 +6037,8 @@ static pi_result piEventReleaseInternal(pi_event Event) {
     PI_CALL(piEventReleaseInternal(Event->HostVisibleEvent));
   }
 
-  // We intentionally incremented the reference counter when an event is
-  // created so that we can avoid pi_queue is released before the associated
-  // pi_event is released. Here we have to decrement it so pi_queue
-  // can be released successfully.
-  if (Event->Queue) {
-    PI_CALL(piQueueReleaseInternal(Event->Queue));
-  }
+  // Don't keep the Queue alive just because of this event;
+  Event->Queue = nullptr;
 
   if (DisableEventsCaching || !Event->OwnZeEvent) {
     delete Event;
@@ -6058,7 +6062,7 @@ pi_result piextEventGetNativeHandle(pi_event Event,
   // Event can potentially be in an open command-list, make sure that
   // it is submitted for execution to avoid potential deadlock if
   // interop app is going to wait for it.
-  auto Queue = Event->Queue;
+  pi_queue Queue = Event->Queue;
   if (Queue) {
     std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
     const auto &OpenCommandList = Queue->eventOpenCommandList(Event);
