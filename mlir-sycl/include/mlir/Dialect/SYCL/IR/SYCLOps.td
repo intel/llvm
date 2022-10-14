@@ -240,16 +240,15 @@ def SYCLAccessorSubscriptOp
 
 def SYCLRangeGetOp
     : SYCLMethodOpInterfaceImpl<"range.get", "RangeType",
-                                ["get", "operator[]", "operator unsigned long"],
+                                ["get", "operator[]"],
                                 [NoSideEffect, SYCLGetComponent]> {
-  let summary = "Call to range::get/operator[]/operator unsigned long";
+  let summary = "Call to range::get/operator[]";
   let description = [{
-    This operation represents a call to the
-    range::get/operator[]/operator unsigned long functions.
+    This operation represents a call to the range::get/operator[] functions.
   }];
 
   let arguments = (ins RangeMemRef:$Range,
-                       Optional<I32>:$Index,
+                       I32:$Index,
                        TypeAttr:$BaseType,
                        FlatSymbolRefAttr:$FunctionName,
                        FlatSymbolRefAttr:$MangledFunctionName,
