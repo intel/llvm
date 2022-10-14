@@ -122,6 +122,12 @@ int main(int argc, char **argv) {
               }
               std::cout << "\n";
             }
+            if (SYCL_EXT_INTEL_DEVICE_INFO >= 5 &&
+                dev.has(aspect::ext_intel_device_id)) {
+              int deviceID =
+                  dev.get_info<ext::intel::info::device::device_id>();
+              std::cout << "Device ID = " << deviceID << std::endl;
+            }
           } // SYCL_EXT_INTEL_DEVICE_INFO
         }
 
