@@ -228,9 +228,16 @@ class LLVM_OpBase<Dialect dialect, string mnemonic, list<Trait> traits = []> :
   //   - $_builder - substituted with the MLIR builder;
   //   - $_qualCppClassName - substitiuted with the MLIR operation class name.
   // Additionally, `$$` can be used to produce the dollar character.
-  // NOTE: The $name variable resolution assumes the MLIR and LLVM argument
-  // orders match and there are no optional or variadic arguments.
+  // FIXME: The $name variable resolution does not support variadic arguments.
   string mlirBuilder = "";
+
+  // An array that specifies a mapping from MLIR argument indices to LLVM IR
+  // operand indices. The mapping is necessary since argument and operand
+  // indices do not always match. If not defined, the array is set to the
+  // identity permutation. An operation may define any custom index permutation
+  // and set a specific argument index to -1 if it does not map to an LLVM IR
+  // operand.
+  list<int> llvmArgIndices = [];
 }
 
 //===----------------------------------------------------------------------===//
@@ -378,7 +385,7 @@ class LLVM_IntrOp<string mnem, list<int> overloadedResults,
 //
 // Sample use: derive an entry from this class and populate the fields.
 //
-//    def LLVM_Name : LLVM_ZeroResultIntrOp<"name", [0], [NoSideEffect]>,
+//    def LLVM_Name : LLVM_ZeroResultIntrOp<"name", [0], [Pure]>,
 //                    Arguments<(ins LLVM_Type, LLVM_Type)>;
 //
 // The mnemonic will be prefixed with "llvm.intr.", where the "llvm." part comes
@@ -405,14 +412,14 @@ class LLVM_OneResultIntrOp<string mnem, list<int> overloadedResults = [],
 // LLVM vector reduction over a single vector.
 class LLVM_VectorReduction<string mnem>
     : LLVM_OneResultIntrOp<"vector.reduce." # mnem,
-                           [], [0], [NoSideEffect]>,
+                           [], [0], [Pure]>,
       Arguments<(ins LLVM_Type)>;
 
 // LLVM vector reduction over a single vector, with an initial value,
 // and with permission to reassociate the reduction operations.
 class LLVM_VectorReductionAcc<string mnem>
     : LLVM_OpBase<LLVM_Dialect, "intr.vector.reduce." # mnem,
-                  [NoSideEffect]>,
+                  [Pure]>,
       Results<(outs LLVM_Type:$res)>,
       Arguments<(ins LLVM_Type, LLVM_Type,
                  DefaultValuedAttr<BoolAttr, "false">:$reassoc)> {

@@ -208,7 +208,7 @@ class LLVM_TerminatorOp<string mnemonic, list<Trait> traits = []> :
 class LLVM_ArithmeticOpBase<Type type, string mnemonic,
                             string instName, list<Trait> traits = []> :
     LLVM_Op<mnemonic,
-           !listconcat([NoSideEffect, SameOperandsAndResultType], traits)>,
+           !listconcat([Pure, SameOperandsAndResultType], traits)>,
     LLVM_Builder<"$res = builder.Create" # instName # "($lhs, $rhs);"> {
   dag commonArgs = (ins LLVM_ScalarOrVectorOf<type>:$lhs,
                     LLVM_ScalarOrVectorOf<type>:$rhs);
@@ -237,7 +237,7 @@ class LLVM_FloatArithmeticOp<string mnemonic, string instName,
 class LLVM_UnaryFloatArithmeticOp<Type type, string mnemonic,
                                   string instName, list<Trait> traits = []> :
     LLVM_Op<mnemonic,
-           !listconcat([NoSideEffect, SameOperandsAndResultType, DeclareOpInterfaceMethods<FastmathFlagsInterface>], traits)>,
+           !listconcat([Pure, SameOperandsAndResultType, DeclareOpInterfaceMethods<FastmathFlagsInterface>], traits)>,
     LLVM_Builder<"$res = builder.Create" # instName # "($operand);"> {
   let arguments = (ins type:$operand, DefaultValuedAttr<LLVM_FMFAttr, "{}">:$fastmathFlags);
   let results = (outs type:$res);
@@ -284,19 +284,39 @@ def ICmpPredicate : I64EnumAttr<
   let cppNamespace = "::mlir::LLVM";
 }
 
-// Other integer operations.
-def LLVM_ICmpOp : LLVM_Op<"icmp", [NoSideEffect]> {
-  let arguments = (ins ICmpPredicate:$predicate,
-                   AnyTypeOf<[LLVM_ScalarOrVectorOf<AnyInteger>, LLVM_ScalarOrVectorOf<LLVM_AnyPointer>]>:$lhs,
-                   AnyTypeOf<[LLVM_ScalarOrVectorOf<AnyInteger>, LLVM_ScalarOrVectorOf<LLVM_AnyPointer>]>:$rhs);
+// Base class for compare operations. A compare operation takes two operands
+// of the same type and returns a boolean result. If the operands are
+// vectors, then the result has to be a boolean vector of the same shape.
+class LLVM_ArithmeticCmpOp<string mnemonic, list<Trait> traits = []> :
+    LLVM_Op<mnemonic, traits # [SameTypeOperands, TypesMatchWith<
+    "result type has i1 element type and same shape as operands",
+    "lhs", "res", "::getI1SameShape($_self)">]> {
   let results = (outs LLVM_ScalarOrVectorOf<I1>:$res);
-  let llvmBuilder = [{
-    $res = builder.CreateICmp(getLLVMCmpPredicate($predicate), $lhs, $rhs);
-  }];
+}
+
+// Other integer operations.
+def LLVM_ICmpOp : LLVM_ArithmeticCmpOp<"icmp", [Pure]> {
+  let arguments = (ins ICmpPredicate:$predicate,
+                   AnyTypeOf<[LLVM_ScalarOrVectorOf<AnyInteger>,
+                              LLVM_ScalarOrVectorOf<LLVM_AnyPointer>]>:$lhs,
+                   AnyTypeOf<[LLVM_ScalarOrVectorOf<AnyInteger>,
+                              LLVM_ScalarOrVectorOf<LLVM_AnyPointer>]>:$rhs);
   let builders = [
     OpBuilder<(ins "ICmpPredicate":$predicate, "Value":$lhs, "Value":$rhs)>
   ];
   let hasCustomAssemblyFormat = 1;
+  string llvmInstName = "ICmp";
+  string llvmBuilder = [{
+    $res = builder.CreateICmp(getLLVMCmpPredicate($predicate), $lhs, $rhs);
+  }];
+  string mlirBuilder = [{
+    auto *iCmpInst = cast<llvm::ICmpInst>(inst);
+    $res = $_builder.create<$_qualCppClassName>(
+      $_location, getICmpPredicate(iCmpInst->getPredicate()), $lhs, $rhs);
+  }];
+  // Set the $predicate index to -1 to indicate there is no matching operand
+  // and decrement the following indices.
+  list<int> llvmArgIndices = [-1, 0, 1];
 }
 
 // Predicate for float comparisons
@@ -329,17 +349,29 @@ def FCmpPredicate : I64EnumAttr<
 }
 
 // Other floating-point operations.
-def LLVM_FCmpOp : LLVM_Op<"fcmp", [
-    NoSideEffect, DeclareOpInterfaceMethods<FastmathFlagsInterface>]> {
+def LLVM_FCmpOp : LLVM_ArithmeticCmpOp<"fcmp", [
+    Pure, DeclareOpInterfaceMethods<FastmathFlagsInterface>]> {
   let arguments = (ins FCmpPredicate:$predicate,
                    LLVM_ScalarOrVectorOf<LLVM_AnyFloat>:$lhs,
                    LLVM_ScalarOrVectorOf<LLVM_AnyFloat>:$rhs,
                    DefaultValuedAttr<LLVM_FMFAttr, "{}">:$fastmathFlags);
-  let results = (outs LLVM_ScalarOrVectorOf<I1>:$res);
-  let llvmBuilder = [{
+  let builders = [
+    OpBuilder<(ins "FCmpPredicate":$predicate, "Value":$lhs, "Value":$rhs)>
+  ];
+  let hasCustomAssemblyFormat = 1;
+  string llvmInstName = "FCmp";
+  string llvmBuilder = [{
     $res = builder.CreateFCmp(getLLVMCmpPredicate($predicate), $lhs, $rhs);
   }];
-  let hasCustomAssemblyFormat = 1;
+  // FIXME: Import fastmath flags.
+  string mlirBuilder = [{
+    auto *fCmpInst = cast<llvm::FCmpInst>(inst);
+    $res = $_builder.create<$_qualCppClassName>(
+      $_location, getFCmpPredicate(fCmpInst->getPredicate()), $lhs, $rhs);
+  }];
+  // Set the $predicate index to -1 to indicate there is no matching operand
+  // and decrement the following indices.
+  list<int> llvmArgIndices = [-1, 0, 1, 2];
 }
 
 // Floating point binary operations.
@@ -438,7 +470,7 @@ def LLVM_AllocaOp : LLVM_Op<"alloca">, MemoryOpWithAlignmentBase {
   let hasVerifier = 1;
 }
 
-def LLVM_GEPOp : LLVM_Op<"getelementptr", [NoSideEffect]> {
+def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
   let arguments = (ins LLVM_ScalarOrVectorOf<LLVM_AnyPointer>:$base,
                    Variadic<LLVM_ScalarOrVectorOf<AnyInteger>>:$dynamicIndices,
                    DenseI32ArrayAttr:$rawConstantIndices,
@@ -583,7 +615,7 @@ def LLVM_StoreOp : LLVM_Op<"store">, MemoryOpWithAlignmentAndAttributes {
 // Casts.
 class LLVM_CastOp<string mnemonic, string instName, Type type,
                   Type resultType, list<Trait> traits = []> :
-    LLVM_Op<mnemonic, !listconcat([NoSideEffect], traits)>,
+    LLVM_Op<mnemonic, !listconcat([Pure], traits)>,
     LLVM_Builder<"$res = builder.Create" # instName # "($arg, $_resultType);"> {
   let arguments = (ins type:$arg);
   let results = (outs resultType:$res);
@@ -733,7 +765,7 @@ def LLVM_CallOp : LLVM_Op<"call",
 // ExtractElementOp
 //===----------------------------------------------------------------------===//
 
-def LLVM_ExtractElementOp : LLVM_Op<"extractelement", [NoSideEffect,
+def LLVM_ExtractElementOp : LLVM_Op<"extractelement", [Pure,
     TypesMatchWith<"result type matches vector element type", "vector", "res",
                    "LLVM::getVectorElementType($_self)">]> {
   let summary = "Extract an element from an LLVM vector.";
@@ -764,7 +796,7 @@ def LLVM_ExtractElementOp : LLVM_Op<"extractelement", [NoSideEffect,
 // ExtractValueOp
 //===----------------------------------------------------------------------===//
 
-def LLVM_ExtractValueOp : LLVM_Op<"extractvalue", [NoSideEffect]> {
+def LLVM_ExtractValueOp : LLVM_Op<"extractvalue", [Pure]> {
   let summary = "Extract a value from an LLVM struct.";
 
   let arguments = (ins LLVM_AnyAggregate:$container, DenseI64ArrayAttr:$position);
@@ -783,8 +815,14 @@ def LLVM_ExtractValueOp : LLVM_Op<"extractvalue", [NoSideEffect]> {
   let hasFolder = 1;
   let hasVerifier = 1;
 
+  string llvmInstName = "ExtractValue";
   string llvmBuilder = [{
     $res = builder.CreateExtractValue($container, extractPosition($position));
+  }];
+  string mlirBuilder = [{
+    auto *evInst = cast<llvm::ExtractValueInst>(inst);
+    $res = $_builder.create<LLVM::ExtractValueOp>($_location,
+      $container, getPositionFromIndices(evInst->getIndices()));
   }];
 }
 
@@ -792,7 +830,7 @@ def LLVM_ExtractValueOp : LLVM_Op<"extractvalue", [NoSideEffect]> {
 // InsertElementOp
 //===----------------------------------------------------------------------===//
 
-def LLVM_InsertElementOp : LLVM_Op<"insertelement", [NoSideEffect,
+def LLVM_InsertElementOp : LLVM_Op<"insertelement", [Pure,
     TypesMatchWith<"argument type matches vector element type", "vector",
                    "value", "LLVM::getVectorElementType($_self)">,
     AllTypesMatch<["res", "vector"]>]> {
@@ -824,7 +862,7 @@ def LLVM_InsertElementOp : LLVM_Op<"insertelement", [NoSideEffect,
 //===----------------------------------------------------------------------===//
 
 def LLVM_InsertValueOp : LLVM_Op<
-    "insertvalue", [NoSideEffect, AllTypesMatch<["container", "res"]>]> {
+    "insertvalue", [Pure, AllTypesMatch<["container", "res"]>]> {
   let summary = "Insert a value into an LLVM struct.";
 
   let arguments = (ins LLVM_AnyAggregate:$container, LLVM_PrimitiveType:$value,
@@ -839,9 +877,15 @@ def LLVM_InsertValueOp : LLVM_Op<
 
   let hasVerifier = 1;
 
+  string llvmInstName = "InsertValue";
   string llvmBuilder = [{
     $res = builder.CreateInsertValue($container, $value,
                                      extractPosition($position));
+  }];
+  string mlirBuilder = [{
+    auto *ivInst = cast<llvm::InsertValueInst>(inst);
+    $res = $_builder.create<LLVM::InsertValueOp>($_location,
+      $container, $value, getPositionFromIndices(ivInst->getIndices()));
   }];
 }
 
@@ -850,7 +894,7 @@ def LLVM_InsertValueOp : LLVM_Op<
 //===----------------------------------------------------------------------===//
 
 def LLVM_ShuffleVectorOp : LLVM_Op<"shufflevector",
-    [NoSideEffect, AllTypesMatch<["v1", "v2"]>]> {
+    [Pure, AllTypesMatch<["v1", "v2"]>]> {
   let summary = "Construct a permutation of two vectors.";
 
   let arguments = (ins LLVM_AnyVector:$v1, LLVM_AnyVector:$v2,
@@ -870,15 +914,22 @@ def LLVM_ShuffleVectorOp : LLVM_Op<"shufflevector",
 
   let hasVerifier = 1;
 
+  string llvmInstName = "ShuffleVector";
   string llvmBuilder = [{
     $res = builder.CreateShuffleVector($v1, $v2, $mask);
+  }];
+  string mlirBuilder = [{
+    auto *svInst = cast<llvm::ShuffleVectorInst>(inst);
+    SmallVector<int32_t> mask(svInst->getShuffleMask());
+    $res = $_builder.create<LLVM::ShuffleVectorOp>(
+      $_location, $v1, $v2, mask);
   }];
 }
 
 // Misc operations.
 def LLVM_SelectOp
     : LLVM_Op<"select",
-          [NoSideEffect, AllTypesMatch<["trueValue", "falseValue", "res"]>]>,
+          [Pure, AllTypesMatch<["trueValue", "falseValue", "res"]>]>,
       LLVM_Builder<
           "$res = builder.CreateSelect($condition, $trueValue, $falseValue);"> {
   let arguments = (ins LLVM_ScalarOrVectorOf<I1>:$condition,
@@ -905,7 +956,7 @@ def LLVM_FreezeOp : LLVM_Op<"freeze", [SameOperandsAndResultType]> {
 
 // Terminators.
 def LLVM_BrOp : LLVM_TerminatorOp<"br",
-    [DeclareOpInterfaceMethods<BranchOpInterface>, NoSideEffect]> {
+    [DeclareOpInterfaceMethods<BranchOpInterface>, Pure]> {
   let arguments = (ins Variadic<LLVM_Type>:$destOperands);
   let successors = (successor AnySuccessor:$dest);
   let assemblyFormat = [{
@@ -915,7 +966,7 @@ def LLVM_BrOp : LLVM_TerminatorOp<"br",
 }
 def LLVM_CondBrOp : LLVM_TerminatorOp<"cond_br",
     [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
-     NoSideEffect]> {
+     Pure]> {
   let arguments = (ins I1:$condition,
                    Variadic<LLVM_Type>:$trueDestOperands,
                    Variadic<LLVM_Type>:$falseDestOperands,
@@ -955,7 +1006,7 @@ def LLVM_CondBrOp : LLVM_TerminatorOp<"cond_br",
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
-def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [NoSideEffect]> {
+def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [Pure]> {
   let arguments = (ins Optional<LLVM_Type>:$arg);
   let assemblyFormat = "attr-dict ($arg^ `:` type($arg))?";
 
@@ -1000,7 +1051,7 @@ def LLVM_UnreachableOp : LLVM_TerminatorOp<"unreachable"> {
 
 def LLVM_SwitchOp : LLVM_TerminatorOp<"switch",
     [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
-     NoSideEffect]> {
+     Pure]> {
   let arguments = (ins
     AnyInteger:$value,
     Variadic<AnyType>:$defaultOperands,
@@ -1116,7 +1167,7 @@ def UnnamedAddr : LLVM_EnumAttr<
 }
 
 def LLVM_AddressOfOp : LLVM_Op<"mlir.addressof",
-    [NoSideEffect, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+    [Pure, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let arguments = (ins FlatSymbolRefAttr:$global_name);
   let results = (outs LLVM_AnyPointer:$res);
 
@@ -1578,7 +1629,7 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
 }
 
 def LLVM_NullOp
-    : LLVM_Op<"mlir.null", [NoSideEffect]>,
+    : LLVM_Op<"mlir.null", [Pure]>,
       LLVM_Builder<"$res = llvm::ConstantPointerNull::get("
                    "    cast<llvm::PointerType>($_resultType));"> {
   let summary = "Defines a value containing a null pointer to LLVM type.";
@@ -1604,7 +1655,7 @@ def LLVM_NullOp
   let assemblyFormat = "attr-dict `:` type($res)";
 }
 
-def LLVM_UndefOp : LLVM_Op<"mlir.undef", [NoSideEffect]>,
+def LLVM_UndefOp : LLVM_Op<"mlir.undef", [Pure]>,
                    LLVM_Builder<"$res = llvm::UndefValue::get($_resultType);"> {
   let summary = "Creates an undefined value of LLVM dialect type.";
   let description = [{
@@ -1626,7 +1677,7 @@ def LLVM_UndefOp : LLVM_Op<"mlir.undef", [NoSideEffect]>,
 }
 
 def LLVM_ConstantOp
-    : LLVM_Op<"mlir.constant", [NoSideEffect, ConstantLike]>,
+    : LLVM_Op<"mlir.constant", [Pure, ConstantLike]>,
       LLVM_Builder<[{$res = getLLVMConstant($_resultType, $value, $_location,
                                             moduleTranslation);}]>
 {

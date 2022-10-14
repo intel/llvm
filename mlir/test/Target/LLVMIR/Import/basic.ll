@@ -227,70 +227,11 @@ define i32* @f3() {
   ret i32* bitcast (double* @g2 to i32*)
 }
 
-; CHECK-LABEL: llvm.func @f5
-define void @f5(i32 %d) {
-; FIXME: icmp should return i1.
-; CHECK: = llvm.icmp "eq"
-  %1 = icmp eq i32 %d, 2
-; CHECK: = llvm.icmp "slt"
-  %2 = icmp slt i32 %d, 2
-; CHECK: = llvm.icmp "sle"
-  %3 = icmp sle i32 %d, 2
-; CHECK: = llvm.icmp "sgt"
-  %4 = icmp sgt i32 %d, 2
-; CHECK: = llvm.icmp "sge"
-  %5 = icmp sge i32 %d, 2
-; CHECK: = llvm.icmp "ult"
-  %6 = icmp ult i32 %d, 2
-; CHECK: = llvm.icmp "ule"
-  %7 = icmp ule i32 %d, 2
-; CHECK: = llvm.icmp "ugt"
-  %8 = icmp ugt i32 %d, 2
-  ret void
-}
-
 ; CHECK-LABEL: llvm.func @f6(%arg0: !llvm.ptr<func<void (i16)>>)
 define void @f6(void (i16) *%fn) {
 ; CHECK: %[[c:[0-9]+]] = llvm.mlir.constant(0 : i16) : i16
 ; CHECK: llvm.call %arg0(%[[c]])
   call void %fn(i16 0)
-  ret void
-}
-
-; CHECK-LABEL: llvm.func @FPComparison(%arg0: f32, %arg1: f32)
-define void @FPComparison(float %a, float %b) {
-  ; CHECK: llvm.fcmp "_false" %arg0, %arg1
-  %1 = fcmp false float %a, %b
-  ; CHECK: llvm.fcmp "oeq" %arg0, %arg1
-  %2 = fcmp oeq float %a, %b
-  ; CHECK: llvm.fcmp "ogt" %arg0, %arg1
-  %3 = fcmp ogt float %a, %b
-  ; CHECK: llvm.fcmp "oge" %arg0, %arg1
-  %4 = fcmp oge float %a, %b
-  ; CHECK: llvm.fcmp "olt" %arg0, %arg1
-  %5 = fcmp olt float %a, %b
-  ; CHECK: llvm.fcmp "ole" %arg0, %arg1
-  %6 = fcmp ole float %a, %b
-  ; CHECK: llvm.fcmp "one" %arg0, %arg1
-  %7 = fcmp one float %a, %b
-  ; CHECK: llvm.fcmp "ord" %arg0, %arg1
-  %8 = fcmp ord float %a, %b
-  ; CHECK: llvm.fcmp "ueq" %arg0, %arg1
-  %9 = fcmp ueq float %a, %b
-  ; CHECK: llvm.fcmp "ugt" %arg0, %arg1
-  %10 = fcmp ugt float %a, %b
-  ; CHECK: llvm.fcmp "uge" %arg0, %arg1
-  %11 = fcmp uge float %a, %b
-  ; CHECK: llvm.fcmp "ult" %arg0, %arg1
-  %12 = fcmp ult float %a, %b
-  ; CHECK: llvm.fcmp "ule" %arg0, %arg1
-  %13 = fcmp ule float %a, %b
-  ; CHECK: llvm.fcmp "une" %arg0, %arg1
-  %14 = fcmp une float %a, %b
-  ; CHECK: llvm.fcmp "uno" %arg0, %arg1
-  %15 = fcmp uno float %a, %b
-  ; CHECK: llvm.fcmp "_true" %arg0, %arg1
-  %16 = fcmp true float %a, %b
   ret void
 }
 
@@ -505,48 +446,6 @@ def: ; pred: bb3, bbs
   ; CHECK: llvm.call @g(%[[BA2]])
   call void @g(i32 %v2)
   ret void
-}
-
-; Insert/ExtractValue
-; CHECK-LABEL: llvm.func @insert_extract_value_struct
-define float @insert_extract_value_struct({{i32},{float, double}}* %p) {
-  ; CHECK: %[[C0:.+]] = llvm.mlir.constant(2.000000e+00 : f64)
-  ; CHECK: %[[VT:.+]] = llvm.load %{{.+}}
-  %t = load {{i32},{float, double}}, {{i32},{float, double}}* %p
-  ; CHECK: %[[EV:.+]] = llvm.extractvalue %[[VT]][1, 0] :
-  ; CHECK-SAME: !llvm.struct<(struct<(i32)>, struct<(f32, f64)>)>
-  %s = extractvalue {{i32},{float, double}} %t, 1, 0
-  ; CHECK: %[[IV:.+]] = llvm.insertvalue %[[C0]], %[[VT]][1, 1] :
-  ; CHECK-SAME: !llvm.struct<(struct<(i32)>, struct<(f32, f64)>)>
-  %r = insertvalue {{i32},{float, double}} %t, double 2.0, 1, 1
-  ; CHECK: llvm.store %[[IV]], %{{.+}}
-  store {{i32},{float, double}} %r, {{i32},{float, double}}* %p
-  ; CHECK: llvm.return %[[EV]]
-  ret float %s
-}
-
-; CHECK-LABEL: llvm.func @insert_extract_value_array
-define void @insert_extract_value_array([4 x [4 x i8]] %x1) {
-  ; CHECK: %[[C0:.+]] = llvm.mlir.constant(0 : i8)
-  ; CHECK: llvm.insertvalue %[[C0]], %{{.+}}[0, 0] : !llvm.array<4 x array<4 x i8>>
-  %res1 = insertvalue [4 x [4 x i8 ]] %x1, i8 0, 0, 0
-  ; CHECK: llvm.extractvalue %{{.+}}[1] : !llvm.array<4 x array<4 x i8>>
-  %res2 = extractvalue [4 x [4 x i8 ]] %x1, 1
-  ; CHECK: llvm.extractvalue %{{.+}}[0, 1] : !llvm.array<4 x array<4 x i8>>
-  %res3 = extractvalue [4 x [4 x i8 ]] %x1, 0, 1
-  ret void
-}
-
-; Shufflevector
-; CHECK-LABEL: llvm.func @shuffle_vec
-define <4 x half> @shuffle_vec(<4 x half>* %arg0, <4 x half>* %arg1) {
-  ; CHECK: %[[V0:.+]] = llvm.load %{{.+}} : !llvm.ptr<vector<4xf16>>
-  %val0 = load <4 x half>, <4 x half>* %arg0
-  ; CHECK: %[[V1:.+]] = llvm.load %{{.+}} : !llvm.ptr<vector<4xf16>>
-  %val1 = load <4 x half>, <4 x half>* %arg1
-  ; CHECK: llvm.shufflevector %[[V0]], %[[V1]] [2, 3, -1, -1] : vector<4xf16>
-  %shuffle = shufflevector <4 x half> %val0, <4 x half> %val1, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
-  ret <4 x half> %shuffle
 }
 
 ; Varadic function definition

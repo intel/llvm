@@ -1267,6 +1267,15 @@ TEST_F(FindExplicitReferencesTest, All) {
         )cpp",
         "0: targets = {ns}\n"
         "1: targets = {ns::global}, qualifier = 'ns::'\n"},
+       // Using enum declarations.
+       {R"cpp(
+          namespace ns { enum class A {}; }
+          void foo() {
+            using enum $0^ns::$1^A;
+          }
+        )cpp",
+        "0: targets = {ns}\n"
+        "1: targets = {ns::A}, qualifier = 'ns::'\n"},
        // Simple types.
        {R"cpp(
          struct Struct { int a; };
@@ -1631,7 +1640,7 @@ TEST_F(FindExplicitReferencesTest, All) {
               int (*$2^fptr)(int $3^a, int) = nullptr;
              }
            )cpp",
-           "0: targets = {}\n"
+           "0: targets = {(unnamed)}\n"
            "1: targets = {x}, decl\n"
            "2: targets = {fptr}, decl\n"
            "3: targets = {a}, decl\n"},

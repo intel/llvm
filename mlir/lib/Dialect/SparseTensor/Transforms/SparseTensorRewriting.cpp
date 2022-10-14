@@ -250,7 +250,7 @@ public:
     // Fuse producer and consumer into a new generic op.
     auto fusedOp = rewriter.create<GenericOp>(
         loc, op.getResult(0).getType(), inputOps, outputOps,
-        rewriter.getAffineMapArrayAttr(fusedIndexMaps), prod.iterator_types(),
+        rewriter.getAffineMapArrayAttr(fusedIndexMaps), prod.getIteratorTypes(),
         /*doc=*/nullptr, /*library_call=*/nullptr);
     Block &prodBlock = prod.getRegion().front();
     Block &consBlock = op.getRegion().front();
@@ -584,7 +584,7 @@ struct NewRewriter : public OpRewritePattern<NewOp> {
                                  {reader, indices}, EmitCInterface::On)
                       .getResult(0);
     SmallVector<Value, 4> indicesArray;
-    for (int64_t i = 0; i < rank; i++) {
+    for (uint64_t i = 0; i < rank; i++) {
       indicesArray.push_back(rewriter.create<memref::LoadOp>(
           loc, indices, constantIndex(rewriter, loc, i)));
     }

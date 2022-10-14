@@ -9,34 +9,62 @@ define void @integer_arith(i32 %arg1, i32 %arg2, i64 %arg3, i64 %arg4) {
   ; CHECK-DAG:  %[[C1:[0-9]+]] = llvm.mlir.constant(-7 : i32) : i32
   ; CHECK-DAG:  %[[C2:[0-9]+]] = llvm.mlir.constant(42 : i32) : i32
   ; CHECK:  llvm.add %[[ARG1]], %[[C1]] : i32
-  ; CHECK:  llvm.add %[[C2]], %[[ARG2]] : i32
-  ; CHECK:  llvm.sub %[[ARG3]], %[[ARG4]] : i64
-  ; CHECK:  llvm.mul %[[ARG1]], %[[ARG2]] : i32
-  ; CHECK:  llvm.udiv %[[ARG3]], %[[ARG4]] : i64
-  ; CHECK:  llvm.sdiv %[[ARG1]], %[[ARG2]] : i32
-  ; CHECK:  llvm.urem %[[ARG3]], %[[ARG4]] : i64
-  ; CHECK:  llvm.srem %[[ARG1]], %[[ARG2]] : i32
-  ; CHECK:  llvm.shl %[[ARG3]], %[[ARG4]] : i64
-  ; CHECK:  llvm.lshr %[[ARG1]], %[[ARG2]] : i32
-  ; CHECK:  llvm.ashr %[[ARG3]], %[[ARG4]] : i64
-  ; CHECK:  llvm.and %[[ARG1]], %[[ARG2]] : i32
-  ; CHECK:  llvm.or %[[ARG3]], %[[ARG4]] : i64
-  ; CHECK:  llvm.xor %[[ARG1]], %[[ARG2]] : i32
   %1 = add i32 %arg1, -7
+  ; CHECK:  llvm.add %[[C2]], %[[ARG2]] : i32
   %2 = add i32 42, %arg2
+  ; CHECK:  llvm.sub %[[ARG3]], %[[ARG4]] : i64
   %3 = sub i64 %arg3, %arg4
+  ; CHECK:  llvm.mul %[[ARG1]], %[[ARG2]] : i32
   %4 = mul i32 %arg1, %arg2
+  ; CHECK:  llvm.udiv %[[ARG3]], %[[ARG4]] : i64
   %5 = udiv i64 %arg3, %arg4
+  ; CHECK:  llvm.sdiv %[[ARG1]], %[[ARG2]] : i32
   %6 = sdiv i32 %arg1, %arg2
+  ; CHECK:  llvm.urem %[[ARG3]], %[[ARG4]] : i64
   %7 = urem i64 %arg3, %arg4
+  ; CHECK:  llvm.srem %[[ARG1]], %[[ARG2]] : i32
   %8 = srem i32 %arg1, %arg2
+  ; CHECK:  llvm.shl %[[ARG3]], %[[ARG4]] : i64
   %9 = shl i64 %arg3, %arg4
+  ; CHECK:  llvm.lshr %[[ARG1]], %[[ARG2]] : i32
   %10 = lshr i32 %arg1, %arg2
+  ; CHECK:  llvm.ashr %[[ARG3]], %[[ARG4]] : i64
   %11 = ashr i64 %arg3, %arg4
+  ; CHECK:  llvm.and %[[ARG1]], %[[ARG2]] : i32
   %12 = and i32 %arg1, %arg2
+  ; CHECK:  llvm.or %[[ARG3]], %[[ARG4]] : i64
   %13 = or i64 %arg3, %arg4
+  ; CHECK:  llvm.xor %[[ARG1]], %[[ARG2]] : i32
   %14 = xor i32 %arg1, %arg2
   ret void
+}
+
+; // -----
+
+; CHECK-LABEL: @integer_compare
+; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[ARG2:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[ARG3:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[ARG4:[a-zA-Z0-9]+]]
+define i1 @integer_compare(i32 %arg1, i32 %arg2, <4 x i64> %arg3, <4 x i64> %arg4) {
+  ; CHECK:  llvm.icmp "eq" %[[ARG3]], %[[ARG4]] : vector<4xi64>
+  %1 = icmp eq <4 x i64> %arg3, %arg4
+  ; CHECK:  llvm.icmp "slt" %[[ARG1]], %[[ARG2]] : i32
+  %2 = icmp slt i32 %arg1, %arg2
+  ; CHECK:  llvm.icmp "sle" %[[ARG1]], %[[ARG2]] : i32
+  %3 = icmp sle i32 %arg1, %arg2
+  ; CHECK:  llvm.icmp "sgt" %[[ARG1]], %[[ARG2]] : i32
+  %4 = icmp sgt i32 %arg1, %arg2
+  ; CHECK:  llvm.icmp "sge" %[[ARG1]], %[[ARG2]] : i32
+  %5 = icmp sge i32 %arg1, %arg2
+  ; CHECK:  llvm.icmp "ult" %[[ARG1]], %[[ARG2]] : i32
+  %6 = icmp ult i32 %arg1, %arg2
+  ; CHECK:  llvm.icmp "ule" %[[ARG1]], %[[ARG2]] : i32
+  %7 = icmp ule i32 %arg1, %arg2
+  ; Verify scalar comparisons return a scalar boolean
+  ; CHECK:  llvm.icmp "ugt" %[[ARG1]], %[[ARG2]] : i32
+  %8 = icmp ugt i32 %arg1, %arg2
+  ret i1 %8
 }
 
 ; // -----
@@ -50,22 +78,66 @@ define void @fp_arith(float %arg1, float %arg2, double %arg3, double %arg4) {
   ; CHECK:  %[[C1:[0-9]+]] = llvm.mlir.constant(3.030000e+01 : f64) : f64
   ; CHECK:  %[[C2:[0-9]+]] = llvm.mlir.constant(3.030000e+01 : f32) : f32
   ; CHECK:  llvm.fadd %[[C2]], %[[ARG1]] : f32
-  ; CHECK:  llvm.fadd %[[ARG1]], %[[ARG2]] : f32
-  ; CHECK:  llvm.fadd %[[C1]], %[[ARG3]] : f64
-  ; CHECK:  llvm.fsub %[[ARG1]], %[[ARG2]] : f32
-  ; CHECK:  llvm.fmul %[[ARG3]], %[[ARG4]] : f64
-  ; CHECK:  llvm.fdiv %[[ARG1]], %[[ARG2]] : f32
-  ; CHECK:  llvm.frem %[[ARG3]], %[[ARG4]] : f64
-  ; CHECK:  llvm.fneg %[[ARG1]] : f32
   %1 = fadd float 0x403E4CCCC0000000, %arg1
+  ; CHECK:  llvm.fadd %[[ARG1]], %[[ARG2]] : f32
   %2 = fadd float %arg1, %arg2
+  ; CHECK:  llvm.fadd %[[C1]], %[[ARG3]] : f64
   %3 = fadd double 3.030000e+01, %arg3
+  ; CHECK:  llvm.fsub %[[ARG1]], %[[ARG2]] : f32
   %4 = fsub float %arg1, %arg2
+  ; CHECK:  llvm.fmul %[[ARG3]], %[[ARG4]] : f64
   %5 = fmul double %arg3, %arg4
+  ; CHECK:  llvm.fdiv %[[ARG1]], %[[ARG2]] : f32
   %6 = fdiv float %arg1, %arg2
+  ; CHECK:  llvm.frem %[[ARG3]], %[[ARG4]] : f64
   %7 = frem double %arg3, %arg4
+  ; CHECK:  llvm.fneg %[[ARG1]] : f32
   %8 = fneg float %arg1
   ret void
+}
+
+; // -----
+
+; CHECK-LABEL: @fp_compare
+; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[ARG2:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[ARG3:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[ARG4:[a-zA-Z0-9]+]]
+define <4 x i1> @fp_compare(float %arg1, float %arg2, <4 x double> %arg3, <4 x double> %arg4) {
+  ; CHECK:  llvm.fcmp "_false" %[[ARG1]], %[[ARG2]] : f32
+  %1 = fcmp false float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "oeq" %[[ARG1]], %[[ARG2]] : f32
+  %2 = fcmp oeq float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "ogt" %[[ARG1]], %[[ARG2]] : f32
+  %3 = fcmp ogt float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "oge" %[[ARG1]], %[[ARG2]] : f32
+  %4 = fcmp oge float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "olt" %[[ARG1]], %[[ARG2]] : f32
+  %5 = fcmp olt float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "ole" %[[ARG1]], %[[ARG2]] : f32
+  %6 = fcmp ole float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "one" %[[ARG1]], %[[ARG2]] : f32
+  %7 = fcmp one float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "ord" %[[ARG1]], %[[ARG2]] : f32
+  %8 = fcmp ord float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "ueq" %[[ARG1]], %[[ARG2]] : f32
+  %9 = fcmp ueq float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "ugt" %[[ARG1]], %[[ARG2]] : f32
+  %10 = fcmp ugt float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "uge" %[[ARG1]], %[[ARG2]] : f32
+  %11 = fcmp uge float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "ult" %[[ARG1]], %[[ARG2]] : f32
+  %12 = fcmp ult float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "ule" %[[ARG1]], %[[ARG2]] : f32
+  %13 = fcmp ule float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "une" %[[ARG1]], %[[ARG2]] : f32
+  %14 = fcmp une float %arg1, %arg2
+  ; CHECK:  llvm.fcmp "uno" %[[ARG1]], %[[ARG2]] : f32
+  %15 = fcmp uno float %arg1, %arg2
+  ; Verify vector comparisons return a vector of booleans
+  ; CHECK:  llvm.fcmp "_true" %[[ARG3]], %[[ARG4]] : vector<4xf64>
+  %16 = fcmp true <4 x double> %arg3, %arg4
+  ret <4 x i1> %16
 }
 
 ; // -----
@@ -204,6 +276,41 @@ define <4 x half> @insert_element(<4 x half>* %vec, half %val, i32 %idx) {
 
 ; // -----
 
+; CHECK-LABEL: @insert_extract_value_struct
+; CHECK-SAME:  %[[PTR:[a-zA-Z0-9]+]]
+define float @insert_extract_value_struct({{i32},{float, double}}* %ptr) {
+  ; CHECK:  %[[C0:.+]] = llvm.mlir.constant(2.000000e+00 : f64)
+  ; CHECK:  %[[VT:.+]] = llvm.load %[[PTR]]
+  %1 = load {{i32},{float, double}}, {{i32},{float, double}}* %ptr
+  ; CHECK:  %[[EV:.+]] = llvm.extractvalue %[[VT]][1, 0] :
+  ; CHECK-SAME: !llvm.struct<(struct<(i32)>, struct<(f32, f64)>)>
+  %2 = extractvalue {{i32},{float, double}} %1, 1, 0
+  ; CHECK:  %[[IV:.+]] = llvm.insertvalue %[[C0]], %[[VT]][1, 1] :
+  ; CHECK-SAME: !llvm.struct<(struct<(i32)>, struct<(f32, f64)>)>
+  %3 = insertvalue {{i32},{float, double}} %1, double 2.0, 1, 1
+  ; CHECK:  llvm.store %[[IV]], %[[PTR]]
+  store {{i32},{float, double}} %3, {{i32},{float, double}}* %ptr
+  ; CHECK:  llvm.return %[[EV]]
+  ret float %2
+}
+
+; // -----
+
+; CHECK-LABEL: @insert_extract_value_array
+; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
+define void @insert_extract_value_array([4 x [4 x i8]] %arg1) {
+  ; CHECK:  %[[C0:.+]] = llvm.mlir.constant(0 : i8)
+  ; CHECK:  llvm.insertvalue %[[C0]], %[[ARG1]][0, 0] : !llvm.array<4 x array<4 x i8>>
+  %1 = insertvalue [4 x [4 x i8 ]] %arg1, i8 0, 0, 0
+  ; CHECK:  llvm.extractvalue %[[ARG1]][1] : !llvm.array<4 x array<4 x i8>>
+  %2 = extractvalue [4 x [4 x i8 ]] %arg1, 1
+  ; CHECK:  llvm.extractvalue %[[ARG1]][0, 1] : !llvm.array<4 x array<4 x i8>>
+  %3 = extractvalue [4 x [4 x i8 ]] %arg1, 0, 1
+  ret void
+}
+
+; // -----
+
 ; CHECK-LABEL: @select
 ; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
 ; CHECK-SAME:  %[[ARG2:[a-zA-Z0-9]+]]
@@ -212,6 +319,17 @@ define void @select(i32 %arg0, i32 %arg1, i1 %cond) {
   ; CHECK:  llvm.select %[[COND]], %[[ARG1]], %[[ARG2]] : i1, i32
   %1 = select i1 %cond, i32 %arg0, i32 %arg1
   ret void
+}
+
+; // -----
+
+; CHECK-LABEL: func @shuffle_vec
+; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[ARG2:[a-zA-Z0-9]+]]
+define <4 x half> @shuffle_vec(<4 x half> %arg1, <4 x half> %arg2) {
+  ; CHECK:  llvm.shufflevector %[[ARG1]], %[[ARG2]] [2, 3, -1, -1] : vector<4xf16>
+  %1 = shufflevector <4 x half> %arg1, <4 x half> %arg2, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
+  ret <4 x half> %1
 }
 
 ; // -----

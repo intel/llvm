@@ -236,6 +236,13 @@ static StringRef getLLVMSyncScope(llvm::FenceInst *fenceInst) {
   llvm_unreachable("incorrect sync scope identifier");
 }
 
+/// Converts an array of unsigned indices to a signed integer position array.
+static SmallVector<int64_t> getPositionFromIndices(ArrayRef<unsigned> indices) {
+  SmallVector<int64_t> position;
+  llvm::append_range(position, indices);
+  return position;
+}
+
 DataLayoutSpecInterface
 mlir::translateDataLayout(const llvm::DataLayout &dataLayout,
                           MLIRContext *context) {
@@ -804,36 +811,6 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
   // Convert all special instructions that do not provide an MLIR builder.
   Location loc = translateLoc(inst->getDebugLoc());
-  if (inst->getOpcode() == llvm::Instruction::ICmp) {
-    Value lhs = processValue(inst->getOperand(0));
-    Value rhs = processValue(inst->getOperand(1));
-    Value res = b.create<ICmpOp>(
-        loc, getICmpPredicate(cast<llvm::ICmpInst>(inst)->getPredicate()), lhs,
-        rhs);
-    mapValue(inst, res);
-    return success();
-  }
-  if (inst->getOpcode() == llvm::Instruction::FCmp) {
-    Value lhs = processValue(inst->getOperand(0));
-    Value rhs = processValue(inst->getOperand(1));
-
-    if (lhs.getType() != rhs.getType())
-      return failure();
-
-    Type boolType = b.getI1Type();
-    Type resType = boolType;
-    if (LLVM::isCompatibleVectorType(lhs.getType())) {
-      unsigned numElements =
-          LLVM::getVectorNumElements(lhs.getType()).getFixedValue();
-      resType = VectorType::get({numElements}, boolType);
-    }
-
-    Value res = b.create<FCmpOp>(
-        loc, resType,
-        getFCmpPredicate(cast<llvm::FCmpInst>(inst)->getPredicate()), lhs, rhs);
-    mapValue(inst, res);
-    return success();
-  }
   if (inst->getOpcode() == llvm::Instruction::Br) {
     auto *brInst = cast<llvm::BranchInst>(inst);
     OperationState state(loc,
@@ -1013,37 +990,6 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
     Type type = convertType(inst->getType());
     Value res = b.create<GEPOp>(loc, type, sourceElementType, basePtr, indices);
-    mapValue(inst, res);
-    return success();
-  }
-  if (inst->getOpcode() == llvm::Instruction::InsertValue) {
-    auto *ivInst = cast<llvm::InsertValueInst>(inst);
-    Value inserted = processValue(ivInst->getInsertedValueOperand());
-    Value aggOperand = processValue(ivInst->getAggregateOperand());
-
-    SmallVector<int64_t> indices;
-    llvm::append_range(indices, ivInst->getIndices());
-    Value res = b.create<InsertValueOp>(loc, aggOperand, inserted, indices);
-    mapValue(inst, res);
-    return success();
-  }
-  if (inst->getOpcode() == llvm::Instruction::ExtractValue) {
-    auto *evInst = cast<llvm::ExtractValueInst>(inst);
-    Value aggOperand = processValue(evInst->getAggregateOperand());
-
-    SmallVector<int64_t> indices;
-    llvm::append_range(indices, evInst->getIndices());
-    Value res = b.create<ExtractValueOp>(loc, aggOperand, indices);
-    mapValue(inst, res);
-    return success();
-  }
-  if (inst->getOpcode() == llvm::Instruction::ShuffleVector) {
-    auto *svInst = cast<llvm::ShuffleVectorInst>(inst);
-    Value vec1 = processValue(svInst->getOperand(0));
-    Value vec2 = processValue(svInst->getOperand(1));
-
-    SmallVector<int32_t> mask(svInst->getShuffleMask());
-    Value res = b.create<ShuffleVectorOp>(loc, vec1, vec2, mask);
     mapValue(inst, res);
     return success();
   }
