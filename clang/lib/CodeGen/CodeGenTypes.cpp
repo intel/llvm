@@ -80,15 +80,15 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
                 OS << "i" << TTy->getIntegerBitWidth();
                 break;
               }
-            } else if (TTy->isHalfTy())
+            } else if (TTy->isHalfTy()) {
               OS << "half";
-            else if (TTy->isFloatTy())
+            } else if (TTy->isFloatTy()) {
               OS << "float";
-            else if (TTy->isDoubleTy())
+            } else if (TTy->isDoubleTy()) {
               OS << "double";
-            else if (TTy->isBFloatTy())
+            } else if (TTy->isBFloatTy()) {
               OS << "bfloat16";
-            else if (TTy->isStructTy()) {
+            } else if (TTy->isStructTy()) {
               StringRef LlvmTyName = TTy->getStructName();
               // Emit half/bfloat16/tf32 for sycl[::*]::{half,bfloat16,tf32}
               if (LlvmTyName.startswith("class.sycl::") ||
@@ -98,10 +98,12 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
                   LlvmTyName != "tf32")
                 llvm_unreachable("Wrong matrix base type!");
               OS << LlvmTyName;
-            } else
+            } else {
               llvm_unreachable("Wrong matrix base type!");
-          } else if (TemplateArg.getKind() == TemplateArgument::Integral)
+            }
+          } else if (TemplateArg.getKind() == TemplateArgument::Integral) {
             OS << TemplateArg.getAsIntegral();
+          }
         }
         Ty->setName(OS.str());
         return;
