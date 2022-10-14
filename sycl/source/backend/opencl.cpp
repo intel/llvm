@@ -11,6 +11,7 @@
 #include <detail/plugin.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/sycl.hpp>
 
 namespace sycl {
@@ -47,42 +48,70 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 
 // Free functions to query OpenCL backend extensions
 // TODO: Extensions have been deprecated for aspects
-__SYCL_EXPORT bool has_extension(const sycl::platform &syclPlatform,
-                                 const std::string &extension) {
-  if (syclPlatform.get_backend() != sycl::backend::opencl) {
+__SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
+                                 const std::string &Extension) {
+  if (SyclPlatform.get_backend() != sycl::backend::opencl) {
     throw sycl::exception(
         errc::backend_mismatch,
-        "has_extension can only be used with an OpenCL backend",
-        PI_ERROR_INVALID_OPERATION);
+        "has_extension can only be used with an OpenCL backend");
   }
 
-  // Returns true if all devices on a platform support the queryed extension
-  for (device &currentDevice : syclPlatform.get_devices()) {
-    auto deviceExtensions = currentDevice.get_info<info::device::extensions>();
+  auto PlatformImpl = getSyclObjImpl(SyclPlatform);
+  RT::PiPlatform PluginPlatform = PlatformImpl->getHandleRef();
+  plugin Plugin = PlatformImpl->getPlugin();
 
-    auto findResult =
-        std::find(deviceExtensions.begin(), deviceExtensions.end(), extension);
-    if (findResult == deviceExtensions.end()) {
-      return false;
-    }
+  // Manual invocation of plugin API to avoid using deprecated
+  // info::platform::extensions call
+  size_t ResultSize = 0;
+  Plugin.call<PiApiKind::piPlatformGetInfo>(
+      PluginPlatform, PI_PLATFORM_INFO_EXTENSIONS, 0, nullptr, &ResultSize);
+  if (ResultSize == 0) {
+    return false;
   }
-  return true;
+  std::unique_ptr<char[]> Result(new char[ResultSize]);
+  Plugin.call<PiApiKind::piPlatformGetInfo>(PluginPlatform,
+                                            PI_PLATFORM_INFO_EXTENSIONS,
+                                            ResultSize, Result.get(), nullptr);
+
+  std::string ExtensionsString = Result.get();
+  std::vector<std::string> ExtensionsList = split_string(ExtensionsString, ' ');
+
+  auto FindResult =
+      std::find(ExtensionsList.begin(), ExtensionsList.end(), Extension);
+  return FindResult != ExtensionsList.end();
 }
 
-__SYCL_EXPORT bool has_extension(const sycl::device &syclDevice,
-                                 const std::string &extension) {
-  if (syclDevice.get_backend() != sycl::backend::opencl) {
+__SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
+                                 const std::string &Extension) {
+  if (SyclDevice.get_backend() != sycl::backend::opencl) {
     throw sycl::exception(
         errc::backend_mismatch,
-        "has_extension can only be used with an OpenCL backend",
-        PI_ERROR_INVALID_OPERATION);
+        "has_extension can only be used with an OpenCL backend");
   }
 
-  auto deviceExtensions = syclDevice.get_info<info::device::extensions>();
+  auto DeviceImpl = getSyclObjImpl(SyclDevice);
+  RT::PiDevice PluginDevice = DeviceImpl->getHandleRef();
+  plugin Plugin = DeviceImpl->getPlugin();
 
-  auto findResult =
-      std::find(deviceExtensions.begin(), deviceExtensions.end(), extension);
-  return findResult != deviceExtensions.end();
+  // Manual invocation of plugin API to avoid using deprecated
+  // info::device::extensions call
+  size_t ResultSize = 0;
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      PluginDevice, PI_DEVICE_INFO_EXTENSIONS, 0, nullptr, &ResultSize);
+  if (ResultSize == 0) {
+    return false;
+  }
+  std::unique_ptr<char[]> Result(new char[ResultSize]);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(PluginDevice,
+                                          PI_DEVICE_INFO_EXTENSIONS, ResultSize,
+                                          Result.get(), nullptr);
+
+  std::string ExtensionsString = Result.get();
+  std::vector<std::string> ExtensionsList = split_string(ExtensionsString, ' ');
+
+  auto FindResult =
+      std::find(ExtensionsList.begin(), ExtensionsList.end(), Extension);
+  return FindResult != ExtensionsList.end();
 }
 } // namespace opencl
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
