@@ -360,7 +360,7 @@ public:
                         PI_ERROR_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
-  
+
   operator uint16_t() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_VectorExtractDynamic(M.spvm, idx);

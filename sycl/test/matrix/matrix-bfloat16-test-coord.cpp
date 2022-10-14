@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 %s -o %t.out 
+// RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 %s -o %t.out
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -108,7 +108,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            // Element wise operation
            auto tCData = sub_c.get_wi_data();
 
-           for (int i = 0; i < tCData.length(); ++i) { 
+           for (int i = 0; i < tCData.length(); ++i) {
              auto [row, col] = tCData[i].get_coord();
              res_local_row_acc[row] += tCData[i];
            }
@@ -190,8 +190,8 @@ int main() {
     }
   }
   for (int i = 0; i < MATRIX_M; i++) {
-      if (res_local_row[i] != res_local_row_orig[i])
-        res = false;
+    if (res_local_row[i] != res_local_row_orig[i])
+      res = false;
   }
   if (res)
     std::cout << "passed\n";
