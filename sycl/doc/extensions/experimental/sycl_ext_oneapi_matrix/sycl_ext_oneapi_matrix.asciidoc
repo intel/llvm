@@ -181,7 +181,7 @@ This function stores the data from the 2d tiles back to memory.
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M, std::size_t K, std::size_t N, 
             layout LayoutA, layout LayoutB>
-  joint_matrix<Group, use::accumulator, Td, M, N, layout::dynamic, Group> joint_matrix_mad(Group sg,
+  joint_matrix<Td, use::accumulator, M, N, layout::dynamic, Group> joint_matrix_mad(Group sg,
     joint_matrix<Ta, use::a, M, K, layoutA, Group> A,
     joint_matrix<Tb, use::b, K, N, layoutB, Group> B,
     joint_matrix<Tc, use::accumulator, M, N, layout::dynamic, Group> C);
