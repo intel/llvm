@@ -116,7 +116,9 @@ void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
   const AspectsSetTy &AspectsToPropagate = Aspects[Start];
   SmallSetVector<const Type *, 16> TypesToPropagate;
   TypesToPropagate.insert(Start);
-  for (const Type *T : TypesToPropagate) {
+  // The TypesToPropagate is being updated inside the loop, so no range-for.
+  for (size_t I = 0; I < TypesToPropagate.size(); ++I) {
+    const Type *T = TypesToPropagate[I];
     Aspects[T].insert(AspectsToPropagate.begin(), AspectsToPropagate.end());
     const auto It = Edges.find(T);
     if (It != Edges.end())
