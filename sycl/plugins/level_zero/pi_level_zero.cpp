@@ -1045,7 +1045,7 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
 }
 
 // Configuration of the command-list batching.
-typedef struct CommandListBatchConfig {
+struct zeCommandListBatchConfig {
   // Default value of 0. This specifies to use dynamic batch size adjustment.
   // Other values will try to collect specified amount of commands.
   pi_uint32 Size{0};
@@ -1068,7 +1068,7 @@ typedef struct CommandListBatchConfig {
   pi_uint32 startSize() const { return Size > 0 ? Size : DynamicSizeStart; }
   // Tells is we are doing dynamic batch size adjustment.
   bool dynamic() const { return Size == 0; }
-} zeCommandListBatchConfig;
+};
 
 // Helper function to initialize static variables that holds batch config info
 // for compute and copy command batching.

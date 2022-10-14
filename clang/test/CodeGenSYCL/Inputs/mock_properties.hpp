@@ -55,6 +55,8 @@ const char PropertyName6[] = "Prop6";
 constexpr decltype(nullptr) PropertyValue6 = nullptr;
 const char PropertyName7[] = "Prop7";
 constexpr ScopedTestEnum PropertyValue7 = ScopedTestEnum::ScopedEnum1;
+const char PropertyName8[] = "Prop8";
+constexpr char PropertyValue8[] = {'P', 114, 'o', 'p', 0x65, 'r', 't', 'y', 0};
 
 using prop1 = StringProperty<PropertyName1, PropertyValue1>;
 using prop2 = IntProperty<PropertyName2, PropertyValue2>;
@@ -63,3 +65,4 @@ using prop4 = TestEnumProperty<PropertyName4, PropertyValue4>;
 using prop5 = StringProperty<PropertyName5, PropertyValue5>;
 using prop6 = NullptrProperty<PropertyName6, PropertyValue6>;
 using prop7 = ScopedTestEnumProperty<PropertyName7, PropertyValue7>;
+using prop8 = StringProperty<PropertyName8, PropertyValue8>;
