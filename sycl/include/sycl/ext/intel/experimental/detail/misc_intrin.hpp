@@ -1,18 +1,24 @@
-//==------------ misc_intrin.hpp - DPC++ Explicit SIMD API -----------------==//
+//==------------ misc_intrin.hpp - SYCL Kernel Properties -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Declares miscellaneous Explicit SIMD intrinsics.
+// Declares miscellaneous SYCL intrinsics.
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
-/// @cond ESIMD_DETAIL
+/// @cond SYCL_DETAIL
 
-__ESIMD_INTRIN void __esimd_set_kernel_properties(int prop_mask)
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_INTRIN SYCL_EXTERNAL
+#else
+#define __SYCL_INTRIN inline
+#endif // __SYCL_DEVICE_ONLY__
+
+__SYCL_INTRIN void __sycl_set_kernel_properties(int prop_mask)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -20,4 +26,4 @@ __ESIMD_INTRIN void __esimd_set_kernel_properties(int prop_mask)
 } // Only "double GRF" property is supported for now, safe to ignore on host.
 #endif // __SYCL_DEVICE_ONLY__
 
-/// @endcond ESIMD_DETAIL
+/// @endcond SYCL_DETAIL

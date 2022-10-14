@@ -285,6 +285,7 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 ///  - checks if return and argument types are using any aspects
 ///  - checks if instructions are using any aspects
 ///  - updates call graph information
+///  - checks if function has "!sycl_used_aspects" metadata
 ///
 void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
                      TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG) {
@@ -306,6 +307,17 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
       if (!CI->isIndirectCall() && CI->getCalledFunction())
         CG[&F].insert(CI->getCalledFunction());
     }
+  }
+
+  if (F.hasMetadata("sycl_used_aspects")) {
+    const MDNode *MD = F.getMetadata("sycl_used_aspects");
+    AspectsSetTy Aspects;
+    for (size_t I = 0, E = MD->getNumOperands(); I < E; ++I) {
+      Constant *C =
+        cast<ConstantAsMetadata>(MD->getOperand(I).get())->getValue();
+      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+    }
+    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
   }
 }
 

@@ -247,16 +247,16 @@ private:
   void atomic_combine_impl(T *ReduVarPtr, AtomicFunctor Functor) const {
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
-      auto AtomicRef =
-          sycl::atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(),
-                           Space>(multi_ptr<T, Space>(ReduVarPtr)[E]);
+      auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
+                                        getMemoryScope<Space>(), Space>(
+          address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
       Functor(AtomicRef, reducer->getElement(E));
     }
   }
 
   template <class _T, access::address_space Space, class BinaryOp>
   static constexpr bool BasicCheck =
-      std::is_same<typename remove_AS<_T>::type, Ty>::value &&
+      std::is_same<remove_decoration_t<_T>, Ty>::value &&
       (Space == access::address_space::global_space ||
        Space == access::address_space::local_space);
 
@@ -298,7 +298,7 @@ public:
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, _T>::value &&
+  enable_if_t<std::is_same<remove_decoration_t<_T>, _T>::value &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitAND<_T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||

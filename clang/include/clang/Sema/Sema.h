@@ -11004,6 +11004,7 @@ public:
   SYCLIntelMaxWorkGroupSizeAttr *
   MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
                                      const SYCLIntelMaxWorkGroupSizeAttr &A);
+  void CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
   SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
       Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
   void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
