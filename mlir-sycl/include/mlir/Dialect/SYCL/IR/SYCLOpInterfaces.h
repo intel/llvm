@@ -27,6 +27,14 @@ LogicalResult verifySYCLGetComponentTrait(Operation *Op);
 LogicalResult verifySYCLGetRangeTrait(Operation *Op);
 LogicalResult verifySYCLGetGroupTrait(Operation *Op);
 
+///  This interface describes an SYCLMethodOpInterface that returns a range if
+///  called with a single argument and a size_t if called with two arguments.
+///
+///  Special cases are:
+///  * The `operator size_t` function, that can only receive a single argument
+///  and return a size_t;
+///  * The `operator[]` function, that must receive two arguments and return a
+///  size_t.
 template <typename ConcreteType>
 class SYCLGetID : public OpTrait::TraitBase<ConcreteType, SYCLGetID> {
 public:
@@ -35,6 +43,8 @@ public:
   }
 };
 
+/// This interface describes an SYCLMethodOpInterface that returns a range if
+/// called with a single argument and a size_t if called with two arguments.
 template <typename ConcreteType>
 class SYCLGetComponent
     : public OpTrait::TraitBase<ConcreteType, SYCLGetComponent> {
@@ -44,6 +54,8 @@ public:
   }
 };
 
+/// This interface describes an SYCLMethodOpInterface that returns a range if
+/// called with a single argument and a size_t if called with two arguments.
 template <typename ConcreteType>
 class SYCLGetRange : public OpTrait::TraitBase<ConcreteType, SYCLGetRange> {
 public:
@@ -52,6 +64,8 @@ public:
   }
 };
 
+/// This interface describes an SYCLMethodOpInterface that returns a group if
+/// called with a single argument and a size_t if called with two arguments.
 template <typename ConcreteType>
 class SYCLGetGroup : public OpTrait::TraitBase<ConcreteType, SYCLGetGroup> {
 public:
