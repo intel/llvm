@@ -32,7 +32,7 @@ runs:
       username: ${{ inputs.username }}
       password: ${{ inputs.password }}
   - name: Build and Push Container
-    uses: docker/build-push-action@v3
+    uses: docker/build-push-action@v3.2.0
     with:
       push: ${{ inputs.push }}
       tags: ${{ inputs.tags }}
