@@ -14,7 +14,7 @@ on:
       build_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
       build_ref:
         type: string
         required: false
