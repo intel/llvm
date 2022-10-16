@@ -1,4 +1,4 @@
-# TBD'22 release notes
+# September'22 release notes
 
 Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/llvm/compare/4043dda3...0f579bae)
 
