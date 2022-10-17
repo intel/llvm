@@ -31,6 +31,11 @@ struct NonTrivial {
   NonTrivial(int *D, int A) : Data(D), Addition(A) {}
 };
 
+struct NonTrivialDerived : NonTrivial {
+  int AA = 0;
+  NonTrivialDerived(int *D, int A) : NonTrivial(D, A) {}
+};
+
 using namespace sycl;
 
 int main() {
@@ -39,6 +44,8 @@ int main() {
   queue Q;
 
   NonTrivial NonTrivialObj(sycl::malloc_shared<int>(NumOfElements, Q), 38);
+  NonTrivialDerived NonTrivialDerivedObj(
+      sycl::malloc_shared<int>(NumOfElements, Q), 39);
   Simple SimpleObj = {sycl::malloc_shared<int>(NumOfElements, Q), 42};
   WrapperOfSimple WrapperOfSimpleObj = {
       300, {sycl::malloc_shared<int>(NumOfElements, Q), 100500}};
@@ -51,6 +58,11 @@ int main() {
   // Test simple non-trivial struct containing pointer.
   Q.parallel_for(NumOfElements, [=](id<1> Idx) {
     NonTrivialObj.Data[Idx] = Idx + NonTrivialObj.Addition;
+  });
+
+  // Test simple non-trivial derived struct containing pointer.
+  Q.parallel_for(NumOfElements, [=](id<1> Idx) {
+    NonTrivialDerivedObj.Data[Idx] = Idx + NonTrivialDerivedObj.Addition;
   });
 
   // Test nested struct containing pointer.
@@ -88,6 +100,7 @@ int main() {
   bool Fail = false;
   Fail = Checker(SimpleObj);
   Fail = Checker(NonTrivialObj);
+  Fail = Checker(NonTrivialDerivedObj);
   Fail = Checker(WrapperOfSimpleObj.Obj);
 
   for (int i = 0; i < NumOfElements; ++i)
@@ -95,6 +108,7 @@ int main() {
 
   // Free allocated memory.
   sycl::free(NonTrivialObj.Data, Q);
+  sycl::free(NonTrivialDerivedObj.Data, Q);
   sycl::free(SimpleObj.Data, Q);
   sycl::free(WrapperOfSimpleObj.Obj.Data, Q);
 
