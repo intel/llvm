@@ -31,50 +31,50 @@
 namespace OCLV {
 class OpenCLVersion {
 protected:
-  unsigned int major;
-  unsigned int minor;
+  unsigned int ocl_major;
+  unsigned int ocl_minor;
 
 public:
-  OpenCLVersion() : major(0), minor(0) {}
+  OpenCLVersion() : ocl_major(0), ocl_minor(0) {}
 
-  OpenCLVersion(unsigned int major, unsigned int minor)
-      : major(major), minor(minor) {
+  OpenCLVersion(unsigned int ocl_major, unsigned int ocl_minor)
+      : ocl_major(ocl_major), ocl_minor(ocl_minor) {
     if (!isValid())
-      major = minor = 0;
+      ocl_major = ocl_minor = 0;
   }
 
   OpenCLVersion(const char *version) : OpenCLVersion(std::string(version)) {}
 
-  OpenCLVersion(const std::string &version) : major(0), minor(0) {
+  OpenCLVersion(const std::string &version) : ocl_major(0), ocl_minor(0) {
     /* The OpenCL specification defines the full version string as
-     * 'OpenCL<space><major_version.minor_version><space><platform-specific
+     * 'OpenCL<space><ocl_major_version.ocl_minor_version><space><platform-specific
      * information>' for platforms and as
-     * 'OpenCL<space><major_version.minor_version><space><vendor-specific
+     * 'OpenCL<space><ocl_major_version.ocl_minor_version><space><vendor-specific
      * information>' for devices.
      */
     std::regex rx("OpenCL ([0-9]+)\\.([0-9]+)");
     std::smatch match;
 
     if (std::regex_search(version, match, rx) && (match.size() == 3)) {
-      major = strtoul(match[1].str().c_str(), nullptr, 10);
-      minor = strtoul(match[2].str().c_str(), nullptr, 10);
+      ocl_major = strtoul(match[1].str().c_str(), nullptr, 10);
+      ocl_minor = strtoul(match[2].str().c_str(), nullptr, 10);
 
       if (!isValid())
-        major = minor = 0;
+        ocl_major = ocl_minor = 0;
     }
   }
 
   bool operator==(const OpenCLVersion &v) const {
-    return major == v.major && minor == v.minor;
+    return ocl_major == v.ocl_major && ocl_minor == v.ocl_minor;
   }
 
   bool operator!=(const OpenCLVersion &v) const { return !(*this == v); }
 
   bool operator<(const OpenCLVersion &v) const {
-    if (major == v.major)
-      return minor < v.minor;
+    if (ocl_major == v.ocl_major)
+      return ocl_minor < v.ocl_minor;
 
-    return major < v.major;
+    return ocl_major < v.ocl_major;
   }
 
   bool operator>(const OpenCLVersion &v) const { return v < *this; }
@@ -88,21 +88,21 @@ public:
   }
 
   bool isValid() const {
-    switch (major) {
+    switch (ocl_major) {
     case 0:
       return false;
     case 1:
     case 2:
-      return minor <= 2;
+      return ocl_minor <= 2;
     case UINT_MAX:
       return false;
     default:
-      return minor != UINT_MAX;
+      return ocl_minor != UINT_MAX;
     }
   }
 
-  int getMajor() const { return major; }
-  int getMinor() const { return minor; }
+  int getMajor() const { return ocl_major; }
+  int getMinor() const { return ocl_minor; }
 };
 
 inline const OpenCLVersion V1_0(1, 0);

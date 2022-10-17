@@ -1796,9 +1796,6 @@ __SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpasw()")
 __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(
     __ESIMD_NS::simd<T1, N1> src1, __ESIMD_NS::simd<T2, N2> src2,
     std::enable_if_t<__ESIMD_DNS::is_saturation_tag_v<Sat>, Sat> sat = {}) {
-  constexpr bool is_4xhf =
-      std::is_same_v<T, __ESIMD_DNS::__raw_t<sycl::half>> &&
-      src1_precision == src2_precision && src1_precision == argument_type::FP16;
 
   __ESIMD_NS::simd<T, N> result =
       __ESIMD_NS::xmx::dpasw<systolic_depth, repeat_count, T, T1, T2,

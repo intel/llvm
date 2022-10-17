@@ -38,7 +38,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <bitset>
@@ -1620,6 +1619,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     // TypeQuals handled by caller.
     break;
   }
+  case DeclSpec::TST_typeof_unqualType:
   case DeclSpec::TST_typeofType:
     // FIXME: Preserve type source info.
     Result = S.GetTypeFromParser(DS.getRepAsType());
@@ -1628,13 +1628,20 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       if (const TagType *TT = Result->getAs<TagType>())
         S.DiagnoseUseOfDecl(TT->getDecl(), DS.getTypeSpecTypeLoc());
     // TypeQuals handled by caller.
-    Result = Context.getTypeOfType(Result);
+    Result = Context.getTypeOfType(
+        Result, DS.getTypeSpecType() == DeclSpec::TST_typeof_unqualType
+                    ? TypeOfKind::Unqualified
+                    : TypeOfKind::Qualified);
     break;
+  case DeclSpec::TST_typeof_unqualExpr:
   case DeclSpec::TST_typeofExpr: {
     Expr *E = DS.getRepAsExpr();
     assert(E && "Didn't get an expression for typeof?");
     // TypeQuals handled by caller.
-    Result = S.BuildTypeofExprType(E);
+    Result = S.BuildTypeofExprType(E, DS.getTypeSpecType() ==
+                                              DeclSpec::TST_typeof_unqualExpr
+                                          ? TypeOfKind::Unqualified
+                                          : TypeOfKind::Qualified);
     if (Result.isNull()) {
       Result = Context.IntTy;
       declarator.setInvalidType(true);
@@ -2409,6 +2416,23 @@ static ExprResult checkArraySize(Sema &S, Expr *&ArraySize,
   return R;
 }
 
+bool Sema::checkArrayElementAlignment(QualType EltTy, SourceLocation Loc) {
+  EltTy = Context.getBaseElementType(EltTy);
+  if (EltTy->isIncompleteType() || EltTy->isDependentType() ||
+      EltTy->isUndeducedType())
+    return true;
+
+  CharUnits Size = Context.getTypeSizeInChars(EltTy);
+  CharUnits Alignment = Context.getTypeAlignInChars(EltTy);
+
+  if (Size.isMultipleOf(Alignment))
+    return true;
+
+  Diag(Loc, diag::err_array_element_alignment)
+      << EltTy << Size.getQuantity() << Alignment.getQuantity();
+  return false;
+}
+
 /// Build an array type.
 ///
 /// \param T The type of each element in the array.
@@ -2491,6 +2515,9 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     Diag(Loc, diag::err_objc_array_of_interfaces) << T;
     return QualType();
   }
+
+  if (!checkArrayElementAlignment(T, Loc))
+    return QualType();
 
   // Do placeholder conversions on the array size expression.
   if (ArraySize && ArraySize->hasPlaceholderType()) {
@@ -2653,10 +2680,20 @@ QualType Sema::BuildVectorType(QualType CurType, Expr *SizeExpr,
   // can't already be a vector.
   if ((!CurType->isDependentType() &&
        (!CurType->isBuiltinType() || CurType->isBooleanType() ||
-        (!CurType->isIntegerType() && !CurType->isRealFloatingType()))) ||
+        (!CurType->isIntegerType() && !CurType->isRealFloatingType())) &&
+       !CurType->isBitIntType()) ||
       CurType->isArrayType()) {
     Diag(AttrLoc, diag::err_attribute_invalid_vector_type) << CurType;
     return QualType();
+  }
+  // Only support _BitInt elements with byte-sized power of 2 NumBits.
+  if (CurType->isBitIntType()) {
+    unsigned NumBits = CurType->getAs<BitIntType>()->getNumBits();
+    if (!llvm::isPowerOf2_32(NumBits) || NumBits < 8) {
+      Diag(AttrLoc, diag::err_attribute_invalid_bitint_vector_type)
+          << (NumBits < 8);
+      return QualType();
+    }
   }
 
   if (SizeExpr->isTypeDependent() || SizeExpr->isValueDependent())
@@ -2723,10 +2760,20 @@ QualType Sema::BuildExtVectorType(QualType T, Expr *ArraySize,
   // We explictly allow bool elements in ext_vector_type for C/C++.
   bool IsNoBoolVecLang = getLangOpts().OpenCL || getLangOpts().OpenCLCPlusPlus;
   if ((!T->isDependentType() && !T->isIntegerType() &&
-       !T->isRealFloatingType()) || T->isBitIntType() ||
+       !T->isRealFloatingType()) ||
       (IsNoBoolVecLang && T->isBooleanType())) {
     Diag(AttrLoc, diag::err_attribute_invalid_vector_type) << T;
     return QualType();
+  }
+
+  // Only support _BitInt elements with byte-sized power of 2 NumBits.
+  if (T->isBitIntType()) {
+    unsigned NumBits = T->getAs<BitIntType>()->getNumBits();
+    if (!llvm::isPowerOf2_32(NumBits) || NumBits < 8) {
+      Diag(AttrLoc, diag::err_attribute_invalid_bitint_vector_type)
+          << (NumBits < 8);
+      return QualType();
+    }
   }
 
   if (!ArraySize->isTypeDependent() && !ArraySize->isValueDependent()) {
@@ -2842,7 +2889,8 @@ bool Sema::CheckFunctionReturnType(QualType T, SourceLocation Loc) {
   }
 
   // Functions cannot return half FP.
-  if (T->isHalfType() && !getLangOpts().HalfArgsAndReturns) {
+  if (T->isHalfType() && !getLangOpts().NativeHalfArgsAndReturns &&
+      !Context.getTargetInfo().allowHalfArgsAndReturns()) {
     Diag(Loc, diag::err_parameters_retval_cannot_have_fp16_type) << 1 <<
       FixItHint::CreateInsertion(Loc, "*");
     return true;
@@ -2948,7 +2996,8 @@ QualType Sema::BuildFunctionType(QualType T,
     if (ParamType->isVoidType()) {
       Diag(Loc, diag::err_param_with_void_type);
       Invalid = true;
-    } else if (ParamType->isHalfType() && !getLangOpts().HalfArgsAndReturns) {
+    } else if (ParamType->isHalfType() && !getLangOpts().NativeHalfArgsAndReturns &&
+               !Context.getTargetInfo().allowHalfArgsAndReturns()) {
       // Disallow half FP arguments.
       Diag(Loc, diag::err_parameters_retval_cannot_have_fp16_type) << 0 <<
         FixItHint::CreateInsertion(Loc, "*");
@@ -5184,7 +5233,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                 << T << 0 /*pointer hint*/;
             D.setInvalidType(true);
           }
-        } else if (!S.getLangOpts().HalfArgsAndReturns) {
+        } else if (!S.getLangOpts().NativeHalfArgsAndReturns &&
+                   !S.Context.getTargetInfo().allowHalfArgsAndReturns()) {
           S.Diag(D.getIdentifierLoc(),
             diag::err_parameters_retval_cannot_have_fp16_type) << 1;
           D.setInvalidType(true);
@@ -5427,7 +5477,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                 D.setInvalidType();
                 Param->setInvalidDecl();
               }
-            } else if (!S.getLangOpts().HalfArgsAndReturns) {
+            } else if (!S.getLangOpts().NativeHalfArgsAndReturns &&
+                       !S.Context.getTargetInfo().allowHalfArgsAndReturns()) {
               S.Diag(Param->getLocation(),
                 diag::err_parameters_retval_cannot_have_fp16_type) << 0;
               D.setInvalidType();
@@ -6091,18 +6142,20 @@ namespace {
 
     }
     void VisitTypeOfExprTypeLoc(TypeOfExprTypeLoc TL) {
-      assert(DS.getTypeSpecType() == DeclSpec::TST_typeofExpr);
+      assert(DS.getTypeSpecType() == DeclSpec::TST_typeofExpr ||
+             DS.getTypeSpecType() == DeclSpec::TST_typeof_unqualExpr);
       TL.setTypeofLoc(DS.getTypeSpecTypeLoc());
       TL.setParensRange(DS.getTypeofParensRange());
     }
     void VisitTypeOfTypeLoc(TypeOfTypeLoc TL) {
-      assert(DS.getTypeSpecType() == DeclSpec::TST_typeofType);
+      assert(DS.getTypeSpecType() == DeclSpec::TST_typeofType ||
+             DS.getTypeSpecType() == DeclSpec::TST_typeof_unqualType);
       TL.setTypeofLoc(DS.getTypeSpecTypeLoc());
       TL.setParensRange(DS.getTypeofParensRange());
       assert(DS.getRepAsType());
       TypeSourceInfo *TInfo = nullptr;
       Sema::GetTypeFromParser(DS.getRepAsType(), &TInfo);
-      TL.setUnderlyingTInfo(TInfo);
+      TL.setUnmodifiedTInfo(TInfo);
     }
     void VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
       assert(DS.getTypeSpecType() == DeclSpec::TST_decltype);
@@ -9218,18 +9271,19 @@ QualType Sema::getElaboratedType(ElaboratedTypeKeyword Keyword,
       Keyword, SS.isValid() ? SS.getScopeRep() : nullptr, T, OwnedTagDecl);
 }
 
-QualType Sema::BuildTypeofExprType(Expr *E) {
+QualType Sema::BuildTypeofExprType(Expr *E, TypeOfKind Kind) {
   assert(!E->hasPlaceholderType() && "unexpected placeholder");
 
   if (!getLangOpts().CPlusPlus && E->refersToBitField())
-    Diag(E->getExprLoc(), diag::err_sizeof_alignof_typeof_bitfield) << 2;
+    Diag(E->getExprLoc(), diag::err_sizeof_alignof_typeof_bitfield)
+        << (Kind == TypeOfKind::Unqualified ? 3 : 2);
 
   if (!E->isTypeDependent()) {
     QualType T = E->getType();
     if (const TagType *TT = T->getAs<TagType>())
       DiagnoseUseOfDecl(TT->getDecl(), E->getExprLoc());
   }
-  return Context.getTypeOfExprType(E);
+  return Context.getTypeOfExprType(E, Kind);
 }
 
 /// getDecltypeForExpr - Given an expr, will return the decltype for

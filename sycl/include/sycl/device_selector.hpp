@@ -32,7 +32,7 @@ class filter_selector;
 ///
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT __SYCL2020_DEPRECATED(
-    "Use Callable instead to select device.") device_selector {
+    "Use SYCL 2020 callable device selectors instead.") device_selector {
 
 public:
   virtual ~device_selector() = default;
@@ -120,12 +120,14 @@ using DSelectorInvocableType = std::function<int(const sycl::device &)>;
 #if __cplusplus >= 201703L
 
 // Enable if DeviceSelector callable has matching signature, but
-// exclude if descended from filter_selector which is not purely callable.
+// exclude if descended from filter_selector which is not purely callable or
+// if descended from it is descended from SYCL 1.2.1 device_selector.
 // See [FilterSelector not Callable] in device_selector.cpp
 template <typename DeviceSelector>
-using EnableIfDeviceSelectorInvocable = std::enable_if_t<
+using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
-    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>;
+    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector> &&
+    !std::is_base_of_v<device_selector, DeviceSelector>>;
 #endif
 
 __SYCL_EXPORT device

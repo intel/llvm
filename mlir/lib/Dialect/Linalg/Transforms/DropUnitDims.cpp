@@ -15,7 +15,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -235,7 +235,7 @@ struct UnitExtentReplacementInfo {
 /// Utility function for replacing operands/results to a linalg generic
 /// operation with unit-extent dimensions. These can be replaced with
 /// an operand/result with the unit-extent dimension removed. This is only done
-/// if the indexing map used to access that didimensionmension has a
+/// if the indexing map used to access that dimension has a
 /// AffineConstantExpr of value 0. Given the `type` of an result/operand of a
 /// Linalg op, and its `indexMap` the utility function returns:
 /// - the new type with dimensions of size 1 removed.
@@ -245,7 +245,7 @@ struct UnitExtentReplacementInfo {
 static llvm::Optional<UnitExtentReplacementInfo>
 replaceUnitExtents(GenericOp genericOp, OpOperand *opOperand,
                    MLIRContext *context) {
-  AffineMap indexingMap = genericOp.getTiedIndexingMap(opOperand);
+  AffineMap indexingMap = genericOp.getMatchingIndexingMap(opOperand);
   ArrayRef<int64_t> shape = genericOp.getShape(opOperand);
   ArrayRef<AffineExpr> exprs = indexingMap.getResults();
   SmallVector<AffineExpr> reassociations;
@@ -390,7 +390,7 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
         // type, indexing map, and create a set of mappings representing an
         // identity matrix.
         newInputOutputTypes.push_back(opOperand->get().getType());
-        newIndexingMaps.push_back(genericOp.getTiedIndexingMap(opOperand));
+        newIndexingMaps.push_back(genericOp.getMatchingIndexingMap(opOperand));
         int64_t origRank = genericOp.getRank(opOperand);
         auto maps = llvm::to_vector<8>(llvm::map_range(
             llvm::seq<int64_t>(0, origRank), [&](int64_t dim) -> Attribute {
@@ -438,8 +438,7 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
       resultTypes.push_back(newInputOutputTypes[i + genericOp.getNumInputs()]);
     GenericOp replacementOp = rewriter.create<GenericOp>(
         loc, resultTypes, newInputs, newOutputs, newIndexingMaps,
-        llvm::to_vector<4>(genericOp.getIteratorTypes()
-                               .template getAsValueRange<StringAttr>()));
+        genericOp.getIteratorTypesArray());
     rewriter.inlineRegionBefore(genericOp.getRegion(),
                                 replacementOp.getRegion(),
                                 replacementOp.getRegion().begin());
@@ -515,7 +514,7 @@ struct RankReducedInsertSliceOp : public OpRewritePattern<InsertOpTy> {
     {
       OpBuilder::InsertionGuard g(rewriter);
       // The only difference between InsertSliceOp and ParallelInsertSliceOp is
-      // the the insertion point is just before the ParallelCombiningOp in the
+      // the insertion point is just before the ParallelCombiningOp in the
       // parallel case.
       if (std::is_same<InsertOpTy, tensor::ParallelInsertSliceOp>::value)
         rewriter.setInsertionPoint(insertSliceOp->getParentOp());
@@ -541,8 +540,8 @@ void mlir::linalg::populateFoldUnitExtentDimsPatterns(
                RankReducedInsertSliceOp<tensor::ParallelInsertSliceOp>>(
       context);
   linalg::FillOp::getCanonicalizationPatterns(patterns, context);
-  linalg::InitTensorOp::getCanonicalizationPatterns(patterns, context);
   tensor::CollapseShapeOp::getCanonicalizationPatterns(patterns, context);
+  tensor::EmptyOp::getCanonicalizationPatterns(patterns, context);
   tensor::ExpandShapeOp::getCanonicalizationPatterns(patterns, context);
 }
 

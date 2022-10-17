@@ -254,7 +254,7 @@ template <class T> struct ZeCache : private T {
   // it is going to initialize, since it is private here in
   // order to disallow access other than through "->".
   //
-  typedef std::function<void(T &)> InitFunctionType;
+  using InitFunctionType = std::function<void(T &)>;
   InitFunctionType Compute{nullptr};
   bool Computed{false};
   pi_mutex ZeCacheMutex;
@@ -492,12 +492,12 @@ struct _pi_device : _pi_object {
   // The helper structure that keeps info about a command queue groups of the
   // device. It is not changed after it is initialized.
   struct queue_group_info_t {
-    typedef enum {
+    enum type {
       MainCopy,
       LinkCopy,
       Compute,
       Size // must be last
-    } type;
+    };
 
     // Keep the ordinal of the commands group as returned by
     // zeDeviceGetCommandQueueGroupProperties. A value of "-1" means that
@@ -564,9 +564,6 @@ struct _pi_device : _pi_object {
   // For some devices (e.g. PVC) immediate commandlists are preferred.
   bool ImmCommandListsPreferred;
 
-  // Return the Events scope to be used in for this device.
-  enum EventsScope eventsScope();
-
   // Return whether to use immediate commandlists for this device.
   bool useImmediateCommandLists();
 
@@ -617,10 +614,10 @@ struct pi_command_list_info_t {
 };
 
 // The map type that would track all command-lists in a queue.
-typedef std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>
-    pi_command_list_map_t;
+using pi_command_list_map_t =
+    std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>;
 // The iterator pointing to a specific command-list in use.
-typedef pi_command_list_map_t::iterator pi_command_list_ptr_t;
+using pi_command_list_ptr_t = pi_command_list_map_t::iterator;
 
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
@@ -939,7 +936,7 @@ struct _pi_queue : _pi_object {
   pi_command_list_map_t CommandListMap;
 
   // Helper data structure to hold all variables related to batching
-  typedef struct CommandBatch {
+  struct command_batch {
     // These two members are used to keep track of how often the
     // batching closes and executes a command list before reaching the
     // QueueComputeBatchSize limit, versus how often we reach the limit.
@@ -957,7 +954,7 @@ struct _pi_queue : _pi_object {
     // a queue specific basis. And by putting it in the queue itself, this
     // is thread safe because of the locking of the queue that occurs.
     pi_uint32 QueueBatchSize = {0};
-  } command_batch;
+  };
 
   // ComputeCommandBatch holds data related to batching of non-copy commands.
   // CopyCommandBatch holds data related to batching of copy commands.

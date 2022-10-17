@@ -350,8 +350,7 @@ createLoopOp(Fortran::lower::AbstractConverter &converter,
   auto loopOp = createRegionOp<mlir::acc::LoopOp, mlir::acc::YieldOp>(
       firOpBuilder, currentLocation, operands, operandSegments);
 
-  loopOp->setAttr(mlir::acc::LoopOp::getExecutionMappingAttrName(),
-                  firOpBuilder.getI64IntegerAttr(executionMapping));
+  loopOp.setExecMappingAttr(firOpBuilder.getI64IntegerAttr(executionMapping));
 
   // Lower clauses mapped to attributes
   for (const Fortran::parser::AccClause &clause : accClauseList.v) {
@@ -361,18 +360,15 @@ createLoopOp(Fortran::lower::AbstractConverter &converter,
       const std::optional<int64_t> collapseValue =
           Fortran::evaluate::ToInt64(*expr);
       if (collapseValue) {
-        loopOp->setAttr(mlir::acc::LoopOp::getCollapseAttrName(),
-                        firOpBuilder.getI64IntegerAttr(*collapseValue));
+        loopOp.setCollapseAttr(firOpBuilder.getI64IntegerAttr(*collapseValue));
       }
     } else if (std::get_if<Fortran::parser::AccClause::Seq>(&clause.u)) {
-      loopOp->setAttr(mlir::acc::LoopOp::getSeqAttrName(),
-                      firOpBuilder.getUnitAttr());
+      loopOp.setSeqAttr(firOpBuilder.getUnitAttr());
     } else if (std::get_if<Fortran::parser::AccClause::Independent>(
                    &clause.u)) {
-      loopOp->setAttr(mlir::acc::LoopOp::getIndependentAttrName(),
-                      firOpBuilder.getUnitAttr());
+      loopOp.setIndependentAttr(firOpBuilder.getUnitAttr());
     } else if (std::get_if<Fortran::parser::AccClause::Auto>(&clause.u)) {
-      loopOp->setAttr(mlir::acc::LoopOp::getAutoAttrName(),
+      loopOp->setAttr(mlir::acc::LoopOp::getAutoAttrStrName(),
                       firOpBuilder.getUnitAttr());
     }
   }
@@ -824,9 +820,9 @@ genACCEnterDataOp(Fortran::lower::AbstractConverter &converter,
       firOpBuilder, currentLocation, operands, operandSegments);
 
   if (addAsyncAttr)
-    enterDataOp.asyncAttr(firOpBuilder.getUnitAttr());
+    enterDataOp.setAsyncAttr(firOpBuilder.getUnitAttr());
   if (addWaitAttr)
-    enterDataOp.waitAttr(firOpBuilder.getUnitAttr());
+    enterDataOp.setWaitAttr(firOpBuilder.getUnitAttr());
 }
 
 static void
@@ -900,11 +896,11 @@ genACCExitDataOp(Fortran::lower::AbstractConverter &converter,
       firOpBuilder, currentLocation, operands, operandSegments);
 
   if (addAsyncAttr)
-    exitDataOp.asyncAttr(firOpBuilder.getUnitAttr());
+    exitDataOp.setAsyncAttr(firOpBuilder.getUnitAttr());
   if (addWaitAttr)
-    exitDataOp.waitAttr(firOpBuilder.getUnitAttr());
+    exitDataOp.setWaitAttr(firOpBuilder.getUnitAttr());
   if (addFinalizeAttr)
-    exitDataOp.finalizeAttr(firOpBuilder.getUnitAttr());
+    exitDataOp.setFinalizeAttr(firOpBuilder.getUnitAttr());
 }
 
 template <typename Op>
@@ -1014,11 +1010,11 @@ genACCUpdateOp(Fortran::lower::AbstractConverter &converter,
       firOpBuilder, currentLocation, operands, operandSegments);
 
   if (addAsyncAttr)
-    updateOp.asyncAttr(firOpBuilder.getUnitAttr());
+    updateOp.setAsyncAttr(firOpBuilder.getUnitAttr());
   if (addWaitAttr)
-    updateOp.waitAttr(firOpBuilder.getUnitAttr());
+    updateOp.setWaitAttr(firOpBuilder.getUnitAttr());
   if (addIfPresentAttr)
-    updateOp.ifPresentAttr(firOpBuilder.getUnitAttr());
+    updateOp.setIfPresentAttr(firOpBuilder.getUnitAttr());
 }
 
 static void
@@ -1120,7 +1116,7 @@ static void genACC(Fortran::lower::AbstractConverter &converter,
       firOpBuilder, currentLocation, operands, operandSegments);
 
   if (addAsyncAttr)
-    waitOp.asyncAttr(firOpBuilder.getUnitAttr());
+    waitOp.setAsyncAttr(firOpBuilder.getUnitAttr());
 }
 
 void Fortran::lower::genOpenACCConstruct(

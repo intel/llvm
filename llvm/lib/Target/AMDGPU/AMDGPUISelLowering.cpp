@@ -1630,14 +1630,17 @@ SDValue AMDGPUTargetLowering::LowerDIVREM24(SDValue Op, SelectionDAG &DAG,
   SDValue fqneg = DAG.getNode(ISD::FNEG, DL, FltVT, fq);
 
   MachineFunction &MF = DAG.getMachineFunction();
-  const AMDGPUMachineFunction *MFI = MF.getInfo<AMDGPUMachineFunction>();
+
+  bool UseFmadFtz = false;
+  if (Subtarget->isGCN()) {
+    const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
+    UseFmadFtz = MFI->getMode().allFP32Denormals();
+  }
 
   // float fr = mad(fqneg, fb, fa);
-  unsigned OpCode = !Subtarget->hasMadMacF32Insts() ?
-                    (unsigned)ISD::FMA :
-                    !MFI->getMode().allFP32Denormals() ?
-                    (unsigned)ISD::FMAD :
-                    (unsigned)AMDGPUISD::FMAD_FTZ;
+  unsigned OpCode = !Subtarget->hasMadMacF32Insts() ? (unsigned)ISD::FMA
+                    : UseFmadFtz ? (unsigned)AMDGPUISD::FMAD_FTZ
+                                 : (unsigned)ISD::FMAD;
   SDValue fr = DAG.getNode(OpCode, DL, FltVT, fqneg, fb, fa);
 
   // int iq = (int)fq;
@@ -4814,8 +4817,15 @@ AMDGPUTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
   case AtomicRMWInst::FMax:
   case AtomicRMWInst::FMin:
     return AtomicExpansionKind::CmpXChg;
-  default:
-    return AtomicExpansionKind::None;
+  default: {
+    if (auto *IntTy = dyn_cast<IntegerType>(RMW->getType())) {
+      unsigned Size = IntTy->getBitWidth();
+      if (Size == 32 || Size == 64)
+        return AtomicExpansionKind::None;
+    }
+
+    return AtomicExpansionKind::CmpXChg;
+  }
   }
 }
 

@@ -203,9 +203,8 @@ JITLinkContext::LookupMap JITLinkerBase::getExternalSymbolNames() const {
     assert(Sym->getName() != StringRef() && Sym->getName() != "" &&
            "Externals must be named");
     SymbolLookupFlags LookupFlags =
-        Sym->getLinkage() == Linkage::Weak
-            ? SymbolLookupFlags::WeaklyReferencedSymbol
-            : SymbolLookupFlags::RequiredSymbol;
+        Sym->isWeaklyReferenced() ? SymbolLookupFlags::WeaklyReferencedSymbol
+                                  : SymbolLookupFlags::RequiredSymbol;
     UnresolvedExternals[Sym->getName()] = LookupFlags;
   }
   return UnresolvedExternals;
@@ -218,19 +217,41 @@ void JITLinkerBase::applyLookupResult(AsyncLookupResult Result) {
     assert(!Sym->getAddress() && "Symbol already resolved");
     assert(!Sym->isDefined() && "Symbol being resolved is already defined");
     auto ResultI = Result.find(Sym->getName());
-    if (ResultI != Result.end())
+    if (ResultI != Result.end()) {
       Sym->getAddressable().setAddress(
           orc::ExecutorAddr(ResultI->second.getAddress()));
-    else
-      assert(Sym->getLinkage() == Linkage::Weak &&
+      Sym->setLinkage(ResultI->second.getFlags().isWeak() ? Linkage::Weak
+                                                          : Linkage::Strong);
+      Sym->setScope(ResultI->second.getFlags().isExported() ? Scope::Default
+                                                            : Scope::Hidden);
+    } else
+      assert(Sym->isWeaklyReferenced() &&
              "Failed to resolve non-weak reference");
   }
 
   LLVM_DEBUG({
     dbgs() << "Externals after applying lookup result:\n";
-    for (auto *Sym : G->external_symbols())
+    for (auto *Sym : G->external_symbols()) {
       dbgs() << "  " << Sym->getName() << ": "
-             << formatv("{0:x16}", Sym->getAddress().getValue()) << "\n";
+             << formatv("{0:x16}", Sym->getAddress().getValue());
+      switch (Sym->getLinkage()) {
+      case Linkage::Strong:
+        break;
+      case Linkage::Weak:
+        dbgs() << " (weak)";
+        break;
+      }
+      switch (Sym->getScope()) {
+      case Scope::Local:
+        llvm_unreachable("External symbol should not have local linkage");
+      case Scope::Hidden:
+        break;
+      case Scope::Default:
+        dbgs() << " (exported)";
+        break;
+      }
+      dbgs() << "\n";
+    }
   });
 }
 

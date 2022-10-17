@@ -27,7 +27,7 @@ class Symbol;
 class Defined;
 class DylibSymbol;
 class InputSection;
-class ConcatInputSection;
+class ObjFile;
 
 class TargetInfo {
 public:
@@ -52,7 +52,8 @@ public:
 
   // Write code for lazy binding. See the comments on StubsSection for more
   // details.
-  virtual void writeStub(uint8_t *buf, const Symbol &) const = 0;
+  virtual void writeStub(uint8_t *buf, const Symbol &,
+                         uint64_t pointerVA) const = 0;
   virtual void writeStubHelperHeader(uint8_t *buf) const = 0;
   virtual void writeStubHelperEntry(uint8_t *buf, const Symbol &,
                                     uint64_t entryAddr) const = 0;
@@ -97,8 +98,7 @@ public:
     llvm_unreachable("Unsupported architecture for dtrace symbols");
   }
 
-  virtual void applyOptimizationHints(uint8_t *buf,
-                                      const ConcatInputSection *) const {};
+  virtual void applyOptimizationHints(uint8_t *, const ObjFile &) const {};
 
   uint32_t magic;
   llvm::MachO::CPUType cpuType;
