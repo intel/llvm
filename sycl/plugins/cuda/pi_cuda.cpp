@@ -2989,6 +2989,8 @@ pi_result cuda_piEnqueueKernelLaunch(
   assert(work_dim < 4);
 
   if (*global_work_size == 0) {
+    cuda_piEnqueueEventsWaitWithBarrier(command_queue, num_events_in_wait_list,
+                                        event_wait_list, event);
     return PI_SUCCESS;
   }
 
