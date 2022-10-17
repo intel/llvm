@@ -172,6 +172,7 @@ enum PropKind : uint32_t {
   WorkGroupSize = 6,
   WorkGroupSizeHint = 7,
   SubGroupSize = 8,
+  // PropKindSize must always be the last value.
   PropKindSize = 9,
 };
 
