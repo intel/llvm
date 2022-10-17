@@ -3,7 +3,7 @@
 // block-specific instructions, which are redundant in SPIR-V and should be
 // removed
 
-// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -cl-std=CL2.0 -x cl %s -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -cl-std=CL2.0 -x cl %s -emit-llvm-bc -o %t.bc -no-opaque-pointers
 // TODO: currently max version is limited to 1.1 for this test. Issues here
 // that the SPIR-V module generated for blocks is invalid for versions starting
 // from 1.4, spirv-val is failing with:
