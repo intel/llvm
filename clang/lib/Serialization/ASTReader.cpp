@@ -1919,7 +1919,7 @@ HeaderFileInfoTrait::ReadData(internal_key_ref key, const unsigned char *d,
     Module::Header H = {std::string(key.Filename), "",
                         *FileMgr.getFile(Filename)};
     ModMap.addHeader(Mod, H, HeaderRole, /*Imported*/true);
-    HFI.isModuleHeader |= !(HeaderRole & ModuleMap::TextualHeader);
+    HFI.isModuleHeader |= ModuleMap::isModular(HeaderRole);
   }
 
   // This HeaderFileInfo was externally loaded.
@@ -2639,12 +2639,11 @@ ASTReader::ReadControlBlock(ModuleFile &F,
         // so we verify all input files.  Otherwise, verify only user input
         // files.
 
-        unsigned N = NumUserInputs;
-        if (ValidateSystemInputs ||
-            (HSOpts.ModulesValidateOncePerBuildSession &&
-             F.InputFilesValidationTimestamp <= HSOpts.BuildSessionTimestamp &&
-             F.Kind == MK_ImplicitModule))
-          N = NumInputs;
+        unsigned N = ValidateSystemInputs ? NumInputs : NumUserInputs;
+        if (HSOpts.ModulesValidateOncePerBuildSession &&
+            F.InputFilesValidationTimestamp > HSOpts.BuildSessionTimestamp &&
+            F.Kind == MK_ImplicitModule)
+          N = NumUserInputs;
 
         for (unsigned I = 0; I < N; ++I) {
           InputFile IF = getInputFile(F, I+1, Complain);
@@ -3919,7 +3918,8 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
     Module *M =
         PP.getHeaderSearchInfo().lookupModule(F.ModuleName, F.ImportLoc);
     auto &Map = PP.getHeaderSearchInfo().getModuleMap();
-    const FileEntry *ModMap = M ? Map.getModuleMapFileForUniquing(M) : nullptr;
+    Optional<FileEntryRef> ModMap =
+        M ? Map.getModuleMapFileForUniquing(M) : None;
     // Don't emit module relocation error if we have -fno-validate-pch
     if (!bool(PP.getPreprocessorOpts().DisablePCHOrModuleValidation &
               DisableValidationForModuleKind::Module) &&

@@ -7854,7 +7854,7 @@ void MSP430TargetCodeGenInfo::setTargetAttributes(
 namespace {
 class MipsABIInfo : public ABIInfo {
   bool IsO32;
-  unsigned MinABIStackAlignInBytes, StackAlignInBytes;
+  const unsigned MinABIStackAlignInBytes, StackAlignInBytes;
   void CoerceToIntArgs(uint64_t TySize,
                        SmallVectorImpl<llvm::Type *> &ArgList) const;
   llvm::Type* HandleAggregates(QualType Ty, uint64_t TySize) const;
@@ -8031,8 +8031,8 @@ MipsABIInfo::classifyArgumentType(QualType Ty, uint64_t &Offset) const {
   uint64_t TySize = getContext().getTypeSize(Ty);
   uint64_t Align = getContext().getTypeAlign(Ty) / 8;
 
-  Align = std::min(std::max(Align, (uint64_t)MinABIStackAlignInBytes),
-                   (uint64_t)StackAlignInBytes);
+  Align = std::clamp(Align, (uint64_t)MinABIStackAlignInBytes,
+                     (uint64_t)StackAlignInBytes);
   unsigned CurrOffset = llvm::alignTo(Offset, Align);
   Offset = CurrOffset + llvm::alignTo(TySize, Align * 8) / 8;
 
@@ -9448,7 +9448,12 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
 
   const bool IsHIPKernel =
       M.getLangOpts().HIP && FD && FD->hasAttr<CUDAGlobalAttr>();
-  if (IsHIPKernel)
+  const bool IsOpenMPkernel =
+      M.getLangOpts().OpenMPIsDevice &&
+      (F->getCallingConv() == llvm::CallingConv::AMDGPU_KERNEL);
+
+  // TODO: This should be moved to language specific attributes instead.
+  if (IsHIPKernel || IsOpenMPkernel)
     F->addFnAttr("uniform-work-group-size", "true");
 
   // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.

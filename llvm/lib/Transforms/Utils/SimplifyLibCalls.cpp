@@ -289,7 +289,8 @@ static Value *copyFlags(const CallInst &Old, Value *New) {
 }
 
 static Value *mergeAttributesAndFlags(CallInst *NewCI, const CallInst &Old) {
-  NewCI->setAttributes(Old.getAttributes());
+  NewCI->setAttributes(AttributeList::get(
+      NewCI->getContext(), {NewCI->getAttributes(), Old.getAttributes()}));
   NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return copyFlags(Old, NewCI);
 }
@@ -734,7 +735,7 @@ Value *LibCallSimplifier::optimizeStrLCpy(CallInst *CI, IRBuilderBase &B) {
   // when it's not nul-terminated (as it's required to be) to avoid
   // reading past its end.
   StringRef Str;
-  if (!getConstantStringInfo(Src, Str, 0, /*TrimAtNul=*/false))
+  if (!getConstantStringInfo(Src, Str, /*TrimAtNul=*/false))
     return nullptr;
 
   uint64_t SrcLen = Str.find('\0');
@@ -926,9 +927,9 @@ Value *LibCallSimplifier::optimizeStringLength(CallInst *CI, IRBuilderBase &B,
   // strlen(s + x) to strlen(s) - x, when x is known to be in the range
   // [0, strlen(s)] or the string has a single null terminator '\0' at the end.
   // We only try to simplify strlen when the pointer s points to an array
-  // of i8. Otherwise, we would need to scale the offset x before doing the
-  // subtraction. This will make the optimization more complex, and it's not
-  // very useful because calling strlen for a pointer of other types is
+  // of CharSize elements. Otherwise, we would need to scale the offset x before
+  // doing the subtraction. This will make the optimization more complex, and
+  // it's not very useful because calling strlen for a pointer of other types is
   // very uncommon.
   if (GEPOperator *GEP = dyn_cast<GEPOperator>(Src)) {
     // TODO: Handle subobjects.
@@ -1183,7 +1184,7 @@ Value *LibCallSimplifier::optimizeMemRChr(CallInst *CI, IRBuilderBase &B) {
   }
 
   StringRef Str;
-  if (!getConstantStringInfo(SrcStr, Str, 0, /*TrimAtNul=*/false))
+  if (!getConstantStringInfo(SrcStr, Str, /*TrimAtNul=*/false))
     return nullptr;
 
   if (Str.size() == 0)
@@ -1278,7 +1279,7 @@ Value *LibCallSimplifier::optimizeMemChr(CallInst *CI, IRBuilderBase &B) {
   }
 
   StringRef Str;
-  if (!getConstantStringInfo(SrcStr, Str, 0, /*TrimAtNul=*/false))
+  if (!getConstantStringInfo(SrcStr, Str, /*TrimAtNul=*/false))
     return nullptr;
 
   if (CharC) {
@@ -1417,8 +1418,8 @@ static Value *optimizeMemCmpVarSize(CallInst *CI, Value *LHS, Value *RHS,
     return Constant::getNullValue(CI->getType());
 
   StringRef LStr, RStr;
-  if (!getConstantStringInfo(LHS, LStr, 0, /*TrimAtNul=*/false) ||
-      !getConstantStringInfo(RHS, RStr, 0, /*TrimAtNul=*/false))
+  if (!getConstantStringInfo(LHS, LStr, /*TrimAtNul=*/false) ||
+      !getConstantStringInfo(RHS, RStr, /*TrimAtNul=*/false))
     return nullptr;
 
   // If the contents of both constant arrays are known, fold a call to
@@ -1576,8 +1577,7 @@ Value *LibCallSimplifier::optimizeMemCCpy(CallInst *CI, IRBuilderBase &B) {
   if (N) {
     if (N->isNullValue())
       return Constant::getNullValue(CI->getType());
-    if (!getConstantStringInfo(Src, SrcStr, /*Offset=*/0,
-                               /*TrimAtNul=*/false) ||
+    if (!getConstantStringInfo(Src, SrcStr, /*TrimAtNul=*/false) ||
         // TODO: Handle zeroinitializer.
         !StopChar)
       return nullptr;
@@ -2515,8 +2515,7 @@ static bool isTrigLibCall(CallInst *CI) {
   // We can only hope to do anything useful if we can ignore things like errno
   // and floating-point exceptions.
   // We already checked the prototype.
-  return CI->hasFnAttr(Attribute::NoUnwind) &&
-         CI->hasFnAttr(Attribute::ReadNone);
+  return CI->doesNotThrow() && CI->doesNotAccessMemory();
 }
 
 static bool insertSinCosCall(IRBuilderBase &B, Function *OrigCallee, Value *Arg,

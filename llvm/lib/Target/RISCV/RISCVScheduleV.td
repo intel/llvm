@@ -12,6 +12,11 @@
 // 3.6 Vector Byte Length vlenb
 def WriteRdVLENB      : SchedWrite;
 
+// 6. Configuration-Setting Instructions
+def WriteVSETVLI      : SchedWrite;
+def WriteVSETIVLI     : SchedWrite;
+def WriteVSETVL       : SchedWrite;
+
 // 7. Vector Loads and Stores
 // 7.4. Vector Unit-Stride Instructions
 def WriteVLDE8        : SchedWrite;
@@ -207,7 +212,6 @@ def WriteVFMovV       : SchedWrite;
 // 13.17. Single-Width Floating-Point/Integer Type-Convert Instructions
 def WriteVFCvtIToFV   : SchedWrite;
 def WriteVFCvtFToIV   : SchedWrite;
-def WriteVFCvtFToFV   : SchedWrite;
 // 13.18. Widening Floating-Point/Integer Type-Convert Instructions
 def WriteVFWCvtIToFV  : SchedWrite;
 def WriteVFWCvtFToIV  : SchedWrite;
@@ -272,6 +276,10 @@ def WriteVMov8V       : SchedWrite;
 //===----------------------------------------------------------------------===//
 /// Define scheduler resources associated with use operands.
 
+// 6. Configuration-Setting Instructions
+def ReadVSETVLI       : SchedRead;
+def ReadVSETVL        : SchedRead;
+
 // 7. Vector Loads and Stores
 def ReadVLDX          : SchedRead;
 def ReadVSTX          : SchedRead;
@@ -327,8 +335,8 @@ def ReadVIWALUX       : SchedRead;
 // 11.3. Vector Integer Extension
 def ReadVExtV         : SchedRead;
 // 11.4. Vector Integer Arithmetic with Carry or Borrow Instructions
-def ReadVIALUCV       : SchedRead;
-def ReadVIALUCX       : SchedRead;
+def ReadVICALUV       : SchedRead;
+def ReadVICALUX       : SchedRead;
 // 11.6. Vector Single-Width Bit Shift Instructions
 def ReadVShiftV       : SchedRead;
 def ReadVShiftX       : SchedRead;
@@ -499,6 +507,11 @@ let Unsupported = true in {
 // 3.6 Vector Byte Length vlenb
 def : WriteRes<WriteRdVLENB, []>;
 
+// 6. Configuration-Setting Instructions
+def : WriteRes<WriteVSETVLI, []>;
+def : WriteRes<WriteVSETIVLI, []>;
+def : WriteRes<WriteVSETVL, []>;
+
 // 7. Vector Loads and Stores
 def : WriteRes<WriteVLDE8, []>;
 def : WriteRes<WriteVLDE16, []>;
@@ -651,7 +664,6 @@ def : WriteRes<WriteVFMergeV, []>;
 def : WriteRes<WriteVFMovV, []>;
 def : WriteRes<WriteVFCvtIToFV, []>;
 def : WriteRes<WriteVFCvtFToIV, []>;
-def : WriteRes<WriteVFCvtFToFV, []>;
 def : WriteRes<WriteVFWCvtIToFV, []>;
 def : WriteRes<WriteVFWCvtFToIV, []>;
 def : WriteRes<WriteVFWCvtFToFV, []>;
@@ -692,6 +704,10 @@ def : WriteRes<WriteVMov1V, []>;
 def : WriteRes<WriteVMov2V, []>;
 def : WriteRes<WriteVMov4V, []>;
 def : WriteRes<WriteVMov8V, []>;
+
+// 6. Configuration-Setting Instructions
+def : ReadAdvance<ReadVSETVLI, 0>;
+def : ReadAdvance<ReadVSETVL, 0>;
 
 // 7. Vector Loads and Stores
 def : ReadAdvance<ReadVLDX, 0>;
@@ -738,8 +754,8 @@ def : ReadAdvance<ReadVIALUX, 0>;
 def : ReadAdvance<ReadVIWALUV, 0>;
 def : ReadAdvance<ReadVIWALUX, 0>;
 def : ReadAdvance<ReadVExtV, 0>;
-def : ReadAdvance<ReadVIALUCV, 0>;
-def : ReadAdvance<ReadVIALUCX, 0>;
+def : ReadAdvance<ReadVICALUV, 0>;
+def : ReadAdvance<ReadVICALUX, 0>;
 def : ReadAdvance<ReadVShiftV, 0>;
 def : ReadAdvance<ReadVShiftX, 0>;
 def : ReadAdvance<ReadVNShiftV, 0>;

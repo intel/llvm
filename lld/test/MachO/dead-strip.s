@@ -48,12 +48,12 @@
 
 # MAP: _main
 # MAP-LABEL: Dead Stripped Symbols
-# MAP: <<dead>> [ 1] _unref_com
-# MAP: <<dead>> [ 1] _unref_data
-# MAP: <<dead>> [ 1] _unref_extern
-# MAP: <<dead>> [ 1] _unref_local
-# MAP: <<dead>> [ 1] _unref_private_extern
-# MAP: <<dead>> [ 1] l_unref_data
+# MAP: <<dead>> 0x00000001 [ 1] _unref_com
+# MAP: <<dead>> 0x00000008 [ 1] _unref_data
+# MAP: <<dead>> 0x00000006 [ 1] _unref_extern
+# MAP: <<dead>> 0x00000001 [ 1] _unref_local
+# MAP: <<dead>> 0x00000007 [ 1] _unref_private_extern
+# MAP: <<dead>> 0x00000008 [ 1] l_unref_data
 
 ## Run dead stripping on code without any dead symbols.
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-macos \
@@ -64,10 +64,10 @@
 # RUN: FileCheck --check-prefix=NODEADSYMBOLS %s < %t/no-dead-symbols-map
 
 # NODEADSYMBOLS-LABEL: # Symbols:
-# NODEADSYMBOLS-NEXT: # Address File Name
-# NODEADSYMBOLS-NEXT: _main
+# NODEADSYMBOLS-NEXT:  # Address Size File Name
+# NODEADSYMBOLS-NEXT:  _main
 # NODEADSYMBOLS-LABEL: # Dead Stripped Symbols:
-# NODEADSYMBOLS-NEXT: # Address File Name
+# NODEADSYMBOLS-NEXT:  # Size File Name
 # NODEADSYMBOLS-EMPTY:
 
 # RUN: %lld -dylib -dead_strip -u _ref_private_extern_u %t/basics.o -o %t/basics.dylib
@@ -265,13 +265,13 @@
 # UNWIND-NEXT:   l O __DATA,__data __dyld_private
 # UNWIND-NEXT:   g F __TEXT,__text _main
 # UNWIND-NEXT:   g F __TEXT,__text __mh_execute_header
+# UNWIND-NEXT:   *UND* dyld_stub_binder
 # UNWIND-NEXT:   *UND* ___cxa_allocate_exception
 # UNWIND-NEXT:   *UND* ___cxa_end_catch
 # UNWIND-NEXT:   *UND* __ZTIi
 # UNWIND-NEXT:   *UND* ___cxa_throw
 # UNWIND-NEXT:   *UND* ___gxx_personality_v0
 # UNWIND-NEXT:   *UND* ___cxa_begin_catch
-# UNWIND-NEXT:   *UND* dyld_stub_binder
 # UNWIND-NOT:    GCC_except_table0
 
 ## If a dead stripped function has a strong ref to a dylib symbol but
@@ -347,7 +347,7 @@
 # RUN: FileCheck --check-prefix=DUPMAP %s < %t/stripped-duplicate-map
 # DUPMAP: _main
 # DUPMAP-LABEL: Dead Stripped Symbols
-# DUPMAP: <<dead>> [ 2] _foo
+# DUPMAP: <<dead>> 0x00000001 [ 2] _foo
 
 #--- duplicate1.s
 .text

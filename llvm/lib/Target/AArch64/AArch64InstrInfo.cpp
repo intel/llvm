@@ -19,6 +19,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineCombinerPattern.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -1016,6 +1017,7 @@ bool AArch64InstrInfo::isSEHInstruction(const MachineInstr &MI) {
     case AArch64::SEH_PrologEnd:
     case AArch64::SEH_EpilogStart:
     case AArch64::SEH_EpilogEnd:
+    case AArch64::SEH_PACSignLR:
       return true;
   }
 }
@@ -1351,8 +1353,9 @@ bool AArch64InstrInfo::optimizePTestInstr(
       break;
     }
     case AArch64::BRKN_PPzP: {
-      auto *PredMask = MRI->getUniqueVRegDef(Pred->getOperand(1).getReg());
-      if (Mask != PredMask)
+      // PTEST(PTRUE_B(31), BRKN(PG, A, B)) -> BRKNS(PG, A, B).
+      if ((MaskOpcode != AArch64::PTRUE_B) ||
+          (Mask->getOperand(1).getImm() != 31))
         return false;
 
       NewOp = AArch64::BRKNS_PPzP;
@@ -4253,6 +4256,8 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
     break;
   case AArch64::ADDVL_XXI:
   case AArch64::ADDPL_XXI:
+  case AArch64::ADDSVL_XXI:
+  case AArch64::ADDSPL_XXI:
     MaxEncoding = 31;
     ShiftSize = 0;
     if (Offset < 0) {
@@ -4267,9 +4272,9 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
 
   // `Offset` can be in bytes or in "scalable bytes".
   int VScale = 1;
-  if (Opc == AArch64::ADDVL_XXI)
+  if (Opc == AArch64::ADDVL_XXI || Opc == AArch64::ADDSVL_XXI)
     VScale = 16;
-  else if (Opc == AArch64::ADDPL_XXI)
+  else if (Opc == AArch64::ADDPL_XXI || Opc == AArch64::ADDSPL_XXI)
     VScale = 2;
 
   // FIXME: If the offset won't fit in 24-bits, compute the offset into a
@@ -4352,8 +4357,6 @@ static void emitFrameOffsetAdj(MachineBasicBlock &MBB,
             .addImm(Imm)
             .setMIFlag(Flag);
       }
-      if (HasWinCFI)
-        *HasWinCFI = true;
     }
 
     SrcReg = TmpReg;
@@ -4368,6 +4371,14 @@ void llvm::emitFrameOffset(MachineBasicBlock &MBB,
                            bool NeedsWinCFI, bool *HasWinCFI,
                            bool EmitCFAOffset, StackOffset CFAOffset,
                            unsigned FrameReg) {
+  // If a function is marked as arm_locally_streaming, then the runtime value of
+  // vscale in the prologue/epilogue is different the runtime value of vscale
+  // in the function's body. To avoid having to consider multiple vscales,
+  // we can use `addsvl` to allocate any scalable stack-slots, which under
+  // most circumstances will be only locals, not callee-save slots.
+  const Function &F = MBB.getParent()->getFunction();
+  bool UseSVL = F.hasFnAttribute("aarch64_pstate_sm_body");
+
   int64_t Bytes, NumPredicateVectors, NumDataVectors;
   AArch64InstrInfo::decomposeStackOffsetForFrameOffsets(
       Offset, Bytes, NumPredicateVectors, NumDataVectors);
@@ -4398,8 +4409,9 @@ void llvm::emitFrameOffset(MachineBasicBlock &MBB,
 
   if (NumDataVectors) {
     emitFrameOffsetAdj(MBB, MBBI, DL, DestReg, SrcReg, NumDataVectors,
-                       AArch64::ADDVL_XXI, TII, Flag, NeedsWinCFI, nullptr,
-                       EmitCFAOffset, CFAOffset, FrameReg);
+                       UseSVL ? AArch64::ADDSVL_XXI : AArch64::ADDVL_XXI,
+                       TII, Flag, NeedsWinCFI, nullptr, EmitCFAOffset,
+                       CFAOffset, FrameReg);
     CFAOffset += StackOffset::getScalable(-NumDataVectors * 16);
     SrcReg = DestReg;
   }
@@ -4407,8 +4419,9 @@ void llvm::emitFrameOffset(MachineBasicBlock &MBB,
   if (NumPredicateVectors) {
     assert(DestReg != AArch64::SP && "Unaligned access to SP");
     emitFrameOffsetAdj(MBB, MBBI, DL, DestReg, SrcReg, NumPredicateVectors,
-                       AArch64::ADDPL_XXI, TII, Flag, NeedsWinCFI, nullptr,
-                       EmitCFAOffset, CFAOffset, FrameReg);
+                       UseSVL ? AArch64::ADDSPL_XXI : AArch64::ADDPL_XXI,
+                       TII, Flag, NeedsWinCFI, nullptr, EmitCFAOffset,
+                       CFAOffset, FrameReg);
   }
 }
 
@@ -5797,7 +5810,7 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
   case MachineCombinerPattern::MULADDXI_OP1: {
     // MUL I=A,B,0
     // ADD R,I,Imm
-    // ==> ORR  V, ZR, Imm
+    // ==> MOV V, Imm
     // ==> MADD R,A,B,V
     // --- Create(MADD);
     const TargetRegisterClass *OrrRC;
@@ -5825,13 +5838,31 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
       Imm = Imm << Val;
     }
     uint64_t UImm = SignExtend64(Imm, BitSize);
-    uint64_t Encoding;
-    if (!AArch64_AM::processLogicalImmediate(UImm, BitSize, Encoding))
+    // The immediate can be composed via a single instruction.
+    SmallVector<AArch64_IMM::ImmInsnModel, 4> Insn;
+    AArch64_IMM::expandMOVImm(UImm, BitSize, Insn);
+    if (Insn.size() != 1)
       return;
-    MachineInstrBuilder MIB1 =
-        BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
-            .addReg(ZeroReg)
-            .addImm(Encoding);
+    auto MovI = Insn.begin();
+    MachineInstrBuilder MIB1;
+    // MOV is an alias for one of three instructions: movz, movn, and orr.
+    if (MovI->Opcode == OrrOpc)
+      MIB1 = BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
+                 .addReg(ZeroReg)
+                 .addImm(MovI->Op2);
+    else {
+      if (BitSize == 32)
+        assert((MovI->Opcode == AArch64::MOVNWi ||
+                MovI->Opcode == AArch64::MOVZWi) &&
+               "Expected opcode");
+      else
+        assert((MovI->Opcode == AArch64::MOVNXi ||
+                MovI->Opcode == AArch64::MOVZXi) &&
+               "Expected opcode");
+      MIB1 = BuildMI(MF, Root.getDebugLoc(), TII->get(MovI->Opcode), NewVR)
+                 .addImm(MovI->Op1)
+                 .addImm(MovI->Op2);
+    }
     InsInstrs.push_back(MIB1);
     InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
     MUL = genMaddR(MF, MRI, TII, Root, InsInstrs, 1, Opc, NewVR, RC);
@@ -5889,7 +5920,7 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
   case MachineCombinerPattern::MULSUBXI_OP1: {
     // MUL I=A,B,0
     // SUB R,I, Imm
-    // ==> ORR  V, ZR, -Imm
+    // ==> MOV  V, -Imm
     // ==> MADD R,A,B,V // = -Imm + A*B
     // --- Create(MADD);
     const TargetRegisterClass *OrrRC;
@@ -5916,13 +5947,31 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
       Imm = Imm << Val;
     }
     uint64_t UImm = SignExtend64(-Imm, BitSize);
-    uint64_t Encoding;
-    if (!AArch64_AM::processLogicalImmediate(UImm, BitSize, Encoding))
+    // The immediate can be composed via a single instruction.
+    SmallVector<AArch64_IMM::ImmInsnModel, 4> Insn;
+    AArch64_IMM::expandMOVImm(UImm, BitSize, Insn);
+    if (Insn.size() != 1)
       return;
-    MachineInstrBuilder MIB1 =
-        BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
-            .addReg(ZeroReg)
-            .addImm(Encoding);
+    auto MovI = Insn.begin();
+    MachineInstrBuilder MIB1;
+    // MOV is an alias for one of three instructions: movz, movn, and orr.
+    if (MovI->Opcode == OrrOpc)
+      MIB1 = BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
+                 .addReg(ZeroReg)
+                 .addImm(MovI->Op2);
+    else {
+      if (BitSize == 32)
+        assert((MovI->Opcode == AArch64::MOVNWi ||
+                MovI->Opcode == AArch64::MOVZWi) &&
+               "Expected opcode");
+      else
+        assert((MovI->Opcode == AArch64::MOVNXi ||
+                MovI->Opcode == AArch64::MOVZXi) &&
+               "Expected opcode");
+      MIB1 = BuildMI(MF, Root.getDebugLoc(), TII->get(MovI->Opcode), NewVR)
+                 .addImm(MovI->Op1)
+                 .addImm(MovI->Op2);
+    }
     InsInstrs.push_back(MIB1);
     InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
     MUL = genMaddR(MF, MRI, TII, Root, InsInstrs, 1, Opc, NewVR, RC);

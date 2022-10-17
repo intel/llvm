@@ -460,11 +460,11 @@ multiclass VALU_MV_VS2<string opcodestr, bits<6> funct6, bits<5> vs1> {
 
 multiclass VALUm_IV_V_X_I<string opcodestr, bits<6> funct6> {
   def VM : VALUmVV<funct6, OPIVV, opcodestr # ".vvm">,
-           Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+           Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   def XM : VALUmVX<funct6, OPIVX, opcodestr # ".vxm">,
-           Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+           Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
   def IM : VALUmVI<funct6, opcodestr # ".vim">,
-           Sched<[WriteVICALUI, ReadVIALUCV, ReadVMask]>;
+           Sched<[WriteVICALUI, ReadVICALUV, ReadVMask]>;
 }
 
 multiclass VMRG_IV_V_X_I<string opcodestr, bits<6> funct6> {
@@ -478,25 +478,25 @@ multiclass VMRG_IV_V_X_I<string opcodestr, bits<6> funct6> {
 
 multiclass VALUm_IV_V_X<string opcodestr, bits<6> funct6> {
   def VM : VALUmVV<funct6, OPIVV, opcodestr # ".vvm">,
-           Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+           Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   def XM : VALUmVX<funct6, OPIVX, opcodestr # ".vxm">,
-           Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+           Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
 }
 
 multiclass VALUNoVm_IV_V_X_I<string opcodestr, bits<6> funct6, Operand optype = simm5> {
   def V : VALUVVNoVm<funct6, OPIVV, opcodestr # ".vv">,
-          Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV]>;
+          Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV]>;
   def X : VALUVXNoVm<funct6, OPIVX, opcodestr # ".vx">,
-          Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX]>;
+          Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX]>;
   def I : VALUVINoVm<funct6, opcodestr # ".vi", optype>,
-          Sched<[WriteVICALUI, ReadVIALUCV]>;
+          Sched<[WriteVICALUI, ReadVICALUV]>;
 }
 
 multiclass VALUNoVm_IV_V_X<string opcodestr, bits<6> funct6> {
   def V : VALUVVNoVm<funct6, OPIVV, opcodestr # ".vv">,
-          Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV]>;
+          Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV]>;
   def X : VALUVXNoVm<funct6, OPIVX, opcodestr # ".vx">,
-          Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX]>;
+          Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX]>;
 }
 
 multiclass VALU_FV_V_F<string opcodestr, bits<6> funct6, string vw = "v"> {
@@ -839,13 +839,15 @@ multiclass VWholeLoadEEW64<bits<3> nf, string opcodestr, RegisterClass VRC, Sche
 let Predicates = [HasVInstructions] in {
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0 in {
 def VSETVLI : RVInstSetVLi<(outs GPR:$rd), (ins GPR:$rs1, VTypeIOp11:$vtypei),
-                           "vsetvli", "$rd, $rs1, $vtypei">;
-
+                           "vsetvli", "$rd, $rs1, $vtypei">,
+                           Sched<[WriteVSETVLI, ReadVSETVLI]>;
 def VSETIVLI : RVInstSetiVLi<(outs GPR:$rd), (ins uimm5:$uimm, VTypeIOp10:$vtypei),
-                             "vsetivli", "$rd, $uimm, $vtypei">;
+                             "vsetivli", "$rd, $uimm, $vtypei">,
+                             Sched<[WriteVSETIVLI]>;
 
 def VSETVL : RVInstSetVL<(outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                         "vsetvl", "$rd, $rs1, $rs2">;
+                         "vsetvl", "$rd, $rs1, $rs2">,
+                          Sched<[WriteVSETVL, ReadVSETVL, ReadVSETVL]>;
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
 foreach eew = [8, 16, 32] in {
   defvar w = !cast<RISCVWidth>("LSWidth" # eew);

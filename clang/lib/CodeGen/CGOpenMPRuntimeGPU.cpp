@@ -836,6 +836,7 @@ static void setPropertyExecutionMode(CodeGenModule &CGM, StringRef Name,
       llvm::ConstantInt::get(CGM.Int8Ty, Mode ? OMP_TGT_EXEC_MODE_SPMD
                                               : OMP_TGT_EXEC_MODE_GENERIC),
       Twine(Name, "_exec_mode"));
+  GVMode->setVisibility(llvm::GlobalVariable::ProtectedVisibility);
   CGM.addCompilerUsedGlobal(GVMode);
 }
 
@@ -3634,6 +3635,9 @@ void CGOpenMPRuntimeGPU::processRequiresDirective(
       case CudaArch::SM_75:
       case CudaArch::SM_80:
       case CudaArch::SM_86:
+      case CudaArch::SM_87:
+      case CudaArch::SM_89:
+      case CudaArch::SM_90:
       case CudaArch::GFX600:
       case CudaArch::GFX601:
       case CudaArch::GFX602:

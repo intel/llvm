@@ -663,8 +663,17 @@ void FillOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 //===----------------------------------------------------------------------===//
-// GenericOps
+// GenericOp
 //===----------------------------------------------------------------------===//
+
+void GenericOp::getAsmBlockArgumentNames(Region &region,
+                                         OpAsmSetValueNameFn setNameFn) {
+  for (Value v : getRegionInputArgs())
+    setNameFn(v, "in");
+  for (Value v : getRegionOutputArgs())
+    setNameFn(v, "out");
+}
+
 void GenericOp::build(
     OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,
     ValueRange inputs, ValueRange outputs, ArrayAttr indexingMaps,
@@ -848,6 +857,44 @@ void GenericOp::getEffects(
                         outputBuffers);
 }
 
+static bool isResultValueDead(linalg::GenericOp genericOp, OpResult result) {
+  if (!result.use_empty())
+    return false;
+  // If out operand not used in payload, we can drop it.
+  OpOperand *outputOpOperand =
+      genericOp.getOutputOperand(result.getResultNumber());
+  if (!genericOp.payloadUsesValueFromOperand(outputOpOperand))
+    return true;
+
+  // The out operand that is part of a payload can be dropped if
+  // these conditions are met:
+  // - Result from out operand is dead.
+  // - User of arg is yield.
+  // - outArg data is not being used by other outArgs.
+
+  // Check block arg and cycle from out operand has a single use.
+  BlockArgument outputArg =
+      genericOp.getRegionOutputArgs()[result.getResultNumber()];
+  if (!outputArg.hasOneUse())
+    return false;
+  Operation *argUserOp = *outputArg.user_begin();
+
+  // Check argUser has no other use.
+  if (!argUserOp->use_empty())
+    return false;
+
+  // Check that argUser is a yield.
+  auto yieldOp = dyn_cast<linalg::YieldOp>(argUserOp);
+  if (!yieldOp)
+    return false;
+
+  // Check outArg data is not being used by other outArgs.
+  if (yieldOp.getOperand(result.getResultNumber()) != outputArg)
+    return false;
+
+  return true;
+}
+
 LogicalResult GenericOp::verify() { return success(); }
 
 namespace {
@@ -986,57 +1033,53 @@ private:
         newIndexingMaps.push_back(
             genericOp.getMatchingIndexingMap(outputOpOperand.value()));
       }
-    } else {
-      // Output argument can be dropped if the result has
-      // - no users, and
-      // - it is not used in the payload, and
-      // - the corresponding indexing maps are not needed for loop bound
-      //   computation.
-      auto yieldOp = cast<YieldOp>(genericOp.getBody()->getTerminator());
-      for (const auto &outputOpOperand :
-           llvm::enumerate(genericOp.getOutputOperands())) {
-        Value result = genericOp.getResult(outputOpOperand.index());
-        AffineMap indexingMap =
-            genericOp.getMatchingIndexingMap(outputOpOperand.value());
-        auto key =
-            std::make_tuple(outputOpOperand.value()->get(), indexingMap,
-                            yieldOp->getOperand(outputOpOperand.index()));
-
-        // Do not drop an out if its value is used in the payload.
-        if (!genericOp.payloadUsesValueFromOperand(outputOpOperand.value())) {
-          if (result.use_empty()) {
-            // Check if the opoperand can be dropped without affecting loop
-            // bound computation. Add the operand to the list of dropped op
-            // operand for checking. If it cannot be dropped, need to pop the
-            // value back.
-            droppedOpOperands.push_back(outputOpOperand.value());
-            if (genericOp.canOpOperandsBeDropped(droppedOpOperands)) {
-              continue;
-            }
-            droppedOpOperands.pop_back();
-          }
-
-          // The out operand can also be dropped if it is computed redundantly
-          // by another result, the conditions for that are
-          // - The same operand is used as the out operand
-          // - The same indexing map is used
-          // - The same yield value is used.
-          auto it = dedupedOutpts.find(key);
-          if (it != dedupedOutpts.end()) {
-            origToNewPos[outputOpOperand.index()] = it->second;
-            droppedOpOperands.push_back(outputOpOperand.value());
-            continue;
-          }
-        }
-
-        origToNewPos[outputOpOperand.index()] = newOutputOperands.size();
-        dedupedOutpts[key] = newOutputOperands.size();
-        newOutputOperands.push_back(outputOpOperand.value()->get());
-        newIndexingMaps.push_back(
-            genericOp.getMatchingIndexingMap(outputOpOperand.value()));
-      }
+      return origToNewPos;
     }
+    // Output argument can be dropped if the result has
+    // - no users, and
+    // - it is not used in the payload, and
+    // - the corresponding indexing maps are not needed for loop bound
+    //   computation.
+    auto yieldOp = cast<YieldOp>(genericOp.getBody()->getTerminator());
+    for (const auto &outputOpOperand :
+         llvm::enumerate(genericOp.getOutputOperands())) {
+      OpResult result = genericOp.getTiedOpResult(outputOpOperand.value());
+      AffineMap indexingMap =
+          genericOp.getMatchingIndexingMap(outputOpOperand.value());
+      auto key = std::make_tuple(outputOpOperand.value()->get(), indexingMap,
+                                 yieldOp->getOperand(outputOpOperand.index()));
+      if (isResultValueDead(genericOp, result)) {
+        // Check if the opoperand can be dropped without affecting loop
+        // bound computation. Add the operand to the list of dropped op
+        // operand for checking. If it cannot be dropped, need to pop the
+        // value back.
+        droppedOpOperands.push_back(outputOpOperand.value());
+        if (genericOp.canOpOperandsBeDropped(droppedOpOperands)) {
+          continue;
+        }
+        droppedOpOperands.pop_back();
+      }
 
+      if (!genericOp.payloadUsesValueFromOperand(outputOpOperand.value())) {
+        // The out operand can also be dropped if it is computed redundantly
+        // by another result, the conditions for that are
+        // - The same operand is used as the out operand
+        // - The same indexing map is used
+        // - The same yield value is used.
+        auto it = dedupedOutpts.find(key);
+        if (it != dedupedOutpts.end()) {
+          origToNewPos[outputOpOperand.index()] = it->second;
+          droppedOpOperands.push_back(outputOpOperand.value());
+          continue;
+        }
+      }
+
+      origToNewPos[outputOpOperand.index()] = newOutputOperands.size();
+      dedupedOutpts[key] = newOutputOperands.size();
+      newOutputOperands.push_back(outputOpOperand.value()->get());
+      newIndexingMaps.push_back(
+          genericOp.getMatchingIndexingMap(outputOpOperand.value()));
+    }
     return origToNewPos;
   }
 
@@ -1076,12 +1119,10 @@ private:
     updateReplacements(origOutputOperands, newOutputOperands,
                        origOutsToNewOutsPos);
 
-    rewriter.mergeBlocks(origOpBlock, newOpBlock, replacements);
-
     // Drop the unused yield args.
     if (newOp.getNumOutputs() != genericOp.getNumOutputs()) {
       OpBuilder::InsertionGuard g(rewriter);
-      YieldOp origYieldOp = cast<YieldOp>(newOpBlock->getTerminator());
+      YieldOp origYieldOp = cast<YieldOp>(origOpBlock->getTerminator());
       rewriter.setInsertionPoint(origYieldOp);
 
       SmallVector<Value> newYieldVals(newOp.getNumOutputs(), nullptr);
@@ -1094,6 +1135,8 @@ private:
       }
       rewriter.replaceOpWithNewOp<YieldOp>(origYieldOp, newYieldVals);
     }
+
+    rewriter.mergeBlocks(origOpBlock, newOpBlock, replacements);
   }
 };
 
@@ -1169,13 +1212,75 @@ struct EraseIdentityGenericOp : public OpRewritePattern<GenericOp> {
     return success();
   }
 };
+
+/// Remove unused cycles.
+/// We can remove unused cycle within a payload of generic region
+/// if these conditions are met:
+/// - Result from out operand is dead.
+/// - Block arg from out operand has a single use in the %cycle
+/// instruction.
+/// - Cycle has a single use and it is in yield.
+struct RemoveUnusedCycleInGenericOp : public OpRewritePattern<GenericOp> {
+  using OpRewritePattern<GenericOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(GenericOp genericOp,
+                                PatternRewriter &rewriter) const override {
+
+    // If the op doesnt have tensor semantics, preserve the outputs as is.
+    if (!genericOp.hasTensorSemantics())
+      return failure();
+
+    bool hasRemovedCycles = false;
+    // Iterate over output operands and remove any unused cycles.
+    for (const auto &outputOpOperand :
+         llvm::enumerate(genericOp.getOutputOperands())) {
+
+      // Check that result from out operand is dead.
+      Value result = genericOp.getResult(outputOpOperand.index());
+      if (!result.use_empty())
+        continue;
+
+      // Check that outputArg has one use in cycle.
+      BlockArgument outputArg =
+          genericOp.getRegionOutputArgs()[outputOpOperand.index()];
+      if (!outputArg.hasOneUse())
+        continue;
+
+      // Check cycle has at most one use.
+      Operation *cycleOp = *outputArg.user_begin();
+      if (!cycleOp->hasOneUse())
+        continue;
+
+      // Check that the cycleUser is a yield.
+      Operation *cycleUserOp = *cycleOp->user_begin();
+      if (!isa<linalg::YieldOp>(cycleUserOp))
+        continue;
+
+      // Check that argIndex matches yieldIndex, else data is being used.
+      if (cycleUserOp->getOperand(outputOpOperand.index()) !=
+          cycleOp->getResult(0))
+        continue;
+
+      // Directly replace the cycle with the blockArg such that
+      // Deduplicate pattern can eliminate it along with unused yield.
+      rewriter.replaceOp(cycleOp, outputArg);
+      rewriter.updateRootInPlace(genericOp, [] {});
+      hasRemovedCycles = true;
+    }
+
+    if (hasRemovedCycles) {
+      return success();
+    }
+
+    return failure();
+  }
+};
 } // namespace
 
 void GenericOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
-  results
-      .add<DeduplicateAndRemoveDeadOperandsAndResults, EraseIdentityGenericOp>(
-          context);
+  results.add<DeduplicateAndRemoveDeadOperandsAndResults,
+              EraseIdentityGenericOp, RemoveUnusedCycleInGenericOp>(context);
 }
 
 LogicalResult GenericOp::fold(ArrayRef<Attribute>,
@@ -1184,16 +1289,157 @@ LogicalResult GenericOp::fold(ArrayRef<Attribute>,
 }
 
 //===----------------------------------------------------------------------===//
+// MapOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseDstStyleOp(
+    OpAsmParser &parser, OperationState &result,
+    function_ref<ParseResult(OpAsmParser &, NamedAttrList &)> parseAttrsFn =
+        nullptr) {
+  // Parse `ins` and `outs`.
+  SmallVector<Type, 4> inputTypes, outputTypes;
+  if (parseCommonStructuredOpParts(parser, result, inputTypes, outputTypes,
+                                   /*addOperandSegmentSizes=*/false))
+    return failure();
+
+  // Add result types.
+  for (Type outputType : outputTypes) {
+    if (outputType.isa<RankedTensorType>())
+      result.addTypes(outputType);
+  }
+
+  // Parse required attributes.
+  if (parseAttrsFn && failed(parseAttrsFn(parser, result.attributes)))
+    return failure();
+
+  // Parse optional attributes.
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  return success();
+}
+
+void MapOp::getAsmBlockArgumentNames(Region &region,
+                                     OpAsmSetValueNameFn setNameFn) {
+  for (Value v : getRegionInputArgs())
+    setNameFn(v, "in");
+}
+
+void MapOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
+  if (!getResults().empty())
+    setNameFn(getResults().front(), "mapped");
+}
+
+ParseResult MapOp::parse(OpAsmParser &parser, OperationState &result) {
+  if (parseDstStyleOp(parser, result))
+    return failure();
+
+  SmallVector<OpAsmParser::Argument> regionArgs;
+  if (parser.parseArgumentList(regionArgs, OpAsmParser::Delimiter::Paren,
+                               /*allowType=*/true, /*allowAttrs=*/true)) {
+    return failure();
+  }
+
+  Region *body = result.addRegion();
+  if (parser.parseRegion(*body, regionArgs))
+    return failure();
+
+  return success();
+}
+
+void MapOp::print(OpAsmPrinter &p) {
+  printCommonStructuredOpParts(p, getInputs(), getOutputs());
+  p.printOptionalAttrDict((*this)->getAttrs());
+
+  p << "(";
+  llvm::interleaveComma(getMapper().getArguments(), p,
+                        [&](auto arg) { p.printRegionArgument(arg); });
+  p << ") ";
+
+  p.printRegion(getMapper(), /*printEntryBlockArgs=*/false);
+}
+
+LogicalResult MapOp::verify() {
+  auto *bodyBlock = getBody();
+  auto blockArgs = bodyBlock->getArguments();
+
+  // Checks if the number of `inputs` match the arity of the `mapper` region.
+  if (getInputs().size() != blockArgs.size())
+    return emitOpError() << "expects number of operands to match the arity of "
+                            "mapper, but got: "
+                         << getInputs().size() << " and " << blockArgs.size();
+
+  // The parameters of mapper should all match the element type // of inputs.
+  for (const auto &[bbArgType, inputArg] :
+       llvm::zip(bodyBlock->getArgumentTypes(), getInputs())) {
+    auto inputElemType = inputArg.getType().cast<ShapedType>().getElementType();
+    if (bbArgType != inputElemType) {
+      return emitOpError() << "expected element type of input " << inputElemType
+                           << " to match bbArg type " << bbArgType;
+    }
+  }
+
+  // The shape of each input must match the shape of the output.
+  auto outputShape =
+      getOutputs().front().getType().cast<ShapedType>().getShape();
+  for (Type inputArgType : TypeRange{getInputs()}) {
+    auto inputElemShape = inputArgType.cast<ShapedType>().getShape();
+    if (inputElemShape != outputShape) {
+      return emitOpError() << "expected shape of input (" << inputElemShape
+                           << ") to match shape of output (" << outputShape
+                           << ")";
+    }
+  }
+
+  return success();
+}
+
+SmallVector<StringRef> MapOp::getIteratorTypesArray() {
+  int64_t rank = getInit().getType().getRank();
+  return SmallVector<StringRef>(rank, getParallelIteratorTypeName());
+}
+
+ArrayAttr MapOp::getIndexingMaps() {
+  Builder builder(getContext());
+  int64_t rank = getInit().getType().getRank();
+  int64_t numIndexingMaps = getOperands().size();
+  return builder.getAffineMapArrayAttr(SmallVector<AffineMap>(
+      numIndexingMaps, builder.getMultiDimIdentityMap(rank)));
+}
+
+void MapOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  SmallVector<Value> inputBuffers = getInputBufferOperands();
+  SmallVector<Value> outputBuffers = getOutputBufferOperands();
+  getGenericEffectsImpl(effects, getOperation()->getResults(), inputBuffers,
+                        outputBuffers);
+}
+
+//===----------------------------------------------------------------------===//
 // ReduceOp
 //===----------------------------------------------------------------------===//
 
-ArrayAttr ReduceOp::getIteratorTypes() {
+void ReduceOp::getAsmBlockArgumentNames(Region &region,
+                                        OpAsmSetValueNameFn setNameFn) {
+  for (Value v : getRegionInputArgs())
+    setNameFn(v, "in");
+  for (Value v : getRegionOutputArgs())
+    setNameFn(v, "init");
+}
+
+void ReduceOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  if (!getResults().empty())
+    setNameFn(getResults().front(), "reduced");
+}
+
+SmallVector<StringRef> ReduceOp::getIteratorTypesArray() {
   int64_t inputRank = getInputs()[0].getType().cast<ShapedType>().getRank();
   SmallVector<StringRef> iteratorTypes(inputRank,
                                        getParallelIteratorTypeName());
   for (int64_t reductionDim : getDimensions())
     iteratorTypes[reductionDim] = getReductionIteratorTypeName();
-  return Builder(getContext()).getStrArrayAttr(iteratorTypes);
+  return iteratorTypes;
 }
 
 ArrayAttr ReduceOp::getIndexingMaps() {
@@ -1216,33 +1462,6 @@ void ReduceOp::getEffects(
   SmallVector<Value> outputBuffers = getOutputBufferOperands();
   getGenericEffectsImpl(effects, getOperation()->getResults(), inputBuffers,
                         outputBuffers);
-}
-
-static ParseResult parseDstStyleOp(
-    OpAsmParser &parser, OperationState &result,
-    function_ref<ParseResult(OpAsmParser &, NamedAttrList &)> parseAttrsFn =
-        nullptr) {
-  // Parse `ins` and `outs`.
-  SmallVector<Type, 4> inputTypes, outputTypes;
-  if (parseCommonStructuredOpParts(parser, result, inputTypes, outputTypes,
-                                   /*addOperandSegmentSizes=*/false))
-    return failure();
-
-  // Add result types.
-  for (Type outputType : outputTypes) {
-    if (!outputType.isa<RankedTensorType>())
-      return failure();
-    result.addTypes(outputType);
-  }
-
-  // Parse required attributes.
-  if (parseAttrsFn && failed(parseAttrsFn(parser, result.attributes)))
-    return failure();
-
-  // Parse optional attributes.
-  if (parser.parseOptionalAttrDict(result.attributes))
-    return failure();
-  return success();
 }
 
 static ParseResult parseDenseI64ArrayAttr(OpAsmParser &parser,
@@ -1318,20 +1537,12 @@ LogicalResult ReduceOp::verify() {
   auto initType = getInits()[0].getType().cast<ShapedType>();
 
   DenseSet<int64_t> dimensionsToReduce;
-  int64_t lastDimension = -1;
   for (int64_t dimension : dimensionsRef) {
     if (dimension < 0 || dimension >= inputType.getRank()) {
       return emitOpError()
              << "dimensions for reduction should be in the range [0, "
              << inputType.getRank() - 1 << "].";
     }
-    if (dimension <= lastDimension) {
-      return emitOpError()
-             << "reduction dimensions are not in increasing order: "
-             << dimensionsRef;
-    }
-
-    lastDimension = dimension;
     dimensionsToReduce.insert(dimension);
   }
 

@@ -15,17 +15,24 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/ExecutionEngine/SparseTensor/Enums.h"
 #include "mlir/IR/Builders.h"
 
 namespace mlir {
+
 class Location;
 class Type;
 class Value;
 
 namespace sparse_tensor {
+
+/// Shorthand aliases for the `emitCInterface` argument to `getFunc()`,
+/// `createFuncCall()`, and `replaceOpWithFuncCall()`.
+enum class EmitCInterface : bool { Off = false, On = true };
 
 //===----------------------------------------------------------------------===//
 // SparseTensorLoopEmiter class, manages sparse tensors and helps to generate
@@ -60,7 +67,8 @@ public:
   /// Constructor: take an array of tensors inputs, on which the generated loops
   /// will iterate on. The index of the tensor in the array is also the
   /// tensor id (tid) used in related functions.
-  explicit SparseTensorLoopEmitter(ValueRange tensors);
+  explicit SparseTensorLoopEmitter(ValueRange tensors,
+                                   bool isLastOutput = false);
 
   ///
   /// Core functions.
@@ -140,6 +148,7 @@ private:
   std::vector<std::vector<Value>> idxBuffer; // to_indices
   std::vector<Value> valBuffer;              // to_value
 
+  bool isLastOutput; // Is the last tensor output tensor
   std::vector<LoopLevelInfo> loopStack;
   // TODO: not yet used, it should track the current level for each tensor
   // to help eliminate `dim` paramters from above APIs.
@@ -149,7 +158,7 @@ private:
 //===----------------------------------------------------------------------===//
 // ExecutionEngine/SparseTensorUtils helper functions.
 //===----------------------------------------------------------------------===//
-//
+
 /// Converts an overhead storage bitwidth to its internal type-encoding.
 OverheadType overheadTypeEncoding(unsigned width);
 
@@ -192,10 +201,7 @@ StringRef primaryTypeFunctionSuffix(Type elemTp);
 DimLevelType dimLevelTypeEncoding(SparseTensorEncodingAttr::DimLevelType dlt);
 
 //===----------------------------------------------------------------------===//
-// Misc code generators.
-//
-// TODO: both of these should move upstream to their respective classes.
-// Once RFCs have been created for those changes, list them here.
+// Misc code generators and utilities.
 //===----------------------------------------------------------------------===//
 
 /// Generates a 1-valued attribute of the given type.  This supports
@@ -209,8 +215,55 @@ Attribute getOneAttr(Builder &builder, Type tp);
 /// true if `v` is NaN).
 Value genIsNonzero(OpBuilder &builder, Location loc, Value v);
 
+/// Computes the shape of destination tensor of a reshape operator. This is only
+/// used when operands have dynamic shape. The shape of the destination is
+/// stored into dstShape.
+void genReshapeDstShape(Location loc, PatternRewriter &rewriter,
+                        SmallVector<Value, 4> &dstShape,
+                        ArrayRef<Value> srcShape,
+                        ArrayRef<int64_t> staticDstShape,
+                        ArrayRef<ReassociationIndices> reassociation);
+
+/// Translate indices during a reshaping operation.
+void translateIndicesArray(OpBuilder &builder, Location loc,
+                           ArrayRef<ReassociationIndices> reassociation,
+                           ValueRange srcIndices, ArrayRef<Value> srcShape,
+                           ArrayRef<Value> dstShape,
+                           SmallVectorImpl<Value> &dstIndices);
+
+/// Returns a function reference (first hit also inserts into module). Sets
+/// the "_emit_c_interface" on the function declaration when requested,
+/// so that LLVM lowering generates a wrapper function that takes care
+/// of ABI complications with passing in and returning MemRefs to C functions.
+FlatSymbolRefAttr getFunc(ModuleOp module, StringRef name, TypeRange resultType,
+                          ValueRange operands, EmitCInterface emitCInterface);
+
+/// Creates a `CallOp` to the function reference returned by `getFunc()` in
+/// the builder's module.
+func::CallOp createFuncCall(OpBuilder &builder, Location loc, StringRef name,
+                            TypeRange resultType, ValueRange operands,
+                            EmitCInterface emitCInterface);
+
+/// Returns the equivalent of `void*` for opaque arguments to the
+/// execution engine.
+Type getOpaquePointerType(OpBuilder &builder);
+
+/// Generates an uninitialized temporary buffer of the given size and
+/// type, but returns it as type `memref<? x $tp>` (rather than as type
+/// `memref<$sz x $tp>`).
+Value genAlloca(OpBuilder &builder, Location loc, Value sz, Type tp);
+
+/// Generates an uninitialized temporary buffer of the given size and
+/// type, but returns it as type `memref<? x $tp>` (rather than as type
+/// `memref<$sz x $tp>`).
+Value genAlloca(OpBuilder &builder, Location loc, unsigned sz, Type tp);
+
+/// Generates an uninitialized temporary buffer with room for one value
+/// of the given type, and returns the `memref<$tp>`.
+Value genAllocaScalar(OpBuilder &builder, Location loc, Type tp);
+
 //===----------------------------------------------------------------------===//
-// Constant generators.
+// Inlined constant generators.
 //
 // All these functions are just wrappers to improve code legibility;
 // therefore, we mark them as `inline` to avoid introducing any additional
@@ -313,21 +366,6 @@ constantDimLevelTypeEncoding(OpBuilder &builder, Location loc,
                     static_cast<uint8_t>(dimLevelTypeEncoding(dlt)));
 }
 
-/// Computes the shape of destination tensor of a reshape operator. This is only
-/// used when operands have dynamic shape. The shape of the destination is
-/// stored into dstShape.
-void genReshapeDstShape(Location loc, PatternRewriter &rewriter,
-                        SmallVector<Value, 4> &dstShape,
-                        ArrayRef<Value> srcShape,
-                        ArrayRef<int64_t> staticDstShape,
-                        ArrayRef<ReassociationIndices> reassociation);
-
-/// Helper method to translate indices during a reshaping operation.
-void translateIndicesArray(OpBuilder &builder, Location loc,
-                           ArrayRef<ReassociationIndices> reassociation,
-                           ValueRange srcIndices, ArrayRef<Value> srcShape,
-                           ArrayRef<Value> dstShape,
-                           SmallVectorImpl<Value> &dstIndices);
 } // namespace sparse_tensor
 } // namespace mlir
 

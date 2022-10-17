@@ -1,3 +1,5 @@
+def StructTimevalType : NamedType<"struct timeval">;
+
 def Linux : StandardSpec<"Linux"> {
   HeaderSpec Errno = HeaderSpec<
       "errno.h",
@@ -63,6 +65,51 @@ def Linux : StandardSpec<"Linux"> {
       [Macro<"MAP_ANONYMOUS">]
   >;
 
+
+  HeaderSpec SysPrctl = HeaderSpec<
+      "sys/prctl.h",
+      [], // Macros
+      [], // Types
+      [], // Enumerations
+      []  // Functions
+  >;
+
+  HeaderSpec SysRandom = HeaderSpec<
+      "sys/random.h",
+      [
+        Macro<"GRND_RANDOM">,
+        Macro<"GRND_NONBLOCK">,
+        Macro<"GRND_INSECURE">,
+      ],
+      [], // Types
+      [], // Enumerations
+      [
+        FunctionSpec<
+          "getrandom",
+          RetValSpec<SSizeTType>,
+          [
+            ArgSpec<VoidPtr>,
+            ArgSpec<SizeTType>,
+            ArgSpec<UnsignedIntType>
+          ]
+        >,
+      ]
+  >;
+
+  HeaderSpec SysTime = HeaderSpec<
+      "sys/time.h",
+      [
+        Macro<"timeradd">,
+        Macro<"timersub">,
+        Macro<"timerclear">,
+        Macro<"timerisset">,
+        Macro<"timercmp">,
+      ],
+      [StructTimevalType], // Types
+      [], // Enumerations
+      []  // Functions
+  >;
+
   HeaderSpec Signal = HeaderSpec<
       "signal.h",
       [
@@ -108,6 +155,9 @@ def Linux : StandardSpec<"Linux"> {
   let Headers = [
     Errno,
     SysMMan,
+    SysPrctl,
+    SysRandom,
+    SysTime,
     Signal,
   ];
 }

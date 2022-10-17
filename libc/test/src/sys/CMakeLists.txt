@@ -1,5 +1,7 @@
 add_subdirectory(mman)
+add_subdirectory(random)
 add_subdirectory(resource)
 add_subdirectory(sendfile)
 add_subdirectory(stat)
 add_subdirectory(utsname)
+add_subdirectory(wait)

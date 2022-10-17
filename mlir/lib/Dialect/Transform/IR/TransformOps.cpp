@@ -10,11 +10,13 @@
 #include "mlir/Dialect/PDL/IR/PDLOps.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
+#include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Rewrite/PatternApplicator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Debug.h"
 
@@ -22,16 +24,6 @@
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE "] ")
 
 using namespace mlir;
-
-static ParseResult parsePDLOpTypedResults(
-    OpAsmParser &parser, SmallVectorImpl<Type> &types,
-    const SmallVectorImpl<OpAsmParser::UnresolvedOperand> &handles) {
-  types.resize(handles.size(), pdl::OperationType::get(parser.getContext()));
-  return success();
-}
-
-static void printPDLOpTypedResults(OpAsmPrinter &, Operation *, TypeRange,
-                                   ValueRange) {}
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Transform/IR/TransformOps.cpp.inc"
@@ -211,7 +203,8 @@ transform::AlternativesOp::apply(transform::TransformResults &results,
       for (Operation *clone : clones)
         clone->erase();
     });
-    state.mapBlockArguments(reg.front().getArgument(0), clones);
+    if (failed(state.mapBlockArguments(reg.front().getArgument(0), clones)))
+      return DiagnosedSilenceableFailure::definiteFailure();
 
     bool failed = false;
     for (Operation &transform : reg.front().without_terminator()) {
@@ -252,13 +245,6 @@ transform::AlternativesOp::apply(transform::TransformResults &results,
 LogicalResult transform::AlternativesOp::verify() {
   for (Region &alternative : getAlternatives()) {
     Block &block = alternative.front();
-    if (block.getNumArguments() != 1 ||
-        !block.getArgument(0).getType().isa<pdl::OperationType>()) {
-      return emitOpError()
-             << "expects region blocks to have one operand of type "
-             << pdl::OperationType::get(getContext());
-    }
-
     Operation *terminator = block.getTerminator();
     if (terminator->getOperands().getTypes() != getResults().getTypes()) {
       InFlightDiagnostic diag = emitOpError()
@@ -277,6 +263,35 @@ LogicalResult transform::AlternativesOp::verify() {
 //===----------------------------------------------------------------------===//
 
 DiagnosedSilenceableFailure
+transform::CastOp::applyToOne(Operation *target,
+                              SmallVectorImpl<Operation *> &results,
+                              transform::TransformState &state) {
+  results.push_back(target);
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::CastOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsPayload(effects);
+  consumesHandle(getInput(), effects);
+  producesHandle(getOutput(), effects);
+}
+
+bool transform::CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  assert(inputs.size() == 1 && "expected one input");
+  assert(outputs.size() == 1 && "expected one output");
+  return llvm::all_of(
+      std::initializer_list<Type>{inputs.front(), outputs.front()},
+      [](Type ty) {
+        return ty.isa<pdl::OperationType, transform::TransformTypeInterface>();
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// ForeachOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
 transform::ForeachOp::apply(transform::TransformResults &results,
                             transform::TransformState &state) {
   ArrayRef<Operation *> payloadOps = state.getPayloadOps(getTarget());
@@ -284,7 +299,8 @@ transform::ForeachOp::apply(transform::TransformResults &results,
 
   for (Operation *op : payloadOps) {
     auto scope = state.make_region_scope(getBody());
-    state.mapBlockArguments(getIterationVariable(), {op});
+    if (failed(state.mapBlockArguments(getIterationVariable(), {op})))
+      return DiagnosedSilenceableFailure::definiteFailure();
 
     // Execute loop body.
     for (Operation &transform : getBody().front().without_terminator()) {
@@ -356,8 +372,9 @@ LogicalResult transform::ForeachOp::verify() {
     return emitOpError() << "expects the same number of results as the "
                             "terminator has operands";
   for (Value v : yieldOp.getOperands())
-    if (!v.getType().isa<pdl::OperationType>())
-      return yieldOp->emitOpError("expects only PDL_Operation operands");
+    if (!v.getType().isa<TransformTypeInterface>())
+      return yieldOp->emitOpError(
+          "expects operands to have types implementing TransformTypeInterface");
   return success();
 }
 
@@ -453,6 +470,46 @@ OpFoldResult transform::MergeHandlesOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// SplitHandlesOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::SplitHandlesOp::apply(transform::TransformResults &results,
+                                 transform::TransformState &state) {
+  int64_t numResultHandles =
+      getHandle() ? state.getPayloadOps(getHandle()).size() : 0;
+  int64_t expectedNumResultHandles = getNumResultHandles();
+  if (numResultHandles != expectedNumResultHandles) {
+    // Failing case needs to propagate gracefully for both suppress and
+    // propagate modes.
+    for (int64_t idx = 0; idx < expectedNumResultHandles; ++idx)
+      results.set(getResults()[idx].cast<OpResult>(), {});
+    // Empty input handle corner case: always propagates empty handles in both
+    // suppress and propagate modes.
+    if (numResultHandles == 0)
+      return DiagnosedSilenceableFailure::success();
+    // If the input handle was not empty and the number of result handles does
+    // not match, this is a legit silenceable error.
+    return emitSilenceableError()
+           << getHandle() << " expected to contain " << expectedNumResultHandles
+           << " operation handles but it only contains " << numResultHandles
+           << " handles";
+  }
+  // Normal successful case.
+  for (auto en : llvm::enumerate(state.getPayloadOps(getHandle())))
+    results.set(getResults()[en.index()].cast<OpResult>(), en.value());
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::SplitHandlesOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  consumesHandle(getHandle(), effects);
+  producesHandle(getResults(), effects);
+  // There are no effects on the Payload IR as this is only a handle
+  // manipulation.
+}
+
+//===----------------------------------------------------------------------===//
 // PDLMatchOp
 //===----------------------------------------------------------------------===//
 
@@ -472,6 +529,13 @@ transform::PDLMatchOp::apply(transform::TransformResults &results,
   }
   results.set(getResult().cast<OpResult>(), targets);
   return DiagnosedSilenceableFailure::success();
+}
+
+void transform::PDLMatchOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsHandle(getRoot(), effects);
+  producesHandle(getMatched(), effects);
+  onlyReadsPayload(effects);
 }
 
 //===----------------------------------------------------------------------===//
@@ -510,7 +574,8 @@ transform::SequenceOp::apply(transform::TransformResults &results,
                              transform::TransformState &state) {
   // Map the entry block argument to the list of operations.
   auto scope = state.make_region_scope(*getBodyBlock()->getParent());
-  mapBlockArguments(state);
+  if (failed(mapBlockArguments(state)))
+    return DiagnosedSilenceableFailure::definiteFailure();
 
   // Apply the sequenced ops one by one.
   for (Operation &transform : getBodyBlock()->without_terminator()) {
@@ -704,7 +769,8 @@ transform::WithPDLPatternsOp::apply(transform::TransformResults &results,
       [&]() { state.removeExtension<PatternApplicatorExtension>(); });
 
   auto scope = state.make_region_scope(getBody());
-  mapBlockArguments(state);
+  if (failed(mapBlockArguments(state)))
+    return DiagnosedSilenceableFailure::definiteFailure();
   return state.applyTransform(transformOp);
 }
 

@@ -22,9 +22,11 @@
 #include "clang/AST/StmtObjC.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/CodeGen/CodeGenABITypes.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/ObjCARCUtil.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 using namespace clang;
@@ -1111,11 +1113,47 @@ static void emitCPPObjectAtomicGetterCall(CodeGenFunction &CGF,
                callee, ReturnValueSlot(), args);
 }
 
+// emitCmdValueForGetterSetterBody - Handle emitting the load necessary for
+// the `_cmd` selector argument for getter/setter bodies. For direct methods,
+// this returns an undefined/poison value; this matches behavior prior to `_cmd`
+// being removed from the direct method ABI as the getter/setter caller would
+// never load one. For non-direct methods, this emits a load of the implicit
+// `_cmd` storage.
+static llvm::Value *emitCmdValueForGetterSetterBody(CodeGenFunction &CGF,
+                                                   ObjCMethodDecl *MD) {
+  if (MD->isDirectMethod()) {
+    // Direct methods do not have a `_cmd` argument. Emit an undefined/poison
+    // value. This will be passed to objc_getProperty/objc_setProperty, which
+    // has not appeared bothered by the `_cmd` argument being undefined before.
+    llvm::Type *selType = CGF.ConvertType(CGF.getContext().getObjCSelType());
+    return llvm::PoisonValue::get(selType);
+  }
+
+  return CGF.Builder.CreateLoad(CGF.GetAddrOfLocalVar(MD->getCmdDecl()), "cmd");
+}
+
 void
 CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
                                         const ObjCPropertyImplDecl *propImpl,
                                         const ObjCMethodDecl *GetterMethodDecl,
                                         llvm::Constant *AtomicHelperFn) {
+
+  ObjCIvarDecl *ivar = propImpl->getPropertyIvarDecl();
+
+  if (ivar->getType().isNonTrivialToPrimitiveCopy() == QualType::PCK_Struct) {
+    if (!AtomicHelperFn) {
+      LValue Src =
+          EmitLValueForIvar(TypeOfSelfObject(), LoadObjCSelf(), ivar, 0);
+      LValue Dst = MakeAddrLValue(ReturnValue, ivar->getType());
+      callCStructCopyConstructor(Dst, Src);
+    } else {
+      ObjCIvarDecl *ivar = propImpl->getPropertyIvarDecl();
+      emitCPPObjectAtomicGetterCall(*this, ReturnValue.getPointer(), ivar,
+                                    AtomicHelperFn);
+    }
+    return;
+  }
+
   // If there's a non-trivial 'get' expression, we just have to emit that.
   if (!hasTrivialGetExpr(propImpl)) {
     if (!AtomicHelperFn) {
@@ -1135,8 +1173,6 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
   const ObjCPropertyDecl *prop = propImpl->getPropertyDecl();
   QualType propType = prop->getType();
   ObjCMethodDecl *getterMethod = propImpl->getGetterMethodDecl();
-
-  ObjCIvarDecl *ivar = propImpl->getPropertyIvarDecl();
 
   // Pick an implementation strategy.
   PropertyImplStrategy strategy(CGM, propImpl);
@@ -1189,8 +1225,7 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
     // Return (ivar-type) objc_getProperty((id) self, _cmd, offset, true).
     // FIXME: Can't this be simpler? This might even be worse than the
     // corresponding gcc code.
-    llvm::Value *cmd =
-      Builder.CreateLoad(GetAddrOfLocalVar(getterMethod->getCmdDecl()), "cmd");
+    llvm::Value *cmd = emitCmdValueForGetterSetterBody(*this, getterMethod);
     llvm::Value *self = Builder.CreateBitCast(LoadObjCSelf(), VoidPtrTy);
     llvm::Value *ivarOffset =
       EmitIvarOffset(classImpl->getClassInterface(), ivar);
@@ -1405,6 +1440,24 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
   ObjCIvarDecl *ivar = propImpl->getPropertyIvarDecl();
   ObjCMethodDecl *setterMethod = propImpl->getSetterMethodDecl();
 
+  if (ivar->getType().isNonTrivialToPrimitiveCopy() == QualType::PCK_Struct) {
+    ParmVarDecl *PVD = *setterMethod->param_begin();
+    if (!AtomicHelperFn) {
+      // Call the move assignment operator instead of calling the copy
+      // assignment operator and destructor.
+      LValue Dst = EmitLValueForIvar(TypeOfSelfObject(), LoadObjCSelf(), ivar,
+                                     /*quals*/ 0);
+      LValue Src = MakeAddrLValue(GetAddrOfLocalVar(PVD), ivar->getType());
+      callCStructMoveAssignmentOperator(Dst, Src);
+    } else {
+      // If atomic, assignment is called via a locking api.
+      emitCPPObjectAtomicSetterCall(*this, setterMethod, ivar, AtomicHelperFn);
+    }
+    // Decativate the destructor for the setter parameter.
+    DeactivateCleanupBlock(CalleeDestructedParamCleanups[PVD], AllocaInsertPt);
+    return;
+  }
+
   // Just use the setter expression if Sema gave us one and it's
   // non-trivial.
   if (!hasTrivialSetExpr(propImpl)) {
@@ -1475,8 +1528,7 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
 
     // Emit objc_setProperty((id) self, _cmd, offset, arg,
     //                       <is-atomic>, <is-copy>).
-    llvm::Value *cmd =
-      Builder.CreateLoad(GetAddrOfLocalVar(setterMethod->getCmdDecl()));
+    llvm::Value *cmd = emitCmdValueForGetterSetterBody(*this, setterMethod);
     llvm::Value *self =
       Builder.CreateBitCast(LoadObjCSelf(), VoidPtrTy);
     llvm::Value *ivarOffset =
@@ -3662,14 +3714,26 @@ void CodeGenFunction::EmitExtendGCLifetime(llvm::Value *object) {
 llvm::Constant *
 CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
                                         const ObjCPropertyImplDecl *PID) {
+  const ObjCPropertyDecl *PD = PID->getPropertyDecl();
+  if ((!(PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_atomic)))
+    return nullptr;
+
+  QualType Ty = PID->getPropertyIvarDecl()->getType();
+  ASTContext &C = getContext();
+
+  if (Ty.isNonTrivialToPrimitiveCopy() == QualType::PCK_Struct) {
+    // Call the move assignment operator instead of calling the copy assignment
+    // operator and destructor.
+    CharUnits Alignment = C.getTypeAlignInChars(Ty);
+    llvm::Constant *Fn = getNonTrivialCStructMoveAssignmentOperator(
+        CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
+    return llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
+  }
+
   if (!getLangOpts().CPlusPlus ||
       !getLangOpts().ObjCRuntime.hasAtomicCopyHelper())
     return nullptr;
-  QualType Ty = PID->getPropertyIvarDecl()->getType();
   if (!Ty->isRecordType())
-    return nullptr;
-  const ObjCPropertyDecl *PD = PID->getPropertyDecl();
-  if ((!(PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_atomic)))
     return nullptr;
   llvm::Constant *HelperFn = nullptr;
   if (hasTrivialSetExpr(PID))
@@ -3678,7 +3742,6 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
   if ((HelperFn = CGM.getAtomicSetterHelperFnMap(Ty)))
     return HelperFn;
 
-  ASTContext &C = getContext();
   IdentifierInfo *II
     = &CGM.getContext().Idents.get("__assign_helper_atomic_property_");
 
@@ -3749,17 +3812,26 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
   return HelperFn;
 }
 
-llvm::Constant *
-CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
-                                            const ObjCPropertyImplDecl *PID) {
+llvm::Constant *CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
+    const ObjCPropertyImplDecl *PID) {
+  const ObjCPropertyDecl *PD = PID->getPropertyDecl();
+  if ((!(PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_atomic)))
+    return nullptr;
+
+  QualType Ty = PD->getType();
+  ASTContext &C = getContext();
+
+  if (Ty.isNonTrivialToPrimitiveCopy() == QualType::PCK_Struct) {
+    CharUnits Alignment = C.getTypeAlignInChars(Ty);
+    llvm::Constant *Fn = getNonTrivialCStructCopyConstructor(
+        CGM, Alignment, Alignment, Ty.isVolatileQualified(), Ty);
+    return llvm::ConstantExpr::getBitCast(Fn, VoidPtrTy);
+  }
+
   if (!getLangOpts().CPlusPlus ||
       !getLangOpts().ObjCRuntime.hasAtomicCopyHelper())
     return nullptr;
-  const ObjCPropertyDecl *PD = PID->getPropertyDecl();
-  QualType Ty = PD->getType();
   if (!Ty->isRecordType())
-    return nullptr;
-  if ((!(PD->getPropertyAttributes() & ObjCPropertyAttribute::kind_atomic)))
     return nullptr;
   llvm::Constant *HelperFn = nullptr;
   if (hasTrivialGetExpr(PID))
@@ -3768,7 +3840,6 @@ CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
   if ((HelperFn = CGM.getAtomicGetterHelperFnMap(Ty)))
     return HelperFn;
 
-  ASTContext &C = getContext();
   IdentifierInfo *II =
       &CGM.getContext().Idents.get("__copy_helper_atomic_property_");
 
