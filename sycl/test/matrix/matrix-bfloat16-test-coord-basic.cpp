@@ -41,8 +41,8 @@ template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
 void matrix_coord(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
-                     big_matrix<T2, NUM_ROWS_A, NUM_COLS_A> &A,
-                     big_matrix<T2, NUM_ROWS_B, NUM_COLS_B> &B) {
+                  big_matrix<T2, NUM_ROWS_A, NUM_COLS_A> &A,
+                  big_matrix<T2, NUM_ROWS_B, NUM_COLS_B> &B) {
   size_t M = NUM_ROWS_C;
   size_t N = NUM_COLS_C;
   size_t K = NUM_COLS_A;
@@ -56,11 +56,11 @@ void matrix_coord(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   sycl::buffer<float, 2> bufC((float *)C.get_data(), sycl::range<2>(M, N));
 
   sycl::buffer<int32_t, 1> res_local_row_bufA(res_local_rowA,
-                                             sycl::range<1>(MATRIX_M));
+                                              sycl::range<1>(MATRIX_M));
   sycl::buffer<int32_t, 1> res_local_col_bufB(res_local_colB,
-                                             sycl::range<1>(MATRIX_N));
+                                              sycl::range<1>(MATRIX_N));
   sycl::buffer<int32_t, 1> res_local_row_bufC(res_local_rowC,
-                                             sycl::range<1>(MATRIX_M));
+                                              sycl::range<1>(MATRIX_M));
 
   sycl::queue q;
   q.submit([&](sycl::handler &cgh) {
@@ -77,8 +77,8 @@ void matrix_coord(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
      cgh.parallel_for<class imatrix>(
          sycl::nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K,
-          res_local_row_accA, res_local_col_accB, res_local_row_accC](sycl::nd_item<2> spmd_item)
+         [accA, accB, accC, M, N, K, res_local_row_accA, res_local_col_accB,
+          res_local_row_accC](sycl::nd_item<2> spmd_item)
 
          {
            sycl::ext::oneapi::sub_group sg = spmd_item.get_sub_group();
@@ -92,7 +92,7 @@ void matrix_coord(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
            joint_matrix_fill(sg, sub_a, 1);
            joint_matrix_fill(sg, sub_b, 2);
-           joint_matrix_fill(sg, sub_c, 3); 
+           joint_matrix_fill(sg, sub_c, 3);
            // Element wise operation
            auto tAData = sub_a.get_wi_data();
            auto tBData = sub_b.get_wi_data();
@@ -129,25 +129,24 @@ unsigned short make_bf16(float x) {
   return (unsigned short)*res;
 }
 
-void matrix_coord_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
-                         int K) { 
-    for (int m = 0; m < M; m++)
-      for (int k = 0; k < K; k++) {
-        short *va = (short *)(A_mem + m * K + k);
-        res_local_row_origA[m] += *va;
-      }
+void matrix_coord_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N, int K) {
+  for (int m = 0; m < M; m++)
+    for (int k = 0; k < K; k++) {
+      short *va = (short *)(A_mem + m * K + k);
+      res_local_row_origA[m] += *va;
+    }
 
-    for (int k = 0; k < K; k++)
-      for (int n = 0; n < N; n++) {
-        short *vb = (short *)(B_mem + k * N + n);
-        res_local_col_origB[n] += *vb;
-      }
+  for (int k = 0; k < K; k++)
+    for (int n = 0; n < N; n++) {
+      short *vb = (short *)(B_mem + k * N + n);
+      res_local_col_origB[n] += *vb;
+    }
 
-    for (int m = 0; m < M; m++)
-      for (int n = 0; n < N; n++) {
-        short *vc = (short *)(C_mem + m * N + n);
-        res_local_row_origC[m] += *vc;
-      }
+  for (int m = 0; m < M; m++)
+    for (int n = 0; n < N; n++) {
+      short *vc = (short *)(C_mem + m * N + n);
+      res_local_row_origC[m] += *vc;
+    }
 }
 
 int main() {
@@ -187,7 +186,7 @@ int main() {
 
   matrix_coord(MC, MA, MB);
   matrix_coord_ref((int32_t *)Aref, (int32_t *)Bref, (int32_t *)D, MATRIX_M,
-                      MATRIX_N, MATRIX_K / 2);
+                   MATRIX_N, MATRIX_K / 2);
 
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {
