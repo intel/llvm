@@ -108,6 +108,7 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-mlir-sycl
     - name: check-cgeist
+      shell: bash
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
         if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
