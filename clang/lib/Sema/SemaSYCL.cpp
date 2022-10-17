@@ -1250,10 +1250,6 @@ class KernelObjVisitor {
   }
 
   template <typename... HandlerTys>
-  void visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
-                  QualType ArrayTy, HandlerTys &... Handlers);
-
-  template <typename... HandlerTys>
   void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
                   QualType FieldTy, HandlerTys &... Handlers) {
     if (isSyclSpecialType(FieldTy, SemaRef))
@@ -1298,6 +1294,11 @@ public:
     for (const auto Field : Owner->fields())
       visitField(Owner, Field, Field->getType(), Handlers...);
   }
+
+  template <typename... HandlerTys>
+  void visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
+                  QualType ArrayTy, HandlerTys &...Handlers);
+
 #undef KF_FOR_EACH
 };
 
@@ -1394,6 +1395,14 @@ class SyclKernelFieldHandler : public SyclKernelFieldHandlerBase {
 protected:
   Sema &SemaRef;
   SyclKernelFieldHandler(Sema &S) : SemaRef(S) {}
+
+  // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
+  // is an element of an array. FD will always be the array field. When
+  // traversing the array field, Ty will be the type of the array field or the
+  // type of array element (or some decomposed type from array).
+  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
+    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
+  }
 };
 
 // A class to represent the 'do nothing' case for filtering purposes.
@@ -1509,14 +1518,15 @@ void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
     visitComplexArray(Owner, Field, ArrayTy, Handlers...);
   } else if (AnyTrue<HandlerTys::VisitInsideSimpleContainersWithPointer...>::
                  Value) {
-    assert(!Field->hasAttr<SYCLGenerateNewTypeAttr>() &&
-           "Arrays should trigger decomposition");
-    // We are currently in PointerHandler visitor, which implies this is a
-    // 'simple' array i.e. one that does not include special types or pointers.
-    // Array of pointers/ array of type containing pointers will be handled in
-    // a follow-up PR. Currently, they continue to trigger decomposition, and
-    // will be handled in 'if' statement above.
-    visitSimpleArray(Owner, Field, ArrayTy, Handlers...);
+    // We are currently in PointerHandler visitor.
+    if (Field->hasAttr<SYCLGenerateNewTypeAttr>()) {
+      // This is an array of pointers, or an array of a type containing
+      // pointers.
+      visitComplexArray(Owner, Field, ArrayTy, Handlers...);
+    } else {
+      // This is an array which does not contain pointers.
+      visitSimpleArray(Owner, Field, ArrayTy, Handlers...);
+    }
   } else {
     if (!AllTrue<HandlerTys::VisitInsideSimpleContainers...>::Value)
       visitSimpleArray(
@@ -1853,6 +1863,11 @@ public:
   }
 
   bool leaveArray(FieldDecl *FD, QualType ArrayTy, QualType ElementTy) final {
+    // If an array needs to be decomposed, it is marked with
+    // SYCLRequiresDecompositionAttr. Else if the array is an array of pointers
+    // or an array of structs containing pointers, it is marked with
+    // SYCLGenerateNewTypeAttr. An array will never be marked with both
+    // attributes.
     if (CollectionStack.pop_back_val()) {
       // Cannot assert, since in MD arrays we'll end up marking them multiple
       // times.
@@ -1862,23 +1877,41 @@ public:
       CollectionStack.back() = true;
       PointerStack.pop_back();
     } else if (PointerStack.pop_back_val()) {
-      // FIXME: Array of pointers/ array of type containing pointers
-      // will be handled in a follow up PR. Currently, they continue
-      // to trigger decomposition.
-      if (!FD->hasAttr<SYCLRequiresDecompositionAttr>())
-        FD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
-            SemaRef.getASTContext()));
-      CollectionStack.back() = true;
+      if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
+        FD->addAttr(
+            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      PointerStack.back() = true;
     }
     return true;
   }
 };
+
+static QualType ModifyAddressSpace(Sema &SemaRef, QualType Ty) {
+  // USM allows to use raw pointers instead of buffers/accessors, but these
+  // pointers point to the specially allocated memory. For pointer fields,
+  // except for function pointer fields, we add a kernel argument with the
+  // same type as field but global address space, because OpenCL requires it.
+  // Function pointers should have program address space. This is set in
+  // CodeGen.
+  QualType PointeeTy = Ty->getPointeeType();
+  Qualifiers Quals = PointeeTy.getQualifiers();
+  LangAS AS = Quals.getAddressSpace();
+  // Leave global_device and global_host address spaces as is to help FPGA
+  // device in memory allocations.
+  if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
+      AS != LangAS::sycl_global_host)
+    Quals.setAddressSpace(LangAS::sycl_global);
+  PointeeTy = SemaRef.getASTContext().getQualifiedType(
+      PointeeTy.getUnqualifiedType(), Quals);
+  return SemaRef.getASTContext().getPointerType(PointeeTy);
+}
 
 // This visitor is used to traverse a non-decomposed record/array to
 // generate a new type corresponding to this record/array.
 class SyclKernelPointerHandler : public SyclKernelFieldHandler {
   llvm::SmallVector<CXXRecordDecl *, 8> ModifiedRecords;
   SmallVector<CXXBaseSpecifier *, 8> ModifiedBases;
+  SmallVector<QualType, 8> ModifiedArrayElementsOrArray;
 
   IdentifierInfo *getModifiedName(IdentifierInfo *Id) {
     std::string Name =
@@ -1944,10 +1977,13 @@ class SyclKernelPointerHandler : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainersWithPointer = true;
+  static constexpr const bool VisitNthArrayElement = false;
   SyclKernelPointerHandler(Sema &S, const CXXRecordDecl *RD)
       : SyclKernelFieldHandler(S) {
     createNewType(RD);
   }
+
+  SyclKernelPointerHandler(Sema &S) : SyclKernelFieldHandler(S) {}
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType Ty) final {
     createNewType(Ty->getAsCXXRecordDecl());
@@ -1957,9 +1993,14 @@ public:
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     CXXRecordDecl *ModifiedRD = getGeneratedNewRecord(Ty->getAsCXXRecordDecl());
 
-    // Add this record as a field of it's parent record.
-    if (!ModifiedRecords.empty())
+    // Add this record as a field of it's parent record if it is not an
+    // array element.
+    if (!isArrayElement(FD, Ty))
       addField(FD, QualType(ModifiedRD->getTypeForDecl(), 0));
+    else
+      ModifiedArrayElementsOrArray.push_back(
+          QualType(ModifiedRD->getTypeForDecl(), 0));
+
     return true;
   }
 
@@ -1978,22 +2019,39 @@ public:
     return true;
   }
 
-  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    QualType PointeeTy = FieldTy->getPointeeType();
-    Qualifiers Quals = PointeeTy.getQualifiers();
-    LangAS AS = Quals.getAddressSpace();
-    // Leave global_device and global_host address spaces as is to help FPGA
-    // device in memory allocations.
-    if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
-        AS != LangAS::sycl_global_host)
-      Quals.setAddressSpace(LangAS::sycl_global);
-    PointeeTy = SemaRef.getASTContext().getQualifiedType(
-        PointeeTy.getUnqualifiedType(), Quals);
-    QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
-    addField(FD, ModTy);
+  bool leaveArray(FieldDecl *FD, QualType ArrayTy, QualType ET) final {
+    QualType ModifiedArrayElement = ModifiedArrayElementsOrArray.pop_back_val();
+
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(ArrayTy);
+    QualType ModifiedArray = SemaRef.getASTContext().getConstantArrayType(
+        ModifiedArrayElement, CAT->getSize(),
+        const_cast<Expr *>(CAT->getSizeExpr()), CAT->getSizeModifier(),
+        CAT->getIndexTypeCVRQualifiers());
+
+    if (ModifiedRecords.empty()) {
+      // This is a top-level kernel argument.
+      ModifiedArrayElementsOrArray.push_back(ModifiedArray);
+    } else if (!isArrayElement(FD, ArrayTy)) {
+      // Add this array field as a field of it's parent record.
+      addField(FD, ModifiedArray);
+    } else {
+      // Multi-dimensional array element.
+      ModifiedArrayElementsOrArray.push_back(ModifiedArray);
+    }
+
     return true;
+  }
+
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    QualType ModifiedPointerType = ModifyAddressSpace(SemaRef, FieldTy);
+    if (!isArrayElement(FD, FieldTy))
+      addField(FD, ModifiedPointerType);
+    else
+      ModifiedArrayElementsOrArray.push_back(ModifiedPointerType);
     // We do not need to wrap pointers since this is a pointer inside
     // non-decomposed struct.
+    return true;
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
@@ -2022,12 +2080,8 @@ public:
     return true;
   }
 
-  // FIXME: Array of pointers/ array of types containing pointers
-  // will be handled in a follow-up PR. Currently they continue to
-  // trigger decomposition.
-
 public:
-  QualType getNewType() {
+  QualType getNewRecordType() {
     CXXRecordDecl *ModifiedRD = ModifiedRecords.pop_back_val();
     ModifiedRD->completeDefinition();
 
@@ -2035,6 +2089,9 @@ public:
       ModifiedRD->setBases(ModifiedBases.data(), ModifiedBases.size());
 
     return QualType(ModifiedRD->getTypeForDecl(), 0);
+  }
+  QualType getNewArrayType() {
+    return ModifiedArrayElementsOrArray.pop_back_val();
   }
 };
 
@@ -2229,15 +2286,26 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // defines a PointerHandler visitor which visits this record
   // recursively and modifies the address spaces of any pointer
   // found as required, thereby generating a new record with all
-  // pointers in 'right' address space. PointerHandler.getNewType()
-  // returns this generated type, which is then added an openCL
-  // kernel argument.
-  QualType GenerateNewType(const CXXRecordDecl *RD) {
+  // pointers in 'right' address space. PointerHandler.getNewRecordType()
+  // returns this generated type.
+  QualType GenerateNewRecordType(const CXXRecordDecl *RD) {
     SyclKernelPointerHandler PointerHandler(SemaRef, RD);
     KernelObjVisitor Visitor{SemaRef};
     Visitor.VisitRecordBases(RD, PointerHandler);
     Visitor.VisitRecordFields(RD, PointerHandler);
-    return PointerHandler.getNewType();
+    return PointerHandler.getNewRecordType();
+  }
+
+  // If the array has been marked with SYCLGenerateNewTypeAttr,
+  // it implies that this is an array of pointers, or an array
+  // of a type which contains pointers. This function generates
+  // a new array with all pointers in the required address space.
+  QualType GenerateNewArrayType(FieldDecl *FD, QualType FieldTy) {
+    const auto *Owner = dyn_cast<CXXRecordDecl>(FD->getParent());
+    SyclKernelPointerHandler PointerHandler(SemaRef);
+    KernelObjVisitor Visitor{SemaRef};
+    Visitor.visitArray(Owner, FD, FieldTy, PointerHandler);
+    return PointerHandler.getNewArrayType();
   }
 
 public:
@@ -2249,6 +2317,10 @@ public:
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
         FuncContext(SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
+
+    if (const auto *AddIRAttrFunc =
+            SYCLKernel->getAttr<SYCLAddIRAttributesFunctionAttr>())
+      KernelDecl->addAttr(AddIRAttrFunc->clone(SemaRef.getASTContext()));
   }
 
   ~SyclKernelDeclCreator() {
@@ -2347,23 +2419,7 @@ public:
   };
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    // USM allows to use raw pointers instead of buffers/accessors, but these
-    // pointers point to the specially allocated memory. For pointer fields,
-    // except for function pointer fields, we add a kernel argument with the
-    // same type as field but global address space, because OpenCL requires it.
-    // Function pointers should have program address space. This is set in
-    // CodeGen.
-    QualType PointeeTy = FieldTy->getPointeeType();
-    Qualifiers Quals = PointeeTy.getQualifiers();
-    LangAS AS = Quals.getAddressSpace();
-    // Leave global_device and global_host address spaces as is to help FPGA
-    // device in memory allocations.
-    if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
-        AS != LangAS::sycl_global_host)
-      Quals.setAddressSpace(LangAS::sycl_global);
-    PointeeTy = SemaRef.getASTContext().getQualifiedType(
-        PointeeTy.getUnqualifiedType(), Quals);
-    QualType ModTy = SemaRef.getASTContext().getPointerType(PointeeTy);
+    QualType ModTy = ModifyAddressSpace(SemaRef, FieldTy);
     // When the kernel is generated, struct type kernel arguments are
     // decomposed; i.e. the parameters of the kernel are the fields of the
     // struct, and not the struct itself. This causes an error in the backend
@@ -2380,11 +2436,15 @@ public:
   }
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    // Arrays are always wrapped in a struct since they cannot be passed
-    // directly.
-    RecordDecl *WrappedArray = wrapField(FD, FieldTy);
-    QualType ModTy = SemaRef.getASTContext().getRecordType(WrappedArray);
-    addParam(FD, ModTy);
+    QualType ArrayTy = FieldTy;
+
+    // This is an array of pointers or an array of a type with pointer.
+    if (FD->hasAttr<SYCLGenerateNewTypeAttr>())
+      ArrayTy = GenerateNewArrayType(FD, FieldTy);
+
+    // Arrays are wrapped in a struct since they cannot be passed directly.
+    RecordDecl *WrappedArray = wrapField(FD, ArrayTy);
+    addParam(FD, SemaRef.getASTContext().getRecordType(WrappedArray));
     return true;
   }
 
@@ -2401,7 +2461,7 @@ public:
     // Check if we need to generate a new type for this record,
     // i.e. this record contains pointers.
     if (FieldRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
-      addParam(FD, GenerateNewType(FieldRecordDecl));
+      addParam(FD, GenerateNewRecordType(FieldRecordDecl));
     else
       addParam(FD, Ty);
     return true;
@@ -2415,7 +2475,7 @@ public:
     // Check if we need to generate a new type for this record,
     // i.e. this record contains pointers.
     if (BaseRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
-      addParam(BS, GenerateNewType(BaseRecordDecl));
+      addParam(BS, GenerateNewRecordType(BaseRecordDecl));
     else
       addParam(BS, Ty);
     return true;
@@ -2702,6 +2762,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitializedEntity VarEntity;
   const CXXRecordDecl *KernelObj;
   llvm::SmallVector<Expr *, 16> MemberExprBases;
+  llvm::SmallVector<Expr *, 16> ArrayParamBases;
   FunctionDecl *KernelCallerFunc;
   SourceLocation KernelCallerSrcLoc; // KernelCallerFunc source location.
   // Contains a count of how many containers we're in.  This is used by the
@@ -2854,14 +2915,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     CXXRecordDecl *WrapperStruct = ParamType->getAsCXXRecordDecl();
     FieldDecl *ArrayField = *(WrapperStruct->field_begin());
     return buildMemberExpr(DRE, ArrayField);
-  }
-
-  // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
-  // is an element of an array.  This will determine whether we do
-  // MemberExprBases in some cases or not, AND determines how we initialize
-  // values.
-  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
-    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
 
   // Creates an initialized entity for a field/item. In the case where this is a
@@ -3160,6 +3213,83 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     KernelHandlerClone->setInitStyle(VarDecl::CallInit);
   }
 
+  Expr *createArraySubscriptExpr(uint64_t Index, Expr *ArrayRef) {
+    QualType SizeT = SemaRef.getASTContext().getSizeType();
+    llvm::APInt IndexVal{
+        static_cast<unsigned>(SemaRef.getASTContext().getTypeSize(SizeT)),
+        Index, SizeT->isSignedIntegerType()};
+    auto IndexLiteral = IntegerLiteral::Create(
+        SemaRef.getASTContext(), IndexVal, SizeT, KernelCallerSrcLoc);
+    ExprResult IndexExpr = SemaRef.CreateBuiltinArraySubscriptExpr(
+        ArrayRef, KernelCallerSrcLoc, IndexLiteral, KernelCallerSrcLoc);
+    assert(!IndexExpr.isInvalid());
+    return IndexExpr.get();
+  }
+
+  void addSimpleArrayInit(FieldDecl *FD, QualType FieldTy) {
+    Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
+    InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
+
+    InitializedEntity Entity =
+        InitializedEntity::InitializeMember(FD, &VarEntity, /*Implicit*/ true);
+
+    addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
+  }
+
+  void addArrayElementInit(FieldDecl *FD, QualType T) {
+    Expr *RCE = createReinterpretCastExpr(
+        createGetAddressOf(ArrayParamBases.pop_back_val()),
+        SemaRef.Context.getPointerType(T));
+    Expr *Initializer = createDerefOp(RCE);
+    addFieldInit(FD, T, Initializer);
+  }
+
+  // This function is recursive in order to handle
+  // multi-dimensional arrays. If the array element is
+  // an array, it implies that the array is multi-dimensional.
+  // We continue recursion till we reach a non-array element to
+  // generate required array subscript expressions.
+  void createArrayInit(FieldDecl *FD, QualType T) {
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(T);
+
+    if (!CAT) {
+      addArrayElementInit(FD, T);
+      return;
+    }
+
+    QualType ET = CAT->getElementType();
+    uint64_t ElemCount = CAT->getSize().getZExtValue();
+    enterArray(FD, T, ET);
+
+    for (uint64_t Index = 0; Index < ElemCount; ++Index) {
+      ArrayInfos.back().second = Index;
+      Expr *ArraySubscriptExpr =
+          createArraySubscriptExpr(Index, ArrayParamBases.back());
+      ArrayParamBases.push_back(ArraySubscriptExpr);
+      createArrayInit(FD, ET);
+    }
+
+    leaveArray(FD, T, ET);
+  }
+
+  // This function is used to create initializers for a top
+  // level array which contains pointers. The openCl kernel
+  // parameter for this array will be a wrapper class
+  // which contains the generated type. This function generates
+  // code equivalent to:
+  // void ocl_kernel(__wrapper_class WrappedGT) {
+  //   Kernel KernelObjClone {
+  //   *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[0]),
+  //                           *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[1]),
+  //                           *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[2])
+  //                         };
+  // }
+  void handleGeneratedArrayType(FieldDecl *FD, QualType FieldTy) {
+    ArrayParamBases.push_back(createSimpleArrayParamReferenceExpr(FieldTy));
+    createArrayInit(FD, FieldTy);
+  }
+
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
@@ -3210,13 +3340,10 @@ public:
   }
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
-    InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
-
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMember(FD, &VarEntity, /*Implicit*/ true);
-
-    addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
+    if (FD->hasAttr<SYCLGenerateNewTypeAttr>())
+      handleGeneratedArrayType(FD, FieldTy);
+    else
+      addSimpleArrayInit(FD, FieldTy);
     return true;
   }
 
@@ -3338,21 +3465,8 @@ public:
     if (Index != 0)
       MemberExprBases.pop_back();
 
-    QualType SizeT = SemaRef.getASTContext().getSizeType();
-
-    llvm::APInt IndexVal{
-        static_cast<unsigned>(SemaRef.getASTContext().getTypeSize(SizeT)),
-        Index, SizeT->isSignedIntegerType()};
-
-    auto IndexLiteral = IntegerLiteral::Create(
-        SemaRef.getASTContext(), IndexVal, SizeT, KernelCallerSrcLoc);
-
-    ExprResult IndexExpr = SemaRef.CreateBuiltinArraySubscriptExpr(
-        MemberExprBases.back(), KernelCallerSrcLoc, IndexLiteral,
-        KernelCallerSrcLoc);
-
-    assert(!IndexExpr.isInvalid());
-    MemberExprBases.push_back(IndexExpr.get());
+    MemberExprBases.push_back(
+        createArraySubscriptExpr(Index, MemberExprBases.back()));
     return true;
   }
 
@@ -3362,7 +3476,10 @@ public:
     ArrayInfos.pop_back();
 
     // Remove the IndexExpr.
-    MemberExprBases.pop_back();
+    if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
+      MemberExprBases.pop_back();
+    else
+      ArrayParamBases.pop_back();
 
     // Remove the field access expr as well.
     removeFieldMemberExpr(FD, ArrayType);
@@ -3410,14 +3527,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     Size = SemaRef.getASTContext().getTypeSizeInChars(ArgTy).getQuantity();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(CurOffset + OffsetAdj));
-  }
-
-  // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
-  // is an element of an array.  This will determine whether we do
-  // MemberExprBases in some cases or not, AND determines how we initialize
-  // values.
-  bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
-    return !SemaRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
 
 public:
@@ -4301,6 +4410,7 @@ void Sema::MarkDevices() {
     for (auto *A : T.GetCollectedAttributes())
       PropagateAndDiagnoseDeviceAttr(*this, T, A, T.GetSYCLKernel(),
                                      T.GetKernelBody());
+    CheckSYCLAddIRAttributesFunctionAttrConflicts(T.GetSYCLKernel());
   }
 }
 

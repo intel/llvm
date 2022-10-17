@@ -145,16 +145,19 @@ struct device_has_key {
 
 template <size_t... Dims>
 struct property_value<work_group_size_key, std::integral_constant<size_t, Dims>...> {
+  using key_t = work_group_size_key;
   constexpr size_t operator[](int dim) const;
 };
 
 template <size_t... Dims>
 struct property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...> {
+  using key_t = work_group_size_hint_key;
   constexpr size_t operator[](int dim) const;
 };
 
 template <sycl::aspect... Aspects>
 struct property_value<device_has_key, std::integral_constant<sycl::aspect, Aspects>...> {
+  using key_t = device_has_key;
   static constexpr std::array<sycl::aspect, sizeof...(Aspects)> value;
 };
 
@@ -169,6 +172,11 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 
 template <sycl::aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
+
+template <> struct is_property_key<work_group_size_key> : std::true_type {};
+template <> struct is_property_key<work_group_size_hint_key> : std::true_type {};
+template <> struct is_property_key<sub_group_size_key> : std::true_type {};
+template <> struct is_property_key<device_has_key> : std::true_type {};
 
 } // namespace experimental
 } // namespace oneapi
