@@ -42,7 +42,7 @@ runs:
       git submodule update --init
     shell: bash
   - name: Download compiler toolchain
-    uses: actions/download-artifact@v2
+    uses: actions/download-artifact@v3
     with:
       name: ${{ inputs.sycl_artifact }}
   - name: Extract SYCL toolchain

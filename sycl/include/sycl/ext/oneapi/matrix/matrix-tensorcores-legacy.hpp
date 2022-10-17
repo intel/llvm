@@ -182,11 +182,12 @@ template <typename S, typename T,
           sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
-          access::address_space Space, typename Cond = void>
+          access::address_space Space, access::decorated IsDecorated,
+          typename Cond = void>
 struct joint_matrix_load_impl {
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                 S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
-            multi_ptr<T, Space> src, size_t stride);
+            multi_ptr<T, Space, IsDecorated> src, size_t stride);
 };
 
 template <sycl::ext::oneapi::experimental::matrix::matrix_layout Layout>
@@ -209,16 +210,16 @@ template <typename S, typename T,
           sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
-          access::address_space Space>
+          access::address_space Space, access::decorated IsDecorated>
 struct joint_matrix_load_impl<
-    S, T, Use, NumRows, NumCols, Layout, Space,
+    S, T, Use, NumRows, NumCols, Layout, Space, IsDecorated,
     typename std::enable_if_t<Layout == sycl::ext::oneapi::experimental::
                                             matrix::matrix_layout::row_major ||
                               Layout == sycl::ext::oneapi::experimental::
                                             matrix::matrix_layout::col_major>> {
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                 S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
-            multi_ptr<T, Space> src, size_t stride) {
+            multi_ptr<T, Space, IsDecorated> src, size_t stride) {
     if constexpr (std::is_same<std::remove_const_t<T>, uint16_t>::value ||
                   std::is_same<
                       std::remove_const_t<T>,
@@ -390,21 +391,22 @@ struct joint_matrix_load_impl<
 
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
-          access::address_space Space, typename Cond = void>
+          access::address_space Space, access::decorated IsDecorated,
+          typename Cond = void>
 struct joint_matrix_store_impl {
   void
   store(sycl::ext::oneapi::experimental::matrix::joint_matrix<
             T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
             NumRows, NumCols, Layout, sycl::sub_group> &src,
-        multi_ptr<T, Space> dst, size_t stride);
+        multi_ptr<T, Space, IsDecorated> dst, size_t stride);
 };
 
 #if __cplusplus >= 201703L // if constexpr usage
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
-          access::address_space Space>
+          access::address_space Space, access::decorated IsDecorated>
 struct joint_matrix_store_impl<
-    T, NumRows, NumCols, Layout, Space,
+    T, NumRows, NumCols, Layout, Space, IsDecorated,
     typename std::enable_if_t<Layout == sycl::ext::oneapi::experimental::
                                             matrix::matrix_layout::row_major ||
                               Layout == sycl::ext::oneapi::experimental::
@@ -413,7 +415,7 @@ struct joint_matrix_store_impl<
   store(sycl::ext::oneapi::experimental::matrix::joint_matrix<
             T, sycl::ext::oneapi::experimental::matrix::matrix_use::accumulator,
             NumRows, NumCols, Layout, sycl::sub_group> &src,
-        multi_ptr<T, Space> dst, size_t stride) {
+        multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
     if constexpr (NumRows == 16 && NumCols == 16) {
       if constexpr (std::is_same<T, float>::value) {
         __hmma_m16n16k16_st_c_f32(dst.get(),
@@ -696,17 +698,17 @@ namespace matrix {
 template <
     typename Group, typename S, typename T, matrix_use Use, size_t NumRows,
     size_t NumCols, matrix_layout Layout, access::address_space Space,
+    access::decorated IsDecorated,
     std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
                          (std::is_same<S, precision::tf32>::value &&
-
                           std::is_same<std::remove_const_t<T>, float>::value),
                      bool> = true>
 void joint_matrix_load(
     Group sg, joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
-    multi_ptr<T, Space> src, size_t stride) {
+    multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::ext::oneapi::detail::joint_matrix_load_impl<S, T, Use, NumRows, NumCols,
-                                                    Layout, Space>{}
+  sycl::ext::oneapi::detail::joint_matrix_load_impl<
+      S, T, Use, NumRows, NumCols, Layout, Space, IsDecorated>{}
       .load(res, src, stride);
 #else
   std::ignore = sg;
@@ -721,14 +723,15 @@ void joint_matrix_load(
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout, access::address_space Space>
+          matrix_layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
 void joint_matrix_store(Group sg,
                         joint_matrix<T, matrix_use::accumulator, NumRows,
                                      NumCols, Layout, Group> &src,
-                        multi_ptr<T, Space> dst, size_t stride) {
+                        multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  sycl::ext::oneapi::detail::joint_matrix_store_impl<T, NumRows, NumCols,
-                                                     Layout, Space>{}
+  sycl::ext::oneapi::detail::joint_matrix_store_impl<
+      T, NumRows, NumCols, Layout, Space, IsDecorated>{}
       .store(src, dst, stride);
 #else
   std::ignore = sg;
