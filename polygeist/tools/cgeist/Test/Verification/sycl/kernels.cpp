@@ -29,7 +29,7 @@
 
 // CHECK-MLIR: gpu.module @device_functions
 // CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, 
-// CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> [[PARM_ATTRS:{llvm.align = 8 : i32, llvm.byval, llvm.noundef}]],  
+// CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> [[PARM_ATTRS:{llvm.align = 8 : i64, llvm.byval, llvm.noundef}]],  
 // CHECK-MLIR-SAME:    %arg2: memref<?x!sycl_range_1_> [[PARM_ATTRS]], 
 // CHECK-MLIR-SAME:    %arg3: memref<?x!sycl_id_1_> [[PARM_ATTRS]]) 
 // CHECK-MLIR-SAME:  kernel attributes {[[CCONV:llvm.cconv = #llvm.cconv<spir_kernelcc>]], [[LINKAGE:llvm.linkage = #llvm.linkage<weak_odr>]],
@@ -52,12 +52,15 @@ public:
 void host_1() {
   auto q = sycl::queue{};
   auto range = sycl::range<1>{1};
-  auto buf = sycl::buffer<int, 1>{nullptr, range};
-  q.submit([&](sycl::handler &cgh) {
-    auto A = buf.get_access<sycl::access::mode::read_write>(cgh);
-    auto ker =  kernel_1{A};
-    cgh.parallel_for<kernel_1>(range, ker);
-  });
+
+  {
+    auto buf = sycl::buffer<int, 1>{nullptr, range};    
+    q.submit([&](sycl::handler &cgh) {
+      auto A = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto ker =  kernel_1{A};
+      cgh.parallel_for<kernel_1>(range, ker);
+    });
+  }
 }
 
 // CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, 
@@ -72,13 +75,16 @@ void host_1() {
 void host_2() {
   auto q = sycl::queue{};
   auto range = sycl::range<1>{1};
-  auto buf = sycl::buffer<int, 1>{nullptr, range};
-  q.submit([&](sycl::handler &cgh) {
-    auto A = buf.get_access<sycl::access::mode::read_write>(cgh);
-    cgh.parallel_for<class kernel_2>(range, [=](sycl::id<1> id) {
-      A[id] = 42;
+
+  {  
+    auto buf = sycl::buffer<int, 1>{nullptr, range};
+    q.submit([&](sycl::handler &cgh) {
+      auto A = buf.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.parallel_for<class kernel_2>(range, [=](sycl::id<1> id) {
+        A[id] = 42;
+      });
     });
-  });
+  }
 }
 
 // CHECK-MLIR-NOT: SYCLKernel =

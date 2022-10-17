@@ -3313,8 +3313,9 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
 
       if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
           CodeGenUtils::determineNoUndef(parmType,
-                                         CodeGen::ABIArgInfo::Indirect))
+                                         CodeGen::ABIArgInfo::Indirect)) {
         attrBuilder.addAttribute(llvm::Attribute::AttrKind::NoUndef);
+      }
 
       CodeGenUtils::ParmDesc parmDesc(mt, attrBuilder.getAttrs());
       parmDescriptors.push_back(parmDesc);
@@ -3452,13 +3453,14 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
                           << "\n");
 
   // Mark a SYCL kernel as a SPIRV kernel.
-  if (FD.hasAttr<SYCLKernelAttr>())
+  if (FD.hasAttr<SYCLKernelAttr>()) {
     attrBuilder
         .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
                       UnitAttr::get(ctx))
         .addPassThroughAttribute(ArrayAttr::get(
             ctx, {StringAttr::get(ctx, "sycl-module-id"),
                   StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
+  }
 
   // Calling conventions for SPIRV functions.
   attrBuilder.addAttribute("llvm.cconv",
@@ -4018,11 +4020,9 @@ llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
   return T;
 }
 
+#include "clang/Frontend/FrontendAction.h"
 #include "llvm/Support/Host.h"
 
-#include "clang/Frontend/FrontendAction.h"
-
-#include "clang/Frontend/FrontendAction.h"
 class MLIRAction : public clang::ASTFrontendAction {
 public:
   std::set<std::string> emitIfFound;
@@ -4336,8 +4336,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
-      // Reset the ID tables if we are reusing the
-      // SourceManager and parsing regular files.
+      // Reset the ID tables if we are reusing the SourceManager and parsing
+      // regular files.
       if (Clang->hasSourceManager() && !Act.isModelParsingAction())
         Clang->getSourceManager().clearIDTables();
       if (Act.BeginSourceFile(*Clang, FIF)) {

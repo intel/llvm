@@ -16,7 +16,7 @@
 namespace mlirclang {
 
 /// \class
-/// Facilitates the construction of LLVMIR dialect attributes for a particular
+/// Facilitates the construction of LLVM dialect attributes for a particular
 /// argument, parameter, function, or return value.
 class AttrBuilder {
 public:
@@ -30,7 +30,7 @@ public:
 
   /// Add the LLVM attribute identified by \p kind with a value given by \p val
   /// to the builder.
-  AttrBuilder &addAttribute(llvm::Attribute::AttrKind kind, int64_t val);
+  AttrBuilder &addAttribute(llvm::Attribute::AttrKind kind, uint64_t val);
 
   /// Create a NamedAttribute with name \p attrName and value \p attr and add it
   /// to the builder.
@@ -50,17 +50,25 @@ public:
   /// attribute.
   AttrBuilder &addPassThroughAttribute(mlir::Attribute attr);
 
-  /// Return true if the builder has the specified attribute.
+  /// Return true if the builder contains the specified attribute.
   bool contains(llvm::StringRef attrName) const;
+  bool contains(llvm::Attribute::AttrKind kind) const;
+
+  /// Return true if the builder contains the specified attribute within the
+  /// 'passthrough' attribute.
+  bool containsInPassThrough(llvm::StringRef attrName) const;
+  bool containsInPassThrough(llvm::Attribute::AttrKind kind) const;
 
   /// Return true if the builder contains any attribute and false otherwise.
   bool hasAttributes() const { return !attrs.empty(); }
 
-  /// Return the attribute identified by \p attrName if it exists and llvm::None
+  /// Return the given attribute if the builder contains it and llvm::None
   /// otherwise.
   llvm::Optional<mlir::NamedAttribute> getAttr(llvm::StringRef attrName) const;
+  llvm::Optional<mlir::NamedAttribute>
+  getAttr(llvm::Attribute::AttrKind kind) const;
 
-  /// Returns the attributes in the builder.
+  /// Returns the attributes contained in the builder.
   llvm::ArrayRef<mlir::NamedAttribute> getAttrs() const { return attrs; }
 
 private:
