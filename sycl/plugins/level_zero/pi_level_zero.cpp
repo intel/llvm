@@ -234,6 +234,29 @@ static const pi_uint32 MaxNumEventsPerPool = [] {
   return Result;
 }();
 
+// Get value of device scope events env var setting or default setting
+static const int DeviceEventsSetting = [] {
+  const char *DeviceEventsSettingStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+  if (DeviceEventsSettingStr) {
+    // Override the default if user has explicitly chosen the events scope.
+    switch (std::stoi(DeviceEventsSettingStr)) {
+    case 0:
+      return AllHostVisible;
+    case 1:
+      return OnDemandHostVisibleProxy;
+    case 2:
+      return LastCommandInBatchHostVisible;
+    default:
+      // fallthrough to default setting
+      break;
+    }
+  }
+  // This is our default setting, which is expected to be the fastest
+  // with the modern GPU drivers.
+  return AllHostVisible;
+}();
+
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
 // This allows for a much more responsive debugging of hangs.
@@ -643,7 +666,7 @@ inline static pi_result createEventAndAssociateQueue(
     bool ForceHostVisible = false) {
 
   if (!ForceHostVisible)
-    ForceHostVisible = Queue->Device->eventsScope() == AllHostVisible;
+    ForceHostVisible = DeviceEventsSetting == AllHostVisible;
   PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
 
   (*Event)->Queue = Queue;
@@ -807,33 +830,6 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
       false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
 
   return PI_SUCCESS;
-}
-
-// Get value of device scope events env var setting or -1 if unset
-static const int DeviceEventsSetting = [] {
-  const char *DeviceEventsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
-  if (!DeviceEventsSettingStr)
-    return -1;
-  return std::stoi(DeviceEventsSettingStr);
-}();
-
-// Controls the scope of events.
-// If immediate commandlists are being used then use compatible event scopes.
-enum EventsScope _pi_device::eventsScope() {
-  // Set default based on type of commandlists being used.
-  auto Default = useImmediateCommandLists() ? OnDemandHostVisibleProxy
-                                            : LastCommandInBatchHostVisible;
-  // Override the default if user has explicitly chosen the events scope.
-  switch (DeviceEventsSetting) {
-  case 0:
-    return AllHostVisible;
-  case 1:
-    return OnDemandHostVisibleProxy;
-  case 2:
-    return LastCommandInBatchHostVisible;
-  }
-  return Default;
 }
 
 // Get value of immediate commandlists env var setting or -1 if unset
@@ -1627,7 +1623,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
-    if (Device->eventsScope() == LastCommandInBatchHostVisible &&
+    if (DeviceEventsSetting == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
       // need to create host proxy event.
@@ -2007,7 +2003,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (CurQueue->Device->eventsScope() != AllHostVisible) {
+          if (DeviceEventsSetting != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }
@@ -5527,7 +5523,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
-    if (Queue->Device->eventsScope() != OnDemandHostVisibleProxy)
+    if (DeviceEventsSetting != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -5909,8 +5905,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     return PI_ERROR_INVALID_EVENT;
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventList[I]->Queue->Device->eventsScope() ==
-        OnDemandHostVisibleProxy) {
+    if (DeviceEventsSetting == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.

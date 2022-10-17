@@ -11,6 +11,7 @@ public:
 class second_base {
 public:
   int *e;
+  second_base(int *E) : e(E) {}
 };
 
 class InnerFieldBase {
@@ -29,7 +30,7 @@ public:
 
 struct derived : base, second_base, third_base{
   int a;
-
+  derived() : second_base(nullptr) {}
   void operator()() const {
   }
 };

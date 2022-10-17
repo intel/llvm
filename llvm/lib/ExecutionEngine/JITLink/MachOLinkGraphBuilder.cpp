@@ -111,8 +111,8 @@ MachOLinkGraphBuilder::getEndianness(const object::MachOObjectFile &Obj) {
 
 Section &MachOLinkGraphBuilder::getCommonSection() {
   if (!CommonSection)
-    CommonSection =
-        &G->createSection(CommonSectionName, MemProt::Read | MemProt::Write);
+    CommonSection = &G->createSection(CommonSectionName,
+                                      orc::MemProt::Read | orc::MemProt::Write);
   return *CommonSection;
 }
 
@@ -177,11 +177,11 @@ Error MachOLinkGraphBuilder::createNormalizedSections() {
     // Get prot flags.
     // FIXME: Make sure this test is correct (it's probably missing cases
     // as-is).
-    MemProt Prot;
+    orc::MemProt Prot;
     if (NSec.Flags & MachO::S_ATTR_PURE_INSTRUCTIONS)
-      Prot = MemProt::Read | MemProt::Exec;
+      Prot = orc::MemProt::Read | orc::MemProt::Exec;
     else
-      Prot = MemProt::Read | MemProt::Write;
+      Prot = orc::MemProt::Read | orc::MemProt::Write;
 
     auto FullyQualifiedName =
         G->allocateString(StringRef(NSec.SegName) + "," + NSec.SectName);
@@ -350,11 +350,13 @@ Error MachOLinkGraphBuilder::graphifyRegularSymbols() {
         if (!NSym.Name)
           return make_error<JITLinkError>("Anonymous common symbol at index " +
                                           Twine(KV.first));
-        NSym.GraphSymbol = &G->addCommonSymbol(
-            *NSym.Name, NSym.S, getCommonSection(), orc::ExecutorAddr(),
-            orc::ExecutorAddrDiff(NSym.Value),
-            1ull << MachO::GET_COMM_ALIGN(NSym.Desc),
-            NSym.Desc & MachO::N_NO_DEAD_STRIP);
+        NSym.GraphSymbol = &G->addDefinedSymbol(
+            G->createZeroFillBlock(getCommonSection(),
+                                   orc::ExecutorAddrDiff(NSym.Value),
+                                   orc::ExecutorAddr(),
+                                   1ull << MachO::GET_COMM_ALIGN(NSym.Desc), 0),
+            0, *NSym.Name, orc::ExecutorAddrDiff(NSym.Value), Linkage::Strong,
+            NSym.S, false, NSym.Desc & MachO::N_NO_DEAD_STRIP);
       } else {
         if (!NSym.Name)
           return make_error<JITLinkError>("Anonymous external symbol at "

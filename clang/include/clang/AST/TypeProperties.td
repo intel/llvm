@@ -379,16 +379,12 @@ let Class = TypedefType in {
   def : Property<"declaration", DeclRef> {
     let Read = [{ node->getDecl() }];
   }
-  def : Property<"canonicalType", Optional<QualType>> {
-    let Read = [{ makeOptionalFromNullable(node->getCanonicalTypeInternal()) }];
+  def : Property<"underlyingType", QualType> {
+    let Read = [{ node->desugar() }];
   }
 
   def : Creator<[{
-    QualType finalCanonicalType =
-      canonicalType ? ctx.getCanonicalType(*canonicalType)
-                    : QualType();
-    return ctx.getTypedefType(cast<TypedefNameDecl>(declaration),
-                              finalCanonicalType);
+    return ctx.getTypedefType(cast<TypedefNameDecl>(declaration), underlyingType);
   }]>;
 }
 
@@ -397,18 +393,28 @@ let Class = TypeOfExprType in {
     let Read = [{ node->getUnderlyingExpr() }];
   }
 
+  def : Property<"kind", TypeOfKind> {
+    let Read = [{ node->isUnqual() ? TypeOfKind::Unqualified
+                                   : TypeOfKind::Qualified }];
+  }
+
   def : Creator<[{
-    return ctx.getTypeOfExprType(expression);
+    return ctx.getTypeOfExprType(expression, kind);
   }]>;
 }
 
 let Class = TypeOfType in {
-  def : Property<"underlyingType", QualType> {
-    let Read = [{ node->getUnderlyingType() }];
+  def : Property<"unmodifiedType", QualType> {
+    let Read = [{ node->getUnmodifiedType() }];
+  }
+
+  def : Property<"kind", TypeOfKind> {
+    let Read = [{ node->isUnqual() ? TypeOfKind::Unqualified
+                                   : TypeOfKind::Qualified }];
   }
 
   def : Creator<[{
-    return ctx.getTypeOfType(underlyingType);
+    return ctx.getTypeOfType(unmodifiedType, kind);
   }]>;
 }
 
