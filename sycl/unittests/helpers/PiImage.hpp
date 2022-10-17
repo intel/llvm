@@ -202,7 +202,8 @@ public:
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
           PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
-      : MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
+      : MVersion(Version), MKind(Kind), MFormat(Format),
+        MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
         MPropertySet(std::move(PropertySet)) {}
@@ -219,9 +220,9 @@ public:
 
   pi_device_binary_struct convertToNativeType() {
     return pi_device_binary_struct{
-        Version,
-        Kind,
-        Format,
+        MVersion,
+        MKind,
+        MFormat,
         MDeviceTargetSpec.c_str(),
         MCompileOptions.c_str(),
         MLinkOptions.c_str(),
@@ -237,9 +238,9 @@ public:
   }
 
 private:
-  uint16_t Version;
-  uint8_t Kind;
-  uint8_t Format;
+  uint16_t MVersion;
+  uint8_t MKind;
+  uint8_t MFormat;
   std::string MDeviceTargetSpec;
   std::string MCompileOptions;
   std::string MLinkOptions;
