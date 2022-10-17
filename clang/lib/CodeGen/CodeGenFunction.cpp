@@ -1087,8 +1087,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                       llvm::MDNode::get(getLLVMContext(), AspectsMD));
     }
 
-    // SYCL needs to know the source location of functions for diagnostics in
-    // the aspect propagation pass. Save the token in a srcloc metadata node.
+    // Source location of functions is required to emit required diagnostics in
+    // SYCLPropagateAspectsUsagePass. Save the token in a srcloc metadata node.
     llvm::ConstantInt *Line =
         llvm::ConstantInt::get(Int32Ty, D->getLocation().getRawEncoding());
     llvm::ConstantAsMetadata *SrcLocMD = llvm::ConstantAsMetadata::get(Line);
