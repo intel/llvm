@@ -28,7 +28,6 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
   `accessor` and `host_accessor` classes. [1136b403] [da7dcf82]
 - Added support for `fpga_simulator_selector`. [9bef890d]
 - Added support for `local_accessor`. Deprecated `target::local`. [e4423ef4]
-- Added header files for `device_global` feature. [6c66f28d]
 - Added support for querying free device memory on Level Zero backend. [0eeef2b3]
 - Added support for querying free device memory on CUDA and HIP backends. [436f0d89]
 - Implemented `bfloat16` conversions from/to `float` for host. [2a383f1c]
@@ -190,6 +189,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
   CUDA backend. [2baf1de5]
 - Fixed `accessor` so gdb can parse its template parameters correctly. [372cc948]
 - Fixed uses of common macro names in the implementation's header files. [e87adfd2]
+- Fixed a performance regression in Level Zero backend related to command list. [8a4777d0]
 
 ### SYCL Compiler
 
@@ -210,7 +210,6 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
   backend. [338b4edc]
 - Fixed a linking issue when targeting AMD/HIP. [9829897a]
 - Fixed an issue when `op[]` was called with typedef argument under gdb. [b7bfe391]
-- Fixed a performance regression in Level Zero backend related to command list. [8a4777d0]
 
 ## API/ABI breakages
 
