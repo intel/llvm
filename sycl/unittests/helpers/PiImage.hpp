@@ -205,9 +205,7 @@ public:
       : MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
-        MPropertySet(std::move(PropertySet)) {
-    initializeBinaryDesc(Version, Kind, Format);
-  }
+        MPropertySet(std::move(PropertySet)) {}
 
   /// Constructs a SYCL device image of the latest version.
   PiImage(uint8_t Format, const std::string &DeviceTargetSpec,
@@ -219,86 +217,16 @@ public:
                 std::move(Binary), std::move(OffloadEntries),
                 std::move(PropertySet)) {}
 
-  pi_device_binary_struct convertToNativeType() const { return MBinaryDesc; }
-
-  // Explicitely define move constructor because we need to update pointers in
-  // MBinaryDesc for the case when short string optimization happenes (it may
-  // change the addresses).
-  PiImage(PiImage &&Image) noexcept
-      : MDeviceTargetSpec(std::move(Image.MDeviceTargetSpec)),
-        MCompileOptions(std::move(Image.MCompileOptions)),
-        MLinkOptions(std::move(Image.MLinkOptions)),
-        MManifest(std::move(Image.MManifest)),
-        MBinary(std::move(Image.MBinary)),
-        MOffloadEntries(std::move(Image.MOffloadEntries)),
-        MPropertySet(std::move(Image.MPropertySet)) {
-    initializeBinaryDesc(Image.MBinaryDesc.Version, Image.MBinaryDesc.Kind,
-                         Image.MBinaryDesc.Format);
-  }
-
-  // MBinaryDesc contains raw pointers that's why need to define copy
-  // constructor.
-  PiImage(const PiImage &Image)
-      : MDeviceTargetSpec(Image.MDeviceTargetSpec),
-        MCompileOptions(Image.MCompileOptions),
-        MLinkOptions(Image.MLinkOptions), MManifest(Image.MManifest),
-        MBinary(Image.MBinary), MOffloadEntries(Image.MOffloadEntries),
-        MPropertySet(Image.MPropertySet) {
-    initializeBinaryDesc(Image.MBinaryDesc.Version, Image.MBinaryDesc.Kind,
-                         Image.MBinaryDesc.Format);
-  }
-
-  // MBinaryDesc contains raw pointers that's why define copy assignment
-  // operator.
-  PiImage &operator=(const PiImage &Image) {
-    MDeviceTargetSpec = Image.MDeviceTargetSpec;
-    MCompileOptions = Image.MCompileOptions;
-    MLinkOptions = Image.MLinkOptions;
-    MManifest = Image.MManifest;
-    MBinary = Image.MBinary;
-    MOffloadEntries = Image.MOffloadEntries;
-    MPropertySet = Image.MPropertySet;
-
-    initializeBinaryDesc(Image.MBinaryDesc.Version, Image.MBinaryDesc.Kind,
-                         Image.MBinaryDesc.Format);
-    return *this;
-  }
-  // MBinaryDesc contains raw pointers that's why define move assignment
-  // operator for the case when short string optimization happenes (it may
-  // change the addresses).
-  PiImage &operator=(PiImage &&Image) noexcept {
-    MDeviceTargetSpec = std::move(Image.MDeviceTargetSpec);
-    MCompileOptions = std::move(Image.MCompileOptions);
-    MLinkOptions = std::move(Image.MLinkOptions);
-    MManifest = std::move(Image.MManifest);
-    MBinary = std::move(Image.MBinary);
-    MOffloadEntries = std::move(Image.MOffloadEntries);
-    MPropertySet = std::move(Image.MPropertySet);
-
-    initializeBinaryDesc(Image.MBinaryDesc.Version, Image.MBinaryDesc.Kind,
-                         Image.MBinaryDesc.Format);
-    return *this;
-  }
-
-private:
-  // Initiliaze MBinaryDesc based on data members of this class and provided
-  // arguments.
-  void initializeBinaryDesc(uint16_t Version, uint8_t Kind, uint8_t Format) {
-    auto [ManifestStart,
-          ManifestEnd] = [this]() -> std::pair<const char *, const char *> {
-      if (!MManifest.empty())
-        return {&*MManifest.cbegin(), &*MManifest.crbegin() + 1};
-      return {nullptr, nullptr};
-    }();
-    MBinaryDesc = pi_device_binary_struct{
+  pi_device_binary_struct convertToNativeType() {
+    return pi_device_binary_struct{
         Version,
         Kind,
         Format,
         MDeviceTargetSpec.c_str(),
         MCompileOptions.c_str(),
         MLinkOptions.c_str(),
-        ManifestStart,
-        ManifestEnd,
+        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
+        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
         &*MBinary.begin(),
         (&*MBinary.begin()) + MBinary.size(),
         MOffloadEntries.begin(),
@@ -308,6 +236,10 @@ private:
     };
   }
 
+private:
+  uint16_t Version;
+  uint8_t Kind;
+  uint8_t Format;
   std::string MDeviceTargetSpec;
   std::string MCompileOptions;
   std::string MLinkOptions;
@@ -315,7 +247,6 @@ private:
   std::vector<unsigned char> MBinary;
   PiArray<PiOffloadEntry> MOffloadEntries;
   PiPropertySet MPropertySet;
-  pi_device_binary_struct MBinaryDesc;
 };
 
 /// Convenience wrapper around pi_device_binaries_struct, that manages mock
@@ -324,7 +255,7 @@ template <size_t __NumberOfImages> class PiImageArray {
 public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  PiImageArray(const PiImage *Imgs) {
+  PiImageArray(PiImage *Imgs) {
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
