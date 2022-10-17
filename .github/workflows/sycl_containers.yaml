@@ -6,7 +6,7 @@ on:
     - cron: '0 0 1,15 * *'
   push:
     branches:
-      - sycl-mlir
+      - sycl
     paths:
       - 'devops/containers/**'
       - 'devops/dependencies.json'
