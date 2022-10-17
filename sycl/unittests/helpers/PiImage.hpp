@@ -202,33 +202,11 @@ public:
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
           PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
-      : MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
+      : MVersion(Version), MKind(Kind), MFormat(Format),
+        MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
-        MPropertySet(std::move(PropertySet)) {
-    auto [ManifestStart,
-          ManifestEnd] = [this]() -> std::pair<const char *, const char *> {
-      if (!MManifest.empty())
-        return {&*MManifest.cbegin(), &*MManifest.cend()};
-      return {nullptr, nullptr};
-    }();
-    MBinaryDesc = pi_device_binary_struct{
-        Version,
-        Kind,
-        Format,
-        MDeviceTargetSpec.c_str(),
-        MCompileOptions.c_str(),
-        MLinkOptions.c_str(),
-        ManifestStart,
-        ManifestEnd,
-        &*MBinary.begin(),
-        (&*MBinary.begin()) + MBinary.size(),
-        MOffloadEntries.begin(),
-        MOffloadEntries.end(),
-        MPropertySet.begin(),
-        MPropertySet.end(),
-    };
-  }
+        MPropertySet(std::move(PropertySet)) {}
 
   /// Constructs a SYCL device image of the latest version.
   PiImage(uint8_t Format, const std::string &DeviceTargetSpec,
@@ -240,9 +218,29 @@ public:
                 std::move(Binary), std::move(OffloadEntries),
                 std::move(PropertySet)) {}
 
-  pi_device_binary_struct convertToNativeType() const { return MBinaryDesc; }
+  pi_device_binary_struct convertToNativeType() {
+    return pi_device_binary_struct{
+        MVersion,
+        MKind,
+        MFormat,
+        MDeviceTargetSpec.c_str(),
+        MCompileOptions.c_str(),
+        MLinkOptions.c_str(),
+        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
+        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
+        &*MBinary.begin(),
+        (&*MBinary.begin()) + MBinary.size(),
+        MOffloadEntries.begin(),
+        MOffloadEntries.end(),
+        MPropertySet.begin(),
+        MPropertySet.end(),
+    };
+  }
 
 private:
+  uint16_t MVersion;
+  uint8_t MKind;
+  uint8_t MFormat;
   std::string MDeviceTargetSpec;
   std::string MCompileOptions;
   std::string MLinkOptions;
@@ -250,7 +248,6 @@ private:
   std::vector<unsigned char> MBinary;
   PiArray<PiOffloadEntry> MOffloadEntries;
   PiPropertySet MPropertySet;
-  pi_device_binary_struct MBinaryDesc;
 };
 
 /// Convenience wrapper around pi_device_binaries_struct, that manages mock
@@ -259,7 +256,7 @@ template <size_t __NumberOfImages> class PiImageArray {
 public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  PiImageArray(const PiImage *Imgs) {
+  PiImageArray(PiImage *Imgs) {
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
