@@ -13,15 +13,18 @@
 #ifndef MLIR_DIALECT_SYCL_TRANSFORMS_PASSES_H
 #define MLIR_DIALECT_SYCL_TRANSFORMS_PASSES_H
 
+#include <memory>
+
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-namespace sycl {  
-  
+namespace sycl {
+
 //===----------------------------------------------------------------------===//
 // Passes
 //===----------------------------------------------------------------------===//
 
+std::unique_ptr<Pass> createSYCLMethodToSYCLCallPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

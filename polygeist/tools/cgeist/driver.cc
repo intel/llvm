@@ -37,6 +37,7 @@
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h.inc"
+#include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
@@ -638,6 +639,7 @@ static int finalize(mlir::MLIRContext &context,
     if (!EmitOpenMPIR) {
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
+      pm3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
       pm3.addPass(polygeist::createConvertToLLVMABIPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
