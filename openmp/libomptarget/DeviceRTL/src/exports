@@ -1,3 +1,7 @@
 omp_*
 *llvm_*
 __kmpc_*
+
+memcmp
+printf
+__assert_fail

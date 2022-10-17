@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-ext=+all -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Capability JointMatrixINTEL
@@ -16,10 +16,10 @@
 ; CHECK-SPIRV: FMul [[#TypeFloat]] [[#NewVal:]] [[#]] [[#]]
 ; CHECK-SPIRV: VectorInsertDynamic [[#TypeMatrix]] [[#]] [[#Matrix]] [[#NewVal]] [[#Index]]
 
-; CHECK-LLVM: [[Length:%.*]] = call spir_func i64 @_Z38__spirv_JointMatrixWorkItemLengthINTELPU3AS141__spirv_JointMatrixINTEL__float_16_16_0_3(%spirv.JointMatrixINTEL._float_16_16_0_3 addrspace(1)* [[Matrix:%.*]])
-; CHECK-LLVM: [[Elem:%.*]] = call spir_func float @_Z28__spirv_VectorExtractDynamicPU3AS141__spirv_JointMatrixINTEL__float_16_16_0_3l(%spirv.JointMatrixINTEL._float_16_16_0_3 addrspace(1)* [[Matrix]], i64 [[Index:%.*]])
+; CHECK-LLVM: [[Length:%.*]] = call spir_func i64 @_Z38__spirv_JointMatrixWorkItemLengthINTELPU3AS141__spirv_JointMatrixINTEL__float_16_16_0_3(ptr addrspace(1) [[Matrix:%.*]])
+; CHECK-LLVM: [[Elem:%.*]] = call spir_func float @_Z28__spirv_VectorExtractDynamicPU3AS141__spirv_JointMatrixINTEL__float_16_16_0_3l(ptr addrspace(1) [[Matrix]], i64 [[Index:%.*]])
 ; CHECK-LLVM: [[NewVal:%.*]] = fmul float [[Elem]], 5.000000e+00
-; CHECK-LLVM: {{%.*}} = call spir_func %spirv.JointMatrixINTEL._float_16_16_0_3 addrspace(1)* @_Z27__spirv_VectorInsertDynamicPU3AS141__spirv_JointMatrixINTEL__float_16_16_0_3fl(%spirv.JointMatrixINTEL._float_16_16_0_3 addrspace(1)* [[Matrix]], float [[NewVal]], i64 [[Index]])
+; CHECK-LLVM: {{%.*}} = call spir_func ptr addrspace(1) @_Z27__spirv_VectorInsertDynamicPU3AS141__spirv_JointMatrixINTEL__float_16_16_0_3fl(ptr addrspace(1) [[Matrix]], float [[NewVal]], i64 [[Index]])
 
 source_filename = "/work/tmp/matrix-slice.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

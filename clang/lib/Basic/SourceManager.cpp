@@ -877,9 +877,12 @@ FileID SourceManager::getFileIDLoaded(SourceLocation::UIntTy SLocOffset) const {
     I = (-LastID - 2) + 1;
 
   unsigned NumProbes;
+  bool Invalid = false;
   for (NumProbes = 0; NumProbes < 8; ++NumProbes, ++I) {
     // Make sure the entry is loaded!
-    const SrcMgr::SLocEntry &E = getLoadedSLocEntry(I);
+    const SrcMgr::SLocEntry &E = getLoadedSLocEntry(I, &Invalid);
+    if (Invalid)
+      return FileID(); // invalid entry.
     if (E.getOffset() <= SLocOffset) {
       FileID Res = FileID::get(-int(I) - 2);
       LastFileIDLookup = Res;
@@ -897,8 +900,8 @@ FileID SourceManager::getFileIDLoaded(SourceLocation::UIntTy SLocOffset) const {
   while (true) {
     ++NumProbes;
     unsigned MiddleIndex = (LessIndex - GreaterIndex) / 2 + GreaterIndex;
-    const SrcMgr::SLocEntry &E = getLoadedSLocEntry(MiddleIndex);
-    if (E.getOffset() == 0)
+    const SrcMgr::SLocEntry &E = getLoadedSLocEntry(MiddleIndex, &Invalid);
+    if (Invalid)
       return FileID(); // invalid entry.
 
     ++NumProbes;
@@ -1792,11 +1795,11 @@ void SourceManager::computeMacroArgsCache(MacroArgsMap &MacroArgsCache,
         if (Entry.getFile().NumCreatedFIDs)
           ID += Entry.getFile().NumCreatedFIDs - 1 /*because of next ++ID*/;
         continue;
-      } else if (IncludeLoc.isValid()) {
-        // If file was included but not from FID, there is no more files/macros
-        // that may be "contained" in this file.
-        return;
       }
+      // If file was included but not from FID, there is no more files/macros
+      // that may be "contained" in this file.
+      if (IncludeLoc.isValid())
+        return;
       continue;
     }
 

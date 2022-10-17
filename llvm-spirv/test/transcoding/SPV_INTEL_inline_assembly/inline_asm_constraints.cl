@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -x cl -cl-std=CL2.0 -O0 -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -x cl -cl-std=CL2.0 -O0 -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv -spirv-ext=+SPV_INTEL_inline_assembly %t.bc -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv -r %t.spv -o %t.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 // Excerpt from opencl-c-base.h
@@ -26,7 +26,7 @@ size_t __ovld __cnfn get_global_id(unsigned int dimindx);
 // CHECK-LLVM-LABEL: define spir_kernel void @test_int
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "intcommand $0 $1""=r,r"
 // CHECK-LLVM: [[VALUE:%[0-9]+]] = call i32 asm sideeffect "intcommand $0 $1", "=r,r"(i32 %{{[0-9]+}})
-// CHECK-LLVM-NEXT: store i32 [[VALUE]], i32 addrspace(1)*
+// CHECK-LLVM-NEXT: store i32 [[VALUE]], ptr addrspace(1)
 
 kernel void test_int(global int *in, global int *out) {
   int i = get_global_id(0);
@@ -36,7 +36,7 @@ kernel void test_int(global int *in, global int *out) {
 // CHECK-LLVM-LABEL: define spir_kernel void @test_float
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "floatcommand $0 $1""=r,r"
 // CHECK-LLVM: [[VALUE:%[0-9]+]] = call float asm sideeffect "floatcommand $0 $1", "=r,r"(float %{{[0-9]+}})
-// CHECK-LLVM-NEXT: store float [[VALUE]], float addrspace(1)*
+// CHECK-LLVM-NEXT: store float [[VALUE]], ptr addrspace(1)
 
 kernel void test_float(global float *in, global float *out) {
   int i = get_global_id(0);
@@ -46,7 +46,7 @@ kernel void test_float(global float *in, global float *out) {
 // CHECK-LLVM-LABEL: define spir_kernel void @test_mixed_integral
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "mixed_integral_command $0 $3 $1 $2""=r,r,r,r"
 // CHECK-LLVM: [[VALUE:%[0-9]+]] = call i64 asm sideeffect "mixed_integral_command $0 $3 $1 $2", "=r,r,r,r"(i16 %{{[0-9]+}}, i32 %{{[0-9]+}}, i8 %{{[0-9]+}})
-// CHECK-LLVM-NEXT: store i64 [[VALUE]], i64 addrspace(1)*
+// CHECK-LLVM-NEXT: store i64 [[VALUE]], ptr addrspace(1)
 
 kernel void test_mixed_integral(global uchar *A, global ushort *B, global uint *C, global ulong *D) {
   int wiId = get_global_id(0);
@@ -57,7 +57,7 @@ kernel void test_mixed_integral(global uchar *A, global ushort *B, global uint *
 // CHECK-LLVM-LABEL: define spir_kernel void @test_mixed_floating
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "mixed_floating_command $0 $1 $2""=r,r,r"
 // CHECK-LLVM: [[VALUE:%[0-9]+]] = call half asm sideeffect "mixed_floating_command $0 $1 $2", "=r,r,r"(double %{{[0-9]+}}, float %{{[0-9]+}})
-// CHECK-LLVM-NEXT: store half [[VALUE]], half addrspace(1)*
+// CHECK-LLVM-NEXT: store half [[VALUE]], ptr addrspace(1)
 
 kernel void test_mixed_floating(global float *A, global half *B, global double *C) {
   int wiId = get_global_id(0);
@@ -68,7 +68,7 @@ kernel void test_mixed_floating(global float *A, global half *B, global double *
 // CHECK-LLVM-LABEL: define spir_kernel void @test_mixed_all
 // CHECK-SPIRV: {{[0-9]+}} AsmINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} "mixed_all_command $0 $3 $1 $2""=r,r,r,r"
 // CHECK-LLVM: [[VALUE:%[0-9]+]] = call i8 asm sideeffect "mixed_all_command $0 $3 $1 $2", "=r,r,r,r"(float %{{[0-9]+}}, i32 %{{[0-9]+}}, i8 %{{[0-9]+}})
-// CHECK-LLVM-NEXT: store i8 [[VALUE]], i8 addrspace(1)*
+// CHECK-LLVM-NEXT: store i8 [[VALUE]], ptr addrspace(1)
 
 kernel void test_mixed_all(global uchar *A, global float *B, global uint *C, global bool *D) {
   int wiId = get_global_id(0);

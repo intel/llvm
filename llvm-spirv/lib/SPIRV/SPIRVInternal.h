@@ -50,6 +50,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/TypedPointerType.h"
 
 #include <functional>
 #include <utility>
@@ -67,11 +68,6 @@ namespace SPIRV {
 /// generator's magic number in the generated SPIR-V module.
 /// This number should be bumped up whenever the generated SPIR-V changes.
 const static unsigned short KTranslatorVer = 14;
-
-#define SPCV_TARGET_LLVM_IMAGE_TYPE_ENCODE_ACCESS_QUAL 0
-// Workaround for SPIR 2 producer bug about kernel function calling convention.
-// This workaround checks metadata to determine if a function is kernel.
-#define SPCV_RELAX_KERNEL_CALLING_CONV 1
 
 class SPIRVOpaqueType;
 typedef SPIRVMap<std::string, Op, SPIRVOpaqueType> SPIRVOpaqueTypeOpCodeMap;
@@ -456,11 +452,11 @@ struct BuiltinArgTypeMangleInfo {
   bool IsLocalArgBlock;
   SPIR::TypePrimitiveEnum Enum;
   unsigned Attr;
-  PointerIndirectPair PointerElementType;
+  Type *PointerTy;
   BuiltinArgTypeMangleInfo()
       : IsSigned(true), IsVoidPtr(false), IsEnum(false), IsSampler(false),
         IsAtomic(false), IsLocalArgBlock(false), Enum(SPIR::PRIMITIVE_NONE),
-        Attr(0), PointerElementType(nullptr, false) {}
+        Attr(0), PointerTy(nullptr) {}
 };
 
 /// Information for mangling builtin function.
@@ -518,8 +514,6 @@ public:
     UnmangledName = UniqUnmangledName.str();
   }
 
-  void fillPointerElementTypes(ArrayRef<PointerIndirectPair>);
-
 protected:
   std::string UnmangledName;
   std::vector<BuiltinArgTypeMangleInfo> ArgInfo;
@@ -555,7 +549,8 @@ void move(std::vector<T> &V, size_t Begin, size_t End, size_t Target) {
 }
 
 /// Find position of first pointer type value in a vector.
-inline size_t findFirstPtr(const std::vector<Value *> &Args) {
+template <typename Container>
+inline unsigned findFirstPtr(const Container &Args) {
   auto PtArg = std::find_if(Args.begin(), Args.end(), [](Value *V) {
     return V->getType()->isPointerTy();
   });
@@ -709,20 +704,6 @@ Instruction *mutateCallInst(
     BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
     bool TakeName = false);
 
-/// Mutate call instruction to call SPIR-V builtin function.
-CallInst *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs = nullptr);
-
-/// Mutate call instruction to call SPIR-V builtin function.
-Instruction *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate,
-    AttributeList *Attrs = nullptr);
-
 /// Mutate function by change the arguments.
 /// \param ArgMutate mutates the function arguments.
 /// \param TakeName Take the original function's name if a new function with
@@ -774,13 +755,6 @@ Value *addVector(Instruction *InsPos, ValueVecRange Range);
 /// Replace scalar values with a vector created at \param InsPos.
 void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
                 ValueVecRange Range);
-
-/// Expand a vector type value in \param Ops at index \param VecPos.
-/// Generate extract element instructions at \param InsPos and replace
-/// the vector type value with scalar type values.
-/// If the value to be expanded is not vector type, do nothing.
-void expandVector(Instruction *InsPos, std::vector<Value *> &Ops,
-                  size_t VecPos);
 
 /// Get size_t type.
 IntegerType *getSizetType(Module *M);
@@ -890,11 +864,6 @@ bool isSPIRVConstantName(StringRef TyName);
 
 /// Get SPIR-V type by changing the type name from spirv.OldName.Postfixes
 /// to spirv.NewName.Postfixes.
-Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
-                                       StringRef NewName);
-
-/// Get SPIR-V type by changing the type name from spirv.OldName.Postfixes
-/// to spirv.NewName.Postfixes.
 Type *getSPIRVStructTypeByChangeBaseTypeName(Module *M, Type *T,
                                              StringRef OldName,
                                              StringRef NewName);
@@ -976,17 +945,20 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
 /// Extract the pointee types of arguments from a mangled function name. If the
 /// corresponding type is not a pointer to a struct type, its value will be a
 /// nullptr instead.
-void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys);
-inline void getParameterTypes(CallInst *CI,
-                              SmallVectorImpl<StructType *> &ArgTys) {
+void getParameterTypes(
+    Function *F, SmallVectorImpl<Type *> &ArgTys,
+    std::function<std::string(StringRef)> StructNameMapFn = nullptr);
+inline void getParameterTypes(CallInst *CI, SmallVectorImpl<Type *> &ArgTys) {
   return getParameterTypes(CI->getCalledFunction(), ArgTys);
 }
+void getParameterTypes(
+    Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
+    std::function<std::string(StringRef)> StructNameMapFn = nullptr);
 
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
                                            ArrayRef<Type *> ArgTys,
-                                           ArrayRef<PointerIndirectPair> PETs,
                                            Type *RetTy = nullptr);
 
 /// Mangle a function in SPIR-V friendly IR manner
@@ -998,8 +970,7 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \param Types of arguments of SPIR-V built-in function
 /// \return IA64 mangled name.
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
-                                           spv::Op OC, ArrayRef<Type *> ArgTys,
-                                           ArrayRef<PointerIndirectPair> PETs);
+                                           spv::Op OC, ArrayRef<Type *> ArgTys);
 
 /// Cast a function to a void(void) funtion pointer.
 Constant *castToVoidFuncPtr(Function *F);

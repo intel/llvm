@@ -16,7 +16,6 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/program.hpp>
 
 #include <cassert>
 #include <memory>
@@ -172,6 +171,8 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
+  ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
@@ -197,13 +198,6 @@ template <>
 inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
-
-#ifdef __SYCL_INTERNAL_API
-template <>
-inline program kernel_impl::get_info<info::kernel::program>() const {
-  return createSyclObjFromImpl<program>(MProgramImpl);
-}
-#endif
 
 template <typename Param>
 inline typename Param::return_type

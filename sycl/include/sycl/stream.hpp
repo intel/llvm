@@ -797,11 +797,6 @@ private:
   // Offset of the WI's flush buffer in the pool.
   mutable unsigned WIOffset = 0;
 
-  // Offset in the flush buffer
-  // TODO: This field is not used anymore.
-  // To be removed when API/ABI changes are allowed.
-  mutable unsigned Offset = 0;
-
   mutable size_t FlushBufferSize;
 
   // Fields and methods to work with manipulators
@@ -1035,9 +1030,11 @@ inline const stream &operator<<(const stream &Out, const half &RHS) {
 
 // Pointer
 
-template <typename ElementType, access::address_space Space>
-inline const stream &operator<<(const stream &Out,
-                                const multi_ptr<ElementType, Space> &RHS) {
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+inline const stream &
+operator<<(const stream &Out,
+           const multi_ptr<ElementType, Space, IsDecorated> &RHS) {
   Out << RHS.get();
   return Out;
 }

@@ -37,12 +37,7 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool IsHost)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue))),
-      MQueue(std::move(Queue)), MIsHost(IsHost) {
-  // Create extended members
-  auto ExtendedMembers =
-      std::make_shared<std::vector<detail::ExtendedMemberT>>();
-  MSharedPtrStorage.push_back(std::move(ExtendedMembers));
-}
+      MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -98,122 +93,126 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr = nullptr;
-  // If there were uses of set_specialization_constant build the kernel_bundle
-  KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
-  if (KernelBundleImpPtr) {
-    // Make sure implicit non-interop kernel bundles have the kernel
-    if (!KernelBundleImpPtr->isInterop() &&
-        !MImpl->isStateExplicitKernelBundle()) {
-      kernel_id KernelID =
-          detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
-      bool KernelInserted =
-          KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
-      // If kernel was not inserted and the bundle is in input mode we try
-      // building it and trying to find the kernel in executable mode
-      if (!KernelInserted &&
-          KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
-        auto KernelBundle =
-            detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-                KernelBundleImpPtr);
-        kernel_bundle<bundle_state::executable> ExecKernelBundle =
-            build(KernelBundle);
-        KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
-        setHandlerKernelBundle(KernelBundleImpPtr);
-        KernelInserted =
-            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
-      }
-      // If the kernel was not found in executable mode we throw an exception
-      if (!KernelInserted)
-        throw sycl::exception(make_error_code(errc::runtime),
-                              "Failed to add kernel to kernel bundle.");
-    }
-
-    switch (KernelBundleImpPtr->get_bundle_state()) {
-    case bundle_state::input: {
-      // Underlying level expects kernel_bundle to be in executable state
-      kernel_bundle<bundle_state::executable> ExecBundle = build(
-          detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-              KernelBundleImpPtr));
-      KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
-      setHandlerKernelBundle(KernelBundleImpPtr);
-      break;
-    }
-    case bundle_state::executable:
-      // Nothing to do
-      break;
-    case bundle_state::object:
-      assert(0 && "Expected that the bundle is either in input or executable "
-                  "states.");
-      break;
-    }
-  }
-
   const auto &type = getType();
-  if (type == detail::CG::Kernel &&
-      MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
-    // if user does not add a new dependency to the dependency graph, i.e.
-    // the graph is not changed, then this faster path is used to submit kernel
-    // bypassing scheduler and avoiding CommandGroup, Command objects creation.
+  if (type == detail::CG::Kernel) {
+    // If there were uses of set_specialization_constant build the kernel_bundle
+    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    if (KernelBundleImpPtr) {
+      // Make sure implicit non-interop kernel bundles have the kernel
+      if (!KernelBundleImpPtr->isInterop() &&
+          !MImpl->isStateExplicitKernelBundle()) {
+        kernel_id KernelID =
+            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
+        bool KernelInserted =
+            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        // If kernel was not inserted and the bundle is in input mode we try
+        // building it and trying to find the kernel in executable mode
+        if (!KernelInserted &&
+            KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
+          auto KernelBundle =
+              detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                  KernelBundleImpPtr);
+          kernel_bundle<bundle_state::executable> ExecKernelBundle =
+              build(KernelBundle);
+          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
+          setHandlerKernelBundle(KernelBundleImpPtr);
+          KernelInserted =
+              KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        }
+        // If the kernel was not found in executable mode we throw an exception
+        if (!KernelInserted)
+          throw sycl::exception(make_error_code(errc::runtime),
+                                "Failed to add kernel to kernel bundle.");
+      }
 
-    std::vector<RT::PiEvent> RawEvents;
-    detail::EventImplPtr NewEvent;
-    RT::PiEvent *OutEvent = nullptr;
+      switch (KernelBundleImpPtr->get_bundle_state()) {
+      case bundle_state::input: {
+        // Underlying level expects kernel_bundle to be in executable state
+        kernel_bundle<bundle_state::executable> ExecBundle = build(
+            detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                KernelBundleImpPtr));
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
+        setHandlerKernelBundle(KernelBundleImpPtr);
+        break;
+      }
+      case bundle_state::executable:
+        // Nothing to do
+        break;
+      case bundle_state::object:
+        assert(0 && "Expected that the bundle is either in input or executable "
+                    "states.");
+        break;
+      }
+    }
 
-    auto EnqueueKernel = [&]() {
-      // 'Result' for single point of return
-      pi_int32 Result = PI_ERROR_INVALID_VALUE;
+    if (MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+      // if user does not add a new dependency to the dependency graph, i.e.
+      // the graph is not changed, then this faster path is used to submit
+      // kernel bypassing scheduler and avoiding CommandGroup, Command objects
+      // creation.
 
-      if (MQueue->is_host()) {
-        MHostKernel->call(
-            MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
-        Result = PI_SUCCESS;
-      } else {
-        if (MQueue->getPlugin().getBackend() ==
-            backend::ext_intel_esimd_emulator) {
-          MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
-              nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-              MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
-              &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
+      std::vector<RT::PiEvent> RawEvents;
+      detail::EventImplPtr NewEvent;
+      RT::PiEvent *OutEvent = nullptr;
+
+      auto EnqueueKernel = [&]() {
+        // 'Result' for single point of return
+        pi_int32 Result = PI_ERROR_INVALID_VALUE;
+
+        if (MQueue->is_host()) {
+          MHostKernel->call(MNDRDesc, (NewEvent)
+                                          ? NewEvent->getHostProfilingInfo()
+                                          : nullptr);
           Result = PI_SUCCESS;
         } else {
-          Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                    MKernel, MKernelName, MOSModuleHandle,
-                                    RawEvents, OutEvent, nullptr);
+          if (MQueue->getPlugin().getBackend() ==
+              backend::ext_intel_esimd_emulator) {
+            MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+                nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+                MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
+                &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
+                nullptr);
+            Result = PI_SUCCESS;
+          } else {
+            Result = enqueueImpKernel(
+                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                MKernelName, MOSModuleHandle, RawEvents, OutEvent, nullptr);
+          }
         }
+        return Result;
+      };
+
+      bool DiscardEvent = false;
+      if (MQueue->has_discard_events_support()) {
+        // Kernel only uses assert if it's non interop one
+        bool KernelUsesAssert =
+            !(MKernel && MKernel->isInterop()) &&
+            detail::ProgramManager::getInstance().kernelUsesAssert(
+                MOSModuleHandle, MKernelName);
+        DiscardEvent = !KernelUsesAssert;
       }
-      return Result;
-    };
 
-    bool DiscardEvent = false;
-    if (MQueue->has_discard_events_support()) {
-      // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert =
-          !(MKernel && MKernel->isInterop()) &&
-          detail::ProgramManager::getInstance().kernelUsesAssert(
-              MOSModuleHandle, MKernelName);
-      DiscardEvent = !KernelUsesAssert;
+      if (DiscardEvent) {
+        if (PI_SUCCESS != EnqueueKernel())
+          throw runtime_error("Enqueue process failed.",
+                              PI_ERROR_INVALID_OPERATION);
+      } else {
+        NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent->setContextImpl(MQueue->getContextImplPtr());
+        NewEvent->setStateIncomplete();
+        OutEvent = &NewEvent->getHandleRef();
+
+        if (PI_SUCCESS != EnqueueKernel())
+          throw runtime_error("Enqueue process failed.",
+                              PI_ERROR_INVALID_OPERATION);
+        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+          NewEvent->setComplete();
+
+        MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+      }
+      return MLastEvent;
     }
-
-    if (DiscardEvent) {
-      if (PI_SUCCESS != EnqueueKernel())
-        throw runtime_error("Enqueue process failed.",
-                            PI_ERROR_INVALID_OPERATION);
-    } else {
-      NewEvent = std::make_shared<detail::event_impl>(MQueue);
-      NewEvent->setContextImpl(MQueue->getContextImplPtr());
-      NewEvent->setStateIncomplete();
-      OutEvent = &NewEvent->getHandleRef();
-
-      if (PI_SUCCESS != EnqueueKernel())
-        throw runtime_error("Enqueue process failed.",
-                            PI_ERROR_INVALID_OPERATION);
-      else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
-        NewEvent->setComplete();
-
-      MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
-    }
-    return MLastEvent;
   }
 
   std::unique_ptr<detail::CG> CommandGroup;

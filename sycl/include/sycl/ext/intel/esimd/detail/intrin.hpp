@@ -335,7 +335,19 @@ __esimd_wrindirect(__ESIMD_DNS::vector_type_t<T, N> OldVal,
   }
   return Result;
 }
-
 #endif // __SYCL_DEVICE_ONLY__
 
-/// @endcond ESIMD_DETAIL
+#ifdef __SYCL_DEVICE_ONLY__
+// This intrinsic requires one of the types to be _Float16, which is absent on
+// host, so it can't be represented on host. Callers must emulate it.
+template <class To, class From, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<To, N>
+__esimd_bf_cvt(__ESIMD_DNS::vector_type_t<From, N> Val);
+#endif // __SYCL_DEVICE_ONLY__
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <class To, class From, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<To, N>
+__esimd_tf32_cvt(__ESIMD_DNS::vector_type_t<From, N> Val);
+#endif // __SYCL_DEVICE_ONLY__
+       /// @endcond ESIMD_DETAIL

@@ -56,8 +56,8 @@ Value ConvertToLLVMPattern::createIndexAttrConstant(OpBuilder &builder,
                                                     Location loc,
                                                     Type resultType,
                                                     int64_t value) {
-  return builder.create<LLVM::ConstantOp>(
-      loc, resultType, builder.getIntegerAttr(builder.getIndexType(), value));
+  return builder.create<LLVM::ConstantOp>(loc, resultType,
+                                          builder.getIndexAttr(value));
 }
 
 Value ConvertToLLVMPattern::createIndexConstant(
@@ -273,7 +273,7 @@ LogicalResult ConvertToLLVMPattern::copyUnrankedDescriptors(
     Value memory =
         toDynamic
             ? builder.create<LLVM::CallOp>(loc, mallocFunc, allocationSize)
-                  .getResult(0)
+                  .getResult()
             : builder.create<LLVM::AllocaOp>(loc, voidPtrType, allocationSize,
                                              /*alignment=*/0);
     Value source = desc.memRefDescPtr(builder, loc);
@@ -311,17 +311,18 @@ LogicalResult LLVM::detail::oneToOneRewrite(
     LLVMTypeConverter &typeConverter, ConversionPatternRewriter &rewriter) {
   unsigned numResults = op->getNumResults();
 
-  Type packedType;
+  SmallVector<Type> resultTypes;
   if (numResults != 0) {
-    packedType = typeConverter.packFunctionResults(op->getResultTypes());
-    if (!packedType)
+    resultTypes.push_back(
+        typeConverter.packFunctionResults(op->getResultTypes()));
+    if (!resultTypes.back())
       return failure();
   }
 
   // Create the operation through state since we don't know its C++ type.
   Operation *newOp =
       rewriter.create(op->getLoc(), rewriter.getStringAttr(targetOp), operands,
-                      packedType, op->getAttrs());
+                      resultTypes, op->getAttrs());
 
   // If the operation produced 0 or 1 result, return them immediately.
   if (numResults == 0)
@@ -334,9 +335,8 @@ LogicalResult LLVM::detail::oneToOneRewrite(
   SmallVector<Value, 4> results;
   results.reserve(numResults);
   for (unsigned i = 0; i < numResults; ++i) {
-    auto type = typeConverter.convertType(op->getResult(i).getType());
     results.push_back(rewriter.create<LLVM::ExtractValueOp>(
-        op->getLoc(), type, newOp->getResult(0), rewriter.getI64ArrayAttr(i)));
+        op->getLoc(), newOp->getResult(0), i));
   }
   rewriter.replaceOp(op, results);
   return success();

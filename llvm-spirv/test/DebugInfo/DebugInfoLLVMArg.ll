@@ -4,7 +4,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-allow-extra-diexpressions
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Undef [[#]] [[#UNDEF:]]
@@ -24,9 +24,9 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone spe
 define void @DbgIntrinsics() sanitize_memtag {
 entry:
   %x = alloca i32, align 4
-; CHECK-LLVM: call void @llvm.dbg.value(metadata !DIArgList(i32* %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
+; CHECK-LLVM: call void @llvm.dbg.value(metadata !DIArgList(ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
   call void @llvm.dbg.value(metadata !DIArgList(i32* %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0)), !dbg !10
-; CHECK-LLVM: call void @llvm.dbg.value(metadata i32* undef, metadata ![[#]], metadata !DIExpression())
+; CHECK-LLVM: call void @llvm.dbg.value(metadata ptr undef, metadata ![[#]], metadata !DIExpression())
   call void @llvm.dbg.value(metadata !DIArgList(i32* %x, i32* %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus)), !dbg !10
   store i32 42, i32* %x, align 4
   ret void

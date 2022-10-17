@@ -117,10 +117,6 @@ bool RISCVRegisterInfo::isAsmClobberable(const MachineFunction &MF,
   return !MF.getSubtarget<RISCVSubtarget>().isRegisterReservedByUser(PhysReg);
 }
 
-bool RISCVRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
-  return PhysReg == RISCV::X0 || PhysReg == RISCV::VLENB;
-}
-
 const uint32_t *RISCVRegisterInfo::getNoPreservedMask() const {
   return CSR_NoRegs_RegMask;
 }
@@ -200,8 +196,9 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       ScalableAdjOpc = RISCV::SUB;
     }
     // 1. Get vlenb && multiply vlen with the number of vector registers.
-    ScalableFactorRegister =
-        TII->getVLENFactoredAmount(MF, MBB, II, DL, ScalableValue);
+    ScalableFactorRegister = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    TII->getVLENFactoredAmount(MF, MBB, II, DL, ScalableFactorRegister,
+                               ScalableValue);
   }
 
   if (!isInt<12>(Offset.getFixed())) {

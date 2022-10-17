@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/accessor_impl.hpp>
 #include <detail/buffer_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {

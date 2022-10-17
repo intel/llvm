@@ -60,6 +60,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <cassert>
+#include <numeric>
 
 using namespace llvm;
 
@@ -707,7 +708,7 @@ struct State;
 } // namespace PointerInfo
 } // namespace AA
 
-/// Helper for AA::PointerInfo::Acccess DenseMap/Set usage.
+/// Helper for AA::PointerInfo::Access DenseMap/Set usage.
 template <>
 struct DenseMapInfo<AAPointerInfo::Access> : DenseMapInfo<Instruction *> {
   using Access = AAPointerInfo::Access;
@@ -722,7 +723,7 @@ template <>
 struct DenseMapInfo<AAPointerInfo ::OffsetAndSize>
     : DenseMapInfo<std::pair<int64_t, int64_t>> {};
 
-/// Helper for AA::PointerInfo::Acccess DenseMap/Set usage ignoring everythign
+/// Helper for AA::PointerInfo::Access DenseMap/Set usage ignoring everythign
 /// but the instruction
 struct AccessAsInstructionInfo : DenseMapInfo<Instruction *> {
   using Base = DenseMapInfo<Instruction *>;
@@ -891,7 +892,7 @@ protected:
     if (!isValidState())
       return false;
 
-    for (auto &It : AccessBins) {
+    for (const auto &It : AccessBins) {
       AAPointerInfo::OffsetAndSize ItOAS = It.getFirst();
       if (!OAS.mayOverlap(ItOAS))
         continue;
@@ -912,7 +913,7 @@ protected:
 
     // First find the offset and size of I.
     AAPointerInfo::OffsetAndSize OAS(-1, -1);
-    for (auto &It : AccessBins) {
+    for (const auto &It : AccessBins) {
       for (auto &Access : *It.getSecond()) {
         if (Access.getRemoteInst() == &I) {
           OAS = It.getFirst();
@@ -1148,7 +1149,7 @@ struct AAPointerInfoImpl
 
     // Combine the accesses bin by bin.
     ChangeStatus Changed = ChangeStatus::UNCHANGED;
-    for (auto &It : OtherAAImpl.getState()) {
+    for (const auto &It : OtherAAImpl.getState()) {
       OffsetAndSize OAS = OffsetAndSize::getUnknown();
       if (Offset != OffsetAndSize::Unknown)
         OAS = OffsetAndSize(It.first.getOffset() + Offset, It.first.getSize());
@@ -1225,7 +1226,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
 
   /// Helper struct, will support ranges eventually.
   struct OffsetInfo {
-    int64_t Offset = OffsetAndSize::Unknown;
+    int64_t Offset = OffsetAndSize::Unassigned;
 
     bool operator==(const OffsetInfo &OI) const { return Offset == OI.Offset; }
   };
@@ -1242,6 +1243,8 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
 
     auto HandlePassthroughUser = [&](Value *Usr, OffsetInfo PtrOI,
                                      bool &Follow) {
+      assert(PtrOI.Offset != OffsetAndSize::Unassigned &&
+             "Cannot pass through if the input Ptr was not visited!");
       OffsetInfo &UsrOI = OffsetInfoMap[Usr];
       UsrOI = PtrOI;
       Follow = true;
@@ -1279,29 +1282,24 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         UsrOI = PtrOI;
 
         // TODO: Use range information.
+        APInt GEPOffset(DL.getIndexTypeSizeInBits(GEP->getType()), 0);
         if (PtrOI.Offset == OffsetAndSize::Unknown ||
-            !GEP->hasAllConstantIndices()) {
+            !GEP->accumulateConstantOffset(DL, GEPOffset)) {
+          LLVM_DEBUG(dbgs() << "[AAPointerInfo] GEP offset not constant "
+                            << *GEP << "\n");
           UsrOI.Offset = OffsetAndSize::Unknown;
           Follow = true;
           return true;
         }
 
-        SmallVector<Value *, 8> Indices;
-        for (Use &Idx : GEP->indices()) {
-          if (auto *CIdx = dyn_cast<ConstantInt>(Idx)) {
-            Indices.push_back(CIdx);
-            continue;
-          }
-
-          LLVM_DEBUG(dbgs() << "[AAPointerInfo] Non constant GEP index " << *GEP
-                            << " : " << *Idx << "\n");
-          return false;
-        }
-        UsrOI.Offset = PtrOI.Offset + DL.getIndexedOffsetInType(
-                                          GEP->getSourceElementType(), Indices);
+        LLVM_DEBUG(dbgs() << "[AAPointerInfo] GEP offset is constant " << *GEP
+                          << "\n");
+        UsrOI.Offset = PtrOI.Offset + GEPOffset.getZExtValue();
         Follow = true;
         return true;
       }
+      if (isa<PtrToIntInst>(Usr))
+        return false;
       if (isa<CastInst>(Usr) || isa<SelectInst>(Usr) || isa<ReturnInst>(Usr))
         return HandlePassthroughUser(Usr, OffsetInfoMap[CurPtr], Follow);
 
@@ -1314,15 +1312,22 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         bool IsFirstPHIUser = !OffsetInfoMap.count(Usr);
         OffsetInfo &UsrOI = OffsetInfoMap[Usr];
         OffsetInfo &PtrOI = OffsetInfoMap[CurPtr];
-        // Check if the PHI is invariant (so far).
-        if (UsrOI == PtrOI)
-          return true;
 
         // Check if the PHI operand has already an unknown offset as we can't
         // improve on that anymore.
         if (PtrOI.Offset == OffsetAndSize::Unknown) {
+          LLVM_DEBUG(dbgs() << "[AAPointerInfo] PHI operand offset unknown "
+                            << *CurPtr << " in " << *Usr << "\n");
+          Follow = UsrOI.Offset != OffsetAndSize::Unknown;
           UsrOI = PtrOI;
-          Follow = true;
+          return true;
+        }
+
+        // Check if the PHI is invariant (so far).
+        if (UsrOI == PtrOI) {
+          assert(PtrOI.Offset != OffsetAndSize::Unassigned &&
+                 "Cannot assign if the current Ptr was not visited!");
+          LLVM_DEBUG(dbgs() << "[AAPointerInfo] PHI is invariant (so far)");
           return true;
         }
 
@@ -1802,7 +1807,7 @@ bool AAReturnedValuesImpl::checkForAllReturnedValuesAndReturnInsts(
 
   // Check all returned values but ignore call sites as long as we have not
   // encountered an overdefined one during an update.
-  for (auto &It : ReturnedValues) {
+  for (const auto &It : ReturnedValues) {
     Value *RV = It.first;
     if (!Pred(*RV, It.second))
       return false;
@@ -3511,11 +3516,21 @@ struct AAIsDeadFloating : public AAIsDeadValueImpl {
     bool UsedAssumedInformation = false;
     SmallSetVector<Value *, 4> PotentialCopies;
     if (!AA::getPotentialCopiesOfStoredValue(A, SI, PotentialCopies, *this,
-                                             UsedAssumedInformation))
+                                             UsedAssumedInformation)) {
+      LLVM_DEBUG(
+          dbgs()
+          << "[AAIsDead] Could not determine potential copies of store!\n");
       return false;
+    }
+    LLVM_DEBUG(dbgs() << "[AAIsDead] Store has " << PotentialCopies.size()
+                      << " potential copies.\n");
     return llvm::all_of(PotentialCopies, [&](Value *V) {
-      return A.isAssumedDead(IRPosition::value(*V), this, nullptr,
-                             UsedAssumedInformation);
+      if (A.isAssumedDead(IRPosition::value(*V), this, nullptr,
+                          UsedAssumedInformation))
+        return true;
+      LLVM_DEBUG(dbgs() << "[AAIsDead] Potential copy " << *V
+                        << " is assumed live!\n");
+      return false;
     });
   }
 
@@ -3977,7 +3992,7 @@ identifyAliveSuccessors(Attributor &A, const SwitchInst &SI,
   if (!C || isa_and_nonnull<UndefValue>(C.value())) {
     // No value yet, assume all edges are dead.
   } else if (isa_and_nonnull<ConstantInt>(C.value())) {
-    for (auto &CaseIt : SI.cases()) {
+    for (const auto &CaseIt : SI.cases()) {
       if (CaseIt.getCaseValue() == C.value()) {
         AliveSuccessors.push_back(&CaseIt.getCaseSuccessor()->front());
         return UsedAssumedInformation;
@@ -4296,7 +4311,7 @@ struct AADereferenceableFloating : AADereferenceableImpl {
         } else if (OffsetSExt > 0) {
           // If something was stripped but there is circular reasoning we look
           // for the offset. If it is positive we basically decrease the
-          // dereferenceable bytes in a circluar loop now, which will simply
+          // dereferenceable bytes in a circular loop now, which will simply
           // drive them down to the known value in a very slow way which we
           // can accelerate.
           T.indicatePessimisticFixpoint();
@@ -4427,8 +4442,7 @@ static unsigned getKnownAlignForUse(Attributor &A, AAAlign &QueryingAA,
       // So we can say that the maximum power of two which is a divisor of
       // gcd(Offset, Alignment) is an alignment.
 
-      uint32_t gcd =
-          greatestCommonDivisor(uint32_t(abs((int32_t)Offset)), Alignment);
+      uint32_t gcd = std::gcd(uint32_t(abs((int32_t)Offset)), Alignment);
       Alignment = llvm::PowerOf2Floor(gcd);
     }
   }
@@ -4563,8 +4577,8 @@ struct AAAlignFloating : AAAlignImpl {
           // So we can say that the maximum power of two which is a divisor of
           // gcd(Offset, Alignment) is an alignment.
 
-          uint32_t gcd = greatestCommonDivisor(uint32_t(abs((int32_t)Offset)),
-                                               uint32_t(PA.value()));
+          uint32_t gcd =
+              std::gcd(uint32_t(abs((int32_t)Offset)), uint32_t(PA.value()));
           Alignment = llvm::PowerOf2Floor(gcd);
         } else {
           Alignment = V.getPointerAlignment(DL).value();
@@ -4845,11 +4859,8 @@ struct AAInstanceInfoImpl : public AAInstanceInfo {
     auto EquivalentUseCB = [&](const Use &OldU, const Use &NewU) {
       if (auto *SI = dyn_cast<StoreInst>(OldU.getUser())) {
         auto *Ptr = SI->getPointerOperand()->stripPointerCasts();
-        if (isa<AllocaInst>(Ptr) && AA::isDynamicallyUnique(A, *this, *Ptr))
-          return true;
-        auto *TLI = A.getInfoCache().getTargetLibraryInfoForFunction(
-            *SI->getFunction());
-        if (isAllocationFn(Ptr, TLI) && AA::isDynamicallyUnique(A, *this, *Ptr))
+        if ((isa<AllocaInst>(Ptr) || isNoAliasCall(Ptr)) &&
+            AA::isDynamicallyUnique(A, *this, *Ptr))
           return true;
       }
       return false;
@@ -5144,7 +5155,7 @@ ChangeStatus AANoCaptureImpl::updateImpl(Attributor &A) {
     if (!RVAA.getState().isValidState())
       return false;
     bool SeenConstant = false;
-    for (auto &It : RVAA.returned_values()) {
+    for (const auto &It : RVAA.returned_values()) {
       if (isa<Constant>(It.first)) {
         if (SeenConstant)
           return false;
@@ -5447,7 +5458,7 @@ struct AAValueSimplifyImpl : AAValueSimplify {
     return nullptr;
   }
 
-  /// Helper function for querying AAValueSimplify and updating candicate.
+  /// Helper function for querying AAValueSimplify and updating candidate.
   /// \param IRP The value position we are trying to unify with SimplifiedValue
   bool checkAndUpdate(Attributor &A, const AbstractAttribute &QueryingAA,
                       const IRPosition &IRP, bool Simplify = true) {
@@ -5586,7 +5597,7 @@ struct AAValueSimplifyArgument final : AAValueSimplifyImpl {
       if (!askSimplifiedValueForOtherAAs(A))
         return indicatePessimisticFixpoint();
 
-    // If a candicate was found in this update, return CHANGED.
+    // If a candidate was found in this update, return CHANGED.
     return Before == SimplifiedAssociatedValue ? ChangeStatus::UNCHANGED
                                                : ChangeStatus ::CHANGED;
   }
@@ -5625,7 +5636,7 @@ struct AAValueSimplifyReturned : AAValueSimplifyImpl {
       if (!askSimplifiedValueForOtherAAs(A))
         return indicatePessimisticFixpoint();
 
-    // If a candicate was found in this update, return CHANGED.
+    // If a candidate was found in this update, return CHANGED.
     return Before == SimplifiedAssociatedValue ? ChangeStatus::UNCHANGED
                                                : ChangeStatus ::CHANGED;
   }
@@ -5662,7 +5673,7 @@ struct AAValueSimplifyFloating : AAValueSimplifyImpl {
     if (!askSimplifiedValueForOtherAAs(A))
       return indicatePessimisticFixpoint();
 
-    // If a candicate was found in this update, return CHANGED.
+    // If a candidate was found in this update, return CHANGED.
     return Before == SimplifiedAssociatedValue ? ChangeStatus::UNCHANGED
                                                : ChangeStatus ::CHANGED;
   }
@@ -5905,7 +5916,7 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
     STATS_DECL(
         MallocCalls, Function,
         "Number of malloc/calloc/aligned_alloc calls converted to allocas");
-    for (auto &It : AllocationInfos)
+    for (const auto &It : AllocationInfos)
       if (It.second->Status != AllocationInfo::INVALID)
         ++BUILD_STAT_NAME(MallocCalls, Function);
   }
@@ -5922,7 +5933,7 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
     if (!isValidState())
       return false;
 
-    for (auto &It : AllocationInfos) {
+    for (const auto &It : AllocationInfos) {
       AllocationInfo &AI = *It.second;
       if (AI.Status == AllocationInfo::INVALID)
         continue;
@@ -6346,7 +6357,7 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
       if (UsesCheck(AI))
         break;
       AI.Status = AllocationInfo::STACK_DUE_TO_FREE;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case AllocationInfo::STACK_DUE_TO_FREE:
       if (FreeCheck(AI))
         break;
@@ -6357,9 +6368,14 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
       llvm_unreachable("Invalid allocations should never reach this point!");
     };
 
-    // Check if we still think we can move it into the entry block.
+    // Check if we still think we can move it into the entry block. If the
+    // alloca comes from a converted __kmpc_alloc_shared then we can usually
+    // ignore the potential compilations associated with loops.
+    bool IsGlobalizedLocal =
+        AI.LibraryFunctionId == LibFunc___kmpc_alloc_shared;
     if (AI.MoveAllocaIntoEntry &&
-        (!Size.has_value() || IsInLoop(*AI.CB->getParent())))
+        (!Size.has_value() ||
+         (!IsGlobalizedLocal && IsInLoop(*AI.CB->getParent()))))
       AI.MoveAllocaIntoEntry = false;
   }
 
@@ -7771,7 +7787,7 @@ void AAMemoryLocationImpl::categorizePtrValue(
       // on the call edge, though, we should. To make that happen we need to
       // teach various passes, e.g., DSE, about the copy effect of a byval. That
       // would also allow us to mark functions only accessing byval arguments as
-      // readnone again, atguably their acceses have no effect outside of the
+      // readnone again, arguably their accesses have no effect outside of the
       // function, like accesses to allocas.
       MLK = NO_ARGUMENT_MEM;
     } else if (auto *GV = dyn_cast<GlobalValue>(Obj)) {
@@ -8983,7 +8999,7 @@ struct AAPotentialConstantValuesFloating : AAPotentialConstantValuesImpl {
       if (Undef)
         unionAssumedWithUndef();
       else {
-        for (auto &It : *OpAA)
+        for (const auto &It : *OpAA)
           unionAssumed(It);
       }
 
@@ -8991,9 +9007,9 @@ struct AAPotentialConstantValuesFloating : AAPotentialConstantValuesImpl {
       // select i1 *, undef , undef => undef
       unionAssumedWithUndef();
     } else {
-      for (auto &It : LHSAAPVS)
+      for (const auto &It : LHSAAPVS)
         unionAssumed(It);
-      for (auto &It : RHSAAPVS)
+      for (const auto &It : RHSAAPVS)
         unionAssumed(It);
     }
     return AssumedBefore == getAssumed() ? ChangeStatus::UNCHANGED
@@ -9419,7 +9435,7 @@ struct AACallEdgesCallSite : public AACallEdgesImpl {
 
     // Process callee metadata if available.
     if (auto *MD = getCtxI()->getMetadata(LLVMContext::MD_callees)) {
-      for (auto &Op : MD->operands()) {
+      for (const auto &Op : MD->operands()) {
         Function *Callee = mdconst::dyn_extract_or_null<Function>(Op);
         if (Callee)
           addCalledFunction(Callee, Change);
@@ -9518,7 +9534,7 @@ private:
                         ArrayRef<const AACallEdges *> AAEdgesList) {
       ChangeStatus Change = ChangeStatus::UNCHANGED;
 
-      for (auto *AAEdges : AAEdgesList) {
+      for (const auto *AAEdges : AAEdgesList) {
         if (AAEdges->hasUnknownCallee()) {
           if (!CanReachUnknownCallee) {
             LLVM_DEBUG(dbgs()
@@ -9566,7 +9582,7 @@ private:
                           const Function &Fn) const {
 
       // Handle the most trivial case first.
-      for (auto *AAEdges : AAEdgesList) {
+      for (const auto *AAEdges : AAEdgesList) {
         const SetVector<Function *> &Edges = AAEdges->getOptimisticEdges();
 
         if (Edges.count(const_cast<Function *>(&Fn)))
@@ -9574,7 +9590,7 @@ private:
       }
 
       SmallVector<const AAFunctionReachability *, 8> Deps;
-      for (auto &AAEdges : AAEdgesList) {
+      for (const auto &AAEdges : AAEdgesList) {
         const SetVector<Function *> &Edges = AAEdges->getOptimisticEdges();
 
         for (Function *Edge : Edges) {
@@ -9594,7 +9610,7 @@ private:
       }
 
       // The result is false for now, set dependencies and leave.
-      for (auto *Dep : Deps)
+      for (const auto *Dep : Deps)
         A.recordDependence(*Dep, AA, DepClassTy::REQUIRED);
 
       return false;
@@ -9854,7 +9870,7 @@ struct AAPotentialValuesImpl : AAPotentialValues {
 
     IRPosition ValIRP = IRPosition::value(V);
     if (auto *CB = dyn_cast_or_null<CallBase>(CtxI)) {
-      for (auto &U : CB->args()) {
+      for (const auto &U : CB->args()) {
         if (U.get() != &V)
           continue;
         ValIRP = IRPosition::callsite_argument(*CB, CB->getArgOperandNo(&U));
@@ -9871,11 +9887,10 @@ struct AAPotentialValuesImpl : AAPotentialValues {
         auto &PotentialConstantsAA = A.getAAFor<AAPotentialConstantValues>(
             *this, ValIRP, DepClassTy::OPTIONAL);
         if (PotentialConstantsAA.isValidState()) {
-          for (auto &It : PotentialConstantsAA.getAssumedSet()) {
+          for (const auto &It : PotentialConstantsAA.getAssumedSet())
             State.unionAssumed({{*ConstantInt::get(&Ty, It), nullptr}, S});
-          }
-          assert(!PotentialConstantsAA.undefIsContained() &&
-                 "Undef should be an explicit value!");
+          if (PotentialConstantsAA.undefIsContained())
+            State.unionAssumed({{*UndefValue::get(&Ty), nullptr}, S});
           return;
         }
       }
@@ -9899,6 +9914,15 @@ struct AAPotentialValuesImpl : AAPotentialValues {
   struct ItemInfo {
     AA::ValueAndContext I;
     AA::ValueScope S;
+
+    bool operator==(const ItemInfo &II) const {
+      return II.I == I && II.S == S;
+    };
+    bool operator<(const ItemInfo &II) const {
+      if (I == II.I)
+        return S < II.S;
+      return I < II.I;
+    };
   };
 
   bool recurseForValue(Attributor &A, const IRPosition &IRP, AA::ValueScope S) {
@@ -9925,7 +9949,7 @@ struct AAPotentialValuesImpl : AAPotentialValues {
 
   void giveUpOnIntraprocedural(Attributor &A) {
     auto NewS = StateType::getBestState(getState());
-    for (auto &It : getAssumedSet()) {
+    for (const auto &It : getAssumedSet()) {
       if (It.second == AA::Intraprocedural)
         continue;
       addValue(A, NewS, *It.first.getValue(), It.first.getCtxI(),
@@ -9977,7 +10001,7 @@ struct AAPotentialValuesImpl : AAPotentialValues {
                                   AA::ValueScope S) const override {
     if (!isValidState())
       return false;
-    for (auto &It : getAssumedSet())
+    for (const auto &It : getAssumedSet())
       if (It.second & S)
         Values.push_back(It.first);
     assert(!undefIsContained() && "Undef should be an explicit value!");
@@ -10271,7 +10295,7 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
     SmallMapVector<const Function *, LivenessInfo, 4> LivenessAAs;
 
     Value *InitialV = &getAssociatedValue();
-    SmallSet<AA::ValueAndContext, 16> Visited;
+    SmallSet<ItemInfo, 16> Visited;
     SmallVector<ItemInfo, 16> Worklist;
     Worklist.push_back({{*InitialV, getCtxI()}, AA::AnyScope});
 
@@ -10285,7 +10309,7 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
 
       // Check if we should process the current value. To prevent endless
       // recursion keep a record of the values we followed!
-      if (!Visited.insert(II.I).second)
+      if (!Visited.insert(II).second)
         continue;
 
       // Make sure we limit the compile time for complex expressions.
@@ -10406,8 +10430,7 @@ struct AAPotentialValuesArgument final : AAPotentialValuesImpl {
                getAnchorScope());
       AnyNonLocal = true;
     }
-    if (undefIsContained())
-      unionAssumedWithUndef();
+    assert(!undefIsContained() && "Undef should be an explicit value!");
     if (AnyNonLocal)
       giveUpOnIntraprocedural(A);
 

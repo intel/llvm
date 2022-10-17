@@ -14,8 +14,8 @@ from the [MLIR LangRef](LangRef.md).
 
 Attributes are the mechanism for specifying constant data on operations in
 places where a variable is never allowed - e.g. the comparison predicate of a
-[`arith.cmpi` operation](Dialects/ArithmeticOps.md#arithcmpi-mlirarithcmpiop), or
-the underlying value of a [`arith.constant` operation](Dialects/ArithmeticOps.md#arithconstant-mlirarithconstantop).
+[`arith.cmpi` operation](Dialects/ArithOps.md#arithcmpi-mlirarithcmpiop), or
+the underlying value of a [`arith.constant` operation](Dialects/ArithOps.md#arithconstant-mlirarithconstantop).
 Each operation has an attribute dictionary, which associates a set of attribute
 names to attribute values.
 
@@ -24,7 +24,7 @@ names to attribute values.
 Every SSA value, such as operation results or block arguments, in MLIR has a type
 defined by the type system. MLIR has an open type system with no fixed list of types,
 and there are no restrictions on the abstractions they represent. For example, take
-the following [Arithmetic AddI operation](Dialects/ArithmeticOps.md#arithaddi-mlirarithaddiop):
+the following [Arithmetic AddI operation](Dialects/ArithOps.md#arithaddi-mlirarithaddiop):
 
 ```mlir
   %result = arith.addi %lhs, %rhs : i64
@@ -640,28 +640,27 @@ To add a custom conversion between the `cppStorageType` and the C++ type of the
 parameter, parameters can override `convertFromStorage`, which by default is
 `"$_self"` (i.e., it attempts an implicit conversion from `cppStorageType`).
 
-###### Optional Parameters
+###### Optional and Default-Valued Parameters
 
+An optional parameter can be omitted from the assembly format of an attribute or
+a type. An optional parameter is omitted when it is equal to its default value.
 Optional parameters in the assembly format can be indicated by setting
-`isOptional`. The C++ type of an optional parameter is required to satisfy the
-following requirements:
+`defaultValue`, a string of the C++ default value. If a value for the parameter
+was not encountered during parsing, it is set to this default value. If a
+parameter is equal to its default value, it is not printed. The `comparator`
+field of the parameter is used, but if one is not specified, the equality
+operator is used.
 
-- is default-constructible
-- is contextually convertible to `bool`
-- only the default-constructed value is `false`
-
-The parameter parser should return the default-constructed value to indicate "no
-value present". The printer will guard on the presence of a value to print the
-parameter.
-
-If a value was not parsed for an optional parameter, then the parameter will be
-set to its default-constructed C++ value. For example, `Optional<int>` will be
-set to `llvm::None` and `Attribute` will be set to `nullptr`.
+When using `OptionalParameter`, the default value is set to the C++
+default-constructed value for the C++ storage type. For example, `Optional<int>`
+will be set to `llvm::None` and `Attribute` will be set to `nullptr`. The
+presence of these parameters is tested by comparing them to their "null" values.
 
 Only optional parameters or directives that only capture optional parameters can
 be used in optional groups. An optional group is a set of elements optionally
-printed based on the presence of an anchor. Suppose parameter `a` is an
-`IntegerAttr`.
+printed based on the presence of an anchor. The group in which the anchor is
+placed is printed if it is present, otherwise the other one is printed. Suppose
+parameter `a` is an `IntegerAttr`.
 
 ```
 ( `(` $a^ `)` ) : (`x`)?
@@ -672,16 +671,9 @@ printed as `(5 : i32)`. If it is not present, it will be `x`. Directives that
 are used inside optional groups are allowed only if all captured parameters are
 also optional.
 
-###### Default-Valued Parameters
-
-Optional parameters can be given default values by setting `defaultValue`, a
-string of the C++ default value, or by using `DefaultValuedParameter`. If a
-value for the parameter was not encountered during parsing, it is set to this
-default value. If a parameter is equal to its default value, it is not printed.
-The `comparator` field of the parameter is used, but if one is not specified,
-the equality operator is used.
-
-For example:
+An optional parameter can also be specified with `DefaultValuedParameter`, which
+specifies that a parameter should be omitted when it is equal to some given
+value.
 
 ```tablegen
 let parameters = (ins DefaultValuedParameter<"Optional<int>", "5">:$a)
@@ -894,6 +886,19 @@ void printStringParam(AsmPrinter &printer, StringRef value);
 
 The custom parser is considered to have failed if it returns failure or if any
 bound parameters have failure values afterwards.
+
+A string of C++ code can be used as a `custom` directive argument. When
+generating the custom parser and printer call, the string is pasted as a
+function argument. For example, `parseBar` and `printBar` can be re-used with
+a constant integer:
+
+```tablegen
+let parameters = (ins "int":$bar);
+let assemblyFormat = [{ custom<Bar>($foo, "1") }];
+```
+
+The string is pasted verbatim but with substitutions for `$_builder` and
+`$_ctxt`. String literals can be used to parameterize custom directives.
 
 ### Verification
 
