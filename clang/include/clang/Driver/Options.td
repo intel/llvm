@@ -2942,6 +2942,12 @@ defm sycl_unnamed_lambda
               " >= clang::LangOptions::SYCLMajorVersion::SYCL_2020")>,
           PosFlag<SetTrue, [], "Allow">, NegFlag<SetFalse, [], "Disallow">,
           BothFlags<[CC1Option, CoreOption], " unnamed SYCL lambda kernels">>;
+defm sycl_force_inline_kernel_lambda
+    : BoolFOption<
+          "sycl-force-inline-kernel-lambda", LangOpts<"SYCLForceInlineKernelLambda">,
+          DefaultTrue,
+          PosFlag<SetTrue, [], "Allow">, NegFlag<SetFalse, [], "Disallow">,
+          BothFlags<[CC1Option, CoreOption], " force inline SYCL kernels lambda in entry point">>;
 def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
   Flags<[NoXarchOption, CoreOption]>, HelpText<"Emit help information from the "
   "related offline compilation tool. Valid values: all, fpga, gen, x86_64.">,

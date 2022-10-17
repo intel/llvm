@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NONATIVESUPPORT
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NATIVESUPPORT
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NONATIVESUPPORT
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s --check-prefixes=ALL,NATIVESUPPORT
 
 // This test checks IR generated when kernel_handler argument
 // (used to handle SYCL 2020 specialization constants) is passed
