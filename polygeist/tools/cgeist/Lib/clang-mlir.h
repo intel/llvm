@@ -101,7 +101,6 @@ private:
   const clang::FunctionDecl &funcDecl;
   const FunctionContext funcContext;
 };
-
 class CodeGenUtils {
 public:
   /// This class groups the type and attributes of a value (e.g. a parameter or
@@ -109,10 +108,10 @@ public:
   class TypeAndAttrs {
   public:
     mlir::Type type;
-    std::vector<mlir::NamedAttribute> attrs;
+    mlir::NamedAttrList attrs;
 
     TypeAndAttrs(mlir::Type type) : type(type), attrs() {}
-    TypeAndAttrs(mlir::Type type, std::vector<mlir::NamedAttribute> attrs)
+    TypeAndAttrs(mlir::Type type, mlir::NamedAttrList attrs)
         : type(type), attrs(attrs) {}
 
     // Collect the types of the given \p descriptors in \p types.
@@ -120,9 +119,9 @@ public:
                          llvm::SmallVectorImpl<mlir::Type> &types);
 
     // Collect the attributes of the given \p descriptors in \p attrs.
-    static void getAttributes(
-        const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
-        llvm::SmallVectorImpl<std::vector<mlir::NamedAttribute>> &attrs);
+    static void
+    getAttributes(const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
+                  llvm::SmallVectorImpl<mlir::NamedAttrList> &attrs);
   };
 
   using ParmDesc = TypeAndAttrs;
@@ -369,6 +368,7 @@ private:
 
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
+<<<<<<< Updated upstream
   /// Converts the \p val to the memory space \p memSpace and returns the
   /// converted value.
   mlir::Value castToMemSpace(mlir::Value val, unsigned memSpace);
@@ -376,6 +376,15 @@ private:
   /// Converts the \p val to the memory space of \p t and returns the
   /// converted value.
   mlir::Value castToMemSpaceOfType(mlir::Value val, mlir::Type targetType);
+=======
+  /// Converts the given value \p val to the given memory space \p memSpace and
+  /// returns the converted value.
+  mlir::Value castToMemSpace(mlir::Value val, unsigned memSpace,
+                             mlir::Location loc);
+
+  /// Retrieve the default memory space of the given module.
+  unsigned getDefaultMemorySpace(mlir::ModuleOp module) const;
+>>>>>>> Stashed changes
 
   bool isTrivialAffineLoop(clang::ForStmt *fors,
                            mlirclang::AffineLoopDescriptor &descr);
@@ -422,7 +431,7 @@ public:
 
   mlir::OpBuilder &getBuilder() { return builder; };
   std::vector<LoopContext> &getLoops() { return loops; }
-  mlir::Location getLoc() { return loc; }
+  mlir::Location getLoc() const { return loc; }
 
   mlir::Value getConstantIndex(int x);
 

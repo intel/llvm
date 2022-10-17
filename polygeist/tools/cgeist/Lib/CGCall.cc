@@ -91,10 +91,13 @@ ValueCategory MLIRScanner::CallHelper(
   std::map<std::string, mlir::Value> mapFuncOperands;
 
   for (auto pair : arguments) {
-
     ValueCategory arg = std::get<0>(pair);
     clang::Expr *a = std::get<1>(pair);
+<<<<<<< Updated upstream
 #ifdef DEBUG
+=======
+#ifdef DEBUG    
+>>>>>>> Stashed changes
     if (!arg.val) {
       expr->dump();
       a->dump();
@@ -108,7 +111,11 @@ ValueCategory MLIRScanner::CallHelper(
             make_pair(dre->getDecl()->getName().str(), arg.val));
 
     if (i >= fnType.getInputs().size() || (i != 0 && a == nullptr)) {
+<<<<<<< Updated upstream
 #ifdef DEBUG
+=======
+#ifdef DEBUG      
+>>>>>>> Stashed changes
       expr->dump();
       tocall.dump();
       fnType.dump();
@@ -124,8 +131,14 @@ ValueCategory MLIRScanner::CallHelper(
 
     bool isArray = false;
     QualType aType = (i == 0 && a == nullptr) ? objType : a->getType();
+    llvm::dbgs() << "aType: " << aType << "\n";
+    llvm::dbgs() << "aType addrspace: "
+                 << Glob.getCGM().getContext().getTargetAddressSpace(aType)
+                 << "\n";
 
     auto expectedType = Glob.getMLIRType(aType, &isArray);
+    llvm::dbgs() << "expectedType: " << expectedType << "\n";
+
     if (auto PT = arg.val.getType().dyn_cast<LLVM::LLVMPointerType>()) {
       if (PT.getAddressSpace() == 5)
         arg.val = builder.create<LLVM::AddrSpaceCastOp>(
@@ -134,6 +147,8 @@ ValueCategory MLIRScanner::CallHelper(
 
     mlir::Value val = nullptr;
     if (!isReference) {
+      llvm::dbgs() << "at line " << __LINE__ << "\n";
+
       if (isArray) {
 #ifdef DEBUG
         if (!arg.isReference) {
@@ -141,13 +156,23 @@ ValueCategory MLIRScanner::CallHelper(
           a->dump();
           llvm::errs() << " v: " << arg.val << "\n";
         }
+<<<<<<< Updated upstream
 #endif
+=======
+#endif                
+>>>>>>> Stashed changes
         assert(arg.isReference);
 
         auto mt =
             Glob.getMLIRType(
                     Glob.getCGM().getContext().getLValueReferenceType(aType))
                 .cast<MemRefType>();
+        llvm::dbgs() << "at line " << __LINE__ << "\n";
+        llvm::dbgs() << "mt: " << mt << "\n";
+        llvm::dbgs() << "getLValueReferenceType(aType): "
+                     << Glob.getCGM().getContext().getLValueReferenceType(aType)
+                     << "\n";
+
         auto shape = std::vector<int64_t>(mt.getShape());
         assert(shape.size() == 2);
 
@@ -171,7 +196,10 @@ ValueCategory MLIRScanner::CallHelper(
                                   mt.getMemorySpace()),
             alloc);
       } else {
+        llvm::dbgs() << "at line " << __LINE__ << "\n";        
         val = arg.getValue(builder);
+
+
         if (val.getType().isa<LLVM::LLVMPointerType>() &&
             expectedType.isa<MemRefType>()) {
           val = builder.create<polygeist::Pointer2MemrefOp>(loc, expectedType,
@@ -184,6 +212,7 @@ ValueCategory MLIRScanner::CallHelper(
         }
       }
     } else {
+      llvm::dbgs() << "at line " << __LINE__ << "\n";      
       assert(arg.isReference);
 
       expectedType = Glob.getMLIRType(
@@ -229,6 +258,7 @@ ValueCategory MLIRScanner::CallHelper(
 
   mlir::Value alloc;
   if (isArrayReturn) {
+    llvm::dbgs() << "at line " << __LINE__ << "\n";
     auto mt =
         Glob.getMLIRType(
                 Glob.getCGM().getContext().getLValueReferenceType(retType))
@@ -335,6 +365,9 @@ ValueCategory MLIRScanner::CallHelper(
 
   // Try to rescue some mismatched types.
   castCallerArgs(tocall, args, builder);
+
+  for (auto arg: args) 
+    llvm::dbgs() << "arg: " << arg << "\n";
 
   /// Try to emit SYCL operations before creating a CallOp
   mlir::Operation *op = EmitSYCLOps(expr, args);

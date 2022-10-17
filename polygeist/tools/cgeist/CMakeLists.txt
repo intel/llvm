@@ -21,19 +21,21 @@ set( LLVM_LINK_COMPONENTS
 
 add_clang_executable(cgeist
   driver.cc
-  Lib/CGExpr.cc
-  Lib/CGStmt.cc
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
-  Lib/pragmaHandler.cc
+
   Lib/AffineUtils.cc
   Lib/Attributes.cc
+  Lib/CGCall.cc
+  Lib/CGExpr.cc
+  Lib/CGStmt.cc
+  Lib/IfScope.cc
+  Lib/pragmaHandler.cc
+  Lib/TargetInfo.cc  
+  Lib/TypeUtils.cc
   Lib/ValueCategory.cc
   Lib/utils.cc
-  Lib/IfScope.cc
-  Lib/TypeUtils.cc
-  Lib/CGCall.cc
 )
 install(TARGETS cgeist
 EXPORT PolygeistTargets

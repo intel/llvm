@@ -992,6 +992,8 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
 }
 
 ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
+  llvm::dbgs() << "decl: "; decl->dump(); llvm::dbgs() << "\n";
+
   IfScope scope(*this);
   for (auto *sub : decl->decls()) {
     if (auto *vd = dyn_cast<VarDecl>(sub)) {

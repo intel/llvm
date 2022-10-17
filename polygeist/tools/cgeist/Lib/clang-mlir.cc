@@ -8,6 +8,7 @@
 
 #include "clang-mlir.h"
 #include "Attributes.h"
+#include "TargetInfo.h"
 #include "TypeUtils.h"
 #include "utils.h"
 
@@ -175,18 +176,16 @@ bool CodeGenUtils::determineNoUndef(QualType qt,
   return false;
 }
 
-void CodeGenUtils::TypeAndAttrs::getTypes(
-    const SmallVectorImpl<TypeAndAttrs> &descriptors,
-    SmallVectorImpl<mlir::Type> &types) {
-  assert(types.empty() && "Expecting 'types' to be empty");
-
-  for (const TypeAndAttrs &desc : descriptors)
-    types.push_back(desc.type);
+mlir::IntegerAttr wrapIntegerMemorySpace(unsigned memorySpace,
+                                         MLIRContext *ctx) {
+  return memorySpace ? mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64),
+                                              memorySpace)
+                     : nullptr;
 }
 
 void CodeGenUtils::TypeAndAttrs::getAttributes(
     const SmallVectorImpl<TypeAndAttrs> &descriptors,
-    SmallVectorImpl<std::vector<mlir::NamedAttribute>> &attrs) {
+    SmallVectorImpl<mlir::NamedAttrList> &attrs) {
   assert(attrs.empty() && "Expecting 'attrs' to be empty");
 
   for (const TypeAndAttrs &desc : descriptors)
@@ -3303,6 +3302,31 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     // (in MLIR, we pass it as MemRefs with unknown size).
     // Note: indirect arguments are always on the stack (i.e. using alloca addr
     // space).
+    CommonSPIRABIInfo abiInfo(CGM.getTypes());
+
+    if (isKernel) {
+      CodeGen::ABIArgInfo AI = abiInfo.classifyKernelArgumentType(parmType);
+
+      if (AI.getKind() == ABIArgInfo::Indirect) {
+        auto mt =
+            mlir::MemRefType::get(-1, getMLIRType(parmType), {},
+                                  CGM.getDataLayout().getAllocaAddrSpace());
+
+        // This should go into constructAttributeList
+        if (AI.getIndirectByVal())
+          attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal);
+
+        attrBuilder.addAttribute(
+            llvm::Attribute::AttrKind::Alignment,
+            CGM.getContext().getTypeAlignInChars(parmType).getQuantity());
+
+        if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
+            CodeGenUtils::determineNoUndef(parmType,
+                                           CodeGen::ABIArgInfo::Indirect))
+          attrBuilder.addAttribute(llvm::Attribute::AttrKind::NoUndef);
+      }
+    }
+
     if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
       auto mt = mlir::MemRefType::get(-1, getMLIRType(parmType), {},
                                       CGM.getDataLayout().getAllocaAddrSpace());
@@ -3499,7 +3523,7 @@ void MLIRASTConsumer::setMLIRFunctionParmsAttributes(
     const SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) const {
   assert(function.getNumArguments() == parmDescriptors.size() && "Mismatch");
 
-  SmallVector<std::vector<mlir::NamedAttribute>, 4> parmAttrs;
+  SmallVector<mlir::NamedAttrList, 4> parmAttrs;
   CodeGenUtils::ParmDesc::getAttributes(parmDescriptors, parmAttrs);
 
   for (unsigned argIndex : llvm::seq<unsigned>(0, function.getNumArguments()))
@@ -3512,7 +3536,7 @@ void MLIRASTConsumer::setMLIRFunctionResultAttributes(
     const SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors) const {
   assert(function.getNumResults() == resDescriptors.size() && "Mismatch");
 
-  SmallVector<std::vector<mlir::NamedAttribute>, 2> resAttrs;
+  SmallVector<mlir::NamedAttrList, 2> resAttrs;
   CodeGenUtils::ResultDesc::getAttributes(resDescriptors, resAttrs);
 
   for (unsigned resIndex : llvm::seq<unsigned>(0, function.getNumResults()))
