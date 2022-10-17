@@ -177,7 +177,13 @@ using KernelFunc = std::function<void(const sycl::nd_item<NDims> &)>;
 // kernel execution. Function instances of 'InvokeKernel' un-wrap
 // this struct instance and invoke lambda function ('Func')
 template <int NDims> struct KernelInvocationContext {
-  KernelFunc<NDims> Func;
+  KernelInvocationContext(const KernelFunc<NDims> &ArgFunc,
+                          const sycl::range<NDims> &ArgLocalSize,
+                          const sycl::range<NDims> &ArgGlobalSize,
+                          const sycl::id<NDims> &ArgGlobalOffset)
+      : Func(ArgFunc), LocalSize(ArgLocalSize), GlobalSize(ArgGlobalSize),
+        GlobalOffset(ArgGlobalOffset) {}
+  const KernelFunc<NDims> &Func;
   const sycl::range<NDims> &LocalSize;
   const sycl::range<NDims> &GlobalSize;
   const sycl::id<NDims> &GlobalOffset;
@@ -261,8 +267,8 @@ public:
       GroupDim[I] = (uint32_t)(GlobalSize[I] / LocalSize[I]);
     }
 
-    const auto InvokeKernelArg = KernelInvocationContext<DIMS>{
-        MKernel, LocalSize, GlobalSize, GlobalOffset};
+    const auto InvokeKernelArg = KernelInvocationContext<DIMS>(
+        MKernel, LocalSize, GlobalSize, GlobalOffset);
 
     EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>),
                    GroupDim.data(), SpaceDim.data()}
@@ -364,9 +370,10 @@ template <int NDims> struct InvokeImpl {
   static void invoke(pi_kernel Kernel, const size_t *GlobalWorkOffset,
                      const size_t *GlobalWorkSize,
                      const size_t *LocalWorkSize) {
-    libCMBatch<NDims>{*reinterpret_cast<KernelFunc<NDims> *>(Kernel)}
-        .runIterationSpace(get_range(LocalWorkSize), get_range(GlobalWorkSize),
-                           sycl::id<NDims>{get_range(GlobalWorkOffset)});
+    auto KernelObject = *reinterpret_cast<KernelFunc<NDims> *>(Kernel);
+    libCMBatch<NDims>{KernelObject}.runIterationSpace(
+        get_range(LocalWorkSize), get_range(GlobalWorkSize),
+        sycl::id<NDims>{get_range(GlobalWorkOffset)});
   }
 };
 
