@@ -203,7 +203,7 @@ std::string html::EscapeText(StringRef s, bool EscapeSpaces, bool ReplaceTabs) {
     }
   }
 
-  return os.str();
+  return Str;
 }
 
 static void AddLineNumber(RewriteBuffer &RB, unsigned LineNo,
@@ -488,14 +488,14 @@ void html::SyntaxHighlight(Rewriter &R, FileID FID, const Preprocessor &PP) {
       ++TokOffs;
       --TokLen;
       // FALL THROUGH to chop the 8
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::wide_string_literal:
     case tok::utf16_string_literal:
     case tok::utf32_string_literal:
       // Chop off the L, u, U or 8 prefix
       ++TokOffs;
       --TokLen;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::string_literal:
       // FIXME: Exclude the optional ud-suffix from the highlighted range.
       HighlightRange(RB, TokOffs, TokOffs+TokLen, BufferStart,
@@ -542,7 +542,7 @@ void html::HighlightMacros(Rewriter &R, FileID FID, const Preprocessor& PP) {
 
   // Lex all the tokens in raw mode, to avoid entering #includes or expanding
   // macros.
-  while (1) {
+  while (true) {
     Token Tok;
     L.LexFromRawLexer(Tok);
 

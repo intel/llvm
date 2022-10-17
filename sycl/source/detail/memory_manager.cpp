@@ -6,19 +6,109 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/memory_manager.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/mem_alloc_helper.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <xpti/xpti_data_types.h>
+#include <xpti/xpti_trace_framework.hpp>
+#endif
+
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+uint8_t GMemAllocStreamID;
+xpti::trace_event_data_t *GMemAllocEvent;
+#endif
+
+uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
+                                size_t GuardZone) {
+  (void)ObjHandle;
+  (void)AllocSize;
+  (void)GuardZone;
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, 0 /* alloc ptr */, AllocSize,
+                                    GuardZone};
+
+    CorrelationID = xptiGetUniqueId();
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitMemAllocEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
+                          size_t AllocSize, size_t GuardZone,
+                          uint64_t CorrelationID) {
+  (void)ObjHandle;
+  (void)AllocPtr;
+  (void)AllocSize;
+  (void)GuardZone;
+  (void)CorrelationID;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, AllocSize, GuardZone};
+
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+}
+
+uint64_t emitMemReleaseBeginTrace(uintptr_t ObjHandle, uintptr_t AllocPtr) {
+  (void)ObjHandle;
+  (void)AllocPtr;
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
+                                    0 /* guard zone */};
+
+    CorrelationID = xptiGetUniqueId();
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitMemReleaseEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
+                            uint64_t CorrelationID) {
+  (void)ObjHandle;
+  (void)AllocPtr;
+  (void)CorrelationID;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
+                                    0 /* guard zone */};
+
+    xptiNotifySubscribers(
+        GMemAllocStreamID,
+        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end),
+        GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
+  }
+#endif
+}
 
 static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
@@ -34,6 +124,113 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   }
 }
 
+void memBufferCreateHelper(const plugin &Plugin, pi_context Ctx,
+                           pi_mem_flags Flags, size_t Size, void *HostPtr,
+                           pi_mem *RetMem, const pi_mem_properties *Props) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  uint64_t CorrID = 0;
+#endif
+  // We only want to instrument piMemBufferCreate
+  {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    CorrID =
+        emitMemAllocBeginTrace(0 /* mem object */, Size, 0 /* guard zone */);
+    xpti::utils::finally _{[&] {
+      // C-style cast is required for MSVC
+      uintptr_t MemObjID = (uintptr_t)(*RetMem);
+      pi_native_handle Ptr = 0;
+      // Always use call_nocheck here, because call may throw an exception,
+      // and this lambda will be called from destructor, which in combination
+      // rewards us with UB.
+      Plugin.call_nocheck<PiApiKind::piextMemGetNativeHandle>(*RetMem, &Ptr);
+      emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
+                           CorrID);
+    }};
+#endif
+    Plugin.call<PiApiKind::piMemBufferCreate>(Ctx, Flags, Size, HostPtr, RetMem,
+                                              Props);
+  }
+}
+
+void memReleaseHelper(const plugin &Plugin, pi_mem Mem) {
+  // FIXME piMemRelease does not guarante memory release. It is only true if
+  // reference counter is 1. However, SYCL runtime currently only calls
+  // piMemRetain only for OpenCL interop
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  uint64_t CorrID = 0;
+  // C-style cast is required for MSVC
+  uintptr_t MemObjID = (uintptr_t)(Mem);
+  uintptr_t Ptr = 0;
+  // Do not make unnecessary PI calls without instrumentation enabled
+  if (xptiTraceEnabled()) {
+    pi_native_handle PtrHandle = 0;
+    Plugin.call<PiApiKind::piextMemGetNativeHandle>(Mem, &PtrHandle);
+    Ptr = (uintptr_t)(PtrHandle);
+  }
+#endif
+  // We only want to instrument piMemRelease
+  {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
+    xpti::utils::finally _{
+        [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
+#endif
+    Plugin.call<PiApiKind::piMemRelease>(Mem);
+  }
+}
+
+void memBufferMapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Buffer,
+                        pi_bool Blocking, pi_map_flags Flags, size_t Offset,
+                        size_t Size, pi_uint32 NumEvents,
+                        const pi_event *WaitList, pi_event *Event,
+                        void **RetMap) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  uint64_t CorrID = 0;
+  uintptr_t MemObjID = (uintptr_t)(Buffer);
+#endif
+  // We only want to instrument piEnqueueMemBufferMap
+  {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
+    xpti::utils::finally _{[&] {
+      emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
+                           0 /* guard zone */, CorrID);
+    }};
+#endif
+    Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
+        Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
+        Event, RetMap);
+  }
+}
+
+void memUnmapHelper(const plugin &Plugin, pi_queue Queue, pi_mem Mem,
+                    void *MappedPtr, pi_uint32 NumEvents,
+                    const pi_event *WaitList, pi_event *Event) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  uint64_t CorrID = 0;
+  uintptr_t MemObjID = (uintptr_t)(Mem);
+  uintptr_t Ptr = (uintptr_t)(MappedPtr);
+#endif
+  // We only want to instrument piEnqueueMemUnmap
+  {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
+    xpti::utils::finally _{[&] {
+      // There's no way for SYCL to know, when the pointer is freed, so we have
+      // to explicitly wait for the end of data transfers here in order to
+      // report correct events.
+      // Always use call_nocheck here, because call may throw an exception,
+      // and this lambda will be called from destructor, which in combination
+      // rewards us with UB.
+      Plugin.call_nocheck<PiApiKind::piEventsWait>(1, Event);
+      emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
+    }};
+#endif
+    Plugin.call<PiApiKind::piEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
+                                              WaitList, Event);
+  }
+}
+
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation,
                             std::vector<EventImplPtr> DepEvents,
@@ -42,15 +239,8 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   // dependency events and return empty event.
   waitForEvents(DepEvents);
   OutEvent = nullptr;
+  XPTIRegistry::bufferReleaseNotification(MemObj, MemAllocation);
   MemObj->releaseMem(TargetContext, MemAllocation);
-}
-
-void MemoryManager::releaseImageBuffer(ContextImplPtr TargetContext,
-                                       void *ImageBuf) {
-  (void)TargetContext;
-  (void)ImageBuf;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated release operation", PI_INVALID_OPERATION);
 }
 
 void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
@@ -67,7 +257,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
   }
 
   const detail::plugin &Plugin = TargetContext->getPlugin();
-  Plugin.call<PiApiKind::piMemRelease>(pi::cast<RT::PiMem>(MemAllocation));
+  memReleaseHelper(Plugin, pi::cast<RT::PiMem>(MemAllocation));
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
@@ -83,29 +273,18 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                              OutEvent);
 }
 
-void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
-                                         void *MemBuf, SYCLMemObjI *MemObj) {
-  (void)TargetContext;
-  (void)MemBuf;
-  (void)MemObj;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated allocation operation", PI_INVALID_OPERATION);
-}
-
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                         bool HostPtrReadOnly, size_t Size,
                                         const sycl::property_list &) {
-  // Can return user pointer directly if it points to writable memory.
-  if (UserPtr && HostPtrReadOnly == false)
+  std::ignore = HostPtrReadOnly;
+  std::ignore = Size;
+
+  // Can return user pointer directly if it is not a nullptr.
+  if (UserPtr)
     return UserPtr;
 
-  void *NewMem = MemObj->allocateHostMem();
-
-  // Need to initialize new memory if user provides pointer to read only
-  // memory.
-  if (UserPtr && HostPtrReadOnly == true)
-    std::memcpy((char *)NewMem, (char *)UserPtr, Size);
-  return NewMem;
+  return MemObj->allocateHostMem();
+  ;
 }
 
 void *MemoryManager::allocateInteropMemObject(
@@ -132,8 +311,7 @@ static RT::PiMemFlags getMemObjCreationFlags(void *UserPtr,
   RT::PiMemFlags Result =
       HostPtrReadOnly ? PI_MEM_ACCESS_READ_ONLY : PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
-    Result |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
-                              : PI_MEM_FLAGS_HOST_PTR_USE;
+    Result |= PI_MEM_FLAGS_HOST_PTR_USE;
   return Result;
 }
 
@@ -165,9 +343,20 @@ MemoryManager::allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
 
   RT::PiMem NewMem = nullptr;
   const detail::plugin &Plugin = TargetContext->getPlugin();
-  Plugin.call<PiApiKind::piMemBufferCreate>(TargetContext->getHandleRef(),
-                                            CreationFlags, Size, UserPtr,
-                                            &NewMem, nullptr);
+
+  if (PropsList.has_property<property::buffer::detail::buffer_location>())
+    if (TargetContext->isBufferLocationSupported()) {
+      auto location =
+          PropsList.get_property<property::buffer::detail::buffer_location>()
+              .get_buffer_location();
+      pi_mem_properties props[3] = {PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION,
+                                    location, 0};
+      memBufferCreateHelper(Plugin, TargetContext->getHandleRef(),
+                            CreationFlags, Size, UserPtr, &NewMem, props);
+      return NewMem;
+    }
+  memBufferCreateHelper(Plugin, TargetContext->getHandleRef(), CreationFlags,
+                        Size, UserPtr, &NewMem, nullptr);
   return NewMem;
 }
 
@@ -178,14 +367,19 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
                                        const ContextImplPtr &InteropContext,
                                        const sycl::property_list &PropsList,
                                        RT::PiEvent &OutEventToWait) {
+  void *MemPtr;
   if (TargetContext->is_host())
-    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size,
-                              PropsList);
-  if (UserPtr && InteropContext)
-    return allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
-                                    InteropContext, PropsList, OutEventToWait);
-  return allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
-                              PropsList);
+    MemPtr =
+        allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size, PropsList);
+  else if (UserPtr && InteropContext)
+    MemPtr =
+        allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
+                                 InteropContext, PropsList, OutEventToWait);
+  else
+    MemPtr = allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
+                                  PropsList);
+  XPTIRegistry::bufferAssociateNotification(MemObj, MemPtr);
+  return MemPtr;
 }
 
 void *MemoryManager::allocateMemImage(
@@ -226,11 +420,11 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   Error = Plugin.call_nocheck<PiApiKind::piMemBufferPartition>(
       pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
       PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
-  if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
+  if (Error == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
         "multiple of the memory base address alignment",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (Error != PI_SUCCESS) {
     Plugin.reportPiError(Error, "allocateMemSubBuffer()");
@@ -298,7 +492,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferWrite>(
           Queue, DstMem,
-          /*blocking_write=*/CL_FALSE, DstXOffBytes, DstAccessRangeWidthBytes,
+          /*blocking_write=*/PI_FALSE, DstXOffBytes, DstAccessRangeWidthBytes,
           SrcMem + SrcXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
@@ -318,7 +512,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 
       Plugin.call<PiApiKind::piEnqueueMemBufferWriteRect>(
           Queue, DstMem,
-          /*blocking_write=*/CL_FALSE, &BufferOffset, &HostOffset, &RectRegion,
+          /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
           SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
@@ -336,7 +530,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 
     Plugin.call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
-        /*blocking_write=*/CL_FALSE, &Origin, &Region, InputRowPitch,
+        /*blocking_write=*/PI_FALSE, &Origin, &Region, InputRowPitch,
         InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
@@ -376,7 +570,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     if (1 == DimDst && 1 == DimSrc) {
       Plugin.call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
-          /*blocking_read=*/CL_FALSE, SrcXOffBytes, SrcAccessRangeWidthBytes,
+          /*blocking_read=*/PI_FALSE, SrcXOffBytes, SrcAccessRangeWidthBytes,
           DstMem + DstXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
@@ -396,7 +590,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
       Plugin.call<PiApiKind::piEnqueueMemBufferReadRect>(
           Queue, SrcMem,
-          /*blocking_read=*/CL_FALSE, &BufferOffset, &HostOffset, &RectRegion,
+          /*blocking_read=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
           DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
@@ -413,7 +607,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
                                   SrcAccessRange[SrcPos.ZTerm]};
 
     Plugin.call<PiApiKind::piEnqueueMemImageRead>(
-        Queue, SrcMem, CL_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
+        Queue, SrcMem, PI_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
         DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
@@ -502,7 +696,7 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
     throw runtime_error("Not supported configuration of memcpy requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
 
   SrcMem += SrcOffset[0] * SrcElemSize;
@@ -576,7 +770,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
       return;
     }
     throw runtime_error("Not supported configuration of fill requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0],
@@ -592,7 +786,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          RT::PiEvent &OutEvent) {
   if (Queue->is_host()) {
     throw runtime_error("Not supported configuration of map requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
 
   pi_map_flags Flags = 0;
@@ -623,10 +817,9 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   void *MappedPtr = nullptr;
   const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
   const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piEnqueueMemBufferMap>(
-      Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags,
-      AccessOffset[0], BytesToMap, DepEvents.size(), DepEvents.data(),
-      &OutEvent, &MappedPtr);
+  memBufferMapHelper(Plugin, Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem),
+                     PI_FALSE, Flags, AccessOffset[0], BytesToMap,
+                     DepEvents.size(), DepEvents.data(), &OutEvent, &MappedPtr);
   return MappedPtr;
 }
 
@@ -639,96 +832,84 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   // Using the plugin of the Queue.
 
   const detail::plugin &Plugin = Queue->getPlugin();
-  Plugin.call<PiApiKind::piEnqueueMemUnmap>(
-      Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), MappedPtr,
-      DepEvents.size(), DepEvents.data(), &OutEvent);
+  memUnmapHelper(Plugin, Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem),
+                 MappedPtr, DepEvents.size(), DepEvents.data(), &OutEvent);
 }
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  sycl::context Context = SrcQueue->get_context();
+                             RT::PiEvent *OutEvent) {
+  assert(!SrcQueue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in fill_usm.");
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
-    if (!Context.is_host() && !DepEvents.empty()) {
+    if (!DepEvents.empty()) {
       SrcQueue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
           SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
-          &OutEvent);
+          OutEvent);
     }
     return;
   }
 
   if (!SrcMem || !DstMem)
     throw runtime_error("NULL pointer argument in memory copy operation.",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
 
-  if (Context.is_host()) {
-    std::memcpy(DstMem, SrcMem, Len);
-  } else {
-    const detail::plugin &Plugin = SrcQueue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
-                                                  /* blocking */ false, DstMem,
-                                                  SrcMem, Len, DepEvents.size(),
-                                                  DepEvents.data(), &OutEvent);
-  }
+  const detail::plugin &Plugin = SrcQueue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
+                                                /* blocking */ false, DstMem,
+                                                SrcMem, Len, DepEvents.size(),
+                                                DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  sycl::context Context = Queue->get_context();
+                             RT::PiEvent *OutEvent) {
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in fill_usm.");
 
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
-    if (!Context.is_host() && !DepEvents.empty()) {
+    if (!DepEvents.empty()) {
       Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), &OutEvent);
+          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
   }
 
   if (!Mem)
     throw runtime_error("NULL pointer argument in memory fill operation.",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
 
-  if (Context.is_host()) {
-    std::memset(Mem, Pattern, Length);
-  } else {
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
-        Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
-        DepEvents.data(), &OutEvent);
-  }
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemset>(
+      Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
+      DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                                  std::vector<RT::PiEvent> DepEvents,
-                                 RT::PiEvent &OutEvent) {
-  sycl::context Context = Queue->get_context();
+                                 RT::PiEvent *OutEvent) {
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in prefetch_usm.");
 
-  if (Context.is_host()) {
-    // TODO: Potentially implement prefetch on the host.
-  } else {
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
-        Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
-        DepEvents.size(), DepEvents.data(), &OutEvent);
-  }
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
+      Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
+      DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
 void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, pi_mem_advice Advice,
                                std::vector<RT::PiEvent> /*DepEvents*/,
-                               RT::PiEvent &OutEvent) {
-  sycl::context Context = Queue->get_context();
+                               RT::PiEvent *OutEvent) {
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in advise_usm.");
 
-  if (!Context.is_host()) {
-    const detail::plugin &Plugin = Queue->getPlugin();
-    Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
-                                                     Length, Advice, &OutEvent);
-  }
+  const detail::plugin &Plugin = Queue->getPlugin();
+  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
+                                                   Length, Advice, OutEvent);
 }
-
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

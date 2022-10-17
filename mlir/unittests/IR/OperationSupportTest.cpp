@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/OperationSupport.h"
+#include "../../test/lib/Dialect/Test/TestDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/BitVector.h"
@@ -164,7 +165,7 @@ TEST(OperandStorageTest, RangeErase) {
   // Create an operation with operands to erase.
   Operation *user =
       createOp(&context, {operand2, operand1, operand2, operand1});
-  llvm::BitVector eraseIndices(user->getNumOperands());
+  BitVector eraseIndices(user->getNumOperands());
 
   // Check erasing no operands.
   user->eraseOperands(eraseIndices);
@@ -223,6 +224,69 @@ TEST(OperationFormatPrintTest, CanUseVariadicFormat) {
 
   std::string str = formatv("{0}", *op).str();
   ASSERT_STREQ(str.c_str(), "\"foo.bar\"() : () -> ()");
+
+  op->destroy();
 }
 
-} // end namespace
+TEST(NamedAttrListTest, TestAppendAssign) {
+  MLIRContext ctx;
+  NamedAttrList attrs;
+  Builder b(&ctx);
+
+  attrs.append(b.getStringAttr("foo"), b.getStringAttr("bar"));
+  attrs.append("baz", b.getStringAttr("boo"));
+
+  {
+    auto *it = attrs.begin();
+    EXPECT_EQ(it->getName(), b.getStringAttr("foo"));
+    EXPECT_EQ(it->getValue(), b.getStringAttr("bar"));
+    ++it;
+    EXPECT_EQ(it->getName(), b.getStringAttr("baz"));
+    EXPECT_EQ(it->getValue(), b.getStringAttr("boo"));
+  }
+
+  attrs.append("foo", b.getStringAttr("zoo"));
+  {
+    auto dup = attrs.findDuplicate();
+    ASSERT_TRUE(dup.has_value());
+  }
+
+  SmallVector<NamedAttribute> newAttrs = {
+      b.getNamedAttr("foo", b.getStringAttr("f")),
+      b.getNamedAttr("zoo", b.getStringAttr("z")),
+  };
+  attrs.assign(newAttrs);
+
+  auto dup = attrs.findDuplicate();
+  ASSERT_FALSE(dup.has_value());
+
+  {
+    auto *it = attrs.begin();
+    EXPECT_EQ(it->getName(), b.getStringAttr("foo"));
+    EXPECT_EQ(it->getValue(), b.getStringAttr("f"));
+    ++it;
+    EXPECT_EQ(it->getName(), b.getStringAttr("zoo"));
+    EXPECT_EQ(it->getValue(), b.getStringAttr("z"));
+  }
+
+  attrs.assign({});
+  ASSERT_TRUE(attrs.empty());
+}
+
+TEST(OperandStorageTest, PopulateDefaultAttrs) {
+  MLIRContext context;
+  context.getOrLoadDialect<test::TestDialect>();
+  Builder builder(&context);
+
+  OpBuilder b(&context);
+  auto req1 = b.getI32IntegerAttr(10);
+  auto req2 = b.getI32IntegerAttr(60);
+  // Verify default attributes populated post op creation.
+  Operation *op = b.create<test::OpAttrMatch1>(b.getUnknownLoc(), req1, nullptr,
+                                               nullptr, req2);
+  auto opt = op->getAttr("default_valued_attr");
+  EXPECT_NE(opt, nullptr) << *op;
+
+  op->destroy();
+}
+} // namespace

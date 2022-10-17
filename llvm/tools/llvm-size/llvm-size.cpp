@@ -570,6 +570,8 @@ static void printFileSectionSizes(StringRef file) {
         else if (MachO && OutputFormat == darwin)
           outs() << a->getFileName() << "(" << o->getFileName() << "):\n";
         printObjectSectionSizes(o);
+        if (!MachO && OutputFormat == darwin)
+          outs() << o->getFileName() << " (ex " << a->getFileName() << ")\n";
         if (OutputFormat == berkeley) {
           if (MachO)
             outs() << a->getFileName() << "(" << o->getFileName() << ")\n";
@@ -836,6 +838,8 @@ static void printFileSectionSizes(StringRef file) {
     else if (MachO && OutputFormat == darwin && MoreThanOneFile)
       outs() << o->getFileName() << ":\n";
     printObjectSectionSizes(o);
+    if (!MachO && OutputFormat == darwin)
+      outs() << o->getFileName() << "\n";
     if (OutputFormat == berkeley) {
       if (!MachO || MoreThanOneFile)
         outs() << o->getFileName();
@@ -868,8 +872,11 @@ int main(int argc, char **argv) {
   StringSaver Saver(A);
   SizeOptTable Tbl;
   ToolName = argv[0];
-  opt::InputArgList Args = Tbl.parseArgs(argc, argv, OPT_UNKNOWN, Saver,
-                                         [&](StringRef Msg) { error(Msg); });
+  opt::InputArgList Args =
+      Tbl.parseArgs(argc, argv, OPT_UNKNOWN, Saver, [&](StringRef Msg) {
+        error(Msg);
+        exit(1);
+      });
   if (Args.hasArg(OPT_help)) {
     Tbl.printHelp(
         outs(),

@@ -19,14 +19,13 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/MC/MCSection.h"
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MD5.h"
+#include "llvm/Support/StringSaver.h"
 #include <cassert>
 #include <cstdint>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -36,6 +35,7 @@ template <typename T> class ArrayRef;
 class MCAsmBackend;
 class MCContext;
 class MCObjectStreamer;
+class MCSection;
 class MCStreamer;
 class MCSymbol;
 class raw_ostream;
@@ -49,6 +49,8 @@ MCSymbol *emitListsTableHeaderStart(MCStreamer &S);
 
 /// Manage the .debug_line_str section contents, if we use it.
 class MCDwarfLineStr {
+  BumpPtrAllocator Alloc;
+  StringSaver Saver{Alloc};
   MCSymbol *LineStrLabel = nullptr;
   StringTableBuilder LineStrings{StringTableBuilder::DWARF};
   bool UseRelocs = false;
@@ -58,11 +60,16 @@ public:
   /// v5 line table).
   explicit MCDwarfLineStr(MCContext &Ctx);
 
+  StringSaver &getSaver() { return Saver; }
+
   /// Emit a reference to the string.
   void emitRef(MCStreamer *MCOS, StringRef Path);
 
   /// Emit the .debug_line_str section if appropriate.
   void emitSection(MCStreamer *MCOS);
+
+  /// Returns finalized section.
+  SmallString<0> getFinalizedData();
 };
 
 /// Instances of this class represent the name of the dwarf .file directive and
@@ -188,6 +195,15 @@ public:
 
   MCSymbol *getLabel() const { return Label; }
 
+  // This indicates the line entry is synthesized for an end entry.
+  bool IsEndEntry = false;
+
+  // Override the label with the given EndLabel.
+  void setEndLabel(MCSymbol *EndLabel) {
+    Label = EndLabel;
+    IsEndEntry = true;
+  }
+
   // This is called when an instruction is assembled into the specified
   // section and if there is information from the last .loc directive that
   // has yet to have a line entry made for it is made.
@@ -204,6 +220,10 @@ public:
   void addLineEntry(const MCDwarfLineEntry &LineEntry, MCSection *Sec) {
     MCLineDivisions[Sec].push_back(LineEntry);
   }
+
+  // Add an end entry by cloning the last entry, if exists, for the section
+  // the given EndLabel belongs to. The label is replaced by the given EndLabel.
+  void addEndEntry(MCSymbol *EndLabel);
 
   using MCDwarfLineEntryCollection = std::vector<MCDwarfLineEntry>;
   using iterator = MCDwarfLineEntryCollection::iterator;
@@ -281,8 +301,8 @@ public:
     RootFile.DirIndex = 0;
     RootFile.Checksum = Checksum;
     RootFile.Source = Source;
-    trackMD5Usage(Checksum.hasValue());
-    HasSource = Source.hasValue();
+    trackMD5Usage(Checksum.has_value());
+    HasSource = Source.has_value();
   }
 
   void resetFileTable() {
@@ -359,14 +379,15 @@ public:
     Header.RootFile.DirIndex = 0;
     Header.RootFile.Checksum = Checksum;
     Header.RootFile.Source = Source;
-    Header.trackMD5Usage(Checksum.hasValue());
-    Header.HasSource = Source.hasValue();
+    Header.trackMD5Usage(Checksum.has_value());
+    Header.HasSource = Source.has_value();
   }
 
   void resetFileTable() { Header.resetFileTable(); }
 
   bool hasRootFile() const { return !Header.RootFile.Name.empty(); }
 
+  MCDwarfFile &getRootFile() { return Header.RootFile; }
   const MCDwarfFile &getRootFile() const { return Header.RootFile; }
 
   // Report whether MD5 usage has been consistent (all-or-none).
@@ -673,6 +694,7 @@ struct MCDwarfFrameInfo {
   bool IsSimple = false;
   unsigned RAReg = static_cast<unsigned>(INT_MAX);
   bool IsBKeyFrame = false;
+  bool IsMTETaggedFrame = false;
 };
 
 class MCDwarfFrameEmitter {

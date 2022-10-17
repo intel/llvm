@@ -21,9 +21,11 @@
 
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/Core/dwarf.h"
+#include "lldb/Expression/DWARFExpressionList.h"
 #include "lldb/Symbol/DebugMacros.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolFile.h"
+#include "lldb/Target/Statistics.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Flags.h"
 #include "lldb/Utility/RangeMap.h"
@@ -55,7 +57,7 @@ class SymbolFileDWARFDwp;
 
 #define DIE_IS_BEING_PARSED ((lldb_private::Type *)1)
 
-class SymbolFileDWARF : public lldb_private::SymbolFile,
+class SymbolFileDWARF : public lldb_private::SymbolFileCommon,
                         public lldb_private::UserID {
   /// LLVM RTTI support.
   static char ID;
@@ -64,7 +66,7 @@ public:
   /// LLVM RTTI support.
   /// \{
   bool isA(const void *ClassID) const override {
-    return ClassID == &ID || SymbolFile::isA(ClassID);
+    return ClassID == &ID || SymbolFileCommon::isA(ClassID);
   }
   static bool classof(const SymbolFile *obj) { return obj->isA(&ID); }
   /// \}
@@ -83,9 +85,9 @@ public:
 
   static void DebuggerInitialize(lldb_private::Debugger &debugger);
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "dwarf"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static lldb_private::SymbolFile *
   CreateInstance(lldb::ObjectFileSP objfile_sp);
@@ -161,6 +163,9 @@ public:
                                 lldb::SymbolContextItem resolve_scope,
                                 lldb_private::SymbolContext &sc) override;
 
+  lldb_private::Status
+  CalculateFrameVariableError(lldb_private::StackFrame &frame) override;
+
   uint32_t ResolveSymbolContext(
       const lldb_private::SourceLocationSpec &src_location_spec,
       lldb::SymbolContextItem resolve_scope,
@@ -176,9 +181,8 @@ public:
                            uint32_t max_matches,
                            lldb_private::VariableList &variables) override;
 
-  void FindFunctions(lldb_private::ConstString name,
+  void FindFunctions(const lldb_private::Module::LookupInfo &lookup_info,
                      const lldb_private::CompilerDeclContext &parent_decl_ctx,
-                     lldb::FunctionNameType name_type_mask,
                      bool include_inlines,
                      lldb_private::SymbolContextList &sc_list) override;
 
@@ -218,9 +222,7 @@ public:
   std::recursive_mutex &GetModuleMutex() const override;
 
   // PluginInterface protocol
-  llvm::StringRef GetPluginName() override {
-    return GetPluginNameStatic().GetStringRef();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   DWARFDebugAbbrev *DebugAbbrev();
 
@@ -254,8 +256,8 @@ public:
       ExternalTypeModuleMap;
 
   /// Return the list of Clang modules imported by this SymbolFile.
-  const ExternalTypeModuleMap& getExternalTypeModules() const {
-      return m_external_type_modules;
+  const ExternalTypeModuleMap &getExternalTypeModules() const {
+    return m_external_type_modules;
   }
 
   virtual DWARFDIE GetDIE(const DIERef &die_ref);
@@ -320,6 +322,17 @@ public:
   /// Same as GetLanguage() but reports all C++ versions as C++ (no version).
   static lldb::LanguageType GetLanguageFamily(DWARFUnit &unit);
 
+  lldb_private::StatsDuration::Duration GetDebugInfoParseTime() override {
+    return m_parse_time;
+  }
+  lldb_private::StatsDuration::Duration GetDebugInfoIndexTime() override;
+
+  lldb_private::StatsDuration &GetDebugInfoParseTimeRef() {
+    return m_parse_time;
+  }
+
+  lldb_private::ConstString ConstructFunctionDemangledName(const DWARFDIE &die);
+
 protected:
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *>
       DIEToTypePtr;
@@ -379,6 +392,8 @@ protected:
   lldb::VariableSP ParseVariableDIE(const lldb_private::SymbolContext &sc,
                                     const DWARFDIE &die,
                                     const lldb::addr_t func_low_pc);
+  lldb::VariableSP ParseVariableDIECached(const lldb_private::SymbolContext &sc,
+                                          const DWARFDIE &die);
 
   void
   ParseAndAppendGlobalVariable(const lldb_private::SymbolContext &sc,
@@ -391,8 +406,15 @@ protected:
 
   size_t ParseVariablesInFunctionContextRecursive(
       const lldb_private::SymbolContext &sc, const DWARFDIE &die,
-      const lldb::addr_t func_low_pc,
-      lldb_private::VariableList &variable_list);
+      lldb::addr_t func_low_pc, DIEArray &accumulator);
+
+  size_t PopulateBlockVariableList(lldb_private::VariableList &variable_list,
+                                   const lldb_private::SymbolContext &sc,
+                                   llvm::ArrayRef<DIERef> variable_dies,
+                                   lldb::addr_t func_low_pc);
+
+  DIEArray MergeBlockAbstractParameters(const DWARFDIE &block_die,
+                                        DIEArray &&variable_dies);
 
   bool ClassOrStructIsVirtual(const DWARFDIE &die);
 
@@ -410,9 +432,10 @@ protected:
   virtual lldb::TypeSP
   FindDefinitionTypeForDWARFDeclContext(const DWARFDeclContext &die_decl_ctx);
 
-  virtual lldb::TypeSP FindCompleteObjCDefinitionTypeForDIE(
-      const DWARFDIE &die, lldb_private::ConstString type_name,
-      bool must_be_implementation);
+  virtual lldb::TypeSP
+  FindCompleteObjCDefinitionTypeForDIE(const DWARFDIE &die,
+                                       lldb_private::ConstString type_name,
+                                       bool must_be_implementation);
 
   lldb_private::Symbol *
   GetObjCClassSymbol(lldb_private::ConstString objc_class_name);
@@ -494,6 +517,11 @@ protected:
 
   const lldb_private::FileSpecList &GetTypeUnitSupportFiles(DWARFTypeUnit &tu);
 
+  void InitializeFirstCodeAddressRecursive(
+      const lldb_private::SectionList &section_list);
+
+  void InitializeFirstCodeAddress();
+
   lldb::ModuleWP m_debug_map_module_wp;
   SymbolFileDWARFDebugMap *m_debug_map_symfile;
 
@@ -529,6 +557,15 @@ protected:
   llvm::DenseMap<dw_offset_t, lldb_private::FileSpecList>
       m_type_unit_support_files;
   std::vector<uint32_t> m_lldb_cu_to_dwarf_unit;
+  /// DWARF does not provide a good way for traditional (concatenating) linkers
+  /// to invalidate debug info describing dead-stripped code. These linkers will
+  /// keep the debug info but resolve any addresses referring to such code as
+  /// zero (BFD) or a small positive integer (zero + relocation addend -- GOLD).
+  /// Try to filter out this debug info by comparing it to the lowest code
+  /// address in the module.
+  lldb::addr_t m_first_code_address = LLDB_INVALID_ADDRESS;
+  lldb_private::StatsDuration m_parse_time;
+  std::atomic_flag m_dwo_warning_issued = ATOMIC_FLAG_INIT;
 };
 
 #endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_SYMBOLFILEDWARF_H

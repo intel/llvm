@@ -23,18 +23,21 @@ extern "C" {
 // integer kind.
 std::int32_t RTNAME(ArgumentCount)();
 
-// 16.9.83 GET_COMMAND_ARGUMENT
-// We're breaking up the interface into several different functions, since most
-// of the parameters are optional.
+// 16.9.82 GET_COMMAND
+// Try to get the value of the whole command. All of the parameters are
+// optional.
+// Return a STATUS as described in the standard.
+std::int32_t RTNAME(GetCommand)(const Descriptor *command = nullptr,
+    const Descriptor *length = nullptr, const Descriptor *errmsg = nullptr,
+    const char *sourceFile = nullptr, int line = 0);
 
+// 16.9.83 GET_COMMAND_ARGUMENT
 // Try to get the value of the n'th argument.
 // Returns a STATUS as described in the standard.
-std::int32_t RTNAME(ArgumentValue)(
-    std::int32_t n, const Descriptor *value, const Descriptor *errmsg);
-
-// Try to get the significant length of the n'th argument.
-// Returns 0 if it doesn't manage.
-std::int64_t RTNAME(ArgumentLength)(std::int32_t n);
+std::int32_t RTNAME(GetCommandArgument)(std::int32_t n,
+    const Descriptor *argument = nullptr, const Descriptor *length = nullptr,
+    const Descriptor *errmsg = nullptr, const char *sourceFile = nullptr,
+    int line = 0);
 
 // 16.9.84 GET_ENVIRONMENT_VARIABLE
 // We're breaking up the interface into several different functions, since most
@@ -44,12 +47,13 @@ std::int64_t RTNAME(ArgumentLength)(std::int32_t n);
 // Returns a STATUS as described in the standard.
 std::int32_t RTNAME(EnvVariableValue)(const Descriptor &name,
     const Descriptor *value = nullptr, bool trim_name = true,
-    const Descriptor *errmsg = nullptr);
+    const Descriptor *errmsg = nullptr, const char *sourceFile = nullptr,
+    int line = 0);
 
 // Try to get the significant length of the environment variable specified by
 // NAME. Returns 0 if it doesn't manage.
-std::int64_t RTNAME(EnvVariableLength)(
-    const Descriptor &name, bool trim_name = true);
+std::int64_t RTNAME(EnvVariableLength)(const Descriptor &name,
+    bool trim_name = true, const char *sourceFile = nullptr, int line = 0);
 }
 } // namespace Fortran::runtime
 

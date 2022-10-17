@@ -18,9 +18,11 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/Verifier.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
+using ::testing::UnorderedElementsAre;
 
 namespace {
 
@@ -135,6 +137,29 @@ TEST_F(IRBuilderTest, Intrinsics) {
   EXPECT_EQ(II->getIntrinsicID(), Intrinsic::set_rounding);
 }
 
+TEST_F(IRBuilderTest, IntrinsicMangling) {
+  IRBuilder<> Builder(BB);
+  Type *VoidTy = Builder.getVoidTy();
+  Type *Int64Ty = Builder.getInt64Ty();
+  Value *Int64Val = Builder.getInt64(0);
+  Value *DoubleVal = PoisonValue::get(Builder.getDoubleTy());
+  CallInst *Call;
+
+  // Mangled return type, no arguments.
+  Call = Builder.CreateIntrinsic(Int64Ty, Intrinsic::coro_size, {});
+  EXPECT_EQ(Call->getCalledFunction()->getName(), "llvm.coro.size.i64");
+
+  // Void return type, mangled argument type.
+  Call =
+      Builder.CreateIntrinsic(VoidTy, Intrinsic::set_loop_iterations, Int64Val);
+  EXPECT_EQ(Call->getCalledFunction()->getName(),
+            "llvm.set.loop.iterations.i64");
+
+  // Mangled return type and argument type.
+  Call = Builder.CreateIntrinsic(Int64Ty, Intrinsic::lround, DoubleVal);
+  EXPECT_EQ(Call->getCalledFunction()->getName(), "llvm.lround.i64.f64");
+}
+
 TEST_F(IRBuilderTest, IntrinsicsWithScalableVectors) {
   IRBuilder<> Builder(BB);
   CallInst *Call;
@@ -211,6 +236,25 @@ TEST_F(IRBuilderTest, CreateStepVector) {
   CallInst *Call = cast<CallInst>(StepVec);
   FunctionType *FTy = Call->getFunctionType();
   EXPECT_EQ(FTy->getReturnType(), DstVecTy);
+  EXPECT_EQ(Call->getIntrinsicID(), Intrinsic::experimental_stepvector);
+}
+
+TEST_F(IRBuilderTest, CreateStepVectorI3) {
+  IRBuilder<> Builder(BB);
+
+  // Scalable vectors
+  Type *DstVecTy = VectorType::get(IntegerType::get(Ctx, 3), 2, true);
+  Type *VecI8Ty = VectorType::get(Builder.getInt8Ty(), 2, true);
+  Value *StepVec = Builder.CreateStepVector(DstVecTy);
+  EXPECT_TRUE(isa<TruncInst>(StepVec));
+  TruncInst *Trunc = cast<TruncInst>(StepVec);
+  EXPECT_EQ(Trunc->getDestTy(), DstVecTy);
+  EXPECT_EQ(Trunc->getSrcTy(), VecI8Ty);
+  EXPECT_TRUE(isa<CallInst>(Trunc->getOperand(0)));
+
+  CallInst *Call = cast<CallInst>(Trunc->getOperand(0));
+  FunctionType *FTy = Call->getFunctionType();
+  EXPECT_EQ(FTy->getReturnType(), VecI8Ty);
   EXPECT_EQ(Call->getIntrinsicID(), Intrinsic::experimental_stepvector);
 }
 
@@ -415,7 +459,7 @@ TEST_F(IRBuilderTest, Lifetime) {
   EXPECT_EQ(Start3->getArgOperand(0), Builder.getInt64(100));
 
   EXPECT_EQ(Start1->getArgOperand(1), Var1);
-  EXPECT_NE(Start2->getArgOperand(1), Var2);
+  EXPECT_EQ(Start2->getArgOperand(1)->stripPointerCasts(), Var2);
   EXPECT_EQ(Start3->getArgOperand(1), Var3);
 
   Value *End1 = Builder.CreateLifetimeEnd(Var1);
@@ -872,6 +916,71 @@ TEST_F(IRBuilderTest, createArtificialSubprogram) {
   EXPECT_TRUE(GSP->isArtificial());
 }
 
+// Check that we can add debug info to an existing DICompileUnit.
+TEST_F(IRBuilderTest, appendDebugInfo) {
+  IRBuilder<> Builder(BB);
+  Builder.CreateRetVoid();
+  EXPECT_FALSE(verifyModule(*M));
+
+  auto GetNames = [](DICompileUnit *CU) {
+    SmallVector<StringRef> Names;
+    for (auto *ET : CU->getEnumTypes())
+      Names.push_back(ET->getName());
+    for (auto *RT : CU->getRetainedTypes())
+      Names.push_back(RT->getName());
+    for (auto *GV : CU->getGlobalVariables())
+      Names.push_back(GV->getVariable()->getName());
+    for (auto *IE : CU->getImportedEntities())
+      Names.push_back(IE->getName());
+    for (auto *Node : CU->getMacros())
+      if (auto *MN = dyn_cast_or_null<DIMacro>(Node))
+        Names.push_back(MN->getName());
+    return Names;
+  };
+
+  DICompileUnit *CU;
+  {
+    DIBuilder DIB(*M);
+    auto *File = DIB.createFile("main.c", "/");
+    CU = DIB.createCompileUnit(dwarf::DW_LANG_C, File, "clang",
+                               /*isOptimized=*/true, /*Flags=*/"",
+                               /*Runtime Version=*/0);
+    auto *ByteTy = DIB.createBasicType("byte0", 8, dwarf::DW_ATE_signed);
+    DIB.createEnumerationType(CU, "ET0", File, /*LineNo=*/0, /*SizeInBits=*/8,
+                              /*AlignInBits=*/8, /*Elements=*/{}, ByteTy);
+    DIB.retainType(ByteTy);
+    DIB.createGlobalVariableExpression(CU, "GV0", /*LinkageName=*/"", File,
+                                       /*LineNo=*/1, ByteTy,
+                                       /*IsLocalToUnit=*/true);
+    DIB.createImportedDeclaration(CU, nullptr, File, /*LineNo=*/2, "IM0");
+    DIB.createMacro(nullptr, /*LineNo=*/0, dwarf::DW_MACINFO_define, "M0");
+    DIB.finalize();
+  }
+  EXPECT_FALSE(verifyModule(*M));
+  EXPECT_THAT(GetNames(CU),
+              UnorderedElementsAre("ET0", "byte0", "GV0", "IM0", "M0"));
+
+  {
+    DIBuilder DIB(*M, true, CU);
+    auto *File = CU->getFile();
+    auto *ByteTy = DIB.createBasicType("byte1", 8, dwarf::DW_ATE_signed);
+    DIB.createEnumerationType(CU, "ET1", File, /*LineNo=*/0,
+                              /*SizeInBits=*/8, /*AlignInBits=*/8,
+                              /*Elements=*/{}, ByteTy);
+    DIB.retainType(ByteTy);
+    DIB.createGlobalVariableExpression(CU, "GV1", /*LinkageName=*/"", File,
+                                       /*LineNo=*/1, ByteTy,
+                                       /*IsLocalToUnit=*/true);
+    DIB.createImportedDeclaration(CU, nullptr, File, /*LineNo=*/2, "IM1");
+    DIB.createMacro(nullptr, /*LineNo=*/0, dwarf::DW_MACINFO_define, "M1");
+    DIB.finalize();
+  }
+  EXPECT_FALSE(verifyModule(*M));
+  EXPECT_THAT(GetNames(CU),
+              UnorderedElementsAre("ET0", "byte0", "GV0", "IM0", "M0", "ET1",
+                                   "byte1", "GV1", "IM1", "M1"));
+}
+
 TEST_F(IRBuilderTest, InsertExtractElement) {
   IRBuilder<> Builder(BB);
 
@@ -898,6 +1007,21 @@ TEST_F(IRBuilderTest, CreateGlobalStringPtr) {
   EXPECT_TRUE(String1b->getType()->getPointerAddressSpace() == 0);
   EXPECT_TRUE(String2->getType()->getPointerAddressSpace() == 1);
   EXPECT_TRUE(String3->getType()->getPointerAddressSpace() == 2);
+}
+
+TEST_F(IRBuilderTest, CreateThreadLocalAddress) {
+  IRBuilder<> Builder(BB);
+
+  GlobalVariable *G = new GlobalVariable(*M, Builder.getInt64Ty(), /*isConstant*/true,
+                                         GlobalValue::ExternalLinkage, nullptr, "", nullptr,
+                                         GlobalValue::GeneralDynamicTLSModel);
+
+  Constant *CEBC = ConstantExpr::getBitCast(G, Builder.getInt8PtrTy());
+  // Tests that IRBuilder::CreateThreadLocalAddress wouldn't crash if its operand
+  // is BitCast ConstExpr. The case should be eliminated after we eliminate the
+  // abuse of constexpr.
+  CallInst *CI = Builder.CreateThreadLocalAddress(CEBC);
+  EXPECT_NE(CI, nullptr);
 }
 
 TEST_F(IRBuilderTest, DebugLoc) {

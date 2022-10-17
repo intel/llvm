@@ -23,6 +23,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ConstString.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Scalar.h"
@@ -62,7 +63,7 @@ bool ABIMacOSX_arm64::PrepareTrivialCall(
   if (!reg_ctx)
     return false;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   if (log) {
     StreamString s;
@@ -402,7 +403,7 @@ bool ABIMacOSX_arm64::CreateDefaultUnwindPlan(UnwindPlan &unwind_plan) {
 // volatile (and specifically only the lower 8 bytes of these regs), the rest
 // of the fp/SIMD registers are volatile.
 //
-// v. https://github.com/ARM-software/abi-aa/blob/master/aapcs64/
+// v. https://github.com/ARM-software/abi-aa/blob/main/aapcs64/
 
 // We treat x29 as callee preserved also, else the unwinder won't try to
 // retrieve fp saves.
@@ -589,9 +590,10 @@ static bool LoadValueFromConsecutiveGPRRegisters(
   } else {
     const RegisterInfo *reg_info = nullptr;
     if (is_return_value) {
-      // We are assuming we are decoding this immediately after returning from
-      // a function call and that the address of the structure is in x8
-      reg_info = reg_ctx->GetRegisterInfoByName("x8", 0);
+      // The Darwin arm64 ABI doesn't write the return location back to x8
+      // before returning from the function the way the x86_64 ABI does.  So
+      // we can't reconstruct stack based returns on exit from the function:
+      return false;
     } else {
       // We are assuming we are stopped at the first instruction in a function
       // and that the ABI is being respected so all parameters appear where
@@ -609,9 +611,6 @@ static bool LoadValueFromConsecutiveGPRRegisters(
         return false;
       ++NGRN;
     }
-
-    if (reg_info == nullptr)
-      return false;
 
     const lldb::addr_t value_addr =
         reg_ctx->ReadRegisterAsUnsigned(reg_info, LLDB_INVALID_ADDRESS);
@@ -817,6 +816,16 @@ ValueObjectSP ABIMacOSX_arm64::GetReturnValueObjectImpl(
 
 lldb::addr_t ABIMacOSX_arm64::FixAddress(addr_t pc, addr_t mask) {
   lldb::addr_t pac_sign_extension = 0x0080000000000000ULL;
+  // Darwin systems originally couldn't determine the proper value
+  // dynamically, so the most common value was hardcoded.  This has
+  // largely been cleaned up, but there are still a handful of
+  // environments that assume the default value is set to this value
+  // and there's no dynamic value to correct it.
+  // When no mask is specified, set it to 39 bits of addressing (0..38).
+  if (mask == 0) {
+    // ~((1ULL<<39)-1)
+    mask = 0xffffff8000000000;
+  }
   return (pc & pac_sign_extension) ? pc | mask : pc & (~mask);
 }
 
@@ -827,11 +836,4 @@ void ABIMacOSX_arm64::Initialize() {
 
 void ABIMacOSX_arm64::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-// PluginInterface protocol
-
-ConstString ABIMacOSX_arm64::GetPluginNameStatic() {
-  static ConstString g_plugin_name("ABIMacOSX_arm64");
-  return g_plugin_name;
 }

@@ -25,7 +25,6 @@
 #include "clang/Basic/DiagnosticDriver.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -132,7 +131,7 @@ protected:
     private:
       void reportDiagnostics(PathRef File, llvm::ArrayRef<Diag> Diags,
                              PublishFn Publish) {
-        auto D = Context::current().get(DiagsCallbackKey);
+        auto *D = Context::current().get(DiagsCallbackKey);
         if (!D)
           return;
         Publish([&]() {
@@ -248,28 +247,31 @@ TEST_F(TUSchedulerTests, WantDiagnostics) {
 }
 
 TEST_F(TUSchedulerTests, Debounce) {
-  std::atomic<int> CallbackCount(0);
-  {
-    auto Opts = optsForTest();
-    Opts.UpdateDebounce = DebouncePolicy::fixed(std::chrono::seconds(1));
-    TUScheduler S(CDB, Opts, captureDiags());
-    // FIXME: we could probably use timeouts lower than 1 second here.
-    auto Path = testPath("foo.cpp");
-    updateWithDiags(S, Path, "auto (debounced)", WantDiagnostics::Auto,
-                    [&](std::vector<Diag>) {
-                      ADD_FAILURE()
-                          << "auto should have been debounced and canceled";
-                    });
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    updateWithDiags(S, Path, "auto (timed out)", WantDiagnostics::Auto,
-                    [&](std::vector<Diag>) { ++CallbackCount; });
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    updateWithDiags(S, Path, "auto (shut down)", WantDiagnostics::Auto,
-                    [&](std::vector<Diag>) { ++CallbackCount; });
+  auto Opts = optsForTest();
+  Opts.UpdateDebounce = DebouncePolicy::fixed(std::chrono::milliseconds(500));
+  TUScheduler S(CDB, Opts, captureDiags());
+  auto Path = testPath("foo.cpp");
+  // Issue a write that's going to be debounced away.
+  updateWithDiags(S, Path, "auto (debounced)", WantDiagnostics::Auto,
+                  [&](std::vector<Diag>) {
+                    ADD_FAILURE()
+                        << "auto should have been debounced and canceled";
+                  });
+  // Sleep a bit to verify that it's really debounce that's holding diagnostics.
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
-  }
-  EXPECT_EQ(2, CallbackCount);
+  // Issue another write, this time we'll wait for its diagnostics.
+  Notification N;
+  updateWithDiags(S, Path, "auto (timed out)", WantDiagnostics::Auto,
+                  [&](std::vector<Diag>) { N.notify(); });
+  EXPECT_TRUE(N.wait(timeoutSeconds(5)));
+
+  // Once we start shutting down the TUScheduler, this one becomes a dead write.
+  updateWithDiags(S, Path, "auto (discarded)", WantDiagnostics::Auto,
+                  [&](std::vector<Diag>) {
+                    ADD_FAILURE()
+                        << "auto should have been discarded (dead write)";
+                  });
 }
 
 TEST_F(TUSchedulerTests, Cancellation) {
@@ -282,22 +284,22 @@ TEST_F(TUSchedulerTests, Cancellation) {
   //    R2B
   //   U3(WantDiags=Yes)
   //    R3               <-- cancelled
-  std::vector<std::string> DiagsSeen, ReadsSeen, ReadsCanceled;
+  std::vector<StringRef> DiagsSeen, ReadsSeen, ReadsCanceled;
   {
     Notification Proceed; // Ensure we schedule everything.
     TUScheduler S(CDB, optsForTest(), captureDiags());
     auto Path = testPath("foo.cpp");
     // Helper to schedule a named update and return a function to cancel it.
-    auto Update = [&](std::string ID) -> Canceler {
+    auto Update = [&](StringRef ID) -> Canceler {
       auto T = cancelableTask();
       WithContext C(std::move(T.first));
       updateWithDiags(
-          S, Path, "//" + ID, WantDiagnostics::Yes,
+          S, Path, ("//" + ID).str(), WantDiagnostics::Yes,
           [&, ID](std::vector<Diag> Diags) { DiagsSeen.push_back(ID); });
       return std::move(T.second);
     };
     // Helper to schedule a named read and return a function to cancel it.
-    auto Read = [&](std::string ID) -> Canceler {
+    auto Read = [&](StringRef ID) -> Canceler {
       auto T = cancelableTask();
       WithContext C(std::move(T.first));
       S.runWithAST(ID, Path, [&, ID](llvm::Expected<InputsAndAST> E) {
@@ -671,11 +673,11 @@ TEST_F(TUSchedulerTests, EmptyPreamble) {
 
   FS.Files[Header] = "void foo()";
   FS.Timestamps[Header] = time_t(0);
-  auto WithPreamble = R"cpp(
+  auto *WithPreamble = R"cpp(
     #include "foo.h"
     int main() {}
   )cpp";
-  auto WithEmptyPreamble = R"cpp(int main() {})cpp";
+  auto *WithEmptyPreamble = R"cpp(int main() {})cpp";
   S.update(Foo, getInputs(Foo, WithPreamble), WantDiagnostics::Auto);
   S.runWithPreamble(
       "getNonEmptyPreamble", Foo, TUScheduler::Stale,
@@ -748,7 +750,7 @@ TEST_F(TUSchedulerTests, RunWaitsForPreamble) {
   // the same time. All reads should get the same non-null preamble.
   TUScheduler S(CDB, optsForTest());
   auto Foo = testPath("foo.cpp");
-  auto NonEmptyPreamble = R"cpp(
+  auto *NonEmptyPreamble = R"cpp(
     #define FOO 1
     #define BAR 2
 
@@ -844,7 +846,7 @@ TEST_F(TUSchedulerTests, MissingHeader) {
   auto HeaderA = testPath("a/foo.h");
   auto HeaderB = testPath("b/foo.h");
 
-  auto SourceContents = R"cpp(
+  auto *SourceContents = R"cpp(
       #include "foo.h"
       int c = b;
     )cpp";
@@ -1033,7 +1035,7 @@ TEST_F(TUSchedulerTests, TUStatus) {
                   // Starts handling the update action and blocks until the
                   // first preamble is built.
                   ASTAction::RunningAction,
-                  // Afterwqards it builds an AST for that preamble to publish
+                  // Afterwards it builds an AST for that preamble to publish
                   // diagnostics.
                   ASTAction::Building,
                   // Then goes idle.
@@ -1121,9 +1123,9 @@ TEST_F(TUSchedulerTests, AsyncPreambleThread) {
   public:
     BlockPreambleThread(llvm::StringRef BlockVersion, Notification &N)
         : BlockVersion(BlockVersion), N(N) {}
-    void onPreambleAST(PathRef Path, llvm::StringRef Version, ASTContext &Ctx,
-                       std::shared_ptr<clang::Preprocessor> PP,
-                       const CanonicalIncludes &) override {
+    void onPreambleAST(PathRef Path, llvm::StringRef Version,
+                       const CompilerInvocation &, ASTContext &Ctx,
+                       Preprocessor &, const CanonicalIncludes &) override {
       if (Version == BlockVersion)
         N.wait();
     }
@@ -1165,6 +1167,32 @@ TEST_F(TUSchedulerTests, AsyncPreambleThread) {
   Ready.notify();
 }
 
+TEST_F(TUSchedulerTests, OnlyPublishWhenPreambleIsBuilt) {
+  struct PreamblePublishCounter : public ParsingCallbacks {
+    PreamblePublishCounter(int &PreamblePublishCount)
+        : PreamblePublishCount(PreamblePublishCount) {}
+    void onPreamblePublished(PathRef File) override { ++PreamblePublishCount; }
+    int &PreamblePublishCount;
+  };
+
+  int PreamblePublishCount = 0;
+  TUScheduler S(CDB, optsForTest(),
+                std::make_unique<PreamblePublishCounter>(PreamblePublishCount));
+
+  Path File = testPath("foo.cpp");
+  S.update(File, getInputs(File, ""), WantDiagnostics::Auto);
+  S.blockUntilIdle(timeoutSeconds(10));
+  EXPECT_EQ(PreamblePublishCount, 1);
+  // Same contents, no publish.
+  S.update(File, getInputs(File, ""), WantDiagnostics::Auto);
+  S.blockUntilIdle(timeoutSeconds(10));
+  EXPECT_EQ(PreamblePublishCount, 1);
+  // New contents, should publish.
+  S.update(File, getInputs(File, "#define FOO"), WantDiagnostics::Auto);
+  S.blockUntilIdle(timeoutSeconds(10));
+  EXPECT_EQ(PreamblePublishCount, 2);
+}
+
 // If a header file is missing from the CDB (or inferred using heuristics), and
 // it's included by another open file, then we parse it using that files flags.
 TEST_F(TUSchedulerTests, IncluderCache) {
@@ -1174,10 +1202,10 @@ TEST_F(TUSchedulerTests, IncluderCache) {
                      Unreliable = testPath("unreliable.h"),
                      OK = testPath("ok.h"),
                      NotIncluded = testPath("not_included.h");
-  class NoHeadersCDB : public GlobalCompilationDatabase {
+  struct NoHeadersCDB : public GlobalCompilationDatabase {
     llvm::Optional<tooling::CompileCommand>
     getCompileCommand(PathRef File) const override {
-      if (File == NoCmd || File == NotIncluded)
+      if (File == NoCmd || File == NotIncluded || FailAll)
         return llvm::None;
       auto Basic = getFallbackCommand(File);
       Basic.Heuristic.clear();
@@ -1192,17 +1220,22 @@ TEST_F(TUSchedulerTests, IncluderCache) {
       }
       return Basic;
     }
+
+    std::atomic<bool> FailAll{false};
   } CDB;
   TUScheduler S(CDB, optsForTest());
   auto GetFlags = [&](PathRef Header) {
     S.update(Header, getInputs(Header, ";"), WantDiagnostics::Yes);
     EXPECT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+    Notification CmdDone;
     tooling::CompileCommand Cmd;
     S.runWithPreamble("GetFlags", Header, TUScheduler::StaleOrAbsent,
                       [&](llvm::Expected<InputsAndPreamble> Inputs) {
                         ASSERT_FALSE(!Inputs) << Inputs.takeError();
                         Cmd = std::move(Inputs->Command);
+                        CmdDone.notify();
                       });
+    CmdDone.wait();
     EXPECT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
     return Cmd.CommandLine;
   };
@@ -1262,6 +1295,21 @@ TEST_F(TUSchedulerTests, IncluderCache) {
       << "association invalidated but not reclaimed";
   EXPECT_THAT(GetFlags(NotIncluded), Contains("-DMAIN2"))
       << "association still valid";
+
+  // Delete the file from CDB, it should invalidate the associations.
+  CDB.FailAll = true;
+  EXPECT_THAT(GetFlags(NoCmd), Not(Contains("-DMAIN3")))
+      << "association should've been invalidated.";
+  // Also run update for Main3 to invalidate the preeamble to make sure next
+  // update populates include cache associations.
+  S.update(Main3, getInputs(Main3, SomeIncludes), WantDiagnostics::Yes);
+  EXPECT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+  // Re-add the file and make sure nothing crashes.
+  CDB.FailAll = false;
+  S.update(Main3, getInputs(Main3, SomeIncludes), WantDiagnostics::Yes);
+  EXPECT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+  EXPECT_THAT(GetFlags(NoCmd), Contains("-DMAIN3"))
+      << "association invalidated and then claimed by main3";
 }
 
 TEST_F(TUSchedulerTests, PreservesLastActiveFile) {
@@ -1327,6 +1375,157 @@ TEST_F(TUSchedulerTests, PreservesLastActiveFile) {
     CheckNoFileActionsSeesLastActiveFile(LastActive);
   }
 }
+
+TEST_F(TUSchedulerTests, PreambleThrottle) {
+  const int NumRequests = 4;
+  // Silly throttler that waits for 4 requests, and services them in reverse.
+  // Doesn't honor cancellation but records it.
+  struct : public PreambleThrottler {
+    std::mutex Mu;
+    std::vector<std::string> Acquires;
+    std::vector<RequestID> Releases;
+    llvm::DenseMap<RequestID, Callback> Callbacks;
+    // If set, the notification is signalled after acquiring the specified ID.
+    llvm::Optional<std::pair<RequestID, Notification *>> Notify;
+
+    RequestID acquire(llvm::StringRef Filename, Callback CB) override {
+      RequestID ID;
+      Callback Invoke;
+      {
+        std::lock_guard<std::mutex> Lock(Mu);
+        ID = Acquires.size();
+        Acquires.emplace_back(Filename);
+        // If we're full, satisfy this request immediately.
+        if (Acquires.size() == NumRequests) {
+          Invoke = std::move(CB);
+        } else {
+          Callbacks.try_emplace(ID, std::move(CB));
+        }
+      }
+      if (Invoke)
+        Invoke();
+      {
+        std::lock_guard<std::mutex> Lock(Mu);
+        if (Notify && ID == Notify->first) {
+          Notify->second->notify();
+          Notify.reset();
+        }
+      }
+      return ID;
+    }
+
+    void release(RequestID ID) override {
+      Callback SatisfyNext;
+      {
+        std::lock_guard<std::mutex> Lock(Mu);
+        Releases.push_back(ID);
+        if (ID > 0 && Acquires.size() == NumRequests)
+          SatisfyNext = std::move(Callbacks[ID - 1]);
+      }
+      if (SatisfyNext)
+        SatisfyNext();
+    }
+
+    void reset() {
+      Acquires.clear();
+      Releases.clear();
+      Callbacks.clear();
+    }
+  } Throttler;
+
+  struct CaptureBuiltFilenames : public ParsingCallbacks {
+    std::vector<std::string> &Filenames;
+    CaptureBuiltFilenames(std::vector<std::string> &Filenames)
+        : Filenames(Filenames) {}
+    void onPreambleAST(PathRef Path, llvm::StringRef Version,
+                       const CompilerInvocation &CI, ASTContext &Ctx,
+                       Preprocessor &PP, const CanonicalIncludes &) override {
+      // Deliberately no synchronization.
+      // The PreambleThrottler should serialize these calls, if not then tsan
+      // will find a bug here.
+      Filenames.emplace_back(Path);
+    }
+  };
+
+  auto Opts = optsForTest();
+  Opts.AsyncThreadsCount = 2 * NumRequests; // throttler is the bottleneck
+  Opts.PreambleThrottler = &Throttler;
+
+  std::vector<std::string> Filenames;
+
+  {
+    std::vector<std::string> BuiltFilenames;
+    TUScheduler S(CDB, Opts,
+                  std::make_unique<CaptureBuiltFilenames>(BuiltFilenames));
+    for (unsigned I = 0; I < NumRequests; ++I) {
+      auto Path = testPath(std::to_string(I) + ".cc");
+      Filenames.push_back(Path);
+      S.update(Path, getInputs(Path, ""), WantDiagnostics::Yes);
+    }
+    ASSERT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+
+    // The throttler saw all files, and we built them.
+    EXPECT_THAT(Throttler.Acquires,
+                testing::UnorderedElementsAreArray(Filenames));
+    EXPECT_THAT(BuiltFilenames,
+                testing::UnorderedElementsAreArray(Filenames));
+    // We built the files in reverse order that the throttler saw them.
+    EXPECT_THAT(BuiltFilenames,
+                testing::ElementsAreArray(Throttler.Acquires.rbegin(),
+                                          Throttler.Acquires.rend()));
+    // Resources for each file were correctly released.
+    EXPECT_THAT(Throttler.Releases, ElementsAre(3, 2, 1, 0));
+  }
+
+  Throttler.reset();
+
+  // This time, enqueue 2 files, then cancel one of them while still waiting.
+  // Finally shut down the server. Observe that everything gets cleaned up.
+  Notification AfterAcquire2;
+  Notification AfterFinishA;
+  Throttler.Notify = {1, &AfterAcquire2};
+  std::vector<std::string> BuiltFilenames;
+  auto A = testPath("a.cc");
+  auto B = testPath("b.cc");
+  Filenames = {A, B};
+  {
+    TUScheduler S(CDB, Opts,
+                  std::make_unique<CaptureBuiltFilenames>(BuiltFilenames));
+    updateWithCallback(S, A, getInputs(A, ""), WantDiagnostics::Yes,
+                       [&] { AfterFinishA.notify(); });
+    S.update(B, getInputs(B, ""), WantDiagnostics::Yes);
+    AfterAcquire2.wait();
+
+    // The throttler saw all files, but we built none.
+    EXPECT_THAT(Throttler.Acquires,
+                testing::UnorderedElementsAreArray(Filenames));
+    EXPECT_THAT(BuiltFilenames, testing::IsEmpty());
+    // We haven't released anything yet, we're still waiting.
+    EXPECT_THAT(Throttler.Releases, testing::IsEmpty());
+
+    // FIXME: This is flaky, becaues the request can be destroyed after shutdown
+    // if it hasn't been dequeued yet (stop() resets NextRequest).
+#if 0
+    // Now close file A, which will shut down its AST worker.
+    S.remove(A);
+    // Request is destroyed after the queue shutdown, so release() has happened.
+    AfterFinishA.wait();
+    // We still didn't build anything.
+    EXPECT_THAT(BuiltFilenames, testing::IsEmpty());
+    // But we've cancelled the request to build A (not sure which its ID is).
+    EXPECT_THAT(Throttler.Releases, ElementsAre(AnyOf(1, 0)));
+#endif
+
+    // Now shut down the TU Scheduler.
+  }
+  // The throttler saw all files, but we built none.
+  EXPECT_THAT(Throttler.Acquires,
+              testing::UnorderedElementsAreArray(Filenames));
+  EXPECT_THAT(BuiltFilenames, testing::IsEmpty());
+  // We gave up waiting and everything got released (in some order).
+  EXPECT_THAT(Throttler.Releases, UnorderedElementsAre(1, 0));
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

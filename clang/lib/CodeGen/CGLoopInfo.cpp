@@ -611,6 +611,16 @@ MDNode *LoopInfo::createMetadata(
                             llvm::Type::getInt32Ty(Ctx), VC.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
+  
+  if (Attrs.SYCLMaxReinvocationDelayNCycles) {
+    Metadata *Vals[] = {
+        MDString::get(Ctx, "llvm.loop.intel.max_reinvocation_delay.count"),
+        ConstantAsMetadata::get(
+          ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
+                           *Attrs.SYCLMaxReinvocationDelayNCycles))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -644,6 +654,7 @@ void LoopAttributes::clear() {
   SYCLMaxInterleavingNInvocations.reset();
   SYCLSpeculatedIterationsNIterations.reset();
   SYCLIntelFPGAVariantCount.clear();
+  SYCLMaxReinvocationDelayNCycles.reset();
   UnrollCount = 0;
   UnrollAndJamCount = 0;
   VectorizeEnable = LoopAttributes::Unspecified;
@@ -680,6 +691,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !Attrs.SYCLMaxInterleavingNInvocations &&
       !Attrs.SYCLSpeculatedIterationsNIterations &&
       Attrs.SYCLIntelFPGAVariantCount.empty() && Attrs.UnrollCount == 0 &&
+      !Attrs.SYCLMaxReinvocationDelayNCycles &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
       Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizePredicateEnable == LoopAttributes::Unspecified &&
@@ -1011,6 +1023,9 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // emitted
   // For attribute nofusion:
   // 'llvm.loop.fusion.disable' metadata will be emitted
+  // For attribute max_reinvocation_delay:
+  // n - 'llvm.loop.intel.max_reinvocation_delay.count, i32 n' metadata will be
+  // emitted
   for (const auto *A : Attrs) {
     if (const auto *IntelFPGAIVDep = dyn_cast<SYCLIntelFPGAIVDepAttr>(A))
       addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
@@ -1036,11 +1051,11 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       const auto *CE =
           cast<ConstantExpr>(IntelFPGALoopCountAvg->getNTripCount());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
-      const char *Var = IntelFPGALoopCountAvg->isMax()
-                            ? "llvm.loop.intel.loopcount_max"
-                            : IntelFPGALoopCountAvg->isMin()
-                                  ? "llvm.loop.intel.loopcount_min"
-                                  : "llvm.loop.intel.loopcount_avg";
+      const char *Var =
+          IntelFPGALoopCountAvg->isMax()   ? "llvm.loop.intel.loopcount_max"
+          : IntelFPGALoopCountAvg->isMin() ? "llvm.loop.intel.loopcount_min"
+          : IntelFPGALoopCountAvg->isAvg() ? "llvm.loop.intel.loopcount_avg"
+                                           : "llvm.loop.intel.loopcount";
       setSYCLIntelFPGAVariantCount(Var, ArgVal.getSExtValue());
     }
 
@@ -1075,6 +1090,14 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (isa<SYCLIntelFPGANofusionAttr>(A))
       setSYCLNofusionEnable();
+
+    if (const auto *IntelFPGAMaxReinvocationDelay =
+            dyn_cast<SYCLIntelFPGAMaxReinvocationDelayAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(
+          IntelFPGAMaxReinvocationDelay->getNExpr());
+      llvm::APSInt ArgVal = CE->getResultAsAPSInt();
+      setSYCLMaxReinvocationDelayNCycles(ArgVal.getSExtValue());
+    }
   }
 
   setMustProgress(MustProgress);

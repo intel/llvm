@@ -42,7 +42,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/BranchProbabilityInfo.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/GuardUtils.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
@@ -94,7 +94,7 @@ static Value *getCondition(Instruction *I) {
 }
 
 // Set the condition for \p I to \p NewCond. \p I can either be a guard or a
-// conditional branch.  
+// conditional branch.
 static void setCondition(Instruction *I, Value *NewCond) {
   if (IntrinsicInst *GI = dyn_cast<IntrinsicInst>(I)) {
     assert(GI->getIntrinsicID() == Intrinsic::experimental_guard &&
@@ -117,6 +117,7 @@ class GuardWideningImpl {
   DominatorTree &DT;
   PostDominatorTree *PDT;
   LoopInfo &LI;
+  AssumptionCache &AC;
   MemorySSAUpdater *MSSAU;
 
   /// Together, these describe the region of interest.  This might be all of
@@ -262,7 +263,7 @@ class GuardWideningImpl {
   void widenGuard(Instruction *ToWiden, Value *NewCondition,
                   bool InvertCondition) {
     Value *Result;
-    
+
     widenCondCommon(getCondition(ToWiden), NewCondition, ToWiden, Result,
                     InvertCondition);
     if (isGuardAsWidenableBranch(ToWiden)) {
@@ -274,10 +275,10 @@ class GuardWideningImpl {
 
 public:
   explicit GuardWideningImpl(DominatorTree &DT, PostDominatorTree *PDT,
-                             LoopInfo &LI, MemorySSAUpdater *MSSAU,
-                             DomTreeNode *Root,
-                             std::function<bool(BasicBlock*)> BlockFilter)
-      : DT(DT), PDT(PDT), LI(LI), MSSAU(MSSAU), Root(Root),
+                             LoopInfo &LI, AssumptionCache &AC,
+                             MemorySSAUpdater *MSSAU, DomTreeNode *Root,
+                             std::function<bool(BasicBlock *)> BlockFilter)
+      : DT(DT), PDT(PDT), LI(LI), AC(AC), MSSAU(MSSAU), Root(Root),
         BlockFilter(BlockFilter) {}
 
   /// The entry point for this pass.
@@ -469,7 +470,7 @@ bool GuardWideningImpl::isAvailableAt(
   if (!Inst || DT.dominates(Inst, Loc) || Visited.count(Inst))
     return true;
 
-  if (!isSafeToSpeculativelyExecute(Inst, Loc, &DT) ||
+  if (!isSafeToSpeculativelyExecute(Inst, Loc, &AC, &DT) ||
       Inst->mayReadFromMemory())
     return false;
 
@@ -489,13 +490,15 @@ void GuardWideningImpl::makeAvailableAt(Value *V, Instruction *Loc) const {
   if (!Inst || DT.dominates(Inst, Loc))
     return;
 
-  assert(isSafeToSpeculativelyExecute(Inst, Loc, &DT) &&
+  assert(isSafeToSpeculativelyExecute(Inst, Loc, &AC, &DT) &&
          !Inst->mayReadFromMemory() && "Should've checked with isAvailableAt!");
 
   for (Value *Op : Inst->operands())
     makeAvailableAt(Op, Loc);
 
   Inst->moveBefore(Loc);
+  // If we moved instruction before guard we must clean poison generating flags.
+  Inst->dropPoisonGeneratingFlags();
 }
 
 bool GuardWideningImpl::widenCondCommon(Value *Cond0, Value *Cond1,
@@ -518,27 +521,20 @@ bool GuardWideningImpl::widenCondCommon(Value *Cond0, Value *Cond1,
       ConstantRange CR1 =
           ConstantRange::makeExactICmpRegion(Pred1, RHS1->getValue());
 
-      // SubsetIntersect is a subset of the actual mathematical intersection of
-      // CR0 and CR1, while SupersetIntersect is a superset of the actual
-      // mathematical intersection.  If these two ConstantRanges are equal, then
-      // we know we were able to represent the actual mathematical intersection
-      // of CR0 and CR1, and can use the same to generate an icmp instruction.
-      //
       // Given what we're doing here and the semantics of guards, it would
-      // actually be correct to just use SubsetIntersect, but that may be too
+      // be correct to use a subset intersection, but that may be too
       // aggressive in cases we care about.
-      auto SubsetIntersect = CR0.inverse().unionWith(CR1.inverse()).inverse();
-      auto SupersetIntersect = CR0.intersectWith(CR1);
-
-      APInt NewRHSAP;
-      CmpInst::Predicate Pred;
-      if (SubsetIntersect == SupersetIntersect &&
-          SubsetIntersect.getEquivalentICmp(Pred, NewRHSAP)) {
-        if (InsertPt) {
-          ConstantInt *NewRHS = ConstantInt::get(Cond0->getContext(), NewRHSAP);
-          Result = new ICmpInst(InsertPt, Pred, LHS, NewRHS, "wide.chk");
+      if (Optional<ConstantRange> Intersect = CR0.exactIntersectWith(CR1)) {
+        APInt NewRHSAP;
+        CmpInst::Predicate Pred;
+        if (Intersect->getEquivalentICmp(Pred, NewRHSAP)) {
+          if (InsertPt) {
+            ConstantInt *NewRHS =
+                ConstantInt::get(Cond0->getContext(), NewRHSAP);
+            Result = new ICmpInst(InsertPt, Pred, LHS, NewRHS, "wide.chk");
+          }
+          return true;
         }
-        return true;
       }
     }
   }
@@ -770,11 +766,12 @@ PreservedAnalyses GuardWideningPass::run(Function &F,
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
   auto &LI = AM.getResult<LoopAnalysis>(F);
   auto &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+  auto &AC = AM.getResult<AssumptionAnalysis>(F);
   auto *MSSAA = AM.getCachedResult<MemorySSAAnalysis>(F);
   std::unique_ptr<MemorySSAUpdater> MSSAU;
   if (MSSAA)
     MSSAU = std::make_unique<MemorySSAUpdater>(&MSSAA->getMSSA());
-  if (!GuardWideningImpl(DT, &PDT, LI, MSSAU ? MSSAU.get() : nullptr,
+  if (!GuardWideningImpl(DT, &PDT, LI, AC, MSSAU ? MSSAU.get() : nullptr,
                          DT.getRootNode(), [](BasicBlock *) { return true; })
            .run())
     return PreservedAnalyses::all();
@@ -797,8 +794,10 @@ PreservedAnalyses GuardWideningPass::run(Loop &L, LoopAnalysisManager &AM,
   std::unique_ptr<MemorySSAUpdater> MSSAU;
   if (AR.MSSA)
     MSSAU = std::make_unique<MemorySSAUpdater>(AR.MSSA);
-  if (!GuardWideningImpl(AR.DT, nullptr, AR.LI, MSSAU ? MSSAU.get() : nullptr,
-                         AR.DT.getNode(RootBB), BlockFilter).run())
+  if (!GuardWideningImpl(AR.DT, nullptr, AR.LI, AR.AC,
+                         MSSAU ? MSSAU.get() : nullptr, AR.DT.getNode(RootBB),
+                         BlockFilter)
+           .run())
     return PreservedAnalyses::all();
 
   auto PA = getLoopPassPreservedAnalyses();
@@ -820,12 +819,13 @@ struct GuardWideningLegacyPass : public FunctionPass {
       return false;
     auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+    auto &AC = getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
     auto &PDT = getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();
     auto *MSSAWP = getAnalysisIfAvailable<MemorySSAWrapperPass>();
     std::unique_ptr<MemorySSAUpdater> MSSAU;
     if (MSSAWP)
       MSSAU = std::make_unique<MemorySSAUpdater>(&MSSAWP->getMSSA());
-    return GuardWideningImpl(DT, &PDT, LI, MSSAU ? MSSAU.get() : nullptr,
+    return GuardWideningImpl(DT, &PDT, LI, AC, MSSAU ? MSSAU.get() : nullptr,
                              DT.getRootNode(),
                              [](BasicBlock *) { return true; })
         .run();
@@ -854,6 +854,8 @@ struct LoopGuardWideningLegacyPass : public LoopPass {
       return false;
     auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+    auto &AC = getAnalysis<AssumptionCacheTracker>().getAssumptionCache(
+        *L->getHeader()->getParent());
     auto *PDTWP = getAnalysisIfAvailable<PostDominatorTreeWrapperPass>();
     auto *PDT = PDTWP ? &PDTWP->getPostDomTree() : nullptr;
     auto *MSSAWP = getAnalysisIfAvailable<MemorySSAWrapperPass>();
@@ -867,8 +869,9 @@ struct LoopGuardWideningLegacyPass : public LoopPass {
     auto BlockFilter = [&](BasicBlock *BB) {
       return BB == RootBB || L->contains(BB);
     };
-    return GuardWideningImpl(DT, PDT, LI, MSSAU ? MSSAU.get() : nullptr,
-                             DT.getNode(RootBB), BlockFilter).run();
+    return GuardWideningImpl(DT, PDT, LI, AC, MSSAU ? MSSAU.get() : nullptr,
+                             DT.getNode(RootBB), BlockFilter)
+        .run();
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {

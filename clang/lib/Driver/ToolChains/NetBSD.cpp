@@ -139,7 +139,7 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-export-dynamic");
     if (Args.hasArg(options::OPT_shared)) {
       CmdArgs.push_back("-Bshareable");
-    } else {
+    } else if (!Args.hasArg(options::OPT_r)) {
       Args.AddAllArgs(CmdArgs, options::OPT_pie);
       CmdArgs.push_back("-dynamic-linker");
       CmdArgs.push_back("/libexec/ld.elf_so");
@@ -236,7 +236,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     assert(Output.isNothing() && "Invalid output.");
   }
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
+                   options::OPT_r)) {
     if (!Args.hasArg(options::OPT_shared)) {
       CmdArgs.push_back(
           Args.MakeArgString(ToolChain.GetFilePath("crt0.o")));
@@ -264,16 +265,15 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   bool NeedsXRayDeps = addXRayRuntime(ToolChain, Args, CmdArgs);
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 
-  const SanitizerArgs &SanArgs = ToolChain.getSanitizerArgs();
+  const SanitizerArgs &SanArgs = ToolChain.getSanitizerArgs(Args);
   if (SanArgs.needsSharedRt()) {
     CmdArgs.push_back("-rpath");
     CmdArgs.push_back(Args.MakeArgString(ToolChain.getCompilerRTPath()));
   }
 
-  unsigned Major, Minor, Micro;
-  Triple.getOSVersion(Major, Minor, Micro);
+  VersionTuple OsVersion = Triple.getOSVersion();
   bool useLibgcc = true;
-  if (Major >= 7 || Major == 0) {
+  if (OsVersion >= VersionTuple(7) || OsVersion.getMajor() == 0) {
     switch (ToolChain.getArch()) {
     case llvm::Triple::aarch64:
     case llvm::Triple::aarch64_be:
@@ -295,7 +295,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
+                   options::OPT_r)) {
     // Use the static OpenMP runtime with -static-openmp
     bool StaticOpenMP = Args.hasArg(options::OPT_static_openmp) &&
                         !Args.hasArg(options::OPT_static);
@@ -331,7 +332,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
+                   options::OPT_r)) {
     if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_pie))
       CmdArgs.push_back(
           Args.MakeArgString(ToolChain.GetFilePath("crtendS.o")));
@@ -409,9 +411,8 @@ Tool *NetBSD::buildAssembler() const {
 Tool *NetBSD::buildLinker() const { return new tools::netbsd::Linker(*this); }
 
 ToolChain::CXXStdlibType NetBSD::GetDefaultCXXStdlibType() const {
-  unsigned Major, Minor, Micro;
-  getTriple().getOSVersion(Major, Minor, Micro);
-  if (Major >= 7 || Major == 0) {
+  VersionTuple OsVersion = getTriple().getOSVersion();
+  if (OsVersion >= VersionTuple(7) || OsVersion.getMajor() == 0) {
     switch (getArch()) {
     case llvm::Triple::aarch64:
     case llvm::Triple::aarch64_be:
@@ -501,18 +502,17 @@ SanitizerMask NetBSD::getSupportedSanitizers() const {
 void NetBSD::addClangTargetOptions(const ArgList &DriverArgs,
                                    ArgStringList &CC1Args,
                                    Action::OffloadKind) const {
-  const SanitizerArgs &SanArgs = getSanitizerArgs();
+  const SanitizerArgs &SanArgs = getSanitizerArgs(DriverArgs);
   if (SanArgs.hasAnySanitizer())
     CC1Args.push_back("-D_REENTRANT");
 
-  unsigned Major, Minor, Micro;
-  getTriple().getOSVersion(Major, Minor, Micro);
+  VersionTuple OsVersion = getTriple().getOSVersion();
   bool UseInitArrayDefault =
-    Major >= 9 || Major == 0 ||
-    getTriple().getArch() == llvm::Triple::aarch64 ||
-    getTriple().getArch() == llvm::Triple::aarch64_be ||
-    getTriple().getArch() == llvm::Triple::arm ||
-    getTriple().getArch() == llvm::Triple::armeb;
+      OsVersion >= VersionTuple(9) || OsVersion.getMajor() == 0 ||
+      getTriple().getArch() == llvm::Triple::aarch64 ||
+      getTriple().getArch() == llvm::Triple::aarch64_be ||
+      getTriple().getArch() == llvm::Triple::arm ||
+      getTriple().getArch() == llvm::Triple::armeb;
 
   if (!DriverArgs.hasFlag(options::OPT_fuse_init_array,
                           options::OPT_fno_use_init_array, UseInitArrayDefault))

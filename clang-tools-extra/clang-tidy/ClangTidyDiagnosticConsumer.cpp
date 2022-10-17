@@ -18,6 +18,7 @@
 #include "ClangTidyDiagnosticConsumer.h"
 #include "ClangTidyOptions.h"
 #include "GlobList.h"
+#include "NoLintDirectiveHandler.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/Attr.h"
@@ -29,12 +30,14 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Core/Diagnostic.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Regex.h"
 #include <tuple>
+#include <utility>
 #include <vector>
 using namespace clang;
 using namespace tidy;
@@ -65,7 +68,7 @@ protected:
             ? tooling::DiagnosticMessage(Message, Loc.getManager(), Loc)
             : tooling::DiagnosticMessage(Message);
 
-    // Make sure that if a TokenRange is receieved from the check it is unfurled
+    // Make sure that if a TokenRange is received from the check it is unfurled
     // into a real CharRange for the diagnostic printer later.
     // Whatever we store here gets decoupled from the current SourceManager, so
     // we **have to** know the exact position and length of the highlight.
@@ -78,16 +81,22 @@ protected:
       return CharSourceRange::getCharRange(SourceRange.getBegin(), End);
     };
 
+    // We are only interested in valid ranges.
+    auto ValidRanges =
+        llvm::make_filter_range(Ranges, [](const CharSourceRange &R) {
+          return R.getAsRange().isValid();
+        });
+
     if (Level == DiagnosticsEngine::Note) {
       Error.Notes.push_back(TidyMessage);
-      for (const CharSourceRange &SourceRange : Ranges)
+      for (const CharSourceRange &SourceRange : ValidRanges)
         Error.Notes.back().Ranges.emplace_back(Loc.getManager(),
                                                ToCharRange(SourceRange));
       return;
     }
     assert(Error.Message.Message.empty() && "Overwriting a diagnostic message");
     Error.Message = TidyMessage;
-    for (const CharSourceRange &SourceRange : Ranges)
+    for (const CharSourceRange &SourceRange : ValidRanges)
       Error.Message.Ranges.emplace_back(Loc.getManager(),
                                         ToCharRange(SourceRange));
   }
@@ -148,35 +157,13 @@ ClangTidyError::ClangTidyError(StringRef CheckName,
     : tooling::Diagnostic(CheckName, DiagLevel, BuildDirectory),
       IsWarningAsError(IsWarningAsError) {}
 
-class ClangTidyContext::CachedGlobList {
-public:
-  CachedGlobList(StringRef Globs) : Globs(Globs) {}
-
-  bool contains(StringRef S) {
-    switch (auto &Result = Cache[S]) {
-    case Yes:
-      return true;
-    case No:
-      return false;
-    case None:
-      Result = Globs.contains(S) ? Yes : No;
-      return Result == Yes;
-    }
-    llvm_unreachable("invalid enum");
-  }
-
-private:
-  GlobList Globs;
-  enum Tristate { None, Yes, No };
-  llvm::StringMap<Tristate> Cache;
-};
-
 ClangTidyContext::ClangTidyContext(
     std::unique_ptr<ClangTidyOptionsProvider> OptionsProvider,
     bool AllowEnablingAnalyzerAlphaCheckers)
     : DiagEngine(nullptr), OptionsProvider(std::move(OptionsProvider)),
       Profile(false),
-      AllowEnablingAnalyzerAlphaCheckers(AllowEnablingAnalyzerAlphaCheckers) {
+      AllowEnablingAnalyzerAlphaCheckers(AllowEnablingAnalyzerAlphaCheckers),
+      SelfContainedDiags(false) {
   // Before the first translation unit we can get errors related to command-line
   // parsing, use empty string for the file name in this case.
   setCurrentFile("");
@@ -203,13 +190,14 @@ DiagnosticBuilder ClangTidyContext::diag(
   return DiagEngine->Report(ID);
 }
 
-DiagnosticBuilder ClangTidyContext::diag(const ClangTidyError &Error) {
+DiagnosticBuilder ClangTidyContext::diag(const tooling::Diagnostic &Error) {
   SourceManager &SM = DiagEngine->getSourceManager();
   llvm::ErrorOr<const FileEntry *> File =
       SM.getFileManager().getFile(Error.Message.FilePath);
   FileID ID = SM.getOrCreateFileID(*File, SrcMgr::C_User);
   SourceLocation FileStartLoc = SM.getLocForStartOfFile(ID);
-  SourceLocation Loc = FileStartLoc.getLocWithOffset(Error.Message.FileOffset);
+  SourceLocation Loc = FileStartLoc.getLocWithOffset(
+      static_cast<SourceLocation::IntTy>(Error.Message.FileOffset));
   return diag(Error.DiagnosticName, Loc, Error.Message.Message,
               static_cast<DiagnosticIDs::Level>(Error.DiagLevel));
 }
@@ -218,6 +206,15 @@ DiagnosticBuilder ClangTidyContext::configurationDiag(
     StringRef Message,
     DiagnosticIDs::Level Level /* = DiagnosticIDs::Warning*/) {
   return diag("clang-tidy-config", Message, Level);
+}
+
+bool ClangTidyContext::shouldSuppressDiagnostic(
+    DiagnosticsEngine::Level DiagLevel, const Diagnostic &Info,
+    SmallVectorImpl<tooling::Diagnostic> &NoLintErrors, bool AllowIO,
+    bool EnableNoLintBlocks) {
+  std::string CheckName = getCheckName(Info.getID());
+  return NoLintHandler.shouldSuppress(DiagLevel, Info, CheckName, NoLintErrors,
+                                      AllowIO, EnableNoLintBlocks);
 }
 
 void ClangTidyContext::setSourceManager(SourceManager *SourceMgr) {
@@ -290,10 +287,12 @@ std::string ClangTidyContext::getCheckName(unsigned DiagnosticID) const {
 
 ClangTidyDiagnosticConsumer::ClangTidyDiagnosticConsumer(
     ClangTidyContext &Ctx, DiagnosticsEngine *ExternalDiagEngine,
-    bool RemoveIncompatibleErrors, bool GetFixesFromNotes)
+    bool RemoveIncompatibleErrors, bool GetFixesFromNotes,
+    bool EnableNolintBlocks)
     : Context(Ctx), ExternalDiagEngine(ExternalDiagEngine),
       RemoveIncompatibleErrors(RemoveIncompatibleErrors),
-      GetFixesFromNotes(GetFixesFromNotes), LastErrorRelatesToUserCode(false),
+      GetFixesFromNotes(GetFixesFromNotes),
+      EnableNolintBlocks(EnableNolintBlocks), LastErrorRelatesToUserCode(false),
       LastErrorPassesLineFilter(false), LastErrorWasIgnored(false) {}
 
 void ClangTidyDiagnosticConsumer::finalizeLastError() {
@@ -319,238 +318,8 @@ void ClangTidyDiagnosticConsumer::finalizeLastError() {
   LastErrorPassesLineFilter = false;
 }
 
-static bool isNOLINTFound(StringRef NolintDirectiveText, StringRef CheckName,
-                          StringRef Line, size_t *FoundNolintIndex = nullptr,
-                          bool *SuppressionIsSpecific = nullptr) {
-  if (FoundNolintIndex)
-    *FoundNolintIndex = StringRef::npos;
-  if (SuppressionIsSpecific)
-    *SuppressionIsSpecific = false;
-
-  size_t NolintIndex = Line.find(NolintDirectiveText);
-  if (NolintIndex == StringRef::npos)
-    return false;
-
-  size_t BracketIndex = NolintIndex + NolintDirectiveText.size();
-  if (BracketIndex < Line.size() && isalnum(Line[BracketIndex])) {
-    // Reject this search result, otherwise it will cause false positives when
-    // NOLINT is found as a substring of NOLINT(NEXTLINE/BEGIN/END).
-    return false;
-  }
-
-  // Check if specific checks are specified in brackets.
-  if (BracketIndex < Line.size() && Line[BracketIndex] == '(') {
-    ++BracketIndex;
-    const size_t BracketEndIndex = Line.find(')', BracketIndex);
-    if (BracketEndIndex != StringRef::npos) {
-      StringRef ChecksStr =
-          Line.substr(BracketIndex, BracketEndIndex - BracketIndex);
-      // Allow disabling all the checks with "*".
-      if (ChecksStr != "*") {
-        // Allow specifying a few check names, delimited with comma.
-        SmallVector<StringRef, 1> Checks;
-        ChecksStr.split(Checks, ',', -1, false);
-        llvm::transform(Checks, Checks.begin(),
-                        [](StringRef S) { return S.trim(); });
-        if (llvm::find(Checks, CheckName) == Checks.end())
-          return false;
-        if (SuppressionIsSpecific)
-          *SuppressionIsSpecific = true;
-      }
-    }
-  }
-
-  if (FoundNolintIndex)
-    *FoundNolintIndex = NolintIndex;
-
-  return true;
-}
-
-static llvm::Optional<StringRef> getBuffer(const SourceManager &SM, FileID File,
-                                           bool AllowIO) {
-  return AllowIO ? SM.getBufferDataOrNone(File)
-                 : SM.getBufferDataIfLoaded(File);
-}
-
-static ClangTidyError createNolintError(const ClangTidyContext &Context,
-                                        const SourceManager &SM,
-                                        SourceLocation Loc,
-                                        bool IsNolintBegin) {
-  ClangTidyError Error("clang-tidy-nolint", ClangTidyError::Error,
-                       Context.getCurrentBuildDirectory(), false);
-  StringRef Message =
-      IsNolintBegin
-          ? "unmatched 'NOLINTBEGIN' comment without a subsequent 'NOLINTEND' "
-            "comment"
-          : "unmatched 'NOLINTEND' comment without a previous 'NOLINTBEGIN' "
-            "comment";
-  Error.Message = tooling::DiagnosticMessage(Message, SM, Loc);
-  return Error;
-}
-
-static Optional<ClangTidyError>
-tallyNolintBegins(const ClangTidyContext &Context, const SourceManager &SM,
-                  StringRef CheckName, SmallVector<StringRef> Lines,
-                  SourceLocation LinesLoc,
-                  SmallVector<SourceLocation> &SpecificNolintBegins,
-                  SmallVector<SourceLocation> &GlobalNolintBegins) {
-  // Keep a running total of how many NOLINT(BEGIN...END) blocks are active.
-  size_t NolintIndex;
-  bool SuppressionIsSpecific;
-  auto List = [&]() -> SmallVector<SourceLocation> * {
-    return SuppressionIsSpecific ? &SpecificNolintBegins : &GlobalNolintBegins;
-  };
-  for (const auto &Line : Lines) {
-    if (isNOLINTFound("NOLINTBEGIN", CheckName, Line, &NolintIndex,
-                      &SuppressionIsSpecific)) {
-      // Check if a new block is being started.
-      List()->emplace_back(LinesLoc.getLocWithOffset(NolintIndex));
-    } else if (isNOLINTFound("NOLINTEND", CheckName, Line, &NolintIndex,
-                             &SuppressionIsSpecific)) {
-      // Check if the previous block is being closed.
-      if (!List()->empty()) {
-        List()->pop_back();
-      } else {
-        // Trying to close a nonexistent block. Return a diagnostic about this
-        // misuse that can be displayed along with the original clang-tidy check
-        // that the user was attempting to suppress.
-        return createNolintError(Context, SM,
-                                 LinesLoc.getLocWithOffset(NolintIndex), false);
-      }
-    }
-    // Advance source location to the next line.
-    LinesLoc = LinesLoc.getLocWithOffset(Line.size() + sizeof('\n'));
-  }
-  return None; // All NOLINT(BEGIN/END) use has been consistent so far.
-}
-
-static bool
-lineIsWithinNolintBegin(const ClangTidyContext &Context,
-                        SmallVectorImpl<ClangTidyError> &SuppressionErrors,
-                        const SourceManager &SM, SourceLocation Loc,
-                        StringRef CheckName, StringRef TextBeforeDiag,
-                        StringRef TextAfterDiag) {
-  Loc = SM.getExpansionRange(Loc).getBegin();
-  SourceLocation FileStartLoc = SM.getLocForStartOfFile(SM.getFileID(Loc));
-
-  // Check if there's an open NOLINT(BEGIN...END) block on the previous lines.
-  SmallVector<StringRef> PrevLines;
-  TextBeforeDiag.split(PrevLines, '\n');
-  SmallVector<SourceLocation> SpecificNolintBegins;
-  SmallVector<SourceLocation> GlobalNolintBegins;
-  auto Error =
-      tallyNolintBegins(Context, SM, CheckName, PrevLines, FileStartLoc,
-                        SpecificNolintBegins, GlobalNolintBegins);
-  if (Error) {
-    SuppressionErrors.emplace_back(Error.getValue());
-    return false;
-  }
-  bool WithinNolintBegin =
-      !SpecificNolintBegins.empty() || !GlobalNolintBegins.empty();
-
-  // Check that every block is terminated correctly on the following lines.
-  SmallVector<StringRef> FollowingLines;
-  TextAfterDiag.split(FollowingLines, '\n');
-  Error = tallyNolintBegins(Context, SM, CheckName, FollowingLines, Loc,
-                            SpecificNolintBegins, GlobalNolintBegins);
-  if (Error) {
-    SuppressionErrors.emplace_back(Error.getValue());
-    return false;
-  }
-
-  // The following blocks were never closed. Return diagnostics for each
-  // instance that can be displayed along with the original clang-tidy check
-  // that the user was attempting to suppress.
-  for (const auto NolintBegin : SpecificNolintBegins) {
-    auto Error = createNolintError(Context, SM, NolintBegin, true);
-    SuppressionErrors.emplace_back(Error);
-  }
-  for (const auto NolintBegin : GlobalNolintBegins) {
-    auto Error = createNolintError(Context, SM, NolintBegin, true);
-    SuppressionErrors.emplace_back(Error);
-  }
-
-  return WithinNolintBegin && SuppressionErrors.empty();
-}
-
-static bool
-lineIsMarkedWithNOLINT(const ClangTidyContext &Context,
-                       SmallVectorImpl<ClangTidyError> &SuppressionErrors,
-                       bool AllowIO, const SourceManager &SM,
-                       SourceLocation Loc, StringRef CheckName) {
-  // Get source code for this location.
-  FileID File;
-  unsigned Offset;
-  std::tie(File, Offset) = SM.getDecomposedSpellingLoc(Loc);
-  Optional<StringRef> Buffer = getBuffer(SM, File, AllowIO);
-  if (!Buffer)
-    return false;
-
-  // Check if there's a NOLINT on this line.
-  StringRef TextAfterDiag = Buffer->substr(Offset);
-  StringRef RestOfThisLine, FollowingLines;
-  std::tie(RestOfThisLine, FollowingLines) = TextAfterDiag.split('\n');
-  if (isNOLINTFound("NOLINT", CheckName, RestOfThisLine))
-    return true;
-
-  // Check if there's a NOLINTNEXTLINE on the previous line.
-  StringRef TextBeforeDiag = Buffer->substr(0, Offset);
-  size_t LastNewLinePos = TextBeforeDiag.rfind('\n');
-  StringRef PrevLines = (LastNewLinePos == StringRef::npos)
-                            ? StringRef()
-                            : TextBeforeDiag.slice(0, LastNewLinePos);
-  LastNewLinePos = PrevLines.rfind('\n');
-  StringRef PrevLine = (LastNewLinePos == StringRef::npos)
-                           ? PrevLines
-                           : PrevLines.substr(LastNewLinePos + 1);
-  if (isNOLINTFound("NOLINTNEXTLINE", CheckName, PrevLine))
-    return true;
-
-  // Check if this line is within a NOLINT(BEGIN...END) block.
-  return lineIsWithinNolintBegin(Context, SuppressionErrors, SM, Loc, CheckName,
-                                 TextBeforeDiag, TextAfterDiag);
-}
-
-static bool lineIsMarkedWithNOLINTinMacro(
-    const Diagnostic &Info, const ClangTidyContext &Context,
-    SmallVectorImpl<ClangTidyError> &SuppressionErrors, bool AllowIO) {
-  const SourceManager &SM = Info.getSourceManager();
-  SourceLocation Loc = Info.getLocation();
-  std::string CheckName = Context.getCheckName(Info.getID());
-  while (true) {
-    if (lineIsMarkedWithNOLINT(Context, SuppressionErrors, AllowIO, SM, Loc,
-                               CheckName))
-      return true;
-    if (!Loc.isMacroID())
-      return false;
-    Loc = SM.getImmediateExpansionRange(Loc).getBegin();
-  }
-  return false;
-}
-
 namespace clang {
 namespace tidy {
-
-bool shouldSuppressDiagnostic(DiagnosticsEngine::Level DiagLevel,
-                              const Diagnostic &Info, ClangTidyContext &Context,
-                              bool AllowIO) {
-  SmallVector<ClangTidyError, 1> Unused;
-  bool ShouldSuppress =
-      shouldSuppressDiagnostic(DiagLevel, Info, Context, Unused, AllowIO);
-  assert(Unused.empty());
-  return ShouldSuppress;
-}
-
-bool shouldSuppressDiagnostic(
-    DiagnosticsEngine::Level DiagLevel, const Diagnostic &Info,
-    ClangTidyContext &Context,
-    SmallVectorImpl<ClangTidyError> &SuppressionErrors, bool AllowIO) {
-  return Info.getLocation().isValid() &&
-         DiagLevel != DiagnosticsEngine::Error &&
-         DiagLevel != DiagnosticsEngine::Fatal &&
-         lineIsMarkedWithNOLINTinMacro(Info, Context, SuppressionErrors,
-                                       AllowIO);
-}
 
 const llvm::StringMap<tooling::Replacements> *
 getFixIt(const tooling::Diagnostic &Diagnostic, bool GetFixFromNotes) {
@@ -578,11 +347,15 @@ void ClangTidyDiagnosticConsumer::HandleDiagnostic(
   if (LastErrorWasIgnored && DiagLevel == DiagnosticsEngine::Note)
     return;
 
-  SmallVector<ClangTidyError, 1> SuppressionErrors;
-  if (shouldSuppressDiagnostic(DiagLevel, Info, Context, SuppressionErrors)) {
+  SmallVector<tooling::Diagnostic, 1> SuppressionErrors;
+  if (Context.shouldSuppressDiagnostic(DiagLevel, Info, SuppressionErrors,
+                                       EnableNolintBlocks)) {
     ++Context.Stats.ErrorsIgnoredNOLINT;
     // Ignored a warning, should ignore related notes as well
     LastErrorWasIgnored = true;
+    Context.DiagEngine->Clear();
+    for (const auto &Error : SuppressionErrors)
+      Context.diag(Error);
     return;
   }
 
@@ -752,7 +525,7 @@ void ClangTidyDiagnosticConsumer::checkFilters(SourceLocation Location,
   }
 
   if (!*Context.getOptions().SystemHeaders &&
-      Sources.isInSystemHeader(Location))
+      (Sources.isInSystemHeader(Location) || Sources.isInSystemMacro(Location)))
     return;
 
   // FIXME: We start with a conservative approach here, but the actual type of
@@ -896,7 +669,7 @@ void ClangTidyDiagnosticConsumer::removeIncompatibleErrors() {
     }
   }
 
-  std::vector<bool> Apply(ErrorFixes.size(), true);
+  llvm::BitVector Apply(ErrorFixes.size(), true);
   for (auto &FileAndEvents : FileEvents) {
     std::vector<Event> &Events = FileAndEvents.second;
     // Sweep.

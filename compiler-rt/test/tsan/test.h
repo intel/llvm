@@ -14,6 +14,19 @@
 #include <mach/mach_time.h>
 #endif
 
+#ifndef TSAN_VECTORIZE
+#  define TSAN_VECTORIZE __SSE4_2__
+#endif
+
+#if TSAN_VECTORIZE
+#  include <emmintrin.h>
+#  include <smmintrin.h>
+#else
+struct __m128i {
+  unsigned long long x[2];
+};
+#endif
+
 // TSan-invisible barrier.
 // Tests use it to establish necessary execution order in a way that does not
 // interfere with tsan (does not establish synchronization between threads).
@@ -56,13 +69,12 @@ unsigned long long monotonic_clock_ns() {
 #endif
 
 //The const kPCInc must be in sync with StackTrace::GetPreviousInstructionPc
-#if defined(__powerpc64__) || defined(__arm__) || defined(__aarch64__)
-// PCs are always 4 byte aligned.
-const int kPCInc = 4;
+#if defined(__s390__) || defined(__i386__) || defined(__x86_64__)
+const int kPCInc = 1;
 #elif defined(__sparc__) || defined(__mips__)
 const int kPCInc = 8;
 #else
-const int kPCInc = 1;
+const int kPCInc = 4;
 #endif
 
 #ifdef __cplusplus

@@ -1,21 +1,21 @@
 // dynamic_cast
 // Ensure that dynamic casting works normally
 
-// RUN: %clang_cc1 %s -triple=aarch64-unknown-fuchsia -O3 -S -o - -emit-llvm | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers %s -triple=aarch64-unknown-fuchsia -O3 -S -o - -emit-llvm | FileCheck %s
 
-// CHECK:      define{{.*}} %class.A* @_Z6upcastP1B(%class.B* readnone %b) local_unnamed_addr
+// CHECK:      define{{.*}} %class.A* @_Z6upcastP1B(%class.B* noundef readnone %b) local_unnamed_addr
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   [[a:%[0-9]+]] = getelementptr %class.B, %class.B* %b, i64 0, i32 0
 // CHECK-NEXT:   ret %class.A* [[a]]
 // CHECK-NEXT: }
 
-// CHECK:      define{{.*}} %class.B* @_Z8downcastP1A(%class.A* readonly %a) local_unnamed_addr
+// CHECK:      define{{.*}} %class.B* @_Z8downcastP1A(%class.A* noundef readonly %a) local_unnamed_addr
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   [[isnull:%[0-9]+]] = icmp eq %class.A* %a, null
 // CHECK-NEXT:   br i1 [[isnull]], label %[[dynamic_cast_end:[a-z0-9._]+]], label %[[dynamic_cast_notnull:[a-z0-9._]+]]
 // CHECK:      [[dynamic_cast_notnull]]:
 // CHECK-NEXT:   [[a:%[0-9]+]] = bitcast %class.A* %a to i8*
-// CHECK-NEXT:   [[as_b:%[0-9]+]] = tail call i8* @__dynamic_cast(i8* nonnull [[a]], i8* bitcast ({ i8*, i8* }* @_ZTI1A to i8*), i8* bitcast ({ i8*, i8*, i8* }* @_ZTI1B to i8*), i64 0)
+// CHECK-NEXT:   [[as_b:%[0-9]+]] = tail call i8* @__dynamic_cast(i8* nonnull [[a]], i8* nonnull bitcast ({ i8*, i8* }* @_ZTI1A to i8*), i8* nonnull bitcast ({ i8*, i8*, i8* }* @_ZTI1B to i8*), i64 0)
 // CHECK-NEXT:   [[b:%[0-9]+]] = bitcast i8* [[as_b]] to %class.B*
 // CHECK-NEXT:   br label %[[dynamic_cast_end]]
 // CHECK:      [[dynamic_cast_end]]:
@@ -25,12 +25,12 @@
 
 // CHECK: declare i8* @__dynamic_cast(i8*, i8*, i8*, i64) local_unnamed_addr
 
-// CHECK:      define{{.*}} %class.B* @_Z8selfcastP1B(%class.B* readnone returned %b) local_unnamed_addr
+// CHECK:      define{{.*}} %class.B* @_Z8selfcastP1B(%class.B* noundef readnone returned %b) local_unnamed_addr
 // CHECK-NEXT: entry
 // CHECK-NEXT:   ret %class.B* %b
 // CHECK-NEXT: }
 
-// CHECK: define{{.*}} i8* @_Z9void_castP1B(%class.B* readonly %b) local_unnamed_addr
+// CHECK: define{{.*}} i8* @_Z9void_castP1B(%class.B* noundef readonly %b) local_unnamed_addr
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   [[isnull:%[0-9]+]] = icmp eq %class.B* %b, null
 // CHECK-NEXT:   br i1 [[isnull]], label %[[dynamic_cast_end:[a-z0-9._]+]], label %[[dynamic_cast_notnull:[a-z0-9._]+]]

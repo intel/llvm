@@ -954,8 +954,8 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
 
   // Check to see if this is a fixed string, or if it has regex pieces.
   if (!MatchFullLinesHere &&
-      (PatternStr.size() < 2 || (PatternStr.find("{{") == StringRef::npos &&
-                                 PatternStr.find("[[") == StringRef::npos))) {
+      (PatternStr.size() < 2 ||
+       (!PatternStr.contains("{{") && !PatternStr.contains("[[")))) {
     FixedStr = PatternStr;
     return false;
   }
@@ -1007,8 +1007,9 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
     // brackets. They also accept a combined form which sets a numeric variable
     // to the evaluation of an expression. Both string and numeric variable
     // names must satisfy the regular expression "[a-zA-Z_][0-9a-zA-Z_]*" to be
-    // valid, as this helps catch some common errors.
-    if (PatternStr.startswith("[[")) {
+    // valid, as this helps catch some common errors. If there are extra '['s
+    // before the "[[", treat them literally.
+    if (PatternStr.startswith("[[") && !PatternStr.startswith("[[[")) {
       StringRef UnparsedPatternStr = PatternStr.substr(2);
       // Find the closing bracket pair ending the match.  End is going to be an
       // offset relative to the beginning of the match string.
@@ -1183,12 +1184,14 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
           Substitutions.push_back(Substitution);
         }
       }
+
+      continue;
     }
 
     // Handle fixed string matches.
     // Find the end, which is the start of the next regex.
-    size_t FixedMatchEnd = PatternStr.find("{{");
-    FixedMatchEnd = std::min(FixedMatchEnd, PatternStr.find("[["));
+    size_t FixedMatchEnd =
+        std::min(PatternStr.find("{{", 1), PatternStr.find("[[", 1));
     RegExStr += Regex::escape(PatternStr.substr(0, FixedMatchEnd));
     PatternStr = PatternStr.substr(FixedMatchEnd);
   }
@@ -1421,6 +1424,8 @@ void Pattern::printVariableDefs(const SourceMgr &SM,
   // Sort variable captures by the order in which they matched the input.
   // Ranges shouldn't be overlapping, so we can just compare the start.
   llvm::sort(VarCaptures, [](const VarCapture &A, const VarCapture &B) {
+    if (&A == &B)
+      return false;
     assert(A.Range.Start != B.Range.Start &&
            "unexpected overlapping variable captures");
     return A.Range.Start.getPointer() < B.Range.Start.getPointer();
@@ -1648,6 +1653,8 @@ std::string Check::FileCheckType::getDescription(StringRef Prefix) const {
   switch (Kind) {
   case Check::CheckNone:
     return "invalid";
+  case Check::CheckMisspelled:
+    return "misspelled";
   case Check::CheckPlain:
     if (Count > 1)
       return WithModifiers("-COUNT");
@@ -1677,7 +1684,8 @@ std::string Check::FileCheckType::getDescription(StringRef Prefix) const {
 }
 
 static std::pair<Check::FileCheckType, StringRef>
-FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
+FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix,
+              bool &Misspelled) {
   if (Buffer.size() <= Prefix.size())
     return {Check::CheckNone, StringRef()};
 
@@ -1719,7 +1727,9 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
   if (Rest.front() == '{')
     return ConsumeModifiers(Check::CheckPlain);
 
-  if (!Rest.consume_front("-"))
+  if (Rest.consume_front("_"))
+    Misspelled = true;
+  else if (!Rest.consume_front("-"))
     return {Check::CheckNone, StringRef()};
 
   if (Rest.consume_front("COUNT-")) {
@@ -1761,6 +1771,15 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
     return ConsumeModifiers(Check::CheckEmpty);
 
   return {Check::CheckNone, Rest};
+}
+
+static std::pair<Check::FileCheckType, StringRef>
+FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
+  bool Misspelled = false;
+  auto Res = FindCheckType(Req, Buffer, Prefix, Misspelled);
+  if (Res.first != Check::CheckNone && Misspelled)
+    return {Check::CheckMisspelled, Res.second};
+  return Res;
 }
 
 // From the given position, find the next character after the word.
@@ -1935,6 +1954,16 @@ bool FileCheck::readCheckFile(
     // suffix was processed).
     Buffer = AfterSuffix.empty() ? Buffer.drop_front(UsedPrefix.size())
                                  : AfterSuffix;
+
+    // Complain about misspelled directives.
+    if (CheckTy == Check::CheckMisspelled) {
+      StringRef UsedDirective(UsedPrefix.data(),
+                              AfterSuffix.data() - UsedPrefix.data());
+      SM.PrintMessage(SMLoc::getFromPointer(UsedDirective.data()),
+                      SourceMgr::DK_Error,
+                      "misspelled directive '" + UsedDirective + "'");
+      return true;
+    }
 
     // Complain about useful-looking but unsupported suffixes.
     if (CheckTy == Check::CheckBadNot) {
@@ -2215,7 +2244,7 @@ static Error reportMatchResult(bool ExpectedMatch, const SourceMgr &SM,
 static unsigned CountNumNewlinesBetween(StringRef Range,
                                         const char *&FirstNewLine) {
   unsigned NumNewLines = 0;
-  while (1) {
+  while (true) {
     // Scan for newline.
     Range = Range.substr(Range.find_first_of("\n\r"));
     if (Range.empty())

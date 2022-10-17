@@ -23,15 +23,14 @@ class MCCodeEmitter;
 class MCStreamer;
 class X86Subtarget;
 class TargetMachine;
-struct ASanAccessInfo;
 
 class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
   const X86Subtarget *Subtarget = nullptr;
-  StackMaps SM;
   FaultMaps FM;
   std::unique_ptr<MCCodeEmitter> CodeEmitter;
   bool EmitFPOData = false;
-  bool NeedsRetpoline = false;
+  bool ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags = false;
+  bool IndCSPrefix = false;
 
   // This utility class tracks the length of a stackmap instruction's 'shadow'.
   // It is used by the X86AsmPrinter to ensure that the stackmap shadow
@@ -99,22 +98,13 @@ class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
 
   void LowerFENTRY_CALL(const MachineInstr &MI, X86MCInstLower &MCIL);
 
+  // KCFI specific lowering for X86.
+  uint32_t MaskKCFIType(uint32_t Value);
+  void EmitKCFITypePadding(const MachineFunction &MF, bool HasType = true);
+  void LowerKCFI_CHECK(const MachineInstr &MI);
+
   // Address sanitizer specific lowering for X86.
   void LowerASAN_CHECK_MEMACCESS(const MachineInstr &MI);
-  void emitAsanMemaccessSymbols(Module &M);
-  void emitAsanMemaccessPartial(Module &M, unsigned Reg,
-                                const ASanAccessInfo &AccessInfo,
-                                MCSubtargetInfo &STI);
-  void emitAsanMemaccessFull(Module &M, unsigned Reg,
-                             const ASanAccessInfo &AccessInfo,
-                             MCSubtargetInfo &STI);
-  void emitAsanReportError(Module &M, unsigned Reg,
-                           const ASanAccessInfo &AccessInfo,
-                           MCSubtargetInfo &STI);
-
-  typedef std::tuple<unsigned /*Reg*/, uint32_t /*AccessInfo*/>
-      AsanMemaccessTuple;
-  std::map<AsanMemaccessTuple, MCSymbol *> AsanMemaccessSymbols;
 
   // Choose between emitting .seh_ directives and .cv_fpo_ directives.
   void EmitSEHInstruction(const MachineInstr *MI);
@@ -146,10 +136,7 @@ public:
 
   void emitInstruction(const MachineInstr *MI) override;
 
-  void emitBasicBlockEnd(const MachineBasicBlock &MBB) override {
-    AsmPrinter::emitBasicBlockEnd(MBB);
-    SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
-  }
+  void emitBasicBlockEnd(const MachineBasicBlock &MBB) override;
 
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        const char *ExtraCode, raw_ostream &O) override;
@@ -166,6 +153,11 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
   void emitFunctionBodyStart() override;
   void emitFunctionBodyEnd() override;
+  void emitKCFITypeId(const MachineFunction &MF) override;
+
+  bool shouldEmitWeakSwiftAsyncExtendedFramePointerFlags() const override {
+    return ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags;
+  }
 };
 
 } // end namespace llvm

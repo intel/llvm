@@ -27,12 +27,16 @@ combined with other commands:
 
 .. option:: -d, --disassemble
 
-  Disassemble all executable sections found in the input files.
+  Disassemble all executable sections found in the input files. On some
+  architectures (AArch64, PPC64, x86), all known instructions are disassembled by
+  default. On the others, :option:`--mcpu` or :option:`--mattr` is needed to
+  enable some instruction sets. Disabled instructions are displayed as
+  ``<unknown>``.
 
 .. option:: -D, --disassemble-all
 
   Disassemble all sections found in the input files.
-  
+
 .. option:: --disassemble-symbols=<symbol1[,symbol2,...]>
 
   Disassemble only the specified symbols. Takes demangled symbol names when
@@ -92,7 +96,7 @@ combined with other commands:
 .. option:: -u, --unwind-info
 
   Display the unwind info of the input(s).
-  
+
   This operation is only currently supported for COFF and Mach-O object files.
 
 .. option:: -v, --version
@@ -124,6 +128,19 @@ OPTIONS
 .. option:: -C, --demangle
 
   Demangle symbol names in the output.
+
+.. option:: --debug-file-directory <path>
+
+  Provide a path to a directory with a `.build-id` subdirectory to search for
+  debug information for stripped binaries. Multiple instances of this argument
+  are searched in the order given.
+
+.. option:: --debuginfod, --no-debuginfod
+
+  Whether or not to try debuginfod lookups for debug binaries. Unless specified,
+  debuginfod is only enabled if libcurl was compiled in (``LLVM_ENABLE_CURL``)
+  and at least one server URL was provided by the environment variable
+  ``DEBUGINFOD_URLS``.
 
 .. option:: --debug-vars=<format>
 
@@ -179,6 +196,10 @@ OPTIONS
 
   When disassembling, do not print the raw bytes of each instruction.
 
+.. option:: --offloading
+
+  Display the content of the LLVM offloading section.
+
 .. option:: --prefix=<prefix>
 
   When disassembling with the :option:`--source` option, prepend ``prefix`` to
@@ -226,7 +247,9 @@ OPTIONS
 
   When printing a PC-relative global symbol reference, print it as an offset from the leading symbol.
 
-  Only works with an X86 linked image.
+  When a bb-address-map section is present (i.e., the object file is built with ``-fbasic-block-sections=labels``), labels are retrieved from that section instead.
+
+  Only works with PowerPC objects or X86 linked images.
 
   Example:
     A non-symbolized branch instruction with a local target and pc-relative memory access like
@@ -301,6 +324,15 @@ MACH-O ONLY OPTIONS AND COMMANDS
 .. option:: --dis-symname=<name>
 
   Disassemble just the specified symbol's instructions.
+
+.. option:: --chained-fixups
+
+  Print chained fixup information.
+
+.. option:: --dyld-info
+
+  Print bind and rebase information used by dyld to resolve external
+  references in a final linked binary.
 
 .. option:: --dylibs-used
 
@@ -397,7 +429,7 @@ XCOFF ONLY OPTIONS AND COMMANDS
 BUGS
 ----
 
-To report bugs, please visit <https://bugs.llvm.org/>.
+To report bugs, please visit <https://github.com/llvm/llvm-project/labels/tools:llvm-objdump/>.
 
 SEE ALSO
 --------

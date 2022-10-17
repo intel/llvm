@@ -11,7 +11,6 @@
 #include "Driver.h"
 #include "InputFiles.h"
 #include "SymbolTable.h"
-#include "lld/Common/ErrorHandler.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Object/COFF.h"
@@ -24,7 +23,9 @@ using namespace llvm::COFF;
 using namespace lld;
 using namespace lld::coff;
 
-AutoExporter::AutoExporter() {
+AutoExporter::AutoExporter(
+    const llvm::DenseSet<StringRef> &manualExcludeSymbols)
+    : manualExcludeSymbols(manualExcludeSymbols) {
   excludeLibs = {
       "libgcc",
       "libgcc_s",
@@ -123,6 +124,10 @@ void AutoExporter::addWholeArchive(StringRef path) {
   excludeLibs.erase(libName);
 }
 
+void AutoExporter::addExcludedSymbol(StringRef symbol) {
+  excludeSymbols.insert(symbol);
+}
+
 bool AutoExporter::shouldExport(const COFFLinkerContext &ctx,
                                 Defined *sym) const {
   if (!sym || !sym->getChunk())
@@ -132,7 +137,7 @@ bool AutoExporter::shouldExport(const COFFLinkerContext &ctx,
   // disallow import symbols.
   if (!isa<DefinedRegular>(sym) && !isa<DefinedCommon>(sym))
     return false;
-  if (excludeSymbols.count(sym->getName()))
+  if (excludeSymbols.count(sym->getName()) || manualExcludeSymbols.count(sym->getName()))
     return false;
 
   for (StringRef prefix : excludeSymbolPrefixes.keys())
@@ -184,8 +189,8 @@ void lld::coff::writeDefFile(StringRef name) {
 static StringRef mangle(Twine sym) {
   assert(config->machine != IMAGE_FILE_MACHINE_UNKNOWN);
   if (config->machine == I386)
-    return saver.save("_" + sym);
-  return saver.save(sym);
+    return saver().save("_" + sym);
+  return saver().save(sym);
 }
 
 // Handles -wrap option.
@@ -249,7 +254,7 @@ void lld::coff::wrapSymbols(COFFLinkerContext &ctx,
       // referenced it or not, though.)
       if (imp) {
         DefinedLocalImport *wrapimp = make<DefinedLocalImport>(
-            saver.save("__imp_" + w.wrap->getName()), d);
+            saver().save("__imp_" + w.wrap->getName()), d);
         ctx.symtab.localImportChunks.push_back(wrapimp->getChunk());
         map[imp] = wrapimp;
       }

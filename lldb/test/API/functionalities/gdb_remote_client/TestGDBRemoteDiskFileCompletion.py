@@ -1,4 +1,5 @@
-from gdbclientutils import *
+from lldbsuite.test.gdbclientutils import *
+from lldbsuite.test.lldbgdbclient import GDBPlatformClientTestBase
 
 class TestGDBRemoteDiskFileCompletion(GDBPlatformClientTestBase):
 

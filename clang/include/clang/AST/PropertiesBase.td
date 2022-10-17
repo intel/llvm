@@ -79,6 +79,7 @@ def AttrKind : EnumPropertyType<"attr::Kind">;
 def AutoTypeKeyword : EnumPropertyType;
 def Bool : PropertyType<"bool">;
 def BuiltinTypeKind : EnumPropertyType<"BuiltinType::Kind">;
+def BTFTypeTagAttr : PropertyType<"const BTFTypeTagAttr *">;
 def CallingConv : EnumPropertyType;
 def DeclarationName : PropertyType;
 def DeclarationNameKind : EnumPropertyType<"DeclarationName::NameKind">;
@@ -107,6 +108,8 @@ def DeclRef : RefPropertyType<"Decl"> { let ConstWhenWriting = 1; }
     SubclassPropertyType<"TemplateTypeParmDecl", DeclRef>;
   def TemplateTemplateParmDeclRef :
     SubclassPropertyType<"TemplateTemplateParmDecl", DeclRef>;
+  def UsingShadowDeclRef :
+    SubclassPropertyType<"UsingShadowDecl", DeclRef>;
   def ValueDeclRef :
     SubclassPropertyType<"ValueDecl", DeclRef>;
 def ElaboratedTypeKeyword : EnumPropertyType;
@@ -135,6 +138,7 @@ def TemplateArgument : PropertyType;
 def TemplateArgumentKind : EnumPropertyType<"TemplateArgument::ArgKind">;
 def TemplateName : DefaultValuePropertyType;
 def TemplateNameKind : EnumPropertyType<"TemplateName::NameKind">;
+def TypeOfKind : EnumPropertyType<"TypeOfKind">;
 def UInt32 : CountPropertyType<"uint32_t">;
 def UInt64 : CountPropertyType<"uint64_t">;
 def UnaryTypeTransformKind : EnumPropertyType<"UnaryTransformType::UTTKind">;
@@ -517,15 +521,15 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
     if (hasBase) {
       if (isTypeInfo) {
         base = APValue::LValueBase::getTypeInfo(
-            TypeInfoLValue(typeInfo.getValue().getTypePtr()), type.getValue());
+            TypeInfoLValue(typeInfo.value().getTypePtr()), type.value());
         elemTy = base.getTypeInfoType();
       } else if (isExpr) {
-        base = APValue::LValueBase(cast<Expr>(stmt.getValue()),
-                                   callIndex.getValue(), version.getValue());
+        base = APValue::LValueBase(cast<Expr>(stmt.value()),
+                                   callIndex.value(), version.value());
         elemTy = base.get<const Expr *>()->getType();
       } else {
-        base = APValue::LValueBase(cast<ValueDecl>(decl.getValue()),
-                                   callIndex.getValue(), version.getValue());
+        base = APValue::LValueBase(cast<ValueDecl>(decl.value()),
+                                   callIndex.value(), version.value());
         elemTy = base.get<const ValueDecl *>()->getType();
       }
     }
@@ -617,6 +621,16 @@ let Class = PropertyTypeCase<TemplateName, "Template"> in {
     return TemplateName(declaration);
   }]>;
 }
+
+let Class = PropertyTypeCase<TemplateName, "UsingTemplate"> in {
+  def : Property<"foundDecl", UsingShadowDeclRef> {
+    let Read = [{ node.getAsUsingShadowDecl() }];
+  }
+  def : Creator<[{
+    return TemplateName(foundDecl);
+  }]>;
+}
+
 let Class = PropertyTypeCase<TemplateName, "OverloadedTemplate"> in {
   def : Property<"overloads", Array<NamedDeclRef>> {
     let Read = [{ node.getAsOverloadedTemplate()->decls() }];
@@ -650,12 +664,12 @@ let Class = PropertyTypeCase<TemplateName, "QualifiedTemplate"> in {
   def : Property<"hasTemplateKeyword", Bool> {
     let Read = [{ qtn->hasTemplateKeyword() }];
   }
-  def : Property<"declaration", TemplateDeclRef> {
-    let Read = [{ qtn->getTemplateDecl() }];
+  def : Property<"underlyingTemplateName", TemplateName> {
+    let Read = [{ qtn->getUnderlyingTemplate() }];
   }
   def : Creator<[{
     return ctx.getQualifiedTemplateName(qualifier, hasTemplateKeyword,
-                                        declaration);
+                                        underlyingTemplateName);
   }]>;
 }
 let Class = PropertyTypeCase<TemplateName, "DependentTemplate"> in {
@@ -773,13 +787,13 @@ let Class = PropertyTypeCase<TemplateArgument, "TemplateExpansion"> in {
   def : Property<"numExpansions", Optional<UInt32>> {
     let Read = [{
       // Translate unsigned -> uint32_t just in case.
-      node.getNumTemplateExpansions().map(
+      node.getNumTemplateExpansions().transform(
         [](unsigned i) { return uint32_t(i); })
     }];
   }
   def : Creator<[{
     auto numExpansionsUnsigned =
-      numExpansions.map([](uint32_t i) { return unsigned(i); });
+      numExpansions.transform([](uint32_t i) { return unsigned(i); });
     return TemplateArgument(name, numExpansionsUnsigned);
   }]>;
 }

@@ -106,7 +106,6 @@ define i32 @foo7(i32 %a, i32 %b) nounwind {
 ; CHECK-NEXT:    csel w0, w10, w9, ge
 ; CHECK-NEXT:    ret
 entry:
-; FIXME: Misspelled CHECK-NEXT
   %sub = sub nsw i32 %a, %b
   %cmp = icmp sgt i32 %sub, -1
   %sub3 = sub nsw i32 0, %sub
@@ -265,6 +264,60 @@ entry:
   ret i64 %.
 }
 
+; Regression test for TrueVal + 1 overflow
+define i64 @foo18_overflow1(i64 %a, i64 %b) nounwind readnone optsize ssp {
+; CHECK-LABEL: foo18_overflow1:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    cmp x0, x1
+; CHECK-NEXT:    mov x8, #9223372036854775807
+; CHECK-NEXT:    csel x0, x8, xzr, gt
+; CHECK-NEXT:    ret
+entry:
+  %cmp = icmp sgt i64 %a, %b
+  %. = select i1 %cmp, i64 9223372036854775807, i64 0
+  ret i64 %.
+}
+
+; Regression test for FalseVal + 1 overflow
+define i64 @foo18_overflow2(i64 %a, i64 %b) nounwind readnone optsize ssp {
+; CHECK-LABEL: foo18_overflow2:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    cmp x0, x1
+; CHECK-NEXT:    mov x8, #9223372036854775807
+; CHECK-NEXT:    csel x0, xzr, x8, gt
+; CHECK-NEXT:    ret
+entry:
+  %cmp = icmp sgt i64 %a, %b
+  %. = select i1 %cmp, i64 0, i64 9223372036854775807
+  ret i64 %.
+}
+
+; Regression test for FalseVal - TrueVal overflow
+define i64 @foo18_overflow3(i1 %cmp) nounwind readnone optsize ssp {
+; CHECK-LABEL: foo18_overflow3:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    mov x8, #-9223372036854775808 
+; CHECK-NEXT:    tst w0, #0x1 
+; CHECK-NEXT:    csel x0, x8, xzr, ne 
+; CHECK-NEXT:    ret
+entry:
+  %. = select i1 %cmp, i64 -9223372036854775808, i64 0
+  ret i64 %.
+}
+
+; Regression test for TrueVal - FalseVal overflow
+define i64 @foo18_overflow4(i1 %cmp) nounwind readnone optsize ssp {
+; CHECK-LABEL: foo18_overflow4:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    mov x8, #-9223372036854775808 
+; CHECK-NEXT:    tst w0, #0x1 
+; CHECK-NEXT:    csel x0, xzr, x8, ne 
+; CHECK-NEXT:    ret
+entry:
+  %. = select i1 %cmp, i64 0, i64 -9223372036854775808
+  ret i64 %.
+}
+
 define i64 @foo19(i64 %a, i64 %b, i64 %c) {
 ; CHECK-LABEL: foo19:
 ; CHECK:       // %bb.0: // %entry
@@ -329,11 +382,11 @@ define i64 @foo23(i64 %x) {
 define i16 @foo24(i8* nocapture readonly %A, i8* nocapture readonly %B) {
 ; CHECK-LABEL: foo24:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    ldrb w8, [x1]
-; CHECK-NEXT:    ldrb w9, [x0]
-; CHECK-NEXT:    cmp w8, #33
+; CHECK-NEXT:    ldrb w8, [x0]
+; CHECK-NEXT:    ldrb w9, [x1]
+; CHECK-NEXT:    cmp w8, #3
 ; CHECK-NEXT:    cset w8, hi
-; CHECK-NEXT:    cmp w9, #3
+; CHECK-NEXT:    cmp w9, #33
 ; CHECK-NEXT:    cinc w0, w8, hi
 ; CHECK-NEXT:    ret
 entry:

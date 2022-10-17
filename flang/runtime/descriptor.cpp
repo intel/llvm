@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Runtime/descriptor.h"
+#include "ISO_Fortran_util.h"
 #include "derived.h"
 #include "memory.h"
 #include "stat.h"
 #include "terminator.h"
+#include "tools.h"
 #include "type-info.h"
 #include <cassert>
 #include <cstdlib>
@@ -29,22 +31,19 @@ void Descriptor::Establish(TypeCode t, std::size_t elementBytes, void *p,
     int rank, const SubscriptValue *extent, ISO::CFI_attribute_t attribute,
     bool addendum) {
   Terminator terminator{__FILE__, __LINE__};
-  // Subtle: the standard CFI_establish() function doesn't allow a zero
-  // elem_len argument in cases where elem_len is not ignored; and when it
-  // returns an error code (CFI_INVALID_ELEM_LEN in this case), it must not
-  // modify the descriptor.  That design makes sense, maybe, for actual
-  // C interoperability, but we need to work around it here.  A zero
-  // incoming element length is replaced by 4 so that it will be valid
-  // for all CHARACTER kinds.
-  std::size_t workaroundElemLen{elementBytes ? elementBytes : 4};
-  int cfiStatus{ISO::CFI_establish(
-      &raw_, p, attribute, t.raw(), workaroundElemLen, rank, extent)};
+  int cfiStatus{ISO::VerifyEstablishParameters(&raw_, p, attribute, t.raw(),
+      elementBytes, rank, extent, /*external=*/false)};
   if (cfiStatus != CFI_SUCCESS) {
     terminator.Crash(
-        "Descriptor::Establish: CFI_establish returned %d", cfiStatus, t.raw());
+        "Descriptor::Establish: CFI_establish returned %d for CFI_type_t(%d)",
+        cfiStatus, t.raw());
   }
+  ISO::EstablishDescriptor(
+      &raw_, p, attribute, t.raw(), elementBytes, rank, extent);
   if (elementBytes == 0) {
     raw_.elem_len = 0;
+    // Reset byte strides of the dimensions, since EstablishDescriptor()
+    // only does that when the base address is not nullptr.
     for (int j{0}; j < rank; ++j) {
       GetDimension(j).SetByteStride(0);
     }
@@ -55,6 +54,20 @@ void Descriptor::Establish(TypeCode t, std::size_t elementBytes, void *p,
   if (a) {
     new (a) DescriptorAddendum{};
   }
+}
+
+namespace {
+template <TypeCategory CAT, int KIND> struct TypeSizeGetter {
+  constexpr std::size_t operator()() const {
+    CppTypeFor<CAT, KIND> arr[2];
+    return sizeof arr / 2;
+  }
+};
+} // namespace
+
+std::size_t Descriptor::BytesFor(TypeCategory category, int kind) {
+  Terminator terminator{__FILE__, __LINE__};
+  return ApplyType<TypeSizeGetter, std::size_t>(category, kind, terminator);
 }
 
 void Descriptor::Establish(TypeCategory c, int kind, void *p, int rank,
@@ -146,8 +159,8 @@ int Descriptor::Allocate() {
   return 0;
 }
 
-int Descriptor::Destroy(bool finalize) {
-  if (raw_.attribute == CFI_attribute_pointer) {
+int Descriptor::Destroy(bool finalize, bool destroyPointers) {
+  if (!destroyPointers && raw_.attribute == CFI_attribute_pointer) {
     return StatOk;
   } else {
     if (auto *addendum{Addendum()}) {
@@ -162,19 +175,6 @@ int Descriptor::Destroy(bool finalize) {
 }
 
 int Descriptor::Deallocate() { return ISO::CFI_deallocate(&raw_); }
-
-bool Descriptor::IncrementSubscripts(
-    SubscriptValue *subscript, const int *permutation) const {
-  for (int j{0}; j < raw_.rank; ++j) {
-    int k{permutation ? permutation[j] : j};
-    const Dimension &dim{GetDimension(k)};
-    if (subscript[k]++ < dim.UpperBound()) {
-      return true;
-    }
-    subscript[k] = dim.LowerBound();
-  }
-  return false;
-}
 
 bool Descriptor::DecrementSubscripts(
     SubscriptValue *subscript, const int *permutation) const {
@@ -202,29 +202,6 @@ std::size_t Descriptor::ZeroBasedElementNumber(
   return result;
 }
 
-bool Descriptor::SubscriptsForZeroBasedElementNumber(SubscriptValue *subscript,
-    std::size_t elementNumber, const int *permutation) const {
-  std::size_t coefficient{1};
-  std::size_t dimCoefficient[maxRank];
-  for (int j{0}; j < raw_.rank; ++j) {
-    int k{permutation ? permutation[j] : j};
-    const Dimension &dim{GetDimension(k)};
-    dimCoefficient[j] = coefficient;
-    coefficient *= dim.Extent();
-  }
-  if (elementNumber >= coefficient) {
-    return false; // out of range
-  }
-  for (int j{raw_.rank - 1}; j >= 0; --j) {
-    int k{permutation ? permutation[j] : j};
-    const Dimension &dim{GetDimension(k)};
-    std::size_t quotient{elementNumber / dimCoefficient[j]};
-    subscript[k] = quotient + dim.LowerBound();
-    elementNumber -= quotient * dimCoefficient[j];
-  }
-  return true;
-}
-
 bool Descriptor::EstablishPointerSection(const Descriptor &source,
     const SubscriptValue *lower, const SubscriptValue *upper,
     const SubscriptValue *stride) {
@@ -241,6 +218,13 @@ bool Descriptor::EstablishPointerSection(const Descriptor &source,
     }
   }
   raw_.rank = newRank;
+  if (const auto *sourceAddendum = source.Addendum()) {
+    if (auto *addendum{Addendum()}) {
+      *addendum = *sourceAddendum;
+    } else {
+      return false;
+    }
+  }
   return CFI_section(&raw_, &source.raw_, lower, upper, stride) == CFI_SUCCESS;
 }
 

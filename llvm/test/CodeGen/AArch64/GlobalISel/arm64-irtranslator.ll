@@ -137,13 +137,13 @@ false:
 ; CHECK-NEXT: successors: %[[BB_L1:bb.[0-9]+]](0x80000000)
 ;
 ; Check basic block L1 has 2 successors: BBL1 and BBL2
-; CHECK: [[BB_L1]].{{[a-zA-Z0-9.]+}} (address-taken):
+; CHECK: [[BB_L1]].{{[a-zA-Z0-9.]+}} (ir-block-address-taken %ir-block.{{[a-zA-Z0-9.]+}}):
 ; CHECK-NEXT: successors: %[[BB_L1]](0x40000000),
 ; CHECK:                  %[[BB_L2:bb.[0-9]+]](0x40000000)
 ; CHECK: G_BRINDIRECT %{{[0-9]+}}(p0)
 ;
 ; Check basic block L2 is the return basic block
-; CHECK: [[BB_L2]].{{[a-zA-Z0-9.]+}} (address-taken):
+; CHECK: [[BB_L2]].{{[a-zA-Z0-9.]+}} (ir-block-address-taken %ir-block.{{[a-zA-Z0-9.]+}}):
 ; CHECK-NEXT: RET_ReallyLR
 
 @indirectbr.L = internal unnamed_addr constant [3 x i8*] [i8* blockaddress(@indirectbr, %L1), i8* blockaddress(@indirectbr, %L2), i8* null], align 8
@@ -1458,10 +1458,12 @@ define void @test_lifetime_intrin() {
 ; O3-LABEL: name: test_lifetime_intrin
 ; O3: {{%[0-9]+}}:_(p0) = G_FRAME_INDEX %stack.0.slot
 ; O3-NEXT: LIFETIME_START %stack.0.slot
+; O3-NEXT: G_STORE
 ; O3-NEXT: LIFETIME_END %stack.0.slot
 ; O3-NEXT: RET_ReallyLR
   %slot = alloca i8, i32 4
   call void @llvm.lifetime.start.p0i8(i64 0, i8* %slot)
+  store volatile i8 10, i8* %slot
   call void @llvm.lifetime.end.p0i8(i64 0, i8* %slot)
   ret void
 }
@@ -1785,7 +1787,7 @@ define i32 @test_target_mem_intrinsic(i32* %addr) {
 ; CHECK: [[ADDR:%[0-9]+]]:_(p0) = COPY $x0
 ; CHECK: [[VAL:%[0-9]+]]:_(s64) = G_INTRINSIC_W_SIDE_EFFECTS intrinsic(@llvm.aarch64.ldxr), [[ADDR]](p0) :: (volatile load (s32) from %ir.addr)
 ; CHECK: G_TRUNC [[VAL]](s64)
-  %val = call i64 @llvm.aarch64.ldxr.p0i32(i32* %addr)
+  %val = call i64 @llvm.aarch64.ldxr.p0i32(i32* elementtype(i32) %addr)
   %trunc = trunc i64 %val to i32
   ret i32 %trunc
 }

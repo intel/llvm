@@ -25,14 +25,12 @@ func boolToUnsigned(b bool) C.unsigned {
 	return 0
 }
 
-func (pm PassManager) AddArgumentPromotionPass()     { C.LLVMAddArgumentPromotionPass(pm.C) }
 func (pm PassManager) AddConstantMergePass()         { C.LLVMAddConstantMergePass(pm.C) }
 func (pm PassManager) AddDeadArgEliminationPass()    { C.LLVMAddDeadArgEliminationPass(pm.C) }
 func (pm PassManager) AddFunctionAttrsPass()         { C.LLVMAddFunctionAttrsPass(pm.C) }
 func (pm PassManager) AddFunctionInliningPass()      { C.LLVMAddFunctionInliningPass(pm.C) }
 func (pm PassManager) AddGlobalDCEPass()             { C.LLVMAddGlobalDCEPass(pm.C) }
 func (pm PassManager) AddGlobalOptimizerPass()       { C.LLVMAddGlobalOptimizerPass(pm.C) }
-func (pm PassManager) AddPruneEHPass()               { C.LLVMAddPruneEHPass(pm.C) }
 func (pm PassManager) AddIPSCCPPass()                { C.LLVMAddIPSCCPPass(pm.C) }
 func (pm PassManager) AddInternalizePass(allButMain bool) {
 	C.LLVMAddInternalizePass(pm.C, boolToUnsigned(allButMain))

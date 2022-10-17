@@ -30,29 +30,9 @@
     fprintf(stderr, "'%s' failed with '%s'\n", #expr, name);                   \
   }(expr)
 
-// Sets the `Context` for the duration of the instance and restores the previous
-// context on destruction.
-class ScopedContext {
-public:
-  ScopedContext() {
-    // Static reference to HIP primary context for device ordinal 0.
-    static hipCtx_t context = [] {
-      HIP_REPORT_IF_ERROR(hipInit(/*flags=*/0));
-      hipDevice_t device;
-      HIP_REPORT_IF_ERROR(hipDeviceGet(&device, /*ordinal=*/0));
-      hipCtx_t ctx;
-      HIP_REPORT_IF_ERROR(hipDevicePrimaryCtxRetain(&ctx, device));
-      return ctx;
-    }();
-
-    HIP_REPORT_IF_ERROR(hipCtxPushCurrent(context));
-  }
-
-  ~ScopedContext() { HIP_REPORT_IF_ERROR(hipCtxPopCurrent(nullptr)); }
-};
+thread_local static int32_t defaultDevice = 0;
 
 extern "C" hipModule_t mgpuModuleLoad(void *data) {
-  ScopedContext scopedContext;
   hipModule_t module = nullptr;
   HIP_REPORT_IF_ERROR(hipModuleLoadData(&module, data));
   return module;
@@ -78,14 +58,12 @@ extern "C" void mgpuLaunchKernel(hipFunction_t function, intptr_t gridX,
                                  intptr_t blockZ, int32_t smem,
                                  hipStream_t stream, void **params,
                                  void **extra) {
-  ScopedContext scopedContext;
   HIP_REPORT_IF_ERROR(hipModuleLaunchKernel(function, gridX, gridY, gridZ,
                                             blockX, blockY, blockZ, smem,
                                             stream, params, extra));
 }
 
 extern "C" hipStream_t mgpuStreamCreate() {
-  ScopedContext scopedContext;
   hipStream_t stream = nullptr;
   HIP_REPORT_IF_ERROR(hipStreamCreate(&stream));
   return stream;
@@ -104,7 +82,6 @@ extern "C" void mgpuStreamWaitEvent(hipStream_t stream, hipEvent_t event) {
 }
 
 extern "C" hipEvent_t mgpuEventCreate() {
-  ScopedContext scopedContext;
   hipEvent_t event = nullptr;
   HIP_REPORT_IF_ERROR(hipEventCreateWithFlags(&event, hipEventDisableTiming));
   return event;
@@ -123,7 +100,6 @@ extern "C" void mgpuEventRecord(hipEvent_t event, hipStream_t stream) {
 }
 
 extern "C" void *mgpuMemAlloc(uint64_t sizeBytes, hipStream_t /*stream*/) {
-  ScopedContext scopedContext;
   void *ptr;
   HIP_REPORT_IF_ERROR(hipMalloc(&ptr, sizeBytes));
   return ptr;
@@ -149,7 +125,6 @@ extern "C" void mgpuMemset32(void *dst, int value, size_t count,
 // Allows to register byte array with the ROCM runtime. Helpful until we have
 // transfer functions implemented.
 extern "C" void mgpuMemHostRegister(void *ptr, uint64_t sizeBytes) {
-  ScopedContext scopedContext;
   HIP_REPORT_IF_ERROR(hipHostRegister(ptr, sizeBytes, /*flags=*/0));
 }
 
@@ -198,4 +173,9 @@ mgpuMemGetDeviceMemRef1dInt32(int32_t *allocated, int32_t *aligned,
   int32_t *devicePtr = nullptr;
   mgpuMemGetDevicePointer(aligned, &devicePtr);
   return {devicePtr, devicePtr, offset, {size}, {stride}};
+}
+
+extern "C" void mgpuSetDefaultDevice(int32_t device) {
+  defaultDevice = device;
+  HIP_REPORT_IF_ERROR(hipSetDevice(device));
 }

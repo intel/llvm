@@ -11,9 +11,9 @@ define void @widen_call_instruction(double* noalias nocapture readonly %a.in, do
 ; CHECK-NEXT: %[[FOR1_INDEX:.*]] = phi i64 [ 0, %[[LABEL_PR:.*]] ], [ %{{.*}}, %[[LABEL_FOR1_LATCH:.*]] ]
 ; CHECK: %[[VEC_INDEX:.*]] = phi <4 x i64> [ <i64 0, i64 1, i64 2, i64 3>, %[[LABEL_PR]] ], [ %{{.*}}, %[[LABEL_FOR1_LATCH]] ]
 ; CHECK-NEXT: %[[A_PTR:.*]] = getelementptr inbounds double, double* %a.in, <4 x i64> %[[VEC_INDEX]]
-; CHECK-NEXT: %[[MASKED_GATHER1:.*]] = call <4 x double> @llvm.masked.gather.v4f64.v4p0f64(<4 x double*> %[[A_PTR]], i32 8, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, <4 x double> undef)
+; CHECK-NEXT: %[[MASKED_GATHER1:.*]] = call <4 x double> @llvm.masked.gather.v4f64.v4p0f64(<4 x double*> %[[A_PTR]], i32 8, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, <4 x double> poison)
 ; CHECK-NEXT: %[[B_PTR:.*]] = getelementptr inbounds double, double* %b.in, <4 x i64> %[[VEC_INDEX]]
-; CHECK-NEXT: %[[MASKED_GATHER2:.*]] = call <4 x double> @llvm.masked.gather.v4f64.v4p0f64(<4 x double*> %[[B_PTR]], i32 8, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, <4 x double> undef)
+; CHECK-NEXT: %[[MASKED_GATHER2:.*]] = call <4 x double> @llvm.masked.gather.v4f64.v4p0f64(<4 x double*> %[[B_PTR]], i32 8, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, <4 x double> poison)
 ; CHECK-NEXT: %[[B_SQRT:.*]] = call <4 x double> @llvm.sqrt.v4f64(<4 x double> %[[MASKED_GATHER2]])
 ; CHECK-NEXT: br label %[[FOR2_HEADER:.*]]
 
@@ -32,7 +32,6 @@ define void @widen_call_instruction(double* noalias nocapture readonly %a.in, do
 ; CHECK-NEXT: call void @llvm.masked.scatter.v4f64.v4p0f64(<4 x double> %[[REDUCTION]], <4 x double*> %[[C_PTR]], i32 8, <4 x i1> <i1 true, i1 true, i1 true, i1 true>)
 ; CHECK-NEXT: %[[VEC_INDEX_NEXT:.*]] = add nuw nsw <4 x i64> %[[VEC_INDEX]], <i64 1, i64 1, i64 1, i64 1>
 ; CHECK-NEXT: %[[VEC_PTR:.*]] = icmp eq <4 x i64> %[[VEC_INDEX_NEXT]], <i64 1000, i64 1000, i64 1000, i64 1000>
-; CHECK-NEXT: %{{.*}} = extractelement <4 x i1> %[[VEC_PTR]], i32 0
 ; CHECK-NEXT: %[[FOR1_INDEX_NEXT:.*]] = add nuw i64 %[[FOR1_INDEX]], 4
 ; CHECK-NEXT: %{{.*}} = add <4 x i64> %[[VEC_INDEX]], <i64 4, i64 4, i64 4, i64 4>
 ; CHECK-NEXT: %[[EXIT_COND:.*]] = icmp eq i64 %[[FOR1_INDEX_NEXT]], 1000

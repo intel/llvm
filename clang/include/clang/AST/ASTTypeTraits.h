@@ -17,6 +17,7 @@
 
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/LambdaCapture.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TypeLoc.h"
@@ -64,6 +65,7 @@ public:
   static ASTNodeKind getFromNode(const Stmt &S);
   static ASTNodeKind getFromNode(const Type &T);
   static ASTNodeKind getFromNode(const TypeLoc &T);
+  static ASTNodeKind getFromNode(const LambdaCapture &L);
   static ASTNodeKind getFromNode(const OMPClause &C);
   static ASTNodeKind getFromNode(const Attr &A);
   /// \}
@@ -131,6 +133,7 @@ private:
     NKI_None,
     NKI_TemplateArgument,
     NKI_TemplateArgumentLoc,
+    NKI_LambdaCapture,
     NKI_TemplateName,
     NKI_NestedNameSpecifierLoc,
     NKI_QualType,
@@ -157,6 +160,7 @@ private:
     NKI_Attr,
 #define ATTR(A) NKI_##A##Attr,
 #include "clang/Basic/AttrList.inc"
+    NKI_ObjCProtocolLoc,
     NKI_NumberOfKinds
   };
 
@@ -197,6 +201,7 @@ private:
 KIND_TO_KIND_ID(CXXCtorInitializer)
 KIND_TO_KIND_ID(TemplateArgument)
 KIND_TO_KIND_ID(TemplateArgumentLoc)
+KIND_TO_KIND_ID(LambdaCapture)
 KIND_TO_KIND_ID(TemplateName)
 KIND_TO_KIND_ID(NestedNameSpecifier)
 KIND_TO_KIND_ID(NestedNameSpecifierLoc)
@@ -209,6 +214,7 @@ KIND_TO_KIND_ID(Stmt)
 KIND_TO_KIND_ID(Type)
 KIND_TO_KIND_ID(OMPClause)
 KIND_TO_KIND_ID(Attr)
+KIND_TO_KIND_ID(ObjCProtocolLoc)
 KIND_TO_KIND_ID(CXXBaseSpecifier)
 #define DECL(DERIVED, BASE) KIND_TO_KIND_ID(DERIVED##Decl)
 #include "clang/AST/DeclNodes.inc"
@@ -495,7 +501,7 @@ private:
   /// have storage or unique pointers and thus need to be stored by value.
   llvm::AlignedCharArrayUnion<const void *, TemplateArgument,
                               TemplateArgumentLoc, NestedNameSpecifierLoc,
-                              QualType, TypeLoc>
+                              QualType, TypeLoc, ObjCProtocolLoc>
       Storage;
 };
 
@@ -541,6 +547,10 @@ struct DynTypedNode::BaseConverter<TemplateArgumentLoc, void>
     : public ValueConverter<TemplateArgumentLoc> {};
 
 template <>
+struct DynTypedNode::BaseConverter<LambdaCapture, void>
+    : public ValueConverter<LambdaCapture> {};
+
+template <>
 struct DynTypedNode::BaseConverter<
     TemplateName, void> : public ValueConverter<TemplateName> {};
 
@@ -561,6 +571,10 @@ struct DynTypedNode::BaseConverter<
 template <>
 struct DynTypedNode::BaseConverter<CXXBaseSpecifier, void>
     : public PtrConverter<CXXBaseSpecifier> {};
+
+template <>
+struct DynTypedNode::BaseConverter<ObjCProtocolLoc, void>
+    : public ValueConverter<ObjCProtocolLoc> {};
 
 // The only operation we allow on unsupported types is \c get.
 // This allows to conveniently use \c DynTypedNode when having an arbitrary

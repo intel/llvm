@@ -84,7 +84,7 @@ NativeProcessWindows::NativeProcessWindows(lldb::pid_t pid, int terminal_fd,
 }
 
 Status NativeProcessWindows::Resume(const ResumeActionList &resume_actions) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
   Status error;
   llvm::sys::ScopedLock lock(m_mutex);
 
@@ -117,7 +117,7 @@ Status NativeProcessWindows::Resume(const ResumeActionList &resume_actions) {
       }
       case eStateSuspended:
       case eStateStopped:
-        llvm_unreachable("Unexpected state");
+        break;
 
       default:
         return Status(
@@ -168,7 +168,7 @@ Status NativeProcessWindows::Halt() {
 
 Status NativeProcessWindows::Detach() {
   Status error;
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
   StateType state = GetState();
   if (state != eStateExited && state != eStateDetached) {
     error = DetachProcess();
@@ -253,13 +253,12 @@ void NativeProcessWindows::SetStopReasonForThread(NativeThreadWindows &thread,
 
   ThreadStopInfo stop_info;
   stop_info.reason = reason;
-
   // No signal support on Windows but required to provide a 'valid' signum.
+  stop_info.signo = SIGTRAP;
+
   if (reason == StopReason::eStopReasonException) {
     stop_info.details.exception.type = 0;
     stop_info.details.exception.data_count = 0;
-  } else {
-    stop_info.details.signal.signo = SIGTRAP;
   }
 
   thread.SetStopReason(stop_info, description);
@@ -379,7 +378,7 @@ Status NativeProcessWindows::GetLoadedModuleFileSpec(const char *module_path,
     }
   }
   return Status("Module (%s) not found in process %" PRIu64 "!",
-                module_file_spec.GetCString(), GetID());
+                module_file_spec.GetPath().c_str(), GetID());
 }
 
 Status
@@ -399,11 +398,11 @@ NativeProcessWindows::GetFileLoadAddress(const llvm::StringRef &file_name,
     }
   }
   return Status("Can't get loaded address of file (%s) in process %" PRIu64 "!",
-                file_spec.GetCString(), GetID());
+                file_spec.GetPath().c_str(), GetID());
 }
 
 void NativeProcessWindows::OnExitProcess(uint32_t exit_code) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
   LLDB_LOG(log, "Process {0} exited with code {1}", GetID(), exit_code);
 
   ProcessDebugger::OnExitProcess(exit_code);
@@ -417,7 +416,7 @@ void NativeProcessWindows::OnExitProcess(uint32_t exit_code) {
 }
 
 void NativeProcessWindows::OnDebuggerConnected(lldb::addr_t image_base) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_PROCESS);
+  Log *log = GetLog(WindowsLog::Process);
   LLDB_LOG(log, "Debugger connected to process {0}. Image base = {1:x}",
            GetDebuggedProcessId(), image_base);
 
@@ -445,7 +444,7 @@ void NativeProcessWindows::OnDebuggerConnected(lldb::addr_t image_base) {
 ExceptionResult
 NativeProcessWindows::OnDebugException(bool first_chance,
                                        const ExceptionRecord &record) {
-  Log *log = ProcessWindowsLog::GetLogIfAny(WINDOWS_LOG_EXCEPTION);
+  Log *log = GetLog(WindowsLog::Exception);
   llvm::sys::ScopedLock lock(m_mutex);
 
   // Let the debugger establish the internal status.
@@ -529,7 +528,7 @@ NativeProcessWindows::OnDebugException(bool first_chance,
       return ExceptionResult::BreakInDebugger;
     }
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   default:
     LLDB_LOG(log,
              "Debugger thread reported exception {0:x} at address {1:x} "
@@ -621,7 +620,7 @@ NativeProcessWindows::Factory::Attach(
     lldb::pid_t pid, NativeProcessProtocol::NativeDelegate &native_delegate,
     MainLoop &mainloop) const {
   Error E = Error::success();
-  // Set pty master fd invalid since it is not available.
+  // Set pty primary fd invalid since it is not available.
   auto process_up = std::unique_ptr<NativeProcessWindows>(
       new NativeProcessWindows(pid, -1, native_delegate, E));
   if (E)

@@ -5,7 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <libelf.h>
+
+#include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Object/ELF.h"
+#include "llvm/Object/ELFObjectFile.h"
 
 #include <cassert>
 #include <sstream>
@@ -15,6 +19,10 @@
 #include "rt.h"
 
 #include "msgpack.h"
+
+using namespace llvm;
+using namespace llvm::object;
+using namespace llvm::ELF;
 
 namespace hsa {
 // Wrap HSA iterate API in a shim that allows passing general callables
@@ -46,22 +54,6 @@ typedef struct {
 } Elf_Note;
 #endif
 
-// The following include file and following structs/enums
-// have been replicated on a per-use basis below. For example,
-// llvm::AMDGPU::HSAMD::Kernel::Metadata has several fields,
-// but we may care only about kernargSegmentSize_ for now, so
-// we just include that field in our KernelMD implementation. We
-// chose this approach to replicate in order to avoid forcing
-// a dependency on LLVM_INCLUDE_DIR just to compile the runtime.
-// #include "llvm/Support/AMDGPUMetadata.h"
-// typedef llvm::AMDGPU::HSAMD::Metadata CodeObjectMD;
-// typedef llvm::AMDGPU::HSAMD::Kernel::Metadata KernelMD;
-// typedef llvm::AMDGPU::HSAMD::Kernel::Arg::Metadata KernelArgMD;
-// using llvm::AMDGPU::HSAMD::AccessQualifier;
-// using llvm::AMDGPU::HSAMD::AddressSpaceQualifier;
-// using llvm::AMDGPU::HSAMD::ValueKind;
-// using llvm::AMDGPU::HSAMD::ValueType;
-
 class KernelArgMD {
 public:
   enum class ValueKind {
@@ -74,49 +66,22 @@ public:
     HiddenCompletionAction,
     HiddenMultiGridSyncArg,
     HiddenHostcallBuffer,
+    HiddenHeapV1,
     Unknown
   };
 
   KernelArgMD()
-      : name_(std::string()), typeName_(std::string()), size_(0), offset_(0),
-        align_(0), valueKind_(ValueKind::Unknown) {}
+      : name_(std::string()), size_(0), offset_(0),
+        valueKind_(ValueKind::Unknown) {}
 
   // fields
   std::string name_;
-  std::string typeName_;
   uint32_t size_;
   uint32_t offset_;
-  uint32_t align_;
   ValueKind valueKind_;
 };
 
-class KernelMD {
-public:
-  KernelMD() : kernargSegmentSize_(0ull) {}
-
-  // fields
-  uint64_t kernargSegmentSize_;
-};
-
 static const std::map<std::string, KernelArgMD::ValueKind> ArgValueKind = {
-    //    Including only those fields that are relevant to the runtime.
-    //    {"ByValue", KernelArgMD::ValueKind::ByValue},
-    //    {"GlobalBuffer", KernelArgMD::ValueKind::GlobalBuffer},
-    //    {"DynamicSharedPointer",
-    //    KernelArgMD::ValueKind::DynamicSharedPointer},
-    //    {"Sampler", KernelArgMD::ValueKind::Sampler},
-    //    {"Image", KernelArgMD::ValueKind::Image},
-    //    {"Pipe", KernelArgMD::ValueKind::Pipe},
-    //    {"Queue", KernelArgMD::ValueKind::Queue},
-    {"HiddenGlobalOffsetX", KernelArgMD::ValueKind::HiddenGlobalOffsetX},
-    {"HiddenGlobalOffsetY", KernelArgMD::ValueKind::HiddenGlobalOffsetY},
-    {"HiddenGlobalOffsetZ", KernelArgMD::ValueKind::HiddenGlobalOffsetZ},
-    {"HiddenNone", KernelArgMD::ValueKind::HiddenNone},
-    {"HiddenPrintfBuffer", KernelArgMD::ValueKind::HiddenPrintfBuffer},
-    {"HiddenDefaultQueue", KernelArgMD::ValueKind::HiddenDefaultQueue},
-    {"HiddenCompletionAction", KernelArgMD::ValueKind::HiddenCompletionAction},
-    {"HiddenMultiGridSyncArg", KernelArgMD::ValueKind::HiddenMultiGridSyncArg},
-    {"HiddenHostcallBuffer", KernelArgMD::ValueKind::HiddenHostcallBuffer},
     // v3
     //    {"by_value", KernelArgMD::ValueKind::ByValue},
     //    {"global_buffer", KernelArgMD::ValueKind::GlobalBuffer},
@@ -137,7 +102,7 @@ static const std::map<std::string, KernelArgMD::ValueKind> ArgValueKind = {
     {"hidden_multigrid_sync_arg",
      KernelArgMD::ValueKind::HiddenMultiGridSyncArg},
     {"hidden_hostcall_buffer", KernelArgMD::ValueKind::HiddenHostcallBuffer},
-};
+    {"hidden_heap_v1", KernelArgMD::ValueKind::HiddenHeapV1}};
 
 namespace core {
 
@@ -198,72 +163,69 @@ static bool isImplicit(KernelArgMD::ValueKind value_kind) {
   case KernelArgMD::ValueKind::HiddenCompletionAction:
   case KernelArgMD::ValueKind::HiddenMultiGridSyncArg:
   case KernelArgMD::ValueKind::HiddenHostcallBuffer:
+  case KernelArgMD::ValueKind::HiddenHeapV1:
     return true;
   default:
     return false;
   }
 }
 
-static std::pair<unsigned char *, unsigned char *>
-find_metadata(void *binary, size_t binSize) {
-  std::pair<unsigned char *, unsigned char *> failure = {nullptr, nullptr};
-
-  Elf *e = elf_memory(static_cast<char *>(binary), binSize);
-  if (elf_kind(e) != ELF_K_ELF) {
-    return failure;
+static std::pair<const unsigned char *, const unsigned char *>
+findMetadata(const ELFObjectFile<ELF64LE> &ELFObj) {
+  constexpr std::pair<const unsigned char *, const unsigned char *> Failure = {
+      nullptr, nullptr};
+  const auto &Elf = ELFObj.getELFFile();
+  auto PhdrsOrErr = Elf.program_headers();
+  if (!PhdrsOrErr) {
+    consumeError(PhdrsOrErr.takeError());
+    return Failure;
   }
 
-  size_t numpHdrs;
-  if (elf_getphdrnum(e, &numpHdrs) != 0) {
-    return failure;
-  }
+  for (auto Phdr : *PhdrsOrErr) {
+    if (Phdr.p_type != PT_NOTE)
+      continue;
 
-  Elf64_Phdr *pHdrs = elf64_getphdr(e);
-  for (size_t i = 0; i < numpHdrs; ++i) {
-    Elf64_Phdr pHdr = pHdrs[i];
+    Error Err = Error::success();
+    for (auto Note : Elf.notes(Phdr, Err)) {
+      if (Note.getType() == 7 || Note.getType() == 8)
+        return Failure;
 
-    // Look for the runtime metadata note
-    if (pHdr.p_type == PT_NOTE && pHdr.p_align >= sizeof(int)) {
-      // Iterate over the notes in this segment
-      address ptr = (address)binary + pHdr.p_offset;
-      address segmentEnd = ptr + pHdr.p_filesz;
+      // Code object v2 uses yaml metadata and is no longer supported.
+      if (Note.getType() == NT_AMD_HSA_METADATA && Note.getName() == "AMD")
+        return Failure;
+      // Code object v3 should have AMDGPU metadata.
+      if (Note.getType() == NT_AMDGPU_METADATA && Note.getName() != "AMDGPU")
+        return Failure;
 
-      while (ptr < segmentEnd) {
-        Elf_Note *note = reinterpret_cast<Elf_Note *>(ptr);
-        address name = (address)&note[1];
+      ArrayRef<uint8_t> Desc = Note.getDesc();
+      return {Desc.data(), Desc.data() + Desc.size()};
+    }
 
-        if (note->n_type == 7 || note->n_type == 8) {
-          return failure;
-        } else if (note->n_type == 10 /* NT_AMD_AMDGPU_HSA_METADATA */ &&
-                   note->n_namesz == sizeof "AMD" &&
-                   !memcmp(name, "AMD", note->n_namesz)) {
-          // code object v2 uses yaml metadata, no longer supported
-          return failure;
-        } else if (note->n_type == 32 /* NT_AMDGPU_METADATA */ &&
-                   note->n_namesz == sizeof "AMDGPU" &&
-                   !memcmp(name, "AMDGPU", note->n_namesz)) {
-
-          // n_descsz = 485
-          // value is padded to 4 byte alignment, may want to move end up to
-          // match
-          size_t offset = sizeof(uint32_t) * 3 /* fields */
-                          + sizeof("AMDGPU")   /* name */
-                          + 1 /* padding to 4 byte alignment */;
-
-          // Including the trailing padding means both pointers are 4 bytes
-          // aligned, which may be useful later.
-          unsigned char *metadata_start = (unsigned char *)ptr + offset;
-          unsigned char *metadata_end =
-              metadata_start + core::alignUp(note->n_descsz, 4);
-          return {metadata_start, metadata_end};
-        }
-        ptr += sizeof(*note) + core::alignUp(note->n_namesz, sizeof(int)) +
-               core::alignUp(note->n_descsz, sizeof(int));
-      }
+    if (Err) {
+      consumeError(std::move(Err));
+      return Failure;
     }
   }
 
-  return failure;
+  return Failure;
+}
+
+static std::pair<const unsigned char *, const unsigned char *>
+find_metadata(void *binary, size_t binSize) {
+  constexpr std::pair<const unsigned char *, const unsigned char *> Failure = {
+      nullptr, nullptr};
+
+  StringRef Buffer = StringRef(static_cast<const char *>(binary), binSize);
+  auto ElfOrErr = ObjectFile::createELFObjectFile(MemoryBufferRef(Buffer, ""),
+                                                  /*InitContent=*/false);
+  if (!ElfOrErr) {
+    consumeError(ElfOrErr.takeError());
+    return Failure;
+  }
+
+  if (const auto *ELFObj = dyn_cast<ELF64LEObjectFile>(ElfOrErr->get()))
+    return findMetadata(*ELFObj);
+  return Failure;
 }
 
 namespace {
@@ -354,10 +316,6 @@ int populate_kernelArgMD(msgpack::byte_range args_element,
       foronly_string(value, [&](size_t N, const unsigned char *str) {
         kernelarg->name_ = std::string(str, str + N);
       });
-    } else if (message_is_string(key, ".type_name")) {
-      foronly_string(value, [&](size_t N, const unsigned char *str) {
-        kernelarg->typeName_ = std::string(str, str + N);
-      });
     } else if (message_is_string(key, ".size")) {
       foronly_unsigned(value, [&](uint64_t x) { kernelarg->size_ = x; });
     } else if (message_is_string(key, ".offset")) {
@@ -383,7 +341,7 @@ static hsa_status_t get_code_object_custom_metadata(
   // also, the kernel name is not the same as the symbol name -- so a
   // symbol->name map is needed
 
-  std::pair<unsigned char *, unsigned char *> metadata =
+  std::pair<const unsigned char *, const unsigned char *> metadata =
       find_metadata(binary, binSize);
   if (!metadata.first) {
     return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
@@ -429,7 +387,7 @@ static hsa_status_t get_code_object_custom_metadata(
       return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
     }
 
-    atl_kernel_info_t info = {0, 0, 0, 0, 0, 0, 0, 0, 0, {}, {}, {}};
+    atl_kernel_info_t info = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     uint64_t sgpr_count, vgpr_count, sgpr_spill_count, vgpr_spill_count;
     msgpack_errors += map_lookup_uint64_t(element, ".sgpr_count", &sgpr_count);
@@ -494,8 +452,6 @@ static hsa_status_t get_code_object_custom_metadata(
         return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
       }
 
-      info.num_args = argsSize;
-
       for (size_t i = 0; i < argsSize; ++i) {
         KernelArgMD lcArg;
 
@@ -513,13 +469,10 @@ static hsa_status_t get_code_object_custom_metadata(
                  "iterate args map in kernel args metadata");
           return HSA_STATUS_ERROR_INVALID_CODE_OBJECT;
         }
-        // populate info with sizes and offsets
-        info.arg_sizes.push_back(lcArg.size_);
         // v3 has offset field and not align field
         size_t new_offset = lcArg.offset_;
         size_t padding = new_offset - offset;
         offset = new_offset;
-        info.arg_offsets.push_back(lcArg.offset_);
         DP("Arg[%lu] \"%s\" (%u, %u)\n", i, lcArg.name_.c_str(), lcArg.size_,
            lcArg.offset_);
         offset += lcArg.size_;
@@ -527,20 +480,19 @@ static hsa_status_t get_code_object_custom_metadata(
         // check if the arg is a hidden/implicit arg
         // this logic assumes that all hidden args are 8-byte aligned
         if (!isImplicit(lcArg.valueKind_)) {
+          info.explicit_argument_count++;
           kernel_explicit_args_size += lcArg.size_;
         } else {
+          info.implicit_argument_count++;
           hasHiddenArgs = true;
         }
         kernel_explicit_args_size += padding;
       }
     }
 
-    // add size of implicit args, e.g.: offset x, y and z and pipe pointer, but
-    // do not count the compiler set implicit args, but set your own implicit
-    // args by discounting the compiler set implicit args
+    // TODO: Probably don't want this arithmetic
     info.kernel_segment_size =
-        (hasHiddenArgs ? kernel_explicit_args_size : kernel_segment_size) +
-        sizeof(impl_implicit_args_t);
+        (hasHiddenArgs ? kernel_explicit_args_size : kernel_segment_size);
     DP("[%s: kernarg seg size] (%lu --> %u)\n", kernelName.c_str(),
        kernel_segment_size, info.kernel_segment_size);
 

@@ -23,9 +23,12 @@ parser.add_argument('-o', action='store', dest='output')
 parser.add_argument('input')
 [args, unknown_args] = parser.parse_known_args()
 
-# Echo pipeline if '-print-pipeline-passes'.
+# Expand pipeline if '-print-pipeline-passes'.
 if args.print_pipeline_passes:
-    print(args.passes)
+    if args.passes == 'EXPAND_a_to_f':
+        print('a,b,c,d,e,f')
+    else:
+        print(args.passes)
     exit(0)
 
 # Parse '-crash-seq'.
@@ -64,7 +67,7 @@ if len(crash_seq) > 0 and crash_seq[0] == tok:
 if args.output:
     shutil.copy(args.input, args.output)
 
-# Crash if all 'crash_seq' passes occured in right order.
+# Crash if all 'crash_seq' passes occurred in right order.
 if len(crash_seq) == 0:
     print('crash')
     os.kill(os.getpid(), signal.SIGKILL)

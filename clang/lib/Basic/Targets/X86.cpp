@@ -239,7 +239,7 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasAVX512ER = true;
     } else if (Feature == "+avx512fp16") {
       HasAVX512FP16 = true;
-      HasFloat16 = true;
+      HasLegalHalfType = true;
     } else if (Feature == "+avx512pf") {
       HasAVX512PF = true;
     } else if (Feature == "+avx512dq") {
@@ -298,6 +298,8 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasCLDEMOTE = true;
     } else if (Feature == "+rdpid") {
       HasRDPID = true;
+    } else if (Feature == "+rdpru") {
+      HasRDPRU = true;
     } else if (Feature == "+kl") {
       HasKL = true;
     } else if (Feature == "+widekl") {
@@ -338,6 +340,8 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasUINTR = true;
     } else if (Feature == "+crc32") {
       HasCRC32 = true;
+    } else if (Feature == "+x87") {
+      HasX87 = true;
     }
 
     X86SSEEnum Level = llvm::StringSwitch<X86SSEEnum>(Feature)
@@ -352,6 +356,10 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
                            .Case("+sse", SSE1)
                            .Default(NoSSE);
     SSELevel = std::max(SSELevel, Level);
+
+    HasFloat16 = SSELevel >= SSE2;
+
+    HasBFloat16 = SSELevel >= SSE2;
 
     MMX3DNowEnum ThreeDNowLevel = llvm::StringSwitch<MMX3DNowEnum>(Feature)
                                       .Case("+3dnowa", AMD3DNowAthlon)
@@ -379,6 +387,12 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
 
   SimdDefaultAlign =
       hasFeature("avx512f") ? 512 : hasFeature("avx") ? 256 : 128;
+
+  // FIXME: We should allow long double type on 32-bits to match with GCC.
+  // This requires backend to be able to lower f80 without x87 first.
+  if (!HasX87 && LongDoubleFormat == &llvm::APFloat::x87DoubleExtended())
+    HasLongDouble = false;
+
   return true;
 }
 
@@ -433,7 +447,7 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_PentiumMMX:
     Builder.defineMacro("__pentium_mmx__");
     Builder.defineMacro("__tune_pentium_mmx__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case CK_i586:
   case CK_Pentium:
     defineCPUMacros(Builder, "i586");
@@ -442,11 +456,11 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_Pentium3:
   case CK_PentiumM:
     Builder.defineMacro("__tune_pentium3__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case CK_Pentium2:
   case CK_C3_2:
     Builder.defineMacro("__tune_pentium2__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case CK_PentiumPro:
   case CK_i686:
     defineCPUMacros(Builder, "i686");
@@ -514,7 +528,7 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_K6_2:
     Builder.defineMacro("__k6_2__");
     Builder.defineMacro("__tune_k6_2__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case CK_K6_3:
     if (CPU != CK_K6_2) { // In case of fallthrough
       // FIXME: GCC may be enabling these in cases where some other k6
@@ -523,7 +537,7 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
       Builder.defineMacro("__k6_3__");
       Builder.defineMacro("__tune_k6_3__");
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case CK_K6:
     defineCPUMacros(Builder, "k6");
     break;
@@ -649,13 +663,13 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   switch (XOPLevel) {
   case XOP:
     Builder.defineMacro("__XOP__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case FMA4:
     Builder.defineMacro("__FMA4__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SSE4A:
     Builder.defineMacro("__SSE4A__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case NoXOP:
     break;
   }
@@ -734,6 +748,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__WIDEKL__");
   if (HasRDPID)
     Builder.defineMacro("__RDPID__");
+  if (HasRDPRU)
+    Builder.defineMacro("__RDPRU__");
   if (HasCLDEMOTE)
     Builder.defineMacro("__CLDEMOTE__");
   if (HasWAITPKG)
@@ -773,33 +789,33 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   switch (SSELevel) {
   case AVX512F:
     Builder.defineMacro("__AVX512F__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AVX2:
     Builder.defineMacro("__AVX2__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AVX:
     Builder.defineMacro("__AVX__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SSE42:
     Builder.defineMacro("__SSE4_2__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SSE41:
     Builder.defineMacro("__SSE4_1__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SSSE3:
     Builder.defineMacro("__SSSE3__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SSE3:
     Builder.defineMacro("__SSE3__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SSE2:
     Builder.defineMacro("__SSE2__");
     Builder.defineMacro("__SSE2_MATH__"); // -mfp-math=sse always implied.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case SSE1:
     Builder.defineMacro("__SSE__");
     Builder.defineMacro("__SSE_MATH__"); // -mfp-math=sse always implied.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case NoSSE:
     break;
   }
@@ -829,13 +845,13 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   switch (MMX3DNowLevel) {
   case AMD3DNowAthlon:
     Builder.defineMacro("__3dNOW_A__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case AMD3DNow:
     Builder.defineMacro("__3dNOW__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case MMX:
     Builder.defineMacro("__MMX__");
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case NoMMX3DNow:
     break;
   }
@@ -917,6 +933,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("prfchw", true)
       .Case("ptwrite", true)
       .Case("rdpid", true)
+      .Case("rdpru", true)
       .Case("rdrnd", true)
       .Case("rdseed", true)
       .Case("rtm", true)
@@ -1012,6 +1029,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("prfchw", HasPRFCHW)
       .Case("ptwrite", HasPTWRITE)
       .Case("rdpid", HasRDPID)
+      .Case("rdpru", HasRDPRU)
       .Case("rdrnd", HasRDRND)
       .Case("rdseed", HasRDSEED)
       .Case("retpoline-external-thunk", HasRetpolineExternalThunk)
@@ -1038,6 +1056,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("x86", true)
       .Case("x86_32", getTriple().getArch() == llvm::Triple::x86)
       .Case("x86_64", getTriple().getArch() == llvm::Triple::x86_64)
+      .Case("x87", HasX87)
       .Case("xop", XOPLevel >= XOP)
       .Case("xsave", HasXSAVE)
       .Case("xsavec", HasXSAVEC)
@@ -1086,22 +1105,22 @@ unsigned X86TargetInfo::multiVersionSortPriority(StringRef Name) const {
 
 bool X86TargetInfo::validateCPUSpecificCPUDispatch(StringRef Name) const {
   return llvm::StringSwitch<bool>(Name)
-#define CPU_SPECIFIC(NAME, MANGLING, FEATURES) .Case(NAME, true)
-#define CPU_SPECIFIC_ALIAS(NEW_NAME, NAME) .Case(NEW_NAME, true)
+#define CPU_SPECIFIC(NAME, TUNE_NAME, MANGLING, FEATURES) .Case(NAME, true)
+#define CPU_SPECIFIC_ALIAS(NEW_NAME, TUNE_NAME, NAME) .Case(NEW_NAME, true)
 #include "llvm/Support/X86TargetParser.def"
       .Default(false);
 }
 
 static StringRef CPUSpecificCPUDispatchNameDealias(StringRef Name) {
   return llvm::StringSwitch<StringRef>(Name)
-#define CPU_SPECIFIC_ALIAS(NEW_NAME, NAME) .Case(NEW_NAME, NAME)
+#define CPU_SPECIFIC_ALIAS(NEW_NAME, TUNE_NAME, NAME) .Case(NEW_NAME, NAME)
 #include "llvm/Support/X86TargetParser.def"
       .Default(Name);
 }
 
 char X86TargetInfo::CPUSpecificManglingCharacter(StringRef Name) const {
   return llvm::StringSwitch<char>(CPUSpecificCPUDispatchNameDealias(Name))
-#define CPU_SPECIFIC(NAME, MANGLING, FEATURES) .Case(NAME, MANGLING)
+#define CPU_SPECIFIC(NAME, TUNE_NAME, MANGLING, FEATURES) .Case(NAME, MANGLING)
 #include "llvm/Support/X86TargetParser.def"
       .Default(0);
 }
@@ -1110,10 +1129,18 @@ void X86TargetInfo::getCPUSpecificCPUDispatchFeatures(
     StringRef Name, llvm::SmallVectorImpl<StringRef> &Features) const {
   StringRef WholeList =
       llvm::StringSwitch<StringRef>(CPUSpecificCPUDispatchNameDealias(Name))
-#define CPU_SPECIFIC(NAME, MANGLING, FEATURES) .Case(NAME, FEATURES)
+#define CPU_SPECIFIC(NAME, TUNE_NAME, MANGLING, FEATURES) .Case(NAME, FEATURES)
 #include "llvm/Support/X86TargetParser.def"
           .Default("");
   WholeList.split(Features, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+}
+
+StringRef X86TargetInfo::getCPUSpecificTuneName(StringRef Name) const {
+  return llvm::StringSwitch<StringRef>(Name)
+#define CPU_SPECIFIC(NAME, TUNE_NAME, MANGLING, FEATURES) .Case(NAME, TUNE_NAME)
+#define CPU_SPECIFIC_ALIAS(NEW_NAME, TUNE_NAME, NAME) .Case(NEW_NAME, TUNE_NAME)
+#include "llvm/Support/X86TargetParser.def"
+      .Default("");
 }
 
 // We can't use a generic validation scheme for the cpus accepted here
@@ -1473,8 +1500,8 @@ std::string X86TargetInfo::convertConstraint(const char *&Constraint) const {
     return std::string("{si}");
   case 'D':
     return std::string("{di}");
-  case 'p': // address
-    return std::string("im");
+  case 'p': // Keep 'p' constraint (address).
+    return std::string("p");
   case 't': // top of floating point stack.
     return std::string("{st}");
   case 'u':                        // second from top of floating point stack.
@@ -1497,7 +1524,7 @@ std::string X86TargetInfo::convertConstraint(const char *&Constraint) const {
       // to the next constraint.
       return std::string("^") + std::string(Constraint++, 2);
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   default:
     return std::string(1, *Constraint);
   }

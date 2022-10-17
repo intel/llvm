@@ -38,7 +38,7 @@ public:
     Explicit = 2,
     LenParameter = 3
   };
-
+  Genre genre() const { return genre_; }
   std::optional<TypeParameterValue> GetValue(const Descriptor *) const;
 
 private:
@@ -86,9 +86,10 @@ public:
   void EstablishDescriptor(
       Descriptor &, const Descriptor &container, Terminator &) const;
 
-  // Creates a pointer descriptor from this component description.
+  // Creates a pointer descriptor from this component description, possibly
+  // with subscripts
   void CreatePointerDescriptor(Descriptor &, const Descriptor &container,
-      const SubscriptValue[], Terminator &) const;
+      Terminator &, const SubscriptValue * = nullptr) const;
 
   FILE *Dump(FILE * = stdout) const;
 

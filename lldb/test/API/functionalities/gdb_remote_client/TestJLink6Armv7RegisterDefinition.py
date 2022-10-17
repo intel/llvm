@@ -1,8 +1,8 @@
-from __future__ import print_function
 import lldb
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
-from gdbclientutils import *
+from lldbsuite.test.gdbclientutils import *
+from lldbsuite.test.lldbgdbclient import GDBRemoteTestBase
 
 class TestJLink6Armv7RegisterDefinition(GDBRemoteTestBase):
 
@@ -189,7 +189,7 @@ class TestJLink6Armv7RegisterDefinition(GDBRemoteTestBase):
         data = lldb.SBData()
         data.SetData(error, val, lldb.eByteOrderBig, 4)
         self.assertEqual(r1_valobj.SetData(data, error), True)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         r1_valobj = process.GetThreadAtIndex(0).GetFrameAtIndex(0).FindRegister("r1")
         self.assertEqual(r1_valobj.GetValueAsUnsigned(), 0x11223344)

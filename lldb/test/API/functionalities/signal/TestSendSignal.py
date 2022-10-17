@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class SendSignalTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -72,10 +70,6 @@ class SendSignalTestCase(TestBase):
         # Now continue:
         process.Continue()
 
-        # If running remote test, there should be a connected event
-        if lldb.remote_platform:
-            self.match_state(process_listener, lldb.eStateConnected)
-
         self.match_state(process_listener, lldb.eStateRunning)
 
         # Now signal the process, and make sure it stops:
@@ -94,6 +88,10 @@ class SendSignalTestCase(TestBase):
         self.assertEqual(
             thread.GetStopReasonDataAtIndex(0), lldbutil.get_signal_number('SIGUSR1'),
             "The stop signal was SIGUSR1")
+
+        self.match("statistics dump",
+                   [r'"signals": \[', r'"SIGUSR1": 1'])
+
 
     def match_state(self, process_listener, expected_state):
         num_seconds = 5

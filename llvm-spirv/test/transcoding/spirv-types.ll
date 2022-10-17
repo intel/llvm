@@ -81,9 +81,8 @@ target triple = "spir-unknown-unknown"
 %spirv.Sampler              = type opaque ; sampler_t
 %spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
 
-; TODO: translate pipe types to SPIR-V friendly IR
-; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_ro_t = type opaque
-; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_wo_t = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Pipe._0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Pipe._1 = type opaque
 
 ; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_0 = type opaque
 ; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_1_0_0_0_0_0_0 = type opaque

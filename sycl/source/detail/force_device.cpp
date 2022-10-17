@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/force_device.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cstdlib>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 bool match_types(const info::device_type &l, const info::device_type &r) {
@@ -38,13 +38,13 @@ info::device_type get_forced_type() {
     if (type == "host") {
       return info::device_type::host;
     }
-    throw cl::sycl::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
-                                  "be GPU, CPU, ACC or HOST.",
-                                  PI_INVALID_VALUE);
+    throw sycl::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
+                              "be GPU, CPU, ACC or HOST.",
+                              PI_ERROR_INVALID_VALUE);
   }
   return info::device_type::all;
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

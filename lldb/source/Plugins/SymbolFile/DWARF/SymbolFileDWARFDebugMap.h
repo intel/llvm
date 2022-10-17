@@ -22,7 +22,7 @@ class SymbolFileDWARF;
 class DWARFDebugAranges;
 class DWARFDeclContext;
 
-class SymbolFileDWARFDebugMap : public lldb_private::SymbolFile {
+class SymbolFileDWARFDebugMap : public lldb_private::SymbolFileCommon {
   /// LLVM RTTI support.
   static char ID;
 
@@ -30,7 +30,7 @@ public:
   /// LLVM RTTI support.
   /// \{
   bool isA(const void *ClassID) const override {
-    return ClassID == &ID || SymbolFile::isA(ClassID);
+    return ClassID == &ID || SymbolFileCommon::isA(ClassID);
   }
   static bool classof(const SymbolFile *obj) { return obj->isA(&ID); }
   /// \}
@@ -40,9 +40,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "dwarf-debugmap"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static lldb_private::SymbolFile *
   CreateInstance(lldb::ObjectFileSP objfile_sp);
@@ -101,6 +101,10 @@ public:
       const lldb_private::SourceLocationSpec &src_location_spec,
       lldb::SymbolContextItem resolve_scope,
       lldb_private::SymbolContextList &sc_list) override;
+
+  lldb_private::Status
+  CalculateFrameVariableError(lldb_private::StackFrame &frame) override;
+
   void
   FindGlobalVariables(lldb_private::ConstString name,
                       const lldb_private::CompilerDeclContext &parent_decl_ctx,
@@ -109,9 +113,8 @@ public:
   void FindGlobalVariables(const lldb_private::RegularExpression &regex,
                            uint32_t max_matches,
                            lldb_private::VariableList &variables) override;
-  void FindFunctions(lldb_private::ConstString name,
+  void FindFunctions(const lldb_private::Module::LookupInfo &lookup_info,
                      const lldb_private::CompilerDeclContext &parent_decl_ctx,
-                     lldb::FunctionNameType name_type_mask,
                      bool include_inlines,
                      lldb_private::SymbolContextList &sc_list) override;
   void FindFunctions(const lldb_private::RegularExpression &regex,
@@ -140,9 +143,10 @@ public:
   void DumpClangAST(lldb_private::Stream &s) override;
 
   // PluginInterface protocol
-  llvm::StringRef GetPluginName() override {
-    return GetPluginNameStatic().GetStringRef();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
+
+  // Statistics overrides.
+  lldb_private::ModuleList GetDebugInfoModules() override;
 
 protected:
   enum { kHaveInitializedOSOs = (1 << 0), kNumFlags };
@@ -168,6 +172,7 @@ protected:
     lldb_private::FileSpec so_file;
     lldb_private::ConstString oso_path;
     llvm::sys::TimePoint<> oso_mod_time;
+    lldb_private::Status oso_load_error;
     OSOInfoSP oso_sp;
     lldb::CompUnitSP compile_unit_sp;
     uint32_t first_symbol_index = UINT32_MAX;

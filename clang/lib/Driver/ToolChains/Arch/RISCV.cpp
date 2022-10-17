@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "RISCV.h"
+#include "../Clang.h"
 #include "ToolChains/CommonArgs.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Driver/Driver.h"
@@ -41,7 +42,8 @@ static bool getArchFeatures(const Driver &D, StringRef Arch,
     return false;
   }
 
-  (*ISAInfo)->toFeatures(Args, Features);
+  (*ISAInfo)->toFeatures(
+      Features, [&Args](const Twine &Str) { return Args.MakeArgString(Str); });
   return true;
 }
 
@@ -50,7 +52,7 @@ static void getRISCFeaturesFromMcpu(const Driver &D, const llvm::Triple &Triple,
                                     const llvm::opt::ArgList &Args,
                                     const llvm::opt::Arg *A, StringRef Mcpu,
                                     std::vector<StringRef> &Features) {
-  bool Is64Bit = (Triple.getArch() == llvm::Triple::riscv64);
+  bool Is64Bit = Triple.isRISCV64();
   llvm::RISCV::CPUKind CPUKind = llvm::RISCV::parseCPUKind(Mcpu);
   if (!llvm::RISCV::checkCPUKind(CPUKind, Is64Bit) ||
       !llvm::RISCV::getCPUFeaturesExceptStdExt(CPUKind, Features)) {
@@ -136,10 +138,17 @@ void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     Features.push_back("+reserve-x31");
 
   // -mrelax is default, unless -mno-relax is specified.
-  if (Args.hasFlag(options::OPT_mrelax, options::OPT_mno_relax, true))
+  if (Args.hasFlag(options::OPT_mrelax, options::OPT_mno_relax, true)) {
     Features.push_back("+relax");
-  else
+    // -gsplit-dwarf -mrelax requires DW_AT_high_pc/DW_AT_ranges/... indexing
+    // into .debug_addr, which is currently not implemented.
+    Arg *A;
+    if (getDebugFissionKind(D, Args, A) != DwarfFissionKind::None)
+      D.Diag(clang::diag::err_drv_riscv_unsupported_with_linker_relaxation)
+          << A->getAsString(Args);
+  } else {
     Features.push_back("-relax");
+  }
 
   // GCC Compatibility: -mno-save-restore is default, unless -msave-restore is
   // specified.
@@ -154,9 +163,7 @@ void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
 }
 
 StringRef riscv::getRISCVABI(const ArgList &Args, const llvm::Triple &Triple) {
-  assert((Triple.getArch() == llvm::Triple::riscv32 ||
-          Triple.getArch() == llvm::Triple::riscv64) &&
-         "Unexpected triple");
+  assert(Triple.isRISCV() && "Unexpected triple");
 
   // GCC's logic around choosing a default `-mabi=` is complex. If GCC is not
   // configured using `--with-abi=`, then the logic for the default choice is
@@ -193,34 +200,18 @@ StringRef riscv::getRISCVABI(const ArgList &Args, const llvm::Triple &Triple) {
 
   auto ParseResult = llvm::RISCVISAInfo::parseArchString(
       Arch, /* EnableExperimentalExtension */ true);
-  if (!ParseResult) {
+  if (!ParseResult)
     // Ignore parsing error, just go 3rd step.
     consumeError(ParseResult.takeError());
-  } else {
-    auto &ISAInfo = *ParseResult;
-    bool HasD = ISAInfo->hasExtension("d");
-    unsigned XLen = ISAInfo->getXLen();
-    if (XLen == 32) {
-      bool HasE = ISAInfo->hasExtension("e");
-      if (HasD)
-        return "ilp32d";
-      if (HasE)
-        return "ilp32e";
-      return "ilp32";
-    } else if (XLen == 64) {
-      if (HasD)
-        return "lp64d";
-      return "lp64";
-    }
-    llvm_unreachable("unhandled XLen");
-  }
+  else
+    return (*ParseResult)->computeDefaultABI();
 
   // 3. Choose a default based on the triple
   //
   // We deviate from GCC's defaults here:
   // - On `riscv{XLEN}-unknown-elf` we use the integer calling convention only.
   // - On all other OSs we use the double floating point calling convention.
-  if (Triple.getArch() == llvm::Triple::riscv32) {
+  if (Triple.isRISCV32()) {
     if (Triple.getOS() == llvm::Triple::UnknownOS)
       return "ilp32";
     else
@@ -235,9 +226,7 @@ StringRef riscv::getRISCVABI(const ArgList &Args, const llvm::Triple &Triple) {
 
 StringRef riscv::getRISCVArch(const llvm::opt::ArgList &Args,
                               const llvm::Triple &Triple) {
-  assert((Triple.getArch() == llvm::Triple::riscv32 ||
-          Triple.getArch() == llvm::Triple::riscv64) &&
-         "Unexpected triple");
+  assert(Triple.isRISCV() && "Unexpected triple");
 
   // GCC's logic around choosing a default `-march=` is complex. If GCC is not
   // configured using `--with-arch=`, then the logic for the default choice is
@@ -298,7 +287,7 @@ StringRef riscv::getRISCVArch(const llvm::opt::ArgList &Args,
   // We deviate from GCC's defaults here:
   // - On `riscv{XLEN}-unknown-elf` we default to `rv{XLEN}imac`
   // - On all other OSs we use `rv{XLEN}imafdc` (equivalent to `rv{XLEN}gc`)
-  if (Triple.getArch() == llvm::Triple::riscv32) {
+  if (Triple.isRISCV32()) {
     if (Triple.getOS() == llvm::Triple::UnknownOS)
       return "rv32imac";
     else

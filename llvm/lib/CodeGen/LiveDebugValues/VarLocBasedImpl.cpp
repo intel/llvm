@@ -118,18 +118,15 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/UniqueVector.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
-#include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -137,16 +134,11 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/TypeSize.h"
 #include "llvm/Support/raw_ostream.h"
@@ -329,7 +321,7 @@ private:
       EntryValueKind,
       EntryValueBackupKind,
       EntryValueCopyBackupKind
-    } EVKind;
+    } EVKind = EntryValueLocKind::NonEntryValueKind;
 
     /// The value location. Stored separately to avoid repeatedly
     /// extracting it from MI.
@@ -397,8 +389,7 @@ private:
     VarLoc(const MachineInstr &MI, LexicalScopes &LS)
         : Var(MI.getDebugVariable(), MI.getDebugExpression(),
               MI.getDebugLoc()->getInlinedAt()),
-          Expr(MI.getDebugExpression()), MI(MI),
-          EVKind(EntryValueLocKind::NonEntryValueKind) {
+          Expr(MI.getDebugExpression()), MI(MI) {
       assert(MI.isDebugValue() && "not a DBG_VALUE");
       assert((MI.isDebugValueList() || MI.getNumOperands() == 4) &&
              "malformed DBG_VALUE");
@@ -492,10 +483,10 @@ private:
     static VarLoc CreateCopyLoc(const VarLoc &OldVL, const MachineLoc &OldML,
                                 Register NewReg) {
       VarLoc VL = OldVL;
-      for (size_t I = 0, E = VL.Locs.size(); I < E; ++I)
-        if (VL.Locs[I] == OldML) {
-          VL.Locs[I].Kind = MachineLocKind::RegisterKind;
-          VL.Locs[I].Value.RegNo = NewReg;
+      for (MachineLoc &ML : VL.Locs)
+        if (ML == OldML) {
+          ML.Kind = MachineLocKind::RegisterKind;
+          ML.Value.RegNo = NewReg;
           return VL;
         }
       llvm_unreachable("Should have found OldML in new VarLoc.");
@@ -506,10 +497,10 @@ private:
     static VarLoc CreateSpillLoc(const VarLoc &OldVL, const MachineLoc &OldML,
                                  unsigned SpillBase, StackOffset SpillOffset) {
       VarLoc VL = OldVL;
-      for (int I = 0, E = VL.Locs.size(); I < E; ++I)
-        if (VL.Locs[I] == OldML) {
-          VL.Locs[I].Kind = MachineLocKind::SpillLocKind;
-          VL.Locs[I].Value.SpillLocation = {SpillBase, SpillOffset};
+      for (MachineLoc &ML : VL.Locs)
+        if (ML == OldML) {
+          ML.Kind = MachineLocKind::SpillLocKind;
+          ML.Value.SpillLocation = {SpillBase, SpillOffset};
           return VL;
         }
       llvm_unreachable("Should have found OldML in new VarLoc.");
@@ -923,14 +914,14 @@ private:
     std::unique_ptr<VarLocSet> &VLS = Locs[MBB];
     if (!VLS)
       VLS = std::make_unique<VarLocSet>(Alloc);
-    return *VLS.get();
+    return *VLS;
   }
 
   const VarLocSet &getVarLocsInMBB(const MachineBasicBlock *MBB,
                                    const VarLocInMBB &Locs) const {
     auto It = Locs.find(MBB);
     assert(It != Locs.end() && "MBB not in map");
-    return *It->second.get();
+    return *It->second;
   }
 
   /// Tests whether this instruction is a spill to a stack location.
@@ -1036,9 +1027,9 @@ public:
 //            Implementation
 //===----------------------------------------------------------------------===//
 
-VarLocBasedLDV::VarLocBasedLDV() { }
+VarLocBasedLDV::VarLocBasedLDV() = default;
 
-VarLocBasedLDV::~VarLocBasedLDV() { }
+VarLocBasedLDV::~VarLocBasedLDV() = default;
 
 /// Erase a variable from the set of open ranges, and additionally erase any
 /// fragments that may overlap it. If the VarLoc is a backup location, erase
@@ -1525,8 +1516,7 @@ void VarLocBasedLDV::transferRegisterDef(MachineInstr &MI,
       for (MCRegAliasIterator RAI(MO.getReg(), TRI, true); RAI.isValid(); ++RAI)
         // FIXME: Can we break out of this loop early if no insertion occurs?
         DeadRegs.insert(*RAI);
-      if (RegSetInstrs.find(MO.getReg()) != RegSetInstrs.end())
-        RegSetInstrs.erase(MO.getReg());
+      RegSetInstrs.erase(MO.getReg());
       RegSetInstrs.insert({MO.getReg(), &MI});
     } else if (MO.isRegMask()) {
       RegMasks.push_back(MO.getRegMask());
@@ -1555,8 +1545,7 @@ void VarLocBasedLDV::transferRegisterDef(MachineInstr &MI,
       if (AnyRegMaskKillsReg)
         DeadRegs.insert(Reg);
       if (AnyRegMaskKillsReg) {
-        if (RegSetInstrs.find(Reg) != RegSetInstrs.end())
-          RegSetInstrs.erase(Reg);
+        RegSetInstrs.erase(Reg);
         RegSetInstrs.insert({Reg, &MI});
       }
     }
@@ -1885,7 +1874,7 @@ void VarLocBasedLDV::accumulateFragmentMap(MachineInstr &MI,
   // Otherwise, examine all other seen fragments for this variable, with "this"
   // fragment being a previously unseen fragment. Record any pair of
   // overlapping fragments.
-  for (auto &ASeenFragment : AllSeenFragments) {
+  for (const auto &ASeenFragment : AllSeenFragments) {
     // Does this previously seen fragment overlap?
     if (DIExpression::fragmentsOverlap(ThisFragment, ASeenFragment)) {
       // Yes: Mark the current fragment as being overlapped.
@@ -1933,7 +1922,7 @@ bool VarLocBasedLDV::join(
   // For all predecessors of this MBB, find the set of VarLocs that
   // can be joined.
   int NumVisited = 0;
-  for (auto p : MBB.predecessors()) {
+  for (auto *p : MBB.predecessors()) {
     // Ignore backedges if we have not visited the predecessor yet. As the
     // predecessor hasn't yet had locations propagated into it, most locations
     // will not yet be valid, so treat them as all being uninitialized and
@@ -1951,7 +1940,7 @@ bool VarLocBasedLDV::join(
 
     // Just copy over the Out locs to incoming locs for the first visited
     // predecessor, and for all other predecessors join the Out locs.
-    VarLocSet &OutLocVLS = *OL->second.get();
+    VarLocSet &OutLocVLS = *OL->second;
     if (!NumVisited)
       InLocsT = OutLocVLS;
     else
@@ -2010,7 +1999,7 @@ void VarLocBasedLDV::flushPendingLocs(VarLocInMBB &PendingInLocs,
   for (auto &Iter : PendingInLocs) {
     // Map is keyed on a constant pointer, unwrap it so we can insert insts.
     auto &MBB = const_cast<MachineBasicBlock &>(*Iter.first);
-    VarLocSet &Pending = *Iter.second.get();
+    VarLocSet &Pending = *Iter.second;
 
     SmallVector<VarLoc, 32> VarLocs;
     collectAllVarLocs(VarLocs, Pending, VarLocIDs);
@@ -2257,7 +2246,7 @@ bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF,
 
         if (OLChanged) {
           OLChanged = false;
-          for (auto s : MBB->successors())
+          for (auto *s : MBB->successors())
             if (OnPending.insert(s).second) {
               Pending.push(BBToOrder[s]);
             }

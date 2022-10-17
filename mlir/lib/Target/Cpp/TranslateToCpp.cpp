@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -21,6 +23,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <utility>
 
 #define DEBUG_TYPE "translate-to-cpp"
 
@@ -214,7 +217,15 @@ static LogicalResult printConstantOp(CppEmitter &emitter, Operation *operation,
 static LogicalResult printOperation(CppEmitter &emitter,
                                     emitc::ConstantOp constantOp) {
   Operation *operation = constantOp.getOperation();
-  Attribute value = constantOp.value();
+  Attribute value = constantOp.getValue();
+
+  return printConstantOp(emitter, operation, value);
+}
+
+static LogicalResult printOperation(CppEmitter &emitter,
+                                    emitc::VariableOp variableOp) {
+  Operation *operation = variableOp.getOperation();
+  Attribute value = variableOp.getValue();
 
   return printConstantOp(emitter, operation, value);
 }
@@ -222,20 +233,21 @@ static LogicalResult printOperation(CppEmitter &emitter,
 static LogicalResult printOperation(CppEmitter &emitter,
                                     arith::ConstantOp constantOp) {
   Operation *operation = constantOp.getOperation();
-  Attribute value = constantOp.value();
+  Attribute value = constantOp.getValue();
 
   return printConstantOp(emitter, operation, value);
 }
 
 static LogicalResult printOperation(CppEmitter &emitter,
-                                    mlir::ConstantOp constantOp) {
+                                    func::ConstantOp constantOp) {
   Operation *operation = constantOp.getOperation();
-  Attribute value = constantOp.value();
+  Attribute value = constantOp.getValueAttr();
 
   return printConstantOp(emitter, operation, value);
 }
 
-static LogicalResult printOperation(CppEmitter &emitter, BranchOp branchOp) {
+static LogicalResult printOperation(CppEmitter &emitter,
+                                    cf::BranchOp branchOp) {
   raw_ostream &os = emitter.ostream();
   Block &successor = *branchOp.getSuccessor();
 
@@ -255,7 +267,7 @@ static LogicalResult printOperation(CppEmitter &emitter, BranchOp branchOp) {
 }
 
 static LogicalResult printOperation(CppEmitter &emitter,
-                                    CondBranchOp condBranchOp) {
+                                    cf::CondBranchOp condBranchOp) {
   raw_indented_ostream &os = emitter.ostream();
   Block &trueSuccessor = *condBranchOp.getTrueDest();
   Block &falseSuccessor = *condBranchOp.getFalseDest();
@@ -300,7 +312,7 @@ static LogicalResult printOperation(CppEmitter &emitter,
   return success();
 }
 
-static LogicalResult printOperation(CppEmitter &emitter, mlir::CallOp callOp) {
+static LogicalResult printOperation(CppEmitter &emitter, func::CallOp callOp) {
   if (failed(emitter.emitAssignPrefix(*callOp.getOperation())))
     return failure();
 
@@ -318,7 +330,7 @@ static LogicalResult printOperation(CppEmitter &emitter, emitc::CallOp callOp) {
 
   if (failed(emitter.emitAssignPrefix(op)))
     return failure();
-  os << callOp.callee();
+  os << callOp.getCallee();
 
   auto emitArgs = [&](Attribute attr) -> LogicalResult {
     if (auto t = attr.dyn_cast<IntegerAttr>()) {
@@ -340,9 +352,10 @@ static LogicalResult printOperation(CppEmitter &emitter, emitc::CallOp callOp) {
     return success();
   };
 
-  if (callOp.template_args()) {
+  if (callOp.getTemplateArgs()) {
     os << "<";
-    if (failed(interleaveCommaWithError(*callOp.template_args(), os, emitArgs)))
+    if (failed(
+            interleaveCommaWithError(*callOp.getTemplateArgs(), os, emitArgs)))
       return failure();
     os << ">";
   }
@@ -350,8 +363,9 @@ static LogicalResult printOperation(CppEmitter &emitter, emitc::CallOp callOp) {
   os << "(";
 
   LogicalResult emittedArgs =
-      callOp.args() ? interleaveCommaWithError(*callOp.args(), os, emitArgs)
-                    : emitter.emitOperands(op);
+      callOp.getArgs()
+          ? interleaveCommaWithError(*callOp.getArgs(), os, emitArgs)
+          : emitter.emitOperands(op);
   if (failed(emittedArgs))
     return failure();
   os << ")";
@@ -365,8 +379,23 @@ static LogicalResult printOperation(CppEmitter &emitter,
 
   if (failed(emitter.emitAssignPrefix(op)))
     return failure();
-  os << applyOp.applicableOperator();
+  os << applyOp.getApplicableOperator();
   os << emitter.getOrCreateName(applyOp.getOperand());
+
+  return success();
+}
+
+static LogicalResult printOperation(CppEmitter &emitter, emitc::CastOp castOp) {
+  raw_ostream &os = emitter.ostream();
+  Operation &op = *castOp.getOperation();
+
+  if (failed(emitter.emitAssignPrefix(op)))
+    return failure();
+  os << "(";
+  if (failed(emitter.emitType(op.getLoc(), op.getResult(0).getType())))
+    return failure();
+  os << ") ";
+  os << emitter.getOrCreateName(castOp.getOperand());
 
   return success();
 }
@@ -376,10 +405,10 @@ static LogicalResult printOperation(CppEmitter &emitter,
   raw_ostream &os = emitter.ostream();
 
   os << "#include ";
-  if (includeOp.is_standard_include())
-    os << "<" << includeOp.include() << ">";
+  if (includeOp.getIsStandardInclude())
+    os << "<" << includeOp.getInclude() << ">";
   else
-    os << "\"" << includeOp.include() << "\"";
+    os << "\"" << includeOp.getInclude() << "\"";
 
   return success();
 }
@@ -415,19 +444,19 @@ static LogicalResult printOperation(CppEmitter &emitter, scf::ForOp forOp) {
   os << " ";
   os << emitter.getOrCreateName(forOp.getInductionVar());
   os << " = ";
-  os << emitter.getOrCreateName(forOp.lowerBound());
+  os << emitter.getOrCreateName(forOp.getLowerBound());
   os << "; ";
   os << emitter.getOrCreateName(forOp.getInductionVar());
   os << " < ";
-  os << emitter.getOrCreateName(forOp.upperBound());
+  os << emitter.getOrCreateName(forOp.getUpperBound());
   os << "; ";
   os << emitter.getOrCreateName(forOp.getInductionVar());
   os << " += ";
-  os << emitter.getOrCreateName(forOp.step());
+  os << emitter.getOrCreateName(forOp.getStep());
   os << ") {\n";
   os.indent();
 
-  Region &forRegion = forOp.region();
+  Region &forRegion = forOp.getRegion();
   auto regionOps = forRegion.getOps();
 
   // We skip the trailing yield op because this updates the result variables
@@ -479,7 +508,7 @@ static LogicalResult printOperation(CppEmitter &emitter, scf::IfOp ifOp) {
   os << ") {\n";
   os.indent();
 
-  Region &thenRegion = ifOp.thenRegion();
+  Region &thenRegion = ifOp.getThenRegion();
   for (Operation &op : thenRegion.getOps()) {
     // Note: This prints a superfluous semicolon if the terminating yield op has
     // zero results.
@@ -489,7 +518,7 @@ static LogicalResult printOperation(CppEmitter &emitter, scf::IfOp ifOp) {
 
   os.unindent() << "}";
 
-  Region &elseRegion = ifOp.elseRegion();
+  Region &elseRegion = ifOp.getElseRegion();
   if (!elseRegion.empty()) {
     os << " else {\n";
     os.indent();
@@ -534,7 +563,8 @@ static LogicalResult printOperation(CppEmitter &emitter, scf::YieldOp yieldOp) {
   return success();
 }
 
-static LogicalResult printOperation(CppEmitter &emitter, ReturnOp returnOp) {
+static LogicalResult printOperation(CppEmitter &emitter,
+                                    func::ReturnOp returnOp) {
   raw_ostream &os = emitter.ostream();
   os << "return";
   switch (returnOp.getNumOperands()) {
@@ -562,7 +592,8 @@ static LogicalResult printOperation(CppEmitter &emitter, ModuleOp moduleOp) {
   return success();
 }
 
-static LogicalResult printOperation(CppEmitter &emitter, FuncOp functionOp) {
+static LogicalResult printOperation(CppEmitter &emitter,
+                                    func::FuncOp functionOp) {
   // We need to declare variables at top if the function has multiple blocks.
   if (!emitter.shouldDeclareVariablesAtTop() &&
       functionOp.getBlocks().size() > 1) {
@@ -573,7 +604,7 @@ static LogicalResult printOperation(CppEmitter &emitter, FuncOp functionOp) {
   CppEmitter::Scope scope(emitter);
   raw_indented_ostream &os = emitter.ostream();
   if (failed(emitter.emitTypes(functionOp.getLoc(),
-                               functionOp.getType().getResults())))
+                               functionOp.getFunctionType().getResults())))
     return failure();
   os << " " << functionOp.getName();
 
@@ -614,8 +645,7 @@ static LogicalResult printOperation(CppEmitter &emitter, FuncOp functionOp) {
   }
 
   // Declare variables for basic block arguments.
-  for (auto it = std::next(blocks.begin()); it != blocks.end(); ++it) {
-    Block &block = *it;
+  for (Block &block : llvm::drop_begin(blocks)) {
     for (BlockArgument &arg : block.getArguments()) {
       if (emitter.hasValueInScope(arg))
         return functionOp.emitOpError(" block argument #")
@@ -629,17 +659,18 @@ static LogicalResult printOperation(CppEmitter &emitter, FuncOp functionOp) {
   }
 
   for (Block &block : blocks) {
-    // Only print a label if there is more than one block.
-    if (blocks.size() > 1) {
+    // Only print a label if the block has predecessors.
+    if (!block.hasNoPredecessors()) {
       if (failed(emitter.emitLabel(block)))
         return failure();
     }
     for (Operation &op : block.getOperations()) {
-      // When generating code for an scf.if or std.cond_br op no semicolon needs
+      // When generating code for an scf.if or cf.cond_br op no semicolon needs
       // to be printed after the closing brace.
       // When generating code for an scf.for op, printing a trailing semicolon
       // is handled within the printOperation function.
-      bool trailingSemicolon = !isa<scf::IfOp, scf::ForOp, CondBranchOp>(op);
+      bool trailingSemicolon =
+          !isa<scf::IfOp, scf::ForOp, cf::CondBranchOp>(op);
 
       if (failed(emitter.emitOperation(
               op, /*trailingSemicolon=*/trailingSemicolon)))
@@ -689,7 +720,7 @@ bool CppEmitter::hasBlockLabel(Block &block) {
 }
 
 LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
-  auto printInt = [&](APInt val, bool isUnsigned) {
+  auto printInt = [&](const APInt &val, bool isUnsigned) {
     if (val.getBitWidth() == 1) {
       if (val.getBoolValue())
         os << "true";
@@ -702,7 +733,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
     }
   };
 
-  auto printFloat = [&](APFloat val) {
+  auto printFloat = [&](const APFloat &val) {
     if (val.isFinite()) {
       SmallString<128> strValue;
       // Use default values of toString except don't truncate zeros.
@@ -734,7 +765,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
   }
   if (auto dense = attr.dyn_cast<DenseFPElementsAttr>()) {
     os << '{';
-    interleaveComma(dense, os, [&](APFloat val) { printFloat(val); });
+    interleaveComma(dense, os, [&](const APFloat &val) { printFloat(val); });
     os << '}';
     return success();
   }
@@ -756,7 +787,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
                          .getElementType()
                          .dyn_cast<IntegerType>()) {
       os << '{';
-      interleaveComma(dense, os, [&](APInt val) {
+      interleaveComma(dense, os, [&](const APInt &val) {
         printInt(val, shouldMapToUnsigned(iType.getSignedness()));
       });
       os << '}';
@@ -767,7 +798,8 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
                          .getElementType()
                          .dyn_cast<IndexType>()) {
       os << '{';
-      interleaveComma(dense, os, [&](APInt val) { printInt(val, false); });
+      interleaveComma(dense, os,
+                      [&](const APInt &val) { printInt(val, false); });
       os << '}';
       return success();
     }
@@ -791,7 +823,7 @@ LogicalResult CppEmitter::emitAttribute(Location loc, Attribute attr) {
   if (auto type = attr.dyn_cast<TypeAttr>())
     return emitType(loc, type.getValue());
 
-  return emitError(loc, "cannot emit attribute of type ") << attr.getType();
+  return emitError(loc, "cannot emit attribute: ") << attr;
 }
 
 LogicalResult CppEmitter::emitOperands(Operation &op) {
@@ -812,7 +844,7 @@ CppEmitter::emitOperandsAndAttributes(Operation &op,
   // Insert comma in between operands and non-filtered attributes if needed.
   if (op.getNumOperands() > 0) {
     for (NamedAttribute attr : op.getAttrs()) {
-      if (!llvm::is_contained(exclude, attr.first.strref())) {
+      if (!llvm::is_contained(exclude, attr.getName().strref())) {
         os << ", ";
         break;
       }
@@ -820,10 +852,10 @@ CppEmitter::emitOperandsAndAttributes(Operation &op,
   }
   // Emit attributes.
   auto emitNamedAttribute = [&](NamedAttribute attr) -> LogicalResult {
-    if (llvm::is_contained(exclude, attr.first.strref()))
+    if (llvm::is_contained(exclude, attr.getName().strref()))
       return success();
-    os << "/* " << attr.first << " */";
-    if (failed(emitAttribute(op.getLoc(), attr.second)))
+    os << "/* " << attr.getName().getValue() << " */";
+    if (failed(emitAttribute(op.getLoc(), attr.getValue())))
       return failure();
     return success();
   };
@@ -896,16 +928,20 @@ LogicalResult CppEmitter::emitLabel(Block &block) {
 LogicalResult CppEmitter::emitOperation(Operation &op, bool trailingSemicolon) {
   LogicalResult status =
       llvm::TypeSwitch<Operation *, LogicalResult>(&op)
+          // Builtin ops.
+          .Case<ModuleOp>([&](auto op) { return printOperation(*this, op); })
+          // CF ops.
+          .Case<cf::BranchOp, cf::CondBranchOp>(
+              [&](auto op) { return printOperation(*this, op); })
           // EmitC ops.
-          .Case<emitc::ApplyOp, emitc::CallOp, emitc::ConstantOp,
-                emitc::IncludeOp>(
+          .Case<emitc::ApplyOp, emitc::CallOp, emitc::CastOp, emitc::ConstantOp,
+                emitc::IncludeOp, emitc::VariableOp>(
+              [&](auto op) { return printOperation(*this, op); })
+          // Func ops.
+          .Case<func::CallOp, func::ConstantOp, func::FuncOp, func::ReturnOp>(
               [&](auto op) { return printOperation(*this, op); })
           // SCF ops.
           .Case<scf::ForOp, scf::IfOp, scf::YieldOp>(
-              [&](auto op) { return printOperation(*this, op); })
-          // Standard ops.
-          .Case<BranchOp, mlir::CallOp, CondBranchOp, mlir::ConstantOp, FuncOp,
-                ModuleOp, ReturnOp>(
               [&](auto op) { return printOperation(*this, op); })
           // Arithmetic ops.
           .Case<arith::ConstantOp>(
@@ -969,6 +1005,12 @@ LogicalResult CppEmitter::emitType(Location loc, Type type) {
     return emitTupleType(loc, tType.getTypes());
   if (auto oType = type.dyn_cast<emitc::OpaqueType>()) {
     os << oType.getValue();
+    return success();
+  }
+  if (auto pType = type.dyn_cast<emitc::PointerType>()) {
+    if (failed(emitType(loc, pType.getPointee())))
+      return failure();
+    os << "*";
     return success();
   }
   return emitError(loc, "cannot emit type ") << type;

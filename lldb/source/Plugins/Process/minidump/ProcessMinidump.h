@@ -37,9 +37,9 @@ public:
 
   static void Terminate();
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "minidump"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   ProcessMinidump(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
                   const FileSpec &core_file, lldb::DataBufferSP code_data);
@@ -55,9 +55,7 @@ public:
 
   DynamicLoader *GetDynamicLoader() override { return nullptr; }
 
-  llvm::StringRef GetPluginName() override {
-    return GetPluginNameStatic().GetStringRef();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   SystemRuntime *GetSystemRuntime() override { return nullptr; }
 
@@ -76,9 +74,6 @@ public:
                       Status &error) override;
 
   ArchSpec GetArchitecture();
-
-  Status GetMemoryRegionInfo(lldb::addr_t load_addr,
-                             MemoryRegionInfo &range_info) override;
 
   Status GetMemoryRegions(
       lldb_private::MemoryRegionInfos &region_list) override;
@@ -99,6 +94,9 @@ protected:
 
   bool DoUpdateThreadList(ThreadList &old_thread_list,
                           ThreadList &new_thread_list) override;
+
+  Status DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                               MemoryRegionInfo &range_info) override;
 
   void ReadModuleList();
 

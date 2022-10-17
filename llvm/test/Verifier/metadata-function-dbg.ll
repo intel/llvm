@@ -1,4 +1,4 @@
-; RUN: llvm-as %s -disable-output 2>&1 | FileCheck %s
+; RUN: llvm-as -opaque-pointers %s -disable-output 2>&1 | FileCheck %s
 
 ; CHECK:      function declaration may only have a unique !dbg attachment
 declare !dbg !4 void @f1()
@@ -23,7 +23,7 @@ define void @f4() !dbg !4 {
 
 ; CHECK-NOT:  !dbg
 ; CHECK:      function !dbg attachment must be a subprogram
-; CHECK-NEXT: void ()* @bar
+; CHECK-NEXT: ptr @bar
 ; CHECK-NEXT: !{{[0-9]+}} = !{}
 define void @bar() !dbg !3 {
   unreachable

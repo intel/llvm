@@ -12,7 +12,7 @@
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "Writer.h"
-#include "lld/Common/ErrorHandler.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/Object/COFF.h"
@@ -20,6 +20,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <iterator>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -27,8 +28,7 @@ using namespace llvm::support::endian;
 using namespace llvm::COFF;
 using llvm::support::ulittle32_t;
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 SectionChunk::SectionChunk(ObjFile *f, const coff_section *h)
     : Chunk(SectionKind), file(f), header(h), repl(this) {
@@ -214,7 +214,8 @@ void SectionChunk::applyRelARM(uint8_t *off, uint16_t type, OutputSection *os,
 // the page offset from the current instruction to the target.
 void applyArm64Addr(uint8_t *off, uint64_t s, uint64_t p, int shift) {
   uint32_t orig = read32le(off);
-  uint64_t imm = ((orig >> 29) & 0x3) | ((orig >> 3) & 0x1FFFFC);
+  int64_t imm =
+      SignExtend64<21>(((orig >> 29) & 0x3) | ((orig >> 3) & 0x1FFFFC));
   s += imm;
   imm = (s >> shift) - (p >> shift);
   uint32_t immLo = (imm & 0x3) << 29;
@@ -429,7 +430,7 @@ void SectionChunk::sortRelocations() {
     return;
   warn("some relocations in " + file->getName() + " are not sorted");
   MutableArrayRef<coff_relocation> newRelocs(
-      bAlloc.Allocate<coff_relocation>(relocsSize), relocsSize);
+      bAlloc().Allocate<coff_relocation>(relocsSize), relocsSize);
   memcpy(newRelocs.data(), relocsData, relocsSize * sizeof(coff_relocation));
   llvm::sort(newRelocs, cmpByVa);
   setRelocs(newRelocs);
@@ -634,7 +635,7 @@ void SectionChunk::printDiscardedMessage() const {
   // Removed by dead-stripping. If it's removed by ICF, ICF already
   // printed out the name, so don't repeat that here.
   if (sym && this == repl)
-    message("Discarded " + sym->getName());
+    log("Discarded " + sym->getName());
 }
 
 StringRef SectionChunk::getDebugName() const {
@@ -815,7 +816,7 @@ void RVATableChunk::writeTo(uint8_t *buf) const {
   size_t cnt = 0;
   for (const ChunkAndOffset &co : syms)
     begin[cnt++] = co.inputChunk->getRVA() + co.offset;
-  std::sort(begin, begin + cnt);
+  llvm::sort(begin, begin + cnt);
   assert(std::unique(begin, begin + cnt) == begin + cnt &&
          "RVA tables should be de-duplicated");
 }
@@ -947,7 +948,7 @@ MergeChunk::MergeChunk(uint32_t alignment)
 void MergeChunk::addSection(COFFLinkerContext &ctx, SectionChunk *c) {
   assert(isPowerOf2_32(c->getAlignment()));
   uint8_t p2Align = llvm::Log2_32(c->getAlignment());
-  assert(p2Align < array_lengthof(ctx.mergeChunkInstances));
+  assert(p2Align < std::size(ctx.mergeChunkInstances));
   auto *&mc = ctx.mergeChunkInstances[p2Align];
   if (!mc)
     mc = make<MergeChunk>(c->getAlignment());
@@ -995,5 +996,4 @@ void AbsolutePointerChunk::writeTo(uint8_t *buf) const {
   }
 }
 
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff

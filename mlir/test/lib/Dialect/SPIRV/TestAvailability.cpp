@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
@@ -21,35 +22,47 @@ using namespace mlir;
 namespace {
 /// A pass for testing SPIR-V op availability.
 struct PrintOpAvailability
-    : public PassWrapper<PrintOpAvailability, FunctionPass> {
-  void runOnFunction() override;
+    : public PassWrapper<PrintOpAvailability, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PrintOpAvailability)
+
+  void runOnOperation() override;
   StringRef getArgument() const final { return "test-spirv-op-availability"; }
   StringRef getDescription() const final {
     return "Test SPIR-V op availability";
   }
 };
-} // end anonymous namespace
+} // namespace
 
-void PrintOpAvailability::runOnFunction() {
-  auto f = getFunction();
+void PrintOpAvailability::runOnOperation() {
+  auto f = getOperation();
   llvm::outs() << f.getName() << "\n";
 
-  Dialect *spvDialect = getContext().getLoadedDialect("spv");
+  Dialect *spirvDialect = getContext().getLoadedDialect("spirv");
 
   f->walk([&](Operation *op) {
-    if (op->getDialect() != spvDialect)
+    if (op->getDialect() != spirvDialect)
       return WalkResult::advance();
 
     auto opName = op->getName();
     auto &os = llvm::outs();
 
-    if (auto minVersion = dyn_cast<spirv::QueryMinVersionInterface>(op))
-      os << opName << " min version: "
-         << spirv::stringifyVersion(minVersion.getMinVersion()) << "\n";
+    if (auto minVersionIfx = dyn_cast<spirv::QueryMinVersionInterface>(op)) {
+      Optional<spirv::Version> minVersion = minVersionIfx.getMinVersion();
+      os << opName << " min version: ";
+      if (minVersion)
+        os << spirv::stringifyVersion(*minVersion) << "\n";
+      else
+        os << "None\n";
+    }
 
-    if (auto maxVersion = dyn_cast<spirv::QueryMaxVersionInterface>(op))
-      os << opName << " max version: "
-         << spirv::stringifyVersion(maxVersion.getMaxVersion()) << "\n";
+    if (auto maxVersionIfx = dyn_cast<spirv::QueryMaxVersionInterface>(op)) {
+      Optional<spirv::Version> maxVersion = maxVersionIfx.getMaxVersion();
+      os << opName << " max version: ";
+      if (maxVersion)
+        os << spirv::stringifyVersion(*maxVersion) << "\n";
+      else
+        os << "None\n";
+    }
 
     if (auto extension = dyn_cast<spirv::QueryExtensionInterface>(op)) {
       os << opName << " extensions: [";
@@ -81,7 +94,7 @@ void PrintOpAvailability::runOnFunction() {
 }
 
 namespace mlir {
-void registerPrintOpAvailabilityPass() {
+void registerPrintSpirvAvailabilityPass() {
   PassRegistration<PrintOpAvailability>();
 }
 } // namespace mlir
@@ -93,12 +106,14 @@ void registerPrintOpAvailabilityPass() {
 namespace {
 /// A pass for testing SPIR-V op availability.
 struct ConvertToTargetEnv
-    : public PassWrapper<ConvertToTargetEnv, FunctionPass> {
+    : public PassWrapper<ConvertToTargetEnv, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvertToTargetEnv)
+
   StringRef getArgument() const override { return "test-spirv-target-env"; }
   StringRef getDescription() const override {
     return "Test SPIR-V target environment";
   }
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
 struct ConvertToAtomCmpExchangeWeak : public RewritePattern {
@@ -130,17 +145,17 @@ struct ConvertToSubgroupBallot : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override;
 };
-} // end anonymous namespace
+} // namespace
 
-void ConvertToTargetEnv::runOnFunction() {
+void ConvertToTargetEnv::runOnOperation() {
   MLIRContext *context = &getContext();
-  FuncOp fn = getFunction();
+  func::FuncOp fn = getOperation();
 
   auto targetEnv = fn.getOperation()
                        ->getAttr(spirv::getTargetEnvAttrName())
                        .cast<spirv::TargetEnvAttr>();
   if (!targetEnv) {
-    fn.emitError("missing 'spv.target_env' attribute");
+    fn.emitError("missing 'spirv.target_env' attribute");
     return signalPassFailure();
   }
 
@@ -157,7 +172,7 @@ void ConvertToTargetEnv::runOnFunction() {
 
 ConvertToAtomCmpExchangeWeak::ConvertToAtomCmpExchangeWeak(MLIRContext *context)
     : RewritePattern("test.convert_to_atomic_compare_exchange_weak_op", 1,
-                     context, {"spv.AtomicCompareExchangeWeak"}) {}
+                     context, {"spirv.AtomicCompareExchangeWeak"}) {}
 
 LogicalResult
 ConvertToAtomCmpExchangeWeak::matchAndRewrite(Operation *op,
@@ -166,8 +181,8 @@ ConvertToAtomCmpExchangeWeak::matchAndRewrite(Operation *op,
   Value value = op->getOperand(1);
   Value comparator = op->getOperand(2);
 
-  // Create a spv.AtomicCompareExchangeWeak op with AtomicCounterMemory bits in
-  // memory semantics to additionally require AtomicStorage capability.
+  // Create a spirv.AtomicCompareExchangeWeak op with AtomicCounterMemory bits
+  // in memory semantics to additionally require AtomicStorage capability.
   rewriter.replaceOpWithNewOp<spirv::AtomicCompareExchangeWeakOp>(
       op, value.getType(), ptr, spirv::Scope::Workgroup,
       spirv::MemorySemantics::AcquireRelease |
@@ -178,7 +193,7 @@ ConvertToAtomCmpExchangeWeak::matchAndRewrite(Operation *op,
 
 ConvertToBitReverse::ConvertToBitReverse(MLIRContext *context)
     : RewritePattern("test.convert_to_bit_reverse_op", 1, context,
-                     {"spv.BitReverse"}) {}
+                     {"spirv.BitReverse"}) {}
 
 LogicalResult
 ConvertToBitReverse::matchAndRewrite(Operation *op,
@@ -193,7 +208,7 @@ ConvertToBitReverse::matchAndRewrite(Operation *op,
 ConvertToGroupNonUniformBallot::ConvertToGroupNonUniformBallot(
     MLIRContext *context)
     : RewritePattern("test.convert_to_group_non_uniform_ballot_op", 1, context,
-                     {"spv.GroupNonUniformBallot"}) {}
+                     {"spirv.GroupNonUniformBallot"}) {}
 
 LogicalResult ConvertToGroupNonUniformBallot::matchAndRewrite(
     Operation *op, PatternRewriter &rewriter) const {
@@ -205,7 +220,8 @@ LogicalResult ConvertToGroupNonUniformBallot::matchAndRewrite(
 }
 
 ConvertToModule::ConvertToModule(MLIRContext *context)
-    : RewritePattern("test.convert_to_module_op", 1, context, {"spv.module"}) {}
+    : RewritePattern("test.convert_to_module_op", 1, context,
+                     {"spirv.module"}) {}
 
 LogicalResult
 ConvertToModule::matchAndRewrite(Operation *op,
@@ -218,14 +234,14 @@ ConvertToModule::matchAndRewrite(Operation *op,
 
 ConvertToSubgroupBallot::ConvertToSubgroupBallot(MLIRContext *context)
     : RewritePattern("test.convert_to_subgroup_ballot_op", 1, context,
-                     {"spv.SubgroupBallotKHR"}) {}
+                     {"spirv.KHR.SubgroupBallot"}) {}
 
 LogicalResult
 ConvertToSubgroupBallot::matchAndRewrite(Operation *op,
                                          PatternRewriter &rewriter) const {
   Value predicate = op->getOperand(0);
 
-  rewriter.replaceOpWithNewOp<spirv::SubgroupBallotKHROp>(
+  rewriter.replaceOpWithNewOp<spirv::KHRSubgroupBallotOp>(
       op, op->getResult(0).getType(), predicate);
   return success();
 }

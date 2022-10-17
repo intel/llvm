@@ -14,14 +14,21 @@
 #include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/TargetOptions.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
+#include <memory>
+
+#include "SimpleDiagnosticConsumer.h"
+
 using namespace clang;
 using namespace clang::driver;
 
@@ -85,9 +92,8 @@ TEST(ToolChainTest, VFSGCCInstallation) {
       llvm::raw_string_ostream OS(S);
       C->getDefaultToolChain().printVerboseInfo(OS);
     }
-#if _WIN32
-    std::replace(S.begin(), S.end(), '\\', '/');
-#endif
+    if (is_style_windows(llvm::sys::path::Style::native))
+      std::replace(S.begin(), S.end(), '\\', '/');
     EXPECT_EQ(
         "Found candidate GCC installation: "
         "/usr/lib/gcc/arm-linux-gnueabihf/4.6.3\n"
@@ -110,9 +116,8 @@ TEST(ToolChainTest, VFSGCCInstallation) {
       llvm::raw_string_ostream OS(S);
       C->getDefaultToolChain().printVerboseInfo(OS);
     }
-#if _WIN32
-    std::replace(S.begin(), S.end(), '\\', '/');
-#endif
+    if (is_style_windows(llvm::sys::path::Style::native))
+      std::replace(S.begin(), S.end(), '\\', '/');
     // Test that 4.5.3 from --sysroot is not overridden by 4.6.3 (larger
     // version) from /usr.
     EXPECT_EQ("Found candidate GCC installation: "
@@ -153,9 +158,8 @@ TEST(ToolChainTest, VFSGCCInstallationRelativeDir) {
     llvm::raw_string_ostream OS(S);
     C->getDefaultToolChain().printVerboseInfo(OS);
   }
-#if _WIN32
-  std::replace(S.begin(), S.end(), '\\', '/');
-#endif
+  if (is_style_windows(llvm::sys::path::Style::native))
+    std::replace(S.begin(), S.end(), '\\', '/');
   EXPECT_EQ("Found candidate GCC installation: "
             "/home/test/bin/../lib/gcc/arm-linux-gnueabi/4.6.1\n"
             "Selected GCC installation: "
@@ -303,6 +307,12 @@ TEST(ToolChainTest, GetTargetAndMode) {
   EXPECT_TRUE(Res.ModeSuffix == "clang-cl");
   EXPECT_STREQ(Res.DriverMode, "--driver-mode=cl");
   EXPECT_FALSE(Res.TargetIsValid);
+
+  Res = ToolChain::getTargetAndModeFromProgramName("clang-dxc");
+  EXPECT_TRUE(Res.TargetPrefix.empty());
+  EXPECT_TRUE(Res.ModeSuffix == "clang-dxc");
+  EXPECT_STREQ(Res.DriverMode, "--driver-mode=dxc");
+  EXPECT_FALSE(Res.TargetIsValid);
 }
 
 TEST(ToolChainTest, CommandOutput) {
@@ -362,6 +372,173 @@ TEST(GetDriverMode, PrefersLastDriverMode) {
   static constexpr const char *Args[] = {"clang-cl", "--driver-mode=foo",
                                          "--driver-mode=bar", "foo.cpp"};
   EXPECT_EQ(getDriverMode(Args[0], llvm::makeArrayRef(Args).slice(1)), "bar");
+}
+
+struct SimpleDiagnosticConsumer : public DiagnosticConsumer {
+  void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
+                        const Diagnostic &Info) override {
+    if (DiagLevel == DiagnosticsEngine::Level::Error) {
+      Errors.emplace_back();
+      Info.FormatDiagnostic(Errors.back());
+    } else {
+      Msgs.emplace_back();
+      Info.FormatDiagnostic(Msgs.back());
+    }
+  }
+  void clear() override {
+    Msgs.clear();
+    Errors.clear();
+    DiagnosticConsumer::clear();
+  }
+  std::vector<SmallString<32>> Msgs;
+  std::vector<SmallString<32>> Errors;
+};
+
+TEST(ToolChainTest, Toolsets) {
+  // Ignore this test on Windows hosts.
+  llvm::Triple Host(llvm::sys::getProcessTriple());
+  if (Host.isOSWindows())
+    GTEST_SKIP();
+
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+
+  // Check (newer) GCC toolset installation.
+  {
+    IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+        new llvm::vfs::InMemoryFileSystem);
+
+    // These should be ignored.
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset-2", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset-", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset--", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset--1", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    // File needed for GCC installation detection.
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset-12/root/usr/lib/gcc/"
+                                "x86_64-redhat-linux/11/crtbegin.o",
+                                0, llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    DiagnosticsEngine Diags(DiagID, &*DiagOpts, new SimpleDiagnosticConsumer);
+    Driver TheDriver("/bin/clang", "x86_64-redhat-linux", Diags,
+                     "clang LLVM compiler", InMemoryFileSystem);
+    std::unique_ptr<Compilation> C(
+        TheDriver.BuildCompilation({"clang", "--gcc-toolchain="}));
+    ASSERT_TRUE(C);
+    std::string S;
+    {
+      llvm::raw_string_ostream OS(S);
+      C->getDefaultToolChain().printVerboseInfo(OS);
+    }
+    EXPECT_EQ("Found candidate GCC installation: "
+              "/opt/rh/gcc-toolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Selected GCC installation: "
+              "/opt/rh/gcc-toolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Candidate multilib: .;@m64\n"
+              "Selected multilib: .;@m64\n",
+              S);
+  }
+
+  // And older devtoolset.
+  {
+    IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+        new llvm::vfs::InMemoryFileSystem);
+
+    // These should be ignored.
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset-2", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset-", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset--", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset--1", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    // File needed for GCC installation detection.
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset-12/root/usr/lib/gcc/"
+                                "x86_64-redhat-linux/11/crtbegin.o",
+                                0, llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    DiagnosticsEngine Diags(DiagID, &*DiagOpts, new SimpleDiagnosticConsumer);
+    Driver TheDriver("/bin/clang", "x86_64-redhat-linux", Diags,
+                     "clang LLVM compiler", InMemoryFileSystem);
+    std::unique_ptr<Compilation> C(
+        TheDriver.BuildCompilation({"clang", "--gcc-toolchain="}));
+    ASSERT_TRUE(C);
+    std::string S;
+    {
+      llvm::raw_string_ostream OS(S);
+      C->getDefaultToolChain().printVerboseInfo(OS);
+    }
+    EXPECT_EQ("Found candidate GCC installation: "
+              "/opt/rh/devtoolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Selected GCC installation: "
+              "/opt/rh/devtoolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Candidate multilib: .;@m64\n"
+              "Selected multilib: .;@m64\n",
+              S);
+  }
+}
+
+TEST(ToolChainTest, ConfigFileSearch) {
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  struct TestDiagnosticConsumer : public DiagnosticConsumer {};
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, new TestDiagnosticConsumer);
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> FS(
+      new llvm::vfs::InMemoryFileSystem);
+
+#ifdef _WIN32
+  const char *TestRoot = "C:\\";
+#else
+  const char *TestRoot = "/";
+#endif
+  FS->setCurrentWorkingDirectory(TestRoot);
+
+  FS->addFile(
+      "/opt/sdk/root.cfg", 0,
+      llvm::MemoryBuffer::getMemBuffer("--sysroot=/opt/sdk/platform0\n"));
+  FS->addFile(
+      "/home/test/sdk/root.cfg", 0,
+      llvm::MemoryBuffer::getMemBuffer("--sysroot=/opt/sdk/platform1\n"));
+  FS->addFile(
+      "/home/test/bin/root.cfg", 0,
+      llvm::MemoryBuffer::getMemBuffer("--sysroot=/opt/sdk/platform2\n"));
+
+  {
+    Driver TheDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                     "clang LLVM compiler", FS);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"/home/test/bin/clang", "--config", "root.cfg",
+         "--config-system-dir=/opt/sdk", "--config-user-dir=/home/test/sdk"}));
+    ASSERT_TRUE(C);
+    ASSERT_FALSE(C->containsError());
+    EXPECT_EQ("/opt/sdk/platform1", TheDriver.SysRoot);
+  }
+  {
+    Driver TheDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                     "clang LLVM compiler", FS);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"/home/test/bin/clang", "--config", "root.cfg",
+         "--config-system-dir=/opt/sdk", "--config-user-dir="}));
+    ASSERT_TRUE(C);
+    ASSERT_FALSE(C->containsError());
+    EXPECT_EQ("/opt/sdk/platform0", TheDriver.SysRoot);
+  }
+  {
+    Driver TheDriver("/home/test/bin/clang", "arm-linux-gnueabi", Diags,
+                     "clang LLVM compiler", FS);
+    std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+        {"/home/test/bin/clang", "--config", "root.cfg",
+         "--config-system-dir=", "--config-user-dir="}));
+    ASSERT_TRUE(C);
+    ASSERT_FALSE(C->containsError());
+    EXPECT_EQ("/opt/sdk/platform2", TheDriver.SysRoot);
+  }
 }
 
 } // end anonymous namespace.

@@ -13,6 +13,8 @@
 #ifndef LINALG_BASE
 #define LINALG_BASE
 
+include "mlir/Dialect/Linalg/IR/LinalgEnums.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
 def Linalg_Dialect : Dialect {
@@ -33,13 +35,13 @@ def Linalg_Dialect : Dialect {
   }];
   let cppNamespace = "::mlir::linalg";
   let dependentDialects = [
-    "arith::ArithmeticDialect",
+    "arith::ArithDialect",
     "AffineDialect",
     "math::MathDialect",
     "memref::MemRefDialect",
-    "StandardOpsDialect",
     "tensor::TensorDialect",
   ];
+  let useDefaultAttributePrinterParser = 1;
   let hasCanonicalizer = 1;
   let hasOperationAttrVerify = 1;
   let hasConstantMaterializer = 1;
@@ -48,18 +50,8 @@ def Linalg_Dialect : Dialect {
     constexpr const static ::llvm::StringLiteral
         kMemoizedIndexingMapsAttrName = "linalg.memoized_indexing_maps";
 
-    /// Attribute name used to mark region arguments that can be bufferized
-    /// in-place during linalg comprehensive bufferization.
-    constexpr const static ::llvm::StringLiteral
-      kInplaceableAttrName = "linalg.inplaceable";
-
-    /// Attribute name used to mark the bufferization layout for region
-    /// arguments during linalg comprehensive bufferization.
-    constexpr const static ::llvm::StringLiteral
-      kBufferLayoutAttrName = "linalg.buffer_layout";
-
-    using RegionBuilderFunType =
-      llvm::function_ref<void(ImplicitLocOpBuilder &b, Block &)>;
+    using RegionBuilderFunType = llvm::function_ref<
+      void(ImplicitLocOpBuilder &b, Block &, ArrayRef<NamedAttribute>)>;
     RegionBuilderFunType getRegionBuilder(StringRef name) {
       return namedStructuredOpRegionBuilders.lookup(name);
     }
@@ -68,8 +60,15 @@ def Linalg_Dialect : Dialect {
   }];
 }
 
-// Whether a type is a RangeType.
-def LinalgIsRangeTypePred : CPred<"$_self.isa<RangeType>()">;
-def Range : DialectType<Linalg_Dialect, LinalgIsRangeTypePred, "range">;
+// Define the function attribute enums matching the OpDSL functions.
+def UnaryFnAttr : EnumAttr<Linalg_Dialect, UnaryFn, "unary_fn"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+def BinaryFnAttr : EnumAttr<Linalg_Dialect, BinaryFn, "binary_fn"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+def TypeFnAttr : EnumAttr<Linalg_Dialect, TypeFn, "type_fn"> {
+  let assemblyFormat = "`<` $value `>`";
+}
 
 #endif // LINALG_BASE

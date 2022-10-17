@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class ExprCommandWithFixits(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test_with_dummy_target(self):
         """Test calling expressions in the dummy target with errors that can be fixed by the FixIts."""
 
@@ -47,7 +45,7 @@ class ExprCommandWithFixits(TestBase):
 
         # Try with one error in a top-level expression.
         # The Fix-It changes "ptr.m" to "ptr->m".
-        expr = "struct X { int m; }; X x; X *ptr = &x; int m = ptr.m;"
+        expr = "struct MyTy { int m; }; MyTy x; MyTy *ptr = &x; int m = ptr.m;"
         value = frame.EvaluateExpression(expr, top_level_options)
         # A successfully parsed top-level expression will yield an error
         # that there is 'no value'. If a parsing error would have happened we

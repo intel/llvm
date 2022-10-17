@@ -11,12 +11,12 @@
 // template <size_t I, class T, size_t N> T& get(array<T, N>& a);
 
 // Prevent -Warray-bounds from issuing a diagnostic when testing with clang verify.
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Warray-bounds"
-#endif
+// ADDITIONAL_COMPILE_FLAGS: -Wno-array-bounds
 
 #include <array>
 #include <cassert>
+
+#include "test_macros.h"
 
 int main(int, char**)
 {
@@ -25,7 +25,7 @@ int main(int, char**)
         typedef std::array<T, 3> C;
         C c = {1, 2, 3.5};
         std::get<3>(c) = 5.5; // expected-note {{requested here}}
-        // expected-error-re@array:* {{static_assert failed{{( due to requirement '3U[L]{0,2} < 3U[L]{0,2}')?}} "Index out of bounds in std::get<> (std::array)"}}
+        // expected-error-re@array:* {{{{(static_assert|static assertion)}} failed{{( due to requirement '3U[L]{0,2} < 3U[L]{0,2}')?}}{{.*}}Index out of bounds in std::get<> (std::array)}}
     }
 
   return 0;

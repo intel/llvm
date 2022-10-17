@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
 
 // <thread>
 
@@ -14,6 +12,7 @@
 
 // template <class F, class ...Args> thread(F&& f, Args&&... args);
 
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: sanitizer-new-delete
 
 #include <thread>

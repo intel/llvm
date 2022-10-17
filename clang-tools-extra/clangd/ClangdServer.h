@@ -9,7 +9,6 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDSERVER_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDSERVER_H
 
-#include "../clang-tidy/ClangTidyOptions.h"
 #include "CodeComplete.h"
 #include "ConfigProvider.h"
 #include "Diagnostics.h"
@@ -26,15 +25,12 @@
 #include "index/Index.h"
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
-#include "support/Cancellation.h"
 #include "support/Function.h"
 #include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "support/ThreadsafeFS.h"
-#include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include <functional>
@@ -108,12 +104,16 @@ public:
     /// Cached preambles are potentially large. If false, store them on disk.
     bool StorePreamblesInMemory = true;
 
+    /// This throttler controls which preambles may be built at a given time.
+    clangd::PreambleThrottler *PreambleThrottler = nullptr;
+
     /// If true, ClangdServer builds a dynamic in-memory index for symbols in
     /// opened files and uses the index to augment code completion results.
     bool BuildDynamicSymbolIndex = false;
     /// If true, ClangdServer automatically indexes files in the current project
     /// on background threads. The index is stored in the project root.
     bool BackgroundIndex = false;
+    llvm::ThreadPriority BackgroundIndexPriority = llvm::ThreadPriority::Low;
 
     /// If set, use this index to augment code completion results.
     SymbolIndex *StaticIndex = nullptr;
@@ -161,10 +161,15 @@ public:
     /// fetch system include path.
     std::vector<std::string> QueryDriverGlobs;
 
-    /// Enable preview of FoldingRanges feature.
-    bool FoldingRanges = false;
+    // Whether the client supports folding only complete lines.
+    bool LineFoldingOnly = false;
 
     FeatureModuleSet *FeatureModules = nullptr;
+    /// If true, use the dirty buffer contents when building Preambles.
+    bool UseDirtyHeaders = false;
+
+    // If true, parse emplace-like functions in the preamble.
+    bool PreambleParseForwardingFunctions = false;
 
     explicit operator TUScheduler::Options() const;
   };
@@ -225,7 +230,8 @@ public:
 
   /// Provide signature help for \p File at \p Pos.  This method should only be
   /// called for tracked files.
-  void signatureHelp(PathRef File, Position Pos, Callback<SignatureHelp> CB);
+  void signatureHelp(PathRef File, Position Pos, MarkupKind DocumentationFormat,
+                     Callback<SignatureHelp> CB);
 
   /// Find declaration/definition locations of symbol at a specified position.
   void locateSymbolAt(PathRef File, Position Pos,
@@ -247,7 +253,13 @@ public:
   /// Get information about type hierarchy for a given position.
   void typeHierarchy(PathRef File, Position Pos, int Resolve,
                      TypeHierarchyDirection Direction,
-                     Callback<llvm::Optional<TypeHierarchyItem>> CB);
+                     Callback<std::vector<TypeHierarchyItem>> CB);
+  /// Get direct parents of a type hierarchy item.
+  void superTypes(const TypeHierarchyItem &Item,
+                  Callback<llvm::Optional<std::vector<TypeHierarchyItem>>> CB);
+  /// Get direct children of a type hierarchy item.
+  void subTypes(const TypeHierarchyItem &Item,
+                Callback<std::vector<TypeHierarchyItem>> CB);
 
   /// Resolve type hierarchy item in the given direction.
   void resolveTypeHierarchy(TypeHierarchyItem Item, int Resolve,
@@ -263,7 +275,8 @@ public:
                      Callback<std::vector<CallHierarchyIncomingCall>>);
 
   /// Resolve inlay hints for a given document.
-  void inlayHints(PathRef File, Callback<std::vector<InlayHint>>);
+  void inlayHints(PathRef File, llvm::Optional<Range> RestrictRange,
+                  Callback<std::vector<InlayHint>>);
 
   /// Retrieve the top symbols from the workspace matching a query.
   void workspaceSymbols(StringRef Query, int Limit,
@@ -279,6 +292,10 @@ public:
   /// Retrieve implementations for virtual method.
   void findImplementations(PathRef File, Position Pos,
                            Callback<std::vector<LocatedSymbol>> CB);
+
+  /// Retrieve symbols for types referenced at \p Pos.
+  void findType(PathRef File, Position Pos,
+                Callback<std::vector<LocatedSymbol>> CB);
 
   /// Retrieve locations for symbol references.
   void findReferences(PathRef File, Position Pos, uint32_t Limit,
@@ -379,7 +396,7 @@ public:
   // Returns false if the timeout expires.
   // FIXME: various subcomponents each get the full timeout, so it's more of
   // an order of magnitude than a hard deadline.
-  LLVM_NODISCARD bool
+  [[nodiscard]] bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
   /// Builds a nested representation of memory used by components.
@@ -388,6 +405,9 @@ public:
 private:
   FeatureModuleSet *FeatureModules;
   const GlobalCompilationDatabase &CDB;
+  const ThreadsafeFS &getHeaderFS() const {
+    return UseDirtyHeaders ? *DirtyFS : TFS;
+  }
   const ThreadsafeFS &TFS;
 
   Path ResourceDir;
@@ -407,12 +427,20 @@ private:
   // When set, provides clang-tidy options for a specific file.
   TidyProviderRef ClangTidyProvider;
 
+  bool UseDirtyHeaders = false;
+
+  // Whether the client supports folding only complete lines.
+  bool LineFoldingOnly = false;
+
+  bool PreambleParseForwardingFunctions = false;
+
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>
       CachedCompletionFuzzyFindRequestByFile;
   mutable std::mutex CachedCompletionFuzzyFindRequestMutex;
 
   llvm::Optional<std::string> WorkspaceRoot;
+  llvm::Optional<AsyncTaskRunner> IndexTasks; // for stdlib indexing.
   llvm::Optional<TUScheduler> WorkScheduler;
   // Invalidation policy used for actions that we assume are "transient".
   TUScheduler::ASTActionInvalidation Transient;

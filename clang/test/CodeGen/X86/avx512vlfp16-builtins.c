@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -flax-vector-conversions=none -ffreestanding %s -triple=x86_64-unknown-unknown -target-feature +avx512vl -target-feature +avx512fp16 -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -flax-vector-conversions=none -ffreestanding %s -triple=x86_64-unknown-unknown -target-feature +avx512vl -target-feature +avx512fp16 -emit-llvm -o - -Wall -Werror | FileCheck %s
 
 #include <immintrin.h>
 
@@ -3113,4 +3113,77 @@ _Float16 test_mm_reduce_max_ph(__m128h __W) {
   // CHECK-LABEL: @test_mm_reduce_max_ph
   // CHECK: call nnan half @llvm.vector.reduce.fmax.v8f16(<8 x half> %{{.*}})
   return _mm_reduce_max_ph(__W);
+}
+
+// tests below are for alias intrinsics.
+__m128h test_mm_mul_pch(__m128h __A, __m128h __B) {
+  // CHECK-LABEL: @test_mm_mul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfmul.cph.128
+  return _mm_mul_pch(__A, __B);
+}
+
+__m128h test_mm_mask_mul_pch(__m128h __W, __mmask8 __U, __m128h __A, __m128h __B) {
+  // CHECK-LABEL: @test_mm_mask_mul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfmul.cph.128
+  return _mm_mask_mul_pch(__W, __U, __A, __B);
+}
+
+__m128h test_mm_maskz_mul_pch(__mmask8 __U, __m128h __A, __m128h __B) {
+  // CHECK-LABEL: @test_mm_maskz_mul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfmul.cph.128
+  return _mm_maskz_mul_pch(__U, __A, __B);
+}
+
+__m256h test_mm256_mul_pch(__m256h __A, __m256h __B) {
+  // CHECK-LABEL: @test_mm256_mul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfmul.cph.256
+  return _mm256_mul_pch(__A, __B);
+}
+
+__m256h test_mm256_mask_mul_pch(__m256h __W, __mmask8 __U, __m256h __A, __m256h __B) {
+  // CHECK-LABEL: @test_mm256_mask_mul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfmul.cph.256
+  return _mm256_mask_mul_pch(__W, __U, __A, __B);
+}
+
+__m256h test_mm256_maskz_mul_pch(__mmask8 __U, __m256h __A, __m256h __B) {
+  // CHECK-LABEL: @test_mm256_maskz_mul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfmul.cph.256
+  return _mm256_maskz_mul_pch(__U, __A, __B);
+}
+
+__m128h test_mm_cmul_pch(__m128h __A, __m128h __B) {
+  // CHECK-LABEL: @test_mm_cmul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfcmul.cph.128
+  return _mm_cmul_pch(__A, __B);
+}
+
+__m128h test_mm_mask_cmul_pch(__m128h __W, __mmask8 __U, __m128h __A, __m128h __B) {
+  // CHECK-LABEL: @test_mm_mask_cmul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfcmul.cph.128
+  return _mm_mask_fcmul_pch(__W, __U, __A, __B);
+}
+
+__m128h test_mm_maskz_cmul_pch(__mmask8 __U, __m128h __A, __m128h __B) {
+  // CHECK-LABEL: @test_mm_maskz_cmul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfcmul.cph.128
+  return _mm_maskz_cmul_pch(__U, __A, __B);
+}
+
+__m256h test_mm256_cmul_pch(__m256h __A, __m256h __B) {
+  // CHECK-LABEL: @test_mm256_cmul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfcmul.cph.256
+  return _mm256_cmul_pch(__A, __B);
+}
+
+__m256h test_mm256_mask_cmul_pch(__m256h __W, __mmask8 __U, __m256h __A, __m256h __B) {
+  // CHECK-LABEL: @test_mm256_mask_cmul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfcmul.cph.256
+  return _mm256_mask_cmul_pch(__W, __U, __A, __B);
+}
+
+__m256h test_mm256_maskz_cmul_pch(__mmask8 __U, __m256h __A, __m256h __B) {
+  // CHECK-LABEL: @test_mm256_maskz_cmul_pch
+  // CHECK: @llvm.x86.avx512fp16.mask.vfcmul.cph.256
+  return _mm256_maskz_cmul_pch(__U, __A, __B);
 }

@@ -26,7 +26,8 @@ def ExynosM5Model : SchedMachineModel {
 
   list<Predicate> UnsupportedFeatures = !listconcat(SVEUnsupported.F,
                                                     PAUnsupported.F,
-                                                    SMEUnsupported.F);
+                                                    SMEUnsupported.F,
+                                                    [HasMTE]);
 }
 
 //===----------------------------------------------------------------------===//
@@ -848,7 +849,7 @@ def : InstRW<[M5WriteNALU2],  (instregex "^RBITv")>;
 def : InstRW<[M5WriteNALU2],  (instregex "^(BIF|BIT|BSL|BSP)v")>;
 def : InstRW<[M5WriteNALU2],  (instregex "^CL[STZ]v")>;
 def : InstRW<[M5WriteNEONB],  (instregex "^DUPv.+gpr")>;
-def : InstRW<[M5WriteNSHF2],  (instregex "^CPY")>;
+def : InstRW<[M5WriteNSHF2],  (instregex "^DUP(i8|i16|i32|i64)$")>;
 def : InstRW<[M5WriteNSHF2],  (instregex "^DUPv.+lane")>;
 def : InstRW<[M5WriteNSHF2],  (instregex "^EXTv")>;
 def : InstRW<[M5WriteNSHT4A], (instregex "^XTNv")>;

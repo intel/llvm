@@ -10,10 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#include "mlir/Dialect/Tosa/Transforms/PassDetail.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -43,7 +42,7 @@ ConvertTosaNegateOp::matchAndRewrite(Operation *op,
   auto tosaNegateOp = cast<tosa::NegateOp>(op);
 
   auto inputType =
-      tosaNegateOp.input1().getType().dyn_cast<mlir::RankedTensorType>();
+      tosaNegateOp.getInput1().getType().dyn_cast<mlir::RankedTensorType>();
   // skip if input is not ranked tensor type
   if (!inputType)
     return failure();
@@ -71,7 +70,7 @@ ConvertTosaNegateOp::matchAndRewrite(Operation *op,
   double typeRangeMax = double(outputElementType.getStorageTypeMax() -
                                outputElementType.getZeroPoint()) *
                         outputElementType.getScale();
-  bool narrow_range = outputElementType.getStorageTypeMin() == 1 ? true : false;
+  bool narrowRange = outputElementType.getStorageTypeMin() == 1;
 
   auto dstQConstType = RankedTensorType::get(
       outputType.getShape(),
@@ -81,10 +80,10 @@ ConvertTosaNegateOp::matchAndRewrite(Operation *op,
                            rewriter.getI32IntegerAttr(
                                outputElementType.getStorageTypeIntegralWidth()),
                            0, true /* signed */,
-                           rewriter.getBoolAttr(narrow_range)));
+                           rewriter.getBoolAttr(narrowRange)));
 
   ElementsAttr inputElems;
-  if (!matchPattern(tosaNegateOp.input1(), m_Constant(&inputElems)))
+  if (!matchPattern(tosaNegateOp.getInput1(), m_Constant(&inputElems)))
     return failure();
 
   auto newConstOp =
@@ -113,14 +112,14 @@ ConvertTosaConv2DOp::matchAndRewrite(Operation *op,
   auto tosaConv2DOp = cast<tosa::Conv2DOp>(op);
 
   auto inputType =
-      tosaConv2DOp.input().getType().dyn_cast<mlir::RankedTensorType>();
+      tosaConv2DOp.getInput().getType().dyn_cast<mlir::RankedTensorType>();
 
   // skip if input is not ranked tensor type
   if (!inputType)
     return failure();
 
   auto weightType =
-      tosaConv2DOp.weight().getType().dyn_cast<mlir::RankedTensorType>();
+      tosaConv2DOp.getWeight().getType().dyn_cast<mlir::RankedTensorType>();
 
   // skip if wt is not ranked tensor type
   if (!weightType)
@@ -147,9 +146,9 @@ ConvertTosaConv2DOp::matchAndRewrite(Operation *op,
       RankedTensorType::get(outputType.getShape(), rewriter.getIntegerType(32));
 
   auto newTosaConv2DOp = rewriter.create<tosa::Conv2DOp>(
-      op->getLoc(), newTosaConv2DOpType, tosaConv2DOp.input(),
-      tosaConv2DOp.weight(), tosaConv2DOp.bias(), tosaConv2DOp.pad(),
-      tosaConv2DOp.stride(), tosaConv2DOp.dilation());
+      op->getLoc(), newTosaConv2DOpType, tosaConv2DOp.getInput(),
+      tosaConv2DOp.getWeight(), tosaConv2DOp.getBias(), tosaConv2DOp.getPad(),
+      tosaConv2DOp.getStride(), tosaConv2DOp.getDilation());
 
   // Create rescale to quantized type
   double inputScale = inputQType.getScale();
@@ -179,25 +178,27 @@ ConvertTosaConv2DOp::matchAndRewrite(Operation *op,
 namespace {
 
 struct TosaTestQuantUtilAPI
-    : public PassWrapper<TosaTestQuantUtilAPI, FunctionPass> {
+    : public PassWrapper<TosaTestQuantUtilAPI, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TosaTestQuantUtilAPI)
+
   StringRef getArgument() const final { return PASS_NAME; }
   StringRef getDescription() const final {
     return "TOSA Test: Exercise the APIs in QuantUtils.cpp.";
   }
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
-void TosaTestQuantUtilAPI::runOnFunction() {
+void TosaTestQuantUtilAPI::runOnOperation() {
   auto *ctx = &getContext();
   RewritePatternSet patterns(ctx);
-  auto func = getFunction();
+  auto func = getOperation();
 
   patterns.add<ConvertTosaNegateOp>(ctx);
   patterns.add<ConvertTosaConv2DOp>(ctx);
   (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
 }
 
-} // anonymous namespace
+} // namespace
 
 namespace mlir {
 void registerTosaTestQuantUtilAPIPass() {

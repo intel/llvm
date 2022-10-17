@@ -90,7 +90,7 @@ struct T {};
 
 template <decltype(auto)>
 // CHECK: ClassTemplateDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+2]]:11> col:8 U
-// CHECK-NEXT: NonTypeTemplateParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11> col:25 'decltype(auto)' depth 0 index 0
+// CHECK-NEXT: NonTypeTemplateParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11, col:24> col:25 'decltype(auto)' depth 0 index 0
 struct U {};
 
 template <typename Ty>
@@ -108,3 +108,76 @@ template <typename Uy>
 // CHECK: FunctionTemplateDecl 0x{{[^ ]*}} parent 0x{{[^ ]*}} prev 0x{{[^ ]*}} <line:[[@LINE-1]]:1, line:[[@LINE+2]]:18> col:13 f
 // CHECK-NEXT: TemplateTypeParmDecl 0x{{[^ ]*}} <line:[[@LINE-2]]:11, col:20> col:20 typename depth 1 index 0 Uy
 void V<Ty>::f() {}
+
+namespace PR55886 {
+template <class T> struct C {
+  template <class U> using type1 = U(T);
+};
+using type2 = typename C<int>::type1<void>;
+// CHECK:      TypeAliasDecl 0x{{[^ ]*}} <line:[[@LINE-1]]:1, col:42> col:7 type2 'typename C<int>::type1<void>':'void (int)'
+// CHECK-NEXT: ElaboratedType 0x{{[^ ]*}} 'typename C<int>::type1<void>' sugar
+// CHECK-NEXT: TemplateSpecializationType 0x{{[^ ]*}} 'type1<void>' sugar alias type1
+// CHECK-NEXT: TemplateArgument type 'void'
+// CHECK-NEXT: BuiltinType 0x{{[^ ]*}} 'void'
+// CHECK-NEXT: FunctionProtoType 0x{{[^ ]*}} 'void (int)' cdecl
+// CHECK-NEXT: SubstTemplateTypeParmType 0x{{[^ ]*}} 'void' sugar
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'U' dependent depth 0 index 0
+// CHECK-NEXT: TemplateTypeParm 0x{{[^ ]*}} 'U'
+// CHECK-NEXT: BuiltinType 0x{{[^ ]*}} 'void'
+// CHECK-NEXT: SubstTemplateTypeParmType 0x{{[^ ]*}} 'int' sugar
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'T' dependent depth 0 index 0
+} // namespace PR55886
+
+namespace PR56099 {
+template <typename... As> struct Y;
+template <typename... Bs> using Z = Y<Bs...>;
+template <typename... Cs> struct foo {
+  template <typename... Ds> using bind = Z<Ds..., Cs...>;
+};
+using t1 = foo<int, short>::bind<char, float>;
+// CHECK:      TemplateSpecializationType 0x{{[^ ]*}} 'Y<char, float, int, short>' sugar Y
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'char' sugar pack_index 3
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'Bs' dependent contains_unexpanded_pack depth 0 index 0 pack
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'float' sugar pack_index 2
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'Bs' dependent contains_unexpanded_pack depth 0 index 0 pack
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'int' sugar pack_index 1
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'Bs' dependent contains_unexpanded_pack depth 0 index 0 pack
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'short' sugar pack_index 0
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'Bs' dependent contains_unexpanded_pack depth 0 index 0 pack
+
+template <typename... T> struct D {
+  template <typename... U> using B = int(int (*...p)(T, U));
+};
+using t2 = D<float, char>::B<int, short>;
+// CHECK:      TemplateSpecializationType 0x{{[^ ]*}} 'B<int, short>' sugar alias B
+// CHECK:      FunctionProtoType 0x{{[^ ]*}} 'int (int (*)(float, int), int (*)(char, short))' cdecl
+// CHECK:      FunctionProtoType 0x{{[^ ]*}} 'int (float, int)' cdecl
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'float' sugar pack_index 1
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'T' dependent contains_unexpanded_pack depth 0 index 0 pack
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'int' sugar pack_index 1
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'U' dependent contains_unexpanded_pack depth 0 index 0 pack
+// CHECK:      FunctionProtoType 0x{{[^ ]*}} 'int (char, short)' cdecl
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'char' sugar pack_index 0
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'T' dependent contains_unexpanded_pack depth 0 index 0 pack
+// CHECK:      SubstTemplateTypeParmType 0x{{[^ ]*}} 'short' sugar pack_index 0
+// CHECK-NEXT: TemplateTypeParmType 0x{{[^ ]*}} 'U' dependent contains_unexpanded_pack depth 0 index 0 pack
+} // namespace PR56099
+
+namespace subst_default_argument {
+template<class A1> class A {};
+template<template<class C1, class C2 = A<C1>> class D1, class D2> using D = D1<D2>;
+
+template<class E1, class E2> class E {};
+using test1 = D<E, int>;
+// CHECK:      TypeAliasDecl 0x{{[^ ]*}} <line:{{[1-9]+}}:1, col:23> col:7 test1 'D<subst_default_argument::E, int>':'subst_default_argument::E<int, subst_default_argument::A<int>>'
+// CHECK:      TemplateSpecializationType 0x{{[^ ]*}} 'A<int>' sugar A
+// CHECK-NEXT: |-TemplateArgument type 'int':'int'
+// CHECK-NEXT: | `-SubstTemplateTypeParmType 0x{{[^ ]*}} 'int' sugar
+// CHECK-NEXT: |   |-TemplateTypeParmType 0x{{[^ ]*}} 'C1' dependent depth 1 index 0
+// CHECK-NEXT: |   | `-TemplateTypeParm 0x{{[^ ]*}} 'C1'
+// CHECK-NEXT: |   `-SubstTemplateTypeParmType 0x{{[^ ]*}} 'int' sugar
+// CHECK-NEXT: |     |-TemplateTypeParmType 0x{{[^ ]*}} 'type-parameter-0-1' dependent depth 0 index 1
+// CHECK-NEXT: |     `-BuiltinType 0x{{[^ ]*}} 'int'
+// CHECK-NEXT: `-RecordType 0x{{[^ ]*}} 'subst_default_argument::A<int>'
+// CHECK-NEXT:   `-ClassTemplateSpecialization 0x{{[^ ]*}} 'A'
+} // namespace subst_default_argument

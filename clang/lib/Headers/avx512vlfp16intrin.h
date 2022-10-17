@@ -11,6 +11,8 @@
     "Never use <avx512vlfp16intrin.h> directly; include <immintrin.h> instead."
 #endif
 
+#ifdef __SSE2__
+
 #ifndef __AVX512VLFP16INTRIN_H
 #define __AVX512VLFP16INTRIN_H
 
@@ -2047,7 +2049,23 @@ _mm_reduce_min_ph(__m128h __V) {
   return __builtin_ia32_reduce_fmin_ph128(__V);
 }
 
+// intrinsics below are alias for f*mul_*ch
+#define _mm_mul_pch(A, B) _mm_fmul_pch(A, B)
+#define _mm_mask_mul_pch(W, U, A, B) _mm_mask_fmul_pch(W, U, A, B)
+#define _mm_maskz_mul_pch(U, A, B) _mm_maskz_fmul_pch(U, A, B)
+#define _mm256_mul_pch(A, B) _mm256_fmul_pch(A, B)
+#define _mm256_mask_mul_pch(W, U, A, B) _mm256_mask_fmul_pch(W, U, A, B)
+#define _mm256_maskz_mul_pch(U, A, B) _mm256_maskz_fmul_pch(U, A, B)
+
+#define _mm_cmul_pch(A, B) _mm_fcmul_pch(A, B)
+#define _mm_mask_cmul_pch(W, U, A, B) _mm_mask_fcmul_pch(W, U, A, B)
+#define _mm_maskz_cmul_pch(U, A, B) _mm_maskz_fcmul_pch(U, A, B)
+#define _mm256_cmul_pch(A, B) _mm256_fcmul_pch(A, B)
+#define _mm256_mask_cmul_pch(W, U, A, B) _mm256_mask_fcmul_pch(W, U, A, B)
+#define _mm256_maskz_cmul_pch(U, A, B) _mm256_maskz_fcmul_pch(U, A, B)
+
 #undef __DEFAULT_FN_ATTRS128
 #undef __DEFAULT_FN_ATTRS256
 
+#endif
 #endif

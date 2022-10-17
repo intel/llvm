@@ -1441,7 +1441,7 @@ entry:
 ; ASM32PWR4-DAG:   lwz [[REG10:[0-9]+]], 92(1)
 
 ; ASM64PWR4-DAG:   ld [[REG1:[0-9]+]], 112(1)
-; ASM64PWR4-DAG:   lwz [[REG2:[0-9]+]], 124(1)
+; ASM64PWR4-DAG:   lwa [[REG2:[0-9]+]], 124(1)
 ; ASM64PWR4-DAG:   lwz [[REG3:[0-9]+]], 132(1)
 ; ASM64PWR4-DAG:   lwz [[REG4:[0-9]+]], 140(1)
 ; ASM64PWR4-DAG:   lwa [[REG5:[0-9]+]], 148(1)
@@ -1731,19 +1731,6 @@ define void @call_test_i1_stack() {
 ; ASM32PWR4-DAG:   stw [[REGB:[0-9]+]], 56(1)
 ; ASM32PWR4-DAG:   li [[REGB]], 1
 ; ASM32PWR4-DAG:   bl .test_i1
-
-; ASM64PWR-DAG:    mflr 0
-; ASM64PWR-DAG:    li 3, 1
-; ASM64PWR-DAG:    li 4, 2
-; ASM64PWR-DAG:    li 5, 3
-; ASM64PWR-DAG:    li 6, 4
-; ASM64PWR-DAG:    li 7, 5
-; ASM64PWR-DAG:    li 8, 6
-; ASM64PWR-DAG:    li 9, 7
-; ASM64PWR-DAG:    li 10, 8
-; ASM64PWR-DAG:    std [[REGB:[0-9]+]], 112(1)
-; ASM64PWR-DAG:    li [[REGB]], 1
-; ASM64PWR-DAG:    bl .test_i1
 
 define double @test_fpr_stack(double %d1, double %d2, double %d3, double %d4, double %d5, double %d6, double %d7, double %d8, double %d9, double %s10, double %l11, double %d12, double %d13, float %f14, double %d15, float %f16) {
   entry:

@@ -174,7 +174,7 @@ inline bool isValid(spv::FunctionParameterAttribute V) {
 }
 
 inline bool isValid(spv::BuiltIn V) {
-  switch (V) {
+  switch (static_cast<uint32_t>(V)) {
   case BuiltInPosition:
   case BuiltInPointSize:
   case BuiltInClipDistance:
@@ -250,8 +250,8 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInLayerPerViewNV:
   case BuiltInMeshViewCountNV:
   case BuiltInMeshViewIndicesNV:
-  case BuiltInBaryCoordNV:
-  case BuiltInBaryCoordNoPerspNV:
+  case BuiltInBaryCoordKHR:
+  case BuiltInBaryCoordNoPerspKHR:
   case BuiltInFragSizeEXT:
   case BuiltInFragInvocationCountEXT:
   case BuiltInLaunchIdKHR:
@@ -267,12 +267,16 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInWorldToObjectKHR:
   case BuiltInHitTNV:
   case BuiltInHitKindKHR:
+  case BuiltInCurrentRayTimeNV:
   case BuiltInIncomingRayFlagsKHR:
   case BuiltInRayGeometryIndexKHR:
   case BuiltInWarpsPerSMNV:
   case BuiltInSMCountNV:
   case BuiltInWarpIDNV:
   case BuiltInSMIDNV:
+  case BuiltInCullMaskKHR:
+  case internal::BuiltInSubDeviceIDINTEL:
+  case internal::BuiltInGlobalHWThreadIDINTEL:
     return true;
   default:
     return false;

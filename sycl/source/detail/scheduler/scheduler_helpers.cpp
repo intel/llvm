@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/queue.hpp>
+#include <detail/buffer_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/queue.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
@@ -42,14 +43,14 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
     auto FlushBufAcc =
         StrBufs->FlushBuf.get_access<access::mode::discard_write,
                                      access::target::host_buffer>(
-            cgh, range<1>(FlushBufSize), id<1>(0));
+            cgh, range<1>(1), id<1>(0));
     cgh.host_task([=] {
       char *FlushBufPtr = FlushBufAcc.get_pointer();
-      std::memset(FlushBufPtr, 0, FlushBufAcc.get_size());
+      std::memset(FlushBufPtr, 0, FlushBufSize);
     });
   });
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

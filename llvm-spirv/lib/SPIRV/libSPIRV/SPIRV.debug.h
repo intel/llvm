@@ -264,7 +264,8 @@ enum ExpressionOpCode {
   RegvalType        = 161,
   DerefType         = 162,
   XderefType        = 163,
-  Reinterpret       = 164
+  Reinterpret       = 164,
+  LLVMArg           = 165,
 };
 
 enum ImportedEntityTag {
@@ -756,6 +757,7 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
   // { DerefType,          3 },
   // { XderefType,         3 },
   // { Reinterpret,        2 },
+  { LLVMArg,            2 },
 };
 }
 
@@ -1002,6 +1004,7 @@ inline void DbgExpressionOpCodeMap::init() {
   add(dwarf::DW_OP_xderef_size,         SPIRVDebug::XderefSize );
   add(dwarf::DW_OP_nop,                 SPIRVDebug::Nop);
   add(dwarf::DW_OP_push_object_address, SPIRVDebug::PushObjectAddress );
+  add(dwarf::DW_OP_LLVM_arg,            SPIRVDebug::LLVMArg);
 }
 
 typedef SPIRVMap<dwarf::Tag, SPIRVDebug::ImportedEntityTag>

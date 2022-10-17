@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/device.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -24,15 +24,9 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-
-template <class T> struct LessByHash {
-  bool operator()(const T &LHS, const T &RHS) const {
-    return getSyclObjImpl(LHS) < getSyclObjImpl(RHS);
-  }
-};
 
 static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
@@ -79,7 +73,7 @@ class kernel_bundle_impl {
 
 public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
     common_ctor_checks(State);
 
@@ -87,17 +81,22 @@ public:
         MContext, MDevices, State);
   }
 
-  // Interop constructor
-  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
-                     device_image_plain &DevImage)
-      : MContext(Ctx), MDevices(Devs) {
+  // Interop constructor used by make_kernel
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs)
+      : MContext(Ctx), MDevices(Devs), MState(bundle_state::executable) {
     if (!checkAllDevicesAreInContext(Devs, Ctx))
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Not all devices are associated with the context or "
           "vector of devices is empty");
-    MDeviceImages.push_back(DevImage);
     MIsInterop = true;
+  }
+
+  // Interop constructor
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+                     device_image_plain &DevImage)
+      : kernel_bundle_impl(Ctx, Devs) {
+    MDeviceImages.push_back(DevImage);
   }
 
   // Matches sycl::build and sycl::compile
@@ -106,7 +105,8 @@ public:
   kernel_bundle_impl(const kernel_bundle<bundle_state::input> &InputBundle,
                      std::vector<device> Devs, const property_list &PropList,
                      bundle_state TargetState)
-      : MContext(InputBundle.get_context()), MDevices(std::move(Devs)) {
+      : MContext(InputBundle.get_context()), MDevices(std::move(Devs)),
+        MState(TargetState) {
 
     MSpecConstValues = getSyclObjImpl(InputBundle)->get_spec_const_map_ref();
 
@@ -146,7 +146,7 @@ public:
       case bundle_state::input:
         throw sycl::runtime_error(
             "Internal error. The target state should not be input",
-            PI_INVALID_OPERATION);
+            PI_ERROR_INVALID_OPERATION);
         break;
       }
     }
@@ -156,7 +156,7 @@ public:
   kernel_bundle_impl(
       const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
       std::vector<device> Devs, const property_list &PropList)
-      : MDevices(std::move(Devs)) {
+      : MDevices(std::move(Devs)), MState(bundle_state::executable) {
 
     if (MDevices.empty())
       throw sycl::exception(make_error_code(errc::invalid),
@@ -236,7 +236,7 @@ public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
                      bundle_state State)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
     // TODO: Add a check that all kernel ids are compatible with at least one
     // device in Devs
@@ -248,7 +248,7 @@ public:
 
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const DevImgSelectorImpl &Selector, bundle_state State)
-      : MContext(std::move(Ctx)), MDevices(std::move(Devs)) {
+      : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
     common_ctor_checks(State);
 
@@ -257,7 +257,9 @@ public:
   }
 
   // C'tor matches sycl::join API
-  kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
+  kernel_bundle_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
+                     bundle_state State)
+      : MState(State) {
     if (Bundles.empty())
       return;
 
@@ -475,18 +477,40 @@ public:
 
   size_t size() const noexcept { return MDeviceImages.size(); }
 
-  bundle_state get_bundle_state() const {
-    // All device images are expected to have the same state
-    return MDeviceImages.empty()
-               ? bundle_state::input
-               : detail::getSyclObjImpl(MDeviceImages[0])->get_state();
-  }
+  bundle_state get_bundle_state() const { return MState; }
 
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {
     return MSpecConstValues;
   }
 
   bool isInterop() const { return MIsInterop; }
+
+  bool add_kernel(const kernel_id &KernelID, const device &Dev) {
+    // Skip if kernel is already there
+    if (has_kernel(KernelID, Dev))
+      return true;
+
+    // First try and get images in current bundle state
+    const bundle_state BundleState = get_bundle_state();
+    std::vector<device_image_plain> NewDevImgs =
+        detail::ProgramManager::getInstance().getSYCLDeviceImages(
+            MContext, {Dev}, {KernelID}, BundleState);
+
+    // No images found so we report as not inserted
+    if (NewDevImgs.empty())
+      return false;
+
+    // Propagate already set specialization constants to the new images
+    for (device_image_plain &DevImg : NewDevImgs)
+      for (auto SpecConst : MSpecConstValues)
+        getSyclObjImpl(DevImg)->set_specialization_constant_raw_value(
+            SpecConst.first.c_str(), SpecConst.second.data());
+
+    // Add the images to the collection
+    MDeviceImages.insert(MDeviceImages.end(), NewDevImgs.begin(),
+                         NewDevImgs.end());
+    return true;
+  }
 
 private:
   context MContext;
@@ -496,8 +520,9 @@ private:
   // from any device image.
   SpecConstMapT MSpecConstValues;
   bool MIsInterop = false;
+  bundle_state MState;
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

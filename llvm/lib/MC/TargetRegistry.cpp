@@ -33,7 +33,7 @@ const Target *TargetRegistry::lookupTarget(const std::string &ArchName,
                      [&](const Target &T) { return ArchName == T.getName(); });
 
     if (I == targets().end()) {
-      Error = "error: invalid target '" + ArchName + "'.\n";
+      Error = "invalid target '" + ArchName + "'.\n";
       return nullptr;
     }
 
@@ -49,7 +49,7 @@ const Target *TargetRegistry::lookupTarget(const std::string &ArchName,
     std::string TempError;
     TheTarget = TargetRegistry::lookupTarget(TheTriple.getTriple(), TempError);
     if (!TheTarget) {
-      Error = ": error: unable to get target for '"
+      Error = "unable to get target for '"
             + TheTriple.getTriple()
             + "', see --version and --triple.\n";
       return nullptr;
@@ -124,10 +124,10 @@ void TargetRegistry::printRegisteredTargetsForVersion(raw_ostream &OS) {
   array_pod_sort(Targets.begin(), Targets.end(), TargetArraySortFn);
 
   OS << "  Registered Targets:\n";
-  for (unsigned i = 0, e = Targets.size(); i != e; ++i) {
-    OS << "    " << Targets[i].first;
-    OS.indent(Width - Targets[i].first.size()) << " - "
-      << Targets[i].second->getShortDescription() << '\n';
+  for (const auto &Target : Targets) {
+    OS << "    " << Target.first;
+    OS.indent(Width - Target.first.size())
+        << " - " << Target.second->getShortDescription() << '\n';
   }
   if (Targets.empty())
     OS << "    (none)\n";

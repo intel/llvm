@@ -19,7 +19,6 @@
 
 namespace mlir {
 
-class Identifier;
 class Location;
 class WalkResult;
 
@@ -63,9 +62,18 @@ public:
   LocationAttr *operator->() const { return const_cast<LocationAttr *>(&impl); }
 
   /// Type casting utilities on the underlying location.
-  template <typename U> bool isa() const { return impl.isa<U>(); }
-  template <typename U> U dyn_cast() const { return impl.dyn_cast<U>(); }
-  template <typename U> U cast() const { return impl.cast<U>(); }
+  template <typename U>
+  bool isa() const {
+    return impl.isa<U>();
+  }
+  template <typename U>
+  U dyn_cast() const {
+    return impl.dyn_cast<U>();
+  }
+  template <typename U>
+  U cast() const {
+    return impl.cast<U>();
+  }
 
   /// Comparison operators.
   bool operator==(Location rhs) const { return impl == rhs.impl; }
@@ -98,7 +106,7 @@ inline ::llvm::hash_code hash_value(Location arg) {
   return hash_value(arg.impl);
 }
 
-} // end namespace mlir
+} // namespace mlir
 
 //===----------------------------------------------------------------------===//
 // Tablegen Attribute Declarations
@@ -116,7 +124,7 @@ namespace mlir {
 /// Returns an instance of opaque location which contains a given pointer to
 /// an object. The corresponding MLIR location is set to UnknownLoc.
 template <typename T>
-inline Location OpaqueLoc::get(T underlyingLocation, MLIRContext *context) {
+inline OpaqueLoc OpaqueLoc::get(T underlyingLocation, MLIRContext *context) {
   return get(reinterpret_cast<uintptr_t>(underlyingLocation), TypeID::get<T>(),
              UnknownLoc::get(context));
 }
@@ -129,13 +137,14 @@ inline Location OpaqueLoc::get(T underlyingLocation, MLIRContext *context) {
 namespace llvm {
 
 // Type hash just like pointers.
-template <> struct DenseMapInfo<mlir::Location> {
+template <>
+struct DenseMapInfo<mlir::Location> {
   static mlir::Location getEmptyKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::Location::getFromOpaquePointer(pointer);
   }
   static mlir::Location getTombstoneKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
     return mlir::Location::getFromOpaquePointer(pointer);
   }
   static unsigned getHashValue(mlir::Location val) {
@@ -147,7 +156,8 @@ template <> struct DenseMapInfo<mlir::Location> {
 };
 
 /// We align LocationStorage by 8, so allow LLVM to steal the low bits.
-template <> struct PointerLikeTypeTraits<mlir::Location> {
+template <>
+struct PointerLikeTypeTraits<mlir::Location> {
 public:
   static inline void *getAsVoidPointer(mlir::Location I) {
     return const_cast<void *>(I.getAsOpaquePointer());

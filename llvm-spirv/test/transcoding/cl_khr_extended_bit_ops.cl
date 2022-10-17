@@ -1,18 +1,8 @@
 // RUN: %clang_cc1 -triple spir-unknown-unknown -O1 -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_bit_instructions -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_bit_instructions -o %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 // RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-
-// TODO: remove prototypes once bit op builtins are available in clang.
-#define __ovld __attribute__((overloadable))
-
-int2 __ovld bitfield_insert(int2, int2, uint, uint);
-short __ovld bitfield_extract_signed(short, uint, uint);
-short __ovld bitfield_extract_signed(ushort, uint, uint);
-uchar8 __ovld bitfield_extract_unsigned(char8, uint, uint);
-uchar8 __ovld bitfield_extract_unsigned(uchar8, uint, uint);
-ulong4 __ovld bit_reverse(ulong4);
 
 // CHECK-SPIRV: Capability BitInstructions
 // CHECK-SPIRV: Extension "SPV_KHR_bit_instructions"

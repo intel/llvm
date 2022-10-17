@@ -249,7 +249,7 @@ ModuleManager::addModule(StringRef FileName, ModuleKind Type,
   return NewlyLoaded;
 }
 
-void ModuleManager::removeModules(ModuleIterator First, ModuleMap *modMap) {
+void ModuleManager::removeModules(ModuleIterator First) {
   auto Last = end();
   if (First == Last)
     return;
@@ -280,19 +280,10 @@ void ModuleManager::removeModules(ModuleIterator First, ModuleMap *modMap) {
     }
   }
 
-  // Delete the modules and erase them from the various structures.
-  for (ModuleIterator victim = First; victim != Last; ++victim) {
+  // Delete the modules.
+  for (ModuleIterator victim = First; victim != Last; ++victim)
     Modules.erase(victim->File);
 
-    if (modMap) {
-      StringRef ModuleName = victim->ModuleName;
-      if (Module *mod = modMap->findModule(ModuleName)) {
-        mod->setASTFile(None);
-      }
-    }
-  }
-
-  // Delete the modules.
   Chain.erase(Chain.begin() + (First - begin()), Chain.end());
 }
 
@@ -304,23 +295,22 @@ ModuleManager::addInMemoryBuffer(StringRef FileName,
   InMemoryBuffers[Entry] = std::move(Buffer);
 }
 
-ModuleManager::VisitState *ModuleManager::allocateVisitState() {
+std::unique_ptr<ModuleManager::VisitState> ModuleManager::allocateVisitState() {
   // Fast path: if we have a cached state, use it.
   if (FirstVisitState) {
-    VisitState *Result = FirstVisitState;
-    FirstVisitState = FirstVisitState->NextState;
-    Result->NextState = nullptr;
+    auto Result = std::move(FirstVisitState);
+    FirstVisitState = std::move(Result->NextState);
     return Result;
   }
 
   // Allocate and return a new state.
-  return new VisitState(size());
+  return std::make_unique<VisitState>(size());
 }
 
-void ModuleManager::returnVisitState(VisitState *State) {
+void ModuleManager::returnVisitState(std::unique_ptr<VisitState> State) {
   assert(State->NextState == nullptr && "Visited state is in list?");
-  State->NextState = FirstVisitState;
-  FirstVisitState = State;
+  State->NextState = std::move(FirstVisitState);
+  FirstVisitState = std::move(State);
 }
 
 void ModuleManager::setGlobalIndex(GlobalModuleIndex *Index) {
@@ -350,8 +340,6 @@ ModuleManager::ModuleManager(FileManager &FileMgr,
                              const HeaderSearch &HeaderSearchInfo)
     : FileMgr(FileMgr), ModuleCache(&ModuleCache),
       PCHContainerRdr(PCHContainerRdr), HeaderSearchInfo(HeaderSearchInfo) {}
-
-ModuleManager::~ModuleManager() { delete FirstVisitState; }
 
 void ModuleManager::visit(llvm::function_ref<bool(ModuleFile &M)> Visitor,
                           llvm::SmallPtrSetImpl<ModuleFile *> *ModuleFilesHit) {
@@ -383,26 +371,23 @@ void ModuleManager::visit(llvm::function_ref<bool(ModuleFile &M)> Visitor,
 
       // For any module that this module depends on, push it on the
       // stack (if it hasn't already been marked as visited).
-      for (auto M = CurrentModule->Imports.rbegin(),
-                MEnd = CurrentModule->Imports.rend();
-           M != MEnd; ++M) {
+      for (ModuleFile *M : llvm::reverse(CurrentModule->Imports)) {
         // Remove our current module as an impediment to visiting the
         // module we depend on. If we were the last unvisited module
         // that depends on this particular module, push it into the
         // queue to be visited.
-        unsigned &NumUnusedEdges = UnusedIncomingEdges[(*M)->Index];
+        unsigned &NumUnusedEdges = UnusedIncomingEdges[M->Index];
         if (NumUnusedEdges && (--NumUnusedEdges == 0))
-          Queue.push_back(*M);
+          Queue.push_back(M);
       }
     }
 
     assert(VisitOrder.size() == N && "Visitation order is wrong?");
 
-    delete FirstVisitState;
     FirstVisitState = nullptr;
   }
 
-  VisitState *State = allocateVisitState();
+  auto State = allocateVisitState();
   unsigned VisitNumber = State->NextVisitNumber++;
 
   // If the caller has provided us with a hit-set that came from the global
@@ -454,7 +439,7 @@ void ModuleManager::visit(llvm::function_ref<bool(ModuleFile &M)> Visitor,
     } while (true);
   }
 
-  returnVisitState(State);
+  returnVisitState(std::move(State));
 }
 
 bool ModuleManager::lookupModuleFile(StringRef FileName, off_t ExpectedSize,

@@ -8,16 +8,19 @@
 
 #pragma once
 
-#include <CL/sycl/aspects.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/aspects.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/stl.hpp>
 
 #include <memory>
+#include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class platform;
@@ -61,7 +64,7 @@ public:
   RT::PiDevice &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_INVALID_DEVICE);
+                                 PI_ERROR_INVALID_DEVICE);
 
     return MDevice;
   }
@@ -74,7 +77,7 @@ public:
   const RT::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_INVALID_DEVICE);
+                                 PI_ERROR_INVALID_DEVICE);
 
     return MDevice;
   }
@@ -184,15 +187,11 @@ public:
   /// returning the type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <info::device param>
-  typename info::param_traits<info::device, param>::return_type
-  get_info() const {
+  template <typename Param> typename Param::return_type get_info() const {
     if (is_host()) {
-      return get_device_info_host<param>();
+      return get_device_info_host<Param>();
     }
-    return get_device_info<
-        typename info::param_traits<info::device, param>::return_type,
-        param>::get(this->getHandleRef(), this->getPlugin());
+    return get_device_info<Param>(this->getHandleRef(), this->getPlugin());
   }
 
   /// Check if affinity partitioning by specified domain is supported by
@@ -224,17 +223,23 @@ public:
 
   bool isAssertFailSupported() const;
 
+  bool isRootDevice() const { return MRootDevice == nullptr; }
+
+  std::string getDeviceName() const;
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
-  bool MIsRootDevice = false;
+  RT::PiDevice MRootDevice = nullptr;
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
+  mutable std::string MDeviceName;
+  mutable std::once_flag MDeviceNameFlag;
 }; // class device_impl
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -187,6 +187,42 @@ def FeatureAddisLoadFusion : SubtargetFeature<"fuse-addis-load",
 def FeatureStoreFusion : SubtargetFeature<"fuse-store", "HasStoreFusion", "true",
                                           "Target supports store clustering",
                                           [FeatureFusion]>;
+def FeatureArithAddFusion :
+  SubtargetFeature<"fuse-arith-add", "HasArithAddFusion", "true",
+                   "Target supports Arithmetic Operations with Add fusion",
+                   [FeatureFusion]>;
+def FeatureAddLogicalFusion :
+  SubtargetFeature<"fuse-add-logical", "HasAddLogicalFusion", "true",
+                   "Target supports Add with Logical Operations fusion",
+                   [FeatureFusion]>;
+def FeatureLogicalAddFusion :
+  SubtargetFeature<"fuse-logical-add", "HasLogicalAddFusion", "true",
+                   "Target supports Logical with Add Operations fusion",
+                   [FeatureFusion]>;
+def FeatureLogicalFusion :
+  SubtargetFeature<"fuse-logical", "HasLogicalFusion", "true",
+                   "Target supports Logical Operations fusion",
+                   [FeatureFusion]>;
+def FeatureSha3Fusion :
+  SubtargetFeature<"fuse-sha3", "HasSha3Fusion", "true",
+                   "Target supports SHA3 assist fusion",
+                   [FeatureFusion]>;
+def FeatureCompareFusion:
+  SubtargetFeature<"fuse-cmp", "HasCompareFusion", "true",
+                   "Target supports Comparison Operations fusion",
+                   [FeatureFusion]>;
+def FeatureWideImmFusion:
+  SubtargetFeature<"fuse-wideimm", "HasWideImmFusion", "true",
+                   "Target supports Wide-Immediate fusion",
+                   [FeatureFusion]>;
+def FeatureZeroMoveFusion:
+  SubtargetFeature<"fuse-zeromove", "HasZeroMoveFusion", "true",
+                   "Target supports move to SPR with branch fusion",
+                   [FeatureFusion]>;
+def FeatureBack2BackFusion:
+  SubtargetFeature<"fuse-back2back", "HasBack2BackFusion", "true",
+                   "Target supports general back to back fusion",
+                   [FeatureFusion]>;
 def FeatureUnalignedFloats :
   SubtargetFeature<"allow-unaligned-fp-access", "AllowsUnalignedFPAccess",
                    "true", "CPU does not trap on unaligned FP access">;
@@ -227,6 +263,10 @@ def FeatureISA3_1 : SubtargetFeature<"isa-v31-instructions", "IsISA3_1",
                                      "true",
                                      "Enable instructions in ISA 3.1.",
                                      [FeatureISA3_0]>;
+def FeatureISAFuture : SubtargetFeature<"isa-future-instructions",
+                                        "IsISAFuture", "true",
+                                        "Enable instructions for Future ISA.",
+                                        [FeatureISA3_1]>;
 def FeatureP9Altivec : SubtargetFeature<"power9-altivec", "HasP9Altivec", "true",
                                         "Enable POWER9 Altivec instructions",
                                         [FeatureISA3_0, FeatureP8Altivec]>;
@@ -340,7 +380,8 @@ def ProcessorFeatures {
      FeaturePartwordAtomic,
      FeatureQuadwordAtomic,
      FeaturePredictableSelectIsExpensive,
-     FeatureISA2_07
+     FeatureISA2_07,
+     FeatureCRBits
     ];
 
   list<SubtargetFeature> P8SpecificFeatures = [FeatureAddiLoadFusion,
@@ -375,7 +416,10 @@ def ProcessorFeatures {
   // Power10
   // For P10 CPU we assume that all of the existing features from Power9
   // still exist with the exception of those we know are Power9 specific.
-  list<SubtargetFeature> FusionFeatures = [FeatureStoreFusion];
+  list<SubtargetFeature> FusionFeatures = [
+    FeatureStoreFusion, FeatureAddLogicalFusion, FeatureLogicalAddFusion,
+    FeatureLogicalFusion, FeatureArithAddFusion, FeatureSha3Fusion,
+  ];
   list<SubtargetFeature> P10AdditionalFeatures =
     !listconcat(FusionFeatures, [
        DirectivePwr10, FeatureISA3_1, FeaturePrefixInstrs,
@@ -390,7 +434,7 @@ def ProcessorFeatures {
   // Future
   // For future CPU we assume that all of the existing features from Power10
   // still exist with the exception of those we know are Power10 specific.
-  list<SubtargetFeature> FutureAdditionalFeatures = [];
+  list<SubtargetFeature> FutureAdditionalFeatures = [FeatureISAFuture];
   list<SubtargetFeature> FutureSpecificFeatures = [];
   list<SubtargetFeature> FutureInheritableFeatures =
     !listconcat(P10InheritableFeatures, FutureAdditionalFeatures);
@@ -552,7 +596,8 @@ def : ProcessorModel<"a2", PPCA2Model,
                    FeatureSTFIWX, FeatureLFIWAX,
                    FeatureFPRND, FeatureFPCVT, FeatureISEL,
                    FeatureSlowPOPCNTD, FeatureCMPB, FeatureLDBRX,
-                   Feature64Bit /*, Feature64BitRegs */, FeatureMFTB]>;
+                   Feature64Bit /*, Feature64BitRegs */, FeatureMFTB,
+                   FeatureISA2_06]>;
 def : ProcessorModel<"pwr3", G5Model,
                   [DirectivePwr3, FeatureAltivec,
                    FeatureFRES, FeatureFRSQRTE, FeatureMFOCRF,
@@ -619,6 +664,7 @@ def PPCInstrInfo : InstrInfo {
   let decodePositionallyEncodedOperands = 1;
 
   let noNamedPositionallyEncodedOperands = 1;
+  let useDeprecatedPositionallyEncodedOperands = 1;
 }
 
 def PPCAsmWriter : AsmWriter {

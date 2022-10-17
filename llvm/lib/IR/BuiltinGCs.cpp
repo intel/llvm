@@ -20,7 +20,7 @@ using namespace llvm;
 
 namespace {
 
-/// An example GC which attempts to be compatibile with Erlang/OTP garbage
+/// An example GC which attempts to be compatible with Erlang/OTP garbage
 /// collector.
 ///
 /// The frametable emitter is in ErlangGCPrinter.cpp.
@@ -53,7 +53,7 @@ public:
 /// while introducing only minor runtime overhead.
 class ShadowStackGC : public GCStrategy {
 public:
-  ShadowStackGC() {}
+  ShadowStackGC() = default;
 };
 
 /// A GCStrategy which serves as an example for the usage of a statepoint based

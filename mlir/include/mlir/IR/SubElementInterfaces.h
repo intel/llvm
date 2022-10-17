@@ -11,14 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_INTERFACES_SUBELEMENTINTERFACES_H
-#define MLIR_INTERFACES_SUBELEMENTINTERFACES_H
+#ifndef MLIR_IR_SUBELEMENTINTERFACES_H
+#define MLIR_IR_SUBELEMENTINTERFACES_H
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Types.h"
+#include "mlir/IR/Visitors.h"
+
+namespace mlir {
+template <typename T>
+using SubElementReplFn = function_ref<T(T)>;
+template <typename T>
+using SubElementResultReplFn = function_ref<std::pair<T, WalkResult>(T)>;
+} // namespace mlir
 
 /// Include the definitions of the sub elemnt interfaces.
 #include "mlir/IR/SubElementAttrInterfaces.h.inc"
 #include "mlir/IR/SubElementTypeInterfaces.h.inc"
 
-#endif // MLIR_INTERFACES_SUBELEMENTINTERFACES_H
+#endif // MLIR_IR_SUBELEMENTINTERFACES_H

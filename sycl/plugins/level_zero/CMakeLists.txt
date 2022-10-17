@@ -99,54 +99,48 @@ target_include_directories(LevelZeroLoader-Headers
   INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
 )
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
+endif()
 
-include_directories("${sycl_inc_dir}")
+find_package(Threads REQUIRED)
 
-add_library(pi_level_zero SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
+add_sycl_plugin(level_zero
+  SOURCES
+    "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tracing.cpp"
+    ${XPTI_PROXY_SRC}
+  LIBRARIES
+    "${LEVEL_ZERO_LOADER}"
+    Threads::Threads
 )
 
-if (MSVC)
-  # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
-  # which are individually tagged for all pi* symbols in pi.h
-  target_compile_definitions(pi_level_zero PRIVATE __SYCL_BUILD_SYCL_DLL)
-else()
-  # we set the visibility of all symbols 'hidden' by default.
-  # In pi.h file, we set exported symbols with visibility==default individually
-  target_compile_options(pi_level_zero PUBLIC -fvisibility=hidden)
+find_package(Python3 REQUIRED)
 
-  # This script file is used to allow exporting pi* symbols only.
-  # All other symbols are regarded as local (hidden)
-  set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt")
-
-  # Filter symbols based on the scope defined in the script file,
-  # and export pi* function symbols in the library.
-  target_link_libraries( pi_level_zero
-    PRIVATE "-Wl,--version-script=${linker_script}"
+add_custom_target(ze-api
+  COMMAND ${Python3_EXECUTABLE}
+  ${CMAKE_CURRENT_SOURCE_DIR}/ze_api_generator.py
+  ${LEVEL_ZERO_INCLUDE_DIR}/level_zero/ze_api.h
+  BYPRODUCTS
+    ${CMAKE_CURRENT_BINARY_DIR}/ze_api.def
   )
+target_include_directories(pi_level_zero PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+add_dependencies(pi_level_zero ze-api)
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  target_compile_definitions(pi_level_zero PRIVATE
+    XPTI_ENABLE_INSTRUMENTATION
+    XPTI_STATIC_LIBRARY
+  )
+  target_include_directories(pi_level_zero PRIVATE "${CMAKE_SOURCE_DIR}/../xpti/include")
+  target_link_libraries(pi_level_zero PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
 if (TARGET level-zero-loader)
+  add_dependencies(ze-api level-zero-loader)
   add_dependencies(pi_level_zero level-zero-loader)
 endif()
-
-add_dependencies(sycl-toolchain pi_level_zero)
-target_link_libraries(pi_level_zero
-  PRIVATE
-    "${LEVEL_ZERO_LOADER}"
-    OpenCL-Headers
-)
-
-if (UNIX)
-  target_link_libraries(pi_level_zero PRIVATE pthread)
-endif()
-
-add_common_options(pi_level_zero)
-
-install(TARGETS pi_level_zero
-  LIBRARY DESTINATION "lib" COMPONENT pi_level_zero
-  RUNTIME DESTINATION "bin" COMPONENT pi_level_zero)

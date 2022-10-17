@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===------------------------- fstream ------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -179,21 +179,28 @@ typedef basic_fstream<wchar_t> wfstream;
 
 */
 
+#include <__algorithm/max.h>
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__availability>
 #include <__config>
-#include <__debug>
 #include <__locale>
+#include <__utility/move.h>
+#include <__utility/swap.h>
+#include <__utility/unreachable.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <istream>
 #include <ostream>
+#include <typeinfo>
+#include <version>
 
 #if !defined(_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 #   include <filesystem>
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -220,7 +227,7 @@ public:
     // 27.9.1.2 Constructors/destructor:
     basic_filebuf();
     basic_filebuf(basic_filebuf&& __rhs);
-    virtual ~basic_filebuf();
+    ~basic_filebuf() override;
 
     // 27.9.1.3 Assign/swap:
     _LIBCPP_INLINE_VISIBILITY
@@ -253,16 +260,16 @@ public:
 
   protected:
     // 27.9.1.5 Overridden virtual functions:
-    virtual int_type underflow();
-    virtual int_type pbackfail(int_type __c = traits_type::eof());
-    virtual int_type overflow (int_type __c = traits_type::eof());
-    virtual basic_streambuf<char_type, traits_type>* setbuf(char_type* __s, streamsize __n);
-    virtual pos_type seekoff(off_type __off, ios_base::seekdir __way,
-                             ios_base::openmode __wch = ios_base::in | ios_base::out);
-    virtual pos_type seekpos(pos_type __sp,
-                             ios_base::openmode __wch = ios_base::in | ios_base::out);
-    virtual int sync();
-    virtual void imbue(const locale& __loc);
+    int_type underflow() override;
+    int_type pbackfail(int_type __c = traits_type::eof()) override;
+    int_type overflow (int_type __c = traits_type::eof()) override;
+    basic_streambuf<char_type, traits_type>* setbuf(char_type* __s, streamsize __n) override;
+    pos_type seekoff(off_type __off, ios_base::seekdir __way,
+                     ios_base::openmode __wch = ios_base::in | ios_base::out) override;
+    pos_type seekpos(pos_type __sp,
+                     ios_base::openmode __wch = ios_base::in | ios_base::out) override;
+    int sync() override;
+    void imbue(const locale& __loc) override;
 
 private:
   char* __extbuf_;
@@ -413,25 +420,38 @@ basic_filebuf<_CharT, _Traits>::swap(basic_filebuf& __rhs)
     basic_streambuf<char_type, traits_type>::swap(__rhs);
     if (__extbuf_ != __extbuf_min_ && __rhs.__extbuf_ != __rhs.__extbuf_min_)
     {
-        _VSTD::swap(__extbuf_, __rhs.__extbuf_);
-        _VSTD::swap(__extbufnext_, __rhs.__extbufnext_);
-        _VSTD::swap(__extbufend_, __rhs.__extbufend_);
+        // Neither *this nor __rhs uses the small buffer, so we can simply swap the pointers.
+        std::swap(__extbuf_, __rhs.__extbuf_);
+        std::swap(__extbufnext_, __rhs.__extbufnext_);
+        std::swap(__extbufend_, __rhs.__extbufend_);
     }
     else
     {
-        ptrdiff_t __ln = __extbufnext_ - __extbuf_;
-        ptrdiff_t __le = __extbufend_ - __extbuf_;
-        ptrdiff_t __rn = __rhs.__extbufnext_ - __rhs.__extbuf_;
-        ptrdiff_t __re = __rhs.__extbufend_ - __rhs.__extbuf_;
+        ptrdiff_t __ln = __extbufnext_       ? __extbufnext_ - __extbuf_             : 0;
+        ptrdiff_t __le = __extbufend_        ? __extbufend_ - __extbuf_              : 0;
+        ptrdiff_t __rn = __rhs.__extbufnext_ ? __rhs.__extbufnext_ - __rhs.__extbuf_ : 0;
+        ptrdiff_t __re = __rhs.__extbufend_  ? __rhs.__extbufend_ - __rhs.__extbuf_  : 0;
         if (__extbuf_ == __extbuf_min_ && __rhs.__extbuf_ != __rhs.__extbuf_min_)
         {
+            // *this uses the small buffer, but __rhs doesn't.
             __extbuf_ = __rhs.__extbuf_;
             __rhs.__extbuf_ = __rhs.__extbuf_min_;
+            std::memmove(__rhs.__extbuf_min_, __extbuf_min_, sizeof(__extbuf_min_));
         }
         else if (__extbuf_ != __extbuf_min_ && __rhs.__extbuf_ == __rhs.__extbuf_min_)
         {
+            // *this doesn't use the small buffer, but __rhs does.
             __rhs.__extbuf_ = __extbuf_;
             __extbuf_ = __extbuf_min_;
+            std::memmove(__extbuf_min_, __rhs.__extbuf_min_, sizeof(__extbuf_min_));
+        }
+        else
+        {
+            // Both *this and __rhs use the small buffer.
+            char __tmp[sizeof(__extbuf_min_)];
+            std::memmove(__tmp, __extbuf_min_, sizeof(__extbuf_min_));
+            std::memmove(__extbuf_min_, __rhs.__extbuf_min_, sizeof(__extbuf_min_));
+            std::memmove(__rhs.__extbuf_min_, __tmp, sizeof(__extbuf_min_));
         }
         __extbufnext_ = __extbuf_ + __rn;
         __extbufend_ = __extbuf_ + __re;
@@ -537,7 +557,7 @@ const char* basic_filebuf<_CharT, _Traits>::__make_mdstring(
   default:
     return nullptr;
   }
-  _LIBCPP_UNREACHABLE();
+  __libcpp_unreachable();
 }
 
 template <class _CharT, class _Traits>
@@ -1715,9 +1735,9 @@ basic_fstream<_CharT, _Traits>::close()
 }
 
 #if defined(_LIBCPP_ABI_ENABLE_ADDITIONAL_IOSTREAM_EXPLICIT_INSTANTIATIONS_1)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ifstream<char>)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ofstream<char>)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_filebuf<char>)
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ifstream<char>;
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_ofstream<char>;
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_filebuf<char>;
 #endif
 
 _LIBCPP_END_NAMESPACE_STD

@@ -1,4 +1,4 @@
-add_mlir_dialect_library(MLIRMemRef
+add_mlir_dialect_library(MLIRMemRefDialect
   MemRefDialect.cpp
   MemRefOps.cpp
 
@@ -6,20 +6,20 @@ add_mlir_dialect_library(MLIRMemRef
   ${PROJECT_SOURCE_DIR}/inlude/mlir/Dialect/MemRefDialect
 
   DEPENDS
-  MLIRStandardOpsIncGen
   MLIRMemRefOpsIncGen
 
   LINK_COMPONENTS
   Core
 
   LINK_LIBS PUBLIC
-  MLIRArithmetic
+  MLIRArithDialect
+  MLIRArithUtils
+  MLIRControlFlowInterfaces
   MLIRDialect
   MLIRDialectUtils
   MLIRInferTypeOpInterface
   MLIRIR
-  MLIRMemRefUtils
-  MLIRStandard
-  MLIRTensor
+  MLIRShapedOpInterfaces
+  MLIRSideEffectInterfaces
   MLIRViewLikeInterface
 )

@@ -65,7 +65,9 @@
 ; CODEVIEW-NEXT:   Subsection [
 ; CODEVIEW-NEXT:     SubSectionType: Symbols (0xF1)
 ; CODEVIEW-NEXT:     SubSectionSize:
-; CODEVIEW-NEXT:     Compile3Sym {
+; CODEVIEW-NEXT:     ObjNameSym {
+; CODEVIEW-NEXT:       Kind: S_OBJNAME (0x1101)
+; CODEVIEW:          Compile3Sym {
 ; CODEVIEW-NEXT:       Kind: S_COMPILE3 (0x113C)
 ; CODEVIEW:          }
 ; CODEVIEW:        ]
@@ -123,7 +125,8 @@
 ; CODEVIEW-NEXT:     BytesOfCalleeSavedRegisters: 0xC
 ; CODEVIEW-NEXT:     OffsetOfExceptionHandler: 0x0
 ; CODEVIEW-NEXT:     SectionIdOfExceptionHandler: 0x0
-; CODEVIEW-NEXT:     Flags [ (0x14000)
+; CODEVIEW-NEXT:     Flags [ (0x16000)
+; CODEVIEW-NEXT:       SafeBuffers (0x2000)
 ; CODEVIEW-NEXT:     ]
 ; CODEVIEW-NEXT:     LocalFramePtrReg: VFRAME (0x7536)
 ; CODEVIEW-NEXT:     ParamFramePtrReg: VFRAME (0x7536)

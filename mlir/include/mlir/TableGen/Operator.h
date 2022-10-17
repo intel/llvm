@@ -32,7 +32,7 @@ namespace llvm {
 class DefInit;
 class Record;
 class StringInit;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 namespace tblgen {
@@ -95,7 +95,9 @@ public:
   using var_decorator_range = llvm::iterator_range<VariableDecoratorIterator>;
 
   using value_iterator = NamedTypeConstraint *;
+  using const_value_iterator = const NamedTypeConstraint *;
   using value_range = llvm::iterator_range<value_iterator>;
+  using const_value_range = llvm::iterator_range<const_value_iterator>;
 
   // Returns true if this op has variable length operands or results.
   bool isVariadic() const;
@@ -104,9 +106,9 @@ public:
   bool skipDefaultBuilders() const;
 
   // Op result iterators.
-  value_iterator result_begin();
-  value_iterator result_end();
-  value_range getResults();
+  const_value_iterator result_begin() const;
+  const_value_iterator result_end() const;
+  const_value_range getResults() const;
 
   // Returns the number of results this op produces.
   int getNumResults() const;
@@ -138,11 +140,14 @@ public:
 
   // Op attribute accessors.
   NamedAttribute &getAttribute(int index) { return attributes[index]; }
+  const NamedAttribute &getAttribute(int index) const {
+    return attributes[index];
+  }
 
   // Op operand iterators.
-  value_iterator operand_begin();
-  value_iterator operand_end();
-  value_range getOperands();
+  const_value_iterator operand_begin() const;
+  const_value_iterator operand_end() const;
+  const_value_range getOperands() const;
 
   int getNumOperands() const { return operands.size(); }
   NamedTypeConstraint &getOperand(int index) { return operands[index]; }
@@ -217,7 +222,7 @@ public:
   const_trait_iterator trait_end() const;
   llvm::iterator_range<const_trait_iterator> getTraits() const;
 
-  ArrayRef<llvm::SMLoc> getLoc() const;
+  ArrayRef<SMLoc> getLoc() const;
 
   // Query functions for the documentation of the operator.
   bool hasDescription() const;
@@ -231,6 +236,9 @@ public:
 
   // Returns this op's extra class declaration code.
   StringRef getExtraClassDeclaration() const;
+
+  // Returns this op's extra class definition code.
+  StringRef getExtraClassDefinition() const;
 
   // Returns the Tablegen definition this operator was constructed from.
   // TODO: do not expose the TableGen record, this is a temporary solution to
@@ -255,12 +263,12 @@ public:
     explicit ArgOrType(TypeConstraint constraint)
         : index(None), constraint(constraint) {}
     bool isArg() const {
-      assert(constraint.hasValue() ^ index.hasValue());
-      return index.hasValue();
+      assert(constraint.has_value() ^ index.has_value());
+      return index.has_value();
     }
     bool isType() const {
-      assert(constraint.hasValue() ^ index.hasValue());
-      return constraint.hasValue();
+      assert(constraint.has_value() ^ index.has_value());
+      return constraint.has_value();
     }
 
     int getArg() const { return *index; }
@@ -293,6 +301,17 @@ public:
 
   // Returns the builders of this operation.
   ArrayRef<Builder> getBuilders() const { return builders; }
+
+  // Returns the preferred getter name for the accessor.
+  std::string getGetterName(StringRef name) const {
+    return getGetterNames(name).front();
+  }
+
+  // Returns the getter names for the accessor.
+  SmallVector<std::string, 2> getGetterNames(StringRef name) const;
+
+  // Returns the setter names for the accessor.
+  SmallVector<std::string, 2> getSetterNames(StringRef name) const;
 
 private:
   // Populates the vectors containing operands, attributes, results and traits.
@@ -356,7 +375,7 @@ private:
   bool allResultsHaveKnownTypes;
 };
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TABLEGEN_OPERATOR_H_

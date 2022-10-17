@@ -13,11 +13,9 @@
 #define FORTRAN_EVALUATE_SHAPE_H_
 
 #include "expression.h"
-#include "fold.h"
 #include "traverse.h"
 #include "variable.h"
 #include "flang/Common/indirection.h"
-#include "flang/Evaluate/tools.h"
 #include "flang/Evaluate/type.h"
 #include <optional>
 #include <variant>
@@ -62,18 +60,33 @@ template <typename A> std::optional<Shape> GetShape(const A &);
 
 // The dimension argument to these inquiries is zero-based,
 // unlike the DIM= arguments to many intrinsics.
-ExtentExpr GetLowerBound(const NamedEntity &, int dimension);
-ExtentExpr GetLowerBound(FoldingContext &, const NamedEntity &, int dimension);
-MaybeExtentExpr GetUpperBound(const NamedEntity &, int dimension);
-MaybeExtentExpr GetUpperBound(
+//
+// GetRawLowerBound() returns a lower bound expression, which may
+// not be suitable for all purposes; specifically, it might not be invariant
+// in its scope, and it will not have been forced to 1 on an empty dimension.
+// GetLBOUND()'s result is safer, but it is optional because it does fail
+// in those circumstances.
+// Similarly, GetUBOUND result will be forced to 0 on an empty dimension,
+// but will fail if the extent is not a compile time constant.
+ExtentExpr GetRawLowerBound(const NamedEntity &, int dimension);
+ExtentExpr GetRawLowerBound(
     FoldingContext &, const NamedEntity &, int dimension);
+MaybeExtentExpr GetLBOUND(const NamedEntity &, int dimension);
+MaybeExtentExpr GetLBOUND(FoldingContext &, const NamedEntity &, int dimension);
+MaybeExtentExpr GetRawUpperBound(const NamedEntity &, int dimension);
+MaybeExtentExpr GetRawUpperBound(
+    FoldingContext &, const NamedEntity &, int dimension);
+MaybeExtentExpr GetUBOUND(const NamedEntity &, int dimension);
+MaybeExtentExpr GetUBOUND(FoldingContext &, const NamedEntity &, int dimension);
 MaybeExtentExpr ComputeUpperBound(ExtentExpr &&lower, MaybeExtentExpr &&extent);
 MaybeExtentExpr ComputeUpperBound(
     FoldingContext &, ExtentExpr &&lower, MaybeExtentExpr &&extent);
-Shape GetLowerBounds(const NamedEntity &);
-Shape GetLowerBounds(FoldingContext &, const NamedEntity &);
-Shape GetUpperBounds(const NamedEntity &);
-Shape GetUpperBounds(FoldingContext &, const NamedEntity &);
+Shape GetRawLowerBounds(const NamedEntity &);
+Shape GetRawLowerBounds(FoldingContext &, const NamedEntity &);
+Shape GetLBOUNDs(const NamedEntity &);
+Shape GetLBOUNDs(FoldingContext &, const NamedEntity &);
+Shape GetUBOUNDs(const NamedEntity &);
+Shape GetUBOUNDs(FoldingContext &, const NamedEntity &);
 MaybeExtentExpr GetExtent(const NamedEntity &, int dimension);
 MaybeExtentExpr GetExtent(FoldingContext &, const NamedEntity &, int dimension);
 MaybeExtentExpr GetExtent(
@@ -104,6 +117,9 @@ public:
   using Base::operator();
   GetShapeHelper() : Base{*this} {}
   explicit GetShapeHelper(FoldingContext &c) : Base{*this}, context_{&c} {}
+  explicit GetShapeHelper(FoldingContext &c, bool useResultSymbolShape)
+      : Base{*this}, context_{&c}, useResultSymbolShape_{useResultSymbolShape} {
+  }
 
   Result operator()(const ImpliedDoIndex &) const { return ScalarShape(); }
   Result operator()(const DescriptorInquiry &) const { return ScalarShape(); }
@@ -143,13 +159,13 @@ public:
 private:
   static Result ScalarShape() { return Shape{}; }
   static Shape ConstantShape(const Constant<ExtentType> &);
-  Result AsShape(ExtentExpr &&) const;
+  Result AsShapeResult(ExtentExpr &&) const;
   static Shape CreateShape(int rank, NamedEntity &);
 
   template <typename T>
   MaybeExtentExpr GetArrayConstructorValueExtent(
       const ArrayConstructorValue<T> &value) const {
-    return std::visit(
+    return common::visit(
         common::visitors{
             [&](const Expr<T> &x) -> MaybeExtentExpr {
               if (auto xShape{
@@ -183,12 +199,7 @@ private:
     ExtentExpr result{0};
     for (const auto &value : values) {
       if (MaybeExtentExpr n{GetArrayConstructorValueExtent(value)}) {
-        result = std::move(result) + std::move(*n);
-        if (context_) {
-          // Fold during expression creation to avoid creating an expression so
-          // large we can't evalute it without overflowing the stack.
-          result = Fold(*context_, std::move(result));
-        }
+        AccumulateExtent(result, std::move(*n));
       } else {
         return std::nullopt;
       }
@@ -196,7 +207,11 @@ private:
     return result;
   }
 
+  // Add an extent to another, with folding
+  void AccumulateExtent(ExtentExpr &, ExtentExpr &&) const;
+
   FoldingContext *context_{nullptr};
+  bool useResultSymbolShape_{true};
 };
 
 template <typename A>
@@ -239,6 +254,15 @@ std::optional<ConstantSubscripts> GetConstantExtents(
   } else {
     return std::nullopt;
   }
+}
+
+// Get shape that does not depends on callee scope symbols if the expression
+// contains calls. Return std::nullopt if it is not possible to build such shape
+// (e.g. for calls to array functions whose result shape depends on the
+// arguments).
+template <typename A>
+std::optional<Shape> GetContextFreeShape(FoldingContext &context, const A &x) {
+  return GetShapeHelper{context, false}(x);
 }
 
 // Compilation-time shape conformance checking, when corresponding extents

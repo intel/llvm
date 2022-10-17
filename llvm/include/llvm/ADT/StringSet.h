@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-//  StringSet - A set-like wrapper for the StringMap.
-//
+///
+/// \file
+///  StringSet - A set-like wrapper for the StringMap.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_STRINGSET_H
@@ -35,7 +36,7 @@ public:
   }
 
   template <typename InputIt>
-  void insert(const InputIt &begin, const InputIt &end) {
+  void insert(InputIt begin, InputIt end) {
     for (auto it = begin; it != end; ++it)
       insert(*it);
   }

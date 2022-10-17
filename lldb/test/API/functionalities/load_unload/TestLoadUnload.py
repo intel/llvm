@@ -2,9 +2,6 @@
 Test that breakpoint by symbol name works correctly with dynamic libs.
 """
 
-from __future__ import print_function
-
-
 import os
 import re
 import lldb
@@ -14,8 +11,6 @@ from lldbsuite.test import lldbutil
 
 
 class LoadUnloadTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     NO_DEBUG_INFO_TESTCASE = True
 
@@ -240,6 +235,15 @@ class LoadUnloadTestCase(TestBase):
         else:
             remoteDylibPath = localDylibPath
 
+        # First make sure that we get some kind of error if process load fails.
+        # We print some error even if the load fails, which isn't formalized.
+        # The only plugin at present (Posix) that supports this says "unknown reasons".
+        # If another plugin shows up, let's require it uses "unknown error" as well.
+        non_existant_shlib = "/NoSuchDir/NoSuchSubdir/ReallyNo/NotAFile"
+        self.expect("process load %s"%(non_existant_shlib), error=True, matching=False,
+                    patterns=["unknown reasons"])
+        
+
         # Make sure that a_function does not exist at this point.
         self.expect(
             "image lookup -n a_function",
@@ -316,10 +320,9 @@ class LoadUnloadTestCase(TestBase):
                              'stop reason = breakpoint'])
 
         # The breakpoint should have a hit count of 1.
-        self.expect("breakpoint list -f", BREAKPOINT_HIT_ONCE,
-                    substrs=[' resolved, hit count = 1'])
+        lldbutil.check_breakpoint(self, bpno = 1, expected_hit_count = 1)
 
-        # Issue the 'continue' command.  We should stop agaian at a_function.
+        # Issue the 'continue' command.  We should stop again at a_function.
         # The stop reason of the thread should be breakpoint and at a_function.
         self.runCmd("continue")
 
@@ -331,8 +334,7 @@ class LoadUnloadTestCase(TestBase):
                              'stop reason = breakpoint'])
 
         # The breakpoint should have a hit count of 2.
-        self.expect("breakpoint list -f", BREAKPOINT_HIT_ONCE,
-                    substrs=[' resolved, hit count = 2'])
+        lldbutil.check_breakpoint(self, bpno = 1, expected_hit_count = 2)
 
     def test_step_over_load(self):
         self.setSvr4Support(False)
@@ -372,6 +374,7 @@ class LoadUnloadTestCase(TestBase):
     # We can't find a breakpoint location for d_init before launching because
     # executable dependencies are resolved relative to the debuggers PWD. Bug?
     @expectedFailureAll(oslist=["freebsd", "linux", "netbsd"], triple=no_match('aarch64-.*-android'))
+    @expectedFailureAll(oslist=["windows"], archs=["aarch64"])
     def test_static_init_during_load(self):
         """Test that we can set breakpoints correctly in static initializers"""
         self.copy_shlibs_to_remote()

@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
 
 // <atomic>
 
@@ -62,10 +60,8 @@ int main(int, char**)
 #if TEST_STD_VER > 17 && defined(__cpp_char8_t)
     static_assert((std::is_same<std::atomic<char8_t>, std::atomic_char8_t>::value), "");
 #endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     static_assert((std::is_same<std::atomic<char16_t>, std::atomic_char16_t>::value), "");
     static_assert((std::is_same<std::atomic<char32_t>, std::atomic_char32_t>::value), "");
-#endif
 
 //  Added by LWG 2441
     static_assert((std::is_same<std::atomic<intptr_t>,  std::atomic_intptr_t>::value), "");

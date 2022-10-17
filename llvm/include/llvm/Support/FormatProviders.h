@@ -21,8 +21,8 @@
 #include "llvm/Support/FormatVariadicDetails.h"
 #include "llvm/Support/NativeFormatting.h"
 
+#include <array>
 #include <type_traits>
-#include <vector>
 
 namespace llvm {
 namespace detail {
@@ -313,7 +313,7 @@ struct format_provider<T,
       S = FloatStyle::Fixed;
 
     Optional<size_t> Precision = parseNumericPrecision(Style);
-    if (!Precision.hasValue())
+    if (!Precision)
       Precision = getDefaultPrecision(S);
 
     write_double(Stream, static_cast<double>(V), S, Precision);
@@ -369,7 +369,7 @@ template <typename IterT> class format_provider<llvm::iterator_range<IterT>> {
       return Default;
     }
 
-    for (const char *D : {"[]", "<>", "()"}) {
+    for (const char *D : std::array<const char *, 3>{"[]", "<>", "()"}) {
       if (Style.front() != D[0])
         continue;
       size_t End = Style.find_first_of(D[1]);

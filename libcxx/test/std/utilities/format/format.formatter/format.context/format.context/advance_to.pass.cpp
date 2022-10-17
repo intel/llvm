@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
@@ -25,7 +24,7 @@ void test(
     std::basic_format_args<std::basic_format_context<OutIt, CharT>> args) {
   {
     std::basic_string<CharT> str[3];
-    std::basic_format_context context =
+    std::basic_format_context<OutIt, CharT> context =
         test_format_context_create(OutIt{str[0]}, args);
     context.out() = CharT('a');
     context.advance_to(OutIt{str[1]});
@@ -52,12 +51,11 @@ void test() {
       std::make_format_args<std::basic_format_context<
           std::back_insert_iterator<std::basic_string<wchar_t>>, wchar_t>>()));
 #endif
-#ifndef _LIBCPP_HAS_NO_CHAR8_T
+#ifndef TEST_HAS_NO_CHAR8_T
   test(std::basic_format_args(
       std::make_format_args<std::basic_format_context<
           std::back_insert_iterator<std::basic_string<char8_t>>, char8_t>>()));
 #endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
   test(std::basic_format_args(
       std::make_format_args<std::basic_format_context<
           std::back_insert_iterator<std::basic_string<char16_t>>,
@@ -66,7 +64,6 @@ void test() {
       std::make_format_args<std::basic_format_context<
           std::back_insert_iterator<std::basic_string<char32_t>>,
           char32_t>>()));
-#endif
 }
 
 int main(int, char**) {

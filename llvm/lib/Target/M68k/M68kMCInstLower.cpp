@@ -1,4 +1,4 @@
-//===-- M68kMCInstLower.cpp - M68k MachineInstr to MCInst ---*- C++ -*-===//
+//===-- M68kMCInstLower.cpp - M68k MachineInstr to MCInst -------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -150,8 +150,8 @@ void M68kMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
     const MachineOperand &MO = MI->getOperand(i);
     Optional<MCOperand> MCOp = LowerOperand(MI, MO);
 
-    if (MCOp.hasValue() && MCOp.getValue().isValid())
-      OutMI.addOperand(MCOp.getValue());
+    if (MCOp.has_value() && MCOp.value().isValid())
+      OutMI.addOperand(MCOp.value());
   }
 
   // TAILJMPj, TAILJMPq - Lower to the correct jump instructions.

@@ -17,8 +17,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenDAGPatterns.h"
+#include "CodeGenInstruction.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
@@ -568,7 +568,6 @@ void FastISelMap::collectPatterns(CodeGenDAGPatterns &CGP) {
     std::string ManglingSuffix;
     raw_string_ostream SuffixOS(ManglingSuffix);
     Operands.PrintManglingSuffix(SuffixOS, ImmediatePredicates, true);
-    SuffixOS.flush();
     if (!StringSwitch<bool>(ManglingSuffix)
         .Cases("", "r", "rr", "ri", "i", "f", true)
         .Default(false))
@@ -656,7 +655,7 @@ void FastISelMap::emitInstructionCode(raw_ostream &OS,
 
     for (unsigned i = 0; i < Memo.PhysRegs.size(); ++i) {
       if (Memo.PhysRegs[i] != "")
-        OS << "  BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, "
+        OS << "  BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, "
            << "TII.get(TargetOpcode::COPY), " << Memo.PhysRegs[i]
            << ").addReg(Op" << i << ");\n";
     }

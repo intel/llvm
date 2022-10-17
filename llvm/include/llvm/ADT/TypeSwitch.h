@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-//  This file implements the TypeSwitch template, which mimics a switch()
-//  statement whose cases are type names.
-//
+///
+/// \file
+///  This file implements the TypeSwitch template, which mimics a switch()
+///  statement whose cases are type names.
+///
 //===-----------------------------------------------------------------------===/
 
 #ifndef LLVM_ADT_TYPESWITCH_H
@@ -124,20 +125,19 @@ public:
 
   /// As a default, invoke the given callable within the root value.
   template <typename CallableT>
-  LLVM_NODISCARD ResultT Default(CallableT &&defaultFn) {
+  [[nodiscard]] ResultT Default(CallableT &&defaultFn) {
     if (result)
       return std::move(*result);
     return defaultFn(this->value);
   }
   /// As a default, return the given value.
-  LLVM_NODISCARD ResultT Default(ResultT defaultResult) {
+  [[nodiscard]] ResultT Default(ResultT defaultResult) {
     if (result)
       return std::move(*result);
     return defaultResult;
   }
 
-  LLVM_NODISCARD
-  operator ResultT() {
+  [[nodiscard]] operator ResultT() {
     assert(result && "Fell off the end of a type-switch");
     return std::move(*result);
   }

@@ -150,6 +150,7 @@ void ODRHash::AddTemplateName(TemplateName Name) {
   case TemplateName::DependentTemplate:
   case TemplateName::SubstTemplateTemplateParm:
   case TemplateName::SubstTemplateTemplateParmPack:
+  case TemplateName::UsingTemplate:
     break;
   }
 }
@@ -563,7 +564,7 @@ void ODRHash::AddFunctionDecl(const FunctionDecl *Function,
   AddQualType(Function->getReturnType());
 
   ID.AddInteger(Function->param_size());
-  for (auto Param : Function->parameters())
+  for (auto *Param : Function->parameters())
     AddSubDecl(Param);
 
   if (SkipBody) {
@@ -933,7 +934,7 @@ public:
 
     auto Protocols = T->getProtocols();
     ID.AddInteger(Protocols.size());
-    for (auto Protocol : Protocols) {
+    for (auto *Protocol : Protocols) {
       AddDecl(Protocol);
     }
 
@@ -951,7 +952,7 @@ public:
     AddDecl(T->getDecl());
     auto Protocols = T->getProtocols();
     ID.AddInteger(Protocols.size());
-    for (auto Protocol : Protocols) {
+    for (auto *Protocol : Protocols) {
       AddDecl(Protocol);
     }
 
@@ -1060,7 +1061,7 @@ public:
     VisitType(T);
   }
   void VisitTypeOfType(const TypeOfType *T) {
-    AddQualType(T->getUnderlyingType());
+    AddQualType(T->getUnmodifiedType());
     VisitType(T);
   }
 

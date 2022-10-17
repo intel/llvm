@@ -1,110 +1,72 @@
-* @bader
+* @pvchupin
 
 # Front-end compiler
-clang/ @premanandrao @elizabethandrews @smanna12
+clang/ @intel/dpcpp-cfe-reviewers
 
-# Driver
-clang/**/Driver @mdtoguchi @AGindinson @hchilama
+# Clang driver
+clang/**/Driver/ @intel/dpcpp-clang-driver-reviewers
+
+# Clang tools
+clang-tools-extra/ @intel/dpcpp-cfe-reviewers
 
 # LLVM-SPIRV translator
-llvm-spirv/ @AlexeySotkin @AlexeySachkov
+llvm-spirv/ @intel/dpcpp-spirv-reviewers
 
 # OpenCL deps
-opencl/ @pvchupin @vladimirlaz
+opencl/ @intel/llvm-reviewers-runtime
 
 # OpenCL "offline" compiler
-opencl/opencl-aot/ @dm-vodopyanov @AlexeySachkov @romanovvlad
+opencl/opencl-aot/ @intel/dpcpp-tools-reviewers
+
+# libclc library
+libclc/ @intel/llvm-reviewers-cuda
 
 # Device library
-libdevice/ @vzakhari @jinge90
+libdevice/ @intel/llvm-reviewers-runtime
 
 # DPC++ runtime library
 sycl/ @intel/llvm-reviewers-runtime
 
 # Documentation
-sycl/ReleaseNotes.md @pvchupin @tfzhu
-sycl/doc/ @pvchupin @bader
+sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers @tfzhu
+sycl/doc/ @intel/dpcpp-doc-reviewers
+sycl/doc/design/ @intel/dpcpp-specification-reviewers
+sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-sycl/doc/extensions/SPIRV/ @AlexeySotkin @bashbaug @mbelicki
 
-# Sub-groups
-sycl/include/CL/sycl/detail/spirv.hpp @Pennycook @AlexeySachkov
-sycl/include/sycl/ext/intel/group_algorithm.hpp @Pennycook @AlexeySachkov
-sycl/include/sycl/ext/intel/sub_group.hpp @Pennycook @AlexeySachkov
-sycl/include/sycl/ext/intel/sub_group_host.hpp @Pennycook @AlexeySachkov
-
-# PI API
-sycl/include/CL/sycl/detail/pi.def @smaslov-intel @againull
-sycl/include/CL/sycl/detail/pi.h   @smaslov-intel @againull
-sycl/include/CL/sycl/detail/pi.hpp @smaslov-intel @againull
-sycl/include/CL/sycl/detail/pi* @smaslov-intel @againull
-sycl/plugins/ @smaslov-intel @againull
-sycl/source/detail/pi.cpp @smaslov-intel @againull
-sycl/source/detail/plugin.hpp @smaslov-intel @againull
-sycl/source/detail/posix_pi.cpp @smaslov-intel @againull
-sycl/source/detail/windows_pi.cpp @smaslov-intel @againull
+# Level Zero plugin
+sycl/plugins/level_zero/ @intel/dpcpp-l0-pi-reviewers
 
 # ESIMD CPU emulator plug-in
-sycl/plugins/esimd_cpu/ @kbobrovs @smaslov-intel
+sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
-# Stream
-sycl/include/CL/sycl/detail/stream_impl.hpp @againull
-sycl/include/CL/sycl/stream.hpp @againull
-sycl/source/detail/stream_impl.cpp @againull
-sycl/source/stream.cpp @againull
-
-# FPGA extensions
-sycl/include/sycl/ext/intel/fpga_device_selector.hpp @MrSidims
-sycl/include/sycl/ext/intel/fpga_extensions.hpp @MrSidims
-sycl/include/sycl/ext/intel/fpga_reg.hpp @MrSidims
-sycl/include/sycl/ext/intel/pipes.hpp @MrSidims
-sycl/include/CL/sycl/pipes.hpp @MrSidims
-
-# Reduction extension
-sycl/include/sycl/ext/intel/reduction.hpp @v-klochkov
-
-# Function pointers
-sycl/include/sycl/ext/intel/function_pointer.hpp @AlexeySachkov
-sycl/source/function_pointer.cpp @AlexeySachkov
-
-# Half Type
-sycl/include/CL/sycl/half_type.hpp @AlexeySachkov
-sycl/source/half_type.cpp @AlexeySachkov
-
 # XPTI instrumentation utilities
-xpti/ @tovinkere @andykaylor @alexbatashev
-xptifw/ @tovinkere @andykaylor @alexbatashev
+xpti/ @intel/llvm-reviewers-runtime
+xptifw/ @intel/llvm-reviewers-runtime
 
 # DPC++ tools
-llvm/**/append-file/ @mdtoguchi @AGindinson
-llvm/**/file-table-tform/ @mlychkov @AlexeySachkov @kbobrovs
-llvm/**/llvm-foreach/ @AlexeySachkov  @Fznamznon
-llvm/**/llvm-no-spir-kernel/ @AGindinson @AlexeySachkov
-llvm/**/sycl-post-link/ @mlychkov @AlexeySachkov @kbobrovs
-llvm/include/llvm/Support/PropertySetIO.h @mlychkov @AlexeySachkov @kbobrovs
-llvm/lib/Support/PropertySetIO.cpp @mlychkov @AlexeySachkov @kbobrovs
-llvm/unittests/Support/PropertySetIOTest.cpp @mlychkov @AlexeySachkov @kbobrovs
-llvm/include/llvm/Support/SimpleTable.h @mlychkov @AlexeySachkov @kbobrovs
-llvm/lib/Support/SimpleTable.cpp @mlychkov @AlexeySachkov @kbobrovs
-llvm/unittests/Support/SimpleTableTest.cpp @mlychkov @AlexeySachkov @kbobrovs
-llvm/lib/Support/Base64.cpp @mlychkov @AlexeySachkov @kbobrovs
+llvm/ @intel/dpcpp-tools-reviewers
 
 # Clang offload tools
-clang/tools/clang-offload-bundler/ @mlychkov @sndmitriev @AlexeySachkov
-clang/tools/clang-offload-wrapper/ @mlychkov @sndmitriev @AlexeySachkov @kbobrovs
-clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
-clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
+clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
-SYCLLowerIR/ @kbobrovs @sndmitriev @kychendev @v-klochkov 
-esimd/ @kbobrovs @v-klochkov @kychendev
-sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @v-klochkov @kychendev
-sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @v-klochkov @kychendev
+ESIMD/ @intel/dpcpp-esimd-reviewers
+esimd/ @intel/dpcpp-esimd-reviewers
+sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
+sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
+llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
-# ITT annotations
-llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari
-llvm/include/llvm/Transforms/Instrumentation/SPIRITTAnnotations.h @MrSidims @vzakhari
-llvm/test/Transforms/SPIRITTAnnotations/* @MrSidims @vzakhari
+# invoke_simd
+sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @rolandschulz @kbobrovs
+sycl/include/std/experimental/simd.hpp @rolandschulz @kbobrovs
+llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @kbobrovs @v-klochkov @rolandschulz
+llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @kbobrovs @v-klochkov @rolandschulz
+
+# DevOps configs
+.github/workflows/ @intel/dpcpp-devops-reviewers
+buildbot/ @intel/dpcpp-devops-reviewers
+devops/ @intel/dpcpp-devops-reviewers

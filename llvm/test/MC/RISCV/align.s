@@ -48,8 +48,8 @@ test:
 # RELAX-RELOC: R_RISCV_ALIGN - 0x4
 # RELAX-INST:  addi    zero, zero, 0
 # C-EXT-RELAX-RELOC: R_RISCV_ALIGN - 0x6
-# C-EXT-RELAX-INST:  addi    zero, zero, 0
 # C-EXT-RELAX-INST:  c.nop
+# C-EXT-RELAX-INST:  addi    zero, zero, 0
 # C-EXT-NORELAX-INST: addi    zero, zero, 0
 	add	a0, a0, a1
 	.align 4
@@ -75,7 +75,7 @@ test:
 # NORELAX-INST: addi    zero, zero, 0
 # C-EXT-RELAX-RELOC: R_RISCV_ALIGN - 0x6
 # C-EXT-RELAX-INST:  addi    zero, zero, 0
-# C-EXT-RELAX-INST:  c.nop
+# C-EXT-RELAX-INST-NOT:  c.nop
 # C-EXT-INST: addi    zero, zero, 0
 # C-EXT-INST: c.nop
 	add	a0, a0, a1
@@ -112,3 +112,11 @@ data1:
 # C-EXT-RELAX-RELOC-NOT: R_RISCV_ALIGN
 data2:
 	.word 9
+# Check that the initial alignment is properly handled when using .option to
+# disable the C extension. This used to crash.
+# C-EXT-RELAX-INST:      <.text2>:
+# C-EXT-RELAX-INST-NEXT: add a0, a0, a1
+	.section .text2, "x"
+	.option norvc
+	.balign 4
+	add	a0, a0, a1

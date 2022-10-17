@@ -29,16 +29,11 @@ static llvm::StringRef g_range_specifiers[] = {"-", "to", "To", "TO"};
 // for specifying ID ranges at a later date.
 
 bool BreakpointID::IsRangeIdentifier(llvm::StringRef str) {
-  for (auto spec : g_range_specifiers) {
-    if (spec == str)
-      return true;
-  }
-
-  return false;
+  return llvm::is_contained(g_range_specifiers, str);
 }
 
 bool BreakpointID::IsValidIDExpression(llvm::StringRef str) {
-  return BreakpointID::ParseCanonicalReference(str).hasValue();
+  return BreakpointID::ParseCanonicalReference(str).has_value();
 }
 
 llvm::ArrayRef<llvm::StringRef> BreakpointID::GetRangeSpecifiers() {

@@ -1,0 +1,235 @@
+= sycl_ext_oneapi_device_if
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2021-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension provides a way for device code to query the device on which it
+is running in order to conditionally use features that may not be supported on
+all devices.  This is different from the existing `device::has()` function
+because the extension can be called from device code while `device::has()` can
+only be called from host code.
+
+The motivating use case for this extension is for developers who provide device
+side libraries.  To illustrate, consider an application developer (i.e. someone
+who is **not** developing a device-side library) who wants to code a kernel
+that conditionally uses a feature that is not available on all devices.  This
+developer can write two versions of the kernel, one which uses the features and
+one that does not.  Then the developer can use `device::has()` to test whether
+the device supports the feature and submit one kernel or the other according to
+the device's capabilities.  (To avoid code duplication, the developer could
+write the kernel as a template using `if constexpr` and then instantiate the
+template according to the device capabilities.)
+
+This technique, however, is not available to a developer writing a device-side
+library because such a developer does not have control over the host code that
+launches the kernel.  The developer could expose the library function as a
+template with a template parameter that controls the use of the conditional
+feature.  For example, consider a library function "frob" that wants to
+conditionally use the `sycl::half` type (which is associated with
+`aspect::fp16`):
+
+```
+template<bool UseFp16>
+void frob() { /*...*/ }
+```
+
+The caller of the library function would be responsible for calling
+`device::has(aspect::fp16)` to check if the device supports `sycl::half`, and
+then submit a kernel that calls the appropriately instantiated version of the
+`frob()` template function.  However, this has the serious downside that the
+library developer must expose all device features which the library wants
+to conditionally use.
+
+This extension solves the problem by providing a way for the library developer
+to check for device features from within the library without exposing this to
+its callers.  For example:
+
+```
+void frob() {
+  sycl::ext::oneapi::experimental::if_device_has<sycl::aspect::fp16>([]() {
+    // code that uses "sycl::half"
+  });
+}
+```
+
+The structure of the extension has been designed such that the overhead of the
+condition check can be entirely eliminated by the device compiler.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_DEVICE_IF` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New `if_device_has` free function
+
+This extension adds one new free function which may be called from device
+code.  This function is not available in host code.
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+template<aspect ...Aspects, typename ...Args, typename T>
+/* unspecified */ if_device_has(T fn, Args ...args);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+The parameter `fn` must be a C++ `Callable` object which is invocable with the
+parameters specified in `args`.  Normal SYCL restrictions apply, so `fn` must
+not be a function pointer or a pointer to a member function.  (The expectation
+is that most applications will pass a lambda expression for this parameter.)
+
+If `fn` is a lambda expression, it must not have any captures.  Applications
+can work around this limitation by passing variables referenced by the lambda
+as function arguments.
+
+The `Aspects` parameter pack identifies the condition that gates execution of
+the callable object `fn`.  This condition is `true` only if the device which
+executes the `if_device_has` function has **all** of the aspects listed in this
+pack.  If the condition is `true`, the implementation calls `fn`.  Otherwise,
+the function `fn` is potentially discarded as described below.
+
+=== Fallback code
+
+The value returned by `if_device_has` is an object _F_ of an unspecified type,
+which provides the following member functions:
+
+```
+class /* unspecified */ {
+ public:
+  template<aspect ...Aspects, typename ...Args, typename T>
+  /* unspecified */ else_if_device_has(T fn, Args ...args);
+
+  template<typename T, typename ...Args>
+  void otherwise(T fn, Args ...args);
+};
+```
+
+The parameter `fn` must be a C++ `Callable` object with the same restrictions
+listed above.
+
+The `otherwise` function has an associated condition that gates execution of
+the callable object `fn`.  This condition is `true` only if the object _F_
+comes from a previous call to `if_device_has` or `else_if_device_has` whose
+condition is `false`.  Otherwise, the function `fn` is potentially discarded.
+
+The `else_if_device_has` also has an associated condition that gates execution
+of the callable object `fn`.  This condition is `true` only if the object _F_
+comes from a previous call to `if_device_has` or `else_if_device_has` whose
+condition is `false` *and* if the device calling `else_if_device_has` has all
+of the aspects in the `Aspects` parameter pack.  If the condition is `true`,
+the implementation calls `fn`.  Otherwise, the function `fn` is potentially
+discarded.
+
+The value returned by `else_if_device_has` is an object of an unspecified type,
+which provides the same member functions listed above.  This allows
+applications to chain calls to `if_device_has`, `else_if_device_has`, and
+`otherwise` to form "if, elseif, elseif, ... else" sequences as demonstrated in
+the following example:
+
+```
+using sycl::ext::oneapi::experimental;
+using sycl;
+
+void frob() {
+  if_device_has<aspect::foo>([] {
+    // code that uses features tied to "foo" aspect
+  }).else_if_device_has<aspect::bar>([] {
+    // code that uses features tied to "bar" aspect
+  }).otherwise([] {
+    // fallback code that works on all devices
+  });
+}
+```
+
+=== Discarded functions
+
+As specified above, the function `fn` may be discarded if the condition
+associated with the call to `if_device_has`, `else_if_device_has`, or
+`otherwise` is `false`.  More formally, this means that `fn` is potentially
+discarded (if `fn` is a function) or `+operator(Args...)+` of `fn` is
+potentially discarded (if `fn` is a callable object).  In addition, any other
+functions they call (and functions called by those functions etc.) are
+potentially discarded.
+
+These functions are discarded if all calls to them are reachable only from
+`if_device_has`, `else_if_device_has`, or `otherwise` whose associated
+condition is `false` for the calling device.
+
+Statements in the discarded functions may use optional kernel features, as
+defined in the core SYCL specification section 5.7, even if the device
+executing this kernel does not support them.
+
+[NOTE]
+====
+It is not sufficient to guard the use of optional kernel features with a
+regular `if` statement.  Even if the condition of the `if` is `false`, the
+code may fail to compile for a device that does not support the feature.
+====

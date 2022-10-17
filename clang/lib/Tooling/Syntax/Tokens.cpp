@@ -751,7 +751,7 @@ private:
                SpelledTokens[NextSpelled].location() <= KnownEnd)
           ++NextSpelled;
         FlushMapping(); // Emits [NextSpelled, KnownEnd]
-        // Now the loop contitues and will emit (KnownEnd, Target).
+        // Now the loop continues and will emit (KnownEnd, Target).
       } else {
         ++NextSpelled;
       }
@@ -927,5 +927,5 @@ std::string TokenBuffer::dumpForTests() const {
           M.EndExpanded);
     }
   }
-  return OS.str();
+  return Dump;
 }

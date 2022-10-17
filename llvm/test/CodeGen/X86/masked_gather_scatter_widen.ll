@@ -3,7 +3,7 @@
 ; RUN: llc -mtriple=x86_64-unknown-linux-gnu -mattr=+avx512f < %s | FileCheck %s --check-prefix=WIDEN_KNL
 ; RUN: llc -mtriple=x86_64-unknown-linux-gnu -mcpu=skylake < %s | FileCheck %s --check-prefix=WIDEN_AVX2
 
-define <2 x double> @test_gather_v2i32_index(double* %base, <2 x i32> %ind, <2 x i1> %mask, <2 x double> %src0) {
+define <2 x double> @test_gather_v2i32_index(ptr %base, <2 x i32> %ind, <2 x i1> %mask, <2 x double> %src0) {
 ; WIDEN_SKX-LABEL: test_gather_v2i32_index:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm1, %xmm1
@@ -69,12 +69,12 @@ define <2 x double> @test_gather_v2i32_index(double* %base, <2 x i32> %ind, <2 x
 ; WIDEN_AVX2-NEXT:    vgatherdpd %xmm1, (%rdi,%xmm0,8), %xmm2
 ; WIDEN_AVX2-NEXT:    vmovapd %xmm2, %xmm0
 ; WIDEN_AVX2-NEXT:    retq
-  %gep.random = getelementptr double, double* %base, <2 x i32> %ind
-  %res = call <2 x double> @llvm.masked.gather.v2f64.v2p0f64(<2 x double*> %gep.random, i32 4, <2 x i1> %mask, <2 x double> %src0)
+  %gep.random = getelementptr double, ptr %base, <2 x i32> %ind
+  %res = call <2 x double> @llvm.masked.gather.v2f64.v2p0(<2 x ptr> %gep.random, i32 4, <2 x i1> %mask, <2 x double> %src0)
   ret <2 x double> %res
 }
 
-define void @test_scatter_v2i32_index(<2 x double> %a1, double* %base, <2 x i32> %ind, <2 x i1> %mask) {
+define void @test_scatter_v2i32_index(<2 x double> %a1, ptr %base, <2 x i32> %ind, <2 x i1> %mask) {
 ; WIDEN_SKX-LABEL: test_scatter_v2i32_index:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm2, %xmm2
@@ -155,12 +155,12 @@ define void @test_scatter_v2i32_index(<2 x double> %a1, double* %base, <2 x i32>
 ; WIDEN_AVX2-NEXT:    vpextrq $1, %xmm1, %rax
 ; WIDEN_AVX2-NEXT:    vmovhps %xmm0, (%rax)
 ; WIDEN_AVX2-NEXT:    retq
-  %gep = getelementptr double, double *%base, <2 x i32> %ind
-  call void @llvm.masked.scatter.v2f64.v2p0f64(<2 x double> %a1, <2 x double*> %gep, i32 4, <2 x i1> %mask)
+  %gep = getelementptr double, ptr%base, <2 x i32> %ind
+  call void @llvm.masked.scatter.v2f64.v2p0(<2 x double> %a1, <2 x ptr> %gep, i32 4, <2 x i1> %mask)
   ret void
 }
 
-define <2 x i32> @test_gather_v2i32_data(<2 x i32*> %ptr, <2 x i1> %mask, <2 x i32> %src0) {
+define <2 x i32> @test_gather_v2i32_data(<2 x ptr> %ptr, <2 x i1> %mask, <2 x i32> %src0) {
 ; WIDEN_SKX-LABEL: test_gather_v2i32_data:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm1, %xmm1
@@ -218,11 +218,11 @@ define <2 x i32> @test_gather_v2i32_data(<2 x i32*> %ptr, <2 x i1> %mask, <2 x i
 ; WIDEN_AVX2-NEXT:    vpgatherqd %xmm1, (,%xmm0), %xmm2
 ; WIDEN_AVX2-NEXT:    vmovdqa %xmm2, %xmm0
 ; WIDEN_AVX2-NEXT:    retq
-  %res = call <2 x i32> @llvm.masked.gather.v2i32.v2p0i32(<2 x i32*> %ptr, i32 4, <2 x i1> %mask, <2 x i32> %src0)
+  %res = call <2 x i32> @llvm.masked.gather.v2i32.v2p0(<2 x ptr> %ptr, i32 4, <2 x i1> %mask, <2 x i32> %src0)
   ret <2 x i32>%res
 }
 
-define void @test_scatter_v2i32_data(<2 x i32>%a1, <2 x i32*> %ptr, <2 x i1>%mask) {
+define void @test_scatter_v2i32_data(<2 x i32>%a1, <2 x ptr> %ptr, <2 x i1>%mask) {
 ; WIDEN_SKX-LABEL: test_scatter_v2i32_data:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm2, %xmm2
@@ -289,11 +289,11 @@ define void @test_scatter_v2i32_data(<2 x i32>%a1, <2 x i32*> %ptr, <2 x i1>%mas
 ; WIDEN_AVX2-NEXT:    vpextrq $1, %xmm1, %rax
 ; WIDEN_AVX2-NEXT:    vextractps $1, %xmm0, (%rax)
 ; WIDEN_AVX2-NEXT:    retq
-  call void @llvm.masked.scatter.v2i32.v2p0i32(<2 x i32> %a1, <2 x i32*> %ptr, i32 4, <2 x i1> %mask)
+  call void @llvm.masked.scatter.v2i32.v2p0(<2 x i32> %a1, <2 x ptr> %ptr, i32 4, <2 x i1> %mask)
   ret void
 }
 
-define <2 x i32> @test_gather_v2i32_data_index(i32* %base, <2 x i32> %ind, <2 x i1> %mask, <2 x i32> %src0) {
+define <2 x i32> @test_gather_v2i32_data_index(ptr %base, <2 x i32> %ind, <2 x i1> %mask, <2 x i32> %src0) {
 ; WIDEN_SKX-LABEL: test_gather_v2i32_data_index:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm1, %xmm1
@@ -360,12 +360,12 @@ define <2 x i32> @test_gather_v2i32_data_index(i32* %base, <2 x i32> %ind, <2 x 
 ; WIDEN_AVX2-NEXT:    vpgatherdd %xmm1, (%rdi,%xmm0,4), %xmm2
 ; WIDEN_AVX2-NEXT:    vmovdqa %xmm2, %xmm0
 ; WIDEN_AVX2-NEXT:    retq
-  %gep.random = getelementptr i32, i32* %base, <2 x i32> %ind
-  %res = call <2 x i32> @llvm.masked.gather.v2i32.v2p0i32(<2 x i32*> %gep.random, i32 4, <2 x i1> %mask, <2 x i32> %src0)
+  %gep.random = getelementptr i32, ptr %base, <2 x i32> %ind
+  %res = call <2 x i32> @llvm.masked.gather.v2i32.v2p0(<2 x ptr> %gep.random, i32 4, <2 x i1> %mask, <2 x i32> %src0)
   ret <2 x i32> %res
 }
 
-define void @test_scatter_v2i32_data_index(<2 x i32> %a1, i32* %base, <2 x i32> %ind, <2 x i1> %mask) {
+define void @test_scatter_v2i32_data_index(<2 x i32> %a1, ptr %base, <2 x i32> %ind, <2 x i1> %mask) {
 ; WIDEN_SKX-LABEL: test_scatter_v2i32_data_index:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vpsllq $63, %xmm2, %xmm2
@@ -446,12 +446,12 @@ define void @test_scatter_v2i32_data_index(<2 x i32> %a1, i32* %base, <2 x i32> 
 ; WIDEN_AVX2-NEXT:    vpextrq $1, %xmm1, %rax
 ; WIDEN_AVX2-NEXT:    vextractps $1, %xmm0, (%rax)
 ; WIDEN_AVX2-NEXT:    retq
-  %gep = getelementptr i32, i32 *%base, <2 x i32> %ind
-  call void @llvm.masked.scatter.v2i32.v2p0i32(<2 x i32> %a1, <2 x i32*> %gep, i32 4, <2 x i1> %mask)
+  %gep = getelementptr i32, ptr%base, <2 x i32> %ind
+  call void @llvm.masked.scatter.v2i32.v2p0(<2 x i32> %a1, <2 x ptr> %gep, i32 4, <2 x i1> %mask)
   ret void
 }
 
-define void @test_mscatter_v17f32(float* %base, <17 x i32> %index, <17 x float> %val)
+define void @test_mscatter_v17f32(ptr %base, <17 x i32> %index, <17 x float> %val)
 ; WIDEN_SKX-LABEL: test_mscatter_v17f32:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    vinsertps {{.*#+}} xmm4 = xmm4[0],xmm5[0],xmm4[2,3]
@@ -634,12 +634,12 @@ define void @test_mscatter_v17f32(float* %base, <17 x i32> %index, <17 x float> 
 ; WIDEN_AVX2-NEXT:    vzeroupper
 ; WIDEN_AVX2-NEXT:    retq
 {
-  %gep = getelementptr float, float* %base, <17 x i32> %index
-  call void @llvm.masked.scatter.v17f32.v17p0f32(<17 x float> %val, <17 x float*> %gep, i32 4, <17 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>)
+  %gep = getelementptr float, ptr %base, <17 x i32> %index
+  call void @llvm.masked.scatter.v17f32.v17p0(<17 x float> %val, <17 x ptr> %gep, i32 4, <17 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>)
   ret void
 }
 
-define <17 x float> @test_mgather_v17f32(float* %base, <17 x i32> %index)
+define <17 x float> @test_mgather_v17f32(ptr %base, <17 x i32> %index)
 ; WIDEN_SKX-LABEL: test_mgather_v17f32:
 ; WIDEN_SKX:       # %bb.0:
 ; WIDEN_SKX-NEXT:    movq %rdi, %rax
@@ -664,12 +664,14 @@ define <17 x float> @test_mgather_v17f32(float* %base, <17 x i32> %index)
 ; WIDEN_SKX-NEXT:    vinserti64x4 $1, %ymm0, %zmm1, %zmm0
 ; WIDEN_SKX-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; WIDEN_SKX-NEXT:    kxnorw %k0, %k0, %k1
-; WIDEN_SKX-NEXT:    vgatherdps (%rsi,%zmm0,4), %zmm2 {%k1}
+; WIDEN_SKX-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; WIDEN_SKX-NEXT:    vxorps %xmm3, %xmm3, %xmm3
+; WIDEN_SKX-NEXT:    vgatherdps (%rsi,%zmm0,4), %zmm3 {%k1}
 ; WIDEN_SKX-NEXT:    movw $1, %cx
 ; WIDEN_SKX-NEXT:    kmovw %ecx, %k1
-; WIDEN_SKX-NEXT:    vgatherdps (%rsi,%zmm1,4), %zmm0 {%k1}
-; WIDEN_SKX-NEXT:    vmovss %xmm0, 64(%rdi)
-; WIDEN_SKX-NEXT:    vmovaps %zmm2, (%rdi)
+; WIDEN_SKX-NEXT:    vgatherdps (%rsi,%zmm1,4), %zmm2 {%k1}
+; WIDEN_SKX-NEXT:    vmovss %xmm2, 64(%rdi)
+; WIDEN_SKX-NEXT:    vmovaps %zmm3, (%rdi)
 ; WIDEN_SKX-NEXT:    vzeroupper
 ; WIDEN_SKX-NEXT:    retq
 ;
@@ -697,12 +699,14 @@ define <17 x float> @test_mgather_v17f32(float* %base, <17 x i32> %index)
 ; WIDEN_KNL-NEXT:    vinserti64x4 $1, %ymm0, %zmm1, %zmm0
 ; WIDEN_KNL-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; WIDEN_KNL-NEXT:    kxnorw %k0, %k0, %k1
-; WIDEN_KNL-NEXT:    vgatherdps (%rsi,%zmm0,4), %zmm2 {%k1}
+; WIDEN_KNL-NEXT:    vpxor %xmm2, %xmm2, %xmm2
+; WIDEN_KNL-NEXT:    vxorps %xmm3, %xmm3, %xmm3
+; WIDEN_KNL-NEXT:    vgatherdps (%rsi,%zmm0,4), %zmm3 {%k1}
 ; WIDEN_KNL-NEXT:    movw $1, %cx
 ; WIDEN_KNL-NEXT:    kmovw %ecx, %k1
-; WIDEN_KNL-NEXT:    vgatherdps (%rsi,%zmm1,4), %zmm0 {%k1}
-; WIDEN_KNL-NEXT:    vmovss %xmm0, 64(%rdi)
-; WIDEN_KNL-NEXT:    vmovaps %zmm2, (%rdi)
+; WIDEN_KNL-NEXT:    vgatherdps (%rsi,%zmm1,4), %zmm2 {%k1}
+; WIDEN_KNL-NEXT:    vmovss %xmm2, 64(%rdi)
+; WIDEN_KNL-NEXT:    vmovaps %zmm3, (%rdi)
 ; WIDEN_KNL-NEXT:    vzeroupper
 ; WIDEN_KNL-NEXT:    retq
 ;
@@ -711,44 +715,47 @@ define <17 x float> @test_mgather_v17f32(float* %base, <17 x i32> %index)
 ; WIDEN_AVX2-NEXT:    vmovd {{.*#+}} xmm0 = mem[0],zero,zero,zero
 ; WIDEN_AVX2-NEXT:    vpinsrd $1, {{[0-9]+}}(%rsp), %xmm0, %xmm0
 ; WIDEN_AVX2-NEXT:    vpinsrd $2, {{[0-9]+}}(%rsp), %xmm0, %xmm0
+; WIDEN_AVX2-NEXT:    movq %rdi, %rax
 ; WIDEN_AVX2-NEXT:    vpinsrd $3, {{[0-9]+}}(%rsp), %xmm0, %xmm0
+; WIDEN_AVX2-NEXT:    vmovd {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; WIDEN_AVX2-NEXT:    vpinsrd $1, {{[0-9]+}}(%rsp), %xmm1, %xmm1
+; WIDEN_AVX2-NEXT:    vmovss {{.*#+}} xmm2 = mem[0],zero,zero,zero
+; WIDEN_AVX2-NEXT:    vpinsrd $2, {{[0-9]+}}(%rsp), %xmm1, %xmm1
+; WIDEN_AVX2-NEXT:    vpinsrd $3, {{[0-9]+}}(%rsp), %xmm1, %xmm1
+; WIDEN_AVX2-NEXT:    vmovd %edx, %xmm3
+; WIDEN_AVX2-NEXT:    vpinsrd $1, %ecx, %xmm3, %xmm3
+; WIDEN_AVX2-NEXT:    vpinsrd $2, %r8d, %xmm3, %xmm3
+; WIDEN_AVX2-NEXT:    vpinsrd $3, %r9d, %xmm3, %xmm3
+; WIDEN_AVX2-NEXT:    vinserti128 $1, %xmm1, %ymm0, %ymm0
 ; WIDEN_AVX2-NEXT:    vmovd {{.*#+}} xmm1 = mem[0],zero,zero,zero
 ; WIDEN_AVX2-NEXT:    vpinsrd $1, {{[0-9]+}}(%rsp), %xmm1, %xmm1
 ; WIDEN_AVX2-NEXT:    vpinsrd $2, {{[0-9]+}}(%rsp), %xmm1, %xmm1
 ; WIDEN_AVX2-NEXT:    vpinsrd $3, {{[0-9]+}}(%rsp), %xmm1, %xmm1
-; WIDEN_AVX2-NEXT:    movq %rdi, %rax
-; WIDEN_AVX2-NEXT:    vmovd %edx, %xmm2
-; WIDEN_AVX2-NEXT:    vpinsrd $1, %ecx, %xmm2, %xmm2
-; WIDEN_AVX2-NEXT:    vpinsrd $2, %r8d, %xmm2, %xmm2
-; WIDEN_AVX2-NEXT:    vmovss {{.*#+}} xmm3 = mem[0],zero,zero,zero
-; WIDEN_AVX2-NEXT:    vpinsrd $3, %r9d, %xmm2, %xmm2
-; WIDEN_AVX2-NEXT:    vmovd {{.*#+}} xmm4 = mem[0],zero,zero,zero
-; WIDEN_AVX2-NEXT:    vpinsrd $1, {{[0-9]+}}(%rsp), %xmm4, %xmm4
-; WIDEN_AVX2-NEXT:    vinserti128 $1, %xmm1, %ymm0, %ymm0
-; WIDEN_AVX2-NEXT:    vpinsrd $2, {{[0-9]+}}(%rsp), %xmm4, %xmm1
-; WIDEN_AVX2-NEXT:    vpinsrd $3, {{[0-9]+}}(%rsp), %xmm1, %xmm1
-; WIDEN_AVX2-NEXT:    vinserti128 $1, %xmm1, %ymm2, %ymm1
-; WIDEN_AVX2-NEXT:    vpcmpeqd %ymm2, %ymm2, %ymm2
-; WIDEN_AVX2-NEXT:    vgatherdps %ymm2, (%rsi,%ymm1,4), %ymm4
-; WIDEN_AVX2-NEXT:    vpcmpeqd %ymm1, %ymm1, %ymm1
-; WIDEN_AVX2-NEXT:    vgatherdps %ymm1, (%rsi,%ymm0,4), %ymm2
+; WIDEN_AVX2-NEXT:    vinserti128 $1, %xmm1, %ymm3, %ymm1
+; WIDEN_AVX2-NEXT:    vpcmpeqd %ymm3, %ymm3, %ymm3
+; WIDEN_AVX2-NEXT:    vxorps %xmm4, %xmm4, %xmm4
+; WIDEN_AVX2-NEXT:    vpcmpeqd %ymm5, %ymm5, %ymm5
+; WIDEN_AVX2-NEXT:    vxorps %xmm6, %xmm6, %xmm6
+; WIDEN_AVX2-NEXT:    vgatherdps %ymm5, (%rsi,%ymm1,4), %ymm6
+; WIDEN_AVX2-NEXT:    vxorps %xmm1, %xmm1, %xmm1
+; WIDEN_AVX2-NEXT:    vgatherdps %ymm3, (%rsi,%ymm0,4), %ymm1
 ; WIDEN_AVX2-NEXT:    vmovaps {{.*#+}} xmm0 = [4294967295,0,0,0]
-; WIDEN_AVX2-NEXT:    vgatherdps %ymm0, (%rsi,%ymm3,4), %ymm1
-; WIDEN_AVX2-NEXT:    vmovss %xmm1, 64(%rdi)
-; WIDEN_AVX2-NEXT:    vmovaps %ymm2, 32(%rdi)
-; WIDEN_AVX2-NEXT:    vmovaps %ymm4, (%rdi)
+; WIDEN_AVX2-NEXT:    vgatherdps %ymm0, (%rsi,%ymm2,4), %ymm4
+; WIDEN_AVX2-NEXT:    vmovss %xmm4, 64(%rdi)
+; WIDEN_AVX2-NEXT:    vmovaps %ymm1, 32(%rdi)
+; WIDEN_AVX2-NEXT:    vmovaps %ymm6, (%rdi)
 ; WIDEN_AVX2-NEXT:    vzeroupper
 ; WIDEN_AVX2-NEXT:    retq
 {
-  %gep = getelementptr float, float* %base, <17 x i32> %index
-  %res = call <17 x float> @llvm.masked.gather.v17f32.v17p0f32(<17 x float*> %gep, i32 4, <17 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, <17 x float> undef)
+  %gep = getelementptr float, ptr %base, <17 x i32> %index
+  %res = call <17 x float> @llvm.masked.gather.v17f32.v17p0(<17 x ptr> %gep, i32 4, <17 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>, <17 x float> undef)
   ret <17 x float> %res
 }
 
-declare <17 x float> @llvm.masked.gather.v17f32.v17p0f32(<17 x float*>, i32 immarg, <17 x i1>, <17 x float>)
-declare void @llvm.masked.scatter.v17f32.v17p0f32(<17 x float> , <17 x float*> , i32 , <17 x i1>)
+declare <17 x float> @llvm.masked.gather.v17f32.v17p0(<17 x ptr>, i32 immarg, <17 x i1>, <17 x float>)
+declare void @llvm.masked.scatter.v17f32.v17p0(<17 x float> , <17 x ptr> , i32 , <17 x i1>)
 
-declare <2 x double> @llvm.masked.gather.v2f64.v2p0f64(<2 x double*>, i32, <2 x i1>, <2 x double>)
-declare void @llvm.masked.scatter.v2f64.v2p0f64(<2 x double>, <2 x double*>, i32, <2 x i1>)
-declare <2 x i32> @llvm.masked.gather.v2i32.v2p0i32(<2 x i32*>, i32, <2 x i1>, <2 x i32>)
-declare void @llvm.masked.scatter.v2i32.v2p0i32(<2 x i32> , <2 x i32*> , i32 , <2 x i1>)
+declare <2 x double> @llvm.masked.gather.v2f64.v2p0(<2 x ptr>, i32, <2 x i1>, <2 x double>)
+declare void @llvm.masked.scatter.v2f64.v2p0(<2 x double>, <2 x ptr>, i32, <2 x i1>)
+declare <2 x i32> @llvm.masked.gather.v2i32.v2p0(<2 x ptr>, i32, <2 x i1>, <2 x i32>)
+declare void @llvm.masked.scatter.v2i32.v2p0(<2 x i32> , <2 x ptr> , i32 , <2 x i1>)

@@ -1,0 +1,19 @@
+name: 'clang-format'
+description: 'Run clang-format on pull request'
+runs:
+  using: "composite"
+  steps:
+  - name: Run clang-format for the patch
+    shell: bash {0}
+    run: |
+      git config --global --add safe.directory /__w/llvm/llvm
+      git clang-format ${{ github.event.pull_request.base.sha }}
+      git diff > ./clang-format.patch
+  # Add patch with formatting fixes to CI job artifacts
+  - uses: actions/upload-artifact@v1
+    with:
+      name: clang-format-patch
+      path: ./clang-format.patch
+  - name: Check if clang-format patch is empty
+    shell: bash
+    run: bash -c "if [ -s ./clang-format.patch ]; then cat ./clang-format.patch; exit 1; fi"

@@ -14,7 +14,7 @@
 #include <__errc>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -25,6 +25,9 @@ struct _LIBCPP_TYPE_VIS from_chars_result
 {
     const char* ptr;
     errc ec;
+#  if _LIBCPP_STD_VER > 17
+    _LIBCPP_HIDE_FROM_ABI friend bool operator==(const from_chars_result&, const from_chars_result&) = default;
+#  endif
 };
 
 #endif // _LIBCPP_CXX03_LANG

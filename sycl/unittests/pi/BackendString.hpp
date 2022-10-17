@@ -7,10 +7,10 @@
 #include <detail/plugin.hpp>
 
 namespace pi {
-inline const char *GetBackendString(cl::sycl::backend backend) {
+inline const char *GetBackendString(sycl::backend backend) {
   switch (backend) {
 #define PI_BACKEND_STR(backend_name)                                           \
-  case cl::sycl::backend::backend_name:                                        \
+  case sycl::backend::backend_name:                                            \
     return #backend_name
     PI_BACKEND_STR(hip);
     PI_BACKEND_STR(cuda);

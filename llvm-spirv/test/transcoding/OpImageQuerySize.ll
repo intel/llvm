@@ -12,7 +12,7 @@ target triple = "spir64-unknown-unknown"
 
 ; Check conversion of get_image_width, get_image_height, get_image_depth,
 ; get_image_array_size, and get_image_dim OCL built-ins.
-; In general the SPRI-V reader converts OpImageQuerySize into get_image_dim
+; In general the SPIR-V reader converts OpImageQuerySize into get_image_dim
 ; and subsequent extract or shufflevector instructions. Unfortunately there is
 ; no get_image_dim for 1D images and get_image_dim cannot replace get_image_array_size
 

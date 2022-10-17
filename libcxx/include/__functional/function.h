@@ -10,38 +10,57 @@
 #ifndef _LIBCPP___FUNCTIONAL_FUNCTION_H
 #define _LIBCPP___FUNCTIONAL_FUNCTION_H
 
+#include <__assert>
 #include <__config>
-#include <__debug>
 #include <__functional/binary_function.h>
 #include <__functional/invoke.h>
 #include <__functional/unary_function.h>
 #include <__iterator/iterator_traits.h>
+#include <__memory/addressof.h>
+#include <__memory/allocator.h>
 #include <__memory/allocator_traits.h>
+#include <__memory/builtin_new_allocator.h>
 #include <__memory/compressed_pair.h>
 #include <__memory/shared_ptr.h>
+#include <__memory/unique_ptr.h>
+#include <__utility/forward.h>
+#include <__utility/move.h>
+#include <__utility/piecewise_construct.h>
+#include <__utility/swap.h>
 #include <exception>
-#include <memory> // TODO: replace with <__memory/__builtin_new_allocator.h>
+#include <new>
+#include <tuple>
 #include <type_traits>
-#include <utility>
+#include <typeinfo>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 // bad_function_call
 
+_LIBCPP_DIAGNOSTIC_PUSH
+_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wweak-vtables")
 class _LIBCPP_EXCEPTION_ABI bad_function_call
     : public exception
 {
-#ifdef _LIBCPP_ABI_BAD_FUNCTION_CALL_KEY_FUNCTION
 public:
-    virtual ~bad_function_call() _NOEXCEPT;
+// Note that when a key function is not used, every translation unit that uses
+// bad_function_call will end up containing a weak definition of the vtable and
+// typeinfo.
+#ifdef _LIBCPP_ABI_BAD_FUNCTION_CALL_KEY_FUNCTION
+    ~bad_function_call() _NOEXCEPT override;
+#else
+    ~bad_function_call() _NOEXCEPT override {}
+#endif
 
-    virtual const char* what() const _NOEXCEPT;
+#ifdef _LIBCPP_ABI_BAD_FUNCTION_CALL_GOOD_WHAT_MESSAGE
+    const char* what() const _NOEXCEPT override;
 #endif
 };
+_LIBCPP_DIAGNOSTIC_POP
 
 _LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
 void __throw_bad_function_call()
@@ -72,7 +91,7 @@ struct __maybe_derive_from_unary_function
 
 template<class _Rp, class _A1>
 struct __maybe_derive_from_unary_function<_Rp(_A1)>
-    : public unary_function<_A1, _Rp>
+    : public __unary_function<_A1, _Rp>
 {
 };
 
@@ -83,7 +102,7 @@ struct __maybe_derive_from_binary_function
 
 template<class _Rp, class _A1, class _A2>
 struct __maybe_derive_from_binary_function<_Rp(_A1, _A2)>
-    : public binary_function<_A1, _A2, _Rp>
+    : public __binary_function<_A1, _A2, _Rp>
 {
 };
 
@@ -353,7 +372,7 @@ const void*
 __func<_Fp, _Alloc, _Rp(_ArgTypes...)>::target(const type_info& __ti) const _NOEXCEPT
 {
     if (__ti == typeid(_Fp))
-        return &__f_.__target();
+        return _VSTD::addressof(__f_.__target());
     return nullptr;
 }
 
@@ -377,9 +396,9 @@ template <class _Rp, class... _ArgTypes> class __value_func<_Rp(_ArgTypes...)>
     typedef __base<_Rp(_ArgTypes...)> __func;
     __func* __f_;
 
-    _LIBCPP_NO_CFI static __func* __as_base(void* p)
+    _LIBCPP_NO_CFI static __func* __as_base(void* __p)
     {
-        return reinterpret_cast<__func*>(p);
+        return reinterpret_cast<__func*>(__p);
     }
 
   public:
@@ -657,8 +676,7 @@ struct __policy
 // Used to choose between perfect forwarding or pass-by-value. Pass-by-value is
 // faster for types that can be passed in registers.
 template <typename _Tp>
-using __fast_forward =
-    typename conditional<is_scalar<_Tp>::value, _Tp, _Tp&&>::type;
+using __fast_forward = __conditional_t<is_scalar<_Tp>::value, _Tp, _Tp&&>;
 
 // __policy_invoker calls an instance of __alloc_func held in __policy_storage.
 
@@ -939,14 +957,12 @@ public:
 
 #endif // _LIBCPP_HAS_EXTENSION_BLOCKS && !_LIBCPP_HAS_OBJC_ARC
 
-}  // __function
+} // namespace __function
 
 template<class _Rp, class ..._ArgTypes>
 class _LIBCPP_TEMPLATE_VIS function<_Rp(_ArgTypes...)>
-#if _LIBCPP_STD_VER <= 17 || !defined(_LIBCPP_ABI_NO_BINDER_BASES)
     : public __function::__maybe_derive_from_unary_function<_Rp(_ArgTypes...)>,
       public __function::__maybe_derive_from_binary_function<_Rp(_ArgTypes...)>
-#endif
 {
 #ifndef _LIBCPP_ABI_OPTIMIZED_FUNCTION
     typedef __function::__value_func<_Rp(_ArgTypes...)> __func;
@@ -957,7 +973,7 @@ class _LIBCPP_TEMPLATE_VIS function<_Rp(_ArgTypes...)>
     __func __f_;
 
     template <class _Fp, bool = _And<
-        _IsNotSame<__uncvref_t<_Fp>, function>,
+        _IsNotSame<__remove_cvref_t<_Fp>, function>,
         __invokable<_Fp, _ArgTypes...>
     >::value>
     struct __callable;
@@ -1229,7 +1245,7 @@ void
 swap(function<_Rp(_ArgTypes...)>& __x, function<_Rp(_ArgTypes...)>& __y) _NOEXCEPT
 {return __x.swap(__y);}
 
-#else // _LIBCPP_CXX03_LANG
+#elif defined(_LIBCPP_ENABLE_CXX03_FUNCTION)
 
 namespace __function {
 
@@ -1385,7 +1401,7 @@ const void*
 __func<_Fp, _Alloc, _Rp()>::target(const type_info& __ti) const
 {
     if (__ti == typeid(_Fp))
-        return &__f_.first();
+        return _VSTD::addressof(__f_.first());
     return (const void*)0;
 }
 
@@ -1656,7 +1672,7 @@ __func<_Fp, _Alloc, _Rp(_A0, _A1, _A2)>::target_type() const
 
 #endif // _LIBCPP_NO_RTTI
 
-}  // __function
+} // namespace __function
 
 template<class _Rp>
 class _LIBCPP_TEMPLATE_VIS function<_Rp()>
@@ -1710,13 +1726,11 @@ public:
     // 20.7.16.2.3, function capacity:
     _LIBCPP_INLINE_VISIBILITY explicit operator bool() const {return __f_;}
 
-private:
-    // deleted overloads close possible hole in the type system
     template<class _R2>
-      bool operator==(const function<_R2()>&) const;// = delete;
+      bool operator==(const function<_R2()>&) const = delete;
     template<class _R2>
-      bool operator!=(const function<_R2()>&) const;// = delete;
-public:
+      bool operator!=(const function<_R2()>&) const = delete;
+
     // 20.7.16.2.4, function invocation:
     _Rp operator()() const;
 
@@ -1990,13 +2004,11 @@ public:
     // 20.7.16.2.3, function capacity:
     _LIBCPP_INLINE_VISIBILITY explicit operator bool() const {return __f_;}
 
-private:
-    // deleted overloads close possible hole in the type system
     template<class _R2, class _B0>
-      bool operator==(const function<_R2(_B0)>&) const;// = delete;
+      bool operator==(const function<_R2(_B0)>&) const = delete;
     template<class _R2, class _B0>
-      bool operator!=(const function<_R2(_B0)>&) const;// = delete;
-public:
+      bool operator!=(const function<_R2(_B0)>&) const = delete;
+
     // 20.7.16.2.4, function invocation:
     _Rp operator()(_A0) const;
 
@@ -2270,13 +2282,11 @@ public:
     // 20.7.16.2.3, function capacity:
     _LIBCPP_INLINE_VISIBILITY explicit operator bool() const {return __f_;}
 
-private:
-    // deleted overloads close possible hole in the type system
     template<class _R2, class _B0, class _B1>
-      bool operator==(const function<_R2(_B0, _B1)>&) const;// = delete;
+      bool operator==(const function<_R2(_B0, _B1)>&) const = delete;
     template<class _R2, class _B0, class _B1>
-      bool operator!=(const function<_R2(_B0, _B1)>&) const;// = delete;
-public:
+      bool operator!=(const function<_R2(_B0, _B1)>&) const = delete;
+
     // 20.7.16.2.4, function invocation:
     _Rp operator()(_A0, _A1) const;
 
@@ -2549,13 +2559,11 @@ public:
     // 20.7.16.2.3, function capacity:
     _LIBCPP_INLINE_VISIBILITY explicit operator bool() const {return __f_;}
 
-private:
-    // deleted overloads close possible hole in the type system
     template<class _R2, class _B0, class _B1, class _B2>
-      bool operator==(const function<_R2(_B0, _B1, _B2)>&) const;// = delete;
+      bool operator==(const function<_R2(_B0, _B1, _B2)>&) const = delete;
     template<class _R2, class _B0, class _B1, class _B2>
-      bool operator!=(const function<_R2(_B0, _B1, _B2)>&) const;// = delete;
-public:
+      bool operator!=(const function<_R2(_B0, _B1, _B2)>&) const = delete;
+
     // 20.7.16.2.4, function invocation:
     _Rp operator()(_A0, _A1, _A2) const;
 
@@ -2803,7 +2811,7 @@ void
 swap(function<_Fp>& __x, function<_Fp>& __y)
 {return __x.swap(__y);}
 
-#endif
+#endif // _LIBCPP_CXX03_LANG
 
 _LIBCPP_END_NAMESPACE_STD
 

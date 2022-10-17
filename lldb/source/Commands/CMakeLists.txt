@@ -24,7 +24,6 @@ add_lldb_library(lldbCommands
   CommandObjectQuit.cpp
   CommandObjectRegexCommand.cpp
   CommandObjectRegister.cpp
-  CommandObjectReproducer.cpp
   CommandObjectScript.cpp
   CommandObjectSession.cpp
   CommandObjectSettings.cpp
@@ -38,10 +37,10 @@ add_lldb_library(lldbCommands
   CommandObjectVersion.cpp
   CommandObjectWatchpoint.cpp
   CommandObjectWatchpointCommand.cpp
+  CommandOptionArgumentTable.cpp
   CommandOptionsProcessLaunch.cpp
 
   LINK_LIBS
-    lldbBase
     lldbBreakpoint
     lldbCore
     lldbDataFormatters
@@ -51,6 +50,7 @@ add_lldb_library(lldbCommands
     lldbSymbol
     lldbTarget
     lldbUtility
+    lldbVersion
 
   LINK_COMPONENTS
     Support

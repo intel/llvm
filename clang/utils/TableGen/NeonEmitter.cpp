@@ -292,7 +292,7 @@ class Variable {
   std::string N;
 
 public:
-  Variable() : T(Type::getVoid()), N("") {}
+  Variable() : T(Type::getVoid()) {}
   Variable(Type T, std::string N) : T(std::move(T)), N(std::move(N)) {}
 
   Type getType() const { return T; }
@@ -382,7 +382,7 @@ public:
     StringRef Mods = getNextModifiers(Proto, Pos);
     while (!Mods.empty()) {
       Types.emplace_back(InTS, Mods);
-      if (Mods.find('!') != StringRef::npos)
+      if (Mods.contains('!'))
         PolymorphicKeyType = Types.size() - 1;
 
       Mods = getNextModifiers(Proto, Pos);
@@ -395,11 +395,7 @@ public:
 
       // Pointer arguments need to use macros to avoid hiding aligned attributes
       // from the pointer type.
-
-      // It is not permitted to pass or return an __fp16 by value, so intrinsics
-      // taking a scalar float16_t must be implemented as macros.
-      if (Type.isImmediate() || Type.isPointer() ||
-          (Type.isScalar() && Type.isHalf()))
+      if (Type.isImmediate() || Type.isPointer())
         UseMacro = true;
     }
   }
@@ -417,8 +413,7 @@ public:
 
   /// Return true if the intrinsic takes an immediate operand.
   bool hasImmediate() const {
-    return std::any_of(Types.begin(), Types.end(),
-                       [](const Type &T) { return T.isImmediate(); });
+    return llvm::any_of(Types, [](const Type &T) { return T.isImmediate(); });
   }
 
   /// Return the parameter index of the immediate operand.
@@ -442,7 +437,7 @@ public:
   /// Return the index that parameter PIndex will sit at
   /// in a generated function call. This is often just PIndex,
   /// but may not be as things such as multiple-vector operands
-  /// and sret parameters need to be taken into accont.
+  /// and sret parameters need to be taken into account.
   unsigned getGeneratedParamIdx(unsigned PIndex) {
     unsigned Idx = 0;
     if (getReturnType().getNumVectors() > 1)
@@ -503,6 +498,7 @@ private:
   void emitBody(StringRef CallPrefix);
   void emitShadowedArgs();
   void emitArgumentReversal();
+  void emitReturnVarDecl();
   void emitReturnReversal();
   void emitReverseVariable(Variable &Dest, Variable &Src);
   void emitNewLine();
@@ -817,19 +813,19 @@ void Type::applyTypespec(bool &Quad) {
       break;
     case 'h':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 's':
       ElementBitwidth = 16;
       break;
     case 'f':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'i':
       ElementBitwidth = 32;
       break;
     case 'd':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'l':
       ElementBitwidth = 64;
       break;
@@ -1229,6 +1225,15 @@ void Intrinsic::emitArgumentReversal() {
   }
 }
 
+void Intrinsic::emitReturnVarDecl() {
+  assert(RetVar.getType() == Types[0]);
+  // Create a return variable, if we're not void.
+  if (!RetVar.getType().isVoid()) {
+    OS << "  " << RetVar.getType().str() << " " << RetVar.getName() << ";";
+    emitNewLine();
+  }
+}
+
 void Intrinsic::emitReturnReversal() {
   if (isBigEndianSafe())
     return;
@@ -1271,9 +1276,8 @@ void Intrinsic::emitShadowedArgs() {
 }
 
 bool Intrinsic::protoHasScalar() const {
-  return std::any_of(Types.begin(), Types.end(), [](const Type &T) {
-    return T.isScalar() && !T.isImmediate();
-  });
+  return llvm::any_of(
+      Types, [](const Type &T) { return T.isScalar() && !T.isImmediate(); });
 }
 
 void Intrinsic::emitBodyAsBuiltinCall() {
@@ -1308,7 +1312,7 @@ void Intrinsic::emitBodyAsBuiltinCall() {
       if (LocalCK == ClassB) {
         Type T2 = T;
         T2.makeOneVector();
-        T2.makeInteger(8, /*Signed=*/true);
+        T2.makeInteger(8, /*Sign=*/true);
         Cast = "(" + T2.str() + ")";
       }
 
@@ -1354,13 +1358,6 @@ void Intrinsic::emitBodyAsBuiltinCall() {
 
 void Intrinsic::emitBody(StringRef CallPrefix) {
   std::vector<std::string> Lines;
-
-  assert(RetVar.getType() == Types[0]);
-  // Create a return variable, if we're not void.
-  if (!RetVar.getType().isVoid()) {
-    OS << "  " << RetVar.getType().str() << " " << RetVar.getName() << ";";
-    emitNewLine();
-  }
 
   if (!Body || Body->getValues().empty()) {
     // Nothing specific to output - must output a builtin.
@@ -1475,7 +1472,7 @@ Intrinsic::DagEmitter::emitDagCall(DagInit *DI, bool MatchMangledName) {
   Intr.Dependencies.insert(&Callee);
 
   // Now create the call itself.
-  std::string S = "";
+  std::string S;
   if (!Callee.isBigEndianSafe())
     S += CallPrefix.str();
   S += Callee.getMangledName(true) + "(";
@@ -1851,6 +1848,9 @@ void Intrinsic::generateImpl(bool ReverseArguments,
     OS << " __attribute__((unavailable));";
   } else {
     emitOpeningBrace();
+    // Emit return variable declaration first as to not trigger
+    // -Wdeclaration-after-statement.
+    emitReturnVarDecl();
     emitShadowedArgs();
     if (ReverseArguments)
       emitArgumentReversal();
@@ -1869,6 +1869,9 @@ void Intrinsic::indexBody() {
   CurrentRecord = R;
 
   initVariables();
+  // Emit return variable declaration first as to not trigger
+  // -Wdeclaration-after-statement.
+  emitReturnVarDecl();
   emitBody("");
   OS.str("");
 
@@ -1916,10 +1919,9 @@ Intrinsic &NeonEmitter::getIntrinsic(StringRef Name, ArrayRef<Type> Types,
       continue;
 
     unsigned ArgNum = 0;
-    bool MatchingArgumentTypes =
-        std::all_of(Types.begin(), Types.end(), [&](const auto &Type) {
-          return Type == I.getParamType(ArgNum++);
-        });
+    bool MatchingArgumentTypes = llvm::all_of(Types, [&](const auto &Type) {
+      return Type == I.getParamType(ArgNum++);
+    });
 
     if (MatchingArgumentTypes)
       GoodVec.push_back(&I);

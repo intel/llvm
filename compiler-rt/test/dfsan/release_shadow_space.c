@@ -1,7 +1,7 @@
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -o %t && setarch `uname -m` -R %run %t
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -o %t && setarch `uname -m` -R %run %t
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && setarch `uname -m` -R %run %t
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && setarch `uname -m` -R %run %t
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -o %t && %run %t
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -o %t && %run %t
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && %run %t
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && %run %t
 //
 // REQUIRES: x86_64-target-arch
 
@@ -88,7 +88,6 @@ int main(int argc, char **argv) {
          before + mmap_cost_kb + mmap_shadow_cost_kb + mmap_origin_cost_kb);
 
 #ifdef ORIGIN_TRACKING
-  // Origin chain (sanitizer PersistentAllocator, never freed).
   // This value is chosen based on observed difference.
   const size_t mmap_origin_chain_kb = 4000;
 #else

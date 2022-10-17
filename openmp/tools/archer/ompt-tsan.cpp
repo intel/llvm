@@ -42,6 +42,9 @@
 // Use a function like macro to imply that it must be followed by a semicolon
 #if __cplusplus > 201402L && __has_cpp_attribute(fallthrough)
 #define KMP_FALLTHROUGH() [[fallthrough]]
+// icc cannot properly tell this attribute is absent so force off
+#elif defined(__INTEL_COMPILER)
+#define KMP_FALLTHROUGH() ((void)0)
 #elif __has_cpp_attribute(clang::fallthrough)
 #define KMP_FALLTHROUGH() [[clang::fallthrough]]
 #elif __has_attribute(fallthrough) || __GNUC__ >= 7
@@ -686,10 +689,10 @@ static void ompt_tsan_implicit_task(ompt_scope_endpoint_t endpoint,
 #endif
     assert(Data->RefCount == 1 &&
            "All tasks should have finished at the implicit barrier!");
-    Data->Delete();
     if (type & ompt_task_initial) {
-      ToParallelData(parallel_data)->Delete();
+      Data->Team->Delete();
     }
+    Data->Delete();
     TsanFuncExit();
     break;
   }
@@ -1001,6 +1004,10 @@ static void ompt_tsan_dependences(ompt_data_t *task_data,
   if (ndeps > 0) {
     // Copy the data to use it in task_switch and task_end.
     TaskData *Data = ToTaskData(task_data);
+    if (!Data->Parent) {
+      // Return since doacross dependences are not supported yet.
+      return;
+    }
     if (!Data->Parent->DependencyMap)
       Data->Parent->DependencyMap =
           new std::unordered_map<void *, DependencyData *>();

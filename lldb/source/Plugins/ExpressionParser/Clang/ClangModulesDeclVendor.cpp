@@ -32,8 +32,8 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/StreamString.h"
 
 #include <memory>
@@ -130,7 +130,7 @@ private:
 } // anonymous namespace
 
 StoringDiagnosticConsumer::StoringDiagnosticConsumer() {
-  m_log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS);
+  m_log = GetLog(LLDBLog::Expressions);
 
   clang::DiagnosticOptions *m_options = new clang::DiagnosticOptions();
   m_os = std::make_shared<llvm::raw_string_ostream>(m_output);
@@ -517,8 +517,9 @@ void ClangModulesDeclVendorImpl::ForEachMacro(
 
         bool first_token = true;
 
-        for (clang::MacroInfo::tokens_iterator ti = macro_info->tokens_begin(),
-                                               te = macro_info->tokens_end();
+        for (clang::MacroInfo::const_tokens_iterator
+                 ti = macro_info->tokens_begin(),
+                 te = macro_info->tokens_end();
              ti != te; ++ti) {
           if (!first_token)
             macro_expansion.append(" ");
@@ -656,14 +657,16 @@ ClangModulesDeclVendor::Create(Target &target) {
   for (const std::string &arg : compiler_invocation_arguments)
     compiler_invocation_argument_cstrs.push_back(arg.c_str());
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
   LLDB_LOG(log, "ClangModulesDeclVendor's compiler flags {0:$[ ]}",
            llvm::make_range(compiler_invocation_arguments.begin(),
                             compiler_invocation_arguments.end()));
 
+  clang::CreateInvocationOptions CIOpts;
+  CIOpts.Diags = diagnostics_engine;
   std::shared_ptr<clang::CompilerInvocation> invocation =
-      clang::createInvocationFromCommandLine(compiler_invocation_argument_cstrs,
-                                             diagnostics_engine);
+      clang::createInvocation(compiler_invocation_argument_cstrs,
+                              std::move(CIOpts));
 
   if (!invocation)
     return nullptr;
@@ -678,18 +681,6 @@ ClangModulesDeclVendor::Create(Target &target) {
 
   std::unique_ptr<clang::CompilerInstance> instance(
       new clang::CompilerInstance);
-
-  // When capturing a reproducer, hook up the file collector with clang to
-  // collector modules and headers.
-  if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator()) {
-    repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
-    instance->setModuleDepCollector(
-        std::make_shared<ModuleDependencyCollectorAdaptor>(
-            fp.GetFileCollector()));
-    clang::DependencyOutputOptions &opts = instance->getDependencyOutputOpts();
-    opts.IncludeSystemHeaders = true;
-    opts.IncludeModuleFiles = true;
-  }
 
   // Make sure clang uses the same VFS as LLDB.
   instance->createFileManager(FileSystem::Instance().GetVirtualFileSystem());
@@ -724,8 +715,8 @@ ClangModulesDeclVendor::Create(Target &target) {
   parser->Initialize();
 
   clang::Parser::DeclGroupPtrTy parsed;
-
-  while (!parser->ParseTopLevelDecl(parsed))
+  auto ImportState = clang::Sema::ModuleImportState::NotACXX20Module;
+  while (!parser->ParseTopLevelDecl(parsed, ImportState))
     ;
 
   return new ClangModulesDeclVendorImpl(std::move(diagnostics_engine),

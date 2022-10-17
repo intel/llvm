@@ -2,9 +2,6 @@
 Use lldb Python API to disassemble raw machine code bytes
 """
 
-from __future__ import print_function
-
-
 import re
 import lldb
 from lldbsuite.test.decorators import *
@@ -13,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 
 class DisassembleRawDataTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     @no_debug_info_test
     @skipIfRemote
@@ -31,7 +26,7 @@ class DisassembleRawDataTestCase(TestBase):
         elif re.match("powerpc64le", arch):
             target = self.dbg.CreateTargetWithFileAndTargetTriple("", "powerpc64le")
             raw_bytes = bytearray([0x00, 0x00, 0x80, 0x38])
-        elif arch == "aarch64":
+        elif arch in ("aarch64", "arm64"):
             target = self.dbg.CreateTargetWithFileAndTargetTriple("", "aarch64")
             raw_bytes = bytearray([0x60, 0x0c, 0x80, 0x52])
         elif arch == "arm":
@@ -54,16 +49,26 @@ class DisassembleRawDataTestCase(TestBase):
             self.assertEqual(inst.GetMnemonic(target), "move")
             self.assertEqual(inst.GetOperands(target),
                             '$' + "fp, " + '$' + "sp")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
         elif re.match("powerpc64le", arch):
             self.assertEqual(inst.GetMnemonic(target), "li")
             self.assertEqual(inst.GetOperands(target), "4, 0")
-        elif arch == "aarch64":
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
+        elif arch in ("aarch64", "arm64"):
             self.assertEqual(inst.GetMnemonic(target), "mov")
             self.assertEqual(inst.GetOperands(target), "w0, #0x63")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
         elif arch == "arm":
             self.assertEqual(inst.GetMnemonic(target), "mov")
             self.assertEqual(inst.GetOperands(target), "r3, #99")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindUnknown)
         else:
             self.assertEqual(inst.GetMnemonic(target), "movq")
             self.assertEqual(inst.GetOperands(target),
                             '%' + "rsp, " + '%' + "rbp")
+            self.assertEqual(inst.GetControlFlowKind(target),
+                            lldb.eInstructionControlFlowKindOther)

@@ -91,9 +91,9 @@
 ; CHECK-SPV-IR: declare spir_func i32 @_Z32__spirv_SubgroupShuffleDownINTELiij(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func i32 @_Z30__spirv_SubgroupShuffleUpINTELiij(i32, i32, i32) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func i32 @_Z31__spirv_SubgroupShuffleXorINTELij(i32, i32) #[[#Attrs]]
-; CHECK-SPV-IR: declare spir_func i32 @_Z36__spirv_SubgroupBlockReadINTEL_RuintPU3AS1Kj(i32 addrspace(1)*) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z35__spirv_SubgroupBlockReadINTEL_RintPU3AS1Kj(i32 addrspace(1)*) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1jj(i32 addrspace(1)*, i32) #[[#Attrs]]
-; CHECK-SPV-IR: declare spir_func i32 @_Z41__spirv_SubgroupImageBlockReadINTEL_RuintPU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_i(%spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)*, <2 x i32>) #[[#Attrs]]
+; CHECK-SPV-IR: declare spir_func i32 @_Z40__spirv_SubgroupImageBlockReadINTEL_RintPU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_i(%spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)*, <2 x i32>) #[[#Attrs]]
 ; CHECK-SPV-IR: declare spir_func void @_Z36__spirv_SubgroupImageBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_2Dv2_ij(%spirv.Image._void_1_0_0_0_0_0_2 addrspace(1)*, <2 x i32>, i32) #[[#Attrs]]
 
 ; CHECK-COMMON: attributes #[[#Attrs]] =

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/TosaToSCF/TosaToSCF.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -32,11 +32,10 @@ static void inlineIfCase(Region &srcRegion, Region &dstRegion,
 
   auto yield = cast<YieldOp>(headBlock->getTerminator());
   rewriter.setInsertionPoint(yield);
-  rewriter.create<scf::YieldOp>(yield.getLoc(), yield.inputs());
+  rewriter.create<scf::YieldOp>(yield.getLoc(), yield.getInputs());
   rewriter.eraseOp(yield);
 
-  headBlock->eraseArguments(
-      llvm::to_vector<4>(llvm::seq<unsigned>(0, headBlock->getNumArguments())));
+  headBlock->eraseArguments(0, headBlock->getNumArguments());
 }
 
 static void inlineWhileCase(Region &srcRegion, Region &dstRegion,
@@ -55,7 +54,7 @@ static void inlineWhileCase(Region &srcRegion, Region &dstRegion,
                                       headBlock->getArguments());
   } else {
     rewriter.setInsertionPoint(yield);
-    rewriter.create<scf::YieldOp>(yield.getLoc(), yield.inputs());
+    rewriter.create<scf::YieldOp>(yield.getLoc(), yield.getInputs());
   }
   rewriter.eraseOp(yield);
 }
@@ -68,12 +67,15 @@ public:
 
   LogicalResult matchAndRewrite(tosa::IfOp op,
                                 PatternRewriter &rewriter) const final {
-    auto condition = rewriter.create<tensor::ExtractOp>(op.getLoc(), op.cond());
+    auto condition =
+        rewriter.create<tensor::ExtractOp>(op.getLoc(), op.getCond());
     auto newIf = rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(),
                                             condition, true);
 
-    inlineIfCase(op.then_branch(), newIf.thenRegion(), op.inputs(), rewriter);
-    inlineIfCase(op.else_branch(), newIf.elseRegion(), op.inputs(), rewriter);
+    inlineIfCase(op.getThenBranch(), newIf.getThenRegion(), op.getInputs(),
+                 rewriter);
+    inlineIfCase(op.getElseBranch(), newIf.getElseRegion(), op.getInputs(),
+                 rewriter);
 
     rewriter.replaceOp(op, newIf.getResults());
     return success();
@@ -87,12 +89,12 @@ public:
   LogicalResult matchAndRewrite(tosa::WhileOp op,
                                 PatternRewriter &rewriter) const final {
     auto newWhile = rewriter.create<scf::WhileOp>(
-        op.getLoc(), op.getResultTypes(), op.inputs());
-    rewriter.createBlock(&newWhile.before());
-    rewriter.createBlock(&newWhile.after());
+        op.getLoc(), op.getResultTypes(), op.getInputs());
+    rewriter.createBlock(&newWhile.getBefore());
+    rewriter.createBlock(&newWhile.getAfter());
 
-    inlineWhileCase(op.cond(), newWhile.before(), rewriter, true);
-    inlineWhileCase(op.body(), newWhile.after(), rewriter, false);
+    inlineWhileCase(op.getCond(), newWhile.getBefore(), rewriter, true);
+    inlineWhileCase(op.getBody(), newWhile.getAfter(), rewriter, false);
 
     rewriter.replaceOp(op, newWhile.getResults());
 

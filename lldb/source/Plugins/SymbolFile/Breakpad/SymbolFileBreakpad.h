@@ -20,7 +20,7 @@ namespace lldb_private {
 
 namespace breakpad {
 
-class SymbolFileBreakpad : public SymbolFile {
+class SymbolFileBreakpad : public SymbolFileCommon {
   /// LLVM RTTI support.
   static char ID;
 
@@ -28,7 +28,7 @@ public:
   /// LLVM RTTI support.
   /// \{
   bool isA(const void *ClassID) const override {
-    return ClassID == &ID || SymbolFile::isA(ClassID);
+    return ClassID == &ID || SymbolFileCommon::isA(ClassID);
   }
   static bool classof(const SymbolFile *obj) { return obj->isA(&ID); }
   /// \}
@@ -37,9 +37,9 @@ public:
   static void Initialize();
   static void Terminate();
   static void DebuggerInitialize(Debugger &debugger) {}
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "breakpad"; }
 
-  static const char *GetPluginDescriptionStatic() {
+  static llvm::StringRef GetPluginDescriptionStatic() {
     return "Breakpad debug symbol file reader.";
   }
 
@@ -49,7 +49,7 @@ public:
 
   // Constructors and Destructors
   SymbolFileBreakpad(lldb::ObjectFileSP objfile_sp)
-      : SymbolFile(std::move(objfile_sp)) {}
+      : SymbolFileCommon(std::move(objfile_sp)) {}
 
   ~SymbolFileBreakpad() override = default;
 
@@ -62,6 +62,8 @@ public:
   lldb::LanguageType ParseLanguage(CompileUnit &comp_unit) override {
     return lldb::eLanguageTypeUnknown;
   }
+
+  lldb::FunctionSP GetOrCreateFunction(CompileUnit &comp_unit);
 
   size_t ParseFunctions(CompileUnit &comp_unit) override;
 
@@ -79,7 +81,7 @@ public:
     return false;
   }
 
-  size_t ParseBlocksRecursive(Function &func) override { return 0; }
+  size_t ParseBlocksRecursive(Function &func) override;
 
   void FindGlobalVariables(ConstString name,
                            const CompilerDeclContext &parent_decl_ctx,
@@ -108,9 +110,8 @@ public:
   void GetTypes(SymbolContextScope *sc_scope, lldb::TypeClass type_mask,
                 TypeList &type_list) override {}
 
-  void FindFunctions(ConstString name,
+  void FindFunctions(const Module::LookupInfo &lookup_info,
                      const CompilerDeclContext &parent_decl_ctx,
-                     lldb::FunctionNameType name_type_mask,
                      bool include_inlines, SymbolContextList &sc_list) override;
 
   void FindFunctions(const RegularExpression &regex, bool include_inlines,
@@ -146,9 +147,9 @@ public:
   GetUnwindPlan(const Address &address,
                 const RegisterInfoResolver &resolver) override;
 
-  llvm::StringRef GetPluginName() override {
-    return GetPluginNameStatic().GetStringRef();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
+
+  uint64_t GetDebugInfoSize() override;
 
 private:
   // A class representing a position in the breakpad file. Useful for
@@ -221,11 +222,13 @@ private:
                          UnwindPlan::Row &row);
   lldb::UnwindPlanSP ParseWinUnwindPlan(const Bookmark &bookmark,
                                         const RegisterInfoResolver &resolver);
+  void ParseInlineOriginRecords();
 
   using CompUnitMap = RangeDataVector<lldb::addr_t, lldb::addr_t, CompUnitData>;
 
   llvm::Optional<std::vector<FileSpec>> m_files;
   llvm::Optional<CompUnitMap> m_cu_data;
+  llvm::Optional<std::vector<llvm::StringRef>> m_inline_origins;
 
   using UnwindMap = RangeDataVector<lldb::addr_t, lldb::addr_t, Bookmark>;
   struct UnwindData {

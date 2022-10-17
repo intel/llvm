@@ -56,8 +56,12 @@ public:
       return;
     Guid = expectedInfo->getGuid();
     auto it = ctx.typeServerSourceMappings.emplace(Guid, this);
-    assert(it.second);
-    (void)it;
+    if (!it.second) {
+      // If we hit here we have collision on Guid's in two PDB files.
+      // This can happen if the PDB Guid is invalid or if we are really
+      // unlucky. This should fall back on stright file-system lookup.
+      it.first->second = nullptr;
+    }
   }
 
   Error mergeDebugT(TypeMerger *m) override;
@@ -325,7 +329,7 @@ Error TpiSource::mergeDebugT(TypeMerger *m) {
     m->tpiCounts.resize(m->getTypeTable().size());
     m->ipiCounts.resize(m->getIDTable().size());
     uint32_t srcIdx = nbHeadIndices;
-    for (CVType &ty : types) {
+    for (const CVType &ty : types) {
       TypeIndex dstIdx = tpiMap[srcIdx++];
       // Type merging may fail, so a complex source type may become the simple
       // NotTranslated type, which cannot be used as an array index.
@@ -398,11 +402,12 @@ Expected<TypeServerSource *> UseTypeServerSource::getTypeServerSource() {
   const codeview::GUID &tsId = typeServerDependency.getGuid();
   StringRef tsPath = typeServerDependency.getName();
 
-  TypeServerSource *tsSrc;
+  TypeServerSource *tsSrc = nullptr;
   auto it = ctx.typeServerSourceMappings.find(tsId);
   if (it != ctx.typeServerSourceMappings.end()) {
     tsSrc = (TypeServerSource *)it->second;
-  } else {
+  }
+  if (tsSrc == nullptr) {
     // The file failed to load, lookup by name
     PDBInputFile *pdb = PDBInputFile::findFromRecordPath(ctx, tsPath, file);
     if (!pdb)
@@ -642,7 +647,7 @@ void TpiSource::mergeUniqueTypeRecords(ArrayRef<uint8_t> typeRecords,
                                        TypeIndex beginIndex) {
   // Re-sort the list of unique types by index.
   if (kind == PDB)
-    assert(std::is_sorted(uniqueTypes.begin(), uniqueTypes.end()));
+    assert(llvm::is_sorted(uniqueTypes));
   else
     llvm::sort(uniqueTypes);
 
@@ -897,7 +902,11 @@ struct GHashTable {
 
 /// A ghash table cell for deduplicating types from TpiSources.
 class GHashCell {
-  uint64_t data = 0;
+  // Force "data" to be 64-bit aligned; otherwise, some versions of clang
+  // will generate calls to libatomic when using some versions of libstdc++
+  // on 32-bit targets.  (Also, in theory, there could be a target where
+  // new[] doesn't always return an 8-byte-aligned allocation.)
+  alignas(sizeof(uint64_t)) uint64_t data = 0;
 
 public:
   GHashCell() = default;
@@ -944,15 +953,13 @@ public:
 };
 } // namespace
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 /// This type is just a wrapper around GHashTable with external linkage so it
 /// can be used from a header.
 struct GHashState {
   GHashTable table;
 };
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff
 
 GHashTable::~GHashTable() { delete[] table; }
 
@@ -1047,7 +1054,7 @@ void TypeMerger::mergeTypesWithGHash() {
   // position. Because the table does not rehash, the position will not change
   // under insertion. After insertion is done, the value of the cell can be read
   // to retrieve the final PDB type index.
-  parallelForEachN(0, ctx.tpiSourceList.size(), [&](size_t tpiSrcIdx) {
+  parallelFor(0, ctx.tpiSourceList.size(), [&](size_t tpiSrcIdx) {
     TpiSource *source = ctx.tpiSourceList[tpiSrcIdx];
     source->indexMapStorage.resize(source->ghashes.size());
     for (uint32_t i = 0, e = source->ghashes.size(); i < e; i++) {
@@ -1087,8 +1094,7 @@ void TypeMerger::mergeTypesWithGHash() {
               entries.size(), tableSize));
 
   // Find out how many type and item indices there are.
-  auto mid =
-      std::lower_bound(entries.begin(), entries.end(), GHashCell(true, 0, 0));
+  auto mid = llvm::lower_bound(entries, GHashCell(true, 0, 0));
   assert((mid == entries.end() || mid->isItem()) &&
          (mid == entries.begin() || !std::prev(mid)->isItem()) &&
          "midpoint is not midpoint");
@@ -1117,9 +1123,8 @@ void TypeMerger::mergeTypesWithGHash() {
   }
 
   // In parallel, remap all types.
-  for_each(dependencySources, [&](TpiSource *source) {
+  for (TpiSource *source : dependencySources)
     source->remapTpiWithGHashes(&ghashState);
-  });
   parallelForEach(objectSources, [&](TpiSource *source) {
     source->remapTpiWithGHashes(&ghashState);
   });

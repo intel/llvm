@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // constexpr void check_arg_id(size_t id);
@@ -26,7 +25,7 @@ constexpr bool test() {
 }
 
 int main(int, char**) {
-  // expected-error@+1 {{static_assert expression is not an integral constant expression}}
+  // expected-error-re@+1 {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
   static_assert(test());
 
   return 0;

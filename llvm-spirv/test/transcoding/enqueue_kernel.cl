@@ -1,11 +1,14 @@
-// RUN: %clang_cc1 -triple spir-unknown-unknown -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc
+// RUN: %clang_cc1 -triple spir-unknown-unknown -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
 // RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: llvm-spirv -r %t.spv --spirv-target-env CL2.0 -o %t.rev.bc
 // RUN: llvm-dis %t.rev.bc
 // RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spv --spirv-target-env SPV-IR -o %t.rev.bc
+// RUN: llvm-dis %t.rev.bc
+// RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-SPV-IR
 
 // CHECK-SPIRV: EntryPoint {{[0-9]+}} [[BlockKer1:[0-9]+]] "__device_side_enqueue_block_invoke_kernel"
 // CHECK-SPIRV: EntryPoint {{[0-9]+}} [[BlockKer2:[0-9]+]] "__device_side_enqueue_block_invoke_2_kernel"
@@ -23,7 +26,6 @@
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt8:[0-9]+]] 8
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt20:[0-9]+]] 24
 
-// CHECK-SPIRV: TypePointer {{[0-9]+}} 7 {{[0-9]+}}
 // CHECK-SPIRV: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
 // CHECK-SPIRV: TypeVoid [[VoidTy:[0-9]+]]
 // CHECK-SPIRV: TypePointer [[Int32LocPtrTy:[0-9]+]] 7 [[Int32Ty]]
@@ -64,7 +66,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   // CHECK-LLVM: [[InterCast2:%[0-9]+]] = bitcast %struct.__opencl_block_literal_generic* [[Block2]] to i8
   // CHECK-LLVM: [[Block2Ptr:%[0-9]+]] = addrspacecast i8* [[InterCast2]] to i8 addrspace(4)*
   // CHECK-LLVM: [[BlockInv2:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_kernel to i8 addrspace(4)*
-  // CHECK-LLVM: call i32 @__enqueue_kernel_basic(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i8 addrspace(4)* [[BlockInv2]], i8 addrspace(4)* [[Block2Ptr]])
+  // CHECK-LLVM: call spir_func i32 @__enqueue_kernel_basic(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i8 addrspace(4)* [[BlockInv2]], i8 addrspace(4)* [[Block2Ptr]])
+  // CHECK-SPV-IR: call spir_func i32 @_Z21__spirv_EnqueueKernelP13__spirv_Queuei9ndrange_tiPU3AS4P19__spirv_DeviceEventS5_U13block_pointerFvvEPU3AS4cii(%spirv.Queue* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 0, %spirv.DeviceEvent* addrspace(4)* null, %spirv.DeviceEvent* addrspace(4)* null, void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_kernel, i8 addrspace(4)* {{.*}}, i32 {{.*}}, i32 {{.*}})
   enqueue_kernel(default_queue, flags, ndrange,
                  ^(void) {
                    a[i] = c0;
@@ -84,7 +87,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   // CHECK-LLVM: [[InterCast3:%[0-9]+]] = bitcast %struct.__opencl_block_literal_generic* [[Block3]] to i8
   // CHECK-LLVM: [[Block3Ptr:%[0-9]+]] = addrspacecast i8* [[InterCast3]] to i8 addrspace(4)
   // CHECK-LLVM: [[BlockInv3:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_2_kernel to i8 addrspace(4)*
-  // CHECK-LLVM: call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %opencl.clk_event_t* addrspace(4)* {{.*}}, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv3]], i8 addrspace(4)* [[Block3Ptr]])
+  // CHECK-LLVM: call spir_func i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %opencl.clk_event_t* addrspace(4)* {{.*}}, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv3]], i8 addrspace(4)* [[Block3Ptr]])
+  // CHECK-SPV-IR: call spir_func i32 @_Z21__spirv_EnqueueKernelP13__spirv_Queuei9ndrange_tiPU3AS4P19__spirv_DeviceEventS5_U13block_pointerFvvEPU3AS4cii(%spirv.Queue* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %spirv.DeviceEvent* addrspace(4)* {{.*}}, %spirv.DeviceEvent* addrspace(4)* {{.*}}, void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_2_kernel, i8 addrspace(4)* %{{.*}}, i32 {{.*}}, i32 {{.*}})
   enqueue_kernel(default_queue, flags, ndrange, 2, &event_wait_list, &clk_event,
                  ^(void) {
                    a[i] = b[i];
@@ -104,7 +108,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   // CHECK-LLVM: [[Block0Tmp:%[0-9]+]] = bitcast [[BlockTy1]] addrspace(1)* @__block_literal_global to i8 addrspace(1)*
   // CHECK-LLVM: [[Block0:%[0-9]+]] = addrspacecast i8 addrspace(1)* [[Block0Tmp]] to i8 addrspace(4)*
   // CHECK-LLVM: [[BlockInv0:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*, i8 addrspace(3)*)* @__device_side_enqueue_block_invoke_3_kernel to i8 addrspace(4)*
-  // CHECK-LLVM: call i32 @__enqueue_kernel_events_varargs(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %opencl.clk_event_t* addrspace(4)* {{.*}}, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv0]], i8 addrspace(4)* [[Block0]], i32 1, i32* {{.*}})
+  // CHECK-LLVM: call spir_func i32 @__enqueue_kernel_events_varargs(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %opencl.clk_event_t* addrspace(4)* {{.*}}, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv0]], i8 addrspace(4)* [[Block0]], i32 1, i32* {{.*}})
+  // CHECK-SPV-IR: call spir_func i32 @_Z21__spirv_EnqueueKernelP13__spirv_Queuei9ndrange_tiPU3AS4P19__spirv_DeviceEventS5_U13block_pointerFvvEPU3AS4ciiPi(%spirv.Queue* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %spirv.DeviceEvent* addrspace(4)* {{.*}}, %spirv.DeviceEvent* addrspace(4)* {{.*}}, void (i8 addrspace(4)*, i8 addrspace(3)*)* @__device_side_enqueue_block_invoke_3_kernel, i8 addrspace(4)* {{.*}}, i32 {{.*}}, i32 {{.*}}, i32* {{.*}})
   enqueue_kernel(default_queue, flags, ndrange, 2, event_wait_list2, &clk_event,
                  ^(local void *p) {
                    return;
@@ -126,7 +131,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   // CHECK-LLVM: [[Block1Tmp:%[0-9]+]] = bitcast [[BlockTy1]] addrspace(1)* @__block_literal_global.1 to i8 addrspace(1)*
   // CHECK-LLVM: [[Block1:%[0-9]+]] = addrspacecast i8 addrspace(1)* [[Block1Tmp]] to i8 addrspace(4)*
   // CHECK-LLVM: [[BlockInv1:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*, i8 addrspace(3)*, i8 addrspace(3)*, i8 addrspace(3)*)* @__device_side_enqueue_block_invoke_4_kernel to i8 addrspace(4)*
-  // CHECK-LLVM: call i32 @__enqueue_kernel_varargs(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i8 addrspace(4)* [[BlockInv1]], i8 addrspace(4)* [[Block1]], i32 3, i32* {{.*}})
+  // CHECK-LLVM: call spir_func i32 @__enqueue_kernel_varargs(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i8 addrspace(4)* [[BlockInv1]], i8 addrspace(4)* [[Block1]], i32 3, i32* {{.*}})
+  // CHECK-SPV-IR: call spir_func i32 @_Z21__spirv_EnqueueKernelP13__spirv_Queuei9ndrange_tiPU3AS4P19__spirv_DeviceEventS5_U13block_pointerFvvEPU3AS4ciiPiSA_SA_(%spirv.Queue* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 0, %spirv.DeviceEvent* addrspace(4)* null, %spirv.DeviceEvent* addrspace(4)* null, void (i8 addrspace(4)*, i8 addrspace(3)*, i8 addrspace(3)*, i8 addrspace(3)*)* @__device_side_enqueue_block_invoke_4_kernel, i8 addrspace(4)* {{.*}}, i32 {{.*}}, i32 {{.*}}, i32* {{.*}}, i32* {{.*}}, i32* {{.*}})
   enqueue_kernel(default_queue, flags, ndrange,
                  ^(local void *p1, local void *p2, local void *p3) {
                    return;
@@ -146,7 +152,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   // CHECK-LLVM: [[InterCast5:%[0-9]+]] = bitcast %struct.__opencl_block_literal_generic* [[Block5]] to i8
   // CHECK-LLVM: [[Block5Ptr:%[0-9]+]] = addrspacecast i8* [[InterCast5]] to i8 addrspace(4)
   // CHECK-LLVM: [[BlockInv5:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_5_kernel to i8 addrspace(4)*
-  // CHECK-LLVM: call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 0, %opencl.clk_event_t* addrspace(4)* null, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv5]], i8 addrspace(4)* [[Block5Ptr]])
+  // CHECK-LLVM: call spir_func i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 0, %opencl.clk_event_t* addrspace(4)* null, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv5]], i8 addrspace(4)* [[Block5Ptr]])
+  // CHECK-SPV-IR: call spir_func i32 @_Z21__spirv_EnqueueKernelP13__spirv_Queuei9ndrange_tiPU3AS4P19__spirv_DeviceEventS5_U13block_pointerFvvEPU3AS4cii(%spirv.Queue* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 0, %spirv.DeviceEvent* addrspace(4)* null, %spirv.DeviceEvent* addrspace(4)* {{.*}}, void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_5_kernel, i8 addrspace(4)* {{.*}}, i32 {{.*}}, i32 {{.*}})
   enqueue_kernel(default_queue, flags, ndrange, 0, NULL, &clk_event,
                  ^(void) {
                    a[i] = b[i];

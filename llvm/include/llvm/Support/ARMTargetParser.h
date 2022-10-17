@@ -14,7 +14,6 @@
 #ifndef LLVM_SUPPORT_ARMTARGETPARSER_H
 #define LLVM_SUPPORT_ARMTARGETPARSER_H
 
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ARMBuildAttributes.h"
 #include <vector>
@@ -59,7 +58,7 @@ enum ArchExtKind : uint64_t {
   AEK_CDECP5 =      1 << 27,
   AEK_CDECP6 =      1 << 28,
   AEK_CDECP7 =      1 << 29,
-
+  AEK_PACBTI =      1 << 30,
   // Unsupported extensions.
   AEK_OS       =    1ULL << 59,
   AEK_IWMMXT   =    1ULL << 60,
@@ -217,7 +216,14 @@ template <typename T> struct ArchNames {
   StringRef getCPUAttr() const { return StringRef(CPUAttrCStr, CPUAttrLength); }
 
   // Sub-Arch name.
-  StringRef getSubArch() const { return StringRef(SubArchCStr, SubArchLength); }
+  StringRef getSubArch() const {
+    return getArchFeature().substr(1, SubArchLength);
+  }
+
+  // Arch Feature name.
+  StringRef getArchFeature() const {
+    return StringRef(SubArchCStr, SubArchLength);
+  }
 };
 
 static const ArchNames<ArchKind> ARCHNames[] = {
@@ -225,7 +231,7 @@ static const ArchNames<ArchKind> ARCHNames[] = {
                  ARCH_BASE_EXT)                                                \
   {NAME,         sizeof(NAME) - 1,                                             \
    CPU_ATTR,     sizeof(CPU_ATTR) - 1,                                         \
-   SUB_ARCH,     sizeof(SUB_ARCH) - 1,                                         \
+   "+" SUB_ARCH, sizeof(SUB_ARCH),                                             \
    ARCH_FPU,     ARCH_BASE_EXT,                                                \
    ArchKind::ID, ARCH_ATTR},
 #include "llvm/Support/ARMTargetParser.def"

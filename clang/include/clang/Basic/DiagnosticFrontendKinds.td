@@ -47,6 +47,13 @@ def warn_fe_backend_unsupported_fp_rounding : Warning<
 def warn_fe_backend_unsupported_fp_exceptions : Warning<
     "overriding currently unsupported use of floating point exceptions "
     "on this target">, InGroup<UnsupportedFPOpt>;
+def warn_fe_backend_invalid_feature_flag : Warning<
+    "feature flag '%0' must start with either '+' to enable the feature or '-'"
+    " to disable it; flag ignored">, InGroup<InvalidCommandLineArgument>;
+
+def err_incompatible_fp_eval_method_options : Error<
+    "option 'ffp-eval-method' cannot be used with option "
+    "%select{'fapprox-func'|'mreassociate'|'freciprocal'}0">;
 
 def remark_fe_backend_optimization_remark : Remark<"%0">, BackendInfo,
     InGroup<BackendOptimizationRemark>;
@@ -278,6 +285,10 @@ def err_duplicate_mangled_name : Error<
   "definition with same mangled name '%0' as another definition">;
 def err_cyclic_alias : Error<
   "%select{alias|ifunc}0 definition is part of a cycle">;
+def err_hidden_visibility_dllexport : Error<
+  "hidden visibility cannot be applied to 'dllexport' declaration">;
+def err_non_default_visibility_dllimport : Error<
+  "non-default visibility cannot be applied to 'dllimport' declaration">;
 def err_ifunc_resolver_return : Error<
   "ifunc resolver function must return a pointer">;
 
@@ -311,6 +322,11 @@ def warn_profile_data_missing : Warning<
 def warn_profile_data_unprofiled : Warning<
   "no profile data available for file \"%0\"">,
   InGroup<ProfileInstrUnprofiled>;
+def warn_profile_data_misexpect : Warning<
+  "Potential performance regression from use of __builtin_expect(): "
+  "Annotation was correct on %0 of profiled executions.">,
+  BackendInfo,
+  InGroup<MisExpect>;
 } // end of instrumentation issue category
 
 }

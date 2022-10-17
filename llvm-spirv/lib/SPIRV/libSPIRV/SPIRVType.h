@@ -95,12 +95,14 @@ public:
   bool isTypeSampler() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
+  bool isTypeJointMatrixINTEL() const;
   bool isTypeVectorInt() const;
   bool isTypeVectorFloat() const;
   bool isTypeVectorBool() const;
   bool isTypeVectorOrScalarInt() const;
   bool isTypeVectorOrScalarFloat() const;
   bool isTypeVectorOrScalarBool() const;
+  bool isTypeVectorPointer() const;
   bool isTypeSubgroupAvcINTEL() const;
   bool isTypeSubgroupAvcMceINTEL() const;
 };
@@ -273,17 +275,17 @@ private:
 
 class SPIRVTypeForwardPointer : public SPIRVEntryNoId<OpTypeForwardPointer> {
 public:
-  SPIRVTypeForwardPointer(SPIRVModule *M, SPIRVTypePointer *Pointer,
+  SPIRVTypeForwardPointer(SPIRVModule *M, SPIRVId PointerId,
                           SPIRVStorageClassKind SC)
-      : SPIRVEntryNoId(M, 3), Pointer(Pointer), SC(SC) {}
+      : SPIRVEntryNoId(M, 3), PointerId(PointerId), SC(SC) {}
 
   SPIRVTypeForwardPointer()
-      : Pointer(nullptr), SC(StorageClassUniformConstant) {}
+      : PointerId(SPIRVID_INVALID), SC(StorageClassUniformConstant) {}
 
-  SPIRVTypePointer *getPointer() const { return Pointer; }
+  SPIRVId getPointerId() const { return PointerId; }
   _SPIRV_DCL_ENCDEC
 private:
-  SPIRVTypePointer *Pointer;
+  SPIRVId PointerId;
   SPIRVStorageClassKind SC;
 };
 
@@ -897,10 +899,10 @@ public:
     return {ExtensionID::SPV_INTEL_vector_compute};
   }
 
-  bool hasAccessQualifier() const { return AccessKind.hasValue(); }
+  bool hasAccessQualifier() const { return AccessKind.has_value(); }
   SPIRVAccessQualifierKind getAccessQualifier() const {
     assert(hasAccessQualifier());
-    return AccessKind.getValue();
+    return AccessKind.value();
   }
 
 protected:
@@ -1059,18 +1061,14 @@ protected:
 
 class SPIRVTypeJointMatrixINTEL : public SPIRVType {
   SPIRVType *CompType;
-  SPIRVValue *Rows;
-  SPIRVValue *Columns;
-  SPIRVValue *Layout;
-  SPIRVValue *Scope;
+  std::vector<SPIRVValue *> Args;
 
 public:
   const static Op OC = internal::OpTypeJointMatrixINTEL;
-  const static SPIRVWord FixedWC = 7;
+  const static SPIRVWord FixedWC = 3;
   // Complete constructor
   SPIRVTypeJointMatrixINTEL(SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
-                            SPIRVValue *Rows, SPIRVValue *Columns,
-                            SPIRVValue *Layout, SPIRVValue *Scope);
+                            std::vector<SPIRVValue *> Args);
   // Incomplete constructor
   SPIRVTypeJointMatrixINTEL();
   _SPIRV_DCL_ENCDEC
@@ -1080,11 +1078,16 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return {internal::CapabilityJointMatrixINTEL};
   }
-  SPIRVType *getCompType() { return CompType; }
-  SPIRVValue *getLayout() { return Layout; }
-  SPIRVValue *getRows() { return Rows; }
-  SPIRVValue *getColumns() { return Columns; }
-  SPIRVValue *getScope() { return Scope; }
+  void setWordCount(SPIRVWord WordCount) override {
+    SPIRVType::setWordCount(WordCount);
+    Args.resize(WordCount - FixedWC);
+  }
+  SPIRVType *getCompType() const { return CompType; }
+  SPIRVValue *getRows() const { return Args[0]; }
+  SPIRVValue *getColumns() const { return Args[1]; }
+  SPIRVValue *getLayout() const { return Args[2]; }
+  SPIRVValue *getScope() const { return Args[3]; }
+  SPIRVValue *getUse() const { return Args.size() > 4 ? Args[4] : nullptr; }
 };
 
 } // namespace SPIRV

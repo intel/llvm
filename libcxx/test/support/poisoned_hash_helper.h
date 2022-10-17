@@ -24,10 +24,10 @@ template <class ...Args> struct TypeList;
 
 // Test that the specified Hash meets the requirements of an enabled hash
 template <class Hash, class Key, class InputKey = Key>
-void test_hash_enabled(InputKey const& key = InputKey{});
+TEST_CONSTEXPR_CXX20 void test_hash_enabled(InputKey const& key = InputKey{});
 
 template <class T, class InputKey = T>
-void test_hash_enabled_for_type(InputKey const& key = InputKey{}) {
+TEST_CONSTEXPR_CXX20 void test_hash_enabled_for_type(InputKey const& key = InputKey{}) {
   return test_hash_enabled<std::hash<T>, T, InputKey>(key);
 }
 
@@ -60,10 +60,8 @@ using LibraryHashTypes = TypeList<
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
       wchar_t,
 #endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
       char16_t,
       char32_t,
-#endif
       short,
       unsigned short,
       int,
@@ -72,19 +70,15 @@ using LibraryHashTypes = TypeList<
       unsigned long,
       long long,
       unsigned long long,
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
       __int128_t,
       __uint128_t,
 #endif
       float,
       double,
       long double,
-#if TEST_STD_VER >= 14
-      // Enum types
       PoisonedHashDetail::Enum,
       PoisonedHashDetail::EnumClass,
-#endif
-      // pointer types
       void*,
       void const*,
       PoisonedHashDetail::Class*
@@ -135,7 +129,7 @@ constexpr bool can_hash() {
 } // namespace PoisonedHashDetail
 
 template <class Hash, class Key, class InputKey>
-void test_hash_enabled(InputKey const& key) {
+TEST_CONSTEXPR_CXX20 void test_hash_enabled(InputKey const& key) {
   using namespace PoisonedHashDetail;
 
   static_assert(std::is_destructible<Hash>::value, "");

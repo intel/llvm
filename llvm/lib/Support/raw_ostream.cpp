@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/config.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/Duration.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
@@ -24,10 +24,8 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include <algorithm>
-#include <cctype>
 #include <cerrno>
 #include <cstdio>
-#include <iterator>
 #include <sys/stat.h>
 
 // <fcntl.h> may provide O_BINARY.
@@ -286,10 +284,10 @@ void raw_ostream::copy_to_buffer(const char *Ptr, size_t Size) {
   // Handle short strings specially, memcpy isn't very good at very short
   // strings.
   switch (Size) {
-  case 4: OutBufCur[3] = Ptr[3]; LLVM_FALLTHROUGH;
-  case 3: OutBufCur[2] = Ptr[2]; LLVM_FALLTHROUGH;
-  case 2: OutBufCur[1] = Ptr[1]; LLVM_FALLTHROUGH;
-  case 1: OutBufCur[0] = Ptr[0]; LLVM_FALLTHROUGH;
+  case 4: OutBufCur[3] = Ptr[3]; [[fallthrough]];
+  case 3: OutBufCur[2] = Ptr[2]; [[fallthrough]];
+  case 2: OutBufCur[1] = Ptr[1]; [[fallthrough]];
+  case 1: OutBufCur[0] = Ptr[0]; [[fallthrough]];
   case 0: break;
   default:
     memcpy(OutBufCur, Ptr, Size);
@@ -409,7 +407,7 @@ raw_ostream &raw_ostream::operator<<(const FormattedBytes &FB) {
   const size_t Size = Bytes.size();
   HexPrintStyle HPS = FB.Upper ? HexPrintStyle::Upper : HexPrintStyle::Lower;
   uint64_t OffsetWidth = 0;
-  if (FB.FirstByteOffset.hasValue()) {
+  if (FB.FirstByteOffset) {
     // Figure out how many nibbles are needed to print the largest offset
     // represented by this data set, so that we can align the offset field
     // to the right width.
@@ -429,8 +427,8 @@ raw_ostream &raw_ostream::operator<<(const FormattedBytes &FB) {
   while (!Bytes.empty()) {
     indent(FB.IndentLevel);
 
-    if (FB.FirstByteOffset.hasValue()) {
-      uint64_t Offset = FB.FirstByteOffset.getValue();
+    if (FB.FirstByteOffset) {
+      uint64_t Offset = FB.FirstByteOffset.value();
       llvm::write_hex(*this, Offset + LineIndex, HPS, OffsetWidth);
       *this << ": ";
     }
@@ -481,12 +479,11 @@ static raw_ostream &write_padding(raw_ostream &OS, unsigned NumChars) {
                                C, C, C, C, C, C, C, C, C, C, C, C, C, C, C, C};
 
   // Usually the indentation is small, handle it with a fastpath.
-  if (NumChars < array_lengthof(Chars))
+  if (NumChars < std::size(Chars))
     return OS.write(Chars, NumChars);
 
   while (NumChars) {
-    unsigned NumToWrite = std::min(NumChars,
-                                   (unsigned)array_lengthof(Chars)-1);
+    unsigned NumToWrite = std::min(NumChars, (unsigned)std::size(Chars) - 1);
     OS.write(Chars, NumToWrite);
     NumChars -= NumToWrite;
   }
@@ -643,13 +640,14 @@ raw_fd_ostream::raw_fd_ostream(int fd, bool shouldClose, bool unbuffered,
 
   // Get the starting position.
   off_t loc = ::lseek(FD, 0, SEEK_CUR);
-#ifdef _WIN32
-  // MSVCRT's _lseek(SEEK_CUR) doesn't return -1 for pipes.
   sys::fs::file_status Status;
   std::error_code EC = status(FD, Status);
-  SupportsSeeking = !EC && Status.type() == sys::fs::file_type::regular_file;
+  IsRegularFile = Status.type() == sys::fs::file_type::regular_file;
+#ifdef _WIN32
+  // MSVCRT's _lseek(SEEK_CUR) doesn't return -1 for pipes.
+  SupportsSeeking = !EC && IsRegularFile;
 #else
-  SupportsSeeking = loc != (off_t)-1;
+  SupportsSeeking = !EC && loc != (off_t)-1;
 #endif
   if (!SupportsSeeking)
     pos = 0;
@@ -869,8 +867,8 @@ Expected<sys::fs::FileLocker> raw_fd_ostream::lock() {
 }
 
 Expected<sys::fs::FileLocker>
-raw_fd_ostream::tryLockFor(std::chrono::milliseconds Timeout) {
-  std::error_code EC = sys::fs::tryLockFile(FD, Timeout);
+raw_fd_ostream::tryLockFor(Duration const& Timeout) {
+  std::error_code EC = sys::fs::tryLockFile(FD, Timeout.getDuration());
   if (!EC)
     return sys::fs::FileLocker(FD);
   return errorCodeToError(EC);
@@ -914,8 +912,7 @@ raw_fd_stream::raw_fd_stream(StringRef Filename, std::error_code &EC)
   if (EC)
     return;
 
-  // Do not support non-seekable files.
-  if (!supportsSeeking())
+  if (!isRegularFile())
     EC = std::make_error_code(std::errc::invalid_argument);
 }
 
@@ -936,10 +933,6 @@ bool raw_fd_stream::classof(const raw_ostream *OS) {
 //===----------------------------------------------------------------------===//
 //  raw_string_ostream
 //===----------------------------------------------------------------------===//
-
-raw_string_ostream::~raw_string_ostream() {
-  flush();
-}
 
 void raw_string_ostream::write_impl(const char *Ptr, size_t Size) {
   OS.append(Ptr, Size);

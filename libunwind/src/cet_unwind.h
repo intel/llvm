@@ -1,4 +1,4 @@
-//===--------------------------- cet_unwind.h -----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,6 +36,6 @@
 #endif
 
 extern void *__libunwind_cet_get_registers(unw_cursor_t *);
-extern void *__libunwind_cet_get_jump_target();
+extern void *__libunwind_cet_get_jump_target(void);
 
 #endif

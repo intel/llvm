@@ -1,5 +1,5 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: not --crash llvm-spirv -s %t.bc
+; RUN: not llvm-spirv -s %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_vector_compute -s %t.bc
 
 ; ModuleID = 'lower-non-standard-vec-with-ext'

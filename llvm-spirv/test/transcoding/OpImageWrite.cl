@@ -7,20 +7,21 @@
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
 // RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
-// CHECK-SPIRV: TypeImage [[IMG2D_WO_TY:[0-9]+]] 2 1 0 0 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG2D_RW_TY:[0-9]+]] 2 1 0 0 0 0 0 2
-// CHECK-SPIRV: TypeImage [[IMG2D_ARRAY_WO_TY:[0-9]+]] 2 1 0 1 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG2D_ARRAY_RW_TY:[0-9]+]] 2 1 0 1 0 0 0 2
-// CHECK-SPIRV: TypeImage [[IMG1D_WO_TY:[0-9]+]] 2 0 0 0 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG1D_RW_TY:[0-9]+]] 2 0 0 0 0 0 0 2
-// CHECK-SPIRV: TypeImage [[IMG1D_BUFFER_WO_TY:[0-9]+]] 2 5 0 0 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG1D_BUFFER_RW_TY:[0-9]+]] 2 5 0 0 0 0 0 2
-// CHECK-SPIRV: TypeImage [[IMG1D_ARRAY_WO_TY:[0-9]+]] 2 0 0 1 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG1D_ARRAY_RW_TY:[0-9]+]] 2 0 0 1 0 0 0 2
-// CHECK-SPIRV: TypeImage [[IMG2D_DEPTH_WO_TY:[0-9]+]] 2 1 1 0 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG2D_ARRAY_DEPTH_WO_TY:[0-9]+]] 2 1 1 1 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG3D_WO_TY:[0-9]+]] 2 2 0 0 0 0 0 1
-// CHECK-SPIRV: TypeImage [[IMG3D_RW_TY:[0-9]+]] 2 2 0 0 0 0 0 2
+// CHECK-SPIRV: TypeVoid [[VOID_TY:[0-9]+]]
+// CHECK-SPIRV: TypeImage [[IMG2D_WO_TY:[0-9]+]] [[VOID_TY]] 1 0 0 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG2D_RW_TY:[0-9]+]] [[VOID_TY]] 1 0 0 0 0 0 2
+// CHECK-SPIRV: TypeImage [[IMG2D_ARRAY_WO_TY:[0-9]+]] [[VOID_TY]] 1 0 1 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG2D_ARRAY_RW_TY:[0-9]+]] [[VOID_TY]] 1 0 1 0 0 0 2
+// CHECK-SPIRV: TypeImage [[IMG1D_WO_TY:[0-9]+]] [[VOID_TY]] 0 0 0 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG1D_RW_TY:[0-9]+]] [[VOID_TY]] 0 0 0 0 0 0 2
+// CHECK-SPIRV: TypeImage [[IMG1D_BUFFER_WO_TY:[0-9]+]] [[VOID_TY]] 5 0 0 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG1D_BUFFER_RW_TY:[0-9]+]] [[VOID_TY]] 5 0 0 0 0 0 2
+// CHECK-SPIRV: TypeImage [[IMG1D_ARRAY_WO_TY:[0-9]+]] [[VOID_TY]] 0 0 1 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG1D_ARRAY_RW_TY:[0-9]+]] [[VOID_TY]] 0 0 1 0 0 0 2
+// CHECK-SPIRV: TypeImage [[IMG2D_DEPTH_WO_TY:[0-9]+]] [[VOID_TY]] 1 1 0 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG2D_ARRAY_DEPTH_WO_TY:[0-9]+]] [[VOID_TY]] 1 1 1 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG3D_WO_TY:[0-9]+]] [[VOID_TY]] 2 0 0 0 0 0 1
+// CHECK-SPIRV: TypeImage [[IMG3D_RW_TY:[0-9]+]] [[VOID_TY]] 2 0 0 0 0 0 2
 
 kernel void test_img2d(write_only image2d_t image_wo, read_write image2d_t image_rw)
 {

@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
-; RUN: llvm-spirv -r -spirv-target-env="SPV-IR" %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers -spirv-target-env="SPV-IR" %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
@@ -98,7 +98,7 @@ entry:
 ; LLVM-DAG: %conv = uitofp i32 %[[sel_res_0]] to float
   %conv = uitofp i1 %cmp to float
 ; SPV-DAG: Store [[A]] [[utof_res]]
-; LLVM-DAG: store float %conv, float addrspace(1)* %A, align 4
+; LLVM-DAG: store float %conv, ptr addrspace(1) %A, align 4
   store float %conv, float addrspace(1)* %A, align 4;
 
 ; SPV-DAG: Select [[int_8]] [[s1]] [[i1s]] [[mone_8]] [[zero_8]]

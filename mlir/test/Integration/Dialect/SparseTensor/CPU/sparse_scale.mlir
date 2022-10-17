@@ -1,12 +1,15 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// RUN: FileCheck %s
+//
+// Do the same run, but now with SIMDization as well. This should not change the outcome.
+//
+// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=any-storage-inner-loop vl=4" | \
+// RUN: mlir-cpu-runner \
+// RUN:  -e entry -entry-point-result=void  \
+// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 #CSR = #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>
@@ -28,8 +31,7 @@ module {
   //
   // A kernel that scales a sparse matrix A by a factor of 2.0.
   //
-  func @sparse_scale(%argx: tensor<8x8xf32, #CSR>
-                     {linalg.inplaceable = true}) -> tensor<8x8xf32, #CSR> {
+  func.func @sparse_scale(%argx: tensor<8x8xf32, #CSR>) -> tensor<8x8xf32, #CSR> {
     %c = arith.constant 2.0 : f32
     %0 = linalg.generic #trait_scale
       outs(%argx: tensor<8x8xf32, #CSR>) {
@@ -45,7 +47,7 @@ module {
   // and then calls the sparse scaling kernel with the sparse tensor
   // as input argument.
   //
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %f0 = arith.constant 0.0 : f32
 
@@ -75,7 +77,7 @@ module {
     vector.print %v : vector<16xf32>
 
     // Release the resources.
-    sparse_tensor.release %1 : tensor<8x8xf32, #CSR>
+    bufferization.dealloc_tensor %1 : tensor<8x8xf32, #CSR>
 
     return
   }

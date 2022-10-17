@@ -18,6 +18,7 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallDescription.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 
@@ -81,9 +82,7 @@ public:
 REGISTER_SET_WITH_PROGRAMSTATE(InvalidMemoryRegions, const MemRegion *)
 
 // Stores the region of the environment pointer of 'main' (if present).
-// Note: This pointer has type 'const MemRegion *', however the trait is only
-// specialized to 'const void*' and 'void*'
-REGISTER_TRAIT_WITH_PROGRAMSTATE(EnvPtrRegion, const void *)
+REGISTER_TRAIT_WITH_PROGRAMSTATE(EnvPtrRegion, const MemRegion *)
 
 // Stores key-value pairs, where key is function declaration and value is
 // pointer to memory region returned by previous call of this function
@@ -94,11 +93,9 @@ void InvalidPtrChecker::EnvpInvalidatingCall(const CallEvent &Call,
                                              CheckerContext &C) const {
   StringRef FunctionName = Call.getCalleeIdentifier()->getName();
   ProgramStateRef State = C.getState();
-  const auto *Reg = State->get<EnvPtrRegion>();
-  if (!Reg)
+  const MemRegion *SymbolicEnvPtrRegion = State->get<EnvPtrRegion>();
+  if (!SymbolicEnvPtrRegion)
     return;
-  const auto *SymbolicEnvPtrRegion =
-      reinterpret_cast<const MemRegion *>(const_cast<const void *>(Reg));
 
   State = State->add<InvalidMemoryRegions>(SymbolicEnvPtrRegion);
 
@@ -131,7 +128,7 @@ void InvalidPtrChecker::postPreviousReturnInvalidatingCall(
         return;
       Out << '\'';
       FD->getNameForDiagnostic(Out, FD->getASTContext().getLangOpts(), true);
-      Out << "' call may invalidate the the result of the previous " << '\'';
+      Out << "' call may invalidate the result of the previous " << '\'';
       FD->getNameForDiagnostic(Out, FD->getASTContext().getLangOpts(), true);
       Out << '\'';
     });
@@ -146,7 +143,7 @@ void InvalidPtrChecker::postPreviousReturnInvalidatingCall(
   State = State->BindExpr(CE, LCtx, RetVal);
 
   // Remember to this region.
-  const auto *SymRegOfRetVal = dyn_cast<SymbolicRegion>(RetVal.getAsRegion());
+  const auto *SymRegOfRetVal = cast<SymbolicRegion>(RetVal.getAsRegion());
   const MemRegion *MR =
       const_cast<MemRegion *>(SymRegOfRetVal->getBaseRegion());
   State = State->set<PreviousCallResultMap>(FD, MR);
@@ -244,9 +241,7 @@ void InvalidPtrChecker::checkBeginFunction(CheckerContext &C) const {
 
   // Save the memory region pointed by the environment pointer parameter of
   // 'main'.
-  State = State->set<EnvPtrRegion>(
-      reinterpret_cast<void *>(const_cast<MemRegion *>(EnvpReg)));
-  C.addTransition(State);
+  C.addTransition(State->set<EnvPtrRegion>(EnvpReg));
 }
 
 // Check if invalidated region is being dereferenced.

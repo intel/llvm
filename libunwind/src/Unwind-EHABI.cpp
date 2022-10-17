@@ -1,4 +1,4 @@
-//===--------------------------- Unwind-EHABI.cpp -------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -187,9 +187,14 @@ static _Unwind_Reason_Code unwindOneFrame(_Unwind_State state,
   if (result != _URC_CONTINUE_UNWIND)
     return result;
 
-  if (__unw_step(reinterpret_cast<unw_cursor_t *>(context)) != UNW_STEP_SUCCESS)
+  switch (__unw_step(reinterpret_cast<unw_cursor_t *>(context))) {
+  case UNW_STEP_SUCCESS:
+    return _URC_CONTINUE_UNWIND;
+  case UNW_STEP_END:
+    return _URC_END_OF_STACK;
+  default:
     return _URC_FAILURE;
-  return _URC_CONTINUE_UNWIND;
+  }
 }
 
 // Generates mask discriminator for _Unwind_VRS_Pop, e.g. for _UVRSC_CORE /
@@ -230,7 +235,7 @@ decode_eht_entry(const uint32_t* data, size_t* off, size_t* len) {
   } else {
     // 6.3: ARM Compact Model
     //
-    // EHT entries here correspond to the __aeabi_unwind_cpp_pr[012] PRs indeded
+    // EHT entries here correspond to the __aeabi_unwind_cpp_pr[012] PRs indeed
     // by format:
     Descriptor::Format format =
         static_cast<Descriptor::Format>((*data & 0x0f000000) >> 24);
@@ -256,6 +261,7 @@ _Unwind_VRS_Interpret(_Unwind_Context *context, const uint32_t *data,
                       size_t offset, size_t len) {
   bool wrotePC = false;
   bool finish = false;
+  bool hasReturnAddrAuthCode = false;
   while (offset < len && !finish) {
     uint8_t byte = getByte(data, offset++);
     if ((byte & 0x80) == 0) {
@@ -342,6 +348,10 @@ _Unwind_VRS_Interpret(_Unwind_Context *context, const uint32_t *data,
               break;
             }
             case 0xb4:
+              hasReturnAddrAuthCode = true;
+              _Unwind_VRS_Pop(context, _UVRSC_PSEUDO,
+                              0 /* Return Address Auth Code */, _UVRSD_UINT32);
+              break;
             case 0xb5:
             case 0xb6:
             case 0xb7:
@@ -417,6 +427,17 @@ _Unwind_VRS_Interpret(_Unwind_Context *context, const uint32_t *data,
   if (!wrotePC) {
     uint32_t lr;
     _Unwind_VRS_Get(context, _UVRSC_CORE, UNW_ARM_LR, _UVRSD_UINT32, &lr);
+#ifdef __ARM_FEATURE_PAUTH
+    if (hasReturnAddrAuthCode) {
+      uint32_t sp;
+      uint32_t pac;
+      _Unwind_VRS_Get(context, _UVRSC_CORE, UNW_ARM_SP, _UVRSD_UINT32, &sp);
+      _Unwind_VRS_Get(context, _UVRSC_PSEUDO, 0, _UVRSD_UINT32, &pac);
+      __asm__ __volatile__("autg %0, %1, %2" : : "r"(pac), "r"(lr), "r"(sp) :);
+    }
+#else
+    (void)hasReturnAddrAuthCode;
+#endif
     _Unwind_VRS_Set(context, _UVRSC_CORE, UNW_ARM_IP, _UVRSD_UINT32, &lr);
   }
   return _URC_CONTINUE_UNWIND;
@@ -678,12 +699,13 @@ static _Unwind_Reason_Code
 unwind_phase2_forced(unw_context_t *uc, unw_cursor_t *cursor,
                      _Unwind_Exception *exception_object, _Unwind_Stop_Fn stop,
                      void *stop_parameter) {
+  bool endOfStack = false;
   // See comment at the start of unwind_phase1 regarding VRS integrity.
   __unw_init_local(cursor, uc);
   _LIBUNWIND_TRACE_UNWINDING("unwind_phase2_force(ex_ojb=%p)",
                              static_cast<void *>(exception_object));
   // Walk each frame until we reach where search phase said to stop
-  while (true) {
+  while (!endOfStack) {
     // Update info about this frame.
     unw_proc_info_t frameInfo;
     if (__unw_get_proc_info(cursor, &frameInfo) != UNW_ESUCCESS) {
@@ -756,6 +778,14 @@ unwind_phase2_forced(unw_context_t *uc, unw_cursor_t *cursor,
         // We may get control back if landing pad calls _Unwind_Resume().
         __unw_resume(cursor);
         break;
+      case _URC_END_OF_STACK:
+        _LIBUNWIND_TRACE_UNWINDING("unwind_phase2_forced(ex_ojb=%p): "
+                                   "personality returned "
+                                   "_URC_END_OF_STACK",
+                                   (void *)exception_object);
+        // Personalty routine did the step and it can't step forward.
+        endOfStack = true;
+        break;
       default:
         // Personality routine returned an unknown result code.
         _LIBUNWIND_TRACE_UNWINDING("unwind_phase2_forced(ex_ojb=%p): "
@@ -815,7 +845,7 @@ _LIBUNWIND_EXPORT void _Unwind_Complete(_Unwind_Exception* exception_object) {
 /// may force a jump to a landing pad in that function, the landing
 /// pad code may then call _Unwind_Resume() to continue with the
 /// unwinding.  Note: the call to _Unwind_Resume() is from compiler
-/// geneated user code.  All other _Unwind_* routines are called
+/// generated user code.  All other _Unwind_* routines are called
 /// by the C++ runtime __cxa_* routines.
 ///
 /// Note: re-throwing an exception (as opposed to continuing the unwind)
@@ -927,6 +957,15 @@ _Unwind_VRS_Set(_Unwind_Context *context, _Unwind_VRS_RegClass regclass,
     case _UVRSC_WMMXD:
       break;
 #endif
+    case _UVRSC_PSEUDO:
+      // There's only one pseudo-register, PAC, with regno == 0.
+      if (representation != _UVRSD_UINT32 || regno != 0)
+        return _UVRSR_FAILED;
+      return __unw_set_reg(cursor, (unw_regnum_t)(UNW_ARM_RA_AUTH_CODE),
+                           *(unw_word_t *)valuep) == UNW_ESUCCESS
+                 ? _UVRSR_OK
+                 : _UVRSR_FAILED;
+      break;
   }
   _LIBUNWIND_ABORT("unsupported register class");
 }
@@ -981,6 +1020,15 @@ _Unwind_VRS_Get_Internal(_Unwind_Context *context,
     case _UVRSC_WMMXD:
       break;
 #endif
+    case _UVRSC_PSEUDO:
+      // There's only one pseudo-register, PAC, with regno == 0.
+      if (representation != _UVRSD_UINT32 || regno != 0)
+        return _UVRSR_FAILED;
+      return __unw_get_reg(cursor, (unw_regnum_t)(UNW_ARM_RA_AUTH_CODE),
+                           (unw_word_t *)valuep) == UNW_ESUCCESS
+                 ? _UVRSR_OK
+                 : _UVRSR_FAILED;
+      break;
   }
   _LIBUNWIND_ABORT("unsupported register class");
 }
@@ -1078,6 +1126,19 @@ _Unwind_VRS_Pop(_Unwind_Context *context, _Unwind_VRS_RegClass regclass,
       return _Unwind_VRS_Set(context, _UVRSC_CORE, UNW_ARM_SP, _UVRSD_UINT32,
                              &sp);
     }
+    case _UVRSC_PSEUDO: {
+      if (representation != _UVRSD_UINT32 || discriminator != 0)
+        return _UVRSR_FAILED;
+      // Return Address Authentication code (PAC) - discriminator 0
+      uint32_t *sp;
+      if (_Unwind_VRS_Get(context, _UVRSC_CORE, UNW_ARM_SP, _UVRSD_UINT32,
+                          &sp) != _UVRSR_OK) {
+        return _UVRSR_FAILED;
+      }
+      uint32_t pac = *sp++;
+      _Unwind_VRS_Set(context, _UVRSC_CORE, UNW_ARM_SP, _UVRSD_UINT32, &sp);
+      return _Unwind_VRS_Set(context, _UVRSC_PSEUDO, 0, _UVRSD_UINT32, &pac);
+    }
   }
   _LIBUNWIND_ABORT("unsupported register class");
 }
@@ -1132,10 +1193,16 @@ _Unwind_DeleteException(_Unwind_Exception *exception_object) {
 extern "C" _LIBUNWIND_EXPORT _Unwind_Reason_Code
 __gnu_unwind_frame(_Unwind_Exception *exception_object,
                    struct _Unwind_Context *context) {
+  (void)exception_object;
   unw_cursor_t *cursor = (unw_cursor_t *)context;
-  if (__unw_step(cursor) != UNW_STEP_SUCCESS)
+  switch (__unw_step(cursor)) {
+  case UNW_STEP_SUCCESS:
+    return _URC_OK;
+  case UNW_STEP_END:
+    return _URC_END_OF_STACK;
+  default:
     return _URC_FAILURE;
-  return _URC_OK;
+  }
 }
 
 #endif  // defined(_LIBUNWIND_ARM_EHABI)

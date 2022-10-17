@@ -1,12 +1,20 @@
+include(GNUInstallPackageDir)
+include(ExtendPath)
+include(FindPrefixFromConfig)
+
 # Generate a list of CMake library targets so that other CMake projects can
 # link against them. LLVM calls its version of this file LLVMExports.cmake, but
 # the usual CMake convention seems to be ${Project}Targets.cmake.
-set(FLANG_INSTALL_PACKAGE_DIR lib${LLVM_LIBDIR_SUFFIX}/cmake/flang)
-set(flang_cmake_builddir "${CMAKE_BINARY_DIR}/${FLANG_INSTALL_PACKAGE_DIR}")
+set(FLANG_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/flang" CACHE STRING
+  "Path for CMake subdirectory for Flang (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/flang')")
+# CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
+set(flang_cmake_builddir "${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/cmake/flang")
 
 # Keep this in sync with llvm/cmake/CMakeLists.txt!
-set(LLVM_INSTALL_PACKAGE_DIR lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm)
-set(llvm_cmake_builddir "${LLVM_BINARY_DIR}/${LLVM_INSTALL_PACKAGE_DIR}")
+set(LLVM_INSTALL_PACKAGE_DIR "${CMAKE_INSTALL_PACKAGEDIR}/llvm" CACHE STRING
+  "Path for CMake subdirectory for LLVM (defaults to '${CMAKE_INSTALL_PACKAGEDIR}/llvm')")
+# CMAKE_INSTALL_PACKAGEDIR might be absolute, so don't reuse below.
+set(llvm_cmake_builddir "${LLVM_LIBRARY_DIR}/cmake/llvm")
 
 get_property(FLANG_EXPORTS GLOBAL PROPERTY FLANG_EXPORTS)
 export(TARGETS ${FLANG_EXPORTS} FILE ${flang_cmake_builddir}/FlangTargets.cmake)
@@ -27,21 +35,12 @@ set(FLANG_CONFIG_CMAKE_DIR)
 set(FLANG_CONFIG_LLVM_CMAKE_DIR)
 
 # Generate FlangConfig.cmake for the install tree.
-set(FLANG_CONFIG_CODE "
-  # Compute the installation prefix from this LLVMConfig.cmake file location.
-  get_filename_component(FLANG_INSTALL_PREFIX \"\${CMAKE_CURRENT_LIST_FILE}\" PATH)")
-# Construct the proper number of get_filename_component(... PATH)
-# calls to compute the installation prefix.
-string(REGEX REPLACE "/" ";" _count "${FLANG_INSTALL_PACKAGE_DIR}")
-foreach(p ${_count})
-  set(FLANG_CONFIG_CODE "${FLANG_CONFIG_CODE}
-      get_filename_component(FLANG_INSTALL_PREFIX \"\${FLANG_INSTALL_PREFIX}\" PATH)")
-endforeach(p)
+find_prefix_from_config(FLANG_CONFIG_CODE FLANG_INSTALL_PREFIX "${FLANG_INSTALL_PACKAGE_DIR}")
 
-set(FLANG_CONFIG_CMAKE_DIR "\${FLANG_INSTALL_PREFIX}/${FLANG_INSTALL_PACKAGE_DIR}")
-set(FLANG_CONFIG_LLVM_CMAKE_DIR "\${FLANG_INSTALL_PREFIX}/${LLVM_INSTALL_PACKAGE_DIR}")
+extend_path(FLANG_CONFIG_CMAKE_DIR "\${FLANG_INSTALL_PREFIX}" "${FLANG_INSTALL_PACKAGE_DIR}")
+extend_path(FLANG_CONFIG_LLVM_CMAKE_DIR "\${FLANG_INSTALL_PREFIX}" "${LLVM_INSTALL_PACKAGE_DIR}")
 get_config_exports_includes(Flang FLANG_CONFIG_INCLUDE_EXPORTS)
-set(FLANG_CONFIG_INCLUDE_DIRS "\${FLANG_INSTALL_PREFIX}/include")
+extend_path(FLANG_CONFIG_INCLUDE_DIRS "\${FLANG_INSTALL_PREFIX}" "${CMAKE_INSTALL_INCLUDEDIR}")
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/FlangConfig.cmake.in

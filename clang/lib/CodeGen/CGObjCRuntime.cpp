@@ -106,7 +106,7 @@ LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
                              CGF.CGM.getContext().toBits(StorageSize),
                              CharUnits::fromQuantity(0)));
 
-  Address Addr(V, Alignment);
+  Address Addr = Address(V, CGF.Int8Ty, Alignment);
   Addr = CGF.Builder.CreateElementBitCast(Addr,
                                    llvm::Type::getIntNTy(CGF.getLLVMContext(),
                                                          Info->StorageSize));
@@ -163,8 +163,7 @@ void CGObjCRuntime::EmitTryCatchStmt(CodeGenFunction &CGF,
 
   // Enter the catch, if there is one.
   if (S.getNumCatchStmts()) {
-    for (unsigned I = 0, N = S.getNumCatchStmts(); I != N; ++I) {
-      const ObjCAtCatchStmt *CatchStmt = S.getCatchStmt(I);
+    for (const ObjCAtCatchStmt *CatchStmt : S.catch_stmts()) {
       const VarDecl *CatchDecl = CatchStmt->getCatchParamDecl();
 
       Handlers.push_back(CatchHandler());
@@ -294,7 +293,7 @@ void CGObjCRuntime::EmitInitOfCatchParam(CodeGenFunction &CGF,
   switch (paramDecl->getType().getQualifiers().getObjCLifetime()) {
   case Qualifiers::OCL_Strong:
     exn = CGF.EmitARCRetainNonBlock(exn);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case Qualifiers::OCL_None:
   case Qualifiers::OCL_ExplicitNone:
@@ -361,13 +360,15 @@ CGObjCRuntime::MessageSendInfo
 CGObjCRuntime::getMessageSendInfo(const ObjCMethodDecl *method,
                                   QualType resultType,
                                   CallArgList &callArgs) {
+  unsigned ProgramAS = CGM.getDataLayout().getProgramAddressSpace();
+
   // If there's a method, use information from that.
   if (method) {
     const CGFunctionInfo &signature =
       CGM.getTypes().arrangeObjCMessageSendSignature(method, callArgs[0].Ty);
 
     llvm::PointerType *signatureType =
-      CGM.getTypes().GetFunctionType(signature)->getPointerTo();
+      CGM.getTypes().GetFunctionType(signature)->getPointerTo(ProgramAS);
 
     const CGFunctionInfo &signatureForCall =
       CGM.getTypes().arrangeCall(signature, callArgs);
@@ -381,7 +382,7 @@ CGObjCRuntime::getMessageSendInfo(const ObjCMethodDecl *method,
 
   // Derive the signature to call from that.
   llvm::PointerType *signatureType =
-    CGM.getTypes().GetFunctionType(argsInfo)->getPointerTo();
+    CGM.getTypes().GetFunctionType(argsInfo)->getPointerTo(ProgramAS);
   return MessageSendInfo(argsInfo, signatureType);
 }
 

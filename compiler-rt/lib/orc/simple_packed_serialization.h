@@ -40,6 +40,7 @@
 #include "stl_extras.h"
 
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -354,6 +355,27 @@ public:
   }
 };
 
+/// Trivial serialization / deserialization for span<char>
+template <> class SPSSerializationTraits<SPSSequence<char>, span<const char>> {
+public:
+  static size_t size(const span<const char> &S) {
+    return SPSArgList<uint64_t>::size(static_cast<uint64_t>(S.size())) +
+           S.size();
+  }
+  static bool serialize(SPSOutputBuffer &OB, const span<const char> &S) {
+    if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(S.size())))
+      return false;
+    return OB.write(S.data(), S.size());
+  }
+  static bool deserialize(SPSInputBuffer &IB, span<const char> &S) {
+    uint64_t Size;
+    if (!SPSArgList<uint64_t>::deserialize(IB, Size))
+      return false;
+    S = span<const char>(IB.data(), Size);
+    return IB.skip(Size);
+  }
+};
+
 /// SPSTuple serialization for std::pair.
 template <typename SPSTagT1, typename SPSTagT2, typename T1, typename T2>
 class SPSSerializationTraits<SPSTuple<SPSTagT1, SPSTagT2>, std::pair<T1, T2>> {
@@ -378,28 +400,30 @@ public:
 ///
 /// Serialization is as for regular strings. Deserialization points directly
 /// into the blob.
-template <> class SPSSerializationTraits<SPSString, __orc_rt::string_view> {
+template <> class SPSSerializationTraits<SPSString, std::string_view> {
 public:
-  static size_t size(const __orc_rt::string_view &S) {
+  static size_t size(const std::string_view &S) {
     return SPSArgList<uint64_t>::size(static_cast<uint64_t>(S.size())) +
            S.size();
   }
 
-  static bool serialize(SPSOutputBuffer &OB, const __orc_rt::string_view &S) {
+  static bool serialize(SPSOutputBuffer &OB, const std::string_view &S) {
     if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(S.size())))
       return false;
     return OB.write(S.data(), S.size());
   }
 
-  static bool deserialize(SPSInputBuffer &IB, __orc_rt::string_view &S) {
+  static bool deserialize(SPSInputBuffer &IB, std::string_view &S) {
     const char *Data = nullptr;
     uint64_t Size;
     if (!SPSArgList<uint64_t>::deserialize(IB, Size))
       return false;
+    if (Size > std::numeric_limits<size_t>::max())
+      return false;
     Data = IB.data();
     if (!IB.skip(Size))
       return false;
-    S = {Data, Size};
+    S = {Data, static_cast<size_t>(Size)};
     return true;
   }
 };

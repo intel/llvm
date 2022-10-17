@@ -225,7 +225,7 @@ void SHA1::update(ArrayRef<uint8_t> Data) {
   // Fast buffer filling for large inputs.
   while (Data.size() >= BLOCK_LENGTH) {
     assert(InternalState.BufferOffset == 0);
-    static_assert(BLOCK_LENGTH % 4 == 0, "");
+    static_assert(BLOCK_LENGTH % 4 == 0);
     constexpr size_t BLOCK_LENGTH_32 = BLOCK_LENGTH / 4;
     for (size_t I = 0; I < BLOCK_LENGTH_32; ++I)
       InternalState.Buffer.L[I] = support::endian::read32be(&Data[I * 4]);
@@ -263,7 +263,7 @@ void SHA1::pad() {
   addUncounted(InternalState.ByteCount << 3);
 }
 
-StringRef SHA1::final() {
+void SHA1::final(std::array<uint32_t, HASH_LENGTH / 4> &HashResult) {
   // Pad to complete the last block
   pad();
 
@@ -281,12 +281,19 @@ StringRef SHA1::final() {
                     (((InternalState.State[i]) >> 24) & 0x000000ff);
   }
 #endif
-
-  // Return pointer to hash (20 characters)
-  return StringRef((char *)HashResult, HASH_LENGTH);
 }
 
-StringRef SHA1::result() {
+std::array<uint8_t, 20> SHA1::final() {
+  union {
+    std::array<uint32_t, HASH_LENGTH / 4> HashResult;
+    std::array<uint8_t, HASH_LENGTH> ReturnResult;
+  };
+  static_assert(sizeof(HashResult) == sizeof(ReturnResult));
+  final(HashResult);
+  return ReturnResult;
+}
+
+std::array<uint8_t, 20> SHA1::result() {
   auto StateToRestore = InternalState;
 
   auto Hash = final();
@@ -301,9 +308,5 @@ StringRef SHA1::result() {
 std::array<uint8_t, 20> SHA1::hash(ArrayRef<uint8_t> Data) {
   SHA1 Hash;
   Hash.update(Data);
-  StringRef S = Hash.final();
-
-  std::array<uint8_t, 20> Arr;
-  memcpy(Arr.data(), S.data(), S.size());
-  return Arr;
+  return Hash.final();
 }

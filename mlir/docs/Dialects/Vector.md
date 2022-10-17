@@ -95,28 +95,38 @@ Vectors) are welcome future extensions.
 
 ### Virtual Vector Ops
 
-Some existing Standard and Vector Dialect on `n-D` `vector` types comprise: ```
-%2 = arith.addf %0, %1 : vector<3x7x8xf32> // -> vector<3x7x8xf32> %2 =
-arith.mulf %0, %1 : vector<3x7x8xf32> // -> vector<3x7x8xf32> %2 = std.splat
-%1 : vector<3x7x8xf32> // -> vector<3x7x8xf32>
+Some existing Arith and Vector Dialect on `n-D` `vector` types comprise:
 
-%1 = vector.extract %0[1]: vector<3x7x8xf32> // -> vector<7x8xf32> %1 =
-vector.extract %0[1, 5]: vector<3x7x8xf32> // -> vector<8xf32> %2 =
-vector.outerproduct %0, %1: vector<4xf32>, vector<8xf32> // -> vector<4x8xf32>
-%3 = vector.outerproduct %0, %1, %2: vector<4xf32>, vector<8xf32> // fma when
-adding %2 %3 = vector.strided_slice %0 {offsets = [2, 2], sizes = [2, 2],
-strides = [1, 1]}: vector<4x8x16xf32> // Returns a slice of type
-vector<2x2x16xf32>
+```mlir
+// Produces a vector<3x7x8xf32>
+%a = arith.addf %0, %1 : vector<3x7x8xf32>
+// Produces a vector<3x7x8xf32>
+%b = arith.mulf %0, %1 : vector<3x7x8xf32>
+// Produces a vector<3x7x8xf32>
+%c = vector.splat %1 : vector<3x7x8xf32>
 
-%2 = vector.transfer_read %A[%0, %1] {permutation_map = (d0, d1) -> (d0)}:
-memref<7x?xf32>, vector<4xf32>
+%d = vector.extract %0[1]: vector<3x7x8xf32>     // -> vector<7x8xf32>
+%e = vector.extract %0[1, 5]: vector<3x7x8xf32>  // -> vector<8xf32>
+%f = vector.outerproduct %0, %1: vector<4xf32>, vector<8xf32>      // -> vector<4x8xf32>
+%g = vector.outerproduct %0, %1, %2: vector<4xf32>, vector<8xf32>  // fma when adding %2
 
-vector.transfer_write %f1, %A[%i0, %i1, %i2, %i3] {permutation_map = (d0, d1,
-d2, d3) -> (d3, d1, d0)} : vector<5x4x3xf32>, memref<?x?x?x?xf32> ```
+// Returns a slice of type vector<2x2x16xf32>
+%h = vector.strided_slice %0
+    {offsets = [2, 2], sizes = [2, 2], strides = [1, 1]}:
+  vector<4x8x16xf32>
+
+%i = vector.transfer_read %A[%0, %1]
+    {permutation_map = (d0, d1) -> (d0)}:
+  memref<7x?xf32>, vector<4xf32>
+
+vector.transfer_write %f1, %A[%i0, %i1, %i2, %i3]
+    {permutation_map = (d0, d1, d2, d3) -> (d3, d1, d0)} :
+  vector<5x4x3xf32>, memref<?x?x?x?xf32>
+```
 
 The list of Vector is currently undergoing evolutions and is best kept track of
 by following the evolution of the
-[VectorOps.td](https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/Vector/VectorOps.td)
+[VectorOps.td](https://github.com/llvm/llvm-project/blob/main/mlir/include/mlir/Dialect/Vector/IR/VectorOps.td)
 ODS file (markdown documentation is automatically generated locally when
 building and populates the
 [Vector doc](https://github.com/llvm/llvm-project/blob/main/mlir/docs/Dialects/Vector.md)).
@@ -342,12 +352,16 @@ Pros:
     is possible over the whole lowered `n-D` vector type.
 2.  Supports special intrinsics and native operations.
 
-Cons: 1. Requires linearization/delinearization logic everywhere, translations
-are complex. 2. Hides away the real HW structure behind dynamic indexing: at the
-end of the day, HW vector sizes are generally fixed and multiple vectors will be
-needed to hold a vector that is larger than the HW. 3. Unlikely peephole
-optimizations will result in good code: arbitrary dynamic accesses, especially
-at HW vector boundaries unlikely to result in regular patterns.
+Cons:
+
+1.  Requires linearization/delinearization logic everywhere, translations are
+    complex.
+2.  Hides away the real HW structure behind dynamic indexing: at the end of the
+    day, HW vector sizes are generally fixed and multiple vectors will be needed
+    to hold a vector that is larger than the HW.
+3.  Unlikely peephole optimizations will result in good code: arbitrary dynamic
+    accesses, especially at HW vector boundaries unlikely to result in regular
+    patterns.
 
 ### Discussion
 
@@ -457,10 +471,8 @@ future, it could make sense to lower to the LLVM matrix abstraction also for CPU
 even though MLIR will continue needing higher level abstractions.
 
 On the other hand, one should note that as MLIR is moving to LLVM, this document
-could become the unifying abstraction that people should target for
-
-> 1-D vectors and the LLVM matrix proposal can be viewed as a subset of this
-> work.
+could become the unifying abstraction that people should target for 1-D vectors
+and the LLVM matrix proposal can be viewed as a subset of this work.
 
 ### Conclusion
 

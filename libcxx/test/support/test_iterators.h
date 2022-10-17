@@ -10,18 +10,24 @@
 #define SUPPORT_TEST_ITERATORS_H
 
 #include <cassert>
+#include <concepts>
 #include <iterator>
+#include <ranges>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 #include "test_macros.h"
 
+
+// This iterator meets C++20's Cpp17OutputIterator requirements, as described
+// in Table 90 ([output.iterators]).
 template <class It>
-class output_iterator
+class cpp17_output_iterator
 {
     It it_;
 
-    template <class U> friend class output_iterator;
+    template <class U> friend class cpp17_output_iterator;
 public:
     typedef          std::output_iterator_tag                  iterator_category;
     typedef void                                               value_type;
@@ -29,25 +35,35 @@ public:
     typedef It                                                 pointer;
     typedef typename std::iterator_traits<It>::reference       reference;
 
-    TEST_CONSTEXPR_CXX14 It base() const {return it_;}
+    TEST_CONSTEXPR explicit cpp17_output_iterator(It it) : it_(std::move(it)) {}
 
-    TEST_CONSTEXPR_CXX14 output_iterator() {}
-    explicit TEST_CONSTEXPR_CXX14 output_iterator(It it) : it_(it) {}
     template <class U>
-        TEST_CONSTEXPR_CXX14 output_iterator(const output_iterator<U>& u) :it_(u.it_) {}
+    TEST_CONSTEXPR cpp17_output_iterator(const cpp17_output_iterator<U>& u) : it_(u.it_) {}
 
-    TEST_CONSTEXPR_CXX14 reference operator*() const {return *it_;}
+    template <class U, class = typename std::enable_if<std::is_default_constructible<U>::value>::type>
+    TEST_CONSTEXPR_CXX14 cpp17_output_iterator(cpp17_output_iterator<U>&& u) : it_(u.it_) { u.it_ = U(); }
 
-    TEST_CONSTEXPR_CXX14 output_iterator& operator++() {++it_; return *this;}
-    TEST_CONSTEXPR_CXX14 output_iterator operator++(int)
-        {output_iterator tmp(*this); ++(*this); return tmp;}
+    TEST_CONSTEXPR reference operator*() const {return *it_;}
+
+    TEST_CONSTEXPR_CXX14 cpp17_output_iterator& operator++() {++it_; return *this;}
+    TEST_CONSTEXPR_CXX14 cpp17_output_iterator operator++(int) {return cpp17_output_iterator(it_++);}
+
+    friend TEST_CONSTEXPR It base(const cpp17_output_iterator& i) { return i.it_; }
 
     template <class T>
     void operator,(T const &) = delete;
 };
+#if TEST_STD_VER > 14
+template <class It>
+cpp17_output_iterator(It) -> cpp17_output_iterator<It>;
+#endif
 
-// This is the Cpp17InputIterator requirement as described in Table 87 ([input.iterators]),
-// formerly known as InputIterator prior to C++20.
+#if TEST_STD_VER > 17
+   static_assert(std::output_iterator<cpp17_output_iterator<int*>, int>);
+#endif
+
+// This iterator meets C++20's Cpp17InputIterator requirements, as described
+// in Table 89 ([input.iterators]).
 template <class It, class ItTraits = It>
 class cpp17_input_iterator
 {
@@ -62,40 +78,35 @@ public:
     typedef It                                                 pointer;
     typedef typename Traits::reference                         reference;
 
-    TEST_CONSTEXPR_CXX14 It base() const {return it_;}
+    TEST_CONSTEXPR explicit cpp17_input_iterator(It it) : it_(it) {}
 
-    TEST_CONSTEXPR_CXX14 cpp17_input_iterator() : it_() {}
-    explicit TEST_CONSTEXPR_CXX14 cpp17_input_iterator(It it) : it_(it) {}
     template <class U, class T>
-        TEST_CONSTEXPR_CXX14 cpp17_input_iterator(const cpp17_input_iterator<U, T>& u) :it_(u.it_) {}
+    TEST_CONSTEXPR cpp17_input_iterator(const cpp17_input_iterator<U, T>& u) : it_(u.it_) {}
 
-    TEST_CONSTEXPR_CXX14 reference operator*() const {return *it_;}
-    TEST_CONSTEXPR_CXX14 pointer operator->() const {return it_;}
+    template <class U, class T, class = typename std::enable_if<std::is_default_constructible<U>::value>::type>
+    TEST_CONSTEXPR_CXX14 cpp17_input_iterator(cpp17_input_iterator<U, T>&& u) : it_(u.it_) { u.it_ = U(); }
+
+    TEST_CONSTEXPR reference operator*() const {return *it_;}
 
     TEST_CONSTEXPR_CXX14 cpp17_input_iterator& operator++() {++it_; return *this;}
-    TEST_CONSTEXPR_CXX14 cpp17_input_iterator operator++(int)
-        {cpp17_input_iterator tmp(*this); ++(*this); return tmp;}
+    TEST_CONSTEXPR_CXX14 cpp17_input_iterator operator++(int) {return cpp17_input_iterator(it_++);}
 
-    friend TEST_CONSTEXPR_CXX14 bool operator==(const cpp17_input_iterator& x, const cpp17_input_iterator& y)
-        {return x.it_ == y.it_;}
-    friend TEST_CONSTEXPR_CXX14 bool operator!=(const cpp17_input_iterator& x, const cpp17_input_iterator& y)
-        {return !(x == y);}
+    friend TEST_CONSTEXPR bool operator==(const cpp17_input_iterator& x, const cpp17_input_iterator& y) {return x.it_ == y.it_;}
+    friend TEST_CONSTEXPR bool operator!=(const cpp17_input_iterator& x, const cpp17_input_iterator& y) {return x.it_ != y.it_;}
+
+    friend TEST_CONSTEXPR It base(const cpp17_input_iterator& i) { return i.it_; }
 
     template <class T>
     void operator,(T const &) = delete;
 };
+#if TEST_STD_VER > 14
+template <class It>
+cpp17_input_iterator(It) -> cpp17_input_iterator<It>;
+#endif
 
-template <class T, class TV, class U, class UV>
-bool operator==(const cpp17_input_iterator<T, TV>& x, const cpp17_input_iterator<U, UV>& y)
-{
-    return x.base() == y.base();
-}
-
-template <class T, class TV, class U, class UV>
-bool operator!=(const cpp17_input_iterator<T, TV>& x, const cpp17_input_iterator<U, UV>& y)
-{
-    return !(x == y);
-}
+#if TEST_STD_VER > 17
+   static_assert(std::input_iterator<cpp17_input_iterator<int*>>);
+#endif
 
 template <class It>
 class forward_iterator
@@ -110,93 +121,32 @@ public:
     typedef It                                                 pointer;
     typedef typename std::iterator_traits<It>::reference       reference;
 
-    TEST_CONSTEXPR_CXX14 It base() const {return it_;}
+    TEST_CONSTEXPR forward_iterator() : it_() {}
+    TEST_CONSTEXPR explicit forward_iterator(It it) : it_(it) {}
 
-    TEST_CONSTEXPR_CXX14 forward_iterator() : it_() {}
-    explicit TEST_CONSTEXPR_CXX14 forward_iterator(It it) : it_(it) {}
     template <class U>
-        TEST_CONSTEXPR_CXX14 forward_iterator(const forward_iterator<U>& u) :it_(u.it_) {}
+    TEST_CONSTEXPR forward_iterator(const forward_iterator<U>& u) : it_(u.it_) {}
 
-    TEST_CONSTEXPR_CXX14 reference operator*() const {return *it_;}
-    TEST_CONSTEXPR_CXX14 pointer operator->() const {return it_;}
+    template <class U, class = typename std::enable_if<std::is_default_constructible<U>::value>::type>
+    TEST_CONSTEXPR_CXX14 forward_iterator(forward_iterator<U>&& other) : it_(other.it_) { other.it_ = U(); }
+
+    TEST_CONSTEXPR reference operator*() const {return *it_;}
 
     TEST_CONSTEXPR_CXX14 forward_iterator& operator++() {++it_; return *this;}
-    TEST_CONSTEXPR_CXX14 forward_iterator operator++(int)
-        {forward_iterator tmp(*this); ++(*this); return tmp;}
+    TEST_CONSTEXPR_CXX14 forward_iterator operator++(int) {return forward_iterator(it_++);}
 
-    friend TEST_CONSTEXPR_CXX14 bool operator==(const forward_iterator& x, const forward_iterator& y)
-        {return x.it_ == y.it_;}
-    friend TEST_CONSTEXPR_CXX14 bool operator!=(const forward_iterator& x, const forward_iterator& y)
-        {return !(x == y);}
+    friend TEST_CONSTEXPR bool operator==(const forward_iterator& x, const forward_iterator& y) {return x.it_ == y.it_;}
+    friend TEST_CONSTEXPR bool operator!=(const forward_iterator& x, const forward_iterator& y) {return x.it_ != y.it_;}
+
+    friend TEST_CONSTEXPR It base(const forward_iterator& i) { return i.it_; }
 
     template <class T>
     void operator,(T const &) = delete;
 };
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator==(const forward_iterator<T>& x, const forward_iterator<U>& y)
-{
-    return x.base() == y.base();
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator!=(const forward_iterator<T>& x, const forward_iterator<U>& y)
-{
-    return !(x == y);
-}
-
+#if TEST_STD_VER > 14
 template <class It>
-class non_default_constructible_iterator
-{
-    It it_;
-
-    template <class U> friend class non_default_constructible_iterator;
-public:
-    typedef          std::input_iterator_tag                   iterator_category;
-    typedef typename std::iterator_traits<It>::value_type      value_type;
-    typedef typename std::iterator_traits<It>::difference_type difference_type;
-    typedef It                                                 pointer;
-    typedef typename std::iterator_traits<It>::reference       reference;
-
-    TEST_CONSTEXPR_CXX14 It base() const {return it_;}
-
-    non_default_constructible_iterator() = delete;
-
-    explicit TEST_CONSTEXPR_CXX14 non_default_constructible_iterator(It it) : it_(it) {}
-    template <class U>
-        TEST_CONSTEXPR_CXX14 non_default_constructible_iterator(const non_default_constructible_iterator<U>& u) :it_(u.it_) {}
-
-    TEST_CONSTEXPR_CXX14 reference operator*() const {return *it_;}
-    TEST_CONSTEXPR_CXX14 pointer operator->() const {return it_;}
-
-    TEST_CONSTEXPR_CXX14 non_default_constructible_iterator& operator++() {++it_; return *this;}
-    TEST_CONSTEXPR_CXX14 non_default_constructible_iterator operator++(int)
-        {non_default_constructible_iterator tmp(*this); ++(*this); return tmp;}
-
-    friend TEST_CONSTEXPR_CXX14 bool operator==(const non_default_constructible_iterator& x, const non_default_constructible_iterator& y)
-        {return x.it_ == y.it_;}
-    friend TEST_CONSTEXPR_CXX14 bool operator!=(const non_default_constructible_iterator& x, const non_default_constructible_iterator& y)
-        {return !(x == y);}
-
-    template <class T>
-    void operator,(T const &) = delete;
-};
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator==(const non_default_constructible_iterator<T>& x, const non_default_constructible_iterator<U>& y)
-{
-    return x.base() == y.base();
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator!=(const non_default_constructible_iterator<T>& x, const non_default_constructible_iterator<U>& y)
-{
-    return !(x == y);
-}
+forward_iterator(It) -> forward_iterator<It>;
+#endif
 
 template <class It>
 class bidirectional_iterator
@@ -211,41 +161,34 @@ public:
     typedef It                                                 pointer;
     typedef typename std::iterator_traits<It>::reference       reference;
 
-    TEST_CONSTEXPR_CXX14 It base() const {return it_;}
+    TEST_CONSTEXPR bidirectional_iterator() : it_() {}
+    TEST_CONSTEXPR explicit bidirectional_iterator(It it) : it_(it) {}
 
-    TEST_CONSTEXPR_CXX14 bidirectional_iterator() : it_() {}
-    explicit TEST_CONSTEXPR_CXX14 bidirectional_iterator(It it) : it_(it) {}
     template <class U>
-        TEST_CONSTEXPR_CXX14 bidirectional_iterator(const bidirectional_iterator<U>& u) :it_(u.it_) {}
+    TEST_CONSTEXPR bidirectional_iterator(const bidirectional_iterator<U>& u) : it_(u.it_) {}
 
-    TEST_CONSTEXPR_CXX14 reference operator*() const {return *it_;}
-    TEST_CONSTEXPR_CXX14 pointer operator->() const {return it_;}
+    template <class U, class = typename std::enable_if<std::is_default_constructible<U>::value>::type>
+    TEST_CONSTEXPR_CXX14 bidirectional_iterator(bidirectional_iterator<U>&& u) : it_(u.it_) { u.it_ = U(); }
+
+    TEST_CONSTEXPR reference operator*() const {return *it_;}
 
     TEST_CONSTEXPR_CXX14 bidirectional_iterator& operator++() {++it_; return *this;}
-    TEST_CONSTEXPR_CXX14 bidirectional_iterator operator++(int)
-        {bidirectional_iterator tmp(*this); ++(*this); return tmp;}
-
     TEST_CONSTEXPR_CXX14 bidirectional_iterator& operator--() {--it_; return *this;}
-    TEST_CONSTEXPR_CXX14 bidirectional_iterator operator--(int)
-        {bidirectional_iterator tmp(*this); --(*this); return tmp;}
+    TEST_CONSTEXPR_CXX14 bidirectional_iterator operator++(int) {return bidirectional_iterator(it_++);}
+    TEST_CONSTEXPR_CXX14 bidirectional_iterator operator--(int) {return bidirectional_iterator(it_--);}
+
+    friend TEST_CONSTEXPR bool operator==(const bidirectional_iterator& x, const bidirectional_iterator& y) {return x.it_ == y.it_;}
+    friend TEST_CONSTEXPR bool operator!=(const bidirectional_iterator& x, const bidirectional_iterator& y) {return x.it_ != y.it_;}
+
+    friend TEST_CONSTEXPR It base(const bidirectional_iterator& i) { return i.it_; }
 
     template <class T>
     void operator,(T const &) = delete;
 };
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator==(const bidirectional_iterator<T>& x, const bidirectional_iterator<U>& y)
-{
-    return x.base() == y.base();
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator!=(const bidirectional_iterator<T>& x, const bidirectional_iterator<U>& y)
-{
-    return !(x == y);
-}
+#if TEST_STD_VER > 14
+template <class It>
+bidirectional_iterator(It) -> bidirectional_iterator<It>;
+#endif
 
 template <class It>
 class random_access_iterator
@@ -260,90 +203,140 @@ public:
     typedef It                                                 pointer;
     typedef typename std::iterator_traits<It>::reference       reference;
 
-    TEST_CONSTEXPR_CXX14 It base() const {return it_;}
+    TEST_CONSTEXPR random_access_iterator() : it_() {}
+    TEST_CONSTEXPR explicit random_access_iterator(It it) : it_(it) {}
 
-    TEST_CONSTEXPR_CXX14 random_access_iterator() : it_() {}
-    explicit TEST_CONSTEXPR_CXX14 random_access_iterator(It it) : it_(it) {}
     template <class U>
-        TEST_CONSTEXPR_CXX14 random_access_iterator(const random_access_iterator<U>& u) :it_(u.it_) {}
+    TEST_CONSTEXPR random_access_iterator(const random_access_iterator<U>& u) : it_(u.it_) {}
+
+    template <class U, class = typename std::enable_if<std::is_default_constructible<U>::value>::type>
+    TEST_CONSTEXPR_CXX14 random_access_iterator(random_access_iterator<U>&& u) : it_(u.it_) { u.it_ = U(); }
 
     TEST_CONSTEXPR_CXX14 reference operator*() const {return *it_;}
-    TEST_CONSTEXPR_CXX14 pointer operator->() const {return it_;}
+    TEST_CONSTEXPR_CXX14 reference operator[](difference_type n) const {return it_[n];}
 
     TEST_CONSTEXPR_CXX14 random_access_iterator& operator++() {++it_; return *this;}
-    TEST_CONSTEXPR_CXX14 random_access_iterator operator++(int)
-        {random_access_iterator tmp(*this); ++(*this); return tmp;}
-
     TEST_CONSTEXPR_CXX14 random_access_iterator& operator--() {--it_; return *this;}
-    TEST_CONSTEXPR_CXX14 random_access_iterator operator--(int)
-        {random_access_iterator tmp(*this); --(*this); return tmp;}
+    TEST_CONSTEXPR_CXX14 random_access_iterator operator++(int) {return random_access_iterator(it_++);}
+    TEST_CONSTEXPR_CXX14 random_access_iterator operator--(int) {return random_access_iterator(it_--);}
 
     TEST_CONSTEXPR_CXX14 random_access_iterator& operator+=(difference_type n) {it_ += n; return *this;}
-    TEST_CONSTEXPR_CXX14 random_access_iterator operator+(difference_type n) const
-        {random_access_iterator tmp(*this); tmp += n; return tmp;}
-    friend TEST_CONSTEXPR_CXX14 random_access_iterator operator+(difference_type n, random_access_iterator x)
-        {x += n; return x;}
-    TEST_CONSTEXPR_CXX14 random_access_iterator& operator-=(difference_type n) {return *this += -n;}
-    TEST_CONSTEXPR_CXX14 random_access_iterator operator-(difference_type n) const
-        {random_access_iterator tmp(*this); tmp -= n; return tmp;}
+    TEST_CONSTEXPR_CXX14 random_access_iterator& operator-=(difference_type n) {it_ -= n; return *this;}
+    friend TEST_CONSTEXPR_CXX14 random_access_iterator operator+(random_access_iterator x, difference_type n) {x += n; return x;}
+    friend TEST_CONSTEXPR_CXX14 random_access_iterator operator+(difference_type n, random_access_iterator x) {x += n; return x;}
+    friend TEST_CONSTEXPR_CXX14 random_access_iterator operator-(random_access_iterator x, difference_type n) {x -= n; return x;}
+    friend TEST_CONSTEXPR difference_type operator-(random_access_iterator x, random_access_iterator y) {return x.it_ - y.it_;}
 
-    TEST_CONSTEXPR_CXX14 reference operator[](difference_type n) const {return it_[n];}
+    friend TEST_CONSTEXPR bool operator==(const random_access_iterator& x, const random_access_iterator& y) {return x.it_ == y.it_;}
+    friend TEST_CONSTEXPR bool operator!=(const random_access_iterator& x, const random_access_iterator& y) {return x.it_ != y.it_;}
+    friend TEST_CONSTEXPR bool operator< (const random_access_iterator& x, const random_access_iterator& y) {return x.it_ <  y.it_;}
+    friend TEST_CONSTEXPR bool operator<=(const random_access_iterator& x, const random_access_iterator& y) {return x.it_ <= y.it_;}
+    friend TEST_CONSTEXPR bool operator> (const random_access_iterator& x, const random_access_iterator& y) {return x.it_ >  y.it_;}
+    friend TEST_CONSTEXPR bool operator>=(const random_access_iterator& x, const random_access_iterator& y) {return x.it_ >= y.it_;}
+
+    friend TEST_CONSTEXPR It base(const random_access_iterator& i) { return i.it_; }
 
     template <class T>
     void operator,(T const &) = delete;
 };
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator==(const random_access_iterator<T>& x, const random_access_iterator<U>& y)
-{
-    return x.base() == y.base();
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator!=(const random_access_iterator<T>& x, const random_access_iterator<U>& y)
-{
-    return !(x == y);
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator<(const random_access_iterator<T>& x, const random_access_iterator<U>& y)
-{
-    return x.base() < y.base();
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator<=(const random_access_iterator<T>& x, const random_access_iterator<U>& y)
-{
-    return !(y < x);
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator>(const random_access_iterator<T>& x, const random_access_iterator<U>& y)
-{
-    return y < x;
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-bool operator>=(const random_access_iterator<T>& x, const random_access_iterator<U>& y)
-{
-    return !(x < y);
-}
-
-template <class T, class U>
-TEST_CONSTEXPR_CXX14
-typename std::iterator_traits<T>::difference_type
-operator-(const random_access_iterator<T>& x, const random_access_iterator<U>& y)
-{
-    return x.base() - y.base();
-}
+#if TEST_STD_VER > 14
+template <class It>
+random_access_iterator(It) -> random_access_iterator<It>;
+#endif
 
 #if TEST_STD_VER > 17
+
+template <std::random_access_iterator It>
+class cpp20_random_access_iterator {
+  It it_;
+
+  template <std::random_access_iterator>
+  friend class cpp20_random_access_iterator;
+
+public:
+  using iterator_category = std::input_iterator_tag;
+  using iterator_concept  = std::random_access_iterator_tag;
+  using value_type        = typename std::iterator_traits<It>::value_type;
+  using difference_type   = typename std::iterator_traits<It>::difference_type;
+
+  constexpr cpp20_random_access_iterator() : it_() {}
+  constexpr explicit cpp20_random_access_iterator(It it) : it_(it) {}
+
+  template <class U>
+  constexpr cpp20_random_access_iterator(const cpp20_random_access_iterator<U>& u) : it_(u.it_) {}
+
+  template <class U>
+  constexpr cpp20_random_access_iterator(cpp20_random_access_iterator<U>&& u) : it_(u.it_) {
+    u.it_ = U();
+  }
+
+  constexpr decltype(auto) operator*() const { return *it_; }
+  constexpr decltype(auto) operator[](difference_type n) const { return it_[n]; }
+
+  constexpr cpp20_random_access_iterator& operator++() {
+    ++it_;
+    return *this;
+  }
+  constexpr cpp20_random_access_iterator& operator--() {
+    --it_;
+    return *this;
+  }
+  constexpr cpp20_random_access_iterator operator++(int) { return cpp20_random_access_iterator(it_++); }
+  constexpr cpp20_random_access_iterator operator--(int) { return cpp20_random_access_iterator(it_--); }
+
+  constexpr cpp20_random_access_iterator& operator+=(difference_type n) {
+    it_ += n;
+    return *this;
+  }
+  constexpr cpp20_random_access_iterator& operator-=(difference_type n) {
+    it_ -= n;
+    return *this;
+  }
+  friend constexpr cpp20_random_access_iterator operator+(cpp20_random_access_iterator x, difference_type n) {
+    x += n;
+    return x;
+  }
+  friend constexpr cpp20_random_access_iterator operator+(difference_type n, cpp20_random_access_iterator x) {
+    x += n;
+    return x;
+  }
+  friend constexpr cpp20_random_access_iterator operator-(cpp20_random_access_iterator x, difference_type n) {
+    x -= n;
+    return x;
+  }
+  friend constexpr difference_type operator-(cpp20_random_access_iterator x, cpp20_random_access_iterator y) {
+    return x.it_ - y.it_;
+  }
+
+  friend constexpr bool operator==(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ == y.it_;
+  }
+  friend constexpr bool operator!=(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ != y.it_;
+  }
+  friend constexpr bool operator<(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ < y.it_;
+  }
+  friend constexpr bool operator<=(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ <= y.it_;
+  }
+  friend constexpr bool operator>(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ > y.it_;
+  }
+  friend constexpr bool operator>=(const cpp20_random_access_iterator& x, const cpp20_random_access_iterator& y) {
+    return x.it_ >= y.it_;
+  }
+
+  friend constexpr It base(const cpp20_random_access_iterator& i) { return i.it_; }
+
+  template <class T>
+  void operator,(T const&) = delete;
+};
+template <class It>
+cpp20_random_access_iterator(It) -> cpp20_random_access_iterator<It>;
+
+static_assert(std::random_access_iterator<cpp20_random_access_iterator<int*>>);
+
 template <class It>
 class contiguous_iterator
 {
@@ -363,89 +356,100 @@ public:
     TEST_CONSTEXPR_CXX14 It base() const {return it_;}
 
     TEST_CONSTEXPR_CXX14 contiguous_iterator() : it_() {}
-    explicit TEST_CONSTEXPR_CXX14 contiguous_iterator(It it) : it_(it) {}
-    template <class U>
-        TEST_CONSTEXPR_CXX14 contiguous_iterator(const contiguous_iterator<U>& u) : it_(u.it_) {}
+    TEST_CONSTEXPR_CXX14 explicit contiguous_iterator(It it) : it_(it) {}
 
-    TEST_CONSTEXPR_CXX14 reference operator*() const {return *it_;}
-    TEST_CONSTEXPR_CXX14 pointer operator->() const {return it_;}
+    template <class U>
+    TEST_CONSTEXPR_CXX14 contiguous_iterator(const contiguous_iterator<U>& u) : it_(u.it_) {}
+
+    template <class U, class = typename std::enable_if<std::is_default_constructible<U>::value>::type>
+    constexpr contiguous_iterator(contiguous_iterator<U>&& u) : it_(u.it_) { u.it_ = U(); }
+
+    TEST_CONSTEXPR reference operator*() const {return *it_;}
+    TEST_CONSTEXPR pointer operator->() const {return it_;}
+    TEST_CONSTEXPR reference operator[](difference_type n) const {return it_[n];}
 
     TEST_CONSTEXPR_CXX14 contiguous_iterator& operator++() {++it_; return *this;}
-    TEST_CONSTEXPR_CXX14 contiguous_iterator operator++(int)
-        {contiguous_iterator tmp(*this); ++(*this); return tmp;}
-
     TEST_CONSTEXPR_CXX14 contiguous_iterator& operator--() {--it_; return *this;}
-    TEST_CONSTEXPR_CXX14 contiguous_iterator operator--(int)
-        {contiguous_iterator tmp(*this); --(*this); return tmp;}
+    TEST_CONSTEXPR_CXX14 contiguous_iterator operator++(int) {return contiguous_iterator(it_++);}
+    TEST_CONSTEXPR_CXX14 contiguous_iterator operator--(int) {return contiguous_iterator(it_--);}
 
     TEST_CONSTEXPR_CXX14 contiguous_iterator& operator+=(difference_type n) {it_ += n; return *this;}
-    TEST_CONSTEXPR_CXX14 contiguous_iterator operator+(difference_type n) const
-        {contiguous_iterator tmp(*this); tmp += n; return tmp;}
-    friend TEST_CONSTEXPR_CXX14 contiguous_iterator operator+(difference_type n, contiguous_iterator x)
-        {x += n; return x;}
-    TEST_CONSTEXPR_CXX14 contiguous_iterator& operator-=(difference_type n) {return *this += -n;}
-    TEST_CONSTEXPR_CXX14 contiguous_iterator operator-(difference_type n) const
-        {contiguous_iterator tmp(*this); tmp -= n; return tmp;}
+    TEST_CONSTEXPR_CXX14 contiguous_iterator& operator-=(difference_type n) {it_ -= n; return *this;}
+    friend TEST_CONSTEXPR_CXX14 contiguous_iterator operator+(contiguous_iterator x, difference_type n) {x += n; return x;}
+    friend TEST_CONSTEXPR_CXX14 contiguous_iterator operator+(difference_type n, contiguous_iterator x) {x += n; return x;}
+    friend TEST_CONSTEXPR_CXX14 contiguous_iterator operator-(contiguous_iterator x, difference_type n) {x -= n; return x;}
+    friend TEST_CONSTEXPR difference_type operator-(contiguous_iterator x, contiguous_iterator y) {return x.it_ - y.it_;}
 
-    TEST_CONSTEXPR_CXX14 reference operator[](difference_type n) const {return it_[n];}
+    friend TEST_CONSTEXPR bool operator==(const contiguous_iterator& x, const contiguous_iterator& y) {return x.it_ == y.it_;}
+    friend TEST_CONSTEXPR bool operator!=(const contiguous_iterator& x, const contiguous_iterator& y) {return x.it_ != y.it_;}
+    friend TEST_CONSTEXPR bool operator< (const contiguous_iterator& x, const contiguous_iterator& y) {return x.it_ <  y.it_;}
+    friend TEST_CONSTEXPR bool operator<=(const contiguous_iterator& x, const contiguous_iterator& y) {return x.it_ <= y.it_;}
+    friend TEST_CONSTEXPR bool operator> (const contiguous_iterator& x, const contiguous_iterator& y) {return x.it_ >  y.it_;}
+    friend TEST_CONSTEXPR bool operator>=(const contiguous_iterator& x, const contiguous_iterator& y) {return x.it_ >= y.it_;}
 
-    friend TEST_CONSTEXPR_CXX14
-    difference_type operator-(const contiguous_iterator& x, const contiguous_iterator& y) {
-        return x.base() - y.base();
-    }
-
-    friend TEST_CONSTEXPR_CXX14
-    difference_type operator<(const contiguous_iterator& x, const contiguous_iterator& y) {
-        return x.base() < y.base();
-    }
-    friend TEST_CONSTEXPR_CXX14
-    difference_type operator>(const contiguous_iterator& x, const contiguous_iterator& y) {
-        return x.base() > y.base();
-    }
-    friend TEST_CONSTEXPR_CXX14
-    difference_type operator<=(const contiguous_iterator& x, const contiguous_iterator& y) {
-        return x.base() <= y.base();
-    }
-    friend TEST_CONSTEXPR_CXX14
-    difference_type operator>=(const contiguous_iterator& x, const contiguous_iterator& y) {
-        return x.base() >= y.base();
-    }
-    friend TEST_CONSTEXPR_CXX14
-    difference_type operator==(const contiguous_iterator& x, const contiguous_iterator& y) {
-        return x.base() == y.base();
-    }
-    friend TEST_CONSTEXPR_CXX14
-    difference_type operator!=(const contiguous_iterator& x, const contiguous_iterator& y) {
-        return x.base() != y.base();
-    }
+    friend TEST_CONSTEXPR It base(const contiguous_iterator& i) { return i.it_; }
 
     template <class T>
     void operator,(T const &) = delete;
 };
-#endif
+template <class It>
+contiguous_iterator(It) -> contiguous_iterator<It>;
 
-template <class Iter>
-TEST_CONSTEXPR_CXX14 Iter base(output_iterator<Iter> i) { return i.base(); }
+template <class It>
+class three_way_contiguous_iterator
+{
+    static_assert(std::is_pointer_v<It>, "Things probably break in this case");
 
-template <class Iter>
-TEST_CONSTEXPR_CXX14 Iter base(cpp17_input_iterator<Iter> i) { return i.base(); }
+    It it_;
 
-template <class Iter>
-TEST_CONSTEXPR_CXX14 Iter base(forward_iterator<Iter> i) { return i.base(); }
+    template <class U> friend class three_way_contiguous_iterator;
+public:
+    typedef          std::contiguous_iterator_tag              iterator_category;
+    typedef typename std::iterator_traits<It>::value_type      value_type;
+    typedef typename std::iterator_traits<It>::difference_type difference_type;
+    typedef It                                                 pointer;
+    typedef typename std::iterator_traits<It>::reference       reference;
+    typedef typename std::remove_pointer<It>::type             element_type;
 
-template <class Iter>
-TEST_CONSTEXPR_CXX14 Iter base(bidirectional_iterator<Iter> i) { return i.base(); }
+    constexpr It base() const {return it_;}
 
-template <class Iter>
-TEST_CONSTEXPR_CXX14 Iter base(random_access_iterator<Iter> i) { return i.base(); }
+    constexpr three_way_contiguous_iterator() : it_() {}
+    constexpr explicit three_way_contiguous_iterator(It it) : it_(it) {}
 
-#if TEST_STD_VER > 17
-template <class Iter>
-TEST_CONSTEXPR_CXX14 Iter base(contiguous_iterator<Iter> i) { return i.base(); }
-#endif
+    template <class U>
+    constexpr three_way_contiguous_iterator(const three_way_contiguous_iterator<U>& u) : it_(u.it_) {}
 
-template <class Iter>    // everything else
-TEST_CONSTEXPR_CXX14 Iter base(Iter i) { return i; }
+    template <class U, class = typename std::enable_if<std::is_default_constructible<U>::value>::type>
+    constexpr three_way_contiguous_iterator(three_way_contiguous_iterator<U>&& u) : it_(u.it_) { u.it_ = U(); }
+
+    constexpr reference operator*() const {return *it_;}
+    constexpr pointer operator->() const {return it_;}
+    constexpr reference operator[](difference_type n) const {return it_[n];}
+
+    constexpr three_way_contiguous_iterator& operator++() {++it_; return *this;}
+    constexpr three_way_contiguous_iterator& operator--() {--it_; return *this;}
+    constexpr three_way_contiguous_iterator operator++(int) {return three_way_contiguous_iterator(it_++);}
+    constexpr three_way_contiguous_iterator operator--(int) {return three_way_contiguous_iterator(it_--);}
+
+    constexpr three_way_contiguous_iterator& operator+=(difference_type n) {it_ += n; return *this;}
+    constexpr three_way_contiguous_iterator& operator-=(difference_type n) {it_ -= n; return *this;}
+    friend constexpr three_way_contiguous_iterator operator+(three_way_contiguous_iterator x, difference_type n) {x += n; return x;}
+    friend constexpr three_way_contiguous_iterator operator+(difference_type n, three_way_contiguous_iterator x) {x += n; return x;}
+    friend constexpr three_way_contiguous_iterator operator-(three_way_contiguous_iterator x, difference_type n) {x -= n; return x;}
+    friend constexpr difference_type operator-(three_way_contiguous_iterator x, three_way_contiguous_iterator y) {return x.it_ - y.it_;}
+
+    friend constexpr auto operator<=>(const three_way_contiguous_iterator& x, const three_way_contiguous_iterator& y) {return x.it_ <=> y.it_;}
+    friend constexpr bool operator==(const three_way_contiguous_iterator& x, const three_way_contiguous_iterator& y) {return x.it_ == y.it_;}
+
+    template <class T>
+    void operator,(T const &) = delete;
+};
+template <class It>
+three_way_contiguous_iterator(It) -> three_way_contiguous_iterator<It>;
+#endif // TEST_STD_VER > 17
+
+template <class Iter> // ADL base() for everything else (including pointers)
+TEST_CONSTEXPR Iter base(Iter i) { return i; }
 
 template <typename T>
 struct ThrowingIterator {
@@ -457,14 +461,15 @@ struct ThrowingIterator {
 
     enum ThrowingAction { TAIncrement, TADecrement, TADereference, TAAssignment, TAComparison };
 
-    ThrowingIterator()
+    TEST_CONSTEXPR ThrowingIterator()
         : begin_(nullptr), end_(nullptr), current_(nullptr), action_(TADereference), index_(0) {}
-    explicit ThrowingIterator(const T *first, const T *last, int index = 0, ThrowingAction action = TADereference)
+    TEST_CONSTEXPR explicit ThrowingIterator(const T* first, const T* last, int index = 0,
+                                                   ThrowingAction action = TADereference)
         : begin_(first), end_(last), current_(first), action_(action), index_(index) {}
-    ThrowingIterator(const ThrowingIterator &rhs)
+    TEST_CONSTEXPR ThrowingIterator(const ThrowingIterator &rhs)
         : begin_(rhs.begin_), end_(rhs.end_), current_(rhs.current_), action_(rhs.action_), index_(rhs.index_) {}
 
-    ThrowingIterator& operator=(const ThrowingIterator& rhs) {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator& operator=(const ThrowingIterator& rhs) {
         if (action_ == TAAssignment && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator assignment");
@@ -480,7 +485,7 @@ struct ThrowingIterator {
         return *this;
     }
 
-    reference operator*() const {
+    TEST_CONSTEXPR_CXX14 reference operator*() const {
         if (action_ == TADereference && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator dereference");
@@ -491,7 +496,7 @@ struct ThrowingIterator {
         return *current_;
     }
 
-    ThrowingIterator& operator++() {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator& operator++() {
         if (action_ == TAIncrement && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator increment");
@@ -503,13 +508,13 @@ struct ThrowingIterator {
         return *this;
     }
 
-    ThrowingIterator operator++(int) {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator operator++(int) {
         ThrowingIterator temp = *this;
         ++(*this);
         return temp;
     }
 
-    ThrowingIterator& operator--() {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator& operator--() {
         if (action_ == TADecrement && --index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator decrement");
@@ -521,13 +526,13 @@ struct ThrowingIterator {
         return *this;
     }
 
-    ThrowingIterator operator--(int) {
+    TEST_CONSTEXPR_CXX14 ThrowingIterator operator--(int) {
         ThrowingIterator temp = *this;
         --(*this);
         return temp;
     }
 
-    friend bool operator==(const ThrowingIterator& a, const ThrowingIterator& b) {
+    TEST_CONSTEXPR_CXX14 friend bool operator==(const ThrowingIterator& a, const ThrowingIterator& b) {
         if (a.action_ == TAComparison && --a.index_ < 0) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
             throw std::runtime_error("throw from iterator comparison");
@@ -542,7 +547,7 @@ struct ThrowingIterator {
         return a.current_ == b.current_;
     }
 
-    friend bool operator!=(const ThrowingIterator& a, const ThrowingIterator& b) {
+    TEST_CONSTEXPR friend bool operator!=(const ThrowingIterator& a, const ThrowingIterator& b) {
         return !(a == b);
     }
 
@@ -626,76 +631,34 @@ private:
     const T *current_;
 };
 
-#ifdef TEST_SUPPORTS_RANGES
+#if TEST_STD_VER > 17
 
-template <class I>
-struct cpp20_input_iterator {
-    using value_type = std::iter_value_t<I>;
-    using difference_type = std::iter_difference_t<I>;
+template <class It>
+class cpp20_input_iterator
+{
+    It it_;
+
+public:
+    using value_type = std::iter_value_t<It>;
+    using difference_type = std::iter_difference_t<It>;
     using iterator_concept = std::input_iterator_tag;
 
-    cpp20_input_iterator() = delete;
-
+    constexpr explicit cpp20_input_iterator(It it) : it_(it) {}
     cpp20_input_iterator(cpp20_input_iterator&&) = default;
     cpp20_input_iterator& operator=(cpp20_input_iterator&&) = default;
+    constexpr decltype(auto) operator*() const { return *it_; }
+    constexpr cpp20_input_iterator& operator++() { ++it_; return *this; }
+    constexpr void operator++(int) { ++it_; }
 
-    cpp20_input_iterator(cpp20_input_iterator const&) = delete;
-    cpp20_input_iterator& operator=(cpp20_input_iterator const&) = delete;
-
-    explicit constexpr cpp20_input_iterator(I base) : base_(std::move(base)) {}
-
-    constexpr decltype(auto) operator*() const { return *base_; }
-
-    constexpr cpp20_input_iterator& operator++() {
-        ++base_;
-        return *this;
-    }
-
-    constexpr void operator++(int) { ++base_; }
-
-    constexpr const I& base() const& { return base_; }
-
-    constexpr I base() && { return std::move(base_); }
+    friend constexpr It base(const cpp20_input_iterator& i) { return i.it_; }
 
     template <class T>
     void operator,(T const &) = delete;
-
-private:
-    I base_ = I();
 };
+template <class It>
+cpp20_input_iterator(It) -> cpp20_input_iterator<It>;
 
-template <std::input_or_output_iterator I>
-struct iterator_concept {
-    using type = std::output_iterator_tag;
-};
-
-template <std::input_iterator I>
-struct iterator_concept<I> {
-    using type = std::input_iterator_tag;
-};
-
-template <std::forward_iterator I>
-struct iterator_concept<I> {
-    using type = std::forward_iterator_tag;
-};
-
-template <std::bidirectional_iterator I>
-struct iterator_concept<I> {
-    using type = std::bidirectional_iterator_tag;
-};
-
-template <std::random_access_iterator I>
-struct iterator_concept<I> {
-    using type = std::random_access_iterator_tag;
-};
-
-template<std::contiguous_iterator I>
-struct iterator_concept<I> {
-    using type = std::contiguous_iterator_tag;
-};
-
-template <std::input_or_output_iterator I>
-using iterator_concept_t = typename iterator_concept<I>::type;
+static_assert(std::input_iterator<cpp20_input_iterator<int*>>);
 
 template<std::input_or_output_iterator>
 struct iter_value_or_void { using type = void; };
@@ -705,37 +668,71 @@ struct iter_value_or_void<I> {
     using type = std::iter_value_t<I>;
 };
 
+template <class It>
+class cpp20_output_iterator {
+  It it_;
+
+public:
+  using difference_type = std::iter_difference_t<It>;
+
+  constexpr explicit cpp20_output_iterator(It it) : it_(it) {}
+  cpp20_output_iterator(cpp20_output_iterator&&) = default;
+  cpp20_output_iterator& operator=(cpp20_output_iterator&&) = default;
+
+  constexpr decltype(auto) operator*() const { return *it_; }
+  constexpr cpp20_output_iterator& operator++() {
+    ++it_;
+    return *this;
+  }
+  constexpr cpp20_output_iterator operator++(int) { return cpp20_output_iterator(it_++); }
+
+  friend constexpr It base(const cpp20_output_iterator& i) { return i.it_; }
+
+  template <class T>
+  void operator,(T const&) = delete;
+};
+template <class It>
+cpp20_output_iterator(It) -> cpp20_output_iterator<It>;
+
+static_assert(std::output_iterator<cpp20_output_iterator<int*>, int>);
+
 // Iterator adaptor that counts the number of times the iterator has had a successor/predecessor
 // operation called. Has two recorders:
 // * `stride_count`, which records the total number of calls to an op++, op--, op+=, or op-=.
 // * `stride_displacement`, which records the displacement of the calls. This means that both
 //   op++/op+= will increase the displacement counter by 1, and op--/op-= will decrease the
 //   displacement counter by 1.
-template <std::input_or_output_iterator I>
+template <class It>
 class stride_counting_iterator {
 public:
-    using value_type = typename iter_value_or_void<I>::type;
-    using difference_type = std::iter_difference_t<I>;
-    using iterator_concept = iterator_concept_t<I>;
+    using value_type = typename iter_value_or_void<It>::type;
+    using difference_type = std::iter_difference_t<It>;
+    using iterator_concept =
+        std::conditional_t<std::contiguous_iterator<It>,    std::contiguous_iterator_tag,
+        std::conditional_t<std::random_access_iterator<It>, std::random_access_iterator_tag,
+        std::conditional_t<std::bidirectional_iterator<It>, std::bidirectional_iterator_tag,
+        std::conditional_t<std::forward_iterator<It>,       std::forward_iterator_tag,
+        std::conditional_t<std::input_iterator<It>,         std::input_iterator_tag,
+        /* else */                                          std::output_iterator_tag
+    >>>>>;
 
-    stride_counting_iterator() = default;
+    stride_counting_iterator() requires std::default_initializable<It> = default;
 
-    constexpr explicit stride_counting_iterator(I current) : base_(std::move(current)) {}
+    constexpr explicit stride_counting_iterator(It const& it) : base_(base(it)) { }
 
-    constexpr const I& base() const& { return base_; }
-
-    constexpr I base() && { return std::move(base_); }
+    friend constexpr It base(stride_counting_iterator const& it) { return It(it.base_); }
 
     constexpr difference_type stride_count() const { return stride_count_; }
 
     constexpr difference_type stride_displacement() const { return stride_displacement_; }
 
-    constexpr decltype(auto) operator*() const { return *base_; }
+    constexpr decltype(auto) operator*() const { return *It(base_); }
 
-    constexpr decltype(auto) operator[](difference_type const n) const { return base_[n]; }
+    constexpr decltype(auto) operator[](difference_type n) const { return It(base_)[n]; }
 
     constexpr stride_counting_iterator& operator++() {
-        ++base_;
+        It tmp(base_);
+        base_ = base(++tmp);
         ++stride_count_;
         ++stride_displacement_;
         return *this;
@@ -744,7 +741,7 @@ public:
     constexpr void operator++(int) { ++*this; }
 
     constexpr stride_counting_iterator operator++(int)
-        requires std::forward_iterator<I>
+        requires std::forward_iterator<It>
     {
         auto temp = *this;
         ++*this;
@@ -752,16 +749,17 @@ public:
     }
 
     constexpr stride_counting_iterator& operator--()
-        requires std::bidirectional_iterator<I>
+        requires std::bidirectional_iterator<It>
     {
-        --base_;
+        It tmp(base_);
+        base_ = base(--tmp);
         ++stride_count_;
         --stride_displacement_;
         return *this;
     }
 
     constexpr stride_counting_iterator operator--(int)
-        requires std::bidirectional_iterator<I>
+        requires std::bidirectional_iterator<It>
     {
         auto temp = *this;
         --*this;
@@ -769,206 +767,536 @@ public:
     }
 
     constexpr stride_counting_iterator& operator+=(difference_type const n)
-        requires std::random_access_iterator<I>
+        requires std::random_access_iterator<It>
     {
-        base_ += n;
+        It tmp(base_);
+        base_ = base(tmp += n);
         ++stride_count_;
         ++stride_displacement_;
         return *this;
     }
 
     constexpr stride_counting_iterator& operator-=(difference_type const n)
-        requires std::random_access_iterator<I>
+        requires std::random_access_iterator<It>
     {
-        base_ -= n;
+        It tmp(base_);
+        base_ = base(tmp -= n);
         ++stride_count_;
         --stride_displacement_;
         return *this;
     }
 
-    friend constexpr stride_counting_iterator operator+(stride_counting_iterator i, difference_type const n)
-        requires std::random_access_iterator<I>
+    friend constexpr stride_counting_iterator operator+(stride_counting_iterator it, difference_type n)
+        requires std::random_access_iterator<It>
     {
-        return i += n;
+        return it += n;
     }
 
-    friend constexpr stride_counting_iterator operator+(difference_type const n, stride_counting_iterator i)
-        requires std::random_access_iterator<I>
+    friend constexpr stride_counting_iterator operator+(difference_type n, stride_counting_iterator it)
+        requires std::random_access_iterator<It>
     {
-        return i += n;
+        return it += n;
     }
 
-    friend constexpr stride_counting_iterator operator-(stride_counting_iterator i, difference_type const n)
-        requires std::random_access_iterator<I>
+    friend constexpr stride_counting_iterator operator-(stride_counting_iterator it, difference_type n)
+        requires std::random_access_iterator<It>
     {
-        return i -= n;
+        return it -= n;
     }
 
     friend constexpr difference_type operator-(stride_counting_iterator const& x, stride_counting_iterator const& y)
-        requires std::sized_sentinel_for<I, I>
+        requires std::sized_sentinel_for<It, It>
     {
-        return x.base() - y.base();
+        return base(x) - base(y);
     }
 
     constexpr bool operator==(stride_counting_iterator const& other) const
-        requires std::sentinel_for<I, I>
+        requires std::sentinel_for<It, It>
     {
-        return base_ == other.base_;
-    }
-
-    template <std::sentinel_for<I> S>
-    constexpr bool operator==(S const last) const
-    {
-        return base_ == last;
+        return It(base_) == It(other.base_);
     }
 
     friend constexpr bool operator<(stride_counting_iterator const& x, stride_counting_iterator const& y)
-        requires std::random_access_iterator<I>
+        requires std::random_access_iterator<It>
     {
-        return x.base_ < y.base_;
+        return It(x.base_) < It(y.base_);
     }
 
     friend constexpr bool operator>(stride_counting_iterator const& x, stride_counting_iterator const& y)
-        requires std::random_access_iterator<I>
+        requires std::random_access_iterator<It>
     {
-        return y < x;
+        return It(x.base_) > It(y.base_);
     }
 
     friend constexpr bool operator<=(stride_counting_iterator const& x, stride_counting_iterator const& y)
-        requires std::random_access_iterator<I>
+        requires std::random_access_iterator<It>
     {
-        return !(y < x);
+        return It(x.base_) <= It(y.base_);
     }
 
     friend constexpr bool operator>=(stride_counting_iterator const& x, stride_counting_iterator const& y)
-        requires std::random_access_iterator<I>
+        requires std::random_access_iterator<It>
     {
-        return !(x < y);
+        return It(x.base_) >= It(y.base_);
     }
 
     template <class T>
     void operator,(T const &) = delete;
 
 private:
-    I base_;
+    decltype(base(std::declval<It>())) base_;
     difference_type stride_count_ = 0;
     difference_type stride_displacement_ = 0;
 };
+template <class It>
+stride_counting_iterator(It) -> stride_counting_iterator<It>;
 
-template<class T, class U>
-concept sentinel_for_base = requires(U const& u) {
-    u.base();
-    requires std::input_or_output_iterator<std::remove_cvref_t<decltype(u.base())>>;
-    requires std::equality_comparable_with<T, decltype(u.base())>;
-};
+#endif // TEST_STD_VER > 17
 
-template <std::input_or_output_iterator I>
+#if TEST_STD_VER > 17
+template <class It>
 class sentinel_wrapper {
 public:
-    sentinel_wrapper() = default;
-    constexpr explicit sentinel_wrapper(I base) : base_(std::move(base)) {}
-
-    constexpr bool operator==(const I& other) const requires std::equality_comparable<I> {
-        return base_ == other;
-    }
-
-    constexpr const I& base() const& { return base_; }
-    constexpr I base() && { return std::move(base_); }
-
-    template<std::input_or_output_iterator I2>
-        requires sentinel_for_base<I, I2>
-    constexpr bool operator==(const I2& other) const {
-        return base_ == other.base();
-    }
-
+    explicit sentinel_wrapper() = default;
+    constexpr explicit sentinel_wrapper(const It& it) : base_(base(it)) {}
+    constexpr bool operator==(const It& other) const { return base_ == base(other); }
+    friend constexpr It base(const sentinel_wrapper& s) { return It(s.base_); }
 private:
-    I base_ = I();
+    decltype(base(std::declval<It>())) base_;
 };
-
-template <std::input_or_output_iterator I>
-class sized_sentinel {
-public:
-    sized_sentinel() = default;
-    constexpr explicit sized_sentinel(I base) : base_(std::move(base)) {}
-
-    constexpr bool operator==(const I& other) const requires std::equality_comparable<I> {
-        return base_ == other;
-    }
-
-    constexpr const I& base() const& { return base_; }
-    constexpr I base() && { return std::move(base_); }
-
-    template<std::input_or_output_iterator I2>
-        requires sentinel_for_base<I, I2>
-    constexpr bool operator==(const I2& other) const {
-        return base_ == other.base();
-    }
-
-private:
-    I base_ = I();
-};
-
-template <std::input_or_output_iterator I>
-constexpr auto operator-(sized_sentinel<I> sent, std::input_or_output_iterator auto iter) {
-  return sent.base() - iter;
-}
-
-template <std::input_or_output_iterator I>
-constexpr auto operator-(std::input_or_output_iterator auto iter, sized_sentinel<I> sent) {
-  return iter - sent.base();
-}
+template <class It>
+sentinel_wrapper(It) -> sentinel_wrapper<It>;
 
 template <class It>
-class three_way_contiguous_iterator
-{
-    static_assert(std::is_pointer_v<It>, "Things probably break in this case");
-
-    It it_;
-
-    template <class U> friend class three_way_contiguous_iterator;
+class sized_sentinel {
 public:
-    typedef          std::contiguous_iterator_tag              iterator_category;
-    typedef typename std::iterator_traits<It>::value_type      value_type;
-    typedef typename std::iterator_traits<It>::difference_type difference_type;
-    typedef It                                                 pointer;
-    typedef typename std::iterator_traits<It>::reference       reference;
-    typedef typename std::remove_pointer<It>::type             element_type;
+    explicit sized_sentinel() = default;
+    constexpr explicit sized_sentinel(const It& it) : base_(base(it)) {}
+    constexpr bool operator==(const It& other) const { return base_ == base(other); }
+    friend constexpr auto operator-(const sized_sentinel& s, const It& i) { return s.base_ - base(i); }
+    friend constexpr auto operator-(const It& i, const sized_sentinel& s) { return base(i) - s.base_; }
+    friend constexpr It base(const sized_sentinel& s) { return It(s.base_); }
+private:
+    decltype(base(std::declval<It>())) base_;
+};
+template <class It>
+sized_sentinel(It) -> sized_sentinel<It>;
 
-    constexpr It base() const {return it_;}
+namespace adl {
 
-    constexpr three_way_contiguous_iterator() : it_() {}
-    constexpr explicit three_way_contiguous_iterator(It it) : it_(it) {}
-    template <class U>
-    constexpr three_way_contiguous_iterator(const three_way_contiguous_iterator<U>& u) : it_(u.it_) {}
+class Iterator {
+ public:
+  using value_type = int;
+  using reference = int&;
+  using difference_type = ptrdiff_t;
 
-    constexpr reference operator*() const {return *it_;}
-    constexpr pointer operator->() const {return it_;}
+ private:
+  value_type* ptr_ = nullptr;
+  int* iter_moves_ = nullptr;
+  int* iter_swaps_ = nullptr;
 
-    constexpr three_way_contiguous_iterator& operator++() {++it_; return *this;}
-    constexpr three_way_contiguous_iterator operator++(int) {auto tmp = *this; ++(*this); return tmp;}
+  constexpr Iterator(int* p, int* iter_moves, int* iter_swaps)
+    : ptr_(p)
+    , iter_moves_(iter_moves)
+    , iter_swaps_(iter_swaps) {}
 
-    constexpr three_way_contiguous_iterator& operator--() {--it_; return *this;}
-    constexpr three_way_contiguous_iterator operator--(int) {auto tmp = *this; --(*this); return tmp;}
+ public:
+  constexpr Iterator() = default;
+  static constexpr Iterator TrackMoves(int* p, int& iter_moves) {
+    return Iterator(p, &iter_moves, /*iter_swaps=*/nullptr);
+  }
+  static constexpr Iterator TrackSwaps(int& iter_swaps) {
+    return Iterator(/*p=*/nullptr, /*iter_moves=*/nullptr, &iter_swaps);
+  }
+  static constexpr Iterator TrackSwaps(int* p, int& iter_swaps) {
+    return Iterator(p, /*iter_moves=*/nullptr, &iter_swaps);
+  }
 
-    constexpr three_way_contiguous_iterator& operator+=(difference_type n) {it_ += n; return *this;}
-    constexpr auto operator+(difference_type n) const {auto tmp = *this; tmp += n; return tmp;}
-    friend constexpr auto operator+(difference_type n, three_way_contiguous_iterator x) {x += n; return x;}
-    constexpr three_way_contiguous_iterator& operator-=(difference_type n) {return *this += -n;}
-    constexpr auto operator-(difference_type n) const {auto tmp = *this; tmp -= n; return tmp;}
+  constexpr int iter_moves() const { assert(iter_moves_); return *iter_moves_; }
+  constexpr int iter_swaps() const { assert(iter_swaps_); return *iter_swaps_; }
 
-    constexpr reference operator[](difference_type n) const {return it_[n];}
+  constexpr value_type& operator*() const { return *ptr_; }
+  constexpr reference operator[](difference_type n) const { return ptr_[n]; }
 
-    template <class T>
-    void operator,(T const &) = delete;
+  friend constexpr Iterator operator+(Iterator i, difference_type n) {
+    return Iterator(i.ptr_ + n, i.iter_moves_, i.iter_swaps_);
+  }
+  friend constexpr Iterator operator+(difference_type n, Iterator i) {
+    return i + n;
+  }
+  constexpr Iterator operator-(difference_type n) const {
+    return Iterator(ptr_ - n, iter_moves_, iter_swaps_);
+  }
+  constexpr difference_type operator-(Iterator rhs) const {
+    return ptr_ - rhs.ptr_;
+  }
+  constexpr Iterator& operator+=(difference_type n) {
+    ptr_ += n;
+    return *this;
+  }
+  constexpr Iterator& operator-=(difference_type n) {
+    ptr_ -= n;
+    return *this;
+  }
 
-    friend constexpr
-    difference_type operator-(const three_way_contiguous_iterator& x, const three_way_contiguous_iterator& y) {
-        return x.base() - y.base();
+  constexpr Iterator& operator++() { ++ptr_; return *this; }
+  constexpr Iterator operator++(int) {
+    Iterator prev = *this;
+    ++ptr_;
+    return prev;
+  }
+
+  constexpr Iterator& operator--() { --ptr_; return *this; }
+  constexpr Iterator operator--(int) {
+    Iterator prev = *this;
+    --ptr_;
+    return prev;
+  }
+
+  constexpr friend void iter_swap(Iterator a, Iterator b) {
+    std::swap(a.ptr_, b.ptr_);
+    if (a.iter_swaps_) {
+      ++(*a.iter_swaps_);
     }
+  }
 
-    friend auto operator<=>(const three_way_contiguous_iterator&, const three_way_contiguous_iterator&) = default;
+  constexpr friend value_type&& iter_move(Iterator iter) {
+    if (iter.iter_moves_) {
+      ++(*iter.iter_moves_);
+    }
+    return std::move(*iter);
+  }
+
+  constexpr friend bool operator==(const Iterator& lhs, const Iterator& rhs) {
+    return lhs.ptr_ == rhs.ptr_;
+  }
+  constexpr friend auto operator<=>(const Iterator& lhs, const Iterator& rhs) {
+    return lhs.ptr_ <=> rhs.ptr_;
+  }
 };
 
-#endif // TEST_STD_VER > 17 && defined(__cpp_lib_concepts)
+} // namespace adl
+
+// Proxy
+// ======================================================================
+// Proxy that can wrap a value or a reference. It simulates C++23's tuple
+// but simplified to just hold one argument.
+// Note that unlike tuple, this class deliberately doesn't have special handling
+// of swap to cause a compilation error if it's used in an algorithm that relies
+// on plain swap instead of ranges::iter_swap.
+// This class is useful for testing that if algorithms support proxy iterator
+// properly, i.e. calling ranges::iter_swap and ranges::iter_move instead of
+// plain swap and std::move.
+template <class T>
+struct Proxy;
+
+template <class T>
+inline constexpr bool IsProxy = false;
+
+template <class T>
+inline constexpr bool IsProxy<Proxy<T>> = true;
+
+template <class T>
+struct Proxy {
+  T data;
+
+  constexpr T& getData() & { return data; }
+
+  constexpr const T& getData() const& { return data; }
+
+  constexpr T&& getData() && { return static_cast<T&&>(data); }
+
+  constexpr const T&& getData() const&& { return static_cast<const T&&>(data); }
+
+  template <class U>
+    requires std::constructible_from<T, U&&>
+  constexpr Proxy(U&& u) : data{std::forward<U>(u)} {}
+
+  // This constructor covers conversion from cvref of Proxy<U>, including non-const/const versions of copy/move constructor
+  template <class Other>
+    requires(IsProxy<std::decay_t<Other>> && std::constructible_from<T, decltype(std::declval<Other>().getData())>)
+  constexpr Proxy(Other&& other) : data{std::forward<Other>(other).getData()} {}
+
+  template <class Other>
+    requires(IsProxy<std::decay_t<Other>> && std::assignable_from<T&, decltype(std::declval<Other>().getData())>)
+  constexpr Proxy& operator=(Other&& other) {
+    data = std::forward<Other>(other).getData();
+    return *this;
+  }
+
+  // const assignment required to make ProxyIterator model std::indirectly_writable
+  template <class Other>
+    requires(IsProxy<std::decay_t<Other>> && std::assignable_from<const T&, decltype(std::declval<Other>().getData())>)
+  constexpr const Proxy& operator=(Other&& other) const {
+    data = std::forward<Other>(other).getData();
+    return *this;
+  }
+
+  // If `T` is a reference type, the implicitly-generated assignment operator will be deleted (and would take precedence
+  // over the templated `operator=` above because it's a better match).
+  constexpr Proxy& operator=(const Proxy& rhs) {
+    data = rhs.data;
+    return *this;
+  }
+
+  // no specialised swap function that takes const Proxy& and no specialised const member swap
+  // Calling swap(Proxy<T>{}, Proxy<T>{}) would fail (pass prvalues)
+
+  // Compare operators are defined for the convenience of the tests
+  friend constexpr bool operator==(const Proxy&, const Proxy&)
+    requires (std::equality_comparable<T> && !std::is_reference_v<T>)
+  = default;
+
+  // Helps compare e.g. `Proxy<int>` and `Proxy<int&>`. Note that the default equality comparison operator is deleted
+  // when `T` is a reference type.
+  template <class U>
+  friend constexpr bool operator==(const Proxy& lhs, const Proxy<U>& rhs)
+    requires std::equality_comparable_with<std::decay_t<T>, std::decay_t<U>> {
+    return lhs.data == rhs.data;
+  }
+
+  friend constexpr auto operator<=>(const Proxy&, const Proxy&)
+    requires (std::three_way_comparable<T> && !std::is_reference_v<T>)
+  = default;
+
+  // Helps compare e.g. `Proxy<int>` and `Proxy<int&>`. Note that the default 3-way comparison operator is deleted when
+  // `T` is a reference type.
+  template <class U>
+  friend constexpr auto operator<=>(const Proxy& lhs, const Proxy<U>& rhs)
+    requires std::three_way_comparable_with<std::decay_t<T>, std::decay_t<U>> {
+    return lhs.data <=> rhs.data;
+  }
+};
+
+// This is to make ProxyIterator model `std::indirectly_readable`
+template <class T, class U, template <class> class TQual, template <class> class UQual>
+  requires requires { typename std::common_reference_t<TQual<T>, UQual<U>>; }
+struct std::basic_common_reference<Proxy<T>, Proxy<U>, TQual, UQual> {
+  using type = Proxy<std::common_reference_t<TQual<T>, UQual<U>>>;
+};
+
+template <class T, class U>
+  requires requires { typename std::common_type_t<T, U>; }
+struct std::common_type<Proxy<T>, Proxy<U>> {
+  using type = Proxy<std::common_type_t<T, U>>;
+};
+
+// ProxyIterator
+// ======================================================================
+// It wraps `Base` iterator and when dereferenced it returns a Proxy<ref>
+// It simulates C++23's zip_view::iterator but simplified to just wrap
+// one base iterator.
+// Note it forwards value_type, iter_move, iter_swap. e.g if the base
+// iterator is int*,
+// operator*    -> Proxy<int&>
+// iter_value_t -> Proxy<int>
+// iter_move    -> Proxy<int&&>
+template <class Base>
+struct ProxyIteratorBase {};
+
+template <class Base>
+  requires std::derived_from<
+      typename std::iterator_traits<Base>::iterator_category,
+      std::input_iterator_tag>
+struct ProxyIteratorBase<Base> {
+  using iterator_category = std::input_iterator_tag;
+};
+
+template <std::input_iterator Base>
+consteval auto get_iterator_concept() {
+  if constexpr (std::random_access_iterator<Base>) {
+    return std::random_access_iterator_tag{};
+  } else if constexpr (std::bidirectional_iterator<Base>) {
+    return std::bidirectional_iterator_tag{};
+  } else if constexpr (std::forward_iterator<Base>) {
+    return std::forward_iterator_tag{};
+  } else {
+    return std::input_iterator_tag{};
+  }
+}
+
+template <std::input_iterator Base>
+struct ProxyIterator : ProxyIteratorBase<Base> {
+  Base base_;
+
+  using iterator_concept = decltype(get_iterator_concept<Base>());
+  using value_type       = Proxy<std::iter_value_t<Base>>;
+  using difference_type  = std::iter_difference_t<Base>;
+
+  ProxyIterator()
+    requires std::default_initializable<Base>
+  = default;
+
+  constexpr ProxyIterator(Base base) : base_{std::move(base)} {}
+
+  template <class T>
+    requires std::constructible_from<Base, T&&>
+  constexpr ProxyIterator(T&& t) : base_{std::forward<T>(t)} {}
+
+  friend constexpr decltype(auto) base(const ProxyIterator& p) { return base(p.base_); }
+
+  // Specialization of iter_move
+  // If operator* returns Proxy<Foo&>, iter_move will return Proxy<Foo&&>
+  // Note std::move(*it) returns Proxy<Foo&>&&, which is not what we want as
+  // it will likely result in a copy rather than a move
+  friend constexpr Proxy<std::iter_rvalue_reference_t<Base>> iter_move(const ProxyIterator& p) noexcept {
+    return {std::ranges::iter_move(p.base_)};
+  }
+
+  // Specialization of iter_swap
+  // Note std::swap(*x, *y) would fail to compile as operator* returns prvalues
+  // and std::swap takes non-const lvalue references
+  friend constexpr void iter_swap(const ProxyIterator& x, const ProxyIterator& y) noexcept {
+    std::ranges::iter_swap(x.base_, y.base_);
+  }
+
+  // to satisfy input_iterator
+  constexpr Proxy<std::iter_reference_t<Base>> operator*() const { return {*base_}; }
+
+  constexpr ProxyIterator& operator++() {
+    ++base_;
+    return *this;
+  }
+
+  constexpr void operator++(int) { ++*this; }
+
+  friend constexpr bool operator==(const ProxyIterator& x, const ProxyIterator& y)
+    requires std::equality_comparable<Base> {
+    return x.base_ == y.base_;
+  }
+
+  // to satisfy forward_iterator
+  constexpr ProxyIterator operator++(int)
+    requires std::forward_iterator<Base> {
+    auto tmp = *this;
+    ++*this;
+    return tmp;
+  }
+
+  // to satisfy bidirectional_iterator
+  constexpr ProxyIterator& operator--()
+    requires std::bidirectional_iterator<Base> {
+    --base_;
+    return *this;
+  }
+
+  constexpr ProxyIterator operator--(int)
+    requires std::bidirectional_iterator<Base> {
+    auto tmp = *this;
+    --*this;
+    return tmp;
+  }
+
+  // to satisfy random_access_iterator
+  constexpr ProxyIterator& operator+=(difference_type n)
+    requires std::random_access_iterator<Base> {
+    base_ += n;
+    return *this;
+  }
+
+  constexpr ProxyIterator& operator-=(difference_type n)
+    requires std::random_access_iterator<Base> {
+    base_ -= n;
+    return *this;
+  }
+
+  constexpr Proxy<std::iter_reference_t<Base>> operator[](difference_type n) const
+    requires std::random_access_iterator<Base> {
+    return {base_[n]};
+  }
+
+  friend constexpr bool operator<(const ProxyIterator& x, const ProxyIterator& y)
+    requires std::random_access_iterator<Base> {
+    return x.base_ < y.base_;
+  }
+
+  friend constexpr bool operator>(const ProxyIterator& x, const ProxyIterator& y)
+    requires std::random_access_iterator<Base> {
+    return x.base_ > y.base_;
+  }
+
+  friend constexpr bool operator<=(const ProxyIterator& x, const ProxyIterator& y)
+    requires std::random_access_iterator<Base> {
+    return x.base_ <= y.base_;
+  }
+
+  friend constexpr bool operator>=(const ProxyIterator& x, const ProxyIterator& y)
+    requires std::random_access_iterator<Base> {
+    return x.base_ >= y.base_;
+  }
+
+  friend constexpr auto operator<=>(const ProxyIterator& x, const ProxyIterator& y)
+    requires(std::random_access_iterator<Base> && std::three_way_comparable<Base>) {
+    return x.base_ <=> y.base_;
+  }
+
+  friend constexpr ProxyIterator operator+(const ProxyIterator& x, difference_type n)
+    requires std::random_access_iterator<Base> {
+    return ProxyIterator{x.base_ + n};
+  }
+
+  friend constexpr ProxyIterator operator+(difference_type n, const ProxyIterator& x)
+    requires std::random_access_iterator<Base> {
+    return ProxyIterator{n + x.base_};
+  }
+
+  friend constexpr ProxyIterator operator-(const ProxyIterator& x, difference_type n)
+    requires std::random_access_iterator<Base> {
+    return ProxyIterator{x.base_ - n};
+  }
+
+  friend constexpr difference_type operator-(const ProxyIterator& x, const ProxyIterator& y)
+    requires std::random_access_iterator<Base> {
+    return x.base_ - y.base_;
+  }
+};
+template <class Base>
+ProxyIterator(Base) -> ProxyIterator<Base>;
+
+static_assert(std::indirectly_readable<ProxyIterator<int*>>);
+static_assert(std::indirectly_writable<ProxyIterator<int*>, Proxy<int>>);
+static_assert(std::indirectly_writable<ProxyIterator<int*>, Proxy<int&>>);
+
+template <class BaseSent>
+struct ProxySentinel {
+  BaseSent base_;
+
+  ProxySentinel() = default;
+  constexpr ProxySentinel(BaseSent base) : base_{std::move(base)} {}
+
+  template <class Base>
+    requires std::equality_comparable_with<Base, BaseSent>
+  friend constexpr bool operator==(const ProxyIterator<Base>& p, const ProxySentinel& sent) {
+    return p.base_ == sent.base_;
+  }
+};
+template <class BaseSent>
+ProxySentinel(BaseSent) -> ProxySentinel<BaseSent>;
+
+template <std::ranges::input_range Base>
+  requires std::ranges::view<Base>
+struct ProxyRange {
+  Base base_;
+
+  constexpr auto begin() { return ProxyIterator{std::ranges::begin(base_)}; }
+
+  constexpr auto end() { return ProxySentinel{std::ranges::end(base_)}; }
+
+  constexpr auto begin() const
+    requires std::ranges::input_range<const Base> {
+    return ProxyIterator{std::ranges::begin(base_)};
+  }
+
+  constexpr auto end() const
+    requires std::ranges::input_range<const Base> {
+    return ProxySentinel{std::ranges::end(base_)};
+  }
+};
+
+template <std::ranges::input_range R>
+  requires std::ranges::viewable_range<R&&>
+ProxyRange(R&&) -> ProxyRange<std::views::all_t<R&&>>;
+
+#endif // TEST_STD_VER > 17
 
 #endif // SUPPORT_TEST_ITERATORS_H

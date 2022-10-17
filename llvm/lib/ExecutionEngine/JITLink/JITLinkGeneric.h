@@ -19,9 +19,6 @@
 #define DEBUG_TYPE "jitlink"
 
 namespace llvm {
-
-class MemoryBufferRef;
-
 namespace jitlink {
 
 /// Base class for a JIT linker.
@@ -131,8 +128,12 @@ private:
 
       // Copy Block data and apply fixups.
       LLVM_DEBUG(dbgs() << "    Applying fixups.\n");
-      assert((!B->isZeroFill() || B->edges_size() == 0) &&
-             "Edges in zero-fill block?");
+      assert((!B->isZeroFill() || all_of(B->edges(),
+                                         [](const Edge &E) {
+                                           return E.getKind() ==
+                                                  Edge::KeepAlive;
+                                         })) &&
+             "Non-KeepAlive edges in zero-fill block?");
       for (auto &E : B->edges()) {
 
         // Skip non-relocation edges.
@@ -161,4 +162,4 @@ void prune(LinkGraph &G);
 
 #undef DEBUG_TYPE // "jitlink"
 
-#endif // LLVM_EXECUTIONENGINE_JITLINK_JITLINKGENERIC_H
+#endif // LIB_EXECUTIONENGINE_JITLINK_JITLINKGENERIC_H

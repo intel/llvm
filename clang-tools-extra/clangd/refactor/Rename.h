@@ -11,9 +11,7 @@
 
 #include "Protocol.h"
 #include "SourceCode.h"
-#include "support/Path.h"
 #include "clang/Basic/LangOptions.h"
-#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/Support/Error.h"
 
 namespace clang {
@@ -28,6 +26,10 @@ struct RenameOptions {
   size_t LimitFiles = 50;
   /// If true, format the rename edits, only meaningful in ClangdServer layer.
   bool WantFormat = false;
+  /// Allow rename of virtual method hierarchies.
+  /// Disable to support broken index implementations with missing relations.
+  /// FIXME: fix those implementations and remove this option.
+  bool RenameVirtual = true;
 };
 
 struct RenameInputs {

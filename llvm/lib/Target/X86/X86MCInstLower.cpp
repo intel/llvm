@@ -48,6 +48,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
+#include <string>
 
 using namespace llvm;
 
@@ -277,6 +278,9 @@ MCOperand X86MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
   case X86II::MO_GOTPCREL:
     RefKind = MCSymbolRefExpr::VK_GOTPCREL;
     break;
+  case X86II::MO_GOTPCREL_NORELAX:
+    RefKind = MCSymbolRefExpr::VK_GOTPCREL_NORELAX;
+    break;
   case X86II::MO_GOT:
     RefKind = MCSymbolRefExpr::VK_GOT;
     break;
@@ -421,7 +425,7 @@ static void SimplifyShortMoveForm(X86AsmPrinter &Printer, MCInst &Inst,
 }
 
 static unsigned getRetOpcode(const X86Subtarget &Subtarget) {
-  return Subtarget.is64Bit() ? X86::RETQ : X86::RETL;
+  return Subtarget.is64Bit() ? X86::RET64 : X86::RET32;
 }
 
 Optional<MCOperand>
@@ -497,7 +501,7 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
 
   for (const MachineOperand &MO : MI->operands())
     if (auto MaybeMCOp = LowerMachineOperand(MI, MO))
-      OutMI.addOperand(MaybeMCOp.getValue());
+      OutMI.addOperand(*MaybeMCOp);
 
   // Handle a few special cases to eliminate operand modifiers.
   switch (OutMI.getOpcode()) {
@@ -958,6 +962,12 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
     // These are not truly commutable so hide them from the default case.
     break;
 
+  case X86::MASKMOVDQU:
+  case X86::VMASKMOVDQU:
+    if (AsmPrinter.getSubtarget().is64Bit())
+      OutMI.setFlags(X86::IP_HAS_AD_SIZE);
+    break;
+
   default: {
     // If the instruction is a commutable arithmetic instruction we might be
     // able to commute the operands to get a 2 byte VEX prefix.
@@ -971,6 +981,15 @@ void X86MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
       if (!X86II::isX86_64ExtendedReg(OutMI.getOperand(1).getReg()) &&
           X86II::isX86_64ExtendedReg(OutMI.getOperand(2).getReg()))
         std::swap(OutMI.getOperand(1), OutMI.getOperand(2));
+    }
+    // Add an REP prefix to BSF instructions so that new processors can
+    // recognize as TZCNT, which has better performance than BSF.
+    if (X86::isBSF(OutMI.getOpcode()) && !MF.getFunction().hasOptSize()) {
+      // BSF and TZCNT have different interpretations on ZF bit. So make sure
+      // it won't be used later.
+      const MachineOperand *FlagDef = MI->findRegisterDefOperand(X86::EFLAGS);
+      if (FlagDef && FlagDef->isDead())
+        OutMI.setFlags(X86::IP_HAS_REPEAT);
     }
     break;
   }
@@ -1303,11 +1322,10 @@ void X86AsmPrinter::LowerFAULTING_OP(const MachineInstr &FaultingMI,
   if (DefRegister != X86::NoRegister)
     MI.addOperand(MCOperand::createReg(DefRegister));
 
-  for (auto I = FaultingMI.operands_begin() + OperandsBeginIdx,
-            E = FaultingMI.operands_end();
-       I != E; ++I)
-    if (auto MaybeOperand = MCIL.LowerMachineOperand(&FaultingMI, *I))
-      MI.addOperand(MaybeOperand.getValue());
+  for (const MachineOperand &MO :
+       llvm::drop_begin(FaultingMI.operands(), OperandsBeginIdx))
+    if (auto MaybeOperand = MCIL.LowerMachineOperand(&FaultingMI, MO))
+      MI.addOperand(*MaybeOperand);
 
   OutStreamer->AddComment("on-fault: " + HandlerLabel->getName());
   OutStreamer->emitInstruction(MI, getSubtargetInfo());
@@ -1326,6 +1344,52 @@ void X86AsmPrinter::LowerFENTRY_CALL(const MachineInstr &MI,
           .addExpr(Op));
 }
 
+void X86AsmPrinter::LowerKCFI_CHECK(const MachineInstr &MI) {
+  assert(std::next(MI.getIterator())->isCall() &&
+         "KCFI_CHECK not followed by a call instruction");
+
+  // Adjust the offset for patchable-function-prefix. X86InstrInfo::getNop()
+  // returns a 1-byte X86::NOOP, which means the offset is the same in
+  // bytes.  This assumes that patchable-function-prefix is the same for all
+  // functions.
+  const MachineFunction &MF = *MI.getMF();
+  int64_t PrefixNops = 0;
+  (void)MF.getFunction()
+      .getFnAttribute("patchable-function-prefix")
+      .getValueAsString()
+      .getAsInteger(10, PrefixNops);
+
+  // KCFI allows indirect calls to any location that's preceded by a valid
+  // type identifier. To avoid encoding the full constant into an instruction,
+  // and thus emitting potential call target gadgets at each indirect call
+  // site, load a negated constant to a register and compare that to the
+  // expected value at the call target.
+  const uint32_t Type = MI.getOperand(1).getImm();
+  EmitAndCountInstruction(MCInstBuilder(X86::MOV32ri)
+                              .addReg(X86::R10D)
+                              .addImm(-MaskKCFIType(Type)));
+  EmitAndCountInstruction(MCInstBuilder(X86::ADD32rm)
+                              .addReg(X86::NoRegister)
+                              .addReg(X86::R10D)
+                              .addReg(MI.getOperand(0).getReg())
+                              .addImm(1)
+                              .addReg(X86::NoRegister)
+                              .addImm(-(PrefixNops + 4))
+                              .addReg(X86::NoRegister));
+
+  MCSymbol *Pass = OutContext.createTempSymbol();
+  EmitAndCountInstruction(
+      MCInstBuilder(X86::JCC_1)
+          .addExpr(MCSymbolRefExpr::create(Pass, OutContext))
+          .addImm(X86::COND_E));
+
+  MCSymbol *Trap = OutContext.createTempSymbol();
+  OutStreamer->emitLabel(Trap);
+  EmitAndCountInstruction(MCInstBuilder(X86::TRAP));
+  emitKCFITrapEntry(MF, Trap);
+  OutStreamer->emitLabel(Pass);
+}
+
 void X86AsmPrinter::LowerASAN_CHECK_MEMACCESS(const MachineInstr &MI) {
   // FIXME: Make this work on non-ELF.
   if (!TM.getTargetTriple().isOSBinFormatELF()) {
@@ -1333,235 +1397,30 @@ void X86AsmPrinter::LowerASAN_CHECK_MEMACCESS(const MachineInstr &MI) {
     return;
   }
 
-  unsigned Reg = MI.getOperand(0).getReg().id();
+  const auto &Reg = MI.getOperand(0).getReg();
   ASanAccessInfo AccessInfo(MI.getOperand(1).getImm());
 
-  MCSymbol *&Sym =
-      AsanMemaccessSymbols[AsanMemaccessTuple(Reg, AccessInfo.Packed)];
-  if (!Sym) {
-    std::string Name = AccessInfo.IsWrite ? "store" : "load";
-    std::string SymName = "__asan_check_" + Name +
-                          utostr(1ULL << AccessInfo.AccessSizeIndex) + "_rn" +
-                          utostr(Reg);
-    Sym = OutContext.getOrCreateSymbol(SymName);
-  }
+  uint64_t ShadowBase;
+  int MappingScale;
+  bool OrShadowOffset;
+  getAddressSanitizerParams(Triple(TM.getTargetTriple()), 64,
+                            AccessInfo.CompileKernel, &ShadowBase,
+                            &MappingScale, &OrShadowOffset);
+
+  StringRef Name = AccessInfo.IsWrite ? "store" : "load";
+  StringRef Op = OrShadowOffset ? "or" : "add";
+  std::string SymName = ("__asan_check_" + Name + "_" + Op + "_" +
+                         Twine(1ULL << AccessInfo.AccessSizeIndex) + "_" +
+                         TM.getMCRegisterInfo()->getName(Reg.asMCReg()))
+                            .str();
+  if (OrShadowOffset)
+    report_fatal_error(
+        "OrShadowOffset is not supported with optimized callbacks");
 
   EmitAndCountInstruction(
       MCInstBuilder(X86::CALL64pcrel32)
-          .addExpr(MCSymbolRefExpr::create(Sym, OutContext)));
-}
-
-void X86AsmPrinter::emitAsanMemaccessPartial(Module &M, unsigned Reg,
-                                             const ASanAccessInfo &AccessInfo,
-                                             MCSubtargetInfo &STI) {
-  assert(AccessInfo.AccessSizeIndex == 0 || AccessInfo.AccessSizeIndex == 1 ||
-         AccessInfo.AccessSizeIndex == 2);
-  assert(Reg != X86::R8);
-
-  uint64_t ShadowBase;
-  int MappingScale;
-  bool OrShadowOffset;
-  getAddressSanitizerParams(
-      Triple(M.getTargetTriple()), M.getDataLayout().getPointerSizeInBits(),
-      AccessInfo.CompileKernel, &ShadowBase, &MappingScale, &OrShadowOffset);
-
-  OutStreamer->emitInstruction(
-      MCInstBuilder(X86::MOV64rr).addReg(X86::R8).addReg(X86::NoRegister + Reg),
-      STI);
-  OutStreamer->emitInstruction(MCInstBuilder(X86::SHR64ri)
-                                   .addReg(X86::R8)
-                                   .addReg(X86::R8)
-                                   .addImm(MappingScale),
-                               STI);
-  if (OrShadowOffset) {
-    OutStreamer->emitInstruction(MCInstBuilder(X86::OR64ri32)
-                                     .addReg(X86::R8)
-                                     .addReg(X86::R8)
-                                     .addImm(ShadowBase),
-                                 STI);
-    OutStreamer->emitInstruction(MCInstBuilder(X86::MOV8rm)
-                                     .addReg(X86::R8B)
-                                     .addReg(X86::R8)
-                                     .addImm(1)
-                                     .addReg(X86::NoRegister)
-                                     .addImm(0)
-                                     .addReg(X86::NoRegister),
-                                 STI);
-    OutStreamer->emitInstruction(
-        MCInstBuilder(X86::TEST8rr).addReg(X86::R8B).addReg(X86::R8B), STI);
-  } else {
-    OutStreamer->emitInstruction(MCInstBuilder(X86::MOVSX32rm8)
-                                     .addReg(X86::R8D)
-                                     .addReg(X86::R8)
-                                     .addImm(1)
-                                     .addReg(X86::NoRegister)
-                                     .addImm(ShadowBase)
-                                     .addReg(X86::NoRegister),
-                                 STI);
-    OutStreamer->emitInstruction(
-        MCInstBuilder(X86::TEST32rr).addReg(X86::R8D).addReg(X86::R8D), STI);
-  }
-  MCSymbol *AdditionalCheck = OutContext.createTempSymbol();
-  OutStreamer->emitInstruction(
-      MCInstBuilder(X86::JCC_1)
-          .addExpr(MCSymbolRefExpr::create(AdditionalCheck, OutContext))
-          .addImm(X86::COND_NE),
-      STI);
-  MCSymbol *ReturnSym = OutContext.createTempSymbol();
-  OutStreamer->emitLabel(ReturnSym);
-  OutStreamer->emitInstruction(MCInstBuilder(getRetOpcode(*Subtarget)), STI);
-
-  // Shadow byte is non-zero so we need to perform additional checks.
-  OutStreamer->emitLabel(AdditionalCheck);
-  OutStreamer->emitInstruction(MCInstBuilder(X86::PUSH64r).addReg(X86::RCX),
-                               STI);
-  OutStreamer->emitInstruction(MCInstBuilder(X86::MOV64rr)
-                                   .addReg(X86::RCX)
-                                   .addReg(X86::NoRegister + Reg),
-                               STI);
-  const size_t Granularity = 1ULL << MappingScale;
-  OutStreamer->emitInstruction(MCInstBuilder(X86::AND32ri8)
-                                   .addReg(X86::NoRegister)
-                                   .addReg(X86::ECX)
-                                   .addImm(Granularity - 1),
-                               STI);
-  if (AccessInfo.AccessSizeIndex == 1) {
-    OutStreamer->emitInstruction(MCInstBuilder(X86::ADD32ri8)
-                                     .addReg(X86::NoRegister)
-                                     .addReg(X86::ECX)
-                                     .addImm(1),
-                                 STI);
-  } else if (AccessInfo.AccessSizeIndex == 2) {
-    OutStreamer->emitInstruction(MCInstBuilder(X86::ADD32ri8)
-                                     .addReg(X86::NoRegister)
-                                     .addReg(X86::ECX)
-                                     .addImm(3),
-                                 STI);
-  }
-
-  OutStreamer->emitInstruction(
-      MCInstBuilder(X86::CMP32rr).addReg(X86::ECX).addReg(X86::R8D).addImm(1),
-      STI);
-  OutStreamer->emitInstruction(MCInstBuilder(X86::POP64r).addReg(X86::RCX),
-                               STI);
-  OutStreamer->emitInstruction(
-      MCInstBuilder(X86::JCC_1)
-          .addExpr(MCSymbolRefExpr::create(ReturnSym, OutContext))
-          .addImm(X86::COND_L),
-      STI);
-
-  emitAsanReportError(M, Reg, AccessInfo, STI);
-}
-
-void X86AsmPrinter::emitAsanMemaccessFull(Module &M, unsigned Reg,
-                                          const ASanAccessInfo &AccessInfo,
-                                          MCSubtargetInfo &STI) {
-  assert(AccessInfo.AccessSizeIndex == 3 || AccessInfo.AccessSizeIndex == 4);
-  assert(Reg != X86::R8);
-
-  uint64_t ShadowBase;
-  int MappingScale;
-  bool OrShadowOffset;
-  getAddressSanitizerParams(
-      Triple(M.getTargetTriple()), M.getDataLayout().getPointerSizeInBits(),
-      AccessInfo.CompileKernel, &ShadowBase, &MappingScale, &OrShadowOffset);
-
-  OutStreamer->emitInstruction(
-      MCInstBuilder(X86::MOV64rr).addReg(X86::R8).addReg(X86::NoRegister + Reg),
-      STI);
-  OutStreamer->emitInstruction(MCInstBuilder(X86::SHR64ri)
-                                   .addReg(X86::R8)
-                                   .addReg(X86::R8)
-                                   .addImm(MappingScale),
-                               STI);
-  if (OrShadowOffset) {
-    OutStreamer->emitInstruction(MCInstBuilder(X86::OR64ri32)
-                                     .addReg(X86::R8)
-                                     .addReg(X86::R8)
-                                     .addImm(ShadowBase),
-                                 STI);
-    auto OpCode = AccessInfo.AccessSizeIndex == 3 ? X86::CMP8mi : X86::CMP16mi8;
-    OutStreamer->emitInstruction(MCInstBuilder(OpCode)
-                                     .addReg(X86::R8)
-                                     .addImm(1)
-                                     .addReg(X86::NoRegister)
-                                     .addImm(0)
-                                     .addReg(X86::NoRegister)
-                                     .addImm(0),
-                                 STI);
-  } else {
-    auto OpCode = AccessInfo.AccessSizeIndex == 3 ? X86::CMP8mi : X86::CMP16mi8;
-    OutStreamer->emitInstruction(MCInstBuilder(OpCode)
-                                     .addReg(X86::R8)
-                                     .addImm(1)
-                                     .addReg(X86::NoRegister)
-                                     .addImm(ShadowBase)
-                                     .addReg(X86::NoRegister)
-                                     .addImm(0),
-                                 STI);
-  }
-  MCSymbol *ReportCode = OutContext.createTempSymbol();
-  OutStreamer->emitInstruction(
-      MCInstBuilder(X86::JCC_1)
-          .addExpr(MCSymbolRefExpr::create(ReportCode, OutContext))
-          .addImm(X86::COND_NE),
-      STI);
-  MCSymbol *ReturnSym = OutContext.createTempSymbol();
-  OutStreamer->emitLabel(ReturnSym);
-  OutStreamer->emitInstruction(MCInstBuilder(getRetOpcode(*Subtarget)), STI);
-
-  OutStreamer->emitLabel(ReportCode);
-  emitAsanReportError(M, Reg, AccessInfo, STI);
-}
-
-void X86AsmPrinter::emitAsanReportError(Module &M, unsigned Reg,
-                                        const ASanAccessInfo &AccessInfo,
-                                        MCSubtargetInfo &STI) {
-  std::string Name = AccessInfo.IsWrite ? "store" : "load";
-  MCSymbol *ReportError = OutContext.getOrCreateSymbol(
-      "__asan_report_" + Name + utostr(1ULL << AccessInfo.AccessSizeIndex));
-  OutStreamer->emitInstruction(MCInstBuilder(X86::MOV64rr)
-                                   .addReg(X86::RDI)
-                                   .addReg(X86::NoRegister + Reg),
-                               STI);
-  OutStreamer->emitInstruction(
-      MCInstBuilder(X86::JMP_4)
-          .addExpr(MCSymbolRefExpr::create(ReportError, MCSymbolRefExpr::VK_PLT,
-                                           OutContext)),
-      STI);
-}
-
-void X86AsmPrinter::emitAsanMemaccessSymbols(Module &M) {
-  if (AsanMemaccessSymbols.empty())
-    return;
-
-  const Triple &TT = TM.getTargetTriple();
-  assert(TT.isOSBinFormatELF());
-  std::unique_ptr<MCSubtargetInfo> STI(
-      TM.getTarget().createMCSubtargetInfo(TT.str(), "", ""));
-  assert(STI && "Unable to create subtarget info");
-
-  for (auto &P : AsanMemaccessSymbols) {
-    MCSymbol *Sym = P.second;
-    OutStreamer->SwitchSection(OutContext.getELFSection(
-        ".text.hot", ELF::SHT_PROGBITS,
-        ELF::SHF_EXECINSTR | ELF::SHF_ALLOC | ELF::SHF_GROUP, 0, Sym->getName(),
-        /*IsComdat=*/true));
-
-    OutStreamer->emitSymbolAttribute(Sym, MCSA_ELF_TypeFunction);
-    OutStreamer->emitSymbolAttribute(Sym, MCSA_Weak);
-    OutStreamer->emitSymbolAttribute(Sym, MCSA_Hidden);
-    OutStreamer->emitLabel(Sym);
-
-    unsigned Reg = std::get<0>(P.first);
-    ASanAccessInfo AccessInfo(std::get<1>(P.first));
-
-    if (AccessInfo.AccessSizeIndex < 3) {
-      emitAsanMemaccessPartial(M, Reg, AccessInfo, *STI);
-    } else {
-      emitAsanMemaccessFull(M, Reg, AccessInfo, *STI);
-    }
-  }
+          .addExpr(MCSymbolRefExpr::create(
+              OutContext.getOrCreateSymbol(SymName), OutContext)));
 }
 
 void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
@@ -1577,7 +1436,7 @@ void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
   MCI.setOpcode(Opcode);
   for (auto &MO : drop_begin(MI.operands(), 2))
     if (auto MaybeOperand = MCIL.LowerMachineOperand(&MI, MO))
-      MCI.addOperand(MaybeOperand.getValue());
+      MCI.addOperand(*MaybeOperand);
 
   SmallString<256> Code;
   SmallVector<MCFixup, 4> Fixups;
@@ -1588,7 +1447,7 @@ void X86AsmPrinter::LowerPATCHABLE_OP(const MachineInstr &MI,
     if (MinSize == 2 && Subtarget->is32Bit() &&
         Subtarget->isTargetWindowsMSVC() &&
         (Subtarget->getCPU().empty() || Subtarget->getCPU() == "pentium3")) {
-      // For compatibilty reasons, when targetting MSVC, is is important to
+      // For compatibility reasons, when targetting MSVC, is is important to
       // generate a 'legacy' NOP in the form of a 8B FF MOV EDI, EDI. Some tools
       // rely specifically on this pattern to be able to patch a function.
       // This is only for 32-bit targets, when using /arch:IA32 or /arch:SSE.
@@ -1953,7 +1812,7 @@ void X86AsmPrinter::LowerPATCHABLE_RET(const MachineInstr &MI,
   Ret.setOpcode(OpCode);
   for (auto &MO : drop_begin(MI.operands()))
     if (auto MaybeOperand = MCIL.LowerMachineOperand(&MI, MO))
-      Ret.addOperand(MaybeOperand.getValue());
+      Ret.addOperand(*MaybeOperand);
   OutStreamer->emitInstruction(Ret, getSubtargetInfo());
   emitX86Nops(*OutStreamer, 10, Subtarget);
   recordSled(CurSled, MI, SledKind::FUNCTION_EXIT, 2);
@@ -1992,7 +1851,7 @@ void X86AsmPrinter::LowerPATCHABLE_TAIL_CALL(const MachineInstr &MI,
   OutStreamer->AddComment("TAILCALL");
   for (auto &MO : drop_begin(MI.operands()))
     if (auto MaybeOperand = MCIL.LowerMachineOperand(&MI, MO))
-      TC.addOperand(MaybeOperand.getValue());
+      TC.addOperand(*MaybeOperand);
   OutStreamer->emitInstruction(TC, getSubtargetInfo());
 }
 
@@ -2052,7 +1911,7 @@ static std::string getShuffleComment(const MachineInstr *MI, unsigned SrcOp1Idx,
       SrcOp2.isReg() ? GetRegisterName(SrcOp2.getReg()) : "mem";
 
   // One source operand, fix the mask to print all elements in one span.
-  SmallVector<int, 8> ShuffleMask(Mask.begin(), Mask.end());
+  SmallVector<int, 8> ShuffleMask(Mask);
   if (Src1Name == Src2Name)
     for (int i = 0, e = ShuffleMask.size(); i != e; ++i)
       if (ShuffleMask[i] >= e)
@@ -2187,34 +2046,34 @@ void X86AsmPrinter::EmitSEHInstruction(const MachineInstr *MI) {
   // Otherwise, use the .seh_ directives for all other Windows platforms.
   switch (MI->getOpcode()) {
   case X86::SEH_PushReg:
-    OutStreamer->EmitWinCFIPushReg(MI->getOperand(0).getImm());
+    OutStreamer->emitWinCFIPushReg(MI->getOperand(0).getImm());
     break;
 
   case X86::SEH_SaveReg:
-    OutStreamer->EmitWinCFISaveReg(MI->getOperand(0).getImm(),
+    OutStreamer->emitWinCFISaveReg(MI->getOperand(0).getImm(),
                                    MI->getOperand(1).getImm());
     break;
 
   case X86::SEH_SaveXMM:
-    OutStreamer->EmitWinCFISaveXMM(MI->getOperand(0).getImm(),
+    OutStreamer->emitWinCFISaveXMM(MI->getOperand(0).getImm(),
                                    MI->getOperand(1).getImm());
     break;
 
   case X86::SEH_StackAlloc:
-    OutStreamer->EmitWinCFIAllocStack(MI->getOperand(0).getImm());
+    OutStreamer->emitWinCFIAllocStack(MI->getOperand(0).getImm());
     break;
 
   case X86::SEH_SetFrame:
-    OutStreamer->EmitWinCFISetFrame(MI->getOperand(0).getImm(),
+    OutStreamer->emitWinCFISetFrame(MI->getOperand(0).getImm(),
                                     MI->getOperand(1).getImm());
     break;
 
   case X86::SEH_PushFrame:
-    OutStreamer->EmitWinCFIPushFrame(MI->getOperand(0).getImm());
+    OutStreamer->emitWinCFIPushFrame(MI->getOperand(0).getImm());
     break;
 
   case X86::SEH_EndPrologue:
-    OutStreamer->EmitWinCFIEndProlog();
+    OutStreamer->emitWinCFIEndProlog();
     break;
 
   default:
@@ -2608,9 +2467,22 @@ static void addConstantComments(const MachineInstr *MI,
 }
 
 void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
+  // FIXME: Enable feature predicate checks once all the test pass.
+  // X86_MC::verifyInstructionPredicates(MI->getOpcode(),
+  //                                     Subtarget->getFeatureBits());
+
   X86MCInstLower MCInstLowering(*MF, *this);
   const X86RegisterInfo *RI =
       MF->getSubtarget<X86Subtarget>().getRegisterInfo();
+
+  if (MI->getOpcode() == X86::OR64rm) {
+    for (auto &Opd : MI->operands()) {
+      if (Opd.isSymbol() && StringRef(Opd.getSymbolName()) ==
+                                "swift_async_extendedFramePointerFlags") {
+        ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags = true;
+      }
+    }
+  }
 
   // Add a comment about EVEX-2-VEX compression for AVX-512 instrs that
   // are compressed from EVEX encoding to VEX encoding.
@@ -2671,13 +2543,16 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
     break;
   }
 
+  case X86::TAILJMPd64:
+    if (IndCSPrefix && MI->hasRegisterImplicitUseOperand(X86::R11))
+      EmitAndCountInstruction(MCInstBuilder(X86::CS_PREFIX));
+    [[fallthrough]];
   case X86::TAILJMPr:
   case X86::TAILJMPm:
   case X86::TAILJMPd:
   case X86::TAILJMPd_CC:
   case X86::TAILJMPr64:
   case X86::TAILJMPm64:
-  case X86::TAILJMPd64:
   case X86::TAILJMPd64_CC:
   case X86::TAILJMPr64_REX:
   case X86::TAILJMPm64_REX:
@@ -2804,6 +2679,9 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
     EmitAndCountInstruction(MCInstBuilder(getRetOpcode(*Subtarget)));
     return;
 
+  case X86::KCFI_CHECK:
+    return LowerKCFI_CHECK(*MI);
+
   case X86::ASAN_CHECK_MEMACCESS:
     return LowerASAN_CHECK_MEMACCESS(*MI);
 
@@ -2851,6 +2729,10 @@ void X86AsmPrinter::emitInstruction(const MachineInstr *MI) {
                                 .addImm(MI->getOperand(0).getImm())
                                 .addReg(X86::NoRegister));
     return;
+  case X86::CALL64pcrel32:
+    if (IndCSPrefix && MI->hasRegisterImplicitUseOperand(X86::R11))
+      EmitAndCountInstruction(MCInstBuilder(X86::CS_PREFIX));
+    break;
   }
 
   MCInst TmpInst;

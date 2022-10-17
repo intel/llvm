@@ -14,7 +14,6 @@
 #ifndef LLVM_ANALYSIS_LOOPINFOIMPL_H
 #define LLVM_ANALYSIS_LOOPINFOIMPL_H
 
-#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
@@ -293,17 +292,12 @@ void LoopBase<BlockT, LoopT>::verifyLoop() const {
   getExitBlocks(ExitBBs);
   df_iterator_default_set<BlockT *> VisitSet;
   VisitSet.insert(ExitBBs.begin(), ExitBBs.end());
-  df_ext_iterator<BlockT *, df_iterator_default_set<BlockT *>>
-      BI = df_ext_begin(getHeader(), VisitSet),
-      BE = df_ext_end(getHeader(), VisitSet);
 
   // Keep track of the BBs visited.
   SmallPtrSet<BlockT *, 8> VisitedBBs;
 
   // Check the individual blocks.
-  for (; BI != BE; ++BI) {
-    BlockT *BB = *BI;
-
+  for (BlockT *BB : depth_first_ext(getHeader(), VisitSet)) {
     assert(std::any_of(GraphTraits<BlockT *>::child_begin(BB),
                        GraphTraits<BlockT *>::child_end(BB),
                        [&](BlockT *B) { return contains(B); }) &&
@@ -315,12 +309,11 @@ void LoopBase<BlockT, LoopT>::verifyLoop() const {
            "Loop block has no in-loop predecessors!");
 
     SmallVector<BlockT *, 2> OutsideLoopPreds;
-    std::for_each(GraphTraits<Inverse<BlockT *>>::child_begin(BB),
-                  GraphTraits<Inverse<BlockT *>>::child_end(BB),
-                  [&](BlockT *B) {
-                    if (!contains(B))
-                      OutsideLoopPreds.push_back(B);
-                  });
+    for (BlockT *B :
+         llvm::make_range(GraphTraits<Inverse<BlockT *>>::child_begin(BB),
+                          GraphTraits<Inverse<BlockT *>>::child_end(BB)))
+      if (!contains(B))
+        OutsideLoopPreds.push_back(B);
 
     if (BB == getHeader()) {
       assert(!OutsideLoopPreds.empty() && "Loop is unreachable!");
@@ -342,7 +335,7 @@ void LoopBase<BlockT, LoopT>::verifyLoop() const {
 
   if (VisitedBBs.size() != getNumBlocks()) {
     dbgs() << "The following blocks are unreachable in the loop: ";
-    for (auto BB : Blocks) {
+    for (auto *BB : Blocks) {
       if (!VisitedBBs.count(BB)) {
         dbgs() << *BB << "\n";
       }
@@ -455,8 +448,7 @@ static void discoverAndMapSubloop(LoopT *L, ArrayRef<BlockT *> Backedges,
                                 InvBlockTraits::child_end(PredBB));
     } else {
       // This is a discovered block. Find its outermost discovered loop.
-      while (LoopT *Parent = Subloop->getParentLoop())
-        Subloop = Parent;
+      Subloop = Subloop->getOutermostLoop();
 
       // If it is already discovered to be a subloop of this loop, continue.
       if (Subloop == L)

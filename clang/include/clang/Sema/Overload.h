@@ -521,8 +521,12 @@ class Sema;
     /// specifies that there is no conversion from the source type to
     /// the target type.  AmbiguousConversion represents the unique
     /// ambiguous conversion (C++0x [over.best.ics]p10).
+    /// StaticObjectArgumentConversion represents the conversion rules for
+    /// the synthesized first argument of calls to static member functions
+    /// ([over.best.ics.general]p8).
     enum Kind {
       StandardConversion = 0,
+      StaticObjectArgumentConversion,
       UserDefinedConversion,
       AmbiguousConversion,
       EllipsisConversion,
@@ -577,8 +581,7 @@ class Sema;
 
     ImplicitConversionSequence()
         : ConversionKind(Uninitialized),
-          InitializerListOfIncompleteArray(false),
-          InitializerListContainerType() {
+          InitializerListOfIncompleteArray(false) {
       Standard.setAsIdentityConversion();
     }
 
@@ -590,6 +593,8 @@ class Sema;
       switch (ConversionKind) {
       case Uninitialized: break;
       case StandardConversion: Standard = Other.Standard; break;
+      case StaticObjectArgumentConversion:
+        break;
       case UserDefinedConversion: UserDefined = Other.UserDefined; break;
       case AmbiguousConversion: Ambiguous.copyFrom(Other.Ambiguous); break;
       case EllipsisConversion: break;
@@ -623,6 +628,7 @@ class Sema;
     unsigned getKindRank() const {
       switch (getKind()) {
       case StandardConversion:
+      case StaticObjectArgumentConversion:
         return 0;
 
       case UserDefinedConversion:
@@ -641,6 +647,9 @@ class Sema;
 
     bool isBad() const { return getKind() == BadConversion; }
     bool isStandard() const { return getKind() == StandardConversion; }
+    bool isStaticObjectArgument() const {
+      return getKind() == StaticObjectArgumentConversion;
+    }
     bool isEllipsis() const { return getKind() == EllipsisConversion; }
     bool isAmbiguous() const { return getKind() == AmbiguousConversion; }
     bool isUserDefined() const { return getKind() == UserDefinedConversion; }
@@ -666,6 +675,7 @@ class Sema;
     }
 
     void setStandard() { setKind(StandardConversion); }
+    void setStaticObjectArgument() { setKind(StaticObjectArgumentConversion); }
     void setEllipsis() { setKind(EllipsisConversion); }
     void setUserDefined() { setKind(UserDefinedConversion); }
 
@@ -796,6 +806,10 @@ class Sema;
     /// This candidate was not viable because its associated constraints were
     /// not satisfied.
     ovl_fail_constraints_not_satisfied,
+
+    /// This candidate was not viable because it has internal linkage and is
+    /// from a different module unit than the use.
+    ovl_fail_module_mismatched,
   };
 
   /// A list of implicit conversion sequences for the arguments of an
@@ -924,6 +938,8 @@ class Sema;
         return Function->getNumParams();
       return ExplicitCallArguments;
     }
+
+    bool NotValidBecauseConstraintExprHasError() const;
 
   private:
     friend class OverloadCandidateSet;
@@ -1203,6 +1219,20 @@ class Sema;
     Info.Constructor = dyn_cast<CXXConstructorDecl>(D);
     return Info;
   }
+
+  // Returns false if signature help is relevant despite number of arguments
+  // exceeding parameters. Specifically, it returns false when
+  // PartialOverloading is true and one of the following:
+  // * Function is variadic
+  // * Function is template variadic
+  // * Function is an instantiation of template variadic function
+  // The last case may seem strange. The idea is that if we added one more
+  // argument, we'd end up with a function similar to Function. Since, in the
+  // context of signature help and/or code completion, we do not know what the
+  // type of the next argument (that the user is typing) will be, this is as
+  // good candidate as we can get, despite the fact that it takes one less
+  // parameter.
+  bool shouldEnforceArgLimit(bool PartialOverloading, FunctionDecl *Function);
 
 } // namespace clang
 

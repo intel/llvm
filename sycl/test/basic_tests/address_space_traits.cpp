@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -D__ENABLE_USM_ADDR_SPACE__ -fsycl-targets=%sycl_triple %s -c
 
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 int main() {
 
   queue myQueue;
@@ -27,11 +27,11 @@ int main() {
           "Unexpected address space");
       static_assert(
           detail::deduce_AS<__attribute__((opencl_global_device)) int>::value ==
-              access::address_space::global_device_space,
+              access::address_space::ext_intel_global_device_space,
           "Unexpected address space");
       static_assert(
           detail::deduce_AS<__attribute__((opencl_global_host)) int>::value ==
-              access::address_space::global_host_space,
+              access::address_space::ext_intel_global_host_space,
           "Unexpected address space");
     });
   });

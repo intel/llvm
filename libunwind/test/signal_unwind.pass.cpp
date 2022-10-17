@@ -8,14 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 // Ensure that the unwinder can cope with the signal handler.
-// REQUIRES: linux && (target={{aarch64-.+}} || target={{x86_64-.+}})
+// REQUIRES: linux && (target={{aarch64-.+}} || target={{s390x-.+}} || target={{x86_64-.+}})
 
-// TODO: Investigate these failures
-// XFAIL: asan, tsan, ubsan
+// TODO: Figure out why this fails with Memory Sanitizer.
+// XFAIL: msan
 
-// TODO: Investigate this failure
-// XFAIL: 32bits-on-64bits
-
+#undef NDEBUG
 #include <assert.h>
 #include <dlfcn.h>
 #include <signal.h>

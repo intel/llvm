@@ -15,8 +15,6 @@
 #include "llvm/ADT/StringMap.h"
 
 namespace mlir {
-class Identifier;
-class Operation;
 
 /// This class allows for representing and managing the symbol table used by
 /// operations with the 'SymbolTable' trait. Inserting into and erasing from
@@ -43,14 +41,18 @@ public:
     return dyn_cast_or_null<T>(lookup(name));
   }
 
-  /// Erase the given symbol from the table.
+  /// Remove the given symbol from the table, without deleting it.
+  void remove(Operation *op);
+
+  /// Erase the given symbol from the table and delete the operation.
   void erase(Operation *symbol);
 
   /// Insert a new symbol into the table, and rename it as necessary to avoid
   /// collisions. Also insert at the specified location in the body of the
   /// associated operation if it is not already there. It is asserted that the
-  /// symbol is not inside another operation.
-  void insert(Operation *symbol, Block::iterator insertPt = {});
+  /// symbol is not inside another operation. Return the name of the symbol
+  /// after insertion as attribute.
+  StringAttr insert(Operation *symbol, Block::iterator insertPt = {});
 
   /// Return the name of the attribute used for symbol names.
   static StringRef getSymbolAttrName() { return "sym_name"; }
@@ -303,7 +305,7 @@ public:
   }
 
   /// Return true if the given symbol has no uses.
-  bool use_empty(Operation *symbol) const {
+  bool useEmpty(Operation *symbol) const {
     return !symbolToUsers.count(symbol);
   }
 
@@ -338,7 +340,7 @@ namespace OpTrait {
 template <typename ConcreteType>
 class SymbolTable : public TraitBase<ConcreteType, SymbolTable> {
 public:
-  static LogicalResult verifyTrait(Operation *op) {
+  static LogicalResult verifyRegionTrait(Operation *op) {
     return ::mlir::detail::verifySymbolTable(op);
   }
 
@@ -369,7 +371,7 @@ public:
   }
 };
 
-} // end namespace OpTrait
+} // namespace OpTrait
 
 //===----------------------------------------------------------------------===//
 // Visibility parsing implementation.
@@ -380,9 +382,9 @@ namespace impl {
 /// nested) without quotes in a string attribute named 'attrName'.
 ParseResult parseOptionalVisibilityKeyword(OpAsmParser &parser,
                                            NamedAttrList &attrs);
-} // end namespace impl
+} // namespace impl
 
-} // end namespace mlir
+} // namespace mlir
 
 /// Include the generated symbol interfaces.
 #include "mlir/IR/SymbolInterfaces.h.inc"

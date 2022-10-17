@@ -44,8 +44,8 @@
 #include "lldb/Utility/CompletionRequest.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
@@ -263,11 +263,10 @@ constexpr Definition g_root = Entry::DefinitionWithChildren(
 
 FormatEntity::Entry::Entry(llvm::StringRef s)
     : string(s.data(), s.size()), printf_format(), children(),
-      type(Type::String), fmt(lldb::eFormatDefault), number(0), deref(false) {}
+      type(Type::String) {}
 
 FormatEntity::Entry::Entry(char ch)
-    : string(1, ch), printf_format(), children(), type(Type::String),
-      fmt(lldb::eFormatDefault), number(0), deref(false) {}
+    : string(1, ch), printf_format(), children(), type(Type::String) {}
 
 void FormatEntity::Entry::AppendChar(char ch) {
   if (children.empty() || children.back().type != Entry::Type::String)
@@ -509,7 +508,7 @@ static bool ScanBracketedRange(llvm::StringRef subpath,
                                size_t &close_bracket_index,
                                const char *&var_name_final_if_array_range,
                                int64_t &index_lower, int64_t &index_higher) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS));
+  Log *log = GetLog(LLDBLog::DataFormatters);
   close_bracket_index = llvm::StringRef::npos;
   const size_t open_bracket_index = subpath.find('[');
   if (open_bracket_index == llvm::StringRef::npos) {
@@ -618,7 +617,7 @@ static bool DumpRegister(Stream &s, StackFrame *frame, RegisterKind reg_kind,
 
 static ValueObjectSP ExpandIndexedExpression(ValueObject *valobj, size_t index,
                                              bool deref_pointer) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS));
+  Log *log = GetLog(LLDBLog::DataFormatters);
   const char *ptr_deref_format = "[%d]";
   std::string ptr_deref_buffer(10, 0);
   ::sprintf(&ptr_deref_buffer[0], ptr_deref_format, index);
@@ -676,7 +675,7 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
   if (valobj == nullptr)
     return false;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS));
+  Log *log = GetLog(LLDBLog::DataFormatters);
   Format custom_format = eFormatInvalid;
   ValueObject::ValueObjectRepresentationStyle val_obj_display =
       entry.string.empty()
@@ -697,7 +696,7 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
 
   case FormatEntity::Entry::Type::ScriptVariableSynthetic:
     is_script = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case FormatEntity::Entry::Type::VariableSynthetic:
     custom_format = entry.fmt;
     val_obj_display = (ValueObject::ValueObjectRepresentationStyle)entry.number;
@@ -711,9 +710,6 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
   default:
     return false;
   }
-
-  if (valobj == nullptr)
-    return false;
 
   ValueObject::ExpressionPathAftermath what_next =
       (do_deref_pointer ? ValueObject::eExpressionPathAftermathDereference
@@ -829,7 +825,7 @@ static bool DumpValue(Stream &s, const SymbolContext *sc,
     bitfield_name.Printf("%s:%d", target->GetTypeName().AsCString(),
                          target->GetBitfieldBitSize());
     auto type_sp = std::make_shared<TypeNameSpecifierImpl>(
-        bitfield_name.GetString(), false);
+        bitfield_name.GetString(), lldb::eFormatterMatchExact);
     if (val_obj_display ==
             ValueObject::eValueObjectRepresentationStyleSummary &&
         !DataVisualization::GetSummaryForType(type_sp))
@@ -1696,7 +1692,7 @@ bool FormatEntity::Format(const Entry &entry, Stream &s,
               llvm::StringRef var_representation;
               const char *var_name = var_value_sp->GetName().GetCString();
               if (var_value_sp->GetCompilerType().IsValid()) {
-                if (var_value_sp && exe_scope->CalculateTarget())
+                if (exe_scope && exe_scope->CalculateTarget())
                   var_value_sp =
                       var_value_sp->GetQualifiedRepresentationIfAvailable(
                           exe_scope->CalculateTarget()

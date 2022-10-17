@@ -216,7 +216,7 @@ namespace llvm {
 RuntimeDyldELF::RuntimeDyldELF(RuntimeDyld::MemoryManager &MemMgr,
                                JITSymbolResolver &Resolver)
     : RuntimeDyldImpl(MemMgr, Resolver), GOTSectionID(0), CurrentGOTIndex(0) {}
-RuntimeDyldELF::~RuntimeDyldELF() {}
+RuntimeDyldELF::~RuntimeDyldELF() = default;
 
 void RuntimeDyldELF::registerEHFrames() {
   for (int i = 0, e = UnregisteredEHFrameSections.size(); i != e; ++i) {
@@ -422,6 +422,8 @@ void RuntimeDyldELF::resolveAArch64Relocation(const SectionEntry &Section,
   default:
     report_fatal_error("Relocation type not implemented yet!");
     break;
+  case ELF::R_AARCH64_NONE:
+    break;
   case ELF::R_AARCH64_ABS16: {
     uint64_t Result = Value + Addend;
     assert(static_cast<int64_t>(Result) >= INT16_MIN && Result < UINT16_MAX);
@@ -442,6 +444,13 @@ void RuntimeDyldELF::resolveAArch64Relocation(const SectionEntry &Section,
     assert(static_cast<int64_t>(Result) >= INT32_MIN &&
            static_cast<int64_t>(Result) <= INT32_MAX);
     write(isBE, TargetPtr, static_cast<uint32_t>(Result));
+    break;
+  }
+  case ELF::R_AARCH64_PREL16: {
+    uint64_t Result = Value + Addend - FinalAddress;
+    assert(static_cast<int64_t>(Result) >= INT16_MIN &&
+           static_cast<int64_t>(Result) <= UINT16_MAX);
+    write(isBE, TargetPtr, static_cast<uint16_t>(Result & 0xffffU));
     break;
   }
   case ELF::R_AARCH64_PREL32: {
@@ -470,7 +479,7 @@ void RuntimeDyldELF::resolveAArch64Relocation(const SectionEntry &Section,
 
     *TargetPtr &= 0xfff8001fU;
     // Immediate:15:2 goes in bits 18:5 of TBZ, TBNZ
-    or32le(TargetPtr, (BranchImm & 0x0FFFFFFC) << 3);
+    or32le(TargetPtr, (BranchImm & 0x0000FFFC) << 3);
     break;
   }
   case ELF::R_AARCH64_CALL26: // fallthrough
@@ -1301,7 +1310,7 @@ RuntimeDyldELF::processRelocationRef(
         MemMgr.allowStubAllocation()) {
       resolveAArch64Branch(SectionID, Value, RelI, Stubs);
     } else if (RelType == ELF::R_AARCH64_ADR_GOT_PAGE) {
-      // Craete new GOT entry or find existing one. If GOT entry is
+      // Create new GOT entry or find existing one. If GOT entry is
       // to be created, then we also emit ABS64 relocation for it.
       uint64_t GOTOffset = findOrAllocGOTEntry(Value, ELF::R_AARCH64_ABS64);
       resolveGOTOffsetRelocation(SectionID, Offset, GOTOffset + Addend,
@@ -2018,7 +2027,7 @@ void RuntimeDyldELF::processX86_64TLSRelocation(
   case ELF::R_X86_64_REX_GOTPCRELX:
   case ELF::R_X86_64_GOTPCRELX:
     IsGOTPCRel = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ELF::R_X86_64_PLT32:
     IsSmallCodeModel = true;
     break;

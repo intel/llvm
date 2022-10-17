@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 using namespace mlir;
@@ -31,7 +32,7 @@ struct MemRefInlinerInterface : public DialectInlinerInterface {
     return true;
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void mlir::memref::MemRefDialect::initialize() {
   addOperations<
@@ -39,4 +40,18 @@ void mlir::memref::MemRefDialect::initialize() {
 #include "mlir/Dialect/MemRef/IR/MemRefOps.cpp.inc"
       >();
   addInterfaces<MemRefInlinerInterface>();
+}
+
+/// Finds the unique dealloc operation (if one exists) for `allocValue`.
+llvm::Optional<Operation *> mlir::memref::findDealloc(Value allocValue) {
+  Operation *dealloc = nullptr;
+  for (Operation *user : allocValue.getUsers()) {
+    if (!hasEffect<MemoryEffects::Free>(user, allocValue))
+      continue;
+    // If we found > 1 dealloc, return None.
+    if (dealloc)
+      return llvm::None;
+    dealloc = user;
+  }
+  return dealloc;
 }

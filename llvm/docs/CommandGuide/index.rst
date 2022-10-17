@@ -24,6 +24,7 @@ Basic Commands
    llvm-diff
    llvm-dis
    llvm-dwarfdump
+   llvm-dwarfutil
    llvm-lib
    llvm-libtool-darwin
    llvm-link
@@ -79,6 +80,17 @@ Developer Tools
    mlir-tblgen
    lit
    llvm-exegesis
+   llvm-ifs
    llvm-locstats
    llvm-pdbutil
    llvm-profgen
+   llvm-tli-checker
+
+Remarks Tools
+~~~~~~~~~~~~~~
+
+.. toctree::
+   :maxdepth: 1
+
+   llvm-remark-size-diff
+   llvm-remarkutil

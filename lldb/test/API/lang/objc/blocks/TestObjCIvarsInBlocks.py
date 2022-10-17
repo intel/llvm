@@ -8,8 +8,6 @@ from lldbsuite.test import lldbutil
 
 class TestObjCIvarsInBlocks(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -46,6 +44,8 @@ class TestObjCIvarsInBlocks(TestBase):
             process.GetState(), lldb.eStateStopped,
             "Stopped it too.")
 
+        self.runCmd('settings set target.prefer-dynamic-value no-dynamic-values')
+
         thread_list = lldbutil.get_threads_stopped_at_breakpoint(
             process, breakpoint)
         self.assertEqual(len(thread_list), 1)
@@ -68,10 +68,10 @@ class TestObjCIvarsInBlocks(TestBase):
 
         error = lldb.SBError()
         direct_value = direct_blocky.GetValueAsSigned(error)
-        self.assertTrue(error.Success(), "Got direct value for blocky_ivar")
+        self.assertSuccess(error, "Got direct value for blocky_ivar")
 
         indirect_value = indirect_blocky.GetValueAsSigned(error)
-        self.assertTrue(error.Success(), "Got indirect value for blocky_ivar")
+        self.assertSuccess(error, "Got indirect value for blocky_ivar")
 
         self.assertEqual(
             direct_value, indirect_value,

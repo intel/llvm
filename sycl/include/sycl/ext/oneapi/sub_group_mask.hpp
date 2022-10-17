@@ -9,13 +9,13 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/marray.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/id.hpp>
+#include <sycl/marray.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class Builder;
 } // namespace detail
@@ -50,7 +50,7 @@ struct sub_group_mask {
     }
 
     reference(sub_group_mask &gmask, size_t pos) : Ref(gmask.Bits) {
-      RefBit = 1 << pos % word_size;
+      RefBit = (pos < gmask.bits_num) ? (1UL << pos) : 0;
     }
 
   private:
@@ -61,16 +61,17 @@ struct sub_group_mask {
   };
 
   bool operator[](id<1> id) const {
-    return Bits & (1 << (id.get(0) % word_size));
+    return (Bits & ((id.get(0) < bits_num) ? (1UL << id.get(0)) : 0));
   }
+
   reference operator[](id<1> id) { return {*this, id.get(0)}; }
   bool test(id<1> id) const { return operator[](id); }
-  bool all() const { return !~Bits; }
-  bool any() const { return Bits; }
-  bool none() const { return !Bits; }
+  bool all() const { return count() == bits_num; }
+  bool any() const { return count() != 0; }
+  bool none() const { return count() == 0; }
   uint32_t count() const {
     unsigned int count = 0;
-    auto word = Bits;
+    auto word = (Bits & valuable_bits(bits_num));
     while (word) {
       word &= (word - 1);
       count++;
@@ -99,9 +100,9 @@ struct sub_group_mask {
     insert_data <<= pos.get(0);
     uint32_t mask = 0;
     if (pos.get(0) + insert_size < size())
-      mask |= (0xffffffff << (pos.get(0) + insert_size));
+      mask |= (valuable_bits(bits_num) << (pos.get(0) + insert_size));
     if (pos.get(0) < size() && pos.get(0))
-      mask |= (0xffffffff >> (size() - pos.get(0)));
+      mask |= (valuable_bits(max_bits) >> (max_bits - pos.get(0)));
     Bits &= mask;
     Bits += insert_data;
   }
@@ -125,14 +126,15 @@ struct sub_group_mask {
   template <typename Type,
             typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
   void extract_bits(Type &bits, id<1> pos = 0) const {
-    uint32_t Res = Bits;
+    auto Res = Bits;
+    Res &= valuable_bits(bits_num);
     if (pos.get(0) < size()) {
       if (pos.get(0) > 0) {
         Res >>= pos.get(0);
       }
 
-      if (sizeof(Type) * CHAR_BIT < size()) {
-        Res &= (0xffffffff >> (size() - (sizeof(Type) * CHAR_BIT)));
+      if (sizeof(Type) * CHAR_BIT < max_bits) {
+        Res &= valuable_bits(sizeof(Type) * CHAR_BIT);
       }
       bits = (Type)Res;
     } else {
@@ -154,13 +156,13 @@ struct sub_group_mask {
     }
   }
 
-  void set() { Bits = uint32_t{0xffffffff}; }
+  void set() { Bits = valuable_bits(bits_num); }
   void set(id<1> id, bool value = true) { operator[](id) = value; }
   void reset() { Bits = uint32_t{0}; }
   void reset(id<1> id) { operator[](id) = 0; }
   void reset_low() { reset(find_low()); }
   void reset_high() { reset(find_high()); }
-  void flip() { Bits = ~Bits; }
+  void flip() { Bits = (~Bits & valuable_bits(bits_num)); }
   void flip(id<1> id) { operator[](id).flip(); }
 
   bool operator==(const sub_group_mask &rhs) const { return Bits == rhs.Bits; }
@@ -177,11 +179,13 @@ struct sub_group_mask {
 
   sub_group_mask &operator^=(const sub_group_mask &rhs) {
     Bits ^= rhs.Bits;
+    Bits &= valuable_bits(bits_num);
     return *this;
   }
 
   sub_group_mask &operator<<=(size_t pos) {
     Bits <<= pos;
+    Bits &= valuable_bits(bits_num);
     return *this;
   }
 
@@ -239,6 +243,9 @@ private:
   sub_group_mask(uint32_t rhs, size_t bn) : Bits(rhs), bits_num(bn) {
     assert(bits_num <= max_bits);
   }
+  inline uint32_t valuable_bits(size_t bn) const {
+    return static_cast<uint32_t>((1ULL << bn) - 1ULL);
+  }
   uint32_t Bits;
   // Number of valuable bits
   size_t bits_num;
@@ -263,5 +270,5 @@ group_ballot(Group g, bool predicate) {
 
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

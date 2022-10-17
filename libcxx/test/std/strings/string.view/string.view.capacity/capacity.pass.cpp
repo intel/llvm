@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // [string.view.capacity], capacity
@@ -16,6 +18,8 @@
 
 #include <string_view>
 #include <cassert>
+#include <iterator>
+#include <limits>
 
 #include "test_macros.h"
 
@@ -42,6 +46,16 @@ void test1 () {
     assert ( sv1.size() == sv1.length());
     assert ( sv1.max_size() > sv1.size());
     }
+
+    // Sanity check max_size() -- a string_view can't store more bytes than a single object
+    // can contain. Any implementation that fails this check is certainly lying.
+    {
+        typedef typename SV::value_type CharT;
+        typedef typename SV::size_type Size;
+        SV sv;
+        assert(sv.max_size() <= std::numeric_limits<Size>::max() / sizeof(CharT));
+        LIBCPP_ASSERT(sv.max_size() == std::numeric_limits<Size>::max() / sizeof(CharT));
+    }
 }
 
 template<typename CharT>
@@ -63,7 +77,7 @@ void test2 ( const CharT *s, size_t len ) {
 
 int main(int, char**) {
     test1<std::string_view> ();
-#if defined(__cpp_lib_char8_t) && __cpp_lib_char8_t >= 201811L
+#ifndef TEST_HAS_NO_CHAR8_T
     test1<std::u8string_view> ();
 #endif
     test1<std::u16string_view> ();
@@ -84,7 +98,7 @@ int main(int, char**) {
     test2 ( L"", 0 );
 #endif
 
-#if defined(__cpp_lib_char8_t) && __cpp_lib_char8_t >= 201811L
+#ifndef TEST_HAS_NO_CHAR8_T
     test2 ( u8"ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE", 105 );
     test2 ( u8"ABCDE", 5 );
     test2 ( u8"a", 1 );

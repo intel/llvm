@@ -203,10 +203,20 @@ TEST(SelectionTest, CommonAncestor) {
       },
       {
           R"cpp(
-            struct S { S(const char*); };
-            S [[s ^= "foo"]];
+            #define TARGET void foo()
+            [[TAR^GET{ return; }]]
           )cpp",
-          "CXXConstructExpr",
+          "FunctionDecl",
+      },
+      {
+          R"cpp(
+            struct S { S(const char*); };
+            [[S s ^= "foo"]];
+          )cpp",
+          // The AST says a CXXConstructExpr covers the = sign in C++14.
+          // But we consider CXXConstructExpr to only own brackets.
+          // (It's not the interesting constructor anyway, just S(&&)).
+          "VarDecl",
       },
       {
           R"cpp(
@@ -231,7 +241,7 @@ TEST(SelectionTest, CommonAncestor) {
           R"cpp(
             [[void (^*S)(int)]] = nullptr;
           )cpp",
-          "FunctionProtoTypeLoc",
+          "PointerTypeLoc",
       },
       {
           R"cpp(
@@ -243,7 +253,7 @@ TEST(SelectionTest, CommonAncestor) {
           R"cpp(
             [[void ^(*S)(int)]] = nullptr;
           )cpp",
-          "FunctionProtoTypeLoc",
+          "ParenTypeLoc",
       },
       {
           R"cpp(
@@ -318,9 +328,27 @@ TEST(SelectionTest, CommonAncestor) {
       {"[[st^ruct {int x;}]] y;", "CXXRecordDecl"},
       {"[[struct {int x;} ^y]];", "VarDecl"},
       {"struct {[[int ^x]];} y;", "FieldDecl"},
+
+      // Tricky case: nested ArrayTypeLocs have the same token range.
+      {"const int x = 1, y = 2; int array[^[[x]]][10][y];", "DeclRefExpr"},
+      {"const int x = 1, y = 2; int array[x][10][^[[y]]];", "DeclRefExpr"},
+      {"const int x = 1, y = 2; int array[x][^[[10]]][y];", "IntegerLiteral"},
+      {"const int x = 1, y = 2; [[i^nt]] array[x][10][y];", "BuiltinTypeLoc"},
+      {"void func(int x) { int v_array[^[[x]]][10]; }", "DeclRefExpr"},
+
+      {"int (*getFunc([[do^uble]]))(int);", "BuiltinTypeLoc"},
+
+      // Member pointers and pack expansion use declarator syntax, but are
+      // restricted so they don't need special casing.
+      {"class X{}; [[int X::^*]]y[10];", "MemberPointerTypeLoc"},
+      {"template<typename ...T> void foo([[T*^...]]x);",
+       "PackExpansionTypeLoc"},
+      {"template<typename ...T> void foo([[^T]]*...x);",
+       "TemplateTypeParmTypeLoc"},
+
       // FIXME: the AST has no location info for qualifiers.
       {"const [[a^uto]] x = 42;", "AutoTypeLoc"},
-      {"[[co^nst auto x = 42]];", "VarDecl"},
+      {"co^nst auto x = 42;", nullptr},
 
       {"^", nullptr},
       {"void foo() { [[foo^^]] (); }", "DeclRefExpr"},
@@ -377,6 +405,9 @@ TEST(SelectionTest, CommonAncestor) {
         decltype([[^a]] + a) b;
         )cpp",
           "DeclRefExpr"},
+      {"[[decltype^(1)]] b;", "DecltypeTypeLoc"}, // Not the VarDecl.
+      // decltype(auto) is an AutoTypeLoc!
+      {"[[de^cltype(a^uto)]] a = 1;", "AutoTypeLoc"},
 
       // Objective-C nullability attributes.
       {
@@ -473,7 +504,34 @@ TEST(SelectionTest, CommonAncestor) {
         [[@property(retain, nonnull) <:[My^Object2]:> *x]]; // error-ok
         @end
       )cpp",
-       "ObjCPropertyDecl"}};
+       "ObjCPropertyDecl"},
+
+      {R"cpp(
+        typedef int Foo;
+        enum Bar : [[Fo^o]] {};
+      )cpp",
+       "TypedefTypeLoc"},
+      {R"cpp(
+        typedef int Foo;
+        enum Bar : [[Fo^o]];
+      )cpp",
+       "TypedefTypeLoc"},
+
+      // lambda captured var-decl
+      {R"cpp(
+        void test(int bar) {
+          auto l = [^[[foo = bar]]] { };
+        })cpp",
+       "VarDecl"},
+      {R"cpp(
+        /*error-ok*/
+        void func() [[{^]])cpp",
+       "CompoundStmt"},
+      {R"cpp(
+        void func() { [[__^func__]]; }
+        )cpp",
+       "PredefinedExpr"},
+  };
 
   for (const Case &C : Cases) {
     trace::TestTracer Tracer;
@@ -658,17 +716,23 @@ TEST(SelectionTest, Implicit) {
     int f(S);
     int x = f("^");
   )cpp";
-  auto AST = TestTU::withCode(Annotations(Test).code()).build();
+  auto TU = TestTU::withCode(Annotations(Test).code());
+  // C++14 AST contains some temporaries that C++17 elides.
+  TU.ExtraArgs.push_back("-std=c++17");
+  auto AST = TU.build();
   auto T = makeSelectionTree(Test, AST);
 
   const SelectionTree::Node *Str = T.commonAncestor();
   EXPECT_EQ("StringLiteral", nodeKind(Str)) << "Implicit selected?";
   EXPECT_EQ("ImplicitCastExpr", nodeKind(Str->Parent));
   EXPECT_EQ("CXXConstructExpr", nodeKind(Str->Parent->Parent));
-  EXPECT_EQ(Str, &Str->Parent->Parent->ignoreImplicit())
-      << "Didn't unwrap " << nodeKind(&Str->Parent->Parent->ignoreImplicit());
+  const SelectionTree::Node *ICE = Str->Parent->Parent->Parent;
+  EXPECT_EQ("ImplicitCastExpr", nodeKind(ICE));
+  EXPECT_EQ("CallExpr", nodeKind(ICE->Parent));
+  EXPECT_EQ(Str, &ICE->ignoreImplicit())
+      << "Didn't unwrap " << nodeKind(&ICE->ignoreImplicit());
 
-  EXPECT_EQ("CXXConstructExpr", nodeKind(&Str->outerImplicit()));
+  EXPECT_EQ(ICE, &Str->outerImplicit());
 }
 
 TEST(SelectionTest, CreateAll) {
@@ -725,6 +789,21 @@ TEST(SelectionTest, CreateAll) {
                               return false;
                             });
   EXPECT_EQ(1u, Seen) << "one tree for nontrivial selection";
+}
+
+TEST(SelectionTest, DeclContextIsLexical) {
+  llvm::Annotations Test("namespace a { void $1^foo(); } void a::$2^foo();");
+  auto AST = TestTU::withCode(Test.code()).build();
+  {
+    auto ST = SelectionTree::createRight(AST.getASTContext(), AST.getTokens(),
+                                         Test.point("1"), Test.point("1"));
+    EXPECT_FALSE(ST.commonAncestor()->getDeclContext().isTranslationUnit());
+  }
+  {
+    auto ST = SelectionTree::createRight(AST.getASTContext(), AST.getTokens(),
+                                         Test.point("2"), Test.point("2"));
+    EXPECT_TRUE(ST.commonAncestor()->getDeclContext().isTranslationUnit());
+  }
 }
 
 } // namespace

@@ -66,7 +66,7 @@ extern char *dirname(char *);
 #endif
 
 /** Return the default parsing options. */
-static unsigned getDefaultParsingOptions() {
+static unsigned getDefaultParsingOptions(void) {
   unsigned options = CXTranslationUnit_DetailedPreprocessingRecord;
 
   if (getenv("CINDEXTEST_EDITING"))
@@ -900,6 +900,8 @@ static void PrintCursor(CXCursor Cursor, const char *CommentSchemaFile) {
       printf(" (mutable)");
     if (clang_CXXMethod_isDefaulted(Cursor))
       printf(" (defaulted)");
+    if (clang_CXXMethod_isDeleted(Cursor))
+      printf(" (deleted)");
     if (clang_CXXMethod_isStatic(Cursor))
       printf(" (static)");
     if (clang_CXXMethod_isVirtual(Cursor))
@@ -1000,7 +1002,10 @@ static void PrintCursor(CXCursor Cursor, const char *CommentSchemaFile) {
              clang_getCString(Name), line, column);
       clang_disposeString(Name);
 
-      if (Cursor.kind == CXCursor_FunctionDecl) {
+      if (Cursor.kind == CXCursor_FunctionDecl
+          || Cursor.kind == CXCursor_StructDecl
+          || Cursor.kind == CXCursor_ClassDecl
+          || Cursor.kind == CXCursor_ClassTemplatePartialSpecialization) {
         /* Collect the template parameter kinds from the base template. */
         int NumTemplateArgs = clang_Cursor_getNumTemplateArguments(Cursor);
         int I;
@@ -3316,7 +3321,7 @@ typedef struct {
   unsigned num_files;
 } ImportedASTFilesData;
 
-static ImportedASTFilesData *importedASTs_create() {
+static ImportedASTFilesData *importedASTs_create(void) {
   ImportedASTFilesData *p;
   p = malloc(sizeof(ImportedASTFilesData));
   assert(p);
@@ -3504,6 +3509,8 @@ static const char *getEntityKindString(CXIdxEntityKind kind) {
   case CXIdxEntity_CXXConversionFunction: return "conversion-func";
   case CXIdxEntity_CXXTypeAlias: return "type-alias";
   case CXIdxEntity_CXXInterface: return "c++-__interface";
+  case CXIdxEntity_CXXConcept:
+    return "concept";
   }
   assert(0 && "Garbage entity kind");
   return 0;
@@ -4407,7 +4414,7 @@ static void print_usr(CXString usr) {
   clang_disposeString(usr);
 }
 
-static void display_usrs() {
+static void display_usrs(void) {
   fprintf(stderr, "-print-usrs options:\n"
         " ObjCCategory <class name> <category name>\n"
         " ObjCClass <class name>\n"

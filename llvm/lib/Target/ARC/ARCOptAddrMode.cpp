@@ -36,7 +36,7 @@ using namespace llvm;
 namespace llvm {
 
 static cl::opt<unsigned> ArcKillAddrMode("arc-kill-addr-mode", cl::init(0),
-                                         cl::ReallyHidden, cl::ZeroOrMore);
+                                         cl::ReallyHidden);
 
 #define DUMP_BEFORE() ((ArcKillAddrMode & 0x0001) != 0)
 #define DUMP_AFTER() ((ArcKillAddrMode & 0x0002) != 0)
@@ -136,7 +136,7 @@ static bool isAddConstantOp(const MachineInstr &MI, int64_t &Amount) {
   switch (MI.getOpcode()) {
   case ARC::SUB_rru6:
     Sign = -1;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ARC::ADD_rru6:
     assert(MI.getOperand(2).isImm() && "Expected immediate operand");
     Amount = Sign * MI.getOperand(2).getImm();
@@ -459,12 +459,12 @@ void ARCOptAddrMode::changeToAddrMode(MachineInstr &Ldst, unsigned NewOpcode,
 
   Register BaseReg = Ldst.getOperand(BasePos).getReg();
 
-  Ldst.RemoveOperand(OffPos);
-  Ldst.RemoveOperand(BasePos);
+  Ldst.removeOperand(OffPos);
+  Ldst.removeOperand(BasePos);
 
   if (IsStore) {
     Src = Ldst.getOperand(BasePos - 1);
-    Ldst.RemoveOperand(BasePos - 1);
+    Ldst.removeOperand(BasePos - 1);
   }
 
   Ldst.setDesc(AST->getInstrInfo()->get(NewOpcode));
@@ -499,8 +499,10 @@ bool ARCOptAddrMode::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(MF.getFunction()) || KILL_PASS())
     return false;
 
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   if (DUMP_BEFORE())
     MF.dump();
+#endif
   if (VIEW_BEFORE())
     MF.viewCFG();
 
@@ -513,8 +515,10 @@ bool ARCOptAddrMode::runOnMachineFunction(MachineFunction &MF) {
   for (auto &MBB : MF)
     Changed |= processBasicBlock(MBB);
 
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   if (DUMP_AFTER())
     MF.dump();
+#endif
   if (VIEW_AFTER())
     MF.viewCFG();
   return Changed;

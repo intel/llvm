@@ -159,19 +159,13 @@ llvm::DenseSet<const NamedDecl *> locateDeclAt(ParsedAST &AST,
   return Result;
 }
 
-// By default, we exclude C++ standard symbols and protobuf symbols as rename
-// these symbols would change system/generated files which are unlikely to be
-// modified.
+// By default, we exclude symbols from system headers and protobuf symbols as
+// renaming these symbols would change system/generated files which are unlikely
+// to be good candidates for modification.
 bool isExcluded(const NamedDecl &RenameDecl) {
-  if (isProtoFile(RenameDecl.getLocation(),
-                  RenameDecl.getASTContext().getSourceManager()))
-    return true;
-  static const auto *StdSymbols = new llvm::DenseSet<llvm::StringRef>({
-#define SYMBOL(Name, NameSpace, Header) {#NameSpace #Name},
-#include "StdSymbolMap.inc"
-#undef SYMBOL
-  });
-  return StdSymbols->count(printQualifiedName(RenameDecl));
+  const auto &SM = RenameDecl.getASTContext().getSourceManager();
+  return SM.isInSystemHeader(RenameDecl.getLocation()) ||
+         isProtoFile(RenameDecl.getLocation(), SM);
 }
 
 enum class ReasonToReject {
@@ -187,8 +181,15 @@ enum class ReasonToReject {
 
 llvm::Optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
                                           StringRef MainFilePath,
-                                          const SymbolIndex *Index) {
+                                          const SymbolIndex *Index,
+                                          const RenameOptions& Opts) {
   trace::Span Tracer("Renameable");
+  if (!Opts.RenameVirtual) {
+    if (const auto *S = llvm::dyn_cast<CXXMethodDecl>(&RenameDecl)) {
+      if (S->isVirtual())
+        return ReasonToReject::UnsupportedSymbol;
+    }
+  }
   // Filter out symbols that are unsupported in both rename modes.
   if (llvm::isa<NamespaceDecl>(&RenameDecl))
     return ReasonToReject::UnsupportedSymbol;
@@ -220,13 +221,6 @@ llvm::Optional<ReasonToReject> renameable(const NamedDecl &RenameDecl,
           IsMainFileOnly))
     return ReasonToReject::NonIndexable;
 
-
-  // FIXME: Renaming virtual methods requires to rename all overridens in
-  // subclasses, our index doesn't have this information.
-  if (const auto *S = llvm::dyn_cast<CXXMethodDecl>(&RenameDecl)) {
-    if (S->isVirtual())
-      return ReasonToReject::UnsupportedSymbol;
-  }
   return None;
 }
 
@@ -395,7 +389,7 @@ const NamedDecl *lookupSiblingsWithinContext(ASTContext &Ctx,
   DeclarationName LookupName(&II);
   DeclContextLookupResult LookupResult;
   const auto *DC = RenamedDecl.getDeclContext();
-  while (DC && DC->isTransparentContext())
+  while (DC->isTransparentContext())
     DC = DC->getParent();
   switch (DC->getDeclKind()) {
   // The enclosing DeclContext may not be the enclosing scope, it might have
@@ -455,7 +449,7 @@ std::string toString(InvalidName::Kind K) {
 }
 
 llvm::Error makeError(InvalidName Reason) {
-  auto Message = [](InvalidName Reason) {
+  auto Message = [](const InvalidName &Reason) {
     switch (Reason.K) {
     case InvalidName::Keywords:
       return llvm::formatv("the chosen name \"{0}\" is a keyword",
@@ -557,6 +551,26 @@ Range toRange(const SymbolLocation &L) {
   return R;
 }
 
+// Walk down from a virtual method to overriding methods, we rename them as a
+// group. Note that canonicalRenameDecl() ensures we're starting from the base
+// method.
+void insertTransitiveOverrides(SymbolID Base, llvm::DenseSet<SymbolID> &IDs,
+                               const SymbolIndex &Index) {
+  RelationsRequest Req;
+  Req.Predicate = RelationKind::OverriddenBy;
+
+  llvm::DenseSet<SymbolID> Pending = {Base};
+  while (!Pending.empty()) {
+    Req.Subjects = std::move(Pending);
+    Pending.clear();
+
+    Index.relations(Req, [&](const SymbolID &, const Symbol &Override) {
+      if (IDs.insert(Override.ID).second)
+        Pending.insert(Override.ID);
+    });
+  }
+}
+
 // Return all rename occurrences (using the index) outside of the main file,
 // grouped by the absolute file path.
 llvm::Expected<llvm::StringMap<std::vector<Range>>>
@@ -566,6 +580,10 @@ findOccurrencesOutsideFile(const NamedDecl &RenameDecl,
   trace::Span Tracer("FindOccurrencesOutsideFile");
   RefsRequest RQuest;
   RQuest.IDs.insert(getSymbolID(&RenameDecl));
+
+  if (const auto *MethodDecl = llvm::dyn_cast<CXXMethodDecl>(&RenameDecl))
+    if (MethodDecl->isVirtual())
+      insertTransitiveOverrides(*RQuest.IDs.begin(), RQuest.IDs, Index);
 
   // Absolute file path => rename occurrences in that file.
   llvm::StringMap<std::vector<Range>> AffectedFiles;
@@ -733,9 +751,10 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
     return makeError(ReasonToReject::SameName);
   auto Invalid = checkName(RenameDecl, RInputs.NewName);
   if (Invalid)
-    return makeError(*Invalid);
+    return makeError(std::move(*Invalid));
 
-  auto Reject = renameable(RenameDecl, RInputs.MainFilePath, RInputs.Index);
+  auto Reject =
+      renameable(RenameDecl, RInputs.MainFilePath, RInputs.Index, Opts);
   if (Reject)
     return makeError(*Reject);
 
@@ -763,20 +782,19 @@ llvm::Expected<RenameResult> rename(const RenameInputs &RInputs) {
     return StartOffset.takeError();
   if (!EndOffset)
     return EndOffset.takeError();
-  if (llvm::find_if(
+  if (llvm::none_of(
           *MainFileRenameEdit,
           [&StartOffset, &EndOffset](const clang::tooling::Replacement &R) {
             return R.getOffset() == *StartOffset &&
                    R.getLength() == *EndOffset - *StartOffset;
-          }) == MainFileRenameEdit->end()) {
+          })) {
     return makeError(ReasonToReject::NoSymbolFound);
   }
   RenameResult Result;
   Result.Target = CurrentIdentifier;
   Edit MainFileEdits = Edit(MainFileCode, std::move(*MainFileRenameEdit));
-  llvm::for_each(MainFileEdits.asTextEdits(), [&Result](const TextEdit &TE) {
+  for (const TextEdit &TE : MainFileEdits.asTextEdits())
     Result.LocalChanges.push_back(TE.range);
-  });
 
   // return the main file edit if this is a within-file rename or the symbol
   // being renamed is function local.
@@ -816,7 +834,7 @@ llvm::Expected<Edit> buildRenameEdit(llvm::StringRef AbsFilePath,
   SPAN_ATTACH(Tracer, "rename_occurrences",
               static_cast<int64_t>(Occurrences.size()));
 
-  assert(std::is_sorted(Occurrences.begin(), Occurrences.end()));
+  assert(llvm::is_sorted(Occurrences));
   assert(std::unique(Occurrences.begin(), Occurrences.end()) ==
              Occurrences.end() &&
          "Occurrences must be unique");
@@ -879,7 +897,7 @@ adjustRenameRanges(llvm::StringRef DraftCode, llvm::StringRef Identifier,
                    std::vector<Range> Indexed, const LangOptions &LangOpts) {
   trace::Span Tracer("AdjustRenameRanges");
   assert(!Indexed.empty());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
+  assert(llvm::is_sorted(Indexed));
   std::vector<Range> Lexed =
       collectIdentifierRanges(Identifier, DraftCode, LangOpts);
   llvm::sort(Lexed);
@@ -890,8 +908,8 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
                                                    ArrayRef<Range> Lexed) {
   trace::Span Tracer("GetMappedRanges");
   assert(!Indexed.empty());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
-  assert(std::is_sorted(Lexed.begin(), Lexed.end()));
+  assert(llvm::is_sorted(Indexed));
+  assert(llvm::is_sorted(Lexed));
 
   if (Indexed.size() > Lexed.size()) {
     vlog("The number of lexed occurrences is less than indexed occurrences");
@@ -906,7 +924,7 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
 
   std::vector<size_t> Best;
   size_t BestCost = std::numeric_limits<size_t>::max();
-  bool HasMultiple = 0;
+  bool HasMultiple = false;
   std::vector<size_t> ResultStorage;
   int Fuel = 10000;
   findNearMiss(ResultStorage, Indexed, Lexed, 0, Fuel,
@@ -957,8 +975,8 @@ llvm::Optional<std::vector<Range>> getMappedRanges(ArrayRef<Range> Indexed,
 size_t renameRangeAdjustmentCost(ArrayRef<Range> Indexed, ArrayRef<Range> Lexed,
                                  ArrayRef<size_t> MappedIndex) {
   assert(Indexed.size() == MappedIndex.size());
-  assert(std::is_sorted(Indexed.begin(), Indexed.end()));
-  assert(std::is_sorted(Lexed.begin(), Lexed.end()));
+  assert(llvm::is_sorted(Indexed));
+  assert(llvm::is_sorted(Lexed));
 
   int LastLine = -1;
   int LastDLine = 0, LastDColumn = 0;

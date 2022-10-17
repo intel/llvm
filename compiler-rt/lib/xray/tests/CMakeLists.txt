@@ -50,7 +50,8 @@ set(XRAY_TEST_ARCH ${XRAY_SUPPORTED_ARCH})
 set(XRAY_UNITTEST_LINK_FLAGS
   ${COMPILER_RT_UNITTEST_LINK_FLAGS}
   ${CMAKE_THREAD_LIBS_INIT}
-  )
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${COMPILER_RT_CXX_LINK_LIBS})
 
 if (NOT APPLE)
   # Needed by LLVMSupport.
@@ -82,10 +83,6 @@ if (NOT APPLE)
   append_list_if(COMPILER_RT_HAS_LIBEXECINFO -lexecinfo XRAY_UNITTEST_LINK_FLAGS)
 endif()
 
-foreach(lib ${SANITIZER_TEST_CXX_LIBRARIES})
-  list(APPEND XRAY_UNITTEST_LINK_FLAGS -l${lib})
-endforeach()
-
 macro(add_xray_unittest testname)
   cmake_parse_arguments(TEST "" "" "SOURCES;HEADERS" ${ARGN})
   if(UNIX AND NOT APPLE)
@@ -105,7 +102,7 @@ macro(add_xray_unittest testname)
         ${XRAY_HEADERS} ${XRAY_ALL_SOURCE_FILES_ABS_PATHS}
         "test_helpers.h"
         RUNTIME "${XRAY_RUNTIME_LIBS}"
-        DEPS gtest xray llvm-xray LLVMXRay LLVMTestingSupport
+        DEPS llvm_gtest xray llvm-xray LLVMXRay LLVMTestingSupport
         CFLAGS ${XRAY_UNITTEST_CFLAGS}
         LINK_FLAGS ${TARGET_LINK_FLAGS} ${XRAY_UNITTEST_LINK_FLAGS}
         )

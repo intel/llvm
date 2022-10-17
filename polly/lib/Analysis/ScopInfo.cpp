@@ -67,6 +67,7 @@
 #include "isl/options.h"
 #include "isl/set.h"
 #include <cassert>
+#include <numeric>
 
 using namespace llvm;
 using namespace polly;
@@ -112,7 +113,7 @@ STATISTIC(NumSingletonWrites, "Number of singleton writes after ScopInfo");
 STATISTIC(NumSingletonWritesInLoops,
           "Number of singleton writes nested in affine loops after ScopInfo");
 
-int const polly::MaxDisjunctsInDomain = 20;
+unsigned const polly::MaxDisjunctsInDomain = 20;
 
 // The number of disjunct in the context after which we stop to add more
 // disjuncts. This parameter is there to avoid exponential growth in the
@@ -126,7 +127,7 @@ static int const MaxDisjunktsInDefinedBehaviourContext = 8;
 static cl::opt<bool> PollyRemarksMinimal(
     "polly-remarks-minimal",
     cl::desc("Do not emit remarks about assumptions that are known"),
-    cl::Hidden, cl::ZeroOrMore, cl::init(false), cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool>
     IslOnErrorAbort("polly-on-isl-error-abort",
@@ -155,8 +156,7 @@ bool polly::UseInstructionNames;
 static cl::opt<bool, true> XUseInstructionNames(
     "polly-use-llvm-names",
     cl::desc("Use LLVM-IR names when deriving statement names"),
-    cl::location(UseInstructionNames), cl::Hidden, cl::init(false),
-    cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::location(UseInstructionNames), cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<bool> PollyPrintInstructions(
     "polly-print-instructions", cl::desc("Output instructions per ScopStmt"),
@@ -165,7 +165,7 @@ static cl::opt<bool> PollyPrintInstructions(
 static cl::list<std::string> IslArgs("polly-isl-arg",
                                      cl::value_desc("argument"),
                                      cl::desc("Option passed to ISL"),
-                                     cl::ZeroOrMore, cl::cat(PollyCategory));
+                                     cl::cat(PollyCategory));
 
 //===----------------------------------------------------------------------===//
 
@@ -293,7 +293,7 @@ void ScopArrayInfo::updateElementType(Type *NewElementType) {
   if (NewElementSize % OldElementSize == 0 && NewElementSize < OldElementSize) {
     ElementType = NewElementType;
   } else {
-    auto GCD = GreatestCommonDivisor64(NewElementSize, OldElementSize);
+    auto GCD = std::gcd((uint64_t)NewElementSize, (uint64_t)OldElementSize);
     ElementType = IntegerType::get(ElementType->getContext(), GCD);
   }
 }
@@ -443,9 +443,10 @@ void MemoryAccess::updateDimensionality() {
   isl::space AccessSpace = AccessRelation.get_space().range();
   isl::ctx Ctx = ArraySpace.ctx();
 
-  auto DimsArray = ArraySpace.dim(isl::dim::set).release();
-  auto DimsAccess = AccessSpace.dim(isl::dim::set).release();
-  auto DimsMissing = DimsArray - DimsAccess;
+  unsigned DimsArray = unsignedFromIslSize(ArraySpace.dim(isl::dim::set));
+  unsigned DimsAccess = unsignedFromIslSize(AccessSpace.dim(isl::dim::set));
+  assert(DimsArray >= DimsAccess);
+  unsigned DimsMissing = DimsArray - DimsAccess;
 
   auto *BB = getStatement()->getEntryBlock();
   auto &DL = BB->getModule()->getDataLayout();
@@ -455,10 +456,10 @@ void MemoryAccess::updateDimensionality() {
   isl::map Map = isl::map::from_domain_and_range(
       isl::set::universe(AccessSpace), isl::set::universe(ArraySpace));
 
-  for (auto i : seq<isl_size>(0, DimsMissing))
+  for (auto i : seq<unsigned>(0, DimsMissing))
     Map = Map.fix_si(isl::dim::out, i, 0);
 
-  for (auto i : seq<isl_size>(DimsMissing, DimsArray))
+  for (auto i : seq<unsigned>(DimsMissing, DimsArray))
     Map = Map.equate(isl::dim::in, i - DimsMissing, isl::dim::out, i);
 
   AccessRelation = AccessRelation.apply_range(Map);
@@ -497,9 +498,10 @@ void MemoryAccess::updateDimensionality() {
   if (ElemBytes > ArrayElemSize) {
     assert(ElemBytes % ArrayElemSize == 0 &&
            "Loaded element size should be multiple of canonical element size");
+    assert(DimsArray >= 1);
     isl::map Map = isl::map::from_domain_and_range(
         isl::set::universe(ArraySpace), isl::set::universe(ArraySpace));
-    for (auto i : seq<isl_size>(0, DimsArray - 1))
+    for (auto i : seq<unsigned>(0, DimsArray - 1))
       Map = Map.equate(isl::dim::in, i, isl::dim::out, i);
 
     isl::constraint C;
@@ -1008,10 +1010,10 @@ bool MemoryAccess::isStrideX(isl::map Schedule, int StrideWidth) const {
 
   Stride = getStride(Schedule);
   StrideX = isl::set::universe(Stride.get_space());
-  for (auto i : seq<isl_size>(0, StrideX.tuple_dim().release() - 1))
+  int Size = unsignedFromIslSize(StrideX.tuple_dim());
+  for (auto i : seq<int>(0, Size - 1))
     StrideX = StrideX.fix_si(isl::dim::set, i, 0);
-  StrideX = StrideX.fix_si(isl::dim::set, StrideX.tuple_dim().release() - 1,
-                           StrideWidth);
+  StrideX = StrideX.fix_si(isl::dim::set, Size - 1, StrideWidth);
   IsStrideX = Stride.is_subset(StrideX);
 
   return IsStrideX;
@@ -1070,9 +1072,9 @@ void MemoryAccess::setNewAccessRelation(isl::map NewAccess) {
 
   // Check whether access dimensions correspond to number of dimensions of the
   // accesses array.
-  isl_size Dims = SAI->getNumberOfDimensions();
-  assert(NewAccessSpace.dim(isl::dim::set).release() == Dims &&
-         "Access dims must match array dims");
+  unsigned Dims = SAI->getNumberOfDimensions();
+  unsigned SpaceSize = unsignedFromIslSize(NewAccessSpace.dim(isl::dim::set));
+  assert(SpaceSize == Dims && "Access dims must match array dims");
 #endif
 
   NewAccess = NewAccess.gist_params(getStatement()->getParent()->getContext());
@@ -1303,8 +1305,7 @@ void ScopStmt::removeMemoryAccess(MemoryAccess *MA) {
       Parent.removeAccessData(MA);
     }
   }
-  MemAccs.erase(std::remove_if(MemAccs.begin(), MemAccs.end(), Predicate),
-                MemAccs.end());
+  llvm::erase_if(MemAccs, Predicate);
   InstructionToAccess.erase(MA->getAccessInstruction());
 }
 
@@ -1357,7 +1358,7 @@ void Scop::setContext(isl::set NewContext) {
 namespace {
 
 /// Remap parameter values but keep AddRecs valid wrt. invariant loads.
-struct SCEVSensitiveParameterRewriter
+class SCEVSensitiveParameterRewriter final
     : public SCEVRewriteVisitor<SCEVSensitiveParameterRewriter> {
   const ValueToValueMap &VMap;
 
@@ -1388,7 +1389,7 @@ public:
 };
 
 /// Check whether we should remap a SCEV expression.
-struct SCEVFindInsideScop : public SCEVTraversal<SCEVFindInsideScop> {
+class SCEVFindInsideScop : public SCEVTraversal<SCEVFindInsideScop> {
   const ValueToValueMap &VMap;
   bool FoundInside = false;
   const Scop *S;
@@ -2559,7 +2560,7 @@ void updateLoopCountStatistic(ScopDetection::LoopStats Stats,
   NumScops++;
   NumLoopsInScop += Stats.NumLoops;
   MaxNumLoopsInScop =
-      std::max(MaxNumLoopsInScop.getValue(), (unsigned)Stats.NumLoops);
+      std::max(MaxNumLoopsInScop.getValue(), (uint64_t)Stats.NumLoops);
 
   if (Stats.MaxDepth == 0)
     NumScopsDepthZero++;
@@ -2642,6 +2643,57 @@ INITIALIZE_PASS_END(ScopInfoRegionPass, "polly-scops",
                     false)
 
 //===----------------------------------------------------------------------===//
+
+namespace {
+
+/// Print result from ScopInfoRegionPass.
+class ScopInfoPrinterLegacyRegionPass final : public RegionPass {
+public:
+  static char ID;
+
+  ScopInfoPrinterLegacyRegionPass() : ScopInfoPrinterLegacyRegionPass(outs()) {}
+
+  explicit ScopInfoPrinterLegacyRegionPass(llvm::raw_ostream &OS)
+      : RegionPass(ID), OS(OS) {}
+
+  bool runOnRegion(Region *R, RGPassManager &RGM) override {
+    ScopInfoRegionPass &P = getAnalysis<ScopInfoRegionPass>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for region: '"
+       << R->getNameStr() << "' in function '"
+       << R->getEntry()->getParent()->getName() << "':\n";
+    P.print(OS);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    RegionPass::getAnalysisUsage(AU);
+    AU.addRequired<ScopInfoRegionPass>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char ScopInfoPrinterLegacyRegionPass::ID = 0;
+} // namespace
+
+Pass *polly::createScopInfoPrinterLegacyRegionPass(raw_ostream &OS) {
+  return new ScopInfoPrinterLegacyRegionPass(OS);
+}
+
+INITIALIZE_PASS_BEGIN(ScopInfoPrinterLegacyRegionPass, "polly-print-scops",
+                      "Polly - Print polyhedral description of Scops", false,
+                      false);
+INITIALIZE_PASS_DEPENDENCY(ScopInfoRegionPass);
+INITIALIZE_PASS_END(ScopInfoPrinterLegacyRegionPass, "polly-print-scops",
+                    "Polly - Print polyhedral description of Scops", false,
+                    false)
+
+//===----------------------------------------------------------------------===//
+
 ScopInfo::ScopInfo(const DataLayout &DL, ScopDetection &SD, ScalarEvolution &SE,
                    LoopInfo &LI, AliasAnalysis &AA, DominatorTree &DT,
                    AssumptionCache &AC, OptimizationRemarkEmitter &ORE)
@@ -2771,4 +2823,54 @@ INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass);
 INITIALIZE_PASS_END(
     ScopInfoWrapperPass, "polly-function-scops",
     "Polly - Create polyhedral description of all Scops of a function", false,
+    false)
+
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Print result from ScopInfoWrapperPass.
+class ScopInfoPrinterLegacyFunctionPass final : public FunctionPass {
+public:
+  static char ID;
+
+  ScopInfoPrinterLegacyFunctionPass()
+      : ScopInfoPrinterLegacyFunctionPass(outs()) {}
+  explicit ScopInfoPrinterLegacyFunctionPass(llvm::raw_ostream &OS)
+      : FunctionPass(ID), OS(OS) {}
+
+  bool runOnFunction(Function &F) override {
+    ScopInfoWrapperPass &P = getAnalysis<ScopInfoWrapperPass>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for function '"
+       << F.getName() << "':\n";
+    P.print(OS);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    FunctionPass::getAnalysisUsage(AU);
+    AU.addRequired<ScopInfoWrapperPass>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char ScopInfoPrinterLegacyFunctionPass::ID = 0;
+} // namespace
+
+Pass *polly::createScopInfoPrinterLegacyFunctionPass(raw_ostream &OS) {
+  return new ScopInfoPrinterLegacyFunctionPass(OS);
+}
+
+INITIALIZE_PASS_BEGIN(
+    ScopInfoPrinterLegacyFunctionPass, "polly-print-function-scops",
+    "Polly - Print polyhedral description of all Scops of a function", false,
+    false);
+INITIALIZE_PASS_DEPENDENCY(ScopInfoWrapperPass);
+INITIALIZE_PASS_END(
+    ScopInfoPrinterLegacyFunctionPass, "polly-print-function-scops",
+    "Polly - Print polyhedral description of all Scops of a function", false,
     false)

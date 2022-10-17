@@ -55,18 +55,12 @@ def AsmPred3 : Predicate<"Pred3">, AssemblerPredicate<(any_of AsmCond3a, AsmCond
 
 def BigInst : RVInst<1, [AsmPred1]>;
 
-class CompressPat<dag input, dag output, list<Predicate> predicates> {
-  dag Input = input;
-  dag Output = output;
-  list<Predicate> Predicates = predicates;
-  bit isCompressOnly = false;
-}
-
 // COMPRESS-LABEL: static bool compressInst
 // COMPRESS: case arch::BigInst
 def SmallInst1 : RVInst16<1, []>;
 def : CompressPat<(BigInst Regs:$r), (SmallInst1 Regs:$r), [AsmPred1]>;
 // COMPRESS:      if (STI.getFeatureBits()[arch::AsmCond1] &&
+// COMPRESS-NEXT: (MI.getOperand(0).isReg()) &&
 // COMPRESS-NEXT: (MRI.getRegClass(arch::RegsRegClassID).contains(MI.getOperand(0).getReg()))) {
 // COMPRESS-NEXT: // SmallInst1 $r
 
@@ -74,12 +68,14 @@ def SmallInst2 : RVInst16<2, []>;
 def : CompressPat<(BigInst Regs:$r), (SmallInst2 Regs:$r), [AsmPred2]>;
 // COMPRESS:      if (STI.getFeatureBits()[arch::AsmCond2a] &&
 // COMPRESS-NEXT: STI.getFeatureBits()[arch::AsmCond2b] &&
+// COMPRESS-NEXT: (MI.getOperand(0).isReg()) &&
 // COMPRESS-NEXT: (MRI.getRegClass(arch::RegsRegClassID).contains(MI.getOperand(0).getReg()))) {
 // COMPRESS-NEXT: // SmallInst2 $r
 
 def SmallInst3 : RVInst16<2, []>;
 def : CompressPat<(BigInst Regs:$r), (SmallInst3 Regs:$r), [AsmPred3]>;
 // COMPRESS:      if ((STI.getFeatureBits()[arch::AsmCond3a] || STI.getFeatureBits()[arch::AsmCond3b]) &&
+// COMPRESS-NEXT: (MI.getOperand(0).isReg()) &&
 // COMPRESS-NEXT: (MRI.getRegClass(arch::RegsRegClassID).contains(MI.getOperand(0).getReg()))) {
 // COMPRESS-NEXT: // SmallInst3 $r
 
@@ -88,6 +84,7 @@ def : CompressPat<(BigInst Regs:$r), (SmallInst4 Regs:$r), [AsmPred1, AsmPred2]>
 // COMPRESS:      if (STI.getFeatureBits()[arch::AsmCond1] &&
 // COMPRESS-NEXT: STI.getFeatureBits()[arch::AsmCond2a] &&
 // COMPRESS-NEXT: STI.getFeatureBits()[arch::AsmCond2b] &&
+// COMPRESS-NEXT: (MI.getOperand(0).isReg()) &&
 // COMPRESS-NEXT: (MRI.getRegClass(arch::RegsRegClassID).contains(MI.getOperand(0).getReg()))) {
 // COMPRESS-NEXT: // SmallInst4 $r
 
@@ -95,6 +92,7 @@ def SmallInst5 : RVInst16<2, []>;
 def : CompressPat<(BigInst Regs:$r), (SmallInst5 Regs:$r), [AsmPred1, AsmPred3]>;
 // COMPRESS:      if (STI.getFeatureBits()[arch::AsmCond1] &&
 // COMPRESS-NEXT: (STI.getFeatureBits()[arch::AsmCond3a] || STI.getFeatureBits()[arch::AsmCond3b]) &&
+// COMPRESS-NEXT: (MI.getOperand(0).isReg()) &&
 // COMPRESS-NEXT: (MRI.getRegClass(arch::RegsRegClassID).contains(MI.getOperand(0).getReg()))) {
 // COMPRESS-NEXT: // SmallInst5 $r
 

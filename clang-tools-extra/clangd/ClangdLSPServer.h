@@ -10,8 +10,6 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDLSPSERVER_H
 
 #include "ClangdServer.h"
-#include "DraftStore.h"
-#include "FindSymbols.h"
 #include "GlobalCompilationDatabase.h"
 #include "LSPBinder.h"
 #include "Protocol.h"
@@ -20,18 +18,15 @@
 #include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "support/Threading.h"
-#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/JSON.h"
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace clang {
 namespace clangd {
-
-class SymbolIndex;
 
 /// This class exposes ClangdServer's capabilities via Language Server Protocol.
 ///
@@ -56,14 +51,12 @@ public:
     /// Per-feature options. Generally ClangdServer lets these vary
     /// per-request, but LSP allows limited/no customizations.
     clangd::CodeCompleteOptions CodeComplete;
+    MarkupKind SignatureHelpDocumentationFormat = MarkupKind::PlainText;
     clangd::RenameOptions Rename;
     /// Returns true if the tweak should be enabled.
     std::function<bool(const Tweak &)> TweakFilter = [](const Tweak &T) {
       return !T.hidden(); // only enable non-hidden tweaks.
     };
-
-    /// Enable preview of InlayHints feature.
-    bool InlayHints = false;
 
     /// Limit the number of references returned (0 means no limit).
     size_t ReferencesLimit = 0;
@@ -123,6 +116,8 @@ private:
                          Callback<std::vector<Location>>);
   void onGoToDefinition(const TextDocumentPositionParams &,
                         Callback<std::vector<Location>>);
+  void onGoToType(const TextDocumentPositionParams &,
+                  Callback<std::vector<Location>>);
   void onGoToImplementation(const TextDocumentPositionParams &,
                             Callback<std::vector<Location>>);
   void onReference(const ReferenceParams &, Callback<std::vector<Location>>);
@@ -138,10 +133,16 @@ private:
   void onRename(const RenameParams &, Callback<WorkspaceEdit>);
   void onHover(const TextDocumentPositionParams &,
                Callback<llvm::Optional<Hover>>);
-  void onTypeHierarchy(const TypeHierarchyParams &,
-                       Callback<llvm::Optional<TypeHierarchyItem>>);
+  void onPrepareTypeHierarchy(const TypeHierarchyPrepareParams &,
+                              Callback<std::vector<TypeHierarchyItem>>);
+  void onSuperTypes(const ResolveTypeHierarchyItemParams &,
+                    Callback<llvm::Optional<std::vector<TypeHierarchyItem>>>);
+  void onSubTypes(const ResolveTypeHierarchyItemParams &,
+                  Callback<std::vector<TypeHierarchyItem>>);
+  void onTypeHierarchy(const TypeHierarchyPrepareParams &,
+                       Callback<llvm::json::Value>);
   void onResolveTypeHierarchy(const ResolveTypeHierarchyItemParams &,
-                              Callback<llvm::Optional<TypeHierarchyItem>>);
+                              Callback<llvm::json::Value>);
   void onPrepareCallHierarchy(const CallHierarchyPrepareParams &,
                               Callback<std::vector<CallHierarchyItem>>);
   void onCallHierarchyIncomingCalls(
@@ -150,7 +151,9 @@ private:
   void onCallHierarchyOutgoingCalls(
       const CallHierarchyOutgoingCallsParams &,
       Callback<std::vector<CallHierarchyOutgoingCall>>);
-  void onInlayHints(const InlayHintsParams &, Callback<std::vector<InlayHint>>);
+  void onClangdInlayHints(const InlayHintsParams &,
+                          Callback<llvm::json::Value>);
+  void onInlayHint(const InlayHintsParams &, Callback<std::vector<InlayHint>>);
   void onChangeConfiguration(const DidChangeConfigurationParams &);
   void onSymbolInfo(const TextDocumentPositionParams &,
                     Callback<std::vector<SymbolDetails>>);

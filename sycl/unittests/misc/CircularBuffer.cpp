@@ -15,15 +15,15 @@
 #include <cstddef>
 #include <vector>
 
-// This test contains basic checks for cl::sycl::detail::CircularBuffer
-void checkEquality(const cl::sycl::detail::CircularBuffer<int> &CB,
+// This test contains basic checks for sycl::detail::CircularBuffer
+void checkEquality(const sycl::detail::CircularBuffer<int> &CB,
                    const std::vector<int> &V) {
   ASSERT_TRUE(std::equal(CB.begin(), CB.end(), V.begin()));
 }
 
 TEST(CircularBufferTest, CircularBufferTest) {
   const std::size_t Capacity = 6;
-  cl::sycl::detail::CircularBuffer<int> CB{Capacity};
+  sycl::detail::CircularBuffer<int> CB{Capacity};
   ASSERT_TRUE(CB.capacity() == Capacity);
   ASSERT_TRUE(CB.empty());
 

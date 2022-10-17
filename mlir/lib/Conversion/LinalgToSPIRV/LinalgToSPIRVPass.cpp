@@ -7,16 +7,24 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/LinalgToSPIRV/LinalgToSPIRVPass.h"
-#include "../PassDetail.h"
+
 #include "mlir/Conversion/LinalgToSPIRV/LinalgToSPIRV.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/Pass/Pass.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTLINALGTOSPIRV
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
 namespace {
 /// A pass converting MLIR Linalg ops into SPIR-V ops.
-class LinalgToSPIRVPass : public ConvertLinalgToSPIRVBase<LinalgToSPIRVPass> {
+class LinalgToSPIRVPass
+    : public impl::ConvertLinalgToSPIRVBase<LinalgToSPIRVPass> {
   void runOnOperation() override;
 };
 } // namespace
@@ -36,8 +44,8 @@ void LinalgToSPIRVPass::runOnOperation() {
 
   // Allow builtin ops.
   target->addLegalOp<ModuleOp>();
-  target->addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
-    return typeConverter.isSignatureLegal(op.getType()) &&
+  target->addDynamicallyLegalOp<func::FuncOp>([&](func::FuncOp op) {
+    return typeConverter.isSignatureLegal(op.getFunctionType()) &&
            typeConverter.isLegal(&op.getBody());
   });
 

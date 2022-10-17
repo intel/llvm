@@ -202,7 +202,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero1) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero2) {
@@ -213,7 +213,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero2) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero3) {
@@ -224,7 +224,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero3) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero4) {
@@ -235,7 +235,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero4) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero5) {
@@ -246,7 +246,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero5) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero6) {
@@ -257,7 +257,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero6) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero7) {
@@ -268,7 +268,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero7) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero8) {
@@ -279,7 +279,7 @@ TEST_F(MatchSelectPatternTest, FMinMismatchConstantZero8) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMINNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero1) {
@@ -290,7 +290,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero1) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero2) {
@@ -301,7 +301,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero2) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero3) {
@@ -312,7 +312,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero3) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero4) {
@@ -323,7 +323,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero4) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_NAN, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero5) {
@@ -334,7 +334,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero5) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero6) {
@@ -345,7 +345,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero6) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero7) {
@@ -356,7 +356,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero7) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, false});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero8) {
@@ -367,7 +367,7 @@ TEST_F(MatchSelectPatternTest, FMaxMismatchConstantZero8) {
       "  ret float %A\n"
       "}\n");
   // The sign of zero doesn't matter in fcmp.
-  expectPattern({SPF_FMAXNUM, SPNB_RETURNS_OTHER, true});
+  expectPattern({SPF_UNKNOWN, SPNB_NA, false});
 }
 
 TEST_F(MatchSelectPatternTest, FMinMismatchConstantZeroVecUndef) {
@@ -1345,6 +1345,18 @@ TEST_F(ValueTrackingTest, IsImpliedConditionAnd2) {
   EXPECT_EQ(isImpliedCondition(A, A4, DL), None);
 }
 
+TEST_F(ValueTrackingTest, IsImpliedConditionAndVec) {
+  parseAssembly(R"(
+    define void @test(<2 x i8> %x, <2 x i8> %y) {
+      %A = icmp ult <2 x i8> %x, %y
+      %A2 = icmp ule <2 x i8> %x, %y
+      ret void
+    }
+  )");
+  const DataLayout &DL = M->getDataLayout();
+  EXPECT_EQ(isImpliedCondition(A, A2, DL), true);
+}
+
 TEST_F(ValueTrackingTest, IsImpliedConditionOr) {
   parseAssembly(R"(
     define void @test(i32 %x, i32 %y) {
@@ -1711,6 +1723,84 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsGEPWithRangeNoOverlap) {
   EXPECT_EQ(Known.getMaxValue(), 575);
 }
 
+TEST_F(ValueTrackingTest, HaveNoCommonBitsSet) {
+  {
+    // Check for an inverted mask: (X & ~M) op (Y & M).
+    auto M = parseModule(R"(
+  define i32 @test(i32 %X, i32 %Y, i32 %M) {
+    %1 = xor i32 %M, -1
+    %LHS = and i32 %1, %X
+    %RHS = and i32 %Y, %M
+    %Ret = add i32 %LHS, %RHS
+    ret i32 %Ret
+  })");
+
+    auto *F = M->getFunction("test");
+    auto *LHS = findInstructionByNameOrNull(F, "LHS");
+    auto *RHS = findInstructionByNameOrNull(F, "RHS");
+
+    const DataLayout &DL = M->getDataLayout();
+    EXPECT_TRUE(haveNoCommonBitsSet(LHS, RHS, DL));
+    EXPECT_TRUE(haveNoCommonBitsSet(RHS, LHS, DL));
+  }
+  {
+    // Check for (A & B) and ~(A | B)
+    auto M = parseModule(R"(
+  define void @test(i32 %A, i32 %B) {
+    %LHS = and i32 %A, %B
+    %or = or i32 %A, %B
+    %RHS = xor i32 %or, -1
+
+    %LHS2 = and i32 %B, %A
+    %or2 = or i32 %A, %B
+    %RHS2 = xor i32 %or2, -1
+
+    ret void
+  })");
+
+    auto *F = M->getFunction("test");
+    const DataLayout &DL = M->getDataLayout();
+
+    auto *LHS = findInstructionByNameOrNull(F, "LHS");
+    auto *RHS = findInstructionByNameOrNull(F, "RHS");
+    EXPECT_TRUE(haveNoCommonBitsSet(LHS, RHS, DL));
+    EXPECT_TRUE(haveNoCommonBitsSet(RHS, LHS, DL));
+
+    auto *LHS2 = findInstructionByNameOrNull(F, "LHS2");
+    auto *RHS2 = findInstructionByNameOrNull(F, "RHS2");
+    EXPECT_TRUE(haveNoCommonBitsSet(LHS2, RHS2, DL));
+    EXPECT_TRUE(haveNoCommonBitsSet(RHS2, LHS2, DL));
+  }
+  {
+    // Check for (A & B) and ~(A | B) in vector version
+    auto M = parseModule(R"(
+  define void @test(<2 x i32> %A, <2 x i32> %B) {
+    %LHS = and <2 x i32> %A, %B
+    %or = or <2 x i32> %A, %B
+    %RHS = xor <2 x i32> %or, <i32 -1, i32 -1>
+
+    %LHS2 = and <2 x i32> %B, %A
+    %or2 = or <2 x i32> %A, %B
+    %RHS2 = xor <2 x i32> %or2, <i32 -1, i32 -1>
+
+    ret void
+  })");
+
+    auto *F = M->getFunction("test");
+    const DataLayout &DL = M->getDataLayout();
+
+    auto *LHS = findInstructionByNameOrNull(F, "LHS");
+    auto *RHS = findInstructionByNameOrNull(F, "RHS");
+    EXPECT_TRUE(haveNoCommonBitsSet(LHS, RHS, DL));
+    EXPECT_TRUE(haveNoCommonBitsSet(RHS, LHS, DL));
+
+    auto *LHS2 = findInstructionByNameOrNull(F, "LHS2");
+    auto *RHS2 = findInstructionByNameOrNull(F, "RHS2");
+    EXPECT_TRUE(haveNoCommonBitsSet(LHS2, RHS2, DL));
+    EXPECT_TRUE(haveNoCommonBitsSet(RHS2, LHS2, DL));
+  }
+}
+
 class IsBytewiseValueTest : public ValueTrackingTest,
                             public ::testing::WithParamInterface<
                                 std::pair<const char *, const char *>> {
@@ -1986,11 +2076,11 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
 
     AssumptionCache AC(*F);
     Value *Stride = &*F->arg_begin();
-    ConstantRange CR1 = computeConstantRange(Stride, true, &AC, nullptr);
+    ConstantRange CR1 = computeConstantRange(Stride, false, true, &AC, nullptr);
     EXPECT_TRUE(CR1.isFullSet());
 
     Instruction *I = &findInstructionByName(F, "stride.plus.one");
-    ConstantRange CR2 = computeConstantRange(Stride, true, &AC, I);
+    ConstantRange CR2 = computeConstantRange(Stride, false, true, &AC, I);
     EXPECT_EQ(5, CR2.getLower());
     EXPECT_EQ(10, CR2.getUpper());
   }
@@ -2020,7 +2110,7 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     AssumptionCache AC(*F);
     Value *Stride = &*F->arg_begin();
     Instruction *I = &findInstructionByName(F, "stride.plus.one");
-    ConstantRange CR = computeConstantRange(Stride, true, &AC, I);
+    ConstantRange CR = computeConstantRange(Stride, false, true, &AC, I);
     EXPECT_EQ(99, *CR.getSingleElement());
   }
 
@@ -2058,12 +2148,12 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     AssumptionCache AC(*F);
     Value *Stride = &*F->arg_begin();
     Instruction *GT2 = &findInstructionByName(F, "gt.2");
-    ConstantRange CR = computeConstantRange(Stride, true, &AC, GT2);
+    ConstantRange CR = computeConstantRange(Stride, false, true, &AC, GT2);
     EXPECT_EQ(5, CR.getLower());
     EXPECT_EQ(0, CR.getUpper());
 
     Instruction *I = &findInstructionByName(F, "stride.plus.one");
-    ConstantRange CR2 = computeConstantRange(Stride, true, &AC, I);
+    ConstantRange CR2 = computeConstantRange(Stride, false, true, &AC, I);
     EXPECT_EQ(50, CR2.getLower());
     EXPECT_EQ(100, CR2.getUpper());
   }
@@ -2091,7 +2181,7 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     Value *Stride = &*F->arg_begin();
 
     Instruction *I = &findInstructionByName(F, "stride.plus.one");
-    ConstantRange CR = computeConstantRange(Stride, true, &AC, I);
+    ConstantRange CR = computeConstantRange(Stride, false, true, &AC, I);
     EXPECT_TRUE(CR.isEmptySet());
   }
 
@@ -2119,8 +2209,8 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     Value *X2 = &*std::next(F->arg_begin());
 
     Instruction *I = &findInstructionByName(F, "stride.plus.one");
-    ConstantRange CR1 = computeConstantRange(X1, true, &AC, I);
-    ConstantRange CR2 = computeConstantRange(X2, true, &AC, I);
+    ConstantRange CR1 = computeConstantRange(X1, false, true, &AC, I);
+    ConstantRange CR2 = computeConstantRange(X2, false, true, &AC, I);
 
     EXPECT_EQ(5, CR1.getLower());
     EXPECT_EQ(0, CR1.getUpper());
@@ -2130,7 +2220,7 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
 
     // Check the depth cutoff results in a conservative result (full set) by
     // passing Depth == MaxDepth == 6.
-    ConstantRange CR3 = computeConstantRange(X2, true, &AC, I, nullptr, 6);
+    ConstantRange CR3 = computeConstantRange(X2, false, true, &AC, I, nullptr, 6);
     EXPECT_TRUE(CR3.isFullSet());
   }
   {
@@ -2151,7 +2241,7 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     Value *X2 = &*std::next(F->arg_begin());
 
     Instruction *I = &findInstructionByName(F, "stride.plus.one");
-    ConstantRange CR1 = computeConstantRange(X2, true, &AC, I);
+    ConstantRange CR1 = computeConstantRange(X2, false, true, &AC, I);
     // If we don't know the value of x.2, we don't know the value of x.1.
     EXPECT_TRUE(CR1.isFullSet());
   }

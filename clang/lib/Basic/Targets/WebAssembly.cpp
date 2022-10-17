@@ -56,6 +56,7 @@ bool WebAssemblyTargetInfo::hasFeature(StringRef Feature) const {
       .Case("multivalue", HasMultivalue)
       .Case("tail-call", HasTailCall)
       .Case("reference-types", HasReferenceTypes)
+      .Case("extended-const", HasExtendedConst)
       .Default(false);
 }
 
@@ -93,6 +94,8 @@ void WebAssemblyTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__wasm_tail_call__");
   if (HasReferenceTypes)
     Builder.defineMacro("__wasm_reference_types__");
+  if (HasExtendedConst)
+    Builder.defineMacro("__wasm_extended_const__");
 }
 
 void WebAssemblyTargetInfo::setSIMDLevel(llvm::StringMap<bool> &Features,
@@ -101,10 +104,10 @@ void WebAssemblyTargetInfo::setSIMDLevel(llvm::StringMap<bool> &Features,
     switch (Level) {
     case RelaxedSIMD:
       Features["relaxed-simd"] = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case SIMD128:
       Features["simd128"] = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case NoSIMD:
       break;
     }
@@ -115,7 +118,7 @@ void WebAssemblyTargetInfo::setSIMDLevel(llvm::StringMap<bool> &Features,
   case NoSIMD:
   case SIMD128:
     Features["simd128"] = false;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case RelaxedSIMD:
     Features["relaxed-simd"] = false;
     break;
@@ -240,6 +243,14 @@ bool WebAssemblyTargetInfo::handleTargetFeatures(
       HasReferenceTypes = false;
       continue;
     }
+    if (Feature == "+extended-const") {
+      HasExtendedConst = true;
+      continue;
+    }
+    if (Feature == "-extended-const") {
+      HasExtendedConst = false;
+      continue;
+    }
 
     Diags.Report(diag::err_opt_not_valid_with_opt)
         << Feature << "-target-feature";
@@ -255,11 +266,14 @@ ArrayRef<Builtin::Info> WebAssemblyTargetInfo::getTargetBuiltins() const {
 
 void WebAssemblyTargetInfo::adjust(DiagnosticsEngine &Diags,
                                    LangOptions &Opts) {
-  // If the Atomics feature isn't available, turn off POSIXThreads and
-  // ThreadModel, so that we don't predefine _REENTRANT or __STDCPP_THREADS__.
-  if (!HasAtomics) {
+  TargetInfo::adjust(Diags, Opts);
+  // Turn off POSIXThreads and ThreadModel so that we don't predefine _REENTRANT
+  // or __STDCPP_THREADS__ if we will eventually end up stripping atomics
+  // because they are unsupported.
+  if (!HasAtomics || !HasBulkMemory) {
     Opts.POSIXThreads = false;
     Opts.setThreadModel(LangOptions::ThreadModelKind::Single);
+    Opts.ThreadsafeStatics = false;
   }
 }
 

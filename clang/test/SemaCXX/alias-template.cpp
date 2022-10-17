@@ -37,7 +37,7 @@ namespace VariableLengthArrays {
   const int m = 42;
   template<typename Z> using U = int[m];
   template<typename Z> using U = int[42]; // expected-note {{previous definition}} 
-  template<typename Z> using U = int; // expected-error {{type alias template redefinition with different types ('int' vs 'int [42]')}}
+  template<typename Z> using U = int; // expected-error {{type alias template redefinition with different types ('int' vs 'int[42]')}}
 }
 
 namespace RedeclFunc {
@@ -174,7 +174,7 @@ struct S {
   using T = X[J];
   using U = T<I>;
 };
-static_assert(__is_same(S<3>::U, X[2]), ""); // expected-error {{static_assert failed}}
+static_assert(__is_same(S<3>::U, X[2]), ""); // expected-error {{static assertion failed}}
 }
 
 namespace PR39623 {

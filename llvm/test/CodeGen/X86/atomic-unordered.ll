@@ -5,10 +5,15 @@
 ; RUN: llc -O3 < %s -mtriple=x86_64-linux-generic -verify-machineinstrs -mcpu=skylake -x86-experimental-unordered-atomic-isel=1 | FileCheck --check-prefixes=CHECK,CHECK-O3,CHECK-O3-EX %s
 
 define i8 @load_i8(i8* %ptr) {
-; CHECK-LABEL: load_i8:
-; CHECK:       # %bb.0:
-; CHECK-NEXT:    movb (%rdi), %al
-; CHECK-NEXT:    retq
+; CHECK-O0-LABEL: load_i8:
+; CHECK-O0:       # %bb.0:
+; CHECK-O0-NEXT:    movb (%rdi), %al
+; CHECK-O0-NEXT:    retq
+;
+; CHECK-O3-LABEL: load_i8:
+; CHECK-O3:       # %bb.0:
+; CHECK-O3-NEXT:    movzbl (%rdi), %eax
+; CHECK-O3-NEXT:    retq
   %v = load atomic i8, i8* %ptr unordered, align 1
   ret i8 %v
 }
@@ -734,11 +739,12 @@ define i64 @load_fold_sdiv1(i64* %p) {
 ; CHECK-O3-NEXT:    movabsq $-8608480567731124087, %rdx # imm = 0x8888888888888889
 ; CHECK-O3-NEXT:    movq %rcx, %rax
 ; CHECK-O3-NEXT:    imulq %rdx
-; CHECK-O3-NEXT:    addq %rcx, %rdx
-; CHECK-O3-NEXT:    movq %rdx, %rax
+; CHECK-O3-NEXT:    addq %rdx, %rcx
+; CHECK-O3-NEXT:    movq %rcx, %rax
 ; CHECK-O3-NEXT:    shrq $63, %rax
-; CHECK-O3-NEXT:    sarq $3, %rdx
-; CHECK-O3-NEXT:    addq %rdx, %rax
+; CHECK-O3-NEXT:    sarq $3, %rcx
+; CHECK-O3-NEXT:    addq %rax, %rcx
+; CHECK-O3-NEXT:    movq %rcx, %rax
 ; CHECK-O3-NEXT:    retq
   %v = load atomic i64, i64* %p unordered, align 8
   %ret = sdiv i64 %v, 15

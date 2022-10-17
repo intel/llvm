@@ -119,7 +119,7 @@ public:
   uint32_t calcNewIndex(const WasmRelocation &reloc) const;
   uint64_t calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
                         const InputChunk *chunk) const;
-  uint64_t calcNewAddend(const WasmRelocation &reloc) const;
+  int64_t calcNewAddend(const WasmRelocation &reloc) const;
   Symbol *getSymbol(const WasmRelocation &reloc) const {
     return symbols[reloc.Index];
   };
@@ -170,14 +170,8 @@ public:
 // .bc file
 class BitcodeFile : public InputFile {
 public:
-  explicit BitcodeFile(MemoryBufferRef m, StringRef archiveName)
-      : InputFile(BitcodeKind, m) {
-    this->archiveName = std::string(archiveName);
-
-    // If this isn't part of an archive, it's eagerly linked, so mark it live.
-    if (archiveName.empty())
-      markLive();
-  }
+  BitcodeFile(MemoryBufferRef m, StringRef archiveName,
+              uint64_t offsetInArchive);
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
 
   void parse();
@@ -194,7 +188,8 @@ inline bool isBitcode(MemoryBufferRef mb) {
 
 // Will report a fatal() error if the input buffer is not a valid bitcode
 // or wasm object file.
-InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName = "");
+InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName = "",
+                            uint64_t offsetInArchive = 0);
 
 // Opens a given file.
 llvm::Optional<MemoryBufferRef> readFile(StringRef path);

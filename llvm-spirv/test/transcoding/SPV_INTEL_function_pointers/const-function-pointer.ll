@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
@@ -14,8 +14,8 @@
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[XArg:[0-9]+]] 32
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[YArg:[0-9]+]] 2
 
-; CHECK-SPIRV: ConstFunctionPointerINTEL {{[0-9]+}} [[F1:[0-9]+]] [[F1Name]]
-; CHECK-SPIRV: ConstFunctionPointerINTEL {{[0-9]+}} [[F2:[0-9]+]] [[F2Name]]
+; CHECK-SPIRV: ConstantFunctionPointerINTEL {{[0-9]+}} [[F1:[0-9]+]] [[F1Name]]
+; CHECK-SPIRV: ConstantFunctionPointerINTEL {{[0-9]+}} [[F2:[0-9]+]] [[F2Name]]
 ; CHECK-SPIRV: ConstantComposite {{[0-9]+}} [[ConstComp:[0-9]+]] [[F1]] [[F2]]
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[Var:[0-9]+]] {{[0-9]+}} [[ConstComp]]
 
@@ -23,9 +23,9 @@
 ; CHECK-SPIRV: Load {{[0-9]+}} [[FuncPtr:[0-9]+]] [[GEP]]
 ; CHECK-SPIRV: FunctionPointerCallINTEL [[Int32]] {{[0-9]+}} [[FuncPtr]] [[XArg]] [[YArg]]
 
-; CHECK-LLVM: @__const.main.funcs = internal constant [2 x i32 (i32, i32)*] [i32 (i32, i32)* @f1, i32 (i32, i32)* @f2], align 16
-; CHECK-LLVM:   %[[Idx:[a-z0-9]+]] = getelementptr inbounds [2 x i32 (i32, i32)*], [2 x i32 (i32, i32)*]* @__const.main.funcs, i64 0, i64 %{{[a-z0-9]+}}
-; CHECK-LLVM:   %[[FuncPtr:[a-z0-9]+]] = load i32 (i32, i32)*, i32 (i32, i32)** %[[Idx]], align 8
+; CHECK-LLVM: @__const.main.funcs = internal constant [2 x ptr] [ptr @f1, ptr @f2], align 16
+; CHECK-LLVM:   %[[Idx:[a-z0-9]+]] = getelementptr inbounds [2 x ptr], ptr @__const.main.funcs, i64 0, i64 %{{[a-z0-9]+}}
+; CHECK-LLVM:   %[[FuncPtr:[a-z0-9]+]] = load ptr, ptr %[[Idx]], align 8
 ; CHECK-LLVM:   %{{[a-z0-9]+}} = call spir_func i32 %[[FuncPtr]](i32 32, i32 2)
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

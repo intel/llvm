@@ -48,9 +48,6 @@ public:
     set_lhsType(TypeAndShape::Characterize(lhs, context));
     set_isContiguous(lhs.attrs().test(Attr::CONTIGUOUS));
     set_isVolatile(lhs.attrs().test(Attr::VOLATILE));
-    if (IsProcedure(lhs)) {
-      procedure_ = Procedure::Characterize(lhs, context);
-    }
   }
   PointerAssignmentChecker &set_lhsType(std::optional<TypeAndShape> &&);
   PointerAssignmentChecker &set_isContiguous(bool);
@@ -59,6 +56,7 @@ public:
   bool Check(const SomeExpr &);
 
 private:
+  bool CharacterizeProcedure();
   template <typename T> bool Check(const T &);
   template <typename T> bool Check(const evaluate::Expr<T> &);
   template <typename T> bool Check(const evaluate::FunctionRef<T> &);
@@ -67,8 +65,9 @@ private:
   bool Check(const evaluate::ProcedureDesignator &);
   bool Check(const evaluate::ProcedureRef &);
   // Target is a procedure
-  bool Check(
-      parser::CharBlock rhsName, bool isCall, const Procedure * = nullptr);
+  bool Check(parser::CharBlock rhsName, bool isCall,
+      const Procedure * = nullptr,
+      const evaluate::SpecificIntrinsic *specific = nullptr);
   bool LhsOkForUnlimitedPoly() const;
   template <typename... A> parser::Message *Say(A &&...);
 
@@ -78,6 +77,7 @@ private:
   const Symbol *lhs_{nullptr};
   std::optional<TypeAndShape> lhsType_;
   std::optional<Procedure> procedure_;
+  bool characterizedProcedure_{false};
   bool isContiguous_{false};
   bool isVolatile_{false};
   bool isBoundsRemapping_{false};
@@ -107,6 +107,16 @@ PointerAssignmentChecker &PointerAssignmentChecker::set_isBoundsRemapping(
   return *this;
 }
 
+bool PointerAssignmentChecker::CharacterizeProcedure() {
+  if (!characterizedProcedure_) {
+    characterizedProcedure_ = true;
+    if (lhs_ && IsProcedure(*lhs_)) {
+      procedure_ = Procedure::Characterize(*lhs_, context_);
+    }
+  }
+  return procedure_.has_value();
+}
+
 template <typename T> bool PointerAssignmentChecker::Check(const T &) {
   // Catch-all case for really bad target expression
   Say("Target associated with %s must be a designator or a call to a"
@@ -117,7 +127,7 @@ template <typename T> bool PointerAssignmentChecker::Check(const T &) {
 
 template <typename T>
 bool PointerAssignmentChecker::Check(const evaluate::Expr<T> &x) {
-  return std::visit([&](const auto &x) { return Check(x); }, x.u);
+  return common::visit([&](const auto &x) { return Check(x); }, x.u);
 }
 
 bool PointerAssignmentChecker::Check(const SomeExpr &rhs) {
@@ -128,7 +138,7 @@ bool PointerAssignmentChecker::Check(const SomeExpr &rhs) {
     Say("A coindexed object may not be a pointer target"_err_en_US);
     return false;
   } else {
-    return std::visit([&](const auto &x) { return Check(x); }, rhs.u);
+    return common::visit([&](const auto &x) { return Check(x); }, rhs.u);
   }
 }
 
@@ -154,7 +164,7 @@ bool PointerAssignmentChecker::Check(const evaluate::FunctionRef<T> &f) {
   if (!funcResult) {
     msg = "%s is associated with the non-existent result of reference to"
           " procedure"_err_en_US;
-  } else if (procedure_) {
+  } else if (CharacterizeProcedure()) {
     // Shouldn't be here in this function unless lhs is an object pointer.
     msg = "Procedure %s is associated with the result of a reference to"
           " function '%s' that does not return a procedure pointer"_err_en_US;
@@ -172,7 +182,8 @@ bool PointerAssignmentChecker::Check(const evaluate::FunctionRef<T> &f) {
     const auto *frTypeAndShape{funcResult->GetTypeAndShape()};
     CHECK(frTypeAndShape);
     if (!lhsType_->IsCompatibleWith(context_.messages(), *frTypeAndShape,
-            "pointer", "function result", false /*elemental*/,
+            "pointer", "function result",
+            isBoundsRemapping_ /*omit shape check*/,
             evaluate::CheckConformanceFlags::BothDeferredShape)) {
       return false; // IsCompatibleWith() emitted message
     }
@@ -195,7 +206,7 @@ bool PointerAssignmentChecker::Check(const evaluate::Designator<T> &d) {
     return false;
   }
   std::optional<std::variant<MessageFixedText, MessageFormattedText>> msg;
-  if (procedure_) {
+  if (CharacterizeProcedure()) {
     // Shouldn't be here in this function unless lhs is an object pointer.
     msg = "In assignment to procedure %s, the target is not a procedure or"
           " procedure pointer"_err_en_US;
@@ -254,11 +265,14 @@ bool PointerAssignmentChecker::Check(const evaluate::Designator<T> &d) {
 }
 
 // Common handling for procedure pointer right-hand sides
-bool PointerAssignmentChecker::Check(
-    parser::CharBlock rhsName, bool isCall, const Procedure *rhsProcedure) {
-  if (std::optional<MessageFixedText> msg{
-          evaluate::CheckProcCompatibility(isCall, procedure_, rhsProcedure)}) {
-    Say(std::move(*msg), description_, rhsName);
+bool PointerAssignmentChecker::Check(parser::CharBlock rhsName, bool isCall,
+    const Procedure *rhsProcedure,
+    const evaluate::SpecificIntrinsic *specific) {
+  std::string whyNot;
+  CharacterizeProcedure();
+  if (std::optional<MessageFixedText> msg{evaluate::CheckProcCompatibility(
+          isCall, procedure_, rhsProcedure, specific, whyNot)}) {
+    Say(std::move(*msg), description_, rhsName, whyNot);
     return false;
   }
   return true;
@@ -266,24 +280,23 @@ bool PointerAssignmentChecker::Check(
 
 bool PointerAssignmentChecker::Check(const evaluate::ProcedureDesignator &d) {
   if (auto chars{Procedure::Characterize(d, context_)}) {
-    return Check(d.GetName(), false, &*chars);
+    return Check(d.GetName(), false, &*chars, d.GetSpecificIntrinsic());
   } else {
     return Check(d.GetName(), false);
   }
 }
 
 bool PointerAssignmentChecker::Check(const evaluate::ProcedureRef &ref) {
-  const Procedure *procedure{nullptr};
-  auto chars{Procedure::Characterize(ref, context_)};
-  if (chars) {
-    procedure = &*chars;
+  if (auto chars{Procedure::Characterize(ref, context_)}) {
     if (chars->functionResult) {
       if (const auto *proc{chars->functionResult->IsProcedurePointer()}) {
-        procedure = proc;
+        return Check(ref.proc().GetName(), true, proc);
       }
     }
+    return Check(ref.proc().GetName(), true, &*chars);
+  } else {
+    return Check(ref.proc().GetName(), true, nullptr);
   }
-  return Check(ref.proc().GetName(), true, procedure);
 }
 
 // The target can be unlimited polymorphic if the pointer is, or if it is
@@ -321,7 +334,7 @@ static bool CheckPointerBounds(
   const SomeExpr &lhs{assignment.lhs};
   const SomeExpr &rhs{assignment.rhs};
   bool isBoundsRemapping{false};
-  std::size_t numBounds{std::visit(
+  std::size_t numBounds{common::visit(
       common::visitors{
           [&](const evaluate::Assignment::BoundsSpec &bounds) {
             return bounds.size();
@@ -383,7 +396,7 @@ bool CheckPointerAssignment(evaluate::FoldingContext &context,
   if (!pointer) {
     return false; // error was reported
   }
-  if (!IsPointer(*pointer)) {
+  if (!IsPointer(pointer->GetUltimate())) {
     evaluate::SayWithDeclaration(context.messages(), *pointer,
         "'%s' is not a pointer"_err_en_US, pointer->name());
     return false;

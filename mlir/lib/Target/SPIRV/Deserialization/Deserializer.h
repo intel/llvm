@@ -19,20 +19,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/ScopedPrinter.h"
 #include <cstdint>
-
-//===----------------------------------------------------------------------===//
-// Utility Functions
-//===----------------------------------------------------------------------===//
-
-/// Decodes a string literal in `words` starting at `wordIndex`. Update the
-/// latter to point to the position in words after the string literal.
-static inline llvm::StringRef
-decodeStringLiteral(llvm::ArrayRef<uint32_t> words, unsigned &wordIndex) {
-  llvm::StringRef str(reinterpret_cast<const char *>(words.data() + wordIndex));
-  wordIndex += str.size() / 4 + 1;
-  return str;
-}
 
 namespace mlir {
 namespace spirv {
@@ -45,12 +33,12 @@ namespace spirv {
 ///
 /// This struct is used to track original structured control flow info from
 /// SPIR-V blob. This info will be used to create
-/// spv.mlir.selection/spv.mlir.loop later.
+/// spirv.mlir.selection/spirv.mlir.loop later.
 struct BlockMergeInfo {
   Block *mergeBlock;
-  Block *continueBlock; // nullptr for spv.mlir.selection
+  Block *continueBlock; // nullptr for spirv.mlir.selection
   Location loc;
-  uint32_t control;
+  uint32_t control; // Selection/loop control
 
   BlockMergeInfo(Location location, uint32_t control)
       : mergeBlock(nullptr), continueBlock(nullptr), loc(location),
@@ -64,10 +52,7 @@ struct BlockMergeInfo {
 struct DebugLine {
   uint32_t fileID;
   uint32_t line;
-  uint32_t col;
-
-  DebugLine(uint32_t fileIDNum, uint32_t lineNum, uint32_t colNum)
-      : fileID(fileIDNum), line(lineNum), col(colNum) {}
+  uint32_t column;
 };
 
 /// Map from a selection/loop's header block to its merge (and continue) target.
@@ -238,8 +223,8 @@ private:
 
   /// Processes the OpVariable instructions at current `offset` into `binary`.
   /// It is expected that this method is used for variables that are to be
-  /// defined at module scope and will be deserialized into a spv.GlobalVariable
-  /// instruction.
+  /// defined at module scope and will be deserialized into a
+  /// spirv.GlobalVariable instruction.
   LogicalResult processGlobalVariable(ArrayRef<uint32_t> operands);
 
   /// Gets the global variable associated with a result <id> of OpVariable.
@@ -271,6 +256,8 @@ private:
   LogicalResult processCooperativeMatrixType(ArrayRef<uint32_t> operands);
 
   LogicalResult processFunctionType(ArrayRef<uint32_t> operands);
+
+  LogicalResult processJointMatrixType(ArrayRef<uint32_t> operands);
 
   LogicalResult processImageType(ArrayRef<uint32_t> operands);
 
@@ -325,7 +312,7 @@ private:
 
   /// Discontinues any source-level location information that might be active
   /// from a previous OpLine instruction.
-  LogicalResult clearDebugLine();
+  void clearDebugLine();
 
   /// Creates a FileLineColLoc with the OpLine location information.
   Location createFileLineColLoc(OpBuilder opBuilder);
@@ -345,9 +332,9 @@ private:
 
   // In SPIR-V, structured control flow is explicitly declared using merge
   // instructions (OpSelectionMerge and OpLoopMerge). In the SPIR-V dialect,
-  // we use spv.mlir.selection and spv.mlir.loop to group structured control
+  // we use spirv.mlir.selection and spirv.mlir.loop to group structured control
   // flow. The deserializer need to turn structured control flow marked with
-  // merge instructions into using spv.mlir.selection/spv.mlir.loop ops.
+  // merge instructions into using spirv.mlir.selection/spirv.mlir.loop ops.
   //
   // Because structured control flow can nest and the basic block order have
   // flexibility, we cannot isolate a structured selection/loop without
@@ -359,14 +346,14 @@ private:
   //    target blocks.
   // 2. For each selection/loop header block, recursively get all basic blocks
   //    reachable (except the merge block) and put them in a newly created
-  //    spv.mlir.selection/spv.mlir.loop's region. Structured control flow
+  //    spirv.mlir.selection/spirv.mlir.loop's region. Structured control flow
   //    guarantees that we enter and exit in structured ways and the construct
   //    is nestable.
-  // 3. Put the new spv.mlir.selection/spv.mlir.loop op at the beginning of the
-  // old merge
-  //    block and redirect all branches to the old header block to the old
-  //    merge block (which contains the spv.mlir.selection/spv.mlir.loop op
-  //    now).
+  // 3. Put the new spirv.mlir.selection/spirv.mlir.loop op at the beginning of
+  // the
+  //    old merge block and redirect all branches to the old header block to the
+  //    old merge block (which contains the spirv.mlir.selection/spirv.mlir.loop
+  //    op now).
 
   /// For OpPhi instructions, we use block arguments to represent them. OpPhi
   /// encodes a list of (value, predecessor) pairs. At the time of handling the
@@ -412,8 +399,8 @@ private:
   LogicalResult wireUpBlockArgument();
 
   /// Extracts blocks belonging to a structured selection/loop into a
-  /// spv.mlir.selection/spv.mlir.loop op. This method iterates until all blocks
-  /// declared as selection/loop headers are handled.
+  /// spirv.mlir.selection/spirv.mlir.loop op. This method iterates until all
+  /// blocks declared as selection/loop headers are handled.
   LogicalResult structurizeControlFlow();
 
   //===--------------------------------------------------------------------===//
@@ -423,8 +410,8 @@ private:
   /// Get the Value associated with a result <id>.
   ///
   /// This method materializes normal constants and inserts "casting" ops
-  /// (`spv.mlir.addressof` and `spv.mlir.referenceof`) to turn an symbol into a
-  /// SSA value for handling uses of module scope constants/variables in
+  /// (`spirv.mlir.addressof` and `spirv.mlir.referenceof`) to turn an symbol
+  /// into a SSA value for handling uses of module scope constants/variables in
   /// functions.
   Value getValue(uint32_t id);
 
@@ -455,8 +442,8 @@ private:
                                             StringRef opName, bool hasResult,
                                             unsigned numOperands);
 
-  /// Processes a OpUndef instruction. Adds a spv.Undef operation at the current
-  /// insertion point.
+  /// Processes a OpUndef instruction. Adds a spirv.Undef operation at the
+  /// current insertion point.
   LogicalResult processUndef(ArrayRef<uint32_t> operands);
 
   /// Method to dispatch to the specialized deserialization function for an
@@ -483,7 +470,8 @@ private:
   /// Method to deserialize an operation in the SPIR-V dialect that is a mirror
   /// of an instruction in the SPIR-V spec. This is auto generated if hasOpcode
   /// == 1 and autogenSerialization == 1 in ODS.
-  template <typename OpTy> LogicalResult processOp(ArrayRef<uint32_t> words) {
+  template <typename OpTy>
+  LogicalResult processOp(ArrayRef<uint32_t> words) {
     return emitError(unknownLoc, "unsupported deserialization for ")
            << OpTy::getOperationName() << " op";
   }
@@ -516,7 +504,7 @@ private:
 
   OpBuilder opBuilder;
 
-  spirv::Version version;
+  spirv::Version version = spirv::Version::V_1_0;
 
   /// The list of capabilities used by the module.
   llvm::SmallSetVector<spirv::Capability, 4> capabilities;
@@ -600,8 +588,8 @@ private:
   // List of instructions that are processed in a deferred fashion (after an
   // initial processing of the entire binary). Some operations like
   // OpEntryPoint, and OpExecutionMode use forward references to function
-  // <id>s. In SPIR-V dialect the corresponding operations (spv.EntryPoint and
-  // spv.ExecutionMode) need these references resolved. So these instructions
+  // <id>s. In SPIR-V dialect the corresponding operations (spirv.EntryPoint and
+  // spirv.ExecutionMode) need these references resolved. So these instructions
   // are deserialized and stored for processing once the entire binary is
   // processed.
   SmallVector<std::pair<spirv::Opcode, ArrayRef<uint32_t>>, 4>
@@ -613,6 +601,11 @@ private:
 
   /// A list of all structs which have unresolved member types.
   SmallVector<DeferredStructTypeInfo, 0> deferredStructTypesInfos;
+
+#ifndef NDEBUG
+  /// A logger used to emit information during the deserialzation process.
+  llvm::ScopedPrinter logger;
+#endif
 };
 
 } // namespace spirv

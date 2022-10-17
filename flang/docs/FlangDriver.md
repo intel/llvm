@@ -17,20 +17,96 @@ There are two main drivers in Flang:
 * the compiler driver, `flang-new`
 * the frontend driver, `flang-new -fc1`
 
-The compiler driver will allow you to control all compilation phases (i.e.
-preprocessing, frontend code-generation, middlend/backend code-optimisation and
-lowering, linking). For frontend specific tasks, the compiler driver creates a
-Fortran compilation job and delegates it to `flang-new -fc1`, the frontend driver.
+> **_NOTE:_** The diagrams in this document refer to `flang` as opposed to
+> `flang-new`. Eventually, `flang-new` will be renamed as `flang` and the
+> diagrams reflect the final design that we are still working towards.
 
-The frontend driver glues all of the frontend libraries together and provides
-an easy-to-use and intuitive interface to the frontend. It accepts many
-frontend-specific options not available in `flang-new` and as such it provides a
-finer control over the frontend. Similarly to `-Xclang` in `clang`, you can use
-`-Xflang` to forward the frontend specific flags from the compiler directly to
-the frontend driver.
+The **compiler driver** will allow you to control all compilation phases (e.g.
+preprocessing, semantic checks, code-generation, code-optimisation, lowering
+and linking). For frontend specific tasks, the compiler driver creates a
+Fortran compilation job and delegates it to `flang-new -fc1`, the frontend
+driver. For linking, it creates a linker job and calls an external linker (e.g.
+LLVM's [`lld`](https://lld.llvm.org/)). It can also call other tools such as
+external assemblers (e.g. [`as`](https://www.gnu.org/software/binutils/)). In
+Clang, the compiler driver can also link the generated binaries with LLVM's
+static analysis/sanitizer libraries (e.g.
+[MemorySanitizer](https://clang.llvm.org/docs/MemorySanitizer.html)). This is
+not yet available in Flang, but will be relatively easy to support once such
+libraries become available. Flang's compiler driver is intended for Flang's
+end-users - its interface needs to remain stable. Otherwise, Flang's users will
+have to adjust their build scripts every time a compiler flag is changed.
+
+| ![Compiler Driver](compiler_driver.png) |
+|:--:|
+| *Flang’s compiler driver and the **tools** that it runs* |
+
+The **frontend driver** glues together and drives all of the Flang's frontend
+libraries. As such, it provides an easy-to-use and intuitive interface to the
+frontend. It uses MLIR and LLVM for code-generation and can be viewed as a
+driver for Flang, LLVM and MLIR libraries. Contrary to the compiler driver, it
+is not capable of calling any external tools (including linkers).  It is aware
+of all the frontend internals that are "hidden" from the compiler driver. It
+accepts many frontend-specific options not available in `flang-new` and as such
+it provides a finer control over the frontend. Note that this tool is mostly
+intended for Flang developers. In particular, there are no guarantees about the
+stability of its interface and compiler developers can use it to experiment
+with new flags.
+
+| ![Frontend Driver](frontend_driver.png) |
+|:-:|
+| *Flang's frontend driver and the **libraries** that it drives* |
+
+Note that similarly to `-Xclang` in `clang`, you can use `-Xflang` to forward a
+frontend specific flag from the _compiler_ directly to the _frontend_ driver,
+e.g.:
+
+```lang=bash
+flang-new -Xflang -fdebug-dump-parse-tree input.f95
+```
+
+In the invocation above, `-fdebug-dump-parse-tree` is forwarded to `flang-new
+-fc1`. Without the forwarding flag, `-Xflang`, you would see the following
+warning:
+
+```lang=bash
+flang-new: warning: argument unused during compilation:
+```
+
+As `-fdebug-dump-parse-tree` is only supported by `flang-new -fc1`, `flang-new`
+will ignore it when used without `Xflang`.
+
+## Why Do We Need Two Drivers?
+As hinted above, `flang-new` and `flang-new -fc1` are two separate tools. The
+fact that these tools are accessed through one binary, `flang-new`, is just an
+implementation detail. Each tool has a separate list of options, albeit defined
+in the same file: `clang/include/clang/Driver/Options.td`.
+
+The separation helps us split various tasks and allows us to implement more
+specialised tools. In particular, `flang-new` is not aware of various
+compilation phases within the frontend (e.g. scanning, parsing or semantic
+checks). It does not have to be. Conversely, the frontend driver, `flang-new
+-fc1`, needs not to be concerned with linkers or other external tools like
+assemblers. Nor does it need to know where to look for various systems
+libraries, which is usually OS and platform specific.
+
+One helpful way of differentiating these tools is to keep in mind that:
+
+* the compiler driver is an end-user tool
+* frontend driver is a compiler developer tool with many additional options,
+
+Also, Since the compiler driver can call external tools, e.g. linkers, it can
+be used to generate **executables**. The frontend driver cannot call external
+tools and hence can only generate **object files**. A similar model is
+implemented in Clang (`clang` vs `clang -cc1` vs `clang -cc1as`), which is
+based on the [architecture of
+GCC](https://en.wikibooks.org/wiki/GNU_C_Compiler_Internals/GNU_C_Compiler_Architecture).
+In fact, Flang needs to adhere to this model in order to be able to re-use
+Clang's driver library. If you are more familiar with the [architecture of
+GFortran](https://gcc.gnu.org/onlinedocs/gcc-4.7.4/gfortran/About-GNU-Fortran.html)
+than Clang, then `flang-new` corresponds to `gfortran` and `flang-new -fc1` to
+`f951`.
 
 ## Compiler Driver
-
 The main entry point for Flang's compiler driver is implemented in
 `flang/tools/flang-driver/driver.cpp`.  Flang's compiler driver is implemented
 in terms of Clang's driver library, `clangDriver`. This approach allows us to:
@@ -92,9 +168,9 @@ You can read more on the design of `clangDriver` in Clang's [Driver Design &
 Internals](https://clang.llvm.org/docs/DriverInternals.html).
 
 ## Frontend Driver
-Flang's frontend driver is the main interface between end-users and the Flang
-frontend. The high-level design is similar to Clang's frontend driver, `clang
--cc1` and consists of the following classes:
+Flang's frontend driver is the main interface between compiler developers and
+the Flang frontend. The high-level design is similar to Clang's frontend
+driver, `clang -cc1` and consists of the following classes:
 * `CompilerInstance`, which is a helper class that encapsulates and manages
   various objects that are always required by the frontend (e.g. `AllSources`,
   `AllCookedSources, `Parsing`, `CompilerInvocation`, etc.). In most cases
@@ -129,32 +205,25 @@ is `ParseSyntaxOnlyAction`, which corresponds to `-fsyntax-only`. In other
 words, `flang-new -fc1 <input-file>` is equivalent to `flang-new -fc1 -fsyntax-only
 <input-file>`.
 
-## The `flang` script
-The `flang` wrapper script for `flang-new` was introduced as a development tool
-and to facilitate testing. While code-generation is not available in Flang, you
-can use it as a drop-in replacement for other Fortran compilers in your build
-scripts.
-
-The `flang` wrapper script will:
+## The `flang-to-external-fc` script
+The `flang-to-external-fc` wrapper script for `flang-new` was introduced as a
+development tool and to facilitate testing. The `flang-to-external-fc` wrapper
+script will:
 * use `flang-new` to unparse the input source file (i.e. it will run `flang-new
   -fc1 -fdebug-unparse <input-file>`), and then
 * call a host Fortran compiler, e.g. `gfortran`, to compile the unparsed file.
 
-Here's a basic breakdown of what happens inside `flang` when you run `flang
-file.f90`:
+Here's a basic breakdown of what happens inside `flang-to-external-fc` when you
+run `flang-to-external-fc file.f90`:
 ```bash
 flang-new -fc1 -fdebug-unparse file.f90 -o file-unparsed.f90
 gfortran file-unparsed.f90
 ```
 This is a simplified version for illustration purposes only. In practice,
-`flang` adds a few more frontend options and it also supports various other use
-cases (e.g. compiling C files, linking existing object files). `gfortran` is
-the default host compiler used by `flang`. You can change it by setting the
-`FLANG_FC` environment variable.
-
-Our intention is to replace `flang` with `flang-new`. Please consider `flang`
-as a temporary substitute for Flang's compiler driver while the actual driver
-is in development.
+`flang-to-external-fc` adds a few more frontend options and it also supports
+various other use cases (e.g. compiling C files, linking existing object
+files). `gfortran` is the default host compiler used by `flang-to-external-fc`.
+You can change it by setting the `FLANG_FC` environment variable.
 
 ## Adding new Compiler Options
 Adding a new compiler option in Flang consists of two steps:
@@ -254,6 +323,24 @@ the `ExecuteCompilerInvocation.cpp` file. Here's an example for
 At this point you should be able to trigger that frontend action that you have
 just added using your new frontend option.
 
+
+# CMake Support
+As of [#7246](https://gitlab.kitware.com/cmake/cmake/-/merge_requests/7246)
+(and soon to be released CMake 3.24.0), `cmake` can detect `flang-new` as a
+supported Fortran compiler. You can configure your CMake projects to use
+`flang-new` as follows:
+```bash
+cmake -DCMAKE_Fortran_FLAGS="-flang-experimental-exec" -DCMAKE_Fortran_COMPILER=<path/to/flang-new> <src/dir>
+```
+You should see the following in the output:
+```
+-- The Fortran compiler identification is LLVMFlang <version>
+```
+where `<version>` corresponds to the LLVM Flang version. Note that while
+generating executables remains experimental, you will need to inform CMake to
+use the `-flang-experimental-exec` flag when invoking `flang-new` as in the
+example above.
+
 # Testing
 In LIT, we define two variables that you can use to invoke Flang's drivers:
 * `%flang` is expanded as `flang-new` (i.e. the compiler driver)
@@ -312,25 +399,30 @@ to run, so in order for your plugin to do something, you will need to implement
 the `ExecuteAction` method in your plugin class. This method will contain the
 implementation of what the plugin actually does, for example:
 ```cpp
+// Forward declaration
+struct ParseTreeVisitor;
+
 void ExecuteAction() override {
-  auto &parseTree{instance().parsing().parseTree()};
   ParseTreeVisitor visitor;
-  Fortran::parser::Walk(parseTree, visitor);
+  Fortran::parser::Walk(getParsing().parseTree(), visitor);
 }
 ```
-In the example plugin, the `ExecuteAction` method first gets a reference to the
-parse tree, `instance().parsing().parseTree()`, then declares a `visitor`
-struct, before passing both of these to the `Fortran::parser::Walk` function
-that will traverse the parse tree. Implementation and details of the `Walk`
-function can be found in `flang/include/flang/Parser/parse-tree-visitor.h`.
+In the example plugin, the `ExecuteAction` method first creates an instance of
+`visitor` struct, before passing it together with the parse tree to the
+`Fortran::parser::Walk` function that will traverse the parse tree. The parse
+tree will normally be generated by the frontend driver and can be retrieved in
+your plugin through the `getParsing()` member method. Implementation and
+details of the `Walk` function can be found in
+`flang/include/flang/Parser/parse-tree-visitor.h`.
 
-A `visitor` struct should define different `Pre` and `Post` functions that take
-the type of a specific `ParseTree` node as an argument. When the `Walk` function
-is traversing the parse tree, these functions will be run before/after a node
-of that type is visited. Template functions for `Pre`/`Post` are defined so that
-when a node is visited that you have not defined a function for, it will still
-be able to continue. `Pre` returns a `bool` indicating whether to visit that
-node's children or not. For example:
+You will have to define your own `visitor` struct. It should define different
+`Pre` and `Post` functions that take the type of a specific `ParseTree` node as
+an argument. When the `Walk` function is traversing the parse tree, these
+functions will be run before/after a node of that type is visited. Template
+functions for `Pre`/`Post` are defined so that when a node is visited that you
+have not defined a function for, it will still be able to continue. `Pre`
+returns a `bool` indicating whether to visit that node's children or not. For
+example:
 ```cpp
 struct ParseTreeVisitor {
   template <typename A> bool Pre(const A&) { return true; }

@@ -16,7 +16,6 @@
 
 #include "mlir/IR/DialectInterface.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/Reducer/PassDetail.h"
 #include "mlir/Reducer/Passes.h"
 #include "mlir/Reducer/ReductionNode.h"
 #include "mlir/Reducer/ReductionPatternInterface.h"
@@ -28,6 +27,11 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/ManagedStatic.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_REDUCTIONTREE
+#include "mlir/Reducer/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -41,7 +45,7 @@ static void applyPatterns(Region &region,
   std::vector<Operation *> opsNotInRange;
   std::vector<Operation *> opsInRange;
   size_t keepIndex = 0;
-  for (auto op : enumerate(region.getOps())) {
+  for (const auto &op : enumerate(region.getOps())) {
     int index = op.index();
     if (keepIndex < rangeToKeep.size() &&
         index == rangeToKeep[keepIndex].second)
@@ -92,7 +96,7 @@ static LogicalResult findOptimal(ModuleOp module, Region &region,
       {0, std::distance(region.op_begin(), region.op_end())}};
 
   ReductionNode *root = allocator.Allocate();
-  new (root) ReductionNode(nullptr, std::move(ranges), allocator);
+  new (root) ReductionNode(nullptr, ranges, allocator);
   // Duplicate the module for root node and locate the region in the copy.
   if (failed(root->initialize(module, region)))
     llvm_unreachable("unexpected initialization failure");
@@ -183,7 +187,7 @@ public:
 /// This class defines the Reduction Tree Pass. It provides a framework to
 /// to implement a reduction pass using a tree structure to keep track of the
 /// generated reduced variants.
-class ReductionTreePass : public ReductionTreeBase<ReductionTreePass> {
+class ReductionTreePass : public impl::ReductionTreeBase<ReductionTreePass> {
 public:
   ReductionTreePass() = default;
   ReductionTreePass(const ReductionTreePass &pass) = default;
@@ -199,7 +203,7 @@ private:
   FrozenRewritePatternSet reducerPatterns;
 };
 
-} // end anonymous namespace
+} // namespace
 
 LogicalResult ReductionTreePass::initialize(MLIRContext *context) {
   RewritePatternSet patterns(context);
@@ -213,7 +217,12 @@ void ReductionTreePass::runOnOperation() {
   Operation *topOperation = getOperation();
   while (topOperation->getParentOp() != nullptr)
     topOperation = topOperation->getParentOp();
-  ModuleOp module = cast<ModuleOp>(topOperation);
+  ModuleOp module = dyn_cast<ModuleOp>(topOperation);
+  if (!module) {
+    emitError(getOperation()->getLoc())
+        << "top-level op must be 'builtin.module'";
+    return signalPassFailure();
+  }
 
   SmallVector<Operation *, 8> workList;
   workList.push_back(getOperation());

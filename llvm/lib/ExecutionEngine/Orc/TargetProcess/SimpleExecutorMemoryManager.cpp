@@ -24,7 +24,7 @@ SimpleExecutorMemoryManager::~SimpleExecutorMemoryManager() {
 Expected<ExecutorAddr> SimpleExecutorMemoryManager::allocate(uint64_t Size) {
   std::error_code EC;
   auto MB = sys::Memory::allocateMappedMemory(
-      Size, 0, sys::Memory::MF_READ | sys::Memory::MF_WRITE, EC);
+      Size, nullptr, sys::Memory::MF_READ | sys::Memory::MF_WRITE, EC);
   if (EC)
     return errorCodeToError(EC);
   std::lock_guard<std::mutex> Lock(M);
@@ -35,7 +35,7 @@ Expected<ExecutorAddr> SimpleExecutorMemoryManager::allocate(uint64_t Size) {
 
 Error SimpleExecutorMemoryManager::finalize(tpctypes::FinalizeRequest &FR) {
   ExecutorAddr Base(~0ULL);
-  std::vector<tpctypes::SupportFunctionCall> DeallocationActions;
+  std::vector<shared::WrapperFunctionCall> DeallocationActions;
   size_t SuccessfulFinalizationActions = 0;
 
   if (FR.Segments.empty()) {
@@ -52,8 +52,8 @@ Error SimpleExecutorMemoryManager::finalize(tpctypes::FinalizeRequest &FR) {
     Base = std::min(Base, Seg.Addr);
 
   for (auto &ActPair : FR.Actions)
-    if (ActPair.Deallocate.Func)
-      DeallocationActions.push_back(ActPair.Deallocate);
+    if (ActPair.Dealloc)
+      DeallocationActions.push_back(ActPair.Dealloc);
 
   // Get the Allocation for this finalization.
   size_t AllocSize = 0;
@@ -94,9 +94,9 @@ Error SimpleExecutorMemoryManager::finalize(tpctypes::FinalizeRequest &FR) {
 
     // Run deallocation actions for all completed finalization actions.
     while (SuccessfulFinalizationActions)
-      Err = joinErrors(
-          std::move(Err),
-          FR.Actions[--SuccessfulFinalizationActions].Deallocate.run());
+      Err =
+          joinErrors(std::move(Err), FR.Actions[--SuccessfulFinalizationActions]
+                                         .Dealloc.runWithSPSRetErrorMerged());
 
     // Deallocate memory.
     sys::MemoryBlock MB(AllocToDestroy.first, AllocToDestroy.second.Size);
@@ -126,20 +126,21 @@ Error SimpleExecutorMemoryManager::finalize(tpctypes::FinalizeRequest &FR) {
           inconvertibleErrorCode()));
 
     char *Mem = Seg.Addr.toPtr<char *>();
-    memcpy(Mem, Seg.Content.data(), Seg.Content.size());
+    if (!Seg.Content.empty())
+      memcpy(Mem, Seg.Content.data(), Seg.Content.size());
     memset(Mem + Seg.Content.size(), 0, Seg.Size - Seg.Content.size());
     assert(Seg.Size <= std::numeric_limits<size_t>::max());
     if (auto EC = sys::Memory::protectMappedMemory(
             {Mem, static_cast<size_t>(Seg.Size)},
-            tpctypes::fromWireProtectionFlags(Seg.Prot)))
+            toSysMemoryProtectionFlags(Seg.AG.getMemProt())))
       return BailOut(errorCodeToError(EC));
-    if (Seg.Prot & tpctypes::WPF_Exec)
+    if ((Seg.AG.getMemProt() & MemProt::Exec) == MemProt::Exec)
       sys::Memory::InvalidateInstructionCache(Mem, Seg.Size);
   }
 
   // Run finalization actions.
   for (auto &ActPair : FR.Actions) {
-    if (auto Err = ActPair.Finalize.run())
+    if (auto Err = ActPair.Finalize.runWithSPSRetErrorMerged())
       return BailOut(std::move(Err));
     ++SuccessfulFinalizationActions;
   }
@@ -211,7 +212,8 @@ Error SimpleExecutorMemoryManager::deallocateImpl(void *Base, Allocation &A) {
   Error Err = Error::success();
 
   while (!A.DeallocationActions.empty()) {
-    Err = joinErrors(std::move(Err), A.DeallocationActions.back().run());
+    Err = joinErrors(std::move(Err),
+                     A.DeallocationActions.back().runWithSPSRetErrorMerged());
     A.DeallocationActions.pop_back();
   }
 
@@ -222,7 +224,7 @@ Error SimpleExecutorMemoryManager::deallocateImpl(void *Base, Allocation &A) {
   return Err;
 }
 
-llvm::orc::shared::detail::CWrapperFunctionResult
+llvm::orc::shared::CWrapperFunctionResult
 SimpleExecutorMemoryManager::reserveWrapper(const char *ArgData,
                                             size_t ArgSize) {
   return shared::WrapperFunction<
@@ -233,7 +235,7 @@ SimpleExecutorMemoryManager::reserveWrapper(const char *ArgData,
           .release();
 }
 
-llvm::orc::shared::detail::CWrapperFunctionResult
+llvm::orc::shared::CWrapperFunctionResult
 SimpleExecutorMemoryManager::finalizeWrapper(const char *ArgData,
                                              size_t ArgSize) {
   return shared::WrapperFunction<
@@ -244,7 +246,7 @@ SimpleExecutorMemoryManager::finalizeWrapper(const char *ArgData,
           .release();
 }
 
-llvm::orc::shared::detail::CWrapperFunctionResult
+llvm::orc::shared::CWrapperFunctionResult
 SimpleExecutorMemoryManager::deallocateWrapper(const char *ArgData,
                                                size_t ArgSize) {
   return shared::WrapperFunction<

@@ -11,6 +11,7 @@
 #include <experimental/coroutine>
 #include <type_traits>
 #include <cassert>
+#include <utility>
 
 #include "test_macros.h"
 
@@ -18,13 +19,10 @@ namespace coro = std::experimental;
 
 using SuspendT = std::experimental::coroutines_v1::suspend_always;
 
-TEST_SAFE_STATIC SuspendT safe_sa;
-constexpr SuspendT constexpr_sa;
-
 constexpr bool check_suspend_constexpr() {
-  SuspendT s{};
-  const SuspendT scopy(s); ((void)scopy);
-  SuspendT smove(std::move(s)); ((void)smove);
+  SuspendT s;
+  const SuspendT scopy(s); (void)scopy;
+  SuspendT smove(std::move(s)); (void)smove;
   s = scopy;
   s = std::move(smove);
   return true;
@@ -63,10 +61,6 @@ int main(int, char**)
     static_assert(std::is_nothrow_move_assignable<S>::value, "");
     static_assert(std::is_trivially_copyable<S>::value, "");
     static_assert(check_suspend_constexpr(), "");
-  }
-  {
-    // suppress unused warnings for the global constexpr test variable
-    ((void)constexpr_sa);
   }
 
   return 0;

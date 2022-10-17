@@ -235,7 +235,7 @@ struct FuchsiaSizeClassConfig {
   static const uptr MinSizeLog = 5;
   static const uptr MidSizeLog = 8;
   static const uptr MaxSizeLog = 17;
-  static const u32 MaxNumCachedHint = 10;
+  static const u32 MaxNumCachedHint = 12;
   static const uptr MaxBytesCachedLog = 10;
   static const uptr SizeDelta = Chunk::getHeaderSize();
 };
@@ -345,7 +345,7 @@ template <typename SCMap> inline void printMap() {
   Buffer.output();
 }
 
-template <typename SCMap> static void validateMap() {
+template <typename SCMap> static UNUSED void validateMap() {
   for (uptr C = 0; C < SCMap::NumClasses; C++) {
     if (C == SCMap::BatchClassId)
       continue;

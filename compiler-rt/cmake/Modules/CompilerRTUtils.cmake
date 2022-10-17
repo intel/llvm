@@ -5,19 +5,11 @@ include(CheckSymbolExists)
 # define a handy helper function for it. The compile flags setting in CMake
 # has serious issues that make its syntax challenging at best.
 function(set_target_compile_flags target)
-  set(argstring "")
-  foreach(arg ${ARGN})
-    set(argstring "${argstring} ${arg}")
-  endforeach()
-  set_property(TARGET ${target} PROPERTY COMPILE_FLAGS "${argstring}")
+  set_property(TARGET ${target} PROPERTY COMPILE_OPTIONS ${ARGN})
 endfunction()
 
 function(set_target_link_flags target)
-  set(argstring "")
-  foreach(arg ${ARGN})
-    set(argstring "${argstring} ${arg}")
-  endforeach()
-  set_property(TARGET ${target} PROPERTY LINK_FLAGS "${argstring}")
+  set_property(TARGET ${target} PROPERTY LINK_OPTIONS ${ARGN})
 endfunction()
 
 # Set the variable var_PYBOOL to True if var holds a true-ish string,
@@ -128,7 +120,9 @@ macro(test_target_arch arch def)
     if(NOT HAS_${arch}_DEF)
       set(CAN_TARGET_${arch} FALSE)
     elseif(TEST_COMPILE_ONLY)
-      try_compile_only(CAN_TARGET_${arch} FLAGS ${TARGET_${arch}_CFLAGS})
+      try_compile_only(CAN_TARGET_${arch}
+                       SOURCE "#include <limits.h>\nint foo(int x, int y) { return x + y; }\n"
+                       FLAGS ${TARGET_${arch}_CFLAGS})
     else()
       set(FLAG_NO_EXCEPTIONS "")
       if(COMPILER_RT_HAS_FNO_EXCEPTIONS_FLAG)
@@ -153,6 +147,7 @@ endmacro()
 
 macro(detect_target_arch)
   check_symbol_exists(__arm__ "" __ARM)
+  check_symbol_exists(__AVR__ "" __AVR)
   check_symbol_exists(__aarch64__ "" __AARCH64)
   check_symbol_exists(__x86_64__ "" __X86_64)
   check_symbol_exists(__i386__ "" __I386)
@@ -170,6 +165,8 @@ macro(detect_target_arch)
   check_symbol_exists(__ve__ "" __VE)
   if(__ARM)
     add_default_target_arch(arm)
+  elseif(__AVR)
+    add_default_target_arch(avr)
   elseif(__AARCH64)
     add_default_target_arch(aarch64)
   elseif(__X86_64)
@@ -238,6 +235,10 @@ function(get_compiler_rt_root_source_dir ROOT_DIR_VAR)
     # Compiler-RT Builtins standalone build.
     # `llvm-project/compiler-rt/lib/builtins`
     set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CompilerRTBuiltins_SOURCE_DIR}/../../")
+  elseif (DEFINED CompilerRTCRT_SOURCE_DIR)
+    # Compiler-RT CRT standalone build.
+    # `llvm-project/compiler-rt/lib/crt`
+    set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CompilerRTCRT_SOURCE_DIR}/../../")
   elseif(DEFINED CompilerRT_SOURCE_DIR)
     # Compiler-RT standalone build.
     # `llvm-project/compiler-rt`
@@ -426,12 +427,12 @@ macro(construct_compiler_rt_default_triple)
     endif()
     set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${CMAKE_C_COMPILER_TARGET})
   else()
-    set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${TARGET_TRIPLE} CACHE STRING
+    set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${LLVM_TARGET_TRIPLE} CACHE STRING
           "Default triple for which compiler-rt runtimes will be built.")
   endif()
 
-  string(REPLACE "-" ";" TARGET_TRIPLE_LIST ${COMPILER_RT_DEFAULT_TARGET_TRIPLE})
-  list(GET TARGET_TRIPLE_LIST 0 COMPILER_RT_DEFAULT_TARGET_ARCH)
+  string(REPLACE "-" ";" LLVM_TARGET_TRIPLE_LIST ${COMPILER_RT_DEFAULT_TARGET_TRIPLE})
+  list(GET LLVM_TARGET_TRIPLE_LIST 0 COMPILER_RT_DEFAULT_TARGET_ARCH)
 
   # Map various forms of the architecture names to the canonical forms
   # (as they are used by clang, see getArchNameForCompilerRTLib).
@@ -442,7 +443,7 @@ macro(construct_compiler_rt_default_triple)
 
   # Determine if test target triple is specified explicitly, and doesn't match the
   # default.
-  if(NOT COMPILER_RT_DEFAULT_TARGET_TRIPLE STREQUAL TARGET_TRIPLE)
+  if(NOT COMPILER_RT_DEFAULT_TARGET_TRIPLE STREQUAL LLVM_TARGET_TRIPLE)
     set(COMPILER_RT_HAS_EXPLICIT_DEFAULT_TARGET_TRIPLE TRUE)
   else()
     set(COMPILER_RT_HAS_EXPLICIT_DEFAULT_TARGET_TRIPLE FALSE)
@@ -483,6 +484,10 @@ function(get_compiler_rt_target arch variable)
     set(target "${COMPILER_RT_DEFAULT_TARGET_TRIPLE}")
   elseif(ANDROID AND ${arch} STREQUAL "i386")
     set(target "i686${triple_suffix}")
+  elseif(${arch} STREQUAL "amd64")
+    set(target "x86_64${triple_suffix}")
+  elseif(${arch} STREQUAL "sparc64")
+    set(target "sparcv9${triple_suffix}")
   else()
     set(target "${arch}${triple_suffix}")
   endif()
@@ -591,4 +596,35 @@ function(add_compiler_rt_install_targets name)
       add_dependencies(install-${LIB_PARENT_TARGET}-stripped install-${name}-stripped)
     endif()
   endif()
+endfunction()
+
+# Add warnings to catch potential errors that can lead to security
+# vulnerabilities.
+function(add_security_warnings out_flags macosx_sdk_version)
+  set(flags "${${out_flags}}")
+
+  append_list_if(COMPILER_RT_HAS_ARRAY_BOUNDS_FLAG -Werror=array-bounds flags)
+  append_list_if(COMPILER_RT_HAS_UNINITIALIZED_FLAG -Werror=uninitialized flags)
+  append_list_if(COMPILER_RT_HAS_SHADOW_FLAG -Werror=shadow flags)
+  append_list_if(COMPILER_RT_HAS_EMPTY_BODY_FLAG -Werror=empty-body flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_POINTER_MEMACCESS_FLAG -Werror=sizeof-pointer-memaccess flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_ARGUMENT_FLAG -Werror=sizeof-array-argument flags)
+  append_list_if(COMPILER_RT_HAS_SUSPICIOUS_MEMACCESS_FLAG -Werror=suspicious-memaccess flags)
+  append_list_if(COMPILER_RT_HAS_BUILTIN_MEMCPY_CHK_SIZE_FLAG -Werror=builtin-memcpy-chk-size flags)
+  append_list_if(COMPILER_RT_HAS_ARRAY_BOUNDS_POINTER_ARITHMETIC_FLAG -Werror=array-bounds-pointer-arithmetic flags)
+  append_list_if(COMPILER_RT_HAS_RETURN_STACK_ADDRESS_FLAG -Werror=return-stack-address flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_DECAY_FLAG -Werror=sizeof-array-decay flags)
+  append_list_if(COMPILER_RT_HAS_FORMAT_INSUFFICIENT_ARGS_FLAG -Werror=format-insufficient-args flags)
+  append_list_if(COMPILER_RT_HAS_BUILTIN_FORMAL_SECURITY_FLAG -Werror=format-security flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_DIV_FLAG -Werror=sizeof-array-div)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_POINTER_DIV_FLAG -Werror=sizeof-pointer-div)
+
+  # Add -Wformat-nonliteral only if we can avoid adding the definition of
+  # eprintf. On Apple platforms, eprintf is needed only on macosx and only if
+  # its version is older than 10.7.
+  if ("${macosx_sdk_version}" VERSION_GREATER_EQUAL 10.7)
+    list(APPEND flags -Werror=format-nonliteral -DDONT_DEFINE_EPRINTF)
+  endif()
+
+  set(${out_flags} "${flags}" PARENT_SCOPE)
 endfunction()

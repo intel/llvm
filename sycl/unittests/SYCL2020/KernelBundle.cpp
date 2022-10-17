@@ -6,10 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -18,8 +17,8 @@
 class TestKernel;
 class TestKernelExeOnly;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -31,6 +30,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<TestKernelExeOnly> {
@@ -43,11 +43,12 @@ template <> struct KernelInfo<TestKernelExeOnly> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
@@ -72,38 +73,23 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[2] = {
+static sycl::unittest::PiImage Imgs[3] = {
     generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    // A device image without entires
+    generateDefaultImage({},
+                         PI_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
-static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<3> ImgArray{Imgs};
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
@@ -118,26 +104,9 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
 }
 
 TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
 
   sycl::queue Queue{Dev};
 
@@ -163,26 +132,9 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
 }
 
 TEST(KernelBundle, EmptyKernelBundle) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
 
@@ -195,26 +147,9 @@ TEST(KernelBundle, EmptyKernelBundle) {
 }
 
 TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
 
@@ -253,26 +188,9 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
 }
 
 TEST(KernelBundle, HasKernelBundle) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
 
   sycl::queue Queue{Dev};
 
@@ -316,26 +234,9 @@ TEST(KernelBundle, HasKernelBundle) {
 }
 
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context QueueCtx = Queue.get_context();
   const sycl::context OtherCtx{Dev};
@@ -374,26 +275,9 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueOnly) {
 }
 
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
   const sycl::context PrimaryCtx{Dev};
   const sycl::context SecondaryCtx{Dev};
 
@@ -437,26 +321,9 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueValidSecondaryQueue) {
 }
 
 TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
   const sycl::context PrimaryCtx{Dev};
   const sycl::context SecondaryCtx{Dev};
 
@@ -500,26 +367,9 @@ TEST(KernelBundle, UseKernelBundleValidPrimaryQueueWrongContextSecondaryQueue) {
 }
 
 TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
   const sycl::context PrimaryCtx{Dev};
   const sycl::context SecondaryCtx{Dev};
   const sycl::context OtherCtx{Dev};
@@ -566,26 +416,9 @@ TEST(KernelBundle, UseKernelBundleWrongContextPrimaryQueueAndSecondaryQueue) {
 }
 
 TEST(KernelBundle, EmptyDevicesKernelBundleLinkException) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return;
-  }
+  sycl::unittest::PiMock Mock;
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  const sycl::device Dev = Plt.get_devices()[0];
+  const sycl::device Dev = Mock.getPlatform().get_devices()[0];
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
 

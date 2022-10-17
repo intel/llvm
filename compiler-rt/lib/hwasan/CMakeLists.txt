@@ -16,8 +16,10 @@ set(HWASAN_RTL_SOURCES
   hwasan_poisoning.cpp
   hwasan_report.cpp
   hwasan_setjmp_aarch64.S
+  hwasan_setjmp_riscv64.S
   hwasan_setjmp_x86_64.S
   hwasan_tag_mismatch_aarch64.S
+  hwasan_tag_mismatch_riscv64.S
   hwasan_thread.cpp
   hwasan_thread_list.cpp
   hwasan_type_test.cpp
@@ -25,6 +27,10 @@ set(HWASAN_RTL_SOURCES
 
 set(HWASAN_RTL_CXX_SOURCES
   hwasan_new_delete.cpp
+  )
+
+set(HWASAN_RTL_PREINIT_SOURCES
+  hwasan_preinit.cpp
   )
 
 set(HWASAN_RTL_HEADERS
@@ -103,6 +109,12 @@ add_compiler_rt_object_libraries(RTHwasan_dynamic
   ADDITIONAL_HEADERS ${HWASAN_RTL_HEADERS}
   CFLAGS ${HWASAN_DYNAMIC_CFLAGS}
   DEFS ${HWASAN_DEFINITIONS})
+add_compiler_rt_object_libraries(RTHwasan_preinit
+  ARCHS ${HWASAN_SUPPORTED_ARCH}
+  SOURCES ${HWASAN_RTL_PREINIT_SOURCES}
+  ADDITIONAL_HEADERS ${HWASAN_RTL_HEADERS}
+  CFLAGS ${HWASAN_RTL_CFLAGS}
+  DEFS ${HWASAN_DEFINITIONS})
 
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp "")
 add_compiler_rt_object_libraries(RTHwasan_dynamic_version_script_dummy
@@ -143,6 +155,7 @@ function(add_hwasan_runtimes arch use_aliases)
     STATIC
     ARCHS ${arch}
     OBJECT_LIBS ${hwasan_object_lib}
+                RTHwasan_preinit
                 RTInterception
                 RTSanitizerCommon
                 RTSanitizerCommonLibc
@@ -217,6 +230,13 @@ foreach(arch ${HWASAN_SUPPORTED_ARCH})
     add_hwasan_runtimes(${arch} TRUE)
   endif()
 endforeach()
+
+add_compiler_rt_runtime(clang_rt.hwasan-preinit
+  STATIC
+  ARCHS ${HWASAN_SUPPORTED_ARCH}
+  OBJECT_LIBS RTHwasan_preinit
+  CFLAGS ${HWASAN_RTL_CFLAGS}
+  PARENT_TARGET hwasan)
 
 add_compiler_rt_resource_file(hwasan_ignorelist hwasan_ignorelist.txt hwasan)
 

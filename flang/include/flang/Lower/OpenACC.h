@@ -16,7 +16,12 @@
 namespace Fortran {
 namespace parser {
 struct OpenACCConstruct;
+struct OpenACCDeclarativeConstruct;
 } // namespace parser
+
+namespace semantics {
+class SemanticsContext;
+}
 
 namespace lower {
 
@@ -26,8 +31,12 @@ namespace pft {
 struct Evaluation;
 } // namespace pft
 
-void genOpenACCConstruct(AbstractConverter &, pft::Evaluation &,
-                         const parser::OpenACCConstruct &);
+void genOpenACCConstruct(AbstractConverter &,
+                         Fortran::semantics::SemanticsContext &,
+                         pft::Evaluation &, const parser::OpenACCConstruct &);
+void genOpenACCDeclarativeConstruct(
+    AbstractConverter &, pft::Evaluation &,
+    const parser::OpenACCDeclarativeConstruct &);
 
 } // namespace lower
 } // namespace Fortran

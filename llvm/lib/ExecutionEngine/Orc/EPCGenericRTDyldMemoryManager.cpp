@@ -14,6 +14,8 @@
 
 #define DEBUG_TYPE "orc"
 
+using namespace llvm::orc::shared;
+
 namespace llvm {
 namespace orc {
 
@@ -27,10 +29,8 @@ EPCGenericRTDyldMemoryManager::CreateWithDefaultBootstrapSymbols(
            {SAs.Finalize, rt::SimpleExecutorMemoryManagerFinalizeWrapperName},
            {SAs.Deallocate,
             rt::SimpleExecutorMemoryManagerDeallocateWrapperName},
-           {SAs.RegisterEHFrame,
-            rt::RegisterEHFrameSectionCustomDirectWrapperName},
-           {SAs.DeregisterEHFrame,
-            rt::DeregisterEHFrameSectionCustomDirectWrapperName}}))
+           {SAs.RegisterEHFrame, rt::RegisterEHFrameSectionWrapperName},
+           {SAs.DeregisterEHFrame, rt::DeregisterEHFrameSectionWrapperName}}))
     return std::move(Err);
   return std::make_unique<EPCGenericRTDyldMemoryManager>(EPC, std::move(SAs));
 }
@@ -142,7 +142,7 @@ void EPCGenericRTDyldMemoryManager::reserveAllocationSpace(
   }
 
   std::lock_guard<std::mutex> Lock(M);
-  Unmapped.push_back(AllocGroup());
+  Unmapped.push_back(SectionAllocGroup());
   Unmapped.back().RemoteCode = {
       *TargetAllocAddr, ExecutorAddrDiff(alignTo(CodeSize, EPC.getPageSize()))};
   Unmapped.back().RemoteROData = {
@@ -170,10 +170,11 @@ void EPCGenericRTDyldMemoryManager::registerEHFrames(uint8_t *Addr,
     return;
 
   ExecutorAddr LA(LoadAddr);
-  for (auto &Alloc : llvm::reverse(Unfinalized)) {
-    if (Alloc.RemoteCode.contains(LA) || Alloc.RemoteROData.contains(LA) ||
-        Alloc.RemoteRWData.contains(LA)) {
-      Alloc.UnfinalizedEHFrames.push_back({LA, Size});
+  for (auto &SecAllocGroup : llvm::reverse(Unfinalized)) {
+    if (SecAllocGroup.RemoteCode.contains(LA) ||
+        SecAllocGroup.RemoteROData.contains(LA) ||
+        SecAllocGroup.RemoteRWData.contains(LA)) {
+      SecAllocGroup.UnfinalizedEHFrames.push_back({LA, Size});
       return;
     }
   }
@@ -204,35 +205,29 @@ bool EPCGenericRTDyldMemoryManager::finalizeMemory(std::string *ErrMsg) {
   LLVM_DEBUG(dbgs() << "Allocator " << (void *)this << " finalizing:\n");
 
   // If there's an error then bail out here.
-  std::vector<AllocGroup> Allocs;
+  std::vector<SectionAllocGroup> SecAllocGroups;
   {
     std::lock_guard<std::mutex> Lock(M);
     if (ErrMsg && !this->ErrMsg.empty()) {
       *ErrMsg = std::move(this->ErrMsg);
       return true;
     }
-    std::swap(Allocs, Unfinalized);
+    std::swap(SecAllocGroups, Unfinalized);
   }
 
   // Loop over unfinalized objects to make finalization requests.
-  for (auto &ObjAllocs : Allocs) {
+  for (auto &SecAllocGroup : SecAllocGroups) {
 
-    tpctypes::WireProtectionFlags SegProts[3] = {
-        tpctypes::toWireProtectionFlags(
-            static_cast<sys::Memory::ProtectionFlags>(sys::Memory::MF_READ |
-                                                      sys::Memory::MF_EXEC)),
-        tpctypes::toWireProtectionFlags(sys::Memory::MF_READ),
-        tpctypes::toWireProtectionFlags(
-            static_cast<sys::Memory::ProtectionFlags>(sys::Memory::MF_READ |
-                                                      sys::Memory::MF_WRITE))};
+    MemProt SegMemProts[3] = {MemProt::Read | MemProt::Exec, MemProt::Read,
+                              MemProt::Read | MemProt::Write};
 
-    ExecutorAddrRange *RemoteAddrs[3] = {&ObjAllocs.RemoteCode,
-                                         &ObjAllocs.RemoteROData,
-                                         &ObjAllocs.RemoteRWData};
+    ExecutorAddrRange *RemoteAddrs[3] = {&SecAllocGroup.RemoteCode,
+                                         &SecAllocGroup.RemoteROData,
+                                         &SecAllocGroup.RemoteRWData};
 
-    std::vector<Alloc> *SegSections[3] = {&ObjAllocs.CodeAllocs,
-                                          &ObjAllocs.RODataAllocs,
-                                          &ObjAllocs.RWDataAllocs};
+    std::vector<SectionAlloc> *SegSections[3] = {&SecAllocGroup.CodeAllocs,
+                                                 &SecAllocGroup.RODataAllocs,
+                                                 &SecAllocGroup.RWDataAllocs};
 
     tpctypes::FinalizeRequest FR;
     std::unique_ptr<char[]> AggregateContents[3];
@@ -240,7 +235,7 @@ bool EPCGenericRTDyldMemoryManager::finalizeMemory(std::string *ErrMsg) {
     for (unsigned I = 0; I != 3; ++I) {
       FR.Segments.push_back({});
       auto &Seg = FR.Segments.back();
-      Seg.Prot = SegProts[I];
+      Seg.AG = SegMemProts[I];
       Seg.Addr = RemoteAddrs[I]->Start;
       for (auto &SecAlloc : *SegSections[I]) {
         Seg.Size = alignTo(Seg.Size, SecAlloc.Align);
@@ -261,9 +256,14 @@ bool EPCGenericRTDyldMemoryManager::finalizeMemory(std::string *ErrMsg) {
       Seg.Content = {AggregateContents[I].get(), SecOffset};
     }
 
-    for (auto &Frame : ObjAllocs.UnfinalizedEHFrames)
-      FR.Actions.push_back({{SAs.RegisterEHFrame, Frame.Addr, Frame.Size},
-                            {SAs.DeregisterEHFrame, Frame.Addr, Frame.Size}});
+    for (auto &Frame : SecAllocGroup.UnfinalizedEHFrames)
+      FR.Actions.push_back(
+          {cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   SAs.RegisterEHFrame, Frame)),
+           cantFail(
+               WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+                   SAs.DeregisterEHFrame, Frame))});
 
     // We'll also need to make an extra allocation for the eh-frame wrapper call
     // arguments.
@@ -292,7 +292,8 @@ bool EPCGenericRTDyldMemoryManager::finalizeMemory(std::string *ErrMsg) {
 }
 
 void EPCGenericRTDyldMemoryManager::mapAllocsToRemoteAddrs(
-    RuntimeDyld &Dyld, std::vector<Alloc> &Allocs, ExecutorAddr NextAddr) {
+    RuntimeDyld &Dyld, std::vector<SectionAlloc> &Allocs,
+    ExecutorAddr NextAddr) {
   for (auto &Alloc : Allocs) {
     NextAddr.setValue(alignTo(NextAddr.getValue(), Alloc.Align));
     LLVM_DEBUG({

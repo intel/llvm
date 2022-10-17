@@ -3,7 +3,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv %t.spv -r -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers -o - | llvm-dis -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV-DAG: Decorate [[#SC3:]] SpecId 3

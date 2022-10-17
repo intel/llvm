@@ -75,6 +75,24 @@ ConstantRange ConstantRange::fromKnownBits(const KnownBits &Known,
   return ConstantRange(Lower, Upper + 1);
 }
 
+KnownBits ConstantRange::toKnownBits() const {
+  // TODO: We could return conflicting known bits here, but consumers are
+  // likely not prepared for that.
+  if (isEmptySet())
+    return KnownBits(getBitWidth());
+
+  // We can only retain the top bits that are the same between min and max.
+  APInt Min = getUnsignedMin();
+  APInt Max = getUnsignedMax();
+  KnownBits Known = KnownBits::makeConstant(Min);
+  if (Optional<unsigned> DifferentBit =
+          APIntOps::GetMostSignificantDifferentBit(Min, Max)) {
+    Known.Zero.clearLowBits(*DifferentBit + 1);
+    Known.One.clearLowBits(*DifferentBit + 1);
+  }
+  return Known;
+}
+
 ConstantRange ConstantRange::makeAllowedICmpRegion(CmpInst::Predicate Pred,
                                                    const ConstantRange &CR) {
   if (CR.isEmptySet())
@@ -147,38 +165,77 @@ ConstantRange ConstantRange::makeExactICmpRegion(CmpInst::Predicate Pred,
   return makeAllowedICmpRegion(Pred, C);
 }
 
-bool ConstantRange::getEquivalentICmp(CmpInst::Predicate &Pred,
-                                      APInt &RHS) const {
-  bool Success = false;
+bool ConstantRange::areInsensitiveToSignednessOfICmpPredicate(
+    const ConstantRange &CR1, const ConstantRange &CR2) {
+  if (CR1.isEmptySet() || CR2.isEmptySet())
+    return true;
 
+  return (CR1.isAllNonNegative() && CR2.isAllNonNegative()) ||
+         (CR1.isAllNegative() && CR2.isAllNegative());
+}
+
+bool ConstantRange::areInsensitiveToSignednessOfInvertedICmpPredicate(
+    const ConstantRange &CR1, const ConstantRange &CR2) {
+  if (CR1.isEmptySet() || CR2.isEmptySet())
+    return true;
+
+  return (CR1.isAllNonNegative() && CR2.isAllNegative()) ||
+         (CR1.isAllNegative() && CR2.isAllNonNegative());
+}
+
+CmpInst::Predicate ConstantRange::getEquivalentPredWithFlippedSignedness(
+    CmpInst::Predicate Pred, const ConstantRange &CR1,
+    const ConstantRange &CR2) {
+  assert(CmpInst::isIntPredicate(Pred) && CmpInst::isRelational(Pred) &&
+         "Only for relational integer predicates!");
+
+  CmpInst::Predicate FlippedSignednessPred =
+      CmpInst::getFlippedSignednessPredicate(Pred);
+
+  if (areInsensitiveToSignednessOfICmpPredicate(CR1, CR2))
+    return FlippedSignednessPred;
+
+  if (areInsensitiveToSignednessOfInvertedICmpPredicate(CR1, CR2))
+    return CmpInst::getInversePredicate(FlippedSignednessPred);
+
+  return CmpInst::Predicate::BAD_ICMP_PREDICATE;
+}
+
+void ConstantRange::getEquivalentICmp(CmpInst::Predicate &Pred,
+                                      APInt &RHS, APInt &Offset) const {
+  Offset = APInt(getBitWidth(), 0);
   if (isFullSet() || isEmptySet()) {
     Pred = isEmptySet() ? CmpInst::ICMP_ULT : CmpInst::ICMP_UGE;
     RHS = APInt(getBitWidth(), 0);
-    Success = true;
   } else if (auto *OnlyElt = getSingleElement()) {
     Pred = CmpInst::ICMP_EQ;
     RHS = *OnlyElt;
-    Success = true;
   } else if (auto *OnlyMissingElt = getSingleMissingElement()) {
     Pred = CmpInst::ICMP_NE;
     RHS = *OnlyMissingElt;
-    Success = true;
   } else if (getLower().isMinSignedValue() || getLower().isMinValue()) {
     Pred =
         getLower().isMinSignedValue() ? CmpInst::ICMP_SLT : CmpInst::ICMP_ULT;
     RHS = getUpper();
-    Success = true;
   } else if (getUpper().isMinSignedValue() || getUpper().isMinValue()) {
     Pred =
         getUpper().isMinSignedValue() ? CmpInst::ICMP_SGE : CmpInst::ICMP_UGE;
     RHS = getLower();
-    Success = true;
+  } else {
+    Pred = CmpInst::ICMP_ULT;
+    RHS = getUpper() - getLower();
+    Offset = -getLower();
   }
 
-  assert((!Success || ConstantRange::makeExactICmpRegion(Pred, RHS) == *this) &&
+  assert(ConstantRange::makeExactICmpRegion(Pred, RHS) == add(Offset) &&
          "Bad result!");
+}
 
-  return Success;
+bool ConstantRange::getEquivalentICmp(CmpInst::Predicate &Pred,
+                                      APInt &RHS) const {
+  APInt Offset;
+  getEquivalentICmp(Pred, RHS, Offset);
+  return Offset.isZero();
 }
 
 bool ConstantRange::icmp(CmpInst::Predicate Pred,
@@ -342,11 +399,10 @@ ConstantRange::isSizeStrictlySmallerThan(const ConstantRange &Other) const {
 
 bool
 ConstantRange::isSizeLargerThan(uint64_t MaxSize) const {
-  assert(MaxSize && "MaxSize can't be 0.");
   // If this a full set, we need special handling to avoid needing an extra bit
   // to represent the size.
   if (isFullSet())
-    return APInt::getMaxValue(getBitWidth()).ugt(MaxSize - 1);
+    return MaxSize == 0 || APInt::getMaxValue(getBitWidth()).ugt(MaxSize - 1);
 
   return (Upper - Lower).ugt(MaxSize);
 }
@@ -643,6 +699,24 @@ ConstantRange ConstantRange::unionWith(const ConstantRange &CR,
   return ConstantRange(std::move(L), std::move(U));
 }
 
+Optional<ConstantRange>
+ConstantRange::exactIntersectWith(const ConstantRange &CR) const {
+  // TODO: This can be implemented more efficiently.
+  ConstantRange Result = intersectWith(CR);
+  if (Result == inverse().unionWith(CR.inverse()).inverse())
+    return Result;
+  return None;
+}
+
+Optional<ConstantRange>
+ConstantRange::exactUnionWith(const ConstantRange &CR) const {
+  // TODO: This can be implemented more efficiently.
+  ConstantRange Result = unionWith(CR);
+  if (Result == inverse().intersectWith(CR.inverse()).inverse())
+    return Result;
+  return None;
+}
+
 ConstantRange ConstantRange::castOp(Instruction::CastOps CastOp,
                                     uint32_t ResultBitWidth) const {
   switch (CastOp) {
@@ -665,15 +739,23 @@ ConstantRange ConstantRange::castOp(Instruction::CastOps CastOp,
   case Instruction::UIToFP: {
     // TODO: use input range if available
     auto BW = getBitWidth();
-    APInt Min = APInt::getMinValue(BW).zextOrSelf(ResultBitWidth);
-    APInt Max = APInt::getMaxValue(BW).zextOrSelf(ResultBitWidth);
+    APInt Min = APInt::getMinValue(BW);
+    APInt Max = APInt::getMaxValue(BW);
+    if (ResultBitWidth > BW) {
+      Min = Min.zext(ResultBitWidth);
+      Max = Max.zext(ResultBitWidth);
+    }
     return ConstantRange(std::move(Min), std::move(Max));
   }
   case Instruction::SIToFP: {
     // TODO: use input range if available
     auto BW = getBitWidth();
-    APInt SMin = APInt::getSignedMinValue(BW).sextOrSelf(ResultBitWidth);
-    APInt SMax = APInt::getSignedMaxValue(BW).sextOrSelf(ResultBitWidth);
+    APInt SMin = APInt::getSignedMinValue(BW);
+    APInt SMax = APInt::getSignedMaxValue(BW);
+    if (ResultBitWidth > BW) {
+      SMin = SMin.sext(ResultBitWidth);
+      SMax = SMax.sext(ResultBitWidth);
+    }
     return ConstantRange(std::move(SMin), std::move(SMax));
   }
   case Instruction::FPTrunc:
@@ -1156,7 +1238,10 @@ ConstantRange ConstantRange::sdiv(const ConstantRange &RHS) const {
   // separately by combining division results with the appropriate signs.
   APInt Zero = APInt::getZero(getBitWidth());
   APInt SignedMin = APInt::getSignedMinValue(getBitWidth());
-  ConstantRange PosFilter(APInt(getBitWidth(), 1), SignedMin);
+  // There are no positive 1-bit values. The 1 would get interpreted as -1.
+  ConstantRange PosFilter =
+      getBitWidth() == 1 ? getEmpty()
+                         : ConstantRange(APInt(getBitWidth(), 1), SignedMin);
   ConstantRange NegFilter(SignedMin, Zero);
   ConstantRange PosL = intersectWith(PosFilter);
   ConstantRange NegL = intersectWith(NegFilter);
@@ -1312,34 +1397,29 @@ ConstantRange ConstantRange::binaryNot() const {
   return ConstantRange(APInt::getAllOnes(getBitWidth())).sub(*this);
 }
 
-ConstantRange
-ConstantRange::binaryAnd(const ConstantRange &Other) const {
+ConstantRange ConstantRange::binaryAnd(const ConstantRange &Other) const {
   if (isEmptySet() || Other.isEmptySet())
     return getEmpty();
 
-  // Use APInt's implementation of AND for single element ranges.
-  if (isSingleElement() && Other.isSingleElement())
-    return {*getSingleElement() & *Other.getSingleElement()};
-
-  // TODO: replace this with something less conservative
-
-  APInt umin = APIntOps::umin(Other.getUnsignedMax(), getUnsignedMax());
-  return getNonEmpty(APInt::getZero(getBitWidth()), std::move(umin) + 1);
+  ConstantRange KnownBitsRange =
+      fromKnownBits(toKnownBits() & Other.toKnownBits(), false);
+  ConstantRange UMinUMaxRange =
+      getNonEmpty(APInt::getZero(getBitWidth()),
+                  APIntOps::umin(Other.getUnsignedMax(), getUnsignedMax()) + 1);
+  return KnownBitsRange.intersectWith(UMinUMaxRange);
 }
 
-ConstantRange
-ConstantRange::binaryOr(const ConstantRange &Other) const {
+ConstantRange ConstantRange::binaryOr(const ConstantRange &Other) const {
   if (isEmptySet() || Other.isEmptySet())
     return getEmpty();
 
-  // Use APInt's implementation of OR for single element ranges.
-  if (isSingleElement() && Other.isSingleElement())
-    return {*getSingleElement() | *Other.getSingleElement()};
-
-  // TODO: replace this with something less conservative
-
-  APInt umax = APIntOps::umax(getUnsignedMin(), Other.getUnsignedMin());
-  return getNonEmpty(std::move(umax), APInt::getZero(getBitWidth()));
+  ConstantRange KnownBitsRange =
+      fromKnownBits(toKnownBits() | Other.toKnownBits(), false);
+  // Upper wrapped range.
+  ConstantRange UMaxUMinRange =
+      getNonEmpty(APIntOps::umax(getUnsignedMin(), Other.getUnsignedMin()),
+                  APInt::getZero(getBitWidth()));
+  return KnownBitsRange.intersectWith(UMaxUMinRange);
 }
 
 ConstantRange ConstantRange::binaryXor(const ConstantRange &Other) const {
@@ -1356,8 +1436,7 @@ ConstantRange ConstantRange::binaryXor(const ConstantRange &Other) const {
   if (isSingleElement() && getSingleElement()->isAllOnes())
     return Other.binaryNot();
 
-  // TODO: replace this with something less conservative
-  return getFull();
+  return fromKnownBits(toKnownBits() ^ Other.toKnownBits(), /*IsSigned*/false);
 }
 
 ConstantRange
@@ -1510,20 +1589,15 @@ ConstantRange ConstantRange::smul_sat(const ConstantRange &Other) const {
   //   [-1,4) * [-2,3) = min(-1*-2, -1*2, 3*-2, 3*2) = -6.
   // Similarly for the upper bound, swapping min for max.
 
-  APInt this_min = getSignedMin().sext(getBitWidth() * 2);
-  APInt this_max = getSignedMax().sext(getBitWidth() * 2);
-  APInt Other_min = Other.getSignedMin().sext(getBitWidth() * 2);
-  APInt Other_max = Other.getSignedMax().sext(getBitWidth() * 2);
+  APInt Min = getSignedMin();
+  APInt Max = getSignedMax();
+  APInt OtherMin = Other.getSignedMin();
+  APInt OtherMax = Other.getSignedMax();
 
-  auto L = {this_min * Other_min, this_min * Other_max, this_max * Other_min,
-            this_max * Other_max};
+  auto L = {Min.smul_sat(OtherMin), Min.smul_sat(OtherMax),
+            Max.smul_sat(OtherMin), Max.smul_sat(OtherMax)};
   auto Compare = [](const APInt &A, const APInt &B) { return A.slt(B); };
-
-  // Note that we wanted to perform signed saturating multiplication,
-  // so since we performed plain multiplication in twice the bitwidth,
-  // we need to perform signed saturating truncation.
-  return getNonEmpty(std::min(L, Compare).truncSSat(getBitWidth()),
-                     std::max(L, Compare).truncSSat(getBitWidth()) + 1);
+  return getNonEmpty(std::min(L, Compare), std::max(L, Compare) + 1);
 }
 
 ConstantRange ConstantRange::ushl_sat(const ConstantRange &Other) const {

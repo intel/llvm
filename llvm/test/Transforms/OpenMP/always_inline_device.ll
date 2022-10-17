@@ -6,17 +6,25 @@
 @1 = private unnamed_addr constant %struct.ident_t { i32 0, i32 2, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* @0, i32 0, i32 0) }, align 8
 @__omp_offloading_fd02_c0934fc2_foo_l4_exec_mode = weak constant i8 1
 @llvm.compiler.used = appending global [1 x i8*] [i8* @__omp_offloading_fd02_c0934fc2_foo_l4_exec_mode], section "llvm.metadata"
+@G = external global i8
 
 ; Function Attrs: convergent norecurse nounwind
 define weak void @__omp_offloading_fd02_c0934fc2_foo_l4() #0 {
 ; CHECK: Function Attrs: convergent norecurse nounwind
 ; CHECK-LABEL: @__omp_offloading_fd02_c0934fc2_foo_l4(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1:[0-9]+]], i8 1, i1 false, i1 true)
+; CHECK-NEXT:    [[TMP0:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1:[0-9]+]], i8 2, i1 false, i1 false)
+; CHECK-NEXT:    [[THREAD_ID_IN_BLOCK:%.*]] = call i32 @__kmpc_get_hardware_thread_id_in_block()
+; CHECK-NEXT:    [[THREAD_IS_MAIN:%.*]] = icmp ne i32 [[THREAD_ID_IN_BLOCK]], 0
+; CHECK-NEXT:    br i1 [[THREAD_IS_MAIN]], label [[EXIT_THREADS:%.*]], label [[MAIN_THREAD_USER_CODE:%.*]]
+; CHECK:       exit.threads:
+; CHECK-NEXT:    ret void
+; CHECK:       main.thread.user_code:
 ; CHECK-NEXT:    [[EXEC_USER_CODE:%.*]] = icmp eq i32 [[TMP0]], -1
 ; CHECK-NEXT:    br i1 [[EXEC_USER_CODE]], label [[USER_CODE_ENTRY:%.*]], label [[WORKER_EXIT:%.*]]
 ; CHECK:       user_code.entry:
-; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 1, i1 true)
+; CHECK-NEXT:    store i8 1, i8* @G, align 1
+; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 2, i1 false)
 ; CHECK-NEXT:    ret void
 ; CHECK:       worker.exit:
 ; CHECK-NEXT:    ret void
@@ -27,6 +35,12 @@ entry:
   br i1 %exec_user_code, label %user_code.entry, label %worker.exit
 
 user_code.entry:                                  ; preds = %entry
+  ; Ensure we see a 0 here as the kernel doesn't have parallel regions and we want
+  ; generic execution.
+  ; TODO: This is not perfect. We should rather go for SPMD mode and tell the runtime
+  ;       to only spawn a single thread. Further, we then should not guard any code.
+  %isSPMD = call i8 @__kmpc_is_spmd_exec_mode()
+  store i8 %isSPMD, i8* @G
   call void @bar() #2
   call void @__kmpc_target_deinit(%struct.ident_t* @1, i8 1, i1 true)
   ret void
@@ -34,6 +48,8 @@ user_code.entry:                                  ; preds = %entry
 worker.exit:                                      ; preds = %entry
   ret void
 }
+
+declare i8 @__kmpc_is_spmd_exec_mode()
 
 declare i32 @__kmpc_target_init(%struct.ident_t*, i8, i1, i1)
 

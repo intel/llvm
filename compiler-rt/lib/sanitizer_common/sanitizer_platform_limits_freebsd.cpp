@@ -130,7 +130,7 @@ unsigned struct_sigevent_sz = sizeof(struct sigevent);
 unsigned struct_sched_param_sz = sizeof(struct sched_param);
 unsigned struct_statfs_sz = sizeof(struct statfs);
 unsigned struct_sockaddr_sz = sizeof(struct sockaddr);
-unsigned ucontext_t_sz = sizeof(ucontext_t);
+unsigned ucontext_t_sz(void *ctx) { return sizeof(ucontext_t); }
 unsigned struct_rlimit_sz = sizeof(struct rlimit);
 unsigned struct_timespec_sz = sizeof(struct timespec);
 unsigned struct_utimbuf_sz = sizeof(struct utimbuf);
@@ -205,6 +205,10 @@ unsigned struct_audio_buf_info_sz = sizeof(struct audio_buf_info);
 unsigned struct_ppp_stats_sz = sizeof(struct ppp_stats);
 unsigned struct_sioc_sg_req_sz = sizeof(struct sioc_sg_req);
 unsigned struct_sioc_vif_req_sz = sizeof(struct sioc_vif_req);
+unsigned struct_procctl_reaper_status_sz = sizeof(struct __sanitizer_procctl_reaper_status);
+unsigned struct_procctl_reaper_pidinfo_sz = sizeof(struct __sanitizer_procctl_reaper_pidinfo);
+unsigned struct_procctl_reaper_pids_sz = sizeof(struct __sanitizer_procctl_reaper_pids);
+unsigned struct_procctl_reaper_kill_sz = sizeof(struct __sanitizer_procctl_reaper_kill);
 const unsigned long __sanitizer_bufsiz = BUFSIZ;
 
 const unsigned IOCTL_NOT_PRESENT = 0;

@@ -11,7 +11,7 @@ from lit.llvm.subst import ToolSubst
 
 
 def _get_lldb_init_path(config):
-    return os.path.join(config.test_exec_root, 'lit-lldb-init')
+    return os.path.join(config.test_exec_root, 'lit-lldb-init-quiet')
 
 
 def _disallow(config, execName):
@@ -71,7 +71,6 @@ def use_lldb_substitutions(config):
                   extra_args=['platform'],
                   unresolved='ignore'),
         'lldb-test',
-        'lldb-instr',
         'lldb-vscode',
         ToolSubst('%build',
                   command="'" + sys.executable + "'",

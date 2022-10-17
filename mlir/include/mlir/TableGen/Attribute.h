@@ -21,7 +21,7 @@
 namespace llvm {
 class DefInit;
 class Record;
-} // end namespace llvm
+} // namespace llvm
 
 namespace mlir {
 namespace tblgen {
@@ -32,7 +32,7 @@ class Type;
 // in TableGen.
 class AttrConstraint : public Constraint {
 public:
-  explicit AttrConstraint(const llvm::Record *record);
+  using Constraint::Constraint;
 
   static bool classof(const Constraint *c) { return c->getKind() == CK_Attr; }
 
@@ -113,6 +113,9 @@ public:
 
   // Returns the dialect for the attribute if defined.
   Dialect getDialect() const;
+
+  // Returns the TableGen definition this Attribute was constructed from.
+  const llvm::Record &getDef() const;
 };
 
 // Wrapper class providing helper methods for accessing MLIR constant attribute
@@ -140,9 +143,6 @@ class EnumAttrCase : public Attribute {
 public:
   explicit EnumAttrCase(const llvm::Record *record);
   explicit EnumAttrCase(const llvm::DefInit *init);
-
-  // Returns true if this EnumAttrCase is backed by a StringAttr.
-  bool isStrCase() const;
 
   // Returns the symbol of this enum attribute case.
   StringRef getSymbol() const;
@@ -206,42 +206,13 @@ public:
   bool genSpecializedAttr() const;
   llvm::Record *getBaseAttrClass() const;
   StringRef getSpecializedAttrClassName() const;
-};
-
-class StructFieldAttr {
-public:
-  explicit StructFieldAttr(const llvm::Record *record);
-  explicit StructFieldAttr(const llvm::Record &record);
-  explicit StructFieldAttr(const llvm::DefInit *init);
-
-  StringRef getName() const;
-  Attribute getType() const;
-
-private:
-  const llvm::Record *def;
-};
-
-// Wrapper class providing helper methods for accessing struct attributes
-// defined in TableGen.
-class StructAttr : public Attribute {
-public:
-  explicit StructAttr(const llvm::Record *record);
-  explicit StructAttr(const llvm::Record &record) : StructAttr(&record){};
-  explicit StructAttr(const llvm::DefInit *init);
-
-  // Returns the struct class name.
-  StringRef getStructClassName() const;
-
-  // Returns the C++ namespaces this struct class should be placed in.
-  StringRef getCppNamespace() const;
-
-  std::vector<StructFieldAttr> getAllFields() const;
+  bool printBitEnumPrimaryGroups() const;
 };
 
 // Name of infer type op interface.
 extern const char *inferTypeOpInterface;
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TABLEGEN_ATTRIBUTE_H_

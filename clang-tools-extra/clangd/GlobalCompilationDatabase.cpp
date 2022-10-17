@@ -14,7 +14,6 @@
 #include "support/Path.h"
 #include "support/Threading.h"
 #include "support/ThreadsafeFS.h"
-#include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/CompilationDatabasePluginRegistry.h"
@@ -26,10 +25,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/Program.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <atomic>
 #include <chrono>
@@ -411,7 +407,7 @@ DirectoryBasedGlobalCompilationDatabase::lookupCDB(
   std::string Storage;
   std::vector<llvm::StringRef> SearchDirs;
   if (Opts.CompileCommandsDir) // FIXME: unify this case with config.
-    SearchDirs = {Opts.CompileCommandsDir.getValue()};
+    SearchDirs = {*Opts.CompileCommandsDir};
   else {
     WithContext WithProvidedContext(Opts.ContextProvider(Request.FileName));
     const auto &Spec = Config::current().CompileFlags.CDBSearch;
@@ -419,7 +415,7 @@ DirectoryBasedGlobalCompilationDatabase::lookupCDB(
     case Config::CDBSearchSpec::NoCDBSearch:
       return llvm::None;
     case Config::CDBSearchSpec::FixedDir:
-      Storage = Spec.FixedCDBPath.getValue();
+      Storage = *Spec.FixedCDBPath;
       SearchDirs = {Storage};
       break;
     case Config::CDBSearchSpec::Ancestors:
@@ -534,7 +530,7 @@ public:
   bool blockUntilIdle(Deadline Timeout) {
     std::unique_lock<std::mutex> Lock(Mu);
     return wait(Lock, CV, Timeout,
-                [&] { return Queue.empty() && !ActiveTask.hasValue(); });
+                [&] { return Queue.empty() && !ActiveTask; });
   }
 
   ~BroadcastThread() {
@@ -676,8 +672,7 @@ public:
     std::vector<SearchPath> SearchPaths(AllFiles.size());
     for (unsigned I = 0; I < AllFiles.size(); ++I) {
       if (Parent.Opts.CompileCommandsDir) { // FIXME: unify with config
-        SearchPaths[I].setPointer(
-            &Dirs[Parent.Opts.CompileCommandsDir.getValue()]);
+        SearchPaths[I].setPointer(&Dirs[*Parent.Opts.CompileCommandsDir]);
         continue;
       }
       if (ExitEarly()) // loading config may be slow
@@ -693,7 +688,7 @@ public:
         SearchPaths[I].setPointer(addParents(AllFiles[I]));
         break;
       case Config::CDBSearchSpec::FixedDir:
-        SearchPaths[I].setPointer(&Dirs[Spec.FixedCDBPath.getValue()]);
+        SearchPaths[I].setPointer(&Dirs[*Spec.FixedCDBPath]);
         break;
       }
     }

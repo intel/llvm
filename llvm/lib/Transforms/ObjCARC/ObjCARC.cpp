@@ -16,7 +16,6 @@
 #include "llvm-c/Initialization.h"
 #include "llvm/Analysis/ObjCARCUtil.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -36,7 +35,6 @@ void llvm::initializeObjCARCOpts(PassRegistry &Registry) {
   initializeObjCARCExpandPass(Registry);
   initializeObjCARCContractLegacyPassPass(Registry);
   initializeObjCARCOptLegacyPassPass(Registry);
-  initializePAEvalPass(Registry);
 }
 
 void LLVMInitializeObjCARCOpts(LLVMPassRegistryRef R) {
@@ -123,15 +121,9 @@ BundledRetainClaimRVs::~BundledRetainClaimRVs() {
       // can't be tail calls.
       if (auto *CI = dyn_cast<CallInst>(CB))
         CI->setTailCallKind(CallInst::TCK_NoTail);
-
-      // Remove the ARC intrinsic function operand from the operand bundle.
-      OperandBundleDef OB("clang.arc.attachedcall", None);
-      auto *NewCB = CallBase::Create(CB, OB, CB);
-      CB->replaceAllUsesWith(NewCB);
-      CB->eraseFromParent();
-    } else {
-      EraseInstruction(P.first);
     }
+
+    EraseInstruction(P.first);
   }
 
   RVCalls.clear();

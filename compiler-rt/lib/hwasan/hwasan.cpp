@@ -16,6 +16,7 @@
 #include "hwasan_checks.h"
 #include "hwasan_dynamic_shadow.h"
 #include "hwasan_globals.h"
+#include "hwasan_mapping.h"
 #include "hwasan_poisoning.h"
 #include "hwasan_report.h"
 #include "hwasan_thread.h"
@@ -24,6 +25,7 @@
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_flag_parser.h"
 #include "sanitizer_common/sanitizer_flags.h"
+#include "sanitizer_common/sanitizer_interface_internal.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_procmaps.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
@@ -216,8 +218,8 @@ void HandleTagMismatch(AccessInfo ai, uptr pc, uptr frame, void *uc,
                     registers_frame);
 }
 
-void HwasanTagMismatch(uptr addr, uptr access_info, uptr *registers_frame,
-                       size_t outsize) {
+void HwasanTagMismatch(uptr addr, uptr pc, uptr frame, uptr access_info,
+                       uptr *registers_frame, size_t outsize) {
   __hwasan::AccessInfo ai;
   ai.is_store = access_info & 0x10;
   ai.is_load = !ai.is_store;
@@ -228,9 +230,7 @@ void HwasanTagMismatch(uptr addr, uptr access_info, uptr *registers_frame,
   else
     ai.size = 1 << (access_info & 0xf);
 
-  HandleTagMismatch(ai, (uptr)__builtin_return_address(0),
-                    (uptr)__builtin_frame_address(0), nullptr, registers_frame);
-  __builtin_unreachable();
+  HandleTagMismatch(ai, pc, frame, nullptr, registers_frame);
 }
 
 Thread *GetCurrentThread() {
@@ -344,7 +344,7 @@ __attribute__((constructor(0))) void __hwasan_init() {
 
   // Needs to be called here because flags()->random_tags might not have been
   // initialized when InitInstrumentation() was called.
-  GetCurrentThread()->InitRandomState();
+  GetCurrentThread()->EnsureRandomStateInited();
 
   SetPrintfAndReportCallback(AppendToErrorMessageBuffer);
   // This may call libc -> needs initialized shadow.
@@ -391,8 +391,15 @@ void __hwasan_print_shadow(const void *p, uptr sz) {
   uptr shadow_last = MemToShadow(ptr_raw + sz - 1);
   Printf("HWASan shadow map for %zx .. %zx (pointer tag %x)\n", ptr_raw,
          ptr_raw + sz, GetTagFromPointer((uptr)p));
-  for (uptr s = shadow_first; s <= shadow_last; ++s)
-    Printf("  %zx: %x\n", ShadowToMem(s), *(tag_t *)s);
+  for (uptr s = shadow_first; s <= shadow_last; ++s) {
+    tag_t mem_tag = *reinterpret_cast<tag_t *>(s);
+    uptr granule_addr = ShadowToMem(s);
+    if (mem_tag && mem_tag < kShadowAlignment)
+      Printf("  %zx: %02x(%02x)\n", granule_addr, mem_tag,
+             *reinterpret_cast<tag_t *>(granule_addr + kShadowAlignment - 1));
+    else
+      Printf("  %zx: %02x\n", granule_addr, mem_tag);
+  }
 }
 
 sptr __hwasan_test_shadow(const void *p, uptr sz) {
@@ -567,6 +574,12 @@ u8 __hwasan_generate_tag() {
   return t->GenerateRandomTag();
 }
 
+void __hwasan_add_frame_record(u64 frame_record_info) {
+  Thread *t = GetCurrentThread();
+  if (t)
+    t->stack_allocations()->push(frame_record_info);
+}
+
 #if !SANITIZER_SUPPORTS_WEAK_HOOKS
 extern "C" {
 SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE
@@ -585,7 +598,9 @@ void __sanitizer_print_stack_trace() {
 // rest of the mismatch handling code (C++).
 void __hwasan_tag_mismatch4(uptr addr, uptr access_info, uptr *registers_frame,
                             size_t outsize) {
-  __hwasan::HwasanTagMismatch(addr, access_info, registers_frame, outsize);
+  __hwasan::HwasanTagMismatch(addr, (uptr)__builtin_return_address(0),
+                              (uptr)__builtin_frame_address(0), access_info,
+                              registers_frame, outsize);
 }
 
 } // extern "C"
