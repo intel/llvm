@@ -1030,9 +1030,11 @@ inline const stream &operator<<(const stream &Out, const half &RHS) {
 
 // Pointer
 
-template <typename ElementType, access::address_space Space>
-inline const stream &operator<<(const stream &Out,
-                                const multi_ptr<ElementType, Space> &RHS) {
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+inline const stream &
+operator<<(const stream &Out,
+           const multi_ptr<ElementType, Space, IsDecorated> &RHS) {
   Out << RHS.get();
   return Out;
 }

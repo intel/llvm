@@ -13,7 +13,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -427,9 +427,8 @@ tileLinalgOpImpl(RewriterBase &b, LinalgOp op, ArrayRef<OpFoldResult> tileSizes,
   auto [loopRanges, loopIndexToRangeIndex] = makeTiledLoopRanges(
       b, op.getLoc(), shapeSizesToLoopsMap, allShapeSizes, tileSizes);
 
-  SmallVector<Attribute, 4> iteratorTypes;
-  for (const auto &attr :
-       enumerate(op.iterator_types().cast<ArrayAttr>().getValue())) {
+  SmallVector<StringRef, 4> iteratorTypes;
+  for (const auto &attr : enumerate(op.getIteratorTypesArray())) {
     if (loopIndexToRangeIndex.count(attr.index()))
       iteratorTypes.push_back(attr.value());
   }
@@ -721,10 +720,9 @@ void mlir::linalg::populateLinalgTilingCanonicalizationPatterns(
   scf::ParallelOp::getCanonicalizationPatterns(patterns, ctx);
 
   tensor::CastOp::getCanonicalizationPatterns(patterns, ctx);
+  tensor::EmptyOp::getCanonicalizationPatterns(patterns, ctx);
   tensor::ExtractSliceOp::getCanonicalizationPatterns(patterns, ctx);
   tensor::InsertSliceOp::getCanonicalizationPatterns(patterns, ctx);
-
-  InitTensorOp::getCanonicalizationPatterns(patterns, ctx);
   tensor::PadOp::getCanonicalizationPatterns(patterns, ctx);
   ctx->getLoadedDialect<LinalgDialect>()->getCanonicalizationPatterns(patterns);
 
