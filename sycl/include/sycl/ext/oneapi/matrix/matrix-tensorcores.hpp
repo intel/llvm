@@ -259,8 +259,7 @@ void load_multiplicand_cuda(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
         S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
     multi_ptr<T, Space> src, size_t stride) {
-  if constexpr (std::is_same_v<
-                    S, sycl::ext::oneapi::experimental::bfloat16>) {
+  if constexpr (std::is_same_v<S, sycl::ext::oneapi::experimental::bfloat16>) {
     auto tileptr = reinterpret_cast<const int32_t *>(src.get());
     auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
@@ -355,8 +354,8 @@ void load_multiplicand_cuda(
       __hmma_m32n8k16_ld_b(dstptr, tileptr, stride, get_layout_id<Layout>());
     }
 
-  } else if constexpr (std::is_same_v<S, sycl::ext::oneapi::experimental::matrix::
-                                           precision::tf32>) {
+  } else if constexpr (std::is_same_v<S, sycl::ext::oneapi::experimental::
+                                             matrix::precision::tf32>) {
     auto tileptr = reinterpret_cast<const int32_t *>(src.get());
     auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 8) {

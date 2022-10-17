@@ -154,8 +154,8 @@ int main() {
           sycl::sub_group sg = item.get_sub_group();
 
           joint_matrix<float, use::accumulator, 8, 32> sub_c;
-joint_matrix<bfloat16, use::a, 8, 16, layout::col_major> sub_a;
-joint_matrix<bfloat16, use::b, 16, 32, layout::col_major> sub_b;
+          joint_matrix<bfloat16, use::a, 8, 16, layout::col_major> sub_a;
+          joint_matrix<bfloat16, use::b, 16, 32, layout::col_major> sub_b;
 
           // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.load.c.col.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
