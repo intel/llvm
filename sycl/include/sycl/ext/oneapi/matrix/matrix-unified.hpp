@@ -7,7 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
-#include <sycl/ext/oneapi/matrix/matrix-tensor-cores.hpp>
+#include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -21,9 +21,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
                   joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
-                  const T2 v) {
-  // We kept the dynamic "sg" in joint_matrix_fill to match the other DPC++
-  // functions
+                  const T2& v) {
   std::ignore = sg;
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -143,7 +141,7 @@ joint_matrix_mad(
     return D;
   } else {
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
-                    "requires that joint_matrix data types match");
+                    "requires that joint_matrix data types Ta and Tb match");
   }
 #endif // defined(__NVPTX__)
 #else
