@@ -12,6 +12,7 @@ LLVM |release| Release Notes
      Release notes for previous releases can be found on
      `the Download Page <https://releases.llvm.org/download.html>`_.
 
+* The LoopFlatten pass is now enabled by default.
 
 Introduction
 ============
@@ -41,6 +42,11 @@ Non-comprehensive list of changes in this release
    point (e.g. maybe you would like to give an example of the
    functionality, or simply have a lot to talk about), see the `NOTE` below
    for adding a new subsection.
+
+*  The ``readnone`` calls which are crossing suspend points in coroutines will
+   not be merged. Since ``readnone`` calls may access thread id and thread id
+   is not a constant in coroutines. This decision may cause unnecessary
+   performance regressions and we plan to fix it in later versions.
 
 * ...
 
