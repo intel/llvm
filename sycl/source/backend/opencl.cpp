@@ -11,8 +11,9 @@
 #include <detail/plugin.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/detail/common.hpp>
 #include <sycl/sycl.hpp>
+
+#include <string_view>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -73,12 +74,8 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
                                             PI_PLATFORM_INFO_EXTENSIONS,
                                             ResultSize, Result.get(), nullptr);
 
-  std::string ExtensionsString = Result.get();
-  std::vector<std::string> ExtensionsList = split_string(ExtensionsString, ' ');
-
-  auto FindResult =
-      std::find(ExtensionsList.begin(), ExtensionsList.end(), Extension);
-  return FindResult != ExtensionsList.end();
+  std::string_view ExtensionsString(Result.get());
+  return ExtensionsString.find(Extension) != std::string::npos;
 }
 
 __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
@@ -106,12 +103,8 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
                                           PI_DEVICE_INFO_EXTENSIONS, ResultSize,
                                           Result.get(), nullptr);
 
-  std::string ExtensionsString = Result.get();
-  std::vector<std::string> ExtensionsList = split_string(ExtensionsString, ' ');
-
-  auto FindResult =
-      std::find(ExtensionsList.begin(), ExtensionsList.end(), Extension);
-  return FindResult != ExtensionsList.end();
+  std::string_view ExtensionsString(Result.get());
+  return ExtensionsString.find(Extension) != std::string::npos;
 }
 } // namespace opencl
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
