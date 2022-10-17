@@ -81,7 +81,7 @@ jobs:
           DEPS="${DEPS//$'\n'/'%0A'}"
           DEPS="${DEPS//$'\r'/'%0D'}"
           echo $DEPS
-          echo "::set-output name=deps::$DEPS"
+          echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
@@ -119,7 +119,7 @@ jobs:
           DEPS="${DEPS//$'\n'/'%0A'}"
           DEPS="${DEPS//$'\r'/'%0D'}"
           echo $DEPS
-          echo "::set-output name=deps::$DEPS"
+          echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
