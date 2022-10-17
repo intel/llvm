@@ -309,9 +309,9 @@ def SYCLItemGetIDOp
     : SYCLMethodOpInterfaceImpl<"item.get_id", "ItemType",
                                 ["get_id", "operator[]", "operator unsigned long"],
                                 [NoSideEffect, SYCLGetID]> {
-  let summary = "Call to item::get/operator[]/operator size_t";
+  let summary = "Call to item::get_id/operator[]/operator size_t";
   let description = [{
-    This operation represents a call to the item::get/operator[]/operator size_t functions.
+    This operation represents a call to the item::get_id/operator[]/operator size_t functions.
   }];
 
   let arguments = (ins ItemMemRef:$Item,
