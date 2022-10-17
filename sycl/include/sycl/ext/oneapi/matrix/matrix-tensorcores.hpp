@@ -1,11 +1,11 @@
 
-//===--- matrix-tensorcores.hpp - tensor cores matrix ext impl --*- C++ -*---===//
+//===-------- matrix-tensorcores.hpp - matrix ext impl ---*- C++ -*-------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// ===----------------------------------------------------------------------=== //
+// ===-------------------------------------------------------------------=== //
 
 #pragma once
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
@@ -185,11 +185,9 @@ void load_accumulator_layoutT(
       __imma_m16n16k16_ld_c(destptr, src.get(), stride,
                             get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 32) {
-      __imma_m8n32k16_ld_c(destptr, src.get(), stride,
-                           get_layout_id<Layout>());
+      __imma_m8n32k16_ld_c(destptr, src.get(), stride, get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 8) {
-      __imma_m32n8k16_ld_c(destptr, src.get(), stride,
-                           get_layout_id<Layout>());
+      __imma_m32n8k16_ld_c(destptr, src.get(), stride, get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, float>) {
     auto dstptr = reinterpret_cast<float *>(&res.wi_marray);
@@ -549,8 +547,8 @@ void joint_matrix_mad_cuda(
             get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
     } else if constexpr (std::is_same_v<Tm, uint16_t> ||
-                         std::is_same_v<Tm, sycl::ext::oneapi::experimental::
-                                              bfloat16>) {
+                         std::is_same_v<
+                             Tm, sycl::ext::oneapi::experimental::bfloat16>) {
       __mma_bf16_m16n16k16_mma_f32(
           reinterpret_cast<float *>(&D.wi_marray),
           reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -586,8 +584,8 @@ void joint_matrix_mad_cuda(
             get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
     } else if constexpr (std::is_same_v<Tm, uint16_t> ||
-                         std::is_same_v<Tm, sycl::ext::oneapi::experimental::
-                                              bfloat16>) {
+                         std::is_same_v<
+                             Tm, sycl::ext::oneapi::experimental::bfloat16>) {
       __mma_bf16_m8n32k16_mma_f32(
           reinterpret_cast<float *>(&D.wi_marray),
           reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -609,8 +607,8 @@ void joint_matrix_mad_cuda(
                                get_layout_pair_id<LayoutA, LayoutB>(), 0);
       }
     } else if constexpr (std::is_same_v<Tm, uint16_t> ||
-                         std::is_same_v<Tm, sycl::ext::oneapi::experimental::
-                                              bfloat16>) {
+                         std::is_same_v<
+                             Tm, sycl::ext::oneapi::experimental::bfloat16>) {
       __mma_bf16_m32n8k16_mma_f32(
           reinterpret_cast<float *>(&D.wi_marray),
           reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -653,4 +651,3 @@ void joint_matrix_mad_cuda(
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-

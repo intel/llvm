@@ -790,4 +790,3 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(float a) {
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-

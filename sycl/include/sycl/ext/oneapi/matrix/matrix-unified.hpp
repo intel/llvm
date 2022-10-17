@@ -21,7 +21,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
                   joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
-                  const T2& v) {
+                  const T2 &v) {
   std::ignore = sg;
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -177,4 +177,3 @@ float round_to_tf32(float &a) {
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-

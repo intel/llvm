@@ -48,17 +48,13 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<double, use::accumulator, M, N>
-              sub_c;
-
-          joint_matrix<double, use::a, M, K, layout::row_major>
-              sub_a;
-
-          joint_matrix<double, use::b, K, N, layout::row_major>
-              sub_b;
+          joint_matrix<double, use::accumulator, M, N> sub_c;
+          joint_matrix<double, use::a, M, K, layout::row_major> sub_a;
+          joint_matrix<double, use::b, K, N, layout::row_major> sub_b;
 
           //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.row.stride.f64.p1f64(double addrspace(1)* %_arg_accC, i32 8)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), N, layout::row_major);
+          joint_matrix_load(sg, sub_c, accC.get_pointer(), N,
+                            layout::row_major);
           //CHECK: tail call double @llvm.nvvm.wmma.m8n8k4.load.a.row.stride.f64.p1f64(double addrspace(1)* %_arg_accA, i32 4)
           joint_matrix_load(sg, sub_a, accA.get_pointer(), K);
           //CHECK: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.row.stride.f64.p1f64(double addrspace(1)* %_arg_accB, i32 8)
@@ -66,7 +62,8 @@ int main() {
           //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double %3, double %4, double %1, double %2)
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.row.stride.f64.p1f64(double addrspace(1)* %_arg_accD, double %6, double %7, i32 8)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), N, layout::row_major);
+          joint_matrix_store(sg, sub_c, accD.get_pointer(), N,
+                             layout::row_major);
         });
 
     cgh.parallel_for<class col_col>(
@@ -74,17 +71,13 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<double, use::accumulator, M, N>
-              sub_c;
-
-          joint_matrix<double, use::a, M, K, layout::col_major>
-              sub_a;
-
-          joint_matrix<double, use::b, K, N, layout::col_major>
-              sub_b;
+          joint_matrix<double, use::accumulator, M, N> sub_c;
+          joint_matrix<double, use::a, M, K, layout::col_major> sub_a;
+          joint_matrix<double, use::b, K, N, layout::col_major> sub_b;
 
           //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.col.stride.f64.p1f64(double addrspace(1)* %_arg_accC, i32 8)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), M, layout::col_major);
+          joint_matrix_load(sg, sub_c, accC.get_pointer(), M,
+                            layout::col_major);
           //CHECK: tail call double @llvm.nvvm.wmma.m8n8k4.load.a.col.stride.f64.p1f64(double addrspace(1)* %_arg_accA, i32 8)
           joint_matrix_load(sg, sub_a, accA.get_pointer(), M);
           //CHECK: tail call double @llvm.nvvm.wmma.m8n8k4.load.b.col.stride.f64.p1f64(double addrspace(1)* %_arg_accB, i32 4)
@@ -92,7 +85,8 @@ int main() {
           //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double %3, double %4, double %1, double %2)
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.col.stride.f64.p1f64(double addrspace(1)* %_arg_accD, double %6, double %7, i32 8)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), M, layout::col_major);
+          joint_matrix_store(sg, sub_c, accD.get_pointer(), M,
+                             layout::col_major);
         });
   });
 
