@@ -148,13 +148,13 @@ namespace sycl::ext::oneapi::experimental::matrix {
           use Use, access::address_space Space>
   void joint_matrix_load(Group sg,
     joint_matrix<T, Use, NumRows, NumCols, layout::dynamic, Group> &res,
-    multi_ptr<T, Space> src, size_t stride, layout memL);
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, layout memL);
     
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
           use Use, layout Layout, access::address_space Space>
   void joint_matrix_load(Group sg,
     joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
-    multi_ptr<T, Space> src, size_t stride);
+    multi_ptr<T, Space, IsDecorated> src, size_t stride);
 }
 ```
 
@@ -170,7 +170,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
           use Use, layout Layout, access::address_space Space>
   void joint_matrix_store(Group sg,
     joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
-    multi_ptr<T, Space> src, size_t stride, layout memL);
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, layout memL);
 }
 ```
 This function stores the data from the 2d tiles back to memory.
