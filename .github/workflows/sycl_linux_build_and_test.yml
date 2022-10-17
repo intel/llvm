@@ -110,6 +110,9 @@ jobs:
     - name: check-cgeist
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
       run: |
+        if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
+          source /runtimes/oneapi-tbb/env/vars.sh;
+        fi
         cmake --build $GITHUB_WORKSPACE/build --target check-cgeist
     - name: check-polygeist-opt
       if: ${{ always() && !cancelled() && steps.build.outcome == 'success' }}
