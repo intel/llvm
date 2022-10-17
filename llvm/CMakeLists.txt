@@ -302,6 +302,11 @@ option(LLVM_INSTALL_BINUTILS_SYMLINKS
 option(LLVM_INSTALL_CCTOOLS_SYMLINKS
   "Install symlinks from the cctools tool names to the corresponding LLVM tools." OFF)
 
+# By default we use symlinks on Unix platforms and copy binaries on Windows
+# If you have the correct setup on Windows you can use this option to enable
+# symlinks and save a lot of diskspace.
+option(LLVM_USE_SYMLINKS "Use symlinks instead of copying binaries" ${CMAKE_HOST_UNIX})
+
 option(LLVM_INSTALL_UTILS "Include utility binaries in the 'install' target." OFF)
 
 option(LLVM_INSTALL_TOOLCHAIN_ONLY "Only include toolchain files in the 'install' target." OFF)
@@ -699,7 +704,6 @@ endif(LLVM_BUILD_EXAMPLES)
 option(LLVM_BUILD_TESTS
   "Build LLVM unit tests. If OFF, just generate build targets." OFF)
 option(LLVM_INCLUDE_TESTS "Generate build targets for the LLVM unit tests." ON)
-option(LLVM_INCLUDE_GO_TESTS "Include the Go bindings tests in test build targets." OFF)
 
 option(LLVM_BUILD_BENCHMARKS "Add LLVM benchmark targets to the list of default
 targets. If OFF, benchmarks still could be built using Benchmarks target." OFF)

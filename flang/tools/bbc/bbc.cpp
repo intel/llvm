@@ -126,6 +126,11 @@ static llvm::cl::opt<bool> enableOpenACC("fopenacc",
                                          llvm::cl::desc("enable openacc"),
                                          llvm::cl::init(false));
 
+static llvm::cl::opt<bool> enablePolymorphic(
+    "polymorphic-type",
+    llvm::cl::desc("enable polymorphic type lowering (experimental)"),
+    llvm::cl::init(false));
+
 #define FLANG_EXCLUDE_CODEGEN
 #include "flang/Tools/CLOptions.inc"
 
@@ -221,10 +226,11 @@ static mlir::LogicalResult convertFortranSourceToMLIR(
       &ctx, llvm::ArrayRef<fir::KindTy>{fir::fromDefaultKinds(defKinds)});
   // Use default lowering options for bbc.
   Fortran::lower::LoweringOptions loweringOptions{};
+  loweringOptions.setPolymorphicTypeImpl(enablePolymorphic);
   auto burnside = Fortran::lower::LoweringBridge::create(
       ctx, semanticsContext, defKinds, semanticsContext.intrinsics(),
       semanticsContext.targetCharacteristics(), parsing.allCooked(), "",
-      kindMap, loweringOptions);
+      kindMap, loweringOptions, {});
   burnside.lower(parseTree, semanticsContext);
   mlir::ModuleOp mlirModule = burnside.getModule();
   std::error_code ec;

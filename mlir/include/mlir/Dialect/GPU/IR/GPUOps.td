@@ -45,7 +45,7 @@ def GPU_DimensionAttr : EnumAttr<GPU_Dialect, GPU_Dimension, "dim">;
 
 class GPU_IndexOp<string mnemonic, list<Trait> traits = []> :
     GPU_Op<mnemonic, !listconcat(traits, [
-        NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>])>,
+        Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>])>,
     Arguments<(ins GPU_DimensionAttr:$dimension)>, Results<(outs Index)> {
   let assemblyFormat = "$dimension attr-dict";
 }
@@ -100,7 +100,7 @@ def GPU_ThreadIdOp : GPU_IndexOp<"thread_id"> {
 }
 
 def GPU_LaneIdOp : GPU_Op<"lane_id", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
   let description = [{
     Returns the lane id within the subgroup (warp/wave).
 
@@ -114,7 +114,7 @@ def GPU_LaneIdOp : GPU_Op<"lane_id", [
 }
 
 def GPU_SubgroupIdOp : GPU_Op<"subgroup_id", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
     Returns the subgroup id, i.e. the index of the current subgroup within the
@@ -146,7 +146,7 @@ def GPU_GlobalIdOp : GPU_IndexOp<"global_id"> {
 
 
 def GPU_NumSubgroupsOp : GPU_Op<"num_subgroups", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
     Returns the number of subgroups within a workgroup.
@@ -162,7 +162,7 @@ def GPU_NumSubgroupsOp : GPU_Op<"num_subgroups", [
 }
 
 def GPU_SubgroupSizeOp : GPU_Op<"subgroup_size", [
-      NoSideEffect, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
+      Pure, DeclareOpInterfaceMethods<InferIntRangeInterface>]>,
     Arguments<(ins)>, Results<(outs Index:$result)> {
   let description = [{
     Returns the number of threads within a subgroup.
@@ -612,7 +612,7 @@ def GPU_PrintfOp : GPU_Op<"printf", [MemoryEffects<[MemWrite]>]>,
   }];
 }
 
-def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
+def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, Pure,
                                      Terminator]>,
     Arguments<(ins Variadic<AnyType>:$operands)>, Results<(outs)> {
   let summary = "Terminator for GPU functions.";
@@ -629,7 +629,7 @@ def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
 }
 
 def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
-                                             NoSideEffect, Terminator]>,
+                                             Pure, Terminator]>,
     Arguments<(ins)>, Results<(outs)> {
   let summary = "Terminator for GPU launch regions.";
   let description = [{
@@ -641,7 +641,7 @@ def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
   let assemblyFormat = "attr-dict";
 }
 
-def GPU_YieldOp : GPU_Op<"yield", [NoSideEffect, Terminator]>,
+def GPU_YieldOp : GPU_Op<"yield", [Pure, Terminator]>,
     Arguments<(ins Variadic<AnyType>:$values)> {
   let summary = "GPU yield operation";
   let description = [{
@@ -717,6 +717,30 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
   let hasRegionVerifier = 1;
 }
 
+def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce",
+    [SameOperandsAndResultType]>,
+    Arguments<(ins AnyType:$value,
+               GPU_AllReduceOperationAttr:$op)>,
+    Results<(outs AnyType)> {
+  let summary = "Reduce values among subgroup.";
+  let description = [{
+    The `subgroup_reduce` op reduces the value of every work item across a
+    subgroup. The result is equal for all work items of a subgroup.
+
+    Example:
+
+    ```mlir
+    %1 = gpu.subgroup_reduce add %0 : (f32) -> (f32)
+    ```
+
+    Either none or all work items of a subgroup need to execute this op
+    in convergence.
+  }];
+  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value attr-dict
+                          `:` functional-type(operands, results) }];
+  let hasVerifier = 1;
+}
+
 def GPU_ShuffleOpXor  : I32EnumAttrCase<"XOR",  0, "xor">;
 def GPU_ShuffleOpDown : I32EnumAttrCase<"DOWN", 1, "down">;
 def GPU_ShuffleOpUp   : I32EnumAttrCase<"UP",   2, "up">;
@@ -737,7 +761,7 @@ def I32OrF32 : TypeConstraint<Or<[I32.predicate, F32.predicate]>,
                                  "i32 or f32">;
 
 def GPU_ShuffleOp : GPU_Op<
-    "shuffle", [NoSideEffect, AllTypesMatch<["value", "shuffleResult"]>]>,
+    "shuffle", [Pure, AllTypesMatch<["value", "shuffleResult"]>]>,
     Arguments<(ins I32OrF32:$value, I32:$offset, I32:$width,
                GPU_ShuffleModeAttr:$mode)>,
     Results<(outs I32OrF32:$shuffleResult, I1:$valid)> {
@@ -919,15 +943,19 @@ def GPU_AllocOp : GPU_Op<"alloc", [
     it does not block until the execution has finished on the device). In
     that case, it also returns a !gpu.async.token.
 
+    If the `host_shared` keyword is present, the memory will be allocated in a
+    memory accessible both on host and on device.
+
     Example:
 
     ```mlir
-    %memref, %token = gpu.alloc async [%dep] (%width) : memref<64x?xf32, 1>
+    %memref, %token = gpu.alloc async [%dep] host_shared (%width) : memref<64x?xf32, 1>
     ```
   }];
 
   let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
-                   Variadic<Index>:$dynamicSizes, Variadic<Index>:$symbolOperands);
+                   Variadic<Index>:$dynamicSizes, Variadic<Index>:$symbolOperands,
+                   UnitAttr:$hostShared);
   let results = (outs Res<AnyMemRef, "", [MemAlloc]>:$memref,
                  Optional<GPU_AsyncToken>:$asyncToken);
 
@@ -936,7 +964,7 @@ def GPU_AllocOp : GPU_Op<"alloc", [
   }];
 
   let assemblyFormat = [{
-    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies) ` `
+    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies) (` ` `host_shared` $hostShared^)? ` `
     `(` $dynamicSizes `)` (`` `[` $symbolOperands^ `]`)? attr-dict `:` type($memref)
   }];
 
@@ -1136,7 +1164,7 @@ def GPU_SubgroupMmaStoreMatrixOp : GPU_Op<"subgroup_mma_store_matrix",
 }
 
 def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
-   [NoSideEffect, AllTypesMatch<["opC", "res"]>]>{
+   [Pure, AllTypesMatch<["opC", "res"]>]>{
 
   let summary = "GPU warp synchronous matrix multiply accumulate";
 
@@ -1174,7 +1202,7 @@ def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
 }
 
 def GPU_SubgroupMmaConstantMatrixOp : GPU_Op<"subgroup_mma_constant_matrix",
-    [NoSideEffect,
+    [Pure,
      TypesMatchWith<"value type matches element type of mma_matrix",
                     "res", "value",
                     "$_self.cast<gpu::MMAMatrixType>().getElementType()">]>{
@@ -1239,7 +1267,7 @@ def MMAElementWiseAttr : EnumAttr<GPU_Dialect, MMAElementWise,
                                   "mma_element_wise">;
 
 def GPU_SubgroupMmaElementwiseOp : GPU_Op<"subgroup_mma_elementwise",
-    [NoSideEffect,
+    [Pure,
      AllTypesMatch<["args"]>]>{
 
   let summary = "GPU warp elementwise operation on a matrix";

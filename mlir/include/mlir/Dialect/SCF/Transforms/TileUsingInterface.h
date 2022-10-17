@@ -53,8 +53,8 @@ struct SCFTilingOptions {
   SCFTilingOptions &setTileSizes(ArrayRef<int64_t> ts);
 
   /// The interchange vector to reorder the tiled loops.
-  SmallVector<unsigned> interchangeVector = {};
-  SCFTilingOptions &setInterchange(ArrayRef<unsigned> interchange) {
+  SmallVector<int64_t> interchangeVector = {};
+  SCFTilingOptions &setInterchange(ArrayRef<int64_t> interchange) {
     interchangeVector = llvm::to_vector(interchange);
     return *this;
   }
@@ -75,7 +75,7 @@ struct SCFTilingResult {
 /// `scf.for` for iterating over the tiles.
 FailureOr<SCFTilingResult> tileUsingSCFForOp(RewriterBase &rewriter,
                                              TilingInterface op,
-                                             SCFTilingOptions options);
+                                             const SCFTilingOptions &options);
 
 /// Options used to control tile + fuse.
 struct SCFTileAndFuseOptions {
@@ -127,9 +127,9 @@ struct SCFTileAndFuseResult {
 /// }
 /// ```
 FailureOr<SCFTileAndFuseResult>
-tileConsumerAndFuseProducerGreedilyUsingSCFForOp(RewriterBase &rewriter,
-                                                 TilingInterface consumer,
-                                                 SCFTileAndFuseOptions options);
+tileConsumerAndFuseProducerGreedilyUsingSCFForOp(
+    RewriterBase &rewriter, TilingInterface consumer,
+    const SCFTileAndFuseOptions &options);
 
 /// Method to lower an `op` that implements the `TilingInterface` to
 /// loops/scalars.

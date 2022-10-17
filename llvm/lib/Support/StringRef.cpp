@@ -42,12 +42,12 @@ int StringRef::compare_insensitive(StringRef RHS) const {
   return Length < RHS.Length ? -1 : 1;
 }
 
-bool StringRef::startswith_insensitive(StringRef Prefix) const {
+bool StringRef::starts_with_insensitive(StringRef Prefix) const {
   return Length >= Prefix.Length &&
       ascii_strncasecmp(Data, Prefix.Data, Prefix.Length) == 0;
 }
 
-bool StringRef::endswith_insensitive(StringRef Suffix) const {
+bool StringRef::ends_with_insensitive(StringRef Suffix) const {
   return Length >= Suffix.Length &&
       ascii_strncasecmp(end() - Suffix.Length, Suffix.Data, Suffix.Length) == 0;
 }
@@ -147,6 +147,18 @@ size_t StringRef::find(StringRef Str, size_t From) const {
   }
 
   const char *Stop = Start + (Size - N + 1);
+
+  if (N == 2) {
+    // Provide a fast path for newline finding (CRLF case) in InclusionRewriter.
+    // Not the most optimized strategy, but getting memcmp inlined should be
+    // good enough.
+    do {
+      if (std::memcmp(Start, Needle, 2) == 0)
+        return Start - Data;
+      ++Start;
+    } while (Start < Stop);
+    return npos;
+  }
 
   // For short haystacks or unsupported needles fall back to the naive algorithm
   if (Size < 16 || N > 255) {

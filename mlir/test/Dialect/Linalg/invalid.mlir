@@ -391,6 +391,70 @@ func.func @invalid_reverse(%A: memref<5xf32>, %B: memref<5xf32>) {
 
 // -----
 
+func.func @map_binary_wrong_yield_operands(
+    %lhs: tensor<64xf32>, %rhs: tensor<64xf32>, %init: tensor<64xf32>)
+    -> tensor<64xf32> {
+   %add = linalg.map
+          ins(%lhs, %rhs : tensor<64xf32>, tensor<64xf32>)
+          outs(%init:tensor<64xf32>)
+          (%lhs_elem: f32, %rhs_elem: f32) {
+            %0 = arith.addf %lhs_elem, %rhs_elem: f32
+            // expected-error @+1{{'linalg.yield' op expected number of yield values (1) to match the number of operands of the enclosing LinalgOp (2)}}
+            linalg.yield %0, %0: f32, f32
+          }
+  func.return %add : tensor<64xf32>
+}
+
+// -----
+
+func.func @map_input_mapper_arity_mismatch(
+    %lhs: tensor<64xf32>, %rhs: tensor<64xf32>, %init: tensor<64xf32>)
+    -> tensor<64xf32> {
+  // expected-error@+1{{'linalg.map' op expects number of operands to match the arity of mapper, but got: 2 and 3}}
+  %add = linalg.map
+      ins(%lhs, %rhs : tensor<64xf32>, tensor<64xf32>)
+      outs(%init:tensor<64xf32>)
+      (%lhs_elem: f32, %rhs_elem: f32, %extra_elem: f32) {
+        %0 = arith.addf %lhs_elem, %rhs_elem: f32
+        linalg.yield %0: f32
+      }
+  func.return %add : tensor<64xf32>
+}
+
+// -----
+
+func.func @map_input_mapper_type_mismatch(
+    %lhs: tensor<64xf32>, %rhs: tensor<64xf32>, %init: tensor<64xf32>)
+    -> tensor<64xf32> {
+    // expected-error@+1{{'linalg.map' op expected element type of input 'f32' to match bbArg type 'f64'}}
+  %add = linalg.map
+      ins(%lhs, %rhs : tensor<64xf32>, tensor<64xf32>)
+      outs(%init:tensor<64xf32>)
+      (%lhs_elem: f64, %rhs_elem: f64) {
+        %0 = arith.addf %lhs_elem, %rhs_elem: f64
+        linalg.yield %0: f64
+      }
+  func.return %add : tensor<64xf32>
+}
+
+// -----
+
+func.func @map_input_output_shape_mismatch(
+    %lhs: tensor<64x64xf32>, %rhs: tensor<64x64xf32>, %init: tensor<32xf32>)
+    -> tensor<32xf32> {
+    // expected-error@+1{{'linalg.map' op expected shape of input (64, 64) to match shape of output (32)}}
+  %add = linalg.map
+      ins(%lhs, %rhs : tensor<64x64xf32>, tensor<64x64xf32>)
+      outs(%init:tensor<32xf32>)
+      (%lhs_elem: f32, %rhs_elem: f32) {
+        %0 = arith.addf %lhs_elem, %rhs_elem: f32
+        linalg.yield %0: f32
+      }
+  func.return %add : tensor<32xf32>
+}
+
+// -----
+
 func.func @reduce_input_vs_init_dimension_mismatch(
     %input: tensor<16x32x64xf32>,
     %init: tensor<16x64xf32>)  -> tensor<16x64xf32> {
@@ -426,7 +490,7 @@ func.func @reduce_dimensions_out_of_range(%input: tensor<16x32x64xf32>,
 
 func.func @reduce_duplicate_dimensions(%input: tensor<16x32x64xf32>,
     %init: tensor<16xf32>)  -> tensor<16xf32> {
-  // expected-error @+1 {{'linalg.reduce' op reduction dimensions are not in increasing order: 1, 1}}
+  // expected-error @+1 {{'linalg.reduce' op attribute 'dimensions' failed to satisfy constraint: i64 dense array attribute should be in increasing order}}
   %reduce = linalg.reduce
       ins(%input:tensor<16x32x64xf32>)
       outs(%init:tensor<16xf32>)
@@ -442,7 +506,7 @@ func.func @reduce_duplicate_dimensions(%input: tensor<16x32x64xf32>,
 
 func.func @reduce_non_increasing_dimensions(%input: tensor<16x32x64xf32>,
     %init: tensor<16xf32>)  -> tensor<16xf32> {
-  // expected-error @+1 {{'linalg.reduce' op reduction dimensions are not in increasing order: 2, 1}}
+  // expected-error @+1 {{'linalg.reduce' op attribute 'dimensions' failed to satisfy constraint: i64 dense array attribute should be in increasing order}}
   %reduce = linalg.reduce
       ins(%input:tensor<16x32x64xf32>)
       outs(%init:tensor<16xf32>)

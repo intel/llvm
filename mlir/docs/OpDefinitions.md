@@ -106,7 +106,7 @@ An operation is defined by specializing the `Op` class with concrete contents
 for all the fields it requires. For example, `tf.AvgPool` is defined as
 
 ```tablegen
-def TF_AvgPoolOp : TF_Op<"AvgPool", [NoSideEffect]> {
+def TF_AvgPoolOp : TF_Op<"AvgPool", [NoMemoryEffect]> {
   let summary = "Performs average pooling on the input.";
 
   let description = [{
@@ -651,11 +651,11 @@ The available directives are as follows:
     -   See the [Custom Directives](#custom-directives) section below for more
         details.
 
-*   `functional-type` ( inputs , results )
+*   `functional-type` ( inputs , outputs )
 
-    -   Formats the `inputs` and `results` arguments as a
+    -   Formats the `inputs` and `outputs` arguments as a
         [function type](Dialects/Builtin.md/#functiontype).
-    -   The constraints on `inputs` and `results` are the same as the `input` of
+    -   The constraints on `inputs` and `outputs` are the same as the `input` of
         the `type` directive.
 
 *   `oilist` ( \`keyword\` elements | \`otherKeyword\` elements ...)

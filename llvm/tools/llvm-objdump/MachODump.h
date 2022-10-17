@@ -16,12 +16,14 @@ namespace llvm {
 
 class Error;
 class StringRef;
+class MemoryBuffer;
 
 namespace object {
 class MachOObjectFile;
 class MachOUniversalBinary;
 class ObjectFile;
 class RelocationRef;
+class Binary;
 } // namespace object
 
 namespace opt {
@@ -31,6 +33,8 @@ class InputArgList;
 namespace objdump {
 
 void parseMachOOptions(const llvm::opt::InputArgList &InputArgs);
+
+enum class FunctionStartsMode { Addrs, Names, Both, None };
 
 // MachO specific options
 extern bool Bind;
@@ -43,7 +47,7 @@ extern bool DylibsUsed;
 extern bool ExportsTrie;
 extern bool FirstPrivateHeader;
 extern bool FullLeadingAddr;
-extern bool FunctionStarts;
+extern FunctionStartsMode FunctionStartsType;
 extern bool IndirectSymbols;
 extern bool InfoPlist;
 extern bool LazyBind;
@@ -60,6 +64,11 @@ extern bool WeakBind;
 Error getMachORelocationValueString(const object::MachOObjectFile *Obj,
                                     const object::RelocationRef &RelRef,
                                     llvm::SmallVectorImpl<char> &Result);
+
+const object::MachOObjectFile *
+getMachODSymObject(const object::MachOObjectFile *O, StringRef Filename,
+                   std::unique_ptr<object::Binary> &DSYMBinary,
+                   std::unique_ptr<MemoryBuffer> &DSYMBuf);
 
 void parseInputMachO(StringRef Filename);
 void parseInputMachO(object::MachOUniversalBinary *UB);

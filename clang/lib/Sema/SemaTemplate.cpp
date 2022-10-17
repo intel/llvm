@@ -1691,14 +1691,28 @@ namespace {
 class ConstraintRefersToContainingTemplateChecker
     : public TreeTransform<ConstraintRefersToContainingTemplateChecker> {
   bool Result = false;
+  const FunctionDecl *Friend = nullptr;
   unsigned TemplateDepth = 0;
+
+  // Check a record-decl that we've seen to see if it is a lexical parent of the
+  // Friend, likely because it was referred to without its template arguments.
+  void CheckIfContainingRecord(const CXXRecordDecl *CheckingRD) {
+    CheckingRD = CheckingRD->getMostRecentDecl();
+
+    for (const DeclContext *DC = Friend->getLexicalDeclContext();
+         DC && !DC->isFileContext(); DC = DC->getParent())
+      if (const auto *RD = dyn_cast<CXXRecordDecl>(DC))
+        if (CheckingRD == RD->getMostRecentDecl())
+          Result = true;
+  }
 
 public:
   using inherited = TreeTransform<ConstraintRefersToContainingTemplateChecker>;
 
   ConstraintRefersToContainingTemplateChecker(Sema &SemaRef,
+                                              const FunctionDecl *Friend,
                                               unsigned TemplateDepth)
-      : inherited(SemaRef), TemplateDepth(TemplateDepth) {}
+      : inherited(SemaRef), Friend(Friend), TemplateDepth(TemplateDepth) {}
   bool getResult() const { return Result; }
 
   // This should be the only template parm type that we have to deal with.
@@ -1728,6 +1742,8 @@ public:
       TransformType(VD->getType());
     else if (auto *TD = dyn_cast<TemplateDecl>(D))
       TransformTemplateParameterList(TD->getTemplateParameters());
+    else if (auto *RD = dyn_cast<CXXRecordDecl>(D))
+      CheckIfContainingRecord(RD);
     else if (isa<NamedDecl>(D)) {
       // No direct types to visit here I believe.
     } else
@@ -1738,8 +1754,11 @@ public:
 } // namespace
 
 bool Sema::ConstraintExpressionDependsOnEnclosingTemplate(
-    unsigned TemplateDepth, const Expr *Constraint) {
-  ConstraintRefersToContainingTemplateChecker Checker(*this, TemplateDepth);
+    const FunctionDecl *Friend, unsigned TemplateDepth,
+    const Expr *Constraint) {
+  assert(Friend->getFriendObjectKind() && "Only works on a friend");
+  ConstraintRefersToContainingTemplateChecker Checker(*this, Friend,
+                                                      TemplateDepth);
   Checker.TransformExpr(const_cast<Expr *>(Constraint));
   return Checker.getResult();
 }
@@ -3562,16 +3581,11 @@ checkBuiltinTemplateIdType(Sema &SemaRef, BuiltinTemplateDecl *BTD,
                            TemplateArgumentListInfo &TemplateArgs) {
   ASTContext &Context = SemaRef.getASTContext();
 
-  TemplateParameterList *TPL = BTD->getTemplateParameters();
-
   // Wrap the type in substitution sugar.
   auto getSubstType = [&](QualType Replacement, unsigned IndexReplaced,
                           Optional<unsigned> PackIndexReplaced) {
-    QualType TTP = SemaRef.Context.getTemplateTypeParmType(
-        0, IndexReplaced, false,
-        cast<TemplateTypeParmDecl>(TPL->getParam(IndexReplaced)));
     return SemaRef.Context.getSubstTemplateTypeParmType(
-        cast<TemplateTypeParmType>(TTP), Replacement, PackIndexReplaced);
+        Replacement, BTD, IndexReplaced, PackIndexReplaced);
   };
 
   switch (BTD->getBuiltinTemplateKind()) {
@@ -3620,8 +3634,7 @@ checkBuiltinTemplateIdType(Sema &SemaRef, BuiltinTemplateDecl *BTD,
 
     // Wrap the template in substitution sugar.
     TemplateName TN = SemaRef.Context.getSubstTemplateTemplateParm(
-        cast<TemplateTemplateParmDecl>(TPL->getParam(0)),
-        Converted[0].getAsTemplate());
+        Converted[0].getAsTemplate(), BTD, 0, None);
 
     // The first template argument will be reused as the template decl that
     // our synthetic template arguments will be applied to.
@@ -3853,7 +3866,8 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
 
     // Only substitute for the innermost template argument list.
     MultiLevelTemplateArgumentList TemplateArgLists;
-    TemplateArgLists.addOuterTemplateArguments(&StackTemplateArgs);
+    TemplateArgLists.addOuterTemplateArguments(Template,
+                                               StackTemplateArgs.asArray());
     TemplateArgLists.addOuterRetainedLevels(
         AliasTemplate->getTemplateParameters()->getDepth());
 
@@ -3978,7 +3992,7 @@ QualType Sema::CheckTemplateIdType(TemplateName Name,
       InstantiatingTemplate Inst(*this, TemplateLoc, Decl);
       if (!Inst.isInvalid()) {
         MultiLevelTemplateArgumentList TemplateArgLists;
-        TemplateArgLists.addOuterTemplateArguments(Converted);
+        TemplateArgLists.addOuterTemplateArguments(Template, Converted);
         InstantiateAttrsForDecl(TemplateArgLists,
                                 ClassTemplate->getTemplatedDecl(), Decl);
       }
@@ -4857,7 +4871,7 @@ Sema::CheckConceptTemplateId(const CXXScopeSpec &SS,
       TemplateSpecializationType::anyDependentTemplateArguments(*TemplateArgs,
                                                                 Converted);
   MultiLevelTemplateArgumentList MLTAL;
-  MLTAL.addOuterTemplateArguments(Converted);
+  MLTAL.addOuterTemplateArguments(NamedConcept, Converted);
   LocalInstantiationScope Scope(*this);
   if (!AreArgsDependent &&
       CheckConstraintSatisfaction(
@@ -5267,8 +5281,8 @@ SubstDefaultTemplateArgument(Sema &SemaRef,
     TemplateArgumentList TemplateArgs(TemplateArgumentList::OnStack, Converted);
 
     // Only substitute for the innermost template argument list.
-    MultiLevelTemplateArgumentList TemplateArgLists;
-    TemplateArgLists.addOuterTemplateArguments(&TemplateArgs);
+    MultiLevelTemplateArgumentList TemplateArgLists(Template,
+                                                    TemplateArgs.asArray());
     for (unsigned i = 0, e = Param->getDepth(); i != e; ++i)
       TemplateArgLists.addOuterTemplateArguments(None);
 
@@ -5323,8 +5337,8 @@ SubstDefaultTemplateArgument(Sema &SemaRef,
   TemplateArgumentList TemplateArgs(TemplateArgumentList::OnStack, Converted);
 
   // Only substitute for the innermost template argument list.
-  MultiLevelTemplateArgumentList TemplateArgLists;
-  TemplateArgLists.addOuterTemplateArguments(&TemplateArgs);
+  MultiLevelTemplateArgumentList TemplateArgLists(Template,
+                                                  TemplateArgs.asArray());
   for (unsigned i = 0, e = Param->getDepth(); i != e; ++i)
     TemplateArgLists.addOuterTemplateArguments(None);
 
@@ -5376,8 +5390,8 @@ SubstDefaultTemplateArgument(Sema &SemaRef,
   TemplateArgumentList TemplateArgs(TemplateArgumentList::OnStack, Converted);
 
   // Only substitute for the innermost template argument list.
-  MultiLevelTemplateArgumentList TemplateArgLists;
-  TemplateArgLists.addOuterTemplateArguments(&TemplateArgs);
+  MultiLevelTemplateArgumentList TemplateArgLists(Template,
+                                                  TemplateArgs.asArray());
   for (unsigned i = 0, e = Param->getDepth(); i != e; ++i)
     TemplateArgLists.addOuterTemplateArguments(None);
 
@@ -5561,18 +5575,15 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param,
       TemplateArgumentList TemplateArgs(TemplateArgumentList::OnStack,
                                         Converted);
 
+      MultiLevelTemplateArgumentList MLTAL(Template, TemplateArgs.asArray());
       // If the parameter is a pack expansion, expand this slice of the pack.
       if (auto *PET = NTTPType->getAs<PackExpansionType>()) {
         Sema::ArgumentPackSubstitutionIndexRAII SubstIndex(*this,
                                                            ArgumentPackIndex);
-        NTTPType = SubstType(PET->getPattern(),
-                             MultiLevelTemplateArgumentList(TemplateArgs),
-                             NTTP->getLocation(),
+        NTTPType = SubstType(PET->getPattern(), MLTAL, NTTP->getLocation(),
                              NTTP->getDeclName());
       } else {
-        NTTPType = SubstType(NTTPType,
-                             MultiLevelTemplateArgumentList(TemplateArgs),
-                             NTTP->getLocation(),
+        NTTPType = SubstType(NTTPType, MLTAL, NTTP->getLocation(),
                              NTTP->getDeclName());
       }
 
@@ -5715,15 +5726,15 @@ bool Sema::CheckTemplateArgument(NamedDecl *Param,
   {
     // Set up a template instantiation context.
     LocalInstantiationScope Scope(*this);
-    InstantiatingTemplate Inst(*this, TemplateLoc, Template,
-                               TempParm, Converted,
-                               SourceRange(TemplateLoc, RAngleLoc));
+    InstantiatingTemplate Inst(*this, TemplateLoc, Template, TempParm,
+                               Converted, SourceRange(TemplateLoc, RAngleLoc));
     if (Inst.isInvalid())
       return true;
 
     TemplateArgumentList TemplateArgs(TemplateArgumentList::OnStack, Converted);
-    Params = SubstTemplateParams(Params, CurContext,
-                                 MultiLevelTemplateArgumentList(TemplateArgs));
+    Params = SubstTemplateParams(
+        Params, CurContext,
+        MultiLevelTemplateArgumentList(Template, TemplateArgs.asArray()));
     if (!Params)
       return true;
   }
@@ -7829,8 +7840,8 @@ Sema::BuildExpressionFromIntegralTemplateArgument(const TemplateArgument &Arg,
     E = new (Context) CharacterLiteral(Arg.getAsIntegral().getZExtValue(),
                                        Kind, T, Loc);
   } else if (T->isBooleanType()) {
-    E = new (Context) CXXBoolLiteralExpr(Arg.getAsIntegral().getBoolValue(),
-                                         T, Loc);
+    E = CXXBoolLiteralExpr::Create(Context, Arg.getAsIntegral().getBoolValue(),
+                                   T, Loc);
   } else if (T->isNullPtrType()) {
     E = new (Context) CXXNullPtrLiteralExpr(Context.NullPtrTy, Loc);
   } else {
@@ -7943,12 +7954,26 @@ static bool MatchTemplateParameterKind(
                  : Kind),
             TemplateArgLoc))
       return false;
-  } else if (Kind != Sema::TPL_TemplateTemplateArgumentMatch) {
+  }
+
+  if (Kind != Sema::TPL_TemplateTemplateArgumentMatch &&
+      !isa<TemplateTemplateParmDecl>(Old)) {
     const Expr *NewC = nullptr, *OldC = nullptr;
-    if (const auto *TC = cast<TemplateTypeParmDecl>(New)->getTypeConstraint())
-      NewC = TC->getImmediatelyDeclaredConstraint();
-    if (const auto *TC = cast<TemplateTypeParmDecl>(Old)->getTypeConstraint())
-      OldC = TC->getImmediatelyDeclaredConstraint();
+
+    if (isa<TemplateTypeParmDecl>(New)) {
+      if (const auto *TC = cast<TemplateTypeParmDecl>(New)->getTypeConstraint())
+        NewC = TC->getImmediatelyDeclaredConstraint();
+      if (const auto *TC = cast<TemplateTypeParmDecl>(Old)->getTypeConstraint())
+        OldC = TC->getImmediatelyDeclaredConstraint();
+    } else if (isa<NonTypeTemplateParmDecl>(New)) {
+      if (const Expr *E = cast<NonTypeTemplateParmDecl>(New)
+                              ->getPlaceholderTypeConstraint())
+        NewC = E;
+      if (const Expr *E = cast<NonTypeTemplateParmDecl>(Old)
+                              ->getPlaceholderTypeConstraint())
+        OldC = E;
+    } else
+      llvm_unreachable("unexpected template parameter type");
 
     auto Diagnose = [&] {
       S.Diag(NewC ? NewC->getBeginLoc() : New->getBeginLoc(),
@@ -8905,9 +8930,12 @@ void Sema::CheckConceptRedefinition(ConceptDecl *NewDecl,
 
 /// \brief Strips various properties off an implicit instantiation
 /// that has just been explicitly specialized.
-static void StripImplicitInstantiation(NamedDecl *D) {
-  D->dropAttr<DLLImportAttr>();
-  D->dropAttr<DLLExportAttr>();
+static void StripImplicitInstantiation(NamedDecl *D, bool MinGW) {
+  if (MinGW || (isa<FunctionDecl>(D) &&
+                cast<FunctionDecl>(D)->isFunctionTemplateSpecialization())) {
+    D->dropAttr<DLLImportAttr>();
+    D->dropAttr<DLLExportAttr>();
+  }
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
     FD->setInlineSpecified(false);
@@ -8982,7 +9010,9 @@ Sema::CheckSpecializationInstantiationRedecl(SourceLocation NewLoc,
       if (PrevPointOfInstantiation.isInvalid()) {
         // The declaration itself has not actually been instantiated, so it is
         // still okay to specialize it.
-        StripImplicitInstantiation(PrevDecl);
+        StripImplicitInstantiation(
+            PrevDecl,
+            Context.getTargetInfo().getTriple().isWindowsGNUEnvironment());
         return false;
       }
       // Fall through
