@@ -69,4 +69,13 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
   }];
 }
 
+class SYCLOpTrait<string name> : NativeOpTrait<name> {
+  let cppNamespace = "::mlir::sycl";
+}
+
+def SYCLGetID : SYCLOpTrait<"SYCLGetID">;
+def SYCLGetComponent : SYCLOpTrait<"SYCLGetComponent">;
+def SYCLGetRange : SYCLOpTrait<"SYCLGetRange">;
+def SYCLGetGroup : SYCLOpTrait<"SYCLGetGroup">;
+
 #endif // SYCL_OP_INTERFACES
