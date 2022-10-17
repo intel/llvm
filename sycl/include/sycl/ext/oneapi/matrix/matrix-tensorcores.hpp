@@ -170,7 +170,7 @@ get_layout_id<sycl::ext::oneapi::experimental::matrix::layout::col_major>() {
   return 1;
 }
 
-template <sycl::ext::oneapi::experimental::matrix::layout LayoutL, typename S,
+template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename S,
           typename T, size_t NumRows, size_t NumCols,
           access::address_space Space>
 void load_accumulator_layoutT(
@@ -183,42 +183,42 @@ void load_accumulator_layoutT(
     auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       __imma_m16n16k16_ld_c(destptr, src.get(), stride,
-                            get_layout_id<LayoutL>());
+                            get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 32) {
       __imma_m8n32k16_ld_c(destptr, src.get(), stride,
-                           get_layout_id<LayoutL>());
+                           get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 8) {
       __imma_m32n8k16_ld_c(destptr, src.get(), stride,
-                           get_layout_id<LayoutL>());
+                           get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, float>) {
     auto dstptr = reinterpret_cast<float *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
       __hmma_m16n16k16_ld_c_f32(dstptr, src.get(), stride,
-                                get_layout_id<LayoutL>());
+                                get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 32) {
       __hmma_m8n32k16_ld_c_f32(dstptr, src.get(), stride,
-                               get_layout_id<LayoutL>());
+                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 32 && NumCols == 8) {
       __hmma_m32n8k16_ld_c_f32(dstptr, src.get(), stride,
-                               get_layout_id<LayoutL>());
+                               get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, half>) {
-    auto tileptr = reinterpret_cast<int32_t const *>(src.get());
+    auto tileptr = reinterpret_cast<const int32_t *>(src.get());
     auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 32 && NumCols == 8) {
       __hmma_m32n8k16_ld_c_f16(dstptr, tileptr, stride,
-                               get_layout_id<LayoutL>());
+                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 8 && NumCols == 32) {
       __hmma_m8n32k16_ld_c_f16(dstptr, tileptr, stride,
-                               get_layout_id<LayoutL>());
+                               get_layout_id<Layout>());
     } else if constexpr (NumRows == 16 && NumCols == 16) {
       __hmma_m16n16k16_ld_c_f16(dstptr, tileptr, stride,
-                                get_layout_id<LayoutL>());
+                                get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<S, double>) {
     __dmma_m8n8k4_ld_c(reinterpret_cast<double *>(&res.wi_marray), src.get(),
-                       stride, get_layout_id<LayoutL>());
+                       stride, get_layout_id<Layout>());
   }
 };
 
@@ -230,8 +230,8 @@ void load_accumulator_cuda(
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
         sycl::sub_group> &res,
     multi_ptr<T, Space> src, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout LayoutAcc) {
-  switch (LayoutAcc) {
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
+  switch (Layout) {
   case sycl::ext::oneapi::experimental::matrix::layout::row_major:
     load_accumulator_layoutT<
         sycl::ext::oneapi::experimental::matrix::layout::row_major>(res, src,
@@ -379,9 +379,9 @@ void load_multiplicand_cuda(
   }
 }
 
-template <sycl::ext::oneapi::experimental::matrix::layout LayoutL, typename T,
+template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename T,
           size_t NumRows, size_t NumCols, access::address_space Space>
-void storeLayoutT(
+void store_layoutT(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
@@ -391,48 +391,48 @@ void storeLayoutT(
     if constexpr (std::is_same_v<T, float>) {
       __hmma_m16n16k16_st_c_f32(dst.get(),
                                 reinterpret_cast<float *>(&src.wi_marray),
-                                stride, get_layout_id<LayoutL>());
+                                stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
       __imma_m16n16k16_st_c_i32(dst.get(),
                                 reinterpret_cast<int32_t *>(&src.wi_marray),
-                                stride, get_layout_id<LayoutL>());
+                                stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
       __hmma_m16n16k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
                                 reinterpret_cast<int32_t *>(&src.wi_marray),
-                                stride, get_layout_id<LayoutL>());
+                                stride, get_layout_id<Layout>());
     }
   } else if constexpr (NumRows == 8 && NumCols == 32) {
     if constexpr (std::is_same_v<T, float>) {
       __hmma_m8n32k16_st_c_f32(dst.get(),
                                reinterpret_cast<float *>(&src.wi_marray),
-                               stride, get_layout_id<LayoutL>());
+                               stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
       __imma_m8n32k16_st_c_i32(dst.get(),
                                reinterpret_cast<int32_t *>(&src.wi_marray),
-                               stride, get_layout_id<LayoutL>());
+                               stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
       __hmma_m8n32k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
                                reinterpret_cast<int32_t *>(&src.wi_marray),
-                               stride, get_layout_id<LayoutL>());
+                               stride, get_layout_id<Layout>());
     }
   } else if constexpr (NumRows == 32 && NumCols == 8) {
     if constexpr (std::is_same_v<T, float>) {
       __hmma_m32n8k16_st_c_f32(dst.get(),
                                reinterpret_cast<float *>(&src.wi_marray),
-                               stride, get_layout_id<LayoutL>());
+                               stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
       __imma_m32n8k16_st_c_i32(dst.get(),
                                reinterpret_cast<int32_t *>(&src.wi_marray),
-                               stride, get_layout_id<LayoutL>());
+                               stride, get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
       __hmma_m32n8k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
                                reinterpret_cast<int32_t *>(&src.wi_marray),
-                               stride, get_layout_id<LayoutL>());
+                               stride, get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<T, double>) {
     __dmma_m8n8k4_st_c_f64(dst.get(),
                            reinterpret_cast<double *>(&src.wi_marray), stride,
-                           get_layout_id<LayoutL>());
+                           get_layout_id<Layout>());
   }
 }
 
@@ -444,14 +444,14 @@ void joint_matrix_store_cuda(
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
         sycl::sub_group> &src,
     multi_ptr<T, Space> dst, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout LayoutAcc) {
-  switch (LayoutAcc) {
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
+  switch (Layout) {
   case sycl::ext::oneapi::experimental::matrix::layout::row_major:
-    storeLayoutT<sycl::ext::oneapi::experimental::matrix::layout::row_major>(
+    store_layoutT<sycl::ext::oneapi::experimental::matrix::layout::row_major>(
         src, dst, stride);
     break;
   case sycl::ext::oneapi::experimental::matrix::layout::col_major:
-    storeLayoutT<sycl::ext::oneapi::experimental::matrix::layout::col_major>(
+    store_layoutT<sycl::ext::oneapi::experimental::matrix::layout::col_major>(
         src, dst, stride);
     break;
   default:

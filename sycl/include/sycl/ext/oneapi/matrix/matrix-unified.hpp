@@ -47,10 +47,10 @@ void joint_matrix_load(
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic,
                  Group> &res,
     multi_ptr<T, Space> src, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout LayoutAcc) {
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  sycl::ext::oneapi::detail::load_accumulator_cuda(res, src, stride, LayoutAcc);
+  sycl::ext::oneapi::detail::load_accumulator_cuda(res, src, stride, Layout);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -100,12 +100,12 @@ void joint_matrix_store(
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic,
                  Group> &src,
     multi_ptr<T, Space> dst, size_t stride,
-    sycl::ext::oneapi::experimental::matrix::layout LayoutAcc) {
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
                                                      Space>(src, dst, stride,
-                                                            LayoutAcc);
+                                                            Layout);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
