@@ -3515,9 +3515,9 @@ void MLIRASTConsumer::setMLIRFunctionResultAttributes(
   SmallVector<std::vector<mlir::NamedAttribute>, 2> resAttrs;
   CodeGenUtils::ResultDesc::getAttributes(resDescriptors, resAttrs);
 
-  for (unsigned retIndex : llvm::seq<unsigned>(0, function.getNumResults()))
-    for (mlir::NamedAttribute attr : resAttrs[retIndex])
-      function.setResultAttr(retIndex, attr.getName(), attr.getValue());
+  for (unsigned resIndex : llvm::seq<unsigned>(0, function.getNumResults()))
+    for (mlir::NamedAttribute attr : resAttrs[resIndex])
+      function.setResultAttr(resIndex, attr.getName(), attr.getValue());
 }
 
 llvm::Optional<mlir::FunctionOpInterface>

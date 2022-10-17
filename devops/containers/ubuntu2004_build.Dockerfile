@@ -29,6 +29,15 @@ RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
 # Add sycl user to video group so that it can access GPU
 RUN usermod -aG video sycl
 
+# Install CPU Runtime
+ARG tbb_tag=latest
+ARG cpu_tag=latest
+COPY scripts/get_release.py /
+COPY scripts/install_drivers.sh /
+RUN mkdir /runtimes
+ENV INSTALL_LOCATION=/runtimes
+RUN /install_drivers.sh --cpu
+
 COPY actions/cached_checkout /actions/cached_checkout
 COPY actions/cleanup /actions/cleanup
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh

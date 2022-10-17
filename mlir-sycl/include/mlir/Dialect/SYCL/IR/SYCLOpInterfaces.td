@@ -54,8 +54,28 @@ def SYCLMethodOpInterface : SYCL_OpInterface<"SYCLMethodOpInterface"> {
     }], "llvm::StringRef", "getFunctionName">,
     InterfaceMethod<[{
       Return the original name of the type this method is implemented in.
-    }], "llvm::StringRef", "getTypeName">,
+    }], "llvm::StringRef", "getTypeName">
   ];
+  // We cannot easily verify other attributes.
+  let verify = [{
+    auto interface = cast<mlir::sycl::SYCLMethodOpInterface>(op);
+    const llvm::ArrayRef<llvm::StringLiteral> methods = interface.getMethodNames();
+    const StringRef functionName = interface.getFunctionName();
+    const auto iter = std::find(methods.begin(), methods.end(), functionName);
+    if (iter == methods.end()) {
+      return $_op->emitOpError("invalid function name for this operation: ") << functionName;
+    }
+    return mlir::success();
+  }];
 }
+
+class SYCLOpTrait<string name> : NativeOpTrait<name> {
+  let cppNamespace = "::mlir::sycl";
+}
+
+def SYCLGetID : SYCLOpTrait<"SYCLGetID">;
+def SYCLGetComponent : SYCLOpTrait<"SYCLGetComponent">;
+def SYCLGetRange : SYCLOpTrait<"SYCLGetRange">;
+def SYCLGetGroup : SYCLOpTrait<"SYCLGetGroup">;
 
 #endif // SYCL_OP_INTERFACES
