@@ -31,10 +31,10 @@ int main(int argc, char **argv) {
 // CHECK-NEXT: call ptr @llvm.ptr.annotation.p0({{.*}}str{{.*}}str{{.*}}i32 14, ptr null)
 // CHECK-NEXT: call ptr @llvm.ptr.annotation.p0({{.*}}str{{.*}}str{{.*}}i32 14, ptr null)
     gf.v = argc;
-// CHECK: call ptr @llvm.ptr.annotation.p0(ptr @gf, {{.*}}str{{.*}}str{{.*}}i32 8, ptr null)
+// CHECK: call ptr @llvm.ptr.annotation.p0(ptr @gf, {{.*}}str{{.*}}str{{.*}}i32 12, ptr null)
     gf.w = 42;
-// CHECK: call ptr @llvm.ptr.annotation.p0(ptr @gf, {{.*}}str{{.*}}str{{.*}}i32 13, ptr null)
+// CHECK: call ptr @llvm.ptr.annotation.p0(ptr getelementptr inbounds (%struct.foo, ptr @gf, i32 0, i32 1), {{.*}}str{{.*}}str{{.*}}i32 13, ptr null)
     gf.f = 0;
-// CHECK: call ptr @llvm.ptr.annotation.p0(ptr @gf, {{.*}}str{{.*}}str{{.*}}i32 14, ptr null)
+// CHECK: call ptr @llvm.ptr.annotation.p0(ptr getelementptr inbounds (%struct.foo, ptr @gf, i32 0, i32 2), {{.*}}str{{.*}}str{{.*}}i32 14, ptr null)
     return 0;
 }

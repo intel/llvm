@@ -5248,7 +5248,7 @@ Sema::InstantiateFunctionDeclaration(FunctionTemplateDecl *FTD,
     return nullptr;
 
   ContextRAII SavedContext(*this, FD);
-  MultiLevelTemplateArgumentList MArgs(*Args);
+  MultiLevelTemplateArgumentList MArgs(FTD, Args->asArray());
 
   return cast_or_null<FunctionDecl>(SubstDecl(FD, FD->getParent(), MArgs));
 }
@@ -5584,8 +5584,7 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
     const TemplateArgumentList &TemplateArgList,
     const TemplateArgumentListInfo &TemplateArgsInfo,
     SmallVectorImpl<TemplateArgument> &Converted,
-    SourceLocation PointOfInstantiation,
-    LateInstantiatedAttrVec *LateAttrs,
+    SourceLocation PointOfInstantiation, LateInstantiatedAttrVec *LateAttrs,
     LocalInstantiationScope *StartingScope) {
   if (FromVar->isInvalidDecl())
     return nullptr;
@@ -5593,9 +5592,6 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   InstantiatingTemplate Inst(*this, PointOfInstantiation, FromVar);
   if (Inst.isInvalid())
     return nullptr;
-
-  MultiLevelTemplateArgumentList TemplateArgLists;
-  TemplateArgLists.addOuterTemplateArguments(&TemplateArgList);
 
   // Instantiate the first declaration of the variable template: for a partial
   // specialization of a static data member template, the first declaration may
@@ -5607,15 +5603,21 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   // partial specialization, don't do this. The member specialization completely
   // replaces the original declaration in this case.
   bool IsMemberSpec = false;
-  if (VarTemplatePartialSpecializationDecl *PartialSpec =
-          dyn_cast<VarTemplatePartialSpecializationDecl>(FromVar))
+  MultiLevelTemplateArgumentList MultiLevelList;
+  if (auto *PartialSpec =
+          dyn_cast<VarTemplatePartialSpecializationDecl>(FromVar)) {
     IsMemberSpec = PartialSpec->isMemberSpecialization();
-  else if (VarTemplateDecl *FromTemplate = FromVar->getDescribedVarTemplate())
-    IsMemberSpec = FromTemplate->isMemberSpecialization();
+    MultiLevelList.addOuterTemplateArguments(PartialSpec,
+                                             TemplateArgList.asArray());
+  } else {
+    assert(VarTemplate == FromVar->getDescribedVarTemplate());
+    IsMemberSpec = VarTemplate->isMemberSpecialization();
+    MultiLevelList.addOuterTemplateArguments(VarTemplate,
+                                             TemplateArgList.asArray());
+  }
   if (!IsMemberSpec)
     FromVar = FromVar->getFirstDecl();
 
-  MultiLevelTemplateArgumentList MultiLevelList(TemplateArgList);
   TemplateDeclInstantiator Instantiator(*this, FromVar->getDeclContext(),
                                         MultiLevelList);
 
