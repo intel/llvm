@@ -704,10 +704,6 @@ struct _pi_context : _pi_object {
   std::unordered_map<ze_device_handle_t, std::list<ze_command_list_handle_t>>
       ZeCopyCommandListCache;
 
-  // Single command list for graph api
-
-  std::list<ze_command_list_handle_t> ZeGraphCommandList;
-
   // Retrieves a command list for executing on this device along with
   // a fence to be used in tracking the execution of this command list.
   // If a command list has been created on this device which has
@@ -981,8 +977,6 @@ struct _pi_queue : _pi_object {
 
   // Returns true if the queue has discard events property.
   bool isDiscardEvents() const;
-  
-  bool isEagerExec() const;
 
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
@@ -1034,8 +1028,7 @@ struct _pi_queue : _pi_object {
   // For immediate commandlists, no close and execute is necessary.
   pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,
-                               bool OKToBatchCommand = false,
-                               bool Graph = false);
+                               bool OKToBatchCommand = false);
 
   // If there is an open command list associated with this queue,
   // close it, execute it, and reset the corresponding OpenCommandList.
