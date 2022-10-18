@@ -1385,7 +1385,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
   if (ParamName != PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
     DIE_NO_IMPLEMENTATION;
   }
-  // Dummy event is already completed ones done by CM.
+
   auto CheckAndFillStatus = [&](const cm_support::CM_STATUS &State) {
     pi_int32 Result = PI_EVENT_RUNNING;
     if (State == cm_support::CM_STATUS_FINISHED)
@@ -1400,6 +1400,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     }
     return PI_SUCCESS;
   };
+  // Dummy event is already completed ones done by CM.
   if (Event->IsDummyEvent)
     return CheckAndFillStatus(cm_support::CM_STATUS_FINISHED);
 
