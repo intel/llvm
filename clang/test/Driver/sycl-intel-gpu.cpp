@@ -84,6 +84,8 @@
 // MACRO: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
+// MACRO: clang{{.*}} "-fsycl-is-host"
+// MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
@@ -91,6 +93,8 @@
 // RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
 // MACRO_X86_64: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
+// MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
+// MACRO_X86_64: clang{{.*}} "-fsycl-is-host"
 // MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
 
 /// test for invalid arch
