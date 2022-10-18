@@ -27,6 +27,7 @@
 
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -49,31 +50,57 @@ namespace {
 using AspectsSetTy = SmallSet<int, 4>;
 using TypeToAspectsMapTy = std::unordered_map<const Type *, AspectsSetTy>;
 
-/// Retrieves from metadata (intel_types_that_use_aspects) types
+/// Retrieves from metadata (sycl_types_that_use_aspects) types
 /// and aspects these types depend on.
 TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
-  const NamedMDNode *Node = M.getNamedMetadata("intel_types_that_use_aspects");
+  const NamedMDNode *Node = M.getNamedMetadata("sycl_types_that_use_aspects");
   TypeToAspectsMapTy Result;
   if (!Node)
     return Result;
 
   LLVMContext &C = M.getContext();
-  for (const auto OperandIt : Node->operands()) {
-    const MDNode &N = *OperandIt;
-    assert(N.getNumOperands() > 1 && "intel_types_that_use_aspect metadata "
-                                     "shouldn't contain empty metadata nodes");
+  for (const MDNode *N : Node->operands()) {
+    assert(N->getNumOperands() > 1 && "intel_types_that_use_aspect metadata "
+                                      "shouldn't contain empty metadata nodes");
 
-    const auto *TypeName = cast<MDString>(N.getOperand(0));
+    const auto *TypeName = cast<MDString>(N->getOperand(0));
     const Type *T = StructType::getTypeByName(C, TypeName->getString());
     assert(T &&
            "invalid type referenced by intel_types_that_use_aspect metadata");
 
     AspectsSetTy &Aspects = Result[T];
-    for (size_t I = 1; I != N.getNumOperands(); ++I) {
-      const auto *CAM = cast<ConstantAsMetadata>(N.getOperand(I));
-      const Constant *C = CAM->getValue();
+    for (const MDOperand &Op : drop_begin(N->operands())) {
+      const Constant *C = cast<ConstantAsMetadata>(Op)->getValue();
       Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
     }
+  }
+
+  return Result;
+}
+
+using AspectValueToNameMapTy = SmallMapVector<StringRef, int, 32>;
+
+/// Retrieves from metadata (sycl_aspects) the mapping between SYCL aspect names
+/// and their integral values.
+AspectValueToNameMapTy getAspectsFromMetadata(const Module &M) {
+  const NamedMDNode *Node = M.getNamedMetadata("sycl_aspects");
+  AspectValueToNameMapTy Result;
+  if (!Node)
+    return Result;
+
+  for (const MDNode *N : Node->operands()) {
+    assert(N->getNumOperands() == 2 &&
+           "Each operand of sycl_aspects must be a pair.");
+
+    // The aspect's name is the first operand.
+    const auto *AspectName = cast<MDString>(N->getOperand(0));
+
+    // The aspect's integral value is the second operand.
+    const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
+    const Constant *AspectC = AspectCAM->getValue();
+
+    Result[AspectName->getString()] =
+        cast<ConstantInt>(AspectC)->getSExtValue();
   }
 
   return Result;
@@ -90,6 +117,7 @@ void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
   const AspectsSetTy &AspectsToPropagate = Aspects[Start];
   SmallSetVector<const Type *, 16> TypesToPropagate;
   TypesToPropagate.insert(Start);
+  // The TypesToPropagate is being updated inside the loop, so no range-for.
   for (size_t I = 0; I < TypesToPropagate.size(); ++I) {
     const Type *T = TypesToPropagate[I];
     Aspects[T].insert(AspectsToPropagate.begin(), AspectsToPropagate.end());
@@ -107,6 +135,7 @@ void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
 /// another type TT, which in turn uses the aspect A.
 /// @TypesWithAspects argument consist of known types with aspects
 /// from metadata information.
+/// @AspectValues argument consist of known aspect values and their names.
 ///
 /// The algorithm is the following:
 /// 1) Make a list of all structure types from module @M. The list also
@@ -121,18 +150,17 @@ void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
 /// Time complexity: O((V + E) * T) where T is the number of input types
 /// containing aspects.
 void propagateAspectsToOtherTypesInModule(
-    const Module &M, TypeToAspectsMapTy &TypesWithAspects) {
+    const Module &M, TypeToAspectsMapTy &TypesWithAspects,
+    AspectValueToNameMapTy &AspectValues) {
   std::unordered_set<const Type *> TypesToProcess;
   const Type *DoubleTy = Type::getDoubleTy(M.getContext());
 
-  // 6 is taken from sycl/include/CL/sycl/aspects.hpp
-  // Note: that magic number must strictly correspond to the one assigned to
-  // 'fp64' value of 'aspect' enum.
-  // FIXME: we should develop some kind of mechanism which will allow us to
-  // avoid hardcoding this number here and having a build dependency between
-  // the compiler and the runtime. See intel/llvm#5892
-  static constexpr int AspectFP64 = 6;
-  TypesWithAspects[DoubleTy].insert(AspectFP64);
+  // Find the value of the fp64 aspect from the aspect values map and register
+  // it as a special-case type with aspect for double.
+  auto FP64AspectIt = AspectValues.find("fp64");
+  assert(FP64AspectIt != AspectValues.end() &&
+         "fp64 aspect was not found in the aspect values.");
+  TypesWithAspects[DoubleTy].insert(FP64AspectIt->second);
 
   TypesToProcess.insert(DoubleTy);
   for (const Type *T : M.getIdentifiedStructTypes())
@@ -191,6 +219,12 @@ const AspectsSetTy &getAspectsFromType(const Type *T,
 AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
                                          TypeToAspectsMapTy &Types) {
   const Type *ReturnType = I.getType();
+  if (auto *AI = dyn_cast<const AllocaInst>(&I)) {
+    // Return type of an alloca is a pointer and in opaque pointers world we
+    // don't know which type it points to. Therefore, explicitly checking the
+    // allocated type instead
+    ReturnType = AI->getAllocatedType();
+  }
   AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
   for (const auto &OperandIt : I.operands()) {
     const AspectsSetTy &Aspects =
@@ -205,12 +239,10 @@ using FunctionToAspectsMapTy = DenseMap<Function *, AspectsSetTy>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
 void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
-  for (auto &It : Map) {
-    AspectsSetTy &Aspects = It.second;
+  for (auto &[F, Aspects] : Map) {
     if (Aspects.empty())
       continue;
 
-    Function *F = It.first;
     LLVMContext &C = F->getContext();
 
     SmallVector<Metadata *, 16> AspectsMetadata;
@@ -219,7 +251,7 @@ void createUsedAspectsMetadataForFunctions(FunctionToAspectsMapTy &Map) {
           ConstantInt::getSigned(Type::getInt32Ty(C), A)));
 
     MDNode *MDN = MDNode::get(C, AspectsMetadata);
-    F->setMetadata("intel_used_aspects", MDN);
+    F->setMetadata("sycl_used_aspects", MDN);
   }
 }
 
@@ -250,6 +282,7 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
 ///  - checks if return and argument types are using any aspects
 ///  - checks if instructions are using any aspects
 ///  - updates call graph information
+///  - checks if function has "!sycl_used_aspects" metadata
 ///
 void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
                      TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG) {
@@ -271,6 +304,16 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToAspects,
       if (!CI->isIndirectCall() && CI->getCalledFunction())
         CG[&F].insert(CI->getCalledFunction());
     }
+  }
+
+  if (F.hasMetadata("sycl_used_aspects")) {
+    const MDNode *MD = F.getMetadata("sycl_used_aspects");
+    AspectsSetTy Aspects;
+    for (const MDOperand &Op : MD->operands()) {
+      Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
+      Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
+    }
+    FunctionToAspects[&F].insert(Aspects.begin(), Aspects.end());
   }
 }
 
@@ -333,7 +376,19 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
 PreservedAnalyses
 SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
-  propagateAspectsToOtherTypesInModule(M, TypesWithAspects);
+  AspectValueToNameMapTy AspectValues = getAspectsFromMetadata(M);
+
+  // If there is no metadata for aspect values the source code must not have
+  // included the SYCL headers. In that case there should also not be any types
+  // that use aspects, so we can skip this pass.
+  if (AspectValues.empty()) {
+    assert(TypesWithAspects.empty() &&
+           "sycl_aspects metadata is missing but "
+           "sycl_types_that_use_aspects is present.");
+    return PreservedAnalyses::all();
+  }
+
+  propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
   FunctionToAspectsMapTy FunctionToAspects =
       buildFunctionsToAspectsMap(M, TypesWithAspects);

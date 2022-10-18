@@ -33,6 +33,8 @@ range<3> &AccessorBaseHost::getAccessRange() { return impl->MAccessRange; }
 range<3> &AccessorBaseHost::getMemoryRange() { return impl->MMemoryRange; }
 void *AccessorBaseHost::getPtr() { return impl->MData; }
 
+detail::AccHostDataT &AccessorBaseHost::getAccData() { return impl->MAccData; }
+
 const property_list &AccessorBaseHost::getPropList() const {
   return impl->MPropertyList;
 }
@@ -52,10 +54,11 @@ void *AccessorBaseHost::getPtr() const {
 
 void *AccessorBaseHost::getMemoryObject() const { return impl->MSYCLMemObj; }
 
-LocalAccessorBaseHost::LocalAccessorBaseHost(sycl::range<3> Size, int Dims,
-                                             int ElemSize) {
+LocalAccessorBaseHost::LocalAccessorBaseHost(
+    sycl::range<3> Size, int Dims, int ElemSize,
+    const property_list &PropertyList) {
   impl = std::shared_ptr<LocalAccessorImplHost>(
-      new LocalAccessorImplHost(Size, Dims, ElemSize));
+      new LocalAccessorImplHost(Size, Dims, ElemSize, PropertyList));
 }
 sycl::range<3> &LocalAccessorBaseHost::getSize() { return impl->MSize; }
 const sycl::range<3> &LocalAccessorBaseHost::getSize() const {
@@ -75,6 +78,9 @@ void *LocalAccessorBaseHost::getPtr() const {
   }
 
   return ptr;
+}
+const property_list &LocalAccessorBaseHost::getPropList() const {
+  return impl->MPropertyList;
 }
 
 int LocalAccessorBaseHost::getNumOfDims() { return impl->MDims; }

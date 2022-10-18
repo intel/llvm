@@ -65,14 +65,8 @@ pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
 }
 
 TEST_F(SchedulerTest, CommandsWaitForEvents) {
-  default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
-
-  platform Plt{Selector};
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   Mock.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
   Mock.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
@@ -80,9 +74,9 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
 
   context Ctx1{Plt.get_devices()[0]};
-  queue Q1{Ctx1, Selector};
+  queue Q1{Ctx1, default_selector_v};
   context Ctx2{Plt.get_devices()[0]};
-  queue Q2{Ctx2, Selector};
+  queue Q2{Ctx2, default_selector_v};
 
   TestContext.reset(new TestCtx(Q1, Q2));
 
@@ -91,7 +85,8 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   std::shared_ptr<detail::event_impl> E2(
       new detail::event_impl(TestContext->EventCtx2, Q2.get_context()));
 
-  sycl::device HostDevice{host_selector{}};
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
       detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
       /*PropList=*/{}));

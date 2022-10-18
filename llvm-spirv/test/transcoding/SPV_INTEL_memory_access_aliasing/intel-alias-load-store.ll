@@ -31,7 +31,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.n.spv
 ; RUN: llvm-spirv %t.n.spv -to-text -o %t.n.spt
 ; RUN: FileCheck < %t.n.spt %s --check-prefix=CHECK-SPIRV-NEGATIVE
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
@@ -76,8 +76,8 @@ entry:
   %0 = addrspacecast i32 addrspace(1)* %_arg_ to i32 addrspace(4)*
   %1 = addrspacecast i32 addrspace(1)* %_arg_1 to i32 addrspace(4)*
   %2 = addrspacecast i32 addrspace(1)* %_arg_3 to i32 addrspace(4)*
-; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD1:[0-9]+]]
-; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD1]]{{.*}}!noalias ![[LISTMD2:[0-9]+]]
+; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD1:[0-9]+]]
+; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD1]]{{.*}}!noalias ![[LISTMD2:[0-9]+]]
   %3 = load i32, i32 addrspace(4)* %0, align 4, !tbaa !5, !alias.scope !9
   %4 = load i32, i32 addrspace(4)* %1, align 4, !tbaa !5, !alias.scope !9, !noalias !16
   %add.i = add nsw i32 %4, %3
@@ -92,8 +92,8 @@ entry:
   %0 = addrspacecast i32 addrspace(1)* %_arg_ to i32 addrspace(4)*
   %1 = addrspacecast i32 addrspace(1)* %_arg_1 to i32 addrspace(4)*
   %2 = addrspacecast i32 addrspace(1)* %_arg_3 to i32 addrspace(4)*
-; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD3:[0-9]+]]
-; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD3]]
+; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD3:[0-9]+]]
+; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD3]]
   %3 = load i32, i32 addrspace(4)* %0, align 4, !tbaa !5, !alias.scope !13
   %4 = load i32, i32 addrspace(4)* %1, align 4, !tbaa !5, !alias.scope !13
   %add.i = add i32 %3, %_arg_5

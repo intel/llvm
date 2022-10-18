@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/buffer.hpp>
+#include <sycl/detail/accessor_iterator.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
@@ -30,6 +31,7 @@
 #include <sycl/property_list_conversion.hpp>
 #include <sycl/sampler.hpp>
 
+#include <iterator>
 #include <type_traits>
 
 #include <utility>
@@ -227,6 +229,22 @@ template <typename DataT, int Dimensions = 1,
 class accessor;
 
 namespace detail {
+
+// A helper structure which is shared between buffer accessor and accessor_impl
+// TODO: Unify with AccessorImplDevice?
+struct AccHostDataT {
+  AccHostDataT(const sycl::id<3> &Offset, const sycl::range<3> &Range,
+               const sycl::range<3> &MemoryRange, void *Data = nullptr)
+      : MOffset(Offset), MAccessRange(Range), MMemoryRange(MemoryRange),
+        MData(Data) {}
+
+  sycl::id<3> MOffset;
+  sycl::range<3> MAccessRange;
+  sycl::range<3> MMemoryRange;
+  void *MData = nullptr;
+  void *Reserved = nullptr;
+};
+
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
 void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
@@ -318,7 +336,7 @@ protected:
 
   public:
     AccessorSubscript(AccType Accessor, id<Dims> IDs)
-        : MAccessor(Accessor), MIDs(IDs) {}
+        : MIDs(IDs), MAccessor(Accessor) {}
 
     // Only accessor class is supposed to use this c'tor for the first
     // operator[].
@@ -474,6 +492,8 @@ public:
   const range<3> &getMemoryRange() const;
   void *getPtr() const;
 
+  detail::AccHostDataT &getAccData();
+
   const property_list &getPropList() const;
 
   void *getMemoryObject() const;
@@ -496,13 +516,15 @@ using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 
 class __SYCL_EXPORT LocalAccessorBaseHost {
 public:
-  LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize);
+  LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize,
+                        const property_list &PropertyList = {});
   sycl::range<3> &getSize();
   const sycl::range<3> &getSize() const;
   void *getPtr();
   void *getPtr() const;
   int getNumOfDims();
   int getElementSize();
+  const property_list &getPropList() const;
 
 protected:
   template <class Obj>
@@ -1062,8 +1084,7 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
-#pragma unroll
-    for (int I = 0; I < AdjustedDim; ++I) {
+    detail::dim_loop<AdjustedDim>([&, this](size_t I) {
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
@@ -1074,7 +1095,7 @@ protected:
 #endif
       getAccessRange()[I] = AccessRange[I];
       getMemoryRange()[I] = MemRange[I];
-    }
+    });
 
     // Adjust for offsets as that part is invariant for all invocations of
     // operator[]. Will have to re-adjust in get_pointer.
@@ -1104,37 +1125,78 @@ public:
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 #else
-  id<3> &getOffset() { return AccessorBaseHost::getOffset(); }
+  id<3> &getOffset() {
+    if constexpr (IsHostBuf)
+      return MAccData->MOffset;
+    else
+      return AccessorBaseHost::getOffset();
+  }
+
   range<3> &getAccessRange() { return AccessorBaseHost::getAccessRange(); }
-  range<3> &getMemoryRange() { return AccessorBaseHost::getMemoryRange(); }
+  range<3> &getMemoryRange() {
+    if constexpr (IsHostBuf)
+      return MAccData->MMemoryRange;
+    else
+      return AccessorBaseHost::getMemoryRange();
+  }
   void *getPtr() { return AccessorBaseHost::getPtr(); }
 
-  const id<3> &getOffset() const { return AccessorBaseHost::getOffset(); }
+  const id<3> &getOffset() const {
+    if constexpr (IsHostBuf)
+      return MAccData->MOffset;
+    else
+      return AccessorBaseHost::getOffset();
+  }
   const range<3> &getAccessRange() const {
     return AccessorBaseHost::getAccessRange();
   }
   const range<3> &getMemoryRange() const {
-    return AccessorBaseHost::getMemoryRange();
+    if constexpr (IsHostBuf)
+      return MAccData->MMemoryRange;
+    else
+      return AccessorBaseHost::getMemoryRange();
   }
 
   void *getPtr() const { return AccessorBaseHost::getPtr(); }
 
+  void initHostAcc() { MAccData = &getAccData(); }
+
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {
 #ifndef NDEBUG
+    const auto *this_const = this;
     (void)getMemoryRange();
+    (void)this_const->getMemoryRange();
     (void)getOffset();
+    (void)this_const->getOffset();
     (void)getPtr();
+    (void)this_const->getPtr();
     (void)getAccessRange();
+    (void)this_const->getAccessRange();
 #endif
   }
 
+  detail::AccHostDataT *MAccData = nullptr;
+
   char padding[sizeof(detail::AccessorImplDevice<AdjustedDim>) +
-               sizeof(PtrType) - sizeof(detail::AccessorBaseHost)];
+               sizeof(PtrType) - sizeof(detail::AccessorBaseHost) -
+               sizeof(MAccData)];
 
   PtrType getQualifiedPtr() const {
-    return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
+    if constexpr (IsHostBuf)
+      return reinterpret_cast<PtrType>(MAccData->MData);
+    else
+      return reinterpret_cast<PtrType>(AccessorBaseHost::getPtr());
   }
+
+public:
+  accessor()
+      : AccessorBaseHost(
+            /*Offset=*/{0, 0, 0}, /*AccessRange=*/{0, 0, 0},
+            /*MemoryRange=*/{0, 0, 0},
+            /*AccessMode=*/getAdjustedMode({}),
+            /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
+            /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1146,6 +1208,12 @@ public:
   using value_type = DataT;
   using reference = DataT &;
   using const_reference = const DataT &;
+
+  using iterator = typename detail::accessor_iterator<DataT, Dimensions>;
+  using const_iterator =
+      typename detail::accessor_iterator<const DataT, Dimensions>;
+  using difference_type =
+      typename std::iterator_traits<iterator>::difference_type;
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1194,9 +1262,11 @@ public:
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
 #endif
   }
 
@@ -1225,9 +1295,11 @@ public:
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
 #endif
   }
 
@@ -1254,9 +1326,11 @@ public:
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1285,9 +1359,11 @@ public:
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1313,13 +1389,14 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1347,13 +1424,14 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1411,12 +1489,13 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1444,12 +1523,13 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
+    initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1631,7 +1711,6 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1642,9 +1721,11 @@ public:
 
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1673,7 +1754,6 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1684,9 +1764,11 @@ public:
 
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1746,7 +1828,6 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1755,10 +1836,12 @@ public:
           "the buffer",
           PI_ERROR_INVALID_VALUE);
 
+    initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1787,7 +1870,6 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
-    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1796,10 +1878,12 @@ public:
           "the buffer",
           PI_ERROR_INVALID_VALUE);
 
+    initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
                                     AccessTarget, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -1861,6 +1945,8 @@ public:
 #endif
   }
 
+  void swap(accessor &other) { std::swap(impl, other.impl); }
+
   constexpr bool is_placeholder() const { return IsPlaceH; }
 
   size_t get_size() const { return getAccessRange().size() * sizeof(DataT); }
@@ -1868,6 +1954,14 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getAccessRange().size(); }
+
+  size_t byte_size() const noexcept { return size() * sizeof(DataT); }
+
+  size_t max_size() const noexcept {
+    return empty() ? 0 : (std::numeric_limits<difference_type>::max)();
+  }
+
+  bool empty() const noexcept { return size() == 0; }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dimensions> get_range() const {
@@ -1924,8 +2018,8 @@ public:
 #endif
                                         >() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
@@ -1933,8 +2027,8 @@ public:
                                atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
@@ -1942,8 +2036,8 @@ public:
                                atomic<DataT, AS>>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
   auto operator[](size_t Index) const {
@@ -2018,6 +2112,34 @@ public:
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
+  iterator begin() const noexcept {
+    return iterator::getBegin(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  iterator end() const noexcept {
+    return iterator::getEnd(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  const_iterator cbegin() const noexcept {
+    return const_iterator::getBegin(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
+  const_iterator cend() const noexcept {
+    return const_iterator::getEnd(
+        get_pointer(),
+        detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
+        get_offset());
+  }
+
 private:
 #ifdef __SYCL_DEVICE_ONLY__
   size_t getTotalOffset() const {
@@ -2043,7 +2165,7 @@ private:
   // but for get_pointer() we must return the original pointer.
   // On device, getQualifiedPtr() returns MData, so we need to backjust it.
   // On host, getQualifiedPtr() does not return MData, no need to adjust.
-  PtrType getPointerAdjusted() const {
+  auto getPointerAdjusted() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return getQualifiedPtr() - getTotalOffset();
 #else
@@ -2288,9 +2410,8 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
-#pragma unroll
-    for (int I = 0; I < AdjustedDim; ++I)
-      getSize()[I] = AccessRange[I];
+    detail::dim_loop<AdjustedDim>(
+        [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
   }
 
 public:
@@ -2323,8 +2444,11 @@ protected:
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {
 #ifndef NDEBUG
+    const auto *this_const = this;
     (void)getSize();
+    (void)this_const->getSize();
     (void)getPtr();
+    (void)this_const->getPtr();
 #endif
   }
 
@@ -2366,8 +2490,8 @@ public:
     (void)propList;
   }
 #else
-      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
-    (void)propList;
+      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT),
+                              propList) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -2401,8 +2525,7 @@ public:
   }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
-                              AdjustedDim, sizeof(DataT)) {
-    (void)propList;
+                              AdjustedDim, sizeof(DataT), propList) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
     GDBMethodsAnchor();
@@ -2443,7 +2566,8 @@ public:
   operator typename detail::enable_if_t<
       Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
       const {
-    return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr()));
+    return atomic<DataT, AS>(
+        multi_ptr<DataT, AS, access::decorated::yes>(getQualifiedPtr()));
   }
 
   template <int Dims = Dimensions>
@@ -2451,15 +2575,16 @@ public:
                                atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
                                atomic<DataT, AS>>
   operator[](size_t Index) const {
-    return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr() + Index));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + Index));
   }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
@@ -2547,6 +2672,59 @@ public:
   }
 
 #endif
+
+public:
+  using value_type = DataT;
+  using iterator = value_type *;
+  using const_iterator = const value_type *;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+  using difference_type =
+      typename std::iterator_traits<iterator>::difference_type;
+
+  void swap(local_accessor &other) { std::swap(this->impl, other.impl); }
+
+  size_t byte_size() const noexcept { return this->size() * sizeof(DataT); }
+
+  size_t max_size() const noexcept {
+    return (std::numeric_limits<difference_type>::max)();
+  }
+
+  bool empty() const noexcept { return this->size() == 0; }
+
+  iterator begin() const noexcept {
+    return &this->operator[](id<Dimensions>());
+  }
+  iterator end() const noexcept { return begin() + this->size(); }
+
+  const_iterator cbegin() const noexcept { return const_iterator(begin()); }
+  const_iterator cend() const noexcept { return const_iterator(end()); }
+
+  reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+  reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+
+  const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(end());
+  }
+  const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(begin());
+  }
+
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return this->getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return this->getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 };
 
 /// Image accessors.

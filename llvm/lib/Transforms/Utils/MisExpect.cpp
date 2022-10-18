@@ -40,6 +40,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <numeric>
@@ -58,7 +59,7 @@ static cl::opt<bool> PGOWarnMisExpect(
     cl::desc("Use this option to turn on/off "
              "warnings about incorrect usage of llvm.expect intrinsics."));
 
-static cl::opt<unsigned> MisExpectTolerance(
+static cl::opt<uint32_t> MisExpectTolerance(
     "misexpect-tolerance", cl::init(0),
     cl::desc("Prevents emiting diagnostics when profile counts are "
              "within N% of the threshold.."));
@@ -71,8 +72,8 @@ bool isMisExpectDiagEnabled(LLVMContext &Ctx) {
   return PGOWarnMisExpect || Ctx.getMisExpectWarningRequested();
 }
 
-uint64_t getMisExpectTolerance(LLVMContext &Ctx) {
-  return std::max(static_cast<uint64_t>(MisExpectTolerance),
+uint32_t getMisExpectTolerance(LLVMContext &Ctx) {
+  return std::max(static_cast<uint32_t>(MisExpectTolerance),
                   Ctx.getDiagnosticsMisExpectTolerance());
 }
 
@@ -119,15 +120,6 @@ void emitMisexpectDiagnostic(Instruction *I, LLVMContext &Ctx,
 namespace llvm {
 namespace misexpect {
 
-// TODO: when clang allows c++17, use std::clamp instead
-uint32_t clamp(uint64_t value, uint32_t low, uint32_t hi) {
-  if (value > hi)
-    return hi;
-  if (value < low)
-    return low;
-  return value;
-}
-
 void verifyMisExpect(Instruction &I, ArrayRef<uint32_t> RealWeights,
                      ArrayRef<uint32_t> ExpectedWeights) {
   // To determine if we emit a diagnostic, we need to compare the branch weights
@@ -163,6 +155,8 @@ void verifyMisExpect(Instruction &I, ArrayRef<uint32_t> RealWeights,
   // We cannot calculate branch probability if either of these invariants aren't
   // met. However, MisExpect diagnostics should not prevent code from compiling,
   // so we simply forgo emitting diagnostics here, and return early.
+  // assert((TotalBranchWeight >= LikelyBranchWeight) && (TotalBranchWeight > 0)
+  //              && "TotalBranchWeight is less than the Likely branch weight");
   if ((TotalBranchWeight == 0) || (TotalBranchWeight <= LikelyBranchWeight))
     return;
 
@@ -176,7 +170,7 @@ void verifyMisExpect(Instruction &I, ArrayRef<uint32_t> RealWeights,
 
   // clamp tolerance range to [0, 100)
   auto Tolerance = getMisExpectTolerance(I.getContext());
-  Tolerance = clamp(Tolerance, 0, 99);
+  Tolerance = std::clamp(Tolerance, 0u, 99u);
 
   // Allow users to relax checking by N%  i.e., if they use a 5% tolerance,
   // then we check against 0.95*ScaledThreshold

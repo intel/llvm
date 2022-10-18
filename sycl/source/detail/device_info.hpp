@@ -1302,9 +1302,8 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 }
 
 template <> inline device get_device_info_host<info::device::parent_device>() {
-  // TODO: implement host device partitioning
   throw invalid_object_error(
-      "Partitioning to subdevices of the host device is not implemented yet",
+      "Partitioning to subdevices of the host device is not implemented",
       PI_ERROR_INVALID_DEVICE);
 }
 
@@ -1416,6 +1415,13 @@ inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
 
 // Specializations for intel extensions for Level Zero low-level
 // detail device descriptors (not support on host).
+template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::device_id>() {
+  throw runtime_error(
+      "Obtaining the device ID is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
 template <>
 inline std::string
 get_device_info_host<ext::intel::info::device::pci_address>() {

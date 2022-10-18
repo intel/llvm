@@ -8,7 +8,7 @@
 ; RUN: llvm-spirv -to-text %t.spv -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
@@ -30,13 +30,13 @@
 ; CHECK-SPIRV: Load [[#Float16Id]] [[#ComponentId:]] [[#GEPId]]
 ; CHECK-SPIRV: VectorInsertDynamic [[#JointMatrixTyId]] [[#]] [[#]] [[#ComponentId]] [[#]]
 
-; CHECK-LLVM: %[[#ExtractElementCall:]] = call spir_func half @_Z28__spirv_VectorExtractDynamicPU3AS139__spirv_JointMatrixINTEL__half_8_16_0_3l(%spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(1)*{{.*}}, i64{{.*}})
-; CHECK-LLVM: %[[#GEP:]] = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", %"class.cl::sycl::detail::half_impl::half" addrspace(4)*{{.*}}, i32 0, i32 0
-; CHECK-LLVM: store half %[[#ExtractElementCall]], half addrspace(4)* %[[#GEP]]
+; CHECK-LLVM: %[[#ExtractElementCall:]] = call spir_func half @_Z28__spirv_VectorExtractDynamicPU3AS139__spirv_JointMatrixINTEL__half_8_16_0_3l(ptr addrspace(1){{.*}}, i64{{.*}})
+; CHECK-LLVM: %[[#GEP:]] = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", ptr addrspace(4) {{.*}}, i32 0, i32 0
+; CHECK-LLVM: store half %[[#ExtractElementCall]], ptr addrspace(4) %[[#GEP]]
 
-; CHECK-LLVM: %[[#GEP:]] = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", %"class.cl::sycl::detail::half_impl::half"*{{.*}}, i32 0, i32 0
-; CHECK-LLVM: %[[#Component:]] = load half, half* %[[#GEP]]
-; CHECK-LLVM: spir_func %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(1)* @_Z27__spirv_VectorInsertDynamicPU3AS139__spirv_JointMatrixINTEL__half_8_16_0_3Dhl(%spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(1)*{{.*}}, half %[[#Component]], i64{{.*}})
+; CHECK-LLVM: %[[#GEP:]] = getelementptr inbounds %"class.cl::sycl::detail::half_impl::half", ptr{{.*}}, i32 0, i32 0
+; CHECK-LLVM: %[[#Component:]] = load half, ptr %[[#GEP]]
+; CHECK-LLVM: spir_func ptr addrspace(1) @_Z27__spirv_VectorInsertDynamicPU3AS139__spirv_JointMatrixINTEL__half_8_16_0_3Dhl(ptr addrspace(1){{.*}}, half %[[#Component]], i64{{.*}})
 
 ; ModuleID = 'element_wise_all_ops_half.bc'
 source_filename = "llvm-link"

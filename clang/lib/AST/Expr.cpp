@@ -277,7 +277,7 @@ ConstantExpr::getStorageKind(const APValue &Value) {
   case APValue::Int:
     if (!Value.getInt().needsCleanup())
       return ConstantExpr::RSK_Int64;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   default:
     return ConstantExpr::RSK_APValue;
   }
@@ -2687,7 +2687,7 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
     }
 
     // Fallthrough for generic call handling.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case CallExprClass:
   case CXXMemberCallExprClass:
@@ -3668,7 +3668,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
         DCE->getCastKind() == CK_Dynamic)
       return true;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ImplicitCastExprClass:
   case CStyleCastExprClass:
   case CXXStaticCastExprClass:
@@ -4890,7 +4890,7 @@ RecoveryExpr::RecoveryExpr(ASTContext &Ctx, QualType T, SourceLocation BeginLoc,
            OK_Ordinary),
       BeginLoc(BeginLoc), EndLoc(EndLoc), NumExprs(SubExprs.size()) {
   assert(!T.isNull());
-  assert(llvm::all_of(SubExprs, [](Expr* E) { return E != nullptr; }));
+  assert(!llvm::is_contained(SubExprs, nullptr));
 
   llvm::copy(SubExprs, getTrailingObjects<Expr *>());
   setDependence(computeDependence(this));

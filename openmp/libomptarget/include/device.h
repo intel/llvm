@@ -281,7 +281,13 @@ struct TargetPointerResultTy {
     unsigned IsNewEntry : 1;
     /// If the pointer is actually a host pointer (when unified memory enabled)
     unsigned IsHostPointer : 1;
-  } Flags = {0, 0};
+    /// If the pointer is present in the mapping table.
+    unsigned IsPresent : 1;
+  } Flags = {0, 0, 0};
+
+  bool isPresent() const { return Flags.IsPresent; }
+
+  bool isHostPointer() const { return Flags.IsHostPointer; }
 
   /// The corresponding map table entry which is stable.
   HostDataToTargetTy *Entry = nullptr;
@@ -333,10 +339,6 @@ struct DeviceTy {
   ShadowPtrListTy ShadowPtrMap;
 
   std::mutex PendingGlobalsMtx, ShadowMtx;
-
-  // NOTE: Once libomp gains full target-task support, this state should be
-  // moved into the target task in libomp.
-  std::map<int32_t, uint64_t> LoopTripCnt;
 
   DeviceTy(RTLInfoTy *RTL);
   // DeviceTy is not copyable
@@ -409,8 +411,9 @@ struct DeviceTy {
   void *allocData(int64_t Size, void *HstPtr = nullptr,
                   int32_t Kind = TARGET_ALLOC_DEFAULT);
   /// Deallocates memory which \p TgtPtrBegin points at and returns
-  /// OFFLOAD_SUCCESS/OFFLOAD_FAIL when succeeds/fails.
-  int32_t deleteData(void *TgtPtrBegin);
+  /// OFFLOAD_SUCCESS/OFFLOAD_FAIL when succeeds/fails. p Kind dictates what
+  /// allocator should be used (host, shared, device).
+  int32_t deleteData(void *TgtPtrBegin, int32_t Kind = TARGET_ALLOC_DEFAULT);
 
   // Data transfer. When AsyncInfo is nullptr, the transfer will be
   // synchronous.

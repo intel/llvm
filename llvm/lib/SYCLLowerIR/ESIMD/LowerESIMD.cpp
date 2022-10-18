@@ -15,6 +15,7 @@
 
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -328,14 +329,14 @@ public:
         {"rdregion",
          {"rdregion", {a(0), t(3), t(4), t(5), a(1), t(6)}, nk(-1)}},
         {"rdindirect",
-         {"rdregion", {a(0), c32(0), t(2), c32(0), a(1), t(3)}, nk(-1)}},
+         {"rdregion", {a(0), c32(0), c32(1), c32(0), a(1), t(3)}, nk(-1)}},
         {{"wrregion"},
          {{"wrregion"},
           {a(0), a(1), t(3), t(4), t(5), a(2), t(6), ai1(3)},
           nk(-1)}},
         {{"wrindirect"},
          {{"wrregion"},
-          {a(0), a(1), c32(0), t(2), c32(0), a(2), t(3), ai1(3)},
+          {a(0), a(1), c32(0), c32(1), c32(0), a(2), t(3), ai1(3)},
           nk(-1)}},
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
@@ -654,7 +655,8 @@ public:
         {"test_src_tmpl_arg",
          {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
         {"slm_init", {"slm.init", {a(0)}}},
-        {"bf_cvt", {"bf.cvt", {a(0)}}}};
+        {"bf_cvt", {"bf.cvt", {a(0)}}},
+        {"tf32_cvt", {"tf32.cvt", {a(0)}}}};
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -974,7 +976,9 @@ static void translateSLMInit(CallInst &CI) {
   assert(NewVal != 0 && "zero slm bytes being requested");
   UpdateUint64MetaDataToMaxValue SetMaxSLMSize{
       *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
-  esimd::traverseCallgraphUp(F, SetMaxSLMSize);
+  // TODO: Keep track of traversed functions (use 4-argument version of
+  // traverseCallgraphUp) to avoid repeating traversals over same function.
+  sycl::utils::traverseCallgraphUp(F, SetMaxSLMSize);
 }
 
 // This function sets/updates VCNamedBarrierCount attribute to the kernels
@@ -990,7 +994,9 @@ static void translateNbarrierInit(CallInst &CI) {
   assert(NewVal != 0 && "zero named barrier count being requested");
   UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
       *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
-  esimd::traverseCallgraphUp(F, SetMaxNBarrierCnt);
+  // TODO: Keep track of traversed functions to avoid repeating traversals
+  // over same function.
+  sycl::utils::traverseCallgraphUp(F, SetMaxNBarrierCnt);
 }
 
 static void translatePackMask(CallInst &CI) {
@@ -1766,8 +1772,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      assert(!Name.startswith("__esimd_set_kernel_properties") &&
-             "__esimd_set_kernel_properties must have been lowered");
+      assert(!Name.startswith("__sycl_set_kernel_properties") &&
+             "__sycl_set_kernel_properties must have been lowered");
 
       if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
         continue;

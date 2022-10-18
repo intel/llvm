@@ -11,11 +11,11 @@
 
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=CL2.0
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc --spirv-target-env=CL2.0
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-CL20
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPV
 

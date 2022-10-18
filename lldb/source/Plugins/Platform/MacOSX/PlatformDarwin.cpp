@@ -428,7 +428,7 @@ PlatformDarwin::GetSoftwareBreakpointTrapOpcode(Target &target,
 
   case llvm::Triple::thumb:
     bp_is_thumb = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case llvm::Triple::arm: {
     static const uint8_t g_arm_breakpoint_opcode[] = {0xFE, 0xDE, 0xFF, 0xE7};
     static const uint8_t g_thumb_breakpooint_opcode[] = {0xFE, 0xDE};
@@ -498,7 +498,7 @@ void PlatformDarwin::x86GetSupportedArchitectures(
 static llvm::ArrayRef<const char *> GetCompatibleArchs(ArchSpec::Core core) {
   switch (core) {
   default:
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ArchSpec::eCore_arm_arm64e: {
     static const char *g_arm64e_compatible_archs[] = {
         "arm64e",    "arm64",    "armv7",    "armv7f",   "armv7k",   "armv7s",
@@ -652,7 +652,7 @@ BreakpointSP PlatformDarwin::SetThreadCreationBreakpoint(Target &target) {
                                        "libSystem.B.dylib"};
 
   FileSpecList bp_modules;
-  for (size_t i = 0; i < llvm::array_lengthof(g_bp_modules); i++) {
+  for (size_t i = 0; i < std::size(g_bp_modules); i++) {
     const char *bp_module = g_bp_modules[i];
     bp_modules.EmplaceBack(bp_module);
   }
@@ -661,9 +661,9 @@ BreakpointSP PlatformDarwin::SetThreadCreationBreakpoint(Target &target) {
   bool hardware = false;
   LazyBool skip_prologue = eLazyBoolNo;
   bp_sp = target.CreateBreakpoint(&bp_modules, nullptr, g_bp_names,
-                                  llvm::array_lengthof(g_bp_names),
-                                  eFunctionNameTypeFull, eLanguageTypeUnknown,
-                                  0, skip_prologue, internal, hardware);
+                                  std::size(g_bp_names), eFunctionNameTypeFull,
+                                  eLanguageTypeUnknown, 0, skip_prologue,
+                                  internal, hardware);
   bp_sp->SetBreakpointKind("thread-creation");
 
   return bp_sp;

@@ -9,10 +9,10 @@
 #ifndef LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
 #define LIBC_SRC_SUPPORT_STR_TO_FLOAT_H
 
-#include "src/__support/CPP/UInt128.h"
 #include "src/__support/CPP/limits.h"
 #include "src/__support/FPUtil/FPBits.h"
-#include "src/__support/FPUtil/builtin_wrappers.h"
+#include "src/__support/UInt128.h"
+#include "src/__support/builtin_wrappers.h"
 #include "src/__support/ctype_utils.h"
 #include "src/__support/detailed_powers_of_ten.h"
 #include "src/__support/high_precision_decimal.h"
@@ -52,11 +52,11 @@ template <class T> uint32_t inline leading_zeroes(T inputNumber) {
 }
 
 template <> uint32_t inline leading_zeroes<uint32_t>(uint32_t inputNumber) {
-  return fputil::safe_clz(inputNumber);
+  return safe_clz(inputNumber);
 }
 
 template <> uint32_t inline leading_zeroes<uint64_t>(uint64_t inputNumber) {
-  return fputil::safe_clz(inputNumber);
+  return safe_clz(inputNumber);
 }
 
 static inline uint64_t low64(const UInt128 &num) {
@@ -67,9 +67,7 @@ static inline uint64_t high64(const UInt128 &num) {
   return static_cast<uint64_t>(num >> 64);
 }
 
-template <class T> inline void set_implicit_bit(fputil::FPBits<T> &result) {
-  return;
-}
+template <class T> inline void set_implicit_bit(fputil::FPBits<T> &) { return; }
 
 #if defined(SPECIAL_X86_LONG_DOUBLE)
 template <>

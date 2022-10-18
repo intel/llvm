@@ -181,13 +181,6 @@ static bool isReserved(InputSectionBase *sec) {
 
 template <class ELFT>
 void MarkLive<ELFT>::enqueue(InputSectionBase *sec, uint64_t offset) {
-  // Skip over discarded sections. This in theory shouldn't happen, because
-  // the ELF spec doesn't allow a relocation to point to a deduplicated
-  // COMDAT section directly. Unfortunately this happens in practice (e.g.
-  // .eh_frame) so we need to add a check.
-  if (sec == &InputSection::discarded)
-    return;
-
   // Usually, a whole section is marked as live or dead, but in mergeable
   // (splittable) sections, each piece of data has independent liveness bit.
   // So we explicitly tell it which offset is in use.
@@ -220,7 +213,7 @@ template <class ELFT> void MarkLive<ELFT>::run() {
 
   // Preserve externally-visible symbols if the symbols defined by this
   // file can interrupt other ELF file's symbols at runtime.
-  for (Symbol *sym : symtab->symbols())
+  for (Symbol *sym : symtab.getSymbols())
     if (sym->includeInDynsym() && sym->partition == partition)
       markSymbol(sym);
 
@@ -230,13 +223,13 @@ template <class ELFT> void MarkLive<ELFT>::run() {
     return;
   }
 
-  markSymbol(symtab->find(config->entry));
-  markSymbol(symtab->find(config->init));
-  markSymbol(symtab->find(config->fini));
+  markSymbol(symtab.find(config->entry));
+  markSymbol(symtab.find(config->init));
+  markSymbol(symtab.find(config->fini));
   for (StringRef s : config->undefined)
-    markSymbol(symtab->find(s));
+    markSymbol(symtab.find(s));
   for (StringRef s : script->referencedSymbols)
-    markSymbol(symtab->find(s));
+    markSymbol(symtab.find(s));
 
   // Mark .eh_frame sections as live because there are usually no relocations
   // that point to .eh_frames. Otherwise, the garbage collector would drop
@@ -335,7 +328,7 @@ template <class ELFT> void MarkLive<ELFT>::mark() {
 // to from __start_/__stop_ symbols because there will only be one set of
 // symbols for the whole program.
 template <class ELFT> void MarkLive<ELFT>::moveToMain() {
-  for (ELFFileBase *file : ctx->objectFiles)
+  for (ELFFileBase *file : ctx.objectFiles)
     for (Symbol *s : file->getSymbols())
       if (auto *d = dyn_cast<Defined>(s))
         if ((d->type == STT_GNU_IFUNC || d->type == STT_TLS) && d->section &&
@@ -345,8 +338,8 @@ template <class ELFT> void MarkLive<ELFT>::moveToMain() {
   for (InputSectionBase *sec : inputSections) {
     if (!sec->isLive() || !isValidCIdentifier(sec->name))
       continue;
-    if (symtab->find(("__start_" + sec->name).str()) ||
-        symtab->find(("__stop_" + sec->name).str()))
+    if (symtab.find(("__start_" + sec->name).str()) ||
+        symtab.find(("__stop_" + sec->name).str()))
       enqueue(sec, 0);
   }
 
@@ -361,7 +354,7 @@ template <class ELFT> void elf::markLive() {
   // If --gc-sections is not given, retain all input sections.
   if (!config->gcSections) {
     // If a DSO defines a symbol referenced in a regular object, it is needed.
-    for (Symbol *sym : symtab->symbols())
+    for (Symbol *sym : symtab.getSymbols())
       if (auto *s = dyn_cast<SharedSymbol>(sym))
         if (s->isUsedInRegularObj && !s->isWeak())
           cast<SharedFile>(s->file)->isNeeded = true;

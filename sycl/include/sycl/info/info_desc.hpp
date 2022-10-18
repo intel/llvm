@@ -118,12 +118,8 @@ namespace kernel {
 } // namespace kernel
 
 namespace kernel_device_specific {
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(DescType, Desc, ReturnT, InputT,   \
-                                            PiCode)                            \
-  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
 #include <sycl/info/kernel_device_specific_traits.def>
 } // namespace kernel_device_specific
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 // A.6 Event information desctiptors
 enum class event_command_status : pi_int32 {

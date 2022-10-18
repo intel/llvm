@@ -50,32 +50,19 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
 
 class DeviceInfoTest : public ::testing::Test {
 public:
-  DeviceInfoTest() : Plt{default_selector()} {}
+  DeviceInfoTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host()) {
-      std::clog << "This test is only supported on non-host platforms.\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>() << "\n";
-      return;
-    }
-
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   }
 
 protected:
-  platform Plt;
-  std::unique_ptr<unittest::PiMock> Mock;
+  unittest::PiMock Mock;
+  sycl::platform Plt;
 };
 
 TEST_F(DeviceInfoTest, GetDeviceUUID) {
-  if (Plt.is_host()) {
-    return;
-  }
-
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
@@ -99,10 +86,6 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
 }
 
 TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
-  if (Plt.is_host()) {
-    return;
-  }
-
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
@@ -125,10 +108,6 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
 }
 
 TEST_F(DeviceInfoTest, BuiltInKernelIDs) {
-  if (Plt.is_host()) {
-    return;
-  }
-
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
   TestContext->BuiltInKernels = "Kernel0;Kernel1;Kernel2";
