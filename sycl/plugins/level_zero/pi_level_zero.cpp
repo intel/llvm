@@ -5268,27 +5268,6 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 pi_result piKernelRelease(pi_kernel Kernel) {
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
-  if (IndirectAccessTrackingEnabled) {
-    // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
-    // kernel execution has finished. This is the place where we need to release
-    // memory allocations. If kernel is not in use (not submitted by some
-    // other thread) then release referenced memory allocations. As a result,
-    // memory can be deallocated and context can be removed from container in
-    // the platform. That's why we need to lock a mutex here.
-    pi_platform Plt = Kernel->Program->Context->getPlatform();
-    std::scoped_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex);
-
-    if (--Kernel->SubmissionsCount == 0) {
-      // Kernel is not submitted for execution, release referenced memory
-      // allocations.
-      for (auto &MemAlloc : Kernel->MemAllocs) {
-        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
-                      MemAlloc->second.OwnZeMemHandle);
-      }
-      Kernel->MemAllocs.clear();
-    }
-  }
-
   if (!Kernel->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
@@ -5837,8 +5816,31 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
   }
 
   // We've reset event data members above, now cleanup resources.
-  if (AssociatedKernel)
+  if (AssociatedKernel) {
+    if (IndirectAccessTrackingEnabled) {
+      auto Kernel = AssociatedKernel;
+      // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
+      // kernel execution has finished. This is the place where we need to
+      // release memory allocations. If kernel is not in use (not submitted by
+      // some other thread) then release referenced memory allocations. As a
+      // result, memory can be deallocated and context can be removed from
+      // container in the platform. That's why we need to lock a mutex here.
+      pi_platform Plt = Kernel->Program->Context->getPlatform();
+      std::scoped_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex);
+
+      if (--Kernel->SubmissionsCount == 0) {
+        // Kernel is not submitted for execution, release referenced memory
+        // allocations.
+        for (auto &MemAlloc : Kernel->MemAllocs) {
+          // std::pair<void *const, MemAllocRecord> *, Hash
+          USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                        MemAlloc->second.OwnZeMemHandle);
+        }
+        Kernel->MemAllocs.clear();
+      }
+    }
     PI_CALL(piKernelRelease(AssociatedKernel));
+  }
 
   if (AssociatedQueue) {
     {
