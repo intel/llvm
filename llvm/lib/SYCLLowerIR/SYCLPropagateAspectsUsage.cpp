@@ -44,6 +44,12 @@
 
 using namespace llvm;
 
+static cl::opt<std::string> ClSyclFixedTargets(
+    "sycl-propagate-aspects-usage-fixed-targets",
+    cl::desc("Specify target device(s) all device code in the translation unit "
+             "is expected to be runnable on"),
+    cl::Hidden, cl::init(""));
+
 namespace {
 
 using AspectsSetTy = SmallSet<int, 4>;
@@ -352,9 +358,37 @@ bool isEntryPoint(const Function &F) {
   return F.hasFnAttribute("sycl-module-id") && !isSpirvSyclBuiltin(F.getName());
 }
 
+unsigned getAspectId(std::string Aspect) {
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  if (Aspect == #ASPECT) {                                                     \
+    return ID;                                                                 \
+  }
+#include <sycl/info/aspects.def>
+#undef __SYCL_ASPECT
+  return INT_MAX;
+}
+
+void setSyclFixedTargetsMD(Function *F,
+                           const SmallVector<std::string, 8> &Targets) {
+  SmallVector<Metadata *, 8> TargetsMD;
+  LLVMContext &C = F->getContext();
+
+  for (const auto &Target : Targets) {
+    if (!Target.empty()) {
+      auto ConstIntTarget =
+          ConstantInt::getSigned(Type::getInt32Ty(C), getAspectId(Target));
+      TargetsMD.push_back(ConstantAsMetadata::get(ConstIntTarget));
+    }
+  }
+
+  MDNode *MDN = MDNode::get(C, TargetsMD);
+  F->setMetadata("sycl_fixed_targets", MDN);
+}
+
 /// Returns a map of functions with corresponding used aspects.
 FunctionToAspectsMapTy
-buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
+buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
+                           const SmallVector<std::string, 8> &Targets) {
   FunctionToAspectsMapTy FunctionToAspects;
   CallGraphTy CG;
   std::vector<Function *> EntryPoints;
@@ -369,10 +403,26 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects) {
   }
 
   SmallPtrSet<const Function *, 16> Visited;
-  for (Function *F : EntryPoints)
+  for (Function *F : EntryPoints) {
+    setSyclFixedTargetsMD(F, Targets);
     propagateAspectsThroughCG(F, CG, FunctionToAspects, Visited);
+  }
 
   return FunctionToAspects;
+}
+
+SPAUOptions parseOpts(std::string Params) {
+  SPAUOptions Result;
+  if (!Params.empty()) {
+    size_t Pos = 0, SeparatorPos = 0;
+    while (SeparatorPos != Params.npos) {
+      SeparatorPos = Params.find(",", Pos);
+      auto Target = Params.substr(Pos, SeparatorPos - Pos);
+      Result.Targets.push_back(Target);
+      Pos = SeparatorPos + 1;
+    }
+  }
+  return Result;
 }
 
 } // anonymous namespace
@@ -392,10 +442,13 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
     return PreservedAnalyses::all();
   }
 
+  if (ClSyclFixedTargets.getNumOccurrences() > 0)
+    Opts = parseOpts(ClSyclFixedTargets);
+
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
   FunctionToAspectsMapTy FunctionToAspects =
-      buildFunctionsToAspectsMap(M, TypesWithAspects);
+      buildFunctionsToAspectsMap(M, TypesWithAspects, Opts.Targets);
 
   createUsedAspectsMetadataForFunctions(FunctionToAspects);
   // FIXME: check and diagnose if a function uses an aspect which was not

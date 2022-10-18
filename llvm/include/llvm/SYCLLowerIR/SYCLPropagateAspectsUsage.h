@@ -14,13 +14,22 @@
 #define LLVM_SYCL_PROPAGATE_ASPECTS_USAGE_H
 
 #include "llvm/IR/PassManager.h"
+#include "llvm/Support/CommandLine.h"
 
 namespace llvm {
+
+struct SPAUOptions {
+  SmallVector<std::string, 8> Targets;
+};
 
 class SYCLPropagateAspectsUsagePass
     : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
+  SYCLPropagateAspectsUsagePass(SPAUOptions Opts = {}) : Opts(Opts){};
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+
+private:
+  SPAUOptions Opts;
 };
 
 } // namespace llvm
