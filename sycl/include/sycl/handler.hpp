@@ -47,10 +47,11 @@
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
 #ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAM(a) KernelType a
+#define _KERNELFUNCPARAMTYPE KernelType
 #else
-#define _KERNELFUNCPARAM(a) const KernelType &a
+#define _KERNELFUNCPARAMTYPE const KernelType &
 #endif
+#define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
 template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
@@ -1348,17 +1349,17 @@ private:
 
   template <typename PropertiesT> struct KernelPropertiesUnpacker {
     template <typename KernelName, typename KernelType>
-    static void kernel_single_task_unpack(handler *, _KERNELFUNCPARAM()) {}
+    static void kernel_single_task_unpack(handler *, _KERNELFUNCPARAMTYPE) {}
 
     template <typename KernelName, typename KernelType>
-    static void kernel_single_task_unpack(handler *, _KERNELFUNCPARAM(),
+    static void kernel_single_task_unpack(handler *, _KERNELFUNCPARAMTYPE,
                                           kernel_handler) {}
 
     template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_unpack(handler *, _KERNELFUNCPARAM()) {}
+    static void kernel_parallel_for_unpack(handler *, _KERNELFUNCPARAMTYPE) {}
 
     template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_unpack(handler *, _KERNELFUNCPARAM(),
+    static void kernel_parallel_for_unpack(handler *, _KERNELFUNCPARAMTYPE,
                                            kernel_handler) {}
 
     template <typename KernelName, typename ElementType, typename KernelType>
@@ -1368,7 +1369,7 @@ private:
 
     template <typename KernelName, typename ElementType, typename KernelType>
     static void kernel_parallel_for_work_group_unpack(handler *,
-                                                      _KERNELFUNCPARAM(),
+                                                      _KERNELFUNCPARAMTYPE,
                                                       kernel_handler) {}
 
     // This should always fail but must be dependent to avoid always failing.
