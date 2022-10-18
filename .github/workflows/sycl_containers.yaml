@@ -22,9 +22,9 @@ on:
       - '.github/workflows/sycl_containers.yaml'
 
 jobs:
-  base_image_ubuntu2004:
+  base_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
-    name: Base Ubuntu 20.04 Docker image
+    name: Base Ubuntu 22.04 Docker image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,13 +35,13 @@ jobs:
         uses: ./devops/actions/build_container
         with:
           push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2004_base
+          file: ubuntu2204_base
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2004_base:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2004_base:latest
-  build_image_ubuntu2004:
+            ghcr.io/${{ github.repository }}/ubuntu2204_base:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2204_base:latest
+  build_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
     name: Build Ubuntu Docker image
     runs-on: ubuntu-latest
@@ -54,20 +54,20 @@ jobs:
         uses: ./devops/actions/build_container
         with:
           push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2004_build
+          file: ubuntu2204_build
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2004_build:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2004_build:latest
+            ghcr.io/${{ github.repository }}/ubuntu2204_build:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2204_build:latest
 
   # This job produces a Docker container with the latest versions of Intel
   # drivers, that can be found on GitHub.
-  drivers_image_ubuntu2004:
+  drivers_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
-    name: Intel Drivers Ubuntu 20.04 Docker image
+    name: Intel Drivers Ubuntu 22.04 Docker image
     runs-on: ubuntu-latest
-    needs: base_image_ubuntu2004
+    needs: base_image_ubuntu2204
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -86,12 +86,12 @@ jobs:
         uses: ./devops/actions/build_container
         with:
           push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2004_intel_drivers
+          file: ubuntu2204_intel_drivers
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest
+            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:latest-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:latest
           build-args: |
             compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.github_tag}}
             igc_tag=${{fromJson(steps.deps.outputs.deps).linux.igc.github_tag}}
@@ -101,11 +101,11 @@ jobs:
 
   # This job produces a Docker container with the latest versions of Intel
   # drivers, that can be found on GitHub.
-  drivers_image_ubuntu2004_unstable:
+  drivers_image_ubuntu2204_unstable:
     if: github.repository == 'intel/llvm'
-    name: Intel Drivers (unstable) Ubuntu 20.04 Docker image
+    name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
     runs-on: ubuntu-latest
-    needs: base_image_ubuntu2004
+    needs: base_image_ubuntu2204
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -124,12 +124,12 @@ jobs:
         uses: ./devops/actions/build_container
         with:
           push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2004_intel_drivers
+          file: ubuntu2204_intel_drivers
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:unstable-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:unstable
+            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable
           build-args: |
             compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.compute_runtime.github_tag}}
             igc_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.igc.github_tag}}

@@ -1,5 +1,5 @@
 ARG base_tag=latest
-ARG base_image=ghcr.io/intel/llvm/ubuntu2004_intel_drivers
+ARG base_image=ghcr.io/intel/llvm/ubuntu2204_intel_drivers
 
 FROM $base_image:$base_tag
 
