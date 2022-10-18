@@ -27,10 +27,10 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle);
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle);
 
-__SYCL_EXPORT bool has_extension(const sycl::platform &syclPlatform,
-                                 const std::string &extension);
-__SYCL_EXPORT bool has_extension(const sycl::device &syclDevice,
-                                 const std::string &extension);
+__SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
+                                 const std::string &Extension);
+__SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
+                                 const std::string &Extension);
 
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
