@@ -146,13 +146,13 @@ struct device_has_key {
 template <size_t... Dims>
 struct property_value<work_group_size_key, std::integral_constant<size_t, Dims>...> {
   using key_t = work_group_size_key;
-  constexpr size_t operator[](int dim);
+  constexpr size_t operator[](int dim) const;
 };
 
 template <size_t... Dims>
 struct property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...> {
   using key_t = work_group_size_hint_key;
-  constexpr size_t operator[](int dim);
+  constexpr size_t operator[](int dim) const;
 };
 
 template <sycl::aspect... Aspects>
@@ -340,6 +340,19 @@ sycl::ext::oneapi::experimental::properties properties{sycl::ext::oneapi::experi
 q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {
   a[i] = b[i] + c[i];
 }).wait();
+```
+
+NOTE: It is currently not possible to use the same kernel function in two
+commands with different properties. For example, the following will result in an
+error at compile-time:
+
+```c++
+  auto kernelFunc = [=](){};
+  q.single_task(kernelFunc);
+  q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::sub_group_size<8>},
+      kernelFunc);
 ```
 
 == Embedding Properties into a Kernel
