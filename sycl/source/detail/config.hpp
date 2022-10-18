@@ -323,6 +323,14 @@ public:
 
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
+
+      std::cerr
+          << "\nWARNING: The enviroment variable SYCL_DEVICE_FITLER"
+             " is deprecated. Please use ONEAPI_DEVICE_SELECTOR instead.\n"
+             "For more details, please refer to:\n"
+             "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+             "EnvironmentVariables.md#oneapi_device_selector\n\n";
+
       FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
     }
 
