@@ -67,9 +67,12 @@ To run under emulation through ESIMD_EMULATOR backend:
 > `$ SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu ./a.out`
 
 Please note that ESIMD_EMULATOR backend cannot be picked up as default
-device automatically. `SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu` must
-be explicitly either set as environment variable with `export` or put
-before generated application name for ESIMD kernel execution under emulation.
+device automatically. To enable it, `ext_intel_esimd_emulator:gpu` device must
+be specified among other devices explicitly in `SYCL_DEVICE_FILTER` environment
+variable. The emulator device effectively replaces any Intel GPU device for SYCL runtime,
+so they can't be used simultaneously by a SYCL offload application process. On the other
+hand, it is OK to mix the emulator with non-Intel GPU devices or CPU device in
+`SYCL_DEVICE_FILTER`.
 
 ## Running ESIMD examples from [ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) on github with ESIMD_EMULATOR backend
 
