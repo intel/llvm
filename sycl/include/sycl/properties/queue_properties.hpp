@@ -29,7 +29,7 @@ namespace queue {
 class discard_events
     : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
 class lazy_execution 
-    : public ::cl::sycl::detail::DataLessProperty<::sycl::detail::LazyExecution> {};
+    : public ::sycl::detail::DataLessProperty<::sycl::detail::LazyExecution> {};
 } // namespace queue
 } // namespace property
 

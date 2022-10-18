@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
 #include <list>
 #include <set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
+//__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
@@ -88,6 +88,8 @@ struct node_impl {
 struct graph_impl {
   std::set<node_ptr> my_roots;
   std::list<node_ptr> my_schedule;
+  // TODO: Change one time initialization to per executable object
+  bool first;
 
   graph_ptr parent;
 
@@ -102,7 +104,10 @@ struct graph_impl {
   }
 
   void exec_and_wait(sycl::queue q) {
-    exec(q);
+    if(first) {
+        exec(q);
+        first=false;
+    }
     q.wait();
   }
 
@@ -120,13 +125,12 @@ struct graph_impl {
     my_schedule.clear();
   }
 
-  graph_impl() {}
+  graph_impl() : first(true) {}
 };
 
 } // namespace detail
 
 struct node {
-  // TODO: add properties to distinguish between empty, host, device nodes.
   detail::node_ptr my_node;
   detail::graph_ptr my_graph;
 
@@ -137,8 +141,6 @@ struct node {
   void exec(sycl::queue q, sycl::event = sycl::event()) { my_node->exec(q); }
 
   void set_root() { my_graph->add_root(my_node); }
-
-  // TODO: Add query functions: is_root, ...
 };
 
 enum class graph_state{
@@ -217,4 +219,4 @@ void command_graph<graph_state::executable>::exec_and_wait(sycl::queue q) { my_g
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+//} // __SYCL_INLINE_NAMESPACE(cl)
