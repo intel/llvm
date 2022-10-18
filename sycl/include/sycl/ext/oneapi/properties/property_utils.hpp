@@ -219,6 +219,59 @@ struct SortedAllUnique<std::tuple<L, R, Rest...>>
                                   SortedAllUnique<std::tuple<R, Rest...>>,
                                   std::false_type> {};
 
+//******************************************************************************
+// Property merging
+//******************************************************************************
+
+// Merges two sets of properties, failing if two properties are the same but
+// with different values.
+// NOTE: This assumes that the properties are in sorted order.
+template <typename LHSPropertyT, typename RHSPropertyT> struct MergeProperties;
+
+template <> struct MergeProperties<std::tuple<>, std::tuple<>> {
+  using type = std::tuple<>;
+};
+
+template <typename... LHSPropertyTs>
+struct MergeProperties<std::tuple<LHSPropertyTs...>, std::tuple<>> {
+  using type = std::tuple<LHSPropertyTs...>;
+};
+
+template <typename... RHSPropertyTs>
+struct MergeProperties<std::tuple<>, std::tuple<RHSPropertyTs...>> {
+  using type = std::tuple<RHSPropertyTs...>;
+};
+
+// Identical properties are allowed, but only one will carry over.
+template <typename PropertyT, typename... LHSPropertyTs,
+          typename... RHSPropertyTs>
+struct MergeProperties<std::tuple<PropertyT, LHSPropertyTs...>,
+                       std::tuple<PropertyT, RHSPropertyTs...>> {
+  using merge_tails =
+      typename MergeProperties<std::tuple<LHSPropertyTs...>,
+                               std::tuple<RHSPropertyTs...>>::type;
+  using type = typename PrependTuple<PropertyT, merge_tails>::type;
+};
+
+template <typename... LHSPropertyTs, typename... RHSPropertyTs>
+struct MergeProperties<std::tuple<LHSPropertyTs...>,
+                       std::tuple<RHSPropertyTs...>> {
+  using l_head = GetFirstType<LHSPropertyTs...>;
+  using r_head = GetFirstType<RHSPropertyTs...>;
+  static_assert(
+      PropertyID<l_head>::value != PropertyID<r_head>::value,
+      "Failed to merge property lists due to conflicting properties.");
+  static constexpr bool left_has_min =
+      PropertyID<l_head>::value < PropertyID<r_head>::value;
+  using l_split = HeadSplit<std::tuple<LHSPropertyTs...>, left_has_min>;
+  using r_split = HeadSplit<std::tuple<RHSPropertyTs...>, !left_has_min>;
+  using min = typename SelectNonVoid<typename l_split::htype,
+                                     typename r_split::htype>::type;
+  using merge_tails = typename MergeProperties<typename l_split::ttype,
+                                               typename r_split::ttype>::type;
+  using type = typename PrependTuple<min, merge_tails>::type;
+};
+
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi
