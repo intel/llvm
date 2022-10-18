@@ -303,7 +303,7 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_Array_Ptrs_2D parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D 'void (__wrapper_class, __wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers_2D '__wrapper_class'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
 
