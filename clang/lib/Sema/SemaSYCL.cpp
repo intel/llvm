@@ -2412,6 +2412,11 @@ static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
 }
 
+static bool isSYCLKernelDefinedAsAFunctor(const CXXRecordDecl *KernelObjType) {
+  const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
+  return (OpParens != nullptr);
+}
+
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
@@ -3457,7 +3462,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  if (!KernelObj) {
+  bool IsKernelAValidFunctor = isSYCLKernelDefinedAsAFunctor(KernelObj);
+  if (!KernelObj || !IsKernelAValidFunctor) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
