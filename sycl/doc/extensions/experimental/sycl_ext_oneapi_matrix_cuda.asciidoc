@@ -31,7 +31,7 @@ references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 
-**_NOTE:_** _This document describes the current design and API for the additional CUDA only features matrix
+**_NOTE:_** This document describes the current design and API for the additional CUDA only features matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
 and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**.
 
@@ -60,17 +60,17 @@ value to determine which of the extension's APIs the implementation supports.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, std::size_t M,
-          std::size_t K, std::size_t N, matrix_layout LayoutC, class BinaryOperation>
-joint_matrix<precision::b1, matrix_use::accumulator, M, N, LayoutC, Group>
+          std::size_t K, std::size_t N, class BinaryOperation>
+joint_matrix<precision::b1, use::accumulator, M, N, layout::dynamic, Group>
 joint_matrix_bmad(
-    Group sg, joint_matrix<precision::b1, matrix_use::a, M, K, matrix_layout::row_major, Group> A,
-    joint_matrix<precision::b1, matrix_use::b, K, N, matrix_layout::col_major, Group> B,
-    joint_matrix<int32_t, matrix_use::accumulator, M, N, LayoutC, Group> C, BinaryOperation Op);
+    Group sg, joint_matrix<precision::b1, use::a, M, K, layout::row_major, Group> A,
+    joint_matrix<precision::b1, use::b, K, N, layout::col_major, Group> B,
+    joint_matrix<int32_t, use::accumulator, M, N, layout::dynamic, Group> C, BinaryOperation Op);
 }
 ```
 
-Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (`matrix_use::a` with shape M by K) with a column of matrix B (`matrix_use::b` with shape K by N). Instead, a sequence of logical operations are performed. There are two available logical operations, "AND" and "XOR". The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
-The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the matrix C (`matrix_use::accumulator`). Currently only the shape M = 8, N = 8, K = 128 is supported.
+Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (`use::a` with shape M by K) with a column of matrix B (`use::b` with shape K by N). Instead, a sequence of logical operations are performed. There are two available logical operations, "AND" and "XOR". The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
+The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the matrix C (`use::accumulator`). Currently only the shape M = 8, N = 8, K = 128 is supported.
 An important difference with respect to the `joint_matrix_mad` interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
 
 `sycl::bit_and<precision::b1>()`
@@ -81,9 +81,9 @@ or
 
 The A, B, and C `joint_matrix` objects are constructed and loaded/stored in the normal way, using the `joint_matrix`, `joint_matrix_load`, and `joint_matrix_store` interfaces that are defined in the sycl_ext_oneapi_matrix extension document.
 The C matrix must be loaded from an array of 32 bit signed integers, and the A, B single bit `joint_matrix` structs must be loaded from an array of unsigned 32-bit integers storing the packed binary matrix.
-Each element of the array of unsigned 32-bit integers, from which a `joint_matrix` of type `matrix_use::a` or `matrix_use::b` is loaded, should contain 32 elements of a matrix row in packed format.
+Each element of the array of unsigned 32-bit integers, from which a `joint_matrix` of type `use::a` or `use::b` is loaded, should contain 32 elements of a matrix row in packed format.
 
-IMPORTANT: When using Binary Multiply and Add, a `joint_matrix` of type `matrix_use::a` must have `matrix_layout::row_major`, and a `joint_matrix` of type `matrix_use::b` must have `matrix_layout::col_major`. In both cases the first template parameter of `joint_matrix` must be `precision::b1`.
+IMPORTANT: When using Binary Multiply and Add, a `joint_matrix` of type `use::a` must have `layout::row_major`, and a `joint_matrix` of type `use::b` must have `layout::col_major`. In both cases the first template parameter of `joint_matrix` must be `precision::b1`.
 
 IMPORTANT: Binary Multiply and Add operations are an experimental hardware feature and all implementation details are subject to change.
 
@@ -105,28 +105,28 @@ queue q;
           sycl::sub_group sg = item.get_sub_group();
           const auto m = item.get_group().get_id()[0]; // row id of current submatrix of BIG C matrix
           const auto n = item.get_group().get_id()[1]; // column id of current submatrix of BIG C matrix
-          joint_matrix<precision::b1, matrix_use::a, M, K, matrix_layout::row_major> sub_a;
-          joint_matrix<precision::b1, matrix_use::b, K, N, matrix_layout::col_major> sub_b;
-          joint_matrix<int32_t, matrix_use::accumulator, M, N, matrix_layout::row_major> sub_c;
-          joint_matrix_load(sg, sub_c, accC.get_pointer() + (m * M) * Big_N + n * N, Big_N);
+          joint_matrix<precision::b1, use::a, M, K, layout::row_major> sub_a;
+          joint_matrix<precision::b1, use::b, K, N, layout::col_major> sub_b;
+          joint_matrix<int32_t, use::accumulator, M, N> sub_c;
+          joint_matrix_load(sg, sub_c, accC.get_pointer() + (m * M) * Big_N + n * N, Big_N, layout::row_major);
           for (int k = 0; k < Sub_Tiles_K; k++) { // row/col id of current submatrix of BIG A/B matrices
             joint_matrix_load(sg, sub_a, accA.get_pointer() + (k * (K / 32)) + (m * M * (Big_K / 32)), Big_K);
             joint_matrix_load(sg, sub_b, accB.get_pointer() + (n * N * (Big_K / 32)) + (k * (K / 32)), Big_K);
             sub_c = joint_matrix_bmad(sg, sub_a, sub_b, sub_c, Op);
           }
-          joint_matrix_store(sg, sub_c, accD.get_pointer() + (m * M) * Big_N + n * N, Big_N);
+          joint_matrix_store(sg, sub_c, accD.get_pointer() + (m * M) * Big_N + n * N, Big_N, layout::row_major);
         });});
 ```
 
 ##### `wi_data` as an `marray`
 
-In the Nvidia® Tensor Cores case it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member, `joint_matrix.wi_marray`, to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables operations to be identically performed on every element of the `joint_matrix` without requiring a loop. In DPC++ some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the `joint_matrix` context is given in the following code snippet:
+In the Nvidia® Tensor Cores case it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member, `joint_matrix.wi_marray`, to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables operations to be identically performed on every element of the `joint_matrix` without requiring a loop. In DPC++ some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the context of the matrix extension is given in the following code snippet:
 
 ```c++
-joint_matrix<T, matrix_use::a, M, K> sub_a;
-joint_matrix<T, matrix_use::b, K, N> sub_b;
-joint_matrix<T, matrix_use::accumulator, M, N> sub_c;
-joint_matrix<T, matrix_use::accumulator, M, N> sub_d;
+joint_matrix<T, use::a, M, K, layout::row_major> sub_a;
+joint_matrix<T, use::b, K, N, layout::row_major> sub_b;
+joint_matrix<T, use::accumulator, M, N> sub_c;
+joint_matrix<T, use::accumulator, M, N> sub_d;
 joint_matrix_fill(sg, sub_a, -1);
 joint_matrix_fill(sg, sub_b, -1);
 joint_matrix_fill(sg, sub_c, -1);
