@@ -77,6 +77,8 @@ jobs:
         id: deps
         run: |
           DEPS=`cat devops/dependencies.json`
+          DEPS="${DEPS//$'\r'/''}"
+          DEPS="${DEPS//$'\n'/' '}"
           echo $DEPS
           echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
@@ -112,6 +114,8 @@ jobs:
         id: deps
         run: |
           DEPS=`cat devops/dependencies.json`
+          DEPS="${DEPS//$'\r'/''}"
+          DEPS="${DEPS//$'\n'/' '}"
           echo $DEPS
           echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
