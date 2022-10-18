@@ -370,10 +370,9 @@ template <int NDims> struct InvokeImpl {
   static void invoke(pi_kernel Kernel, const size_t *GlobalWorkOffset,
                      const size_t *GlobalWorkSize,
                      const size_t *LocalWorkSize) {
-    auto KernelObject = *reinterpret_cast<KernelFunc<NDims> *>(Kernel);
-    libCMBatch<NDims>{KernelObject}.runIterationSpace(
-        get_range(LocalWorkSize), get_range(GlobalWorkSize),
-        sycl::id<NDims>{get_range(GlobalWorkOffset)});
+    libCMBatch<NDims>{*reinterpret_cast<KernelFunc<NDims> *>(Kernel)}
+        .runIterationSpace(get_range(LocalWorkSize), get_range(GlobalWorkSize),
+                           sycl::id<NDims>{get_range(GlobalWorkOffset)});
   }
 };
 
