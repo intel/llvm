@@ -25,6 +25,10 @@ void llvm::getSYCLDeviceRequirements(
     return static_cast<uint32_t>(C->getUniqueInteger().getZExtValue());
   };
 
+  // { LLVM-IR metadata name , [SYCL/Device requirements] property name }, see:
+  // https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md#create-the-sycldevice-requirements-property-set
+  // Scan the module and if the metadata is present fill the corresponing
+  // property with metadata's aspects
   constexpr std::pair<const char *, const char *> ReqdMDs[] = {
       {"sycl_used_aspects", "aspects"}, {"sycl_fixed_targets", "fixed_target"}};
 
