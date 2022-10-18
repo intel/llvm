@@ -377,6 +377,18 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     for (event &Event : SharedEvents)
       Event.wait();
   }
+
+  std::vector<EventImplPtr> StreamsServiceEvents;
+  {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    StreamsServiceEvents.swap(MStreamsServiceEvents);
+  }
+  for (const EventImplPtr &Event : StreamsServiceEvents) {
+    Event->waitInternal();
+    // Make sure streams are deallocated
+    Event->cleanupCommand(Event);
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif

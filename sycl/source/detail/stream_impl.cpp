@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/queue.hpp>
@@ -68,13 +69,13 @@ size_t stream_impl::get_size() const { return BufferSize_; }
 
 size_t stream_impl::get_max_statement_size() const { return MaxStatementSize_; }
 
-void stream_impl::flush() {
+void stream_impl::flush(const EventImplPtr &LeadEvent) {
   // We don't want stream flushing to be blocking operation that is why submit a
   // host task to print stream buffer. It will fire up as soon as the kernel
   // finishes execution.
   auto Q = detail::createSyclObjFromImpl<queue>(
       sycl::detail::Scheduler::getInstance().getDefaultHostQueue());
-  Q.submit([&](handler &cgh) {
+  event Event = Q.submit([&](handler &cgh) {
     auto BufHostAcc =
         detail::Scheduler::getInstance()
             .StreamBuffersPool.find(this)
@@ -96,7 +97,14 @@ void stream_impl::flush() {
       fflush(stdout);
     });
   });
+  if (LeadEvent) {
+    LeadEvent->attachEventToComplete(detail::getSyclObjImpl(Event));
+    LeadEvent->getSubmittedQueue()->registerStreamServiceEvent(
+        detail::getSyclObjImpl(Event));
+  }
 }
+
+void stream_impl::flush() { flush(nullptr); }
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
