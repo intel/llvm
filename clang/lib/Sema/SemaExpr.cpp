@@ -222,6 +222,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              const ObjCInterfaceDecl *UnknownObjCClass,
                              bool ObjCPropertyAccess,
                              bool AvoidPartialAvailabilityChecks,
+<<<<<<< HEAD
                              ObjCInterfaceDecl *ClassReceiver) {
   if (getLangOpts().SYCLIsDevice) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
@@ -268,6 +269,10 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     }
   }
 
+=======
+                             ObjCInterfaceDecl *ClassReceiver,
+                             bool SkipTrailingRequiresClause) {
+>>>>>>> 4bcb85c638c1c1719c5c01a70ee2e376e4032d2a
   SourceLocation Loc = Locs.front();
   if (getLangOpts().CPlusPlus && isa<FunctionDecl>(D)) {
     // If there were any diagnostics suppressed by template argument deduction,
@@ -326,7 +331,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     // See if this is a function with constraints that need to be satisfied.
     // Check this before deducing the return type, as it might instantiate the
     // definition.
-    if (FD->getTrailingRequiresClause()) {
+    if (!SkipTrailingRequiresClause && FD->getTrailingRequiresClause()) {
       ConstraintSatisfaction Satisfaction;
       if (CheckFunctionConstraints(FD, Satisfaction, Loc,
                                    /*ForOverloadResolution*/ true))
@@ -6848,8 +6853,8 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
             nullptr, DRE->isNonOdrUse());
       }
     }
-  } else if (isa<MemberExpr>(NakedFn))
-    NDecl = cast<MemberExpr>(NakedFn)->getMemberDecl();
+  } else if (auto *ME = dyn_cast<MemberExpr>(NakedFn))
+    NDecl = ME->getMemberDecl();
 
   if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(NDecl)) {
     if (CallingNDeclIndirectly && !checkAddressOfFunctionIsAvailable(
