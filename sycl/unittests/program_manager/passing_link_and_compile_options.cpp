@@ -146,9 +146,10 @@ inline pi_result redefinedProgramBuild(
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
+      redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
@@ -172,9 +173,10 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
+      redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
@@ -206,10 +208,12 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 TEST(Link_Compile_Options, check_sycl_build) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCompile>(
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
+      redefinedProgramLink);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramBuild>(
+      redefinedProgramBuild);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();

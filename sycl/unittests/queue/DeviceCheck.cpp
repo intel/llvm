@@ -103,14 +103,19 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
-  Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-  Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piDevicePartition>(redefinedDevicePartition);
-  Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
-  Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-  Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
+  Mock.redefineBefore<detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
+  Mock.redefineBefore<detail::PiApiKind::piContextRelease>(
+      redefinedContextRelease);
+  Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfo);
+  Mock.redefineBefore<detail::PiApiKind::piDevicePartition>(
+      redefinedDevicePartition);
+  Mock.redefineBefore<detail::PiApiKind::piDeviceRelease>(
+      redefinedDeviceRelease);
+  Mock.redefineBefore<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+  Mock.redefineBefore<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  Mock.redefineBefore<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
 
   // Device is a member of the context.
   {
