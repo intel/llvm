@@ -142,6 +142,19 @@ device::get_info() const {
   return impl->template get_info<Param>();
 }
 
+template <> device device::get_info<info::device::parent_device>() const {
+  // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
+  // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
+  // have parents, but we don't want to return them. They must pretend to be
+  // parentless root devices.
+  if (impl->isRootDevice())
+    throw invalid_object_error(
+        "No parent for device because it is not a subdevice",
+        PI_ERROR_INVALID_DEVICE);
+  else
+    return impl->template get_info<info::device::parent_device>();
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
