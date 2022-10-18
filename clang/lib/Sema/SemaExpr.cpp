@@ -222,8 +222,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              const ObjCInterfaceDecl *UnknownObjCClass,
                              bool ObjCPropertyAccess,
                              bool AvoidPartialAvailabilityChecks,
-<<<<<<< HEAD
-                             ObjCInterfaceDecl *ClassReceiver) {
+                             ObjCInterfaceDecl *ClassReceiver,
+                             bool SkipTrailingRequiresClause) {
   if (getLangOpts().SYCLIsDevice) {
     if (auto VD = dyn_cast<VarDecl>(D)) {
       bool IsConst = VD->getType().isConstant(Context);
@@ -269,10 +269,6 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     }
   }
 
-=======
-                             ObjCInterfaceDecl *ClassReceiver,
-                             bool SkipTrailingRequiresClause) {
->>>>>>> 4bcb85c638c1c1719c5c01a70ee2e376e4032d2a
   SourceLocation Loc = Locs.front();
   if (getLangOpts().CPlusPlus && isa<FunctionDecl>(D)) {
     // If there were any diagnostics suppressed by template argument deduction,
