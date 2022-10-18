@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
   mlir::memref::registerMemRefPasses();
   mlir::sycl::registerSYCLPasses();
   mlir::sycl::registerConvertSYCLToLLVMPass();
+  mlir::sycl::registerSYCLMethodToSYCLCallPass();
 
   // Register command line options.
   mlir::registerAsmPrinterCLOptions();
