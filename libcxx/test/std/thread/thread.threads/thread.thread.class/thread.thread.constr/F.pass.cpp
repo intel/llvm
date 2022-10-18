@@ -5,10 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
-
-// XFAIL: LIBCXX-WINDOWS-FIXME
 
 // <thread>
 
@@ -16,6 +12,7 @@
 
 // template <class F, class ...Args> thread(F&& f, Args&&... args);
 
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: sanitizer-new-delete
 
 #include <thread>
@@ -23,6 +20,7 @@
 #include <atomic>
 #include <cstdlib>
 #include <cassert>
+#include <vector>
 
 #include "test_macros.h"
 
@@ -51,10 +49,12 @@ void  operator delete(void* p) TEST_NOEXCEPT
 
 bool f_run = false;
 
-void f()
-{
-    f_run = true;
-}
+struct F {
+    std::vector<int> v_;  // so f's copy-ctor calls operator new
+    explicit F() : v_(10) {}
+    void operator()() const { f_run = true; }
+};
+F f;
 
 class G
 {
@@ -145,7 +145,7 @@ void test_throwing_new_during_thread_creation() {
             assert(i < numAllocs);
             assert(!f_run); // (2.2)
         }
-        assert(old_outstanding == outstanding_new); // (2.3)
+        ASSERT_WITH_LIBRARY_INTERNAL_ALLOCATIONS(old_outstanding == outstanding_new); // (2.3)
     }
     f_run = false;
     throw_one = 0xFFF;

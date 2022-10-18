@@ -22,6 +22,7 @@
 
 #include "test_macros.h"
 #include "allocators.h"
+#include "test_allocator.h"
 #include "../alloc_first.h"
 #include "../alloc_last.h"
 
@@ -49,6 +50,15 @@ struct Implicit {
   int value;
   Implicit(int x) : value(x) {}
 };
+
+#if TEST_STD_VER > 17
+constexpr bool alloc_move_constructor_is_constexpr() {
+  std::tuple<int> t1 = 1;
+  std::tuple<int> t2 = {std::allocator_arg, test_allocator<int>{}, std::move(t1)};
+  assert(std::get<0>(t2) == 1);
+  return true;
+}
+#endif
 
 int main(int, char**)
 {
@@ -101,6 +111,17 @@ int main(int, char**)
         std::tuple<Implicit> t2 = {std::allocator_arg, std::allocator<int>{}, std::move(t1)};
         assert(std::get<0>(t2).value == 42);
     }
+    {
+        // Test that we can use a tag derived from allocator_arg_t
+        struct DerivedFromAllocatorArgT : std::allocator_arg_t { };
+        DerivedFromAllocatorArgT derived;
+        std::tuple<long> from(3l);
+        std::tuple<long long> t0(derived, A1<int>(), std::move(from));
+    }
 
-  return 0;
+#if TEST_STD_VER > 17
+    static_assert(alloc_move_constructor_is_constexpr());
+#endif
+
+    return 0;
 }

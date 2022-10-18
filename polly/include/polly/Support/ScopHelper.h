@@ -133,7 +133,7 @@ using BoxedLoopsSetTy = llvm::SetVector<const llvm::Loop *>;
 /// is currently not supported in C++ such that those cannot be used directly.
 /// (llvm::isa could, but then llvm:cast etc. would not have the expected
 /// behavior)
-class MemAccInst {
+class MemAccInst final {
 private:
   llvm::Instruction *I;
 
@@ -250,21 +250,6 @@ public:
       return asMemIntrinsic()->getRawDest();
     if (isCallInst())
       return nullptr;
-    llvm_unreachable("Operation not supported on nullptr");
-  }
-
-  unsigned getAlignment() const {
-    if (isLoad())
-      return asLoad()->getAlignment();
-    if (isStore())
-      return asStore()->getAlignment();
-    if (isMemTransferInst())
-      return std::min(asMemTransferInst()->getDestAlignment(),
-                      asMemTransferInst()->getSourceAlignment());
-    if (isMemIntrinsic())
-      return asMemIntrinsic()->getDestAlignment();
-    if (isCallInst())
-      return 0;
     llvm_unreachable("Operation not supported on nullptr");
   }
   bool isVolatile() const {
@@ -413,27 +398,6 @@ llvm::Value *expandCodeFor(Scop &S, llvm::ScalarEvolution &SE,
                            llvm::Instruction *IP, ValueMapT *VMap,
                            llvm::BasicBlock *RTCBB);
 
-/// Check if the block is a error block.
-///
-/// A error block is currently any block that fulfills at least one of
-/// the following conditions:
-///
-///  - It is terminated by an unreachable instruction
-///  - It contains a call to a non-pure function that is not immediately
-///    dominated by a loop header and that does not dominate the region exit.
-///    This is a heuristic to pick only error blocks that are conditionally
-///    executed and can be assumed to be not executed at all without the domains
-///    being available.
-///
-/// @param BB The block to check.
-/// @param R  The analyzed region.
-/// @param LI The loop info analysis.
-/// @param DT The dominator tree of the function.
-///
-/// @return True if the block is a error block, false otherwise.
-bool isErrorBlock(llvm::BasicBlock &BB, const llvm::Region &R,
-                  llvm::LoopInfo &LI, const llvm::DominatorTree &DT);
-
 /// Return the condition for the terminator @p TI.
 ///
 /// For unconditional branches the "i1 true" condition will be returned.
@@ -562,6 +526,14 @@ bool hasDebugCall(ScopStmt *Stmt);
 llvm::Optional<llvm::Metadata *> findMetadataOperand(llvm::MDNode *LoopMD,
                                                      llvm::StringRef Name);
 
+/// Find a boolean property value in a LoopID. The value not being defined is
+/// interpreted as a false value.
+bool getBooleanLoopAttribute(llvm::MDNode *LoopID, llvm::StringRef Name);
+
+/// Find an integers property value in a LoopID.
+llvm::Optional<int> getOptionalIntLoopAttribute(llvm::MDNode *LoopID,
+                                                llvm::StringRef Name);
+
 /// Does the loop's LoopID contain a 'llvm.loop.disable_heuristics' property?
 ///
 /// This is equivalent to llvm::hasDisableAllTransformsHint(Loop*), but
@@ -569,6 +541,7 @@ llvm::Optional<llvm::Metadata *> findMetadataOperand(llvm::MDNode *LoopMD,
 /// which clashes with polly::MemoryAccess. Declaring this alias here avoid
 /// having to include LoopUtils.h in other files.
 bool hasDisableAllTransformsHint(llvm::Loop *L);
+bool hasDisableAllTransformsHint(llvm::MDNode *LoopID);
 
 /// Represent the attributes of a loop.
 struct BandAttr {

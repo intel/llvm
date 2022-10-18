@@ -18,8 +18,8 @@
 
 using namespace llvm;
 
-static cl::opt<bool> DotOnly("dot-ddg-only", cl::init(false), cl::Hidden,
-                             cl::ZeroOrMore, cl::desc("simple ddg dot graph"));
+static cl::opt<bool> DotOnly("dot-ddg-only", cl::Hidden,
+                             cl::desc("simple ddg dot graph"));
 static cl::opt<std::string> DDGDotFilenamePrefix(
     "dot-ddg-filename-prefix", cl::init("ddg"), cl::Hidden,
     cl::desc("The prefix used for the DDG dot file names."));
@@ -42,7 +42,7 @@ static void writeDDGToDotFile(DataDependenceGraph &G, bool DOnly) {
   errs() << "Writing '" << Filename << "'...";
 
   std::error_code EC;
-  raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
+  raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
 
   if (!EC)
     // We only provide the constant verson of the DOTGraphTrait specialization,

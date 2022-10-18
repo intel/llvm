@@ -4,8 +4,6 @@ Test top-level expressions.
 
 
 
-import unittest2
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,8 +11,6 @@ from lldbsuite.test import lldbutil
 
 
 class TopLevelExpressionsTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def setUp(self):
         # Call super's setUp().
@@ -91,6 +87,12 @@ class TopLevelExpressionsTestCase(TestBase):
         self.assertEqual(
             resultFromCode,
             resultFromTopLevel.GetValueAsUnsigned())
+
+        # Make sure the command line version works as well:
+        self.runCmd("expr --top-level -- int TopLevelFunction() { return 101; }")
+        resultFromTopLevel = self.frame().EvaluateExpression("TopLevelFunction()")
+        self.assertTrue(resultFromTopLevel.IsValid())
+        self.assertEqual(101, resultFromTopLevel.GetValueAsUnsigned(), "Command line version works.")
 
     def test_top_level_expression_without_target(self):
         self.expect("expr --top-level -- void func() {}", error=True,

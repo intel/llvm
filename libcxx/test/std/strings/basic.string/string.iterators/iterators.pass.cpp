@@ -10,81 +10,76 @@
 
 // <string>
 
-// iterator       begin();
-// iterator       end();
-// const_iterator begin()  const;
-// const_iterator end()    const;
-// const_iterator cbegin() const;
-// const_iterator cend()   const;
+// iterator       begin(); // constexpr since C++20
+// iterator       end(); // constexpr since C++20
+// const_iterator begin()  const; // constexpr since C++20
+// const_iterator end()    const; // constexpr since C++20
+// const_iterator cbegin() const; // constexpr since C++20
+// const_iterator cend()   const; // constexpr since C++20
 
 #include <string>
 #include <cassert>
 
 #include "test_macros.h"
 
-int main(int, char**)
+template<class C>
+TEST_CONSTEXPR_CXX20 void test()
 {
     { // N3644 testing
-        typedef std::string C;
-        C::iterator ii1{}, ii2{};
-        C::iterator ii4 = ii1;
-        C::const_iterator cii{};
+        typename C::iterator ii1{}, ii2{};
+        typename C::iterator ii4 = ii1;
+        typename C::const_iterator cii{};
+
         assert ( ii1 == ii2 );
         assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
-    }
 
-    { // N3644 testing
-        typedef std::wstring C;
-        C::iterator ii1{}, ii2{};
-        C::iterator ii4 = ii1;
-        C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
-    }
+        assert (!(ii1 != ii2 ));
 
-#if defined(__cpp_lib_char8_t) && __cpp_lib_char8_t >= 201811L
+        assert ( (ii1 == cii ));
+        assert ( (cii == ii1 ));
+        assert (!(ii1 != cii ));
+        assert (!(cii != ii1 ));
+        assert (!(ii1 <  cii ));
+        assert (!(cii <  ii1 ));
+        assert ( (ii1 <= cii ));
+        assert ( (cii <= ii1 ));
+        assert (!(ii1 >  cii ));
+        assert (!(cii >  ii1 ));
+        assert ( (ii1 >= cii ));
+        assert ( (cii >= ii1 ));
+        assert (cii - ii1 == 0);
+        assert (ii1 - cii == 0);
+    }
     {
-        typedef std::u8string C;
-        C::iterator ii1{}, ii2{};
-        C::iterator ii4 = ii1;
-        C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
+        C a;
+        typename C::iterator i1 = a.begin();
+        typename C::iterator i2;
+        i2 = i1;
+        assert ( i1 == i2 );
     }
+}
+
+TEST_CONSTEXPR_CXX20 bool test() {
+    test<std::string>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
+    test<std::wstring>();
 #endif
 
-    { // N3644 testing
-        typedef std::u16string C;
-        C::iterator ii1{}, ii2{};
-        C::iterator ii4 = ii1;
-        C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
-    }
+#ifndef TEST_HAS_NO_CHAR8_T
+    test<std::u8string>();
+#endif
 
-    { // N3644 testing
-        typedef std::u32string C;
-        C::iterator ii1{}, ii2{};
-        C::iterator ii4 = ii1;
-        C::const_iterator cii{};
-        assert ( ii1 == ii2 );
-        assert ( ii1 == ii4 );
-        assert ( ii1 == cii );
-        assert ( !(ii1 != ii2 ));
-        assert ( !(ii1 != cii ));
-    }
+    test<std::u16string>();
+    test<std::u32string>();
 
-  return 0;
+    return true;
+}
+
+int main(int, char**)
+{
+    test();
+#if TEST_STD_VER > 17
+    static_assert(test());
+#endif
+    return 0;
 }

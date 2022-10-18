@@ -1,5 +1,5 @@
-; RUN: opt %loadPolly -polly-opt-isl -polly-pragma-based-opts=1 -analyze < %s | FileCheck %s --match-full-lines
-; RUN: opt %loadPolly -polly-opt-isl -polly-pragma-based-opts=0 -analyze < %s | FileCheck %s --check-prefix=OFF --match-full-lines
+; RUN: opt %loadPolly -polly-pragma-based-opts=1 -polly-print-opt-isl -disable-output < %s | FileCheck %s --match-full-lines
+; RUN: opt %loadPolly -polly-pragma-based-opts=0 -polly-print-opt-isl -disable-output < %s | FileCheck %s --check-prefix=OFF --match-full-lines
 ;
 ; Partial unroll by a factor of 4.
 ;
@@ -28,8 +28,7 @@ return:
 }
 
 
-!2 = distinct !{!2, !4, !5}
-!4 = !{!"llvm.loop.unroll.enable", i1 true}
+!2 = distinct !{!2, !5}
 !5 = !{!"llvm.loop.unroll.count", i4 4}
 
 

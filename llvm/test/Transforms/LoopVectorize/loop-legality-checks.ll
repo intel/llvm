@@ -1,25 +1,8 @@
 ; RUN: opt < %s -loop-vectorize -debug-only=loop-vectorize -S -disable-output 2>&1 | FileCheck %s
 ; REQUIRES: asserts
 
-; Make sure LV legal bails out when there is no exiting block
-; CHECK-LABEL: "no_exiting_block"
-; CHECK: LV: Not vectorizing: The loop must have a unique exit block.
-define i32 @no_exiting_block() {
-entry:
-  br label %for.body
-
-for.body:
-  %i.02 = phi i32 [ 0, %entry ], [ %inc, %for.body ], [%inc, %for.second]
-  %inc = add nsw i32 %i.02, 1
-  %cmp = icmp slt i32 %inc, 16
-  br i1 %cmp, label %for.body, label %for.second
-
-for.second:
-  br label %for.body
-}
-
 ; Make sure LV legal bails out when there is a non-int, non-ptr phi
-; CHECK-LABEL: "invalid_phi_types"
+; CHECK-LABEL: 'invalid_phi_types'
 ; CHECK: LV: Not vectorizing: Found a non-int non-pointer PHI.
 define i32 @invalid_phi_types() {
 entry:
@@ -38,7 +21,7 @@ for.end:
 
 ; D40973
 ; Make sure LV legal bails out when the loop doesn't have a legal pre-header.
-; CHECK-LABEL: "inc"
+; CHECK-LABEL: 'inc'
 ; CHECK: LV: Not vectorizing: Loop doesn't have a legal pre-header.
 define void @inc(i32 %n, i8* %P) {
   %1 = icmp sgt i32 %n, 0

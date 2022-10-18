@@ -10,12 +10,12 @@
 #define LLVM_MC_MCPARSER_MCASMPARSER_H
 
 #include "llvm/ADT/None.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/MC/MCParser/MCAsmLexer.h"
+#include "llvm/MC/MCAsmMacro.h"
 #include "llvm/Support/SMLoc.h"
 #include <cstdint>
 #include <string>
@@ -23,6 +23,7 @@
 
 namespace llvm {
 
+class MCAsmLexer;
 class MCAsmInfo;
 class MCAsmParserExtension;
 class MCContext;
@@ -202,8 +203,8 @@ public:
 
   /// Parse MS-style inline assembly.
   virtual bool parseMSInlineAsm(
-      void *AsmLoc, std::string &AsmString, unsigned &NumOutputs,
-      unsigned &NumInputs, SmallVectorImpl<std::pair<void *, bool>> &OpDecls,
+      std::string &AsmString, unsigned &NumOutputs, unsigned &NumInputs,
+      SmallVectorImpl<std::pair<void *, bool>> &OpDecls,
       SmallVectorImpl<std::string> &Constraints,
       SmallVectorImpl<std::string> &Clobbers, const MCInstrInfo *MII,
       const MCInstPrinter *IP, MCAsmParserSemaCallback &SI) = 0;
@@ -260,6 +261,8 @@ public:
   /// success.
   bool parseOptionalToken(AsmToken::TokenKind T);
 
+  bool parseComma() { return parseToken(AsmToken::Comma, "expected comma"); }
+  bool parseRParen() { return parseToken(AsmToken::RParen, "expected ')'"); }
   bool parseEOL();
   bool parseEOL(const Twine &ErrMsg);
 
@@ -336,6 +339,9 @@ public:
   /// \return - False on success.
   virtual bool parseParenExprOfDepth(unsigned ParenDepth, const MCExpr *&Res,
                                      SMLoc &EndLoc) = 0;
+
+  /// Parse a .gnu_attribute.
+  bool parseGNUAttribute(SMLoc L, int64_t &Tag, int64_t &IntegerValue);
 };
 
 /// Create an MCAsmParser instance for parsing assembly similar to gas syntax
@@ -344,7 +350,7 @@ MCAsmParser *createMCAsmParser(SourceMgr &, MCContext &, MCStreamer &,
 
 /// Create an MCAsmParser instance for parsing Microsoft MASM-style assembly
 MCAsmParser *createMCMasmParser(SourceMgr &, MCContext &, MCStreamer &,
-                                const MCAsmInfo &, unsigned CB = 0);
+                                const MCAsmInfo &, struct tm, unsigned CB = 0);
 
 } // end namespace llvm
 

@@ -27,23 +27,26 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/ExecutionDomainFix.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
+#include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
 #include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/CFGuard.h"
@@ -56,6 +59,11 @@ static cl::opt<bool> EnableMachineCombinerPass("x86-machine-combiner",
                                cl::desc("Enable the machine combiner pass"),
                                cl::init(true), cl::Hidden);
 
+static cl::opt<bool>
+    EnableTileRAPass("x86-tile-ra",
+                     cl::desc("Enable the tile register allocation pass"),
+                     cl::init(true), cl::Hidden);
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   // Register the target.
   RegisterTargetMachine<X86TargetMachine> X(getTheX86_32Target());
@@ -64,6 +72,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeX86LowerAMXIntrinsicsLegacyPassPass(PR);
   initializeX86LowerAMXTypeLegacyPassPass(PR);
+  initializeX86PreAMXConfigPassPass(PR);
+  initializeX86PreTileConfigPass(PR);
   initializeGlobalISel(PR);
   initializeWinEHStatePassPass(PR);
   initializeFixupBWInstPassPass(PR);
@@ -74,6 +84,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86CallFrameOptimizationPass(PR);
   initializeX86CmovConverterPassPass(PR);
   initializeX86TileConfigPass(PR);
+  initializeX86FastPreTileConfigPass(PR);
+  initializeX86FastTileConfigPass(PR);
+  initializeX86KCFIPass(PR);
   initializeX86LowerTileCopyPass(PR);
   initializeX86ExpandPseudoPass(PR);
   initializeX86ExecutionDomainFixPass(PR);
@@ -88,6 +101,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86OptimizeLEAPassPass(PR);
   initializeX86PartialReductionPass(PR);
   initializePseudoProbeInserterPass(PR);
+  initializeX86ReturnThunksPass(PR);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -108,9 +122,7 @@ static std::string computeDataLayout(const Triple &TT) {
 
   Ret += DataLayout::getManglingComponent(TT);
   // X86 and x32 have 32 bit pointers.
-  if ((TT.isArch64Bit() &&
-       (TT.getEnvironment() == Triple::GNUX32 || TT.isOSNaCl())) ||
-      !TT.isArch64Bit())
+  if (!TT.isArch64Bit() || TT.isX32() || TT.isOSNaCl())
     Ret += "-p:32:32";
 
   // Address spaces for 32 bit signed, 32 bit unsigned, and 64 bit pointers.
@@ -127,7 +139,7 @@ static std::string computeDataLayout(const Triple &TT) {
   // Some ABIs align long double to 128 bits, others to 32.
   if (TT.isOSNaCl() || TT.isOSIAMCU())
     ; // No f80
-  else if (TT.isArch64Bit() || TT.isOSDarwin())
+  else if (TT.isArch64Bit() || TT.isOSDarwin() || TT.isWindowsMSVCEnvironment())
     Ret += "-f80:128";
   else
     Ret += "-f80:32";
@@ -154,7 +166,7 @@ static Reloc::Model getEffectiveRelocModel(const Triple &TT,
                                            bool JIT,
                                            Optional<Reloc::Model> RM) {
   bool is64Bit = TT.getArch() == Triple::x86_64;
-  if (!RM.hasValue()) {
+  if (!RM) {
     // JIT codegen should use static relocations by default, since it's
     // typically executed in process and not relocatable.
     if (JIT)
@@ -218,9 +230,9 @@ X86TargetMachine::X86TargetMachine(const Target &T, const Triple &TT,
           getEffectiveX86CodeModel(CM, JIT, TT.getArch() == Triple::x86_64),
           OL),
       TLOF(createTLOF(getTargetTriple())), IsJIT(JIT) {
-  // On PS4, the "return address" of a 'noreturn' call must still be within
+  // On PS4/PS5, the "return address" of a 'noreturn' call must still be within
   // the calling function, and TrapUnreachable is an easy way to get that.
-  if (TT.isPS4() || TT.isOSBinFormatMachO()) {
+  if (TT.isPS() || TT.isOSBinFormatMachO()) {
     this->Options.TrapUnreachable = true;
     this->Options.NoTrapAfterNoreturn = TT.isOSBinFormatMachO();
   }
@@ -243,8 +255,12 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
 
   StringRef CPU =
       CPUAttr.isValid() ? CPUAttr.getValueAsString() : (StringRef)TargetCPU;
-  StringRef TuneCPU =
-      TuneAttr.isValid() ? TuneAttr.getValueAsString() : (StringRef)CPU;
+  // "x86-64" is a default target setting for many front ends. In these cases,
+  // they actually request for "generic" tuning unless the "tune-cpu" was
+  // specified.
+  StringRef TuneCPU = TuneAttr.isValid() ? TuneAttr.getValueAsString()
+                      : CPU == "x86-64"  ? "generic"
+                                         : (StringRef)CPU;
   StringRef FS =
       FSAttr.isValid() ? FSAttr.getValueAsString() : (StringRef)TargetFS;
 
@@ -294,8 +310,7 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
   // function before we can generate a subtarget. We also need to use
   // it as a key for the subtarget since that can be the only difference
   // between two functions.
-  bool SoftFloat =
-      F.getFnAttribute("use-soft-float").getValueAsString() == "true";
+  bool SoftFloat = F.getFnAttribute("use-soft-float").getValueAsBool();
   // If the soft float attribute is set on the function turn on the soft float
   // subtarget feature.
   if (SoftFloat)
@@ -315,8 +330,8 @@ X86TargetMachine::getSubtargetImpl(const Function &F) const {
     resetTargetOptions(F);
     I = std::make_unique<X86Subtarget>(
         TargetTriple, CPU, TuneCPU, FS, *this,
-        MaybeAlign(Options.StackAlignmentOverride), PreferVectorWidthOverride,
-        RequiredVectorWidth);
+        MaybeAlign(F.getParent()->getOverrideStackAlignment()),
+        PreferVectorWidthOverride, RequiredVectorWidth);
   }
   return I.get();
 }
@@ -334,7 +349,7 @@ bool X86TargetMachine::isNoopAddrSpaceCast(unsigned SrcAS,
 //===----------------------------------------------------------------------===//
 
 TargetTransformInfo
-X86TargetMachine::getTargetTransformInfo(const Function &F) {
+X86TargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(X86TTIImpl(this, F));
 }
 
@@ -378,11 +393,12 @@ public:
   bool addPreISel() override;
   void addMachineSSAOptimization() override;
   void addPreRegAlloc() override;
+  bool addPostFastRegAllocRewrite() override;
   void addPostRegAlloc() override;
   void addPreEmitPass() override;
   void addPreEmitPass2() override;
   void addPreSched2() override;
-  bool addPreRewrite() override;
+  bool addRegAssignAndRewriteOptimized() override;
 
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
 };
@@ -438,6 +454,9 @@ void X86PassConfig::addIRPasses() {
       addPass(createCFGuardCheckPass());
     }
   }
+
+  if (TM->Options.JMCInstrument)
+    addPass(createJMCInstrumenterPass());
 }
 
 bool X86PassConfig::addInstSelector() {
@@ -500,11 +519,12 @@ void X86PassConfig::addPreRegAlloc() {
 
   addPass(createX86SpeculativeLoadHardeningPass());
   addPass(createX86FlagsCopyLoweringPass());
-  addPass(createX86WinAllocaExpander());
+  addPass(createX86DynAllocaExpander());
 
-  if (getOptLevel() != CodeGenOpt::None) {
+  if (getOptLevel() != CodeGenOpt::None)
     addPass(createX86PreTileConfigPass());
-  }
+  else
+    addPass(createX86FastPreTileConfigPass());
 }
 
 void X86PassConfig::addMachineSSAOptimization() {
@@ -523,7 +543,10 @@ void X86PassConfig::addPostRegAlloc() {
     addPass(createX86LoadValueInjectionLoadHardeningPass());
 }
 
-void X86PassConfig::addPreSched2() { addPass(createX86ExpandPseudoPass()); }
+void X86PassConfig::addPreSched2() {
+  addPass(createX86ExpandPseudoPass());
+  addPass(createX86KCFIPass());
+}
 
 void X86PassConfig::addPreEmitPass() {
   if (getOptLevel() != CodeGenOpt::None) {
@@ -561,6 +584,7 @@ void X86PassConfig::addPreEmitPass2() {
   // hand inspection of the codegen output.
   addPass(createX86SpeculativeExecutionSideEffectSuppression());
   addPass(createX86IndirectThunksPass());
+  addPass(createX86ReturnThunksPass());
 
   // Insert extra int3 instructions after trailing call instructions to avoid
   // issues in the unwinder.
@@ -582,13 +606,44 @@ void X86PassConfig::addPreEmitPass2() {
     addPass(createEHContGuardCatchretPass());
   }
   addPass(createX86LoadValueInjectionRetHardeningPass());
+
+  // Insert pseudo probe annotation for callsite profiling
+  addPass(createPseudoProbeInserter());
+
+  // KCFI indirect call checks are lowered to a bundle, and on Darwin platforms,
+  // also CALL_RVMARKER.
+  addPass(createUnpackMachineBundles([&TT](const MachineFunction &MF) {
+    // Only run bundle expansion if the module uses kcfi, or there are relevant
+    // ObjC runtime functions present in the module.
+    const Function &F = MF.getFunction();
+    const Module *M = F.getParent();
+    return M->getModuleFlag("kcfi") ||
+           (TT.isOSDarwin() &&
+            (M->getFunction("objc_retainAutoreleasedReturnValue") ||
+             M->getFunction("objc_unsafeClaimAutoreleasedReturnValue")));
+  }));
 }
 
-bool X86PassConfig::addPreRewrite() {
-  addPass(createX86TileConfigPass());
+bool X86PassConfig::addPostFastRegAllocRewrite() {
+  addPass(createX86FastTileConfigPass());
   return true;
 }
 
 std::unique_ptr<CSEConfigBase> X86PassConfig::getCSEConfig() const {
   return getStandardCSEConfigForOpt(TM->getOptLevel());
+}
+
+static bool onlyAllocateTileRegisters(const TargetRegisterInfo &TRI,
+                                      const TargetRegisterClass &RC) {
+  return static_cast<const X86RegisterInfo &>(TRI).isTileRegisterClass(&RC);
+}
+
+bool X86PassConfig::addRegAssignAndRewriteOptimized() {
+  // Don't support tile RA when RA is specified by command line "-regalloc".
+  if (!isCustomizedRegAlloc() && EnableTileRAPass) {
+    // Allocate tile register first.
+    addPass(createGreedyRegisterAllocator(onlyAllocateTileRegisters));
+    addPass(createX86TileConfigPass());
+  }
+  return TargetPassConfig::addRegAssignAndRewriteOptimized();
 }

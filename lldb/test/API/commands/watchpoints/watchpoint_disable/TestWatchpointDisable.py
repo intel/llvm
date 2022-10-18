@@ -9,7 +9,6 @@ from lldbsuite.test import lldbplatform, lldbplatformutil
 
 
 class TestWatchpointSetEnable(TestBase):
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def test_disable_works (self):
@@ -25,12 +24,9 @@ class TestWatchpointSetEnable(TestBase):
     def do_test(self, test_enable):
         """Set a watchpoint, disable it and make sure it doesn't get hit."""
 
-        exe = self.getBuildArtifact("a.out")
         main_file_spec = lldb.SBFileSpec("main.c")
 
-        # Create a target by the debugger.
-        self.target = self.dbg.CreateTarget(exe)
-        self.assertTrue(self.target, VALID_TARGET)
+        self.target = self.createTestTarget()
 
         bkpt_before = self.target.BreakpointCreateBySourceRegex("Set a breakpoint here", main_file_spec)
         self.assertEqual(bkpt_before.GetNumLocations(),  1, "Failed setting the before breakpoint.")
@@ -60,12 +56,12 @@ class TestWatchpointSetEnable(TestBase):
 
         stop_reason = thread.GetStopReason()
 
-        self.assertEqual(stop_reason, lldb.eStopReasonBreakpoint, "We didn't stop at our breakpoint.")
+        self.assertStopReason(stop_reason, lldb.eStopReasonBreakpoint, "We didn't stop at our breakpoint.")
 
         if test_enable:
             wp.SetEnabled(True)
             self.assertTrue(wp.IsEnabled(), "The watchpoint thinks it is still disabled.")
             process.Continue()
             stop_reason = thread.GetStopReason()
-            self.assertEqual(stop_reason, lldb.eStopReasonWatchpoint, "We didn't stop at our watchpoint")
+            self.assertStopReason(stop_reason, lldb.eStopReasonWatchpoint, "We didn't stop at our watchpoint")
 

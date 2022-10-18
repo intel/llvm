@@ -1,5 +1,4 @@
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 target datalayout = "p:64:64:64"
 
@@ -11,7 +10,7 @@ declare void @init(i64 *%ptr)
 declare void @use(i8* %ptr)
 declare void @use_addr_val(i64 %val, {i64, i64}*%addr)
 
-define { i8*, {i64, i64}* } @f(i8* %buffer) "coroutine.presplit"="1" {
+define { i8*, {i64, i64}* } @f(i8* %buffer) presplitcoroutine {
 entry:
   %tmp = alloca { i64, i64 }, align 8
   %proj.1 = getelementptr inbounds { i64, i64 }, { i64, i64 }* %tmp, i64 0, i32 0

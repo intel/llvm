@@ -29,15 +29,11 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
@@ -59,7 +55,6 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <iterator>
 #include <map>
 #include <utility>
@@ -559,12 +554,12 @@ bool LoopReroll::isLoopControlIV(Loop *L, Instruction *IV) {
           }
           // Must be a CMP or an ext (of a value with nsw) then CMP
           else {
-            Instruction *UUser = dyn_cast<Instruction>(UU);
+            auto *UUser = cast<Instruction>(UU);
             // Skip SExt if we are extending an nsw value
             // TODO: Allow ZExt too
-            if (BO->hasNoSignedWrap() && UUser && UUser->hasOneUse() &&
+            if (BO->hasNoSignedWrap() && UUser->hasOneUse() &&
                 isa<SExtInst>(UUser))
-              UUser = dyn_cast<Instruction>(*(UUser->user_begin()));
+              UUser = cast<Instruction>(*(UUser->user_begin()));
             if (!isCompareUsedByBranch(UUser))
               return false;
           }
@@ -911,6 +906,8 @@ bool LoopReroll::DAGRootTracker::validateRootSet(DAGRootSet &DRS) {
   // Check that the first root is evenly spaced.
   unsigned N = DRS.Roots.size() + 1;
   const SCEV *StepSCEV = SE->getMinusSCEV(SE->getSCEV(DRS.Roots[0]), ADR);
+  if (isa<SCEVCouldNotCompute>(StepSCEV) || StepSCEV->getType()->isPointerTy())
+    return false;
   const SCEV *ScaleSCEV = SE->getConstant(StepSCEV->getType(), N);
   if (ADR->getStepRecurrence(*SE) != SE->getMulExpr(StepSCEV, ScaleSCEV))
     return false;
@@ -1080,6 +1077,12 @@ bool LoopReroll::DAGRootTracker::collectUsedInstructions(SmallInstructionSet &Po
   DenseSet<Instruction*> V;
   collectInLoopUserSet(LoopIncs, Exclude, PossibleRedSet, V);
   for (auto *I : V) {
+    if (I->mayHaveSideEffects()) {
+      LLVM_DEBUG(dbgs() << "LRR: Aborting - "
+                        << "An instruction which does not belong to any root "
+                        << "sets must not have side effects: " << *I);
+      return false;
+    }
     Uses[I].set(IL_All);
   }
 
@@ -1323,15 +1326,17 @@ bool LoopReroll::DAGRootTracker::validate(ReductionTracker &Reductions) {
       // Make sure that we don't alias with any instruction in the alias set
       // tracker. If we do, then we depend on a future iteration, and we
       // can't reroll.
-      if (RootInst->mayReadFromMemory())
+      if (RootInst->mayReadFromMemory()) {
+        BatchAAResults BatchAA(*AA);
         for (auto &K : AST) {
-          if (K.aliasesUnknownInst(RootInst, *AA)) {
+          if (K.aliasesUnknownInst(RootInst, BatchAA)) {
             LLVM_DEBUG(dbgs() << "LRR: iteration root match failed at "
                               << *BaseInst << " vs. " << *RootInst
                               << " (depends on future store)\n");
             return false;
           }
         }
+      }
 
       // If we've past an instruction from a future iteration that may have
       // side effects, and this instruction might also, then we can't reorder
@@ -1448,16 +1453,12 @@ void LoopReroll::DAGRootTracker::replace(const SCEV *BackedgeTakenCount) {
   }
 
   // Remove instructions associated with non-base iterations.
-  for (BasicBlock::reverse_iterator J = Header->rbegin(), JE = Header->rend();
-       J != JE;) {
-    unsigned I = Uses[&*J].find_first();
+  for (Instruction &Inst : llvm::make_early_inc_range(llvm::reverse(*Header))) {
+    unsigned I = Uses[&Inst].find_first();
     if (I > 0 && I < IL_All) {
-      LLVM_DEBUG(dbgs() << "LRR: removing: " << *J << "\n");
-      J++->eraseFromParent();
-      continue;
+      LLVM_DEBUG(dbgs() << "LRR: removing: " << Inst << "\n");
+      Inst.eraseFromParent();
     }
-
-    ++J;
   }
 
   // Rewrite each BaseInst using SCEV.

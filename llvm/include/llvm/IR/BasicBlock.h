@@ -22,9 +22,6 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/SymbolTableListTraits.h"
 #include "llvm/IR/Value.h"
-#include "llvm/Support/CBindingWrapping.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/Compiler.h"
 #include <cassert>
 #include <cstddef>
 #include <iterator>
@@ -119,7 +116,11 @@ public:
 
   /// Returns the terminator instruction if the block is well formed or null
   /// if the block is not well formed.
-  const Instruction *getTerminator() const LLVM_READONLY;
+  const Instruction *getTerminator() const LLVM_READONLY {
+    if (InstList.empty() || !InstList.back().isTerminator())
+      return nullptr;
+    return &InstList.back();
+  }
   Instruction *getTerminator() {
     return const_cast<Instruction *>(
         static_cast<const BasicBlock *>(this)->getTerminator());
@@ -167,8 +168,8 @@ public:
   /// Returns a pointer to the first instruction in this block that is not a
   /// PHINode or a debug intrinsic, or any pseudo operation if \c SkipPseudoOp
   /// is true.
-  const Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = false) const;
-  Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = false) {
+  const Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = true) const;
+  Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = true) {
     return const_cast<Instruction *>(
         static_cast<const BasicBlock *>(this)->getFirstNonPHIOrDbg(
             SkipPseudoOp));
@@ -178,8 +179,8 @@ public:
   /// PHINode, a debug intrinsic, or a lifetime intrinsic, or any pseudo
   /// operation if \c SkipPseudoOp is true.
   const Instruction *
-  getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = false) const;
-  Instruction *getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = false) {
+  getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = true) const;
+  Instruction *getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = true) {
     return const_cast<Instruction *>(
         static_cast<const BasicBlock *>(this)->getFirstNonPHIOrDbgOrLifetime(
             SkipPseudoOp));
@@ -195,19 +196,28 @@ public:
                                           ->getFirstInsertionPt().getNonConst();
   }
 
+  /// Returns an iterator to the first instruction in this block that is
+  /// not a PHINode, a debug intrinsic, a static alloca or any pseudo operation.
+  const_iterator getFirstNonPHIOrDbgOrAlloca() const;
+  iterator getFirstNonPHIOrDbgOrAlloca() {
+    return static_cast<const BasicBlock *>(this)
+        ->getFirstNonPHIOrDbgOrAlloca()
+        .getNonConst();
+  }
+
   /// Return a const iterator range over the instructions in the block, skipping
   /// any debug instructions. Skip any pseudo operations as well if \c
   /// SkipPseudoOp is true.
   iterator_range<filter_iterator<BasicBlock::const_iterator,
                                  std::function<bool(const Instruction &)>>>
-  instructionsWithoutDebug(bool SkipPseudoOp = false) const;
+  instructionsWithoutDebug(bool SkipPseudoOp = true) const;
 
   /// Return an iterator range over the instructions in the block, skipping any
   /// debug instructions. Skip and any pseudo operations as well if \c
   /// SkipPseudoOp is true.
   iterator_range<
       filter_iterator<BasicBlock::iterator, std::function<bool(Instruction &)>>>
-  instructionsWithoutDebug(bool SkipPseudoOp = false);
+  instructionsWithoutDebug(bool SkipPseudoOp = true);
 
   /// Return the size of the basic block ignoring debug instructions
   filter_iterator<BasicBlock::const_iterator,
@@ -480,6 +490,10 @@ public:
   /// Return true if it is legal to hoist instructions into this block.
   bool isLegalToHoistInto() const;
 
+  /// Return true if this is the entry block of the containing function.
+  /// This method can only be used on blocks that have a parent function.
+  bool isEntryBlock() const;
+
   Optional<uint64_t> getIrrLoopHeaderWeight() const;
 
   /// Returns true if the Order field of child Instructions is valid.
@@ -509,7 +523,7 @@ public:
   void validateInstrOrdering() const;
 
 private:
-#if defined(_AIX) && (!defined(__GNUC__) || defined(__ibmxl__))
+#if defined(_AIX) && (!defined(__GNUC__) || defined(__clang__))
 // Except for GCC; by default, AIX compilers store bit-fields in 4-byte words
 // and give the `pack` pragma push semantics.
 #define BEGIN_TWO_BYTE_PACK() _Pragma("pack(2)")

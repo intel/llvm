@@ -9,15 +9,26 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(CompilerRTBuiltins C ASM)
   set(COMPILER_RT_STANDALONE_BUILD TRUE)
   set(COMPILER_RT_BUILTINS_STANDALONE_BUILD TRUE)
+
+  set(COMPILER_RT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+
+  set(LLVM_COMMON_CMAKE_UTILS "${COMPILER_RT_SOURCE_DIR}/../cmake")
+
+  # Add path for custom modules
   list(INSERT CMAKE_MODULE_PATH 0
-    "${CMAKE_SOURCE_DIR}/../../cmake"
-    "${CMAKE_SOURCE_DIR}/../../cmake/Modules")
+    "${COMPILER_RT_SOURCE_DIR}/cmake"
+    "${COMPILER_RT_SOURCE_DIR}/cmake/Modules"
+    "${LLVM_COMMON_CMAKE_UTILS}"
+    "${LLVM_COMMON_CMAKE_UTILS}/Modules"
+    )
+
   include(base-config-ix)
   include(CompilerRTUtils)
 
   load_llvm_config()
   construct_compiler_rt_default_triple()
 
+  include(SetPlatformToolchainTools)
   if(APPLE)
     include(CompilerRTDarwinUtils)
   endif()
@@ -25,15 +36,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     include(UseLibtool)
   endif()
   include(AddCompilerRT)
-
-  if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-    set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q <TARGET> <LINK_FLAGS> <OBJECTS>")
-    set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> -X32_64 <TARGET>")
-    set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -X32_64 <TARGET>")
-  endif()
 endif()
 
 if (COMPILER_RT_STANDALONE_BUILD)
@@ -47,6 +49,10 @@ if (COMPILER_RT_STANDALONE_BUILD)
 endif()
 
 include(builtin-config-ix)
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+  include(CompilerRTAIXUtils)
+endif()
 
 option(COMPILER_RT_BUILTINS_HIDE_SYMBOLS
   "Do not export any symbols from the static library." ON)
@@ -174,6 +180,15 @@ set(GENERIC_SOURCES
   umodsi3.c
   umodti3.c
 )
+
+# Build BF16 files only when "__bf16" is available.
+if(COMPILER_RT_HAS_BFLOAT16 AND NOT APPLE)
+  set(GENERIC_SOURCES
+    ${GENERIC_SOURCES}
+    truncdfbf2.c
+    truncsfbf2.c
+  )
+endif()
 
 # TODO: Several "tf" files (and divtc3.c, but not multc3.c) are in
 # GENERIC_SOURCES instead of here.
@@ -488,7 +503,6 @@ if(MINGW)
     arm/aeabi_uidivmod.S
     arm/aeabi_uldivmod.S
     arm/chkstk.S
-    mingw_fixfloat.c
     ${arm_SOURCES}
   )
 elseif(NOT WIN32)
@@ -527,10 +541,8 @@ foreach(pat cas swp ldadd ldclr ldeor ldset)
     foreach(model 1 2 3 4)
       if(pat STREQUAL "cas" OR NOT size STREQUAL "16")
         set(helper_asm "${OA_HELPERS_DIR}/outline_atomic_${pat}${size}_${model}.S")
-        add_custom_command(
-          OUTPUT ${helper_asm}
-          COMMAND ${CMAKE_COMMAND} -E ${COMPILER_RT_LINK_OR_COPY} "${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S" "${helper_asm}"
-        )
+        list(APPEND lse_builtins "${helper_asm}")
+        list(APPEND arm64_lse_commands COMMAND ${CMAKE_COMMAND} -E ${COMPILER_RT_LINK_OR_COPY} "${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S" "${helper_asm}")
         set_source_files_properties("${helper_asm}"
           PROPERTIES
           COMPILE_DEFINITIONS "L_${pat};SIZE=${size};MODEL=${model}"
@@ -561,6 +573,20 @@ set(arm64_32_SOURCES ${aarch64_SOURCES})
 set(armv6m_SOURCES ${thumb1_SOURCES})
 set(armv7m_SOURCES ${arm_SOURCES})
 set(armv7em_SOURCES ${arm_SOURCES})
+set(armv8m.main_SOURCES ${arm_SOURCES})
+set(armv8.1m.main_SOURCES ${arm_SOURCES})
+
+# 8-bit AVR MCU
+set(avr_SOURCES
+  avr/mulqi3.S
+  avr/mulhi3.S
+  avr/exit.S
+  avr/divmodhi4.S
+  avr/udivmodhi4.S
+  avr/divmodqi4.S
+  avr/udivmodqi4.S
+  ${GENERIC_SOURCES}
+)
 
 # hexagon arch
 set(hexagon_SOURCES
@@ -604,6 +630,8 @@ set(mips64el_SOURCES ${GENERIC_TF_SOURCES}
 
 set(powerpc_SOURCES ${GENERIC_SOURCES})
 
+set(powerpcspe_SOURCES ${GENERIC_SOURCES})
+
 set(powerpc64_SOURCES
   ppc/divtc3.c
   ppc/fixtfdi.c
@@ -629,6 +657,7 @@ endif()
 set(powerpc64le_SOURCES ${powerpc64_SOURCES})
 
 set(riscv_SOURCES
+  riscv/fp_mode.c
   riscv/save.S
   riscv/restore.S
   ${GENERIC_SOURCES}
@@ -670,6 +699,11 @@ if (APPLE)
   darwin_add_builtin_libraries(${BUILTIN_SUPPORTED_OS})
 else ()
   set(BUILTIN_CFLAGS "")
+  add_security_warnings(BUILTIN_CFLAGS 0)
+
+  if (COMPILER_RT_HAS_FCF_PROTECTION_FLAG)
+    append_list_if(COMPILER_RT_ENABLE_CET -fcf-protection=full BUILTIN_CFLAGS)
+  endif()
 
   append_list_if(COMPILER_RT_HAS_FLOAT16 -DCOMPILER_RT_HAS_FLOAT16 BUILTIN_CFLAGS)
 
@@ -700,8 +734,9 @@ else ()
 
   foreach (arch ${BUILTIN_SUPPORTED_ARCH})
     if (CAN_TARGET_${arch})
+      set(BUILTIN_CFLAGS_${arch} ${BUILTIN_CFLAGS})
       # For ARM archs, exclude any VFP builtins if VFP is not supported
-      if (${arch} MATCHES "^(arm|armhf|armv7|armv7s|armv7k|armv7m|armv7em)$")
+      if (${arch} MATCHES "^(arm|armhf|armv7|armv7s|armv7k|armv7m|armv7em|armv8m.main|armv8.1m.main)$")
         string(REPLACE ";" " " _TARGET_${arch}_CFLAGS "${TARGET_${arch}_CFLAGS}")
         check_compile_definition(__ARM_FP "${CMAKE_C_FLAGS} ${_TARGET_${arch}_CFLAGS}" COMPILER_RT_HAS_${arch}_VFP)
         if(NOT COMPILER_RT_HAS_${arch}_VFP)
@@ -725,24 +760,77 @@ else ()
       # Needed for clear_cache on debug mode, due to r7's usage in inline asm.
       # Release mode already sets it via -O2/3, Debug mode doesn't.
       if (${arch} STREQUAL "armhf")
-        list(APPEND BUILTIN_CFLAGS -fomit-frame-pointer -DCOMPILER_RT_ARMHF_TARGET)
+        list(APPEND BUILTIN_CFLAGS_${arch} -fomit-frame-pointer -DCOMPILER_RT_ARMHF_TARGET)
       endif()
 
       # For RISCV32, we must force enable int128 for compiling long
       # double routines.
       if("${arch}" STREQUAL "riscv32")
-        list(APPEND BUILTIN_CFLAGS -fforce-enable-int128)
+        list(APPEND BUILTIN_CFLAGS_${arch} -fforce-enable-int128)
+      endif()
+
+      if(arch STREQUAL "aarch64")
+        add_custom_target(
+          lse_builtin_symlinks
+          BYPRODUCTS ${lse_builtins}
+          ${arm64_lse_commands}
+        )
+
+        set(deps_aarch64 lse_builtin_symlinks)
       endif()
 
       add_compiler_rt_runtime(clang_rt.builtins
                               STATIC
                               ARCHS ${arch}
+                              DEPS ${deps_${arch}}
                               SOURCES ${${arch}_SOURCES}
                               DEFS ${BUILTIN_DEFS}
-                              CFLAGS ${BUILTIN_CFLAGS}
+                              CFLAGS ${BUILTIN_CFLAGS_${arch}}
                               PARENT_TARGET builtins)
     endif ()
   endforeach ()
 endif ()
+
+option(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC
+  "Build standalone shared atomic library."
+  OFF)
+
+if(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
+  add_custom_target(builtins-standalone-atomic)
+  set(BUILTIN_DEPS "")
+  set(BUILTIN_TYPE SHARED)
+  if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    if(NOT COMPILER_RT_LIBATOMIC_LINK_FLAGS)
+      get_aix_libatomic_default_link_flags(COMPILER_RT_LIBATOMIC_LINK_FLAGS
+        "${CMAKE_CURRENT_SOURCE_DIR}/ppc/atomic.exp")
+    endif()
+    # The compiler needs builtins to link any other binaries, so let
+    # clang_rt.atomic be built after builtins.
+    set(BUILTIN_DEPS builtins)
+    # For different versions of cmake, SHARED behaves differently. For some
+    # versions, we might need MODULE rather than SHARED.
+    get_aix_libatomic_type(BUILTIN_TYPE)
+  endif()
+  foreach (arch ${BUILTIN_SUPPORTED_ARCH})
+    if(CAN_TARGET_${arch})
+      add_compiler_rt_runtime(clang_rt.atomic
+                              ${BUILTIN_TYPE}
+                              ARCHS ${arch}
+                              SOURCES atomic.c
+                              LINK_FLAGS ${COMPILER_RT_LIBATOMIC_LINK_FLAGS}
+                              DEPS ${BUILTIN_DEPS}
+                              PARENT_TARGET builtins-standalone-atomic)
+    endif()
+  endforeach()
+  # FIXME: On AIX, we have to archive built shared libraries into a static
+  # archive, i.e., libatomic.a. Once cmake adds support of such usage for AIX,
+  # this ad-hoc part can be removed.
+  if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    archive_aix_libatomic(clang_rt.atomic libatomic
+                          ARCHS ${BUILTIN_SUPPORTED_ARCH}
+                          PARENT_TARGET builtins-standalone-atomic)
+  endif()
+  add_dependencies(compiler-rt builtins-standalone-atomic)
+endif()
 
 add_dependencies(compiler-rt builtins)

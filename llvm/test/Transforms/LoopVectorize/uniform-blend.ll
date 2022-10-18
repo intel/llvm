@@ -1,4 +1,4 @@
-; RUN: opt -loop-vectorize -force-vector-width=4 -S %s | FileCheck %s
+; RUN: opt -passes=loop-vectorize -force-vector-width=4 -S %s | FileCheck %s
 
 @dst = external global [32 x i16], align 1
 
@@ -10,7 +10,6 @@ define void @blend_uniform_iv_trunc(i1 %c) {
 
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
-; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[INDEX]], 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[INDEX]] to i16
 ; CHECK-NEXT:    [[TMP2:%.*]] = add i16 [[TMP1]], 0
 ; CHECK-NEXT:    [[BROADCAST_SPLATINSERT1:%.*]] = insertelement <4 x i16> poison, i16 [[TMP2]], i32 0
@@ -22,7 +21,7 @@ define void @blend_uniform_iv_trunc(i1 %c) {
 ; CHECK-NEXT:    [[TMP6:%.*]] = getelementptr inbounds i16, i16* [[TMP5]], i32 0
 ; CHECK-NEXT:    [[TMP7:%.*]] = bitcast i16* [[TMP6]] to <4 x i16>*
 ; CHECK-NEXT:    store <4 x i16> zeroinitializer, <4 x i16>* [[TMP7]], align 2
-; CHECK-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 4
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; CHECK-NEXT:    [[TMP8:%.*]] = icmp eq i64 [[INDEX_NEXT]], 32
 ; CHECK-NEXT:    br i1 [[TMP8]], label %middle.block, label %vector.body
 ;
@@ -67,7 +66,7 @@ define void @blend_uniform_iv(i1 %c) {
 ; CHECK-NEXT:    [[TMP4:%.*]] = getelementptr inbounds i16, i16* [[TMP3]], i32 0
 ; CHECK-NEXT:    [[TMP5:%.*]] = bitcast i16* [[TMP4]] to <4 x i16>*
 ; CHECK-NEXT:    store <4 x i16> zeroinitializer, <4 x i16>* [[TMP5]], align 2
-; CHECK-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 4
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; CHECK-NEXT:    [[TMP6:%.*]] = icmp eq i64 [[INDEX_NEXT]], 32
 ; CHECK-NEXT:    br i1 [[TMP6]], label %middle.block, label %vector.body
 ;
@@ -102,10 +101,6 @@ define void @blend_chain_iv(i1 %c) {
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
 ; CHECK-NEXT:    [[VEC_IND:%.*]] = phi <4 x i64> [ <i64 0, i64 1, i64 2, i64 3>, %vector.ph ], [ [[VEC_IND_NEXT:%.*]], %vector.body ]
-; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[INDEX]], 0
-; CHECK-NEXT:    [[TMP1:%.*]] = add i64 [[INDEX]], 1
-; CHECK-NEXT:    [[TMP2:%.*]] = add i64 [[INDEX]], 2
-; CHECK-NEXT:    [[TMP3:%.*]] = add i64 [[INDEX]], 3
 ; CHECK-NEXT:    [[TMP4:%.*]] = xor <4 x i1> [[MASK1]], <i1 true, i1 true, i1 true, i1 true>
 ; CHECK-NEXT:    [[TMP5:%.*]] = select <4 x i1> [[MASK1]], <4 x i1> [[TMP4]], <4 x i1> zeroinitializer
 ; CHECK-NEXT:    [[TMP6:%.*]] = select <4 x i1> [[MASK1]], <4 x i1> [[MASK1]], <4 x i1> zeroinitializer
@@ -125,7 +120,7 @@ define void @blend_chain_iv(i1 %c) {
 ; CHECK-NEXT:    store i16 0, i16* [[TMP12]], align 2
 ; CHECK-NEXT:    store i16 0, i16* [[TMP14]], align 2
 ; CHECK-NEXT:    store i16 0, i16* [[TMP16]], align 2
-; CHECK-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 4
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; CHECK-NEXT:    [[VEC_IND_NEXT]] = add <4 x i64> [[VEC_IND]], <i64 4, i64 4, i64 4, i64 4>
 ; CHECK-NEXT:    [[TMP17:%.*]] = icmp eq i64 [[INDEX_NEXT]], 32
 ; CHECK-NEXT:    br i1 [[TMP17]], label %middle.block, label %vector.body

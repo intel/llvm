@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 ///
-/// \file A bitvector that uses an IntervalMap to coalesce adjacent elements
+/// \file
+/// A bitvector that uses an IntervalMap to coalesce adjacent elements
 /// into intervals.
 ///
 //===----------------------------------------------------------------------===//
@@ -15,12 +16,12 @@
 #define LLVM_ADT_COALESCINGBITVECTOR_H
 
 #include "llvm/ADT/IntervalMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <algorithm>
 #include <initializer_list>
 
 namespace llvm {
@@ -231,10 +232,17 @@ public:
 
   bool operator!=(const ThisT &RHS) const { return !operator==(RHS); }
 
-  class const_iterator
-      : public std::iterator<std::forward_iterator_tag, IndexT> {
+  class const_iterator {
     friend class CoalescingBitVector;
 
+  public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = IndexT;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
+  private:
     // For performance reasons, make the offset at the end different than the
     // one used in \ref begin, to optimize the common `It == end()` pattern.
     static constexpr unsigned kIteratorAtTheEndOffset = ~0u;

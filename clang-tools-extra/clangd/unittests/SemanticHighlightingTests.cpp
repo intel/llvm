@@ -7,11 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotations.h"
-#include "ClangdServer.h"
 #include "Protocol.h"
 #include "SemanticHighlighting.h"
 #include "SourceCode.h"
-#include "TestFS.h"
 #include "TestTU.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -36,9 +34,8 @@ using testing::SizeIs;
 ///   };
 std::string annotate(llvm::StringRef Input,
                      llvm::ArrayRef<HighlightingToken> Tokens) {
-  assert(std::is_sorted(
-      Tokens.begin(), Tokens.end(),
-      [](const HighlightingToken &L, const HighlightingToken &R) {
+  assert(llvm::is_sorted(
+      Tokens, [](const HighlightingToken &L, const HighlightingToken &R) {
         return L.R.start < R.R.start;
       }));
 
@@ -69,13 +66,16 @@ void checkHighlightings(llvm::StringRef Code,
                         std::vector<std::pair</*FileName*/ llvm::StringRef,
                                               /*FileContent*/ llvm::StringRef>>
                             AdditionalFiles = {},
-                        uint32_t ModifierMask = -1) {
+                        uint32_t ModifierMask = -1,
+                        std::vector<std::string> AdditionalArgs = {}) {
   Annotations Test(Code);
   TestTU TU;
   TU.Code = std::string(Test.code());
 
   TU.ExtraArgs.push_back("-std=c++20");
   TU.ExtraArgs.push_back("-xobjective-c++");
+  TU.ExtraArgs.insert(std::end(TU.ExtraArgs), std::begin(AdditionalArgs),
+                      std::end(AdditionalArgs));
 
   for (auto File : AdditionalFiles)
     TU.AdditionalFiles.insert({File.first, std::string(File.second)});
@@ -102,9 +102,9 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       struct {
       } $Variable_decl[[S]];
       void $Function_decl[[foo]](int $Parameter_decl[[A]], $Class[[AS]] $Parameter_decl[[As]]) {
-        $Primitive_deduced[[auto]] $LocalVariable_decl[[VeryLongVariableName]] = 12312;
+        $Primitive_deduced_defaultLibrary[[auto]] $LocalVariable_decl[[VeryLongVariableName]] = 12312;
         $Class[[AS]]     $LocalVariable_decl[[AA]];
-        $Primitive_deduced[[auto]] $LocalVariable_decl[[L]] = $LocalVariable[[AA]].$Field[[SomeMember]] + $Parameter[[A]];
+        $Primitive_deduced_defaultLibrary[[auto]] $LocalVariable_decl[[L]] = $LocalVariable[[AA]].$Field[[SomeMember]] + $Parameter[[A]];
         auto $LocalVariable_decl[[FN]] = [ $LocalVariable[[AA]]](int $Parameter_decl[[A]]) -> void {};
         $LocalVariable[[FN]](12312);
       }
@@ -320,8 +320,8 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       $Class_deduced[[decltype]](auto) $Variable_decl[[AF2]] = $Class[[Foo]]();
       $Class_deduced[[auto]] *$Variable_decl[[AFP]] = &$Variable[[AF]];
       $Enum_deduced[[auto]] &$Variable_decl[[AER]] = $Variable[[AE]];
-      $Primitive_deduced[[auto]] $Variable_decl[[Form]] = 10.2 + 2 * 4;
-      $Primitive_deduced[[decltype]]($Variable[[Form]]) $Variable_decl[[F]] = 10;
+      $Primitive_deduced_defaultLibrary[[auto]] $Variable_decl[[Form]] = 10.2 + 2 * 4;
+      $Primitive_deduced_defaultLibrary[[decltype]]($Variable[[Form]]) $Variable_decl[[F]] = 10;
       auto $Variable_decl[[Fun]] = []()->void{};
     )cpp",
       R"cpp(
@@ -614,7 +614,14 @@ sizeof...($TemplateParameter[[Elements]]);
         void $Method_decl[[bar1]]() {
           $Class[[Foo]]<$TemplateParameter[[U]]>().$Field_dependentName[[Waldo]];
         }
+
+        void $Method_decl[[Overload]]();
+        void $Method_decl_readonly[[Overload]]() const;
       };
+      template <typename $TemplateParameter_decl[[T]]>
+      void $Function_decl[[baz]]($Class[[Foo]]<$TemplateParameter[[T]]> $Parameter_decl[[o]]) {
+        $Parameter[[o]].$Method_readonly_dependentName[[Overload]]();
+      }
     )cpp",
       // Concepts
       R"cpp(
@@ -639,9 +646,14 @@ sizeof...($TemplateParameter[[Elements]]);
     )cpp",
       R"cpp(
       class $Class_decl_abstract[[Abstract]] {
-        virtual void $Method_decl_abstract[[pure]]() = 0;
-        virtual void $Method_decl[[impl]]();
+      public:
+        virtual void $Method_decl_abstract_virtual[[pure]]() = 0;
+        virtual void $Method_decl_virtual[[impl]]();
       };
+      void $Function_decl[[foo]]($Class_abstract[[Abstract]]* $Parameter_decl[[A]]) {
+          $Parameter[[A]]->$Method_abstract_virtual[[pure]]();
+          $Parameter[[A]]->$Method_virtual[[impl]]();
+      }
       )cpp",
       R"cpp(
       <:[deprecated]:> int $Variable_decl_deprecated[[x]];
@@ -653,13 +665,15 @@ sizeof...($TemplateParameter[[Elements]]);
         @interface $Class_decl[[Foo]]
         @end
         @interface $Class_decl[[Bar]] : $Class[[Foo]]
-        -($Class[[id]]) $Method_decl[[x]]:(int)$Parameter_decl[[a]] $Method_decl[[y]]:(int)$Parameter_decl[[b]];
+        -(id) $Method_decl[[x]]:(int)$Parameter_decl[[a]] $Method_decl[[y]]:(int)$Parameter_decl[[b]];
+        +(instancetype)$StaticMethod_decl_static[[sharedInstance]];
         +(void) $StaticMethod_decl_static[[explode]];
         @end
         @implementation $Class_decl[[Bar]]
-        -($Class[[id]]) $Method_decl[[x]]:(int)$Parameter_decl[[a]] $Method_decl[[y]]:(int)$Parameter_decl[[b]] {
+        -(id) $Method_decl[[x]]:(int)$Parameter_decl[[a]] $Method_decl[[y]]:(int)$Parameter_decl[[b]] {
           return self;
         }
+        +(instancetype)$StaticMethod_decl_static[[sharedInstance]] { return 0; }
         +(void) $StaticMethod_decl_static[[explode]] {}
         @end
 
@@ -676,8 +690,7 @@ sizeof...($TemplateParameter[[Elements]]);
         @end
         @interface $Class_decl[[Klass]] <$Interface[[Protocol]]>
         @end
-        // FIXME: protocol list in ObjCObjectType should be highlighted.
-        id<Protocol> $Variable_decl[[x]];
+        id<$Interface[[Protocol]]> $Variable_decl[[x]];
       )cpp",
       R"cpp(
         // ObjC: Categories
@@ -688,7 +701,165 @@ sizeof...($TemplateParameter[[Elements]]);
         @implementation $Class[[Foo]]($Namespace_decl[[Bar]])
         @end
       )cpp",
-  };
+      R"cpp(
+        // ObjC: Properties and Ivars.
+        @interface $Class_decl[[Foo]] {
+          int $Field_decl[[_someProperty]];
+        }
+        @property(nonatomic, assign) int $Field_decl[[someProperty]];
+        @property(readonly, class) $Class[[Foo]] *$Field_decl_readonly_static[[sharedInstance]];
+        @end
+        @implementation $Class_decl[[Foo]]
+        @synthesize someProperty = _someProperty;
+        - (int)$Method_decl[[otherMethod]] {
+          return 0;
+        }
+        - (int)$Method_decl[[doSomething]] {
+          $Class[[Foo]].$Field_static[[sharedInstance]].$Field[[someProperty]] = 1;
+          self.$Field[[someProperty]] = self.$Field[[someProperty]] + self.$Field[[otherMethod]] + 1;
+          self->$Field[[_someProperty]] = $Field[[_someProperty]] + 1;
+        }
+        @end
+      )cpp",
+      // Member imported from dependent base
+      R"cpp(
+        template <typename> struct $Class_decl[[Base]] {
+          int $Field_decl[[member]];
+        };
+        template <typename $TemplateParameter_decl[[T]]>
+        struct $Class_decl[[Derived]] : $Class[[Base]]<$TemplateParameter[[T]]> {
+          using $Class[[Base]]<$TemplateParameter[[T]]>::$Field_dependentName[[member]];
+
+          void $Method_decl[[method]]() {
+            (void)$Field_dependentName[[member]];
+          }
+        };
+      )cpp",
+      // Modifier for variables passed as non-const references
+      R"cpp(
+        struct $Class_decl[[ClassWithOp]] {
+            void operator()(int);
+            void operator()(int, int &);
+            void operator()(int, int, const int &);
+            int &operator[](int &);
+            int operator[](int) const;
+        };
+        struct $Class_decl[[ClassWithStaticMember]] {
+            static inline int $StaticField_decl_static[[j]] = 0;
+        };
+        struct $Class_decl[[ClassWithRefMembers]] {
+          $Class_decl[[ClassWithRefMembers]](int $Parameter_decl[[i]])
+            : $Field[[i1]]($Parameter[[i]]),
+              $Field_readonly[[i2]]($Parameter[[i]]),
+              $Field[[i3]]($Parameter_usedAsMutableReference[[i]]),
+              $Field_readonly[[i4]]($Class[[ClassWithStaticMember]]::$StaticField_static[[j]]),
+              $Field[[i5]]($Class[[ClassWithStaticMember]]::$StaticField_static_usedAsMutableReference[[j]])
+          {}
+          int $Field_decl[[i1]];
+          const int &$Field_decl_readonly[[i2]];
+          int &$Field_decl[[i3]];
+          const int &$Field_decl_readonly[[i4]];
+          int &$Field_decl[[i5]];
+        };
+        void $Function_decl[[fun]](int, const int,
+                                   int*, const int*,
+                                   int&, const int&,
+                                   int*&, const int*&, const int* const &,
+                                   int**, int**&, int** const &,
+                                   int = 123) {
+          int $LocalVariable_decl[[val]];
+          int* $LocalVariable_decl[[ptr]];
+          const int* $LocalVariable_decl_readonly[[constPtr]];
+          int** $LocalVariable_decl[[array]];
+          $Function[[fun]]($LocalVariable[[val]], $LocalVariable[[val]], 
+                           $LocalVariable[[ptr]], $LocalVariable_readonly[[constPtr]], 
+                           $LocalVariable_usedAsMutableReference[[val]], $LocalVariable[[val]], 
+
+                           $LocalVariable_usedAsMutableReference[[ptr]],
+                           $LocalVariable_readonly_usedAsMutableReference[[constPtr]],
+                           $LocalVariable_readonly[[constPtr]],
+
+                           $LocalVariable[[array]], $LocalVariable_usedAsMutableReference[[array]], 
+                           $LocalVariable[[array]]
+                           );
+          [](int){}($LocalVariable[[val]]);
+          [](int&){}($LocalVariable_usedAsMutableReference[[val]]);
+          [](const int&){}($LocalVariable[[val]]);
+          $Class[[ClassWithOp]] $LocalVariable_decl[[c]];
+          const $Class[[ClassWithOp]] $LocalVariable_decl_readonly[[c2]];
+          $LocalVariable[[c]]($LocalVariable[[val]]);
+          $LocalVariable[[c]](0, $LocalVariable_usedAsMutableReference[[val]]);
+          $LocalVariable[[c]](0, 0, $LocalVariable[[val]]);
+          $LocalVariable[[c]][$LocalVariable_usedAsMutableReference[[val]]];
+          $LocalVariable_readonly[[c2]][$LocalVariable[[val]]];
+        }
+        struct $Class_decl[[S]] {
+          $Class_decl[[S]](int&) {
+            $Class[[S]] $LocalVariable_decl[[s1]]($Field_usedAsMutableReference[[field]]);
+            $Class[[S]] $LocalVariable_decl[[s2]]($LocalVariable[[s1]].$Field_usedAsMutableReference[[field]]);
+
+            $Class[[S]] $LocalVariable_decl[[s3]]($StaticField_static_usedAsMutableReference[[staticField]]);
+            $Class[[S]] $LocalVariable_decl[[s4]]($Class[[S]]::$StaticField_static_usedAsMutableReference[[staticField]]);
+          }
+          int $Field_decl[[field]];
+          static int $StaticField_decl_static[[staticField]];
+        };
+        template <typename $TemplateParameter_decl[[X]]>
+        void $Function_decl[[foo]]($TemplateParameter[[X]]& $Parameter_decl[[x]]) {
+          // We do not support dependent types, so this one should *not* get the modifier.
+          $Function[[foo]]($Parameter[[x]]); 
+        }
+      )cpp",
+      // init-captures
+      R"cpp(
+        void $Function_decl[[foo]]() {
+          int $LocalVariable_decl[[a]], $LocalVariable_decl[[b]];
+          [ $LocalVariable_decl[[c]] = $LocalVariable[[a]],
+            $LocalVariable_decl[[d]]($LocalVariable[[b]]) ]() {}();
+        }
+      )cpp",
+      // Enum base specifier
+      R"cpp(
+        using $Primitive_decl[[MyTypedef]] = int;
+        enum $Enum_decl[[MyEnum]] : $Primitive[[MyTypedef]] {};
+      )cpp",
+      // Enum base specifier
+      R"cpp(
+        typedef int $Primitive_decl[[MyTypedef]];
+        enum $Enum_decl[[MyEnum]] : $Primitive[[MyTypedef]] {};
+      )cpp",
+      // Issue 1096
+      R"cpp(
+        void $Function_decl[[Foo]]();
+        // Use <: :> digraphs for deprecated attribute to avoid conflict with annotation syntax
+        <:<:deprecated:>:> void $Function_decl_deprecated[[Foo]](int* $Parameter_decl[[x]]);
+        void $Function_decl[[Foo]](int $Parameter_decl[[x]]);
+        template <typename $TemplateParameter_decl[[T]]>
+        void $Function_decl[[Bar]]($TemplateParameter[[T]] $Parameter_decl[[x]]) {
+            $Function_deprecated[[Foo]]($Parameter[[x]]); 
+            $Function_deprecated[[Foo]]($Parameter[[x]]); 
+            $Function_deprecated[[Foo]]($Parameter[[x]]); 
+        }
+      )cpp",
+      // Predefined identifiers
+      R"cpp(
+        void $Function_decl[[Foo]]() {
+            const char *$LocalVariable_decl_readonly[[s]] = $LocalVariable_readonly_static[[__func__]];
+        }
+      )cpp",
+      // Explicit template specialization
+      R"cpp(
+        struct $Class_decl[[Base]]{};
+        template <typename $TemplateParameter_decl[[T]]>
+        struct $Class_decl[[S]] : public $Class[[Base]] {};
+        template <> 
+        struct $Class_decl[[S]]<void> : public $Class[[Base]] {};
+
+        template <typename $TemplateParameter_decl[[T]]>
+        $TemplateParameter[[T]] $Variable_decl[[x]] = {};
+        template <>
+        int $Variable_decl[[x]]<int> = (int)sizeof($Class[[Base]]);
+      )cpp"};
   for (const auto &TestCase : TestCases)
     // Mask off scope modifiers to keep the tests manageable.
     // They're tested separately.
@@ -718,6 +889,24 @@ sizeof...($TemplateParameter[[Elements]]);
     #define DEFINE_Y DEFINE(Y)
   )cpp"}},
                      ~ScopeModifierMask);
+
+  checkHighlightings(R"cpp(
+    #include "SYSObject.h"
+    @interface $Class_defaultLibrary[[SYSObject]] ($Namespace_decl[[UserCategory]])
+    @property(nonatomic, readonly) int $Field_decl_readonly[[user_property]];
+    @end
+    int $Function_decl[[somethingUsingSystemSymbols]]() {
+      $Class_defaultLibrary[[SYSObject]] *$LocalVariable_decl[[obj]] = [$Class_defaultLibrary[[SYSObject]] $StaticMethod_static_defaultLibrary[[new]]];
+      return $LocalVariable[[obj]].$Field_defaultLibrary[[value]] + $LocalVariable[[obj]].$Field_readonly[[user_property]];
+    }
+  )cpp",
+                     {{"SystemSDK/SYSObject.h", R"cpp(
+    @interface SYSObject
+    @property(nonatomic, assign) int value;
+    + (instancetype)new;
+    @end
+  )cpp"}},
+                     ~ScopeModifierMask, {"-isystemSystemSDK/"});
 }
 
 TEST(SemanticHighlighting, ScopeModifiers) {
@@ -738,7 +927,7 @@ TEST(SemanticHighlighting, ScopeModifiers) {
       )cpp",
       R"cpp(
         // Lambdas are considered functions, not classes.
-        auto $Variable_fileScope[[x]] = [m(42)] { // FIXME: annotate capture
+        auto $Variable_fileScope[[x]] = [$LocalVariable_functionScope[[m]](42)] {
           return $LocalVariable_functionScope[[m]];
         };
       )cpp",
@@ -794,7 +983,7 @@ TEST(SemanticHighlighting, toSemanticTokens) {
   )");
   Tokens.front().Modifiers |= unsigned(HighlightingModifier::Declaration);
   Tokens.front().Modifiers |= unsigned(HighlightingModifier::Readonly);
-  auto Results = toSemanticTokens(Tokens);
+  auto Results = toSemanticTokens(Tokens, /*Code=*/"");
 
   ASSERT_THAT(Results, SizeIs(3));
   EXPECT_EQ(Results[0].tokenType, unsigned(HighlightingKind::Variable));
@@ -822,13 +1011,15 @@ TEST(SemanticHighlighting, diffSemanticTokens) {
   auto Before = toSemanticTokens(tokens(R"(
     [[foo]] [[bar]] [[baz]]
     [[one]] [[two]] [[three]]
-  )"));
+  )"),
+                                 /*Code=*/"");
   EXPECT_THAT(diffTokens(Before, Before), IsEmpty());
 
   auto After = toSemanticTokens(tokens(R"(
     [[foo]] [[hello]] [[world]] [[baz]]
     [[one]] [[two]] [[three]]
-  )"));
+  )"),
+                                /*Code=*/"");
 
   // Replace [bar, baz] with [hello, world, baz]
   auto Diff = diffTokens(Before, After);
@@ -850,6 +1041,30 @@ TEST(SemanticHighlighting, diffSemanticTokens) {
   EXPECT_EQ(3u, Diff.front().tokens[2].length);
 }
 
+TEST(SemanticHighlighting, MultilineTokens) {
+  llvm::StringRef AnnotatedCode = R"cpp(
+  [[fo
+o
+o]] [[bar]])cpp";
+  auto Toks = toSemanticTokens(tokens(AnnotatedCode),
+                               Annotations(AnnotatedCode).code());
+  ASSERT_THAT(Toks, SizeIs(4));
+  // foo
+  EXPECT_EQ(Toks[0].deltaLine, 1u);
+  EXPECT_EQ(Toks[0].deltaStart, 2u);
+  EXPECT_EQ(Toks[0].length, 2u);
+  EXPECT_EQ(Toks[1].deltaLine, 1u);
+  EXPECT_EQ(Toks[1].deltaStart, 0u);
+  EXPECT_EQ(Toks[1].length, 1u);
+  EXPECT_EQ(Toks[2].deltaLine, 1u);
+  EXPECT_EQ(Toks[2].deltaStart, 0u);
+  EXPECT_EQ(Toks[2].length, 1u);
+
+  // bar
+  EXPECT_EQ(Toks[3].deltaLine, 0u);
+  EXPECT_EQ(Toks[3].deltaStart, 2u);
+  EXPECT_EQ(Toks[3].length, 3u);
+}
 } // namespace
 } // namespace clangd
 } // namespace clang

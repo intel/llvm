@@ -15,13 +15,11 @@
 #define LLVM_ANALYSIS_CFLSTEENSALIASANALYSIS_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFLAliasAnalysisUtils.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Casting.h"
 #include <forward_list>
 #include <memory>
 
@@ -73,7 +71,7 @@ public:
   AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB,
                     AAQueryInfo &AAQI) {
     if (LocA.Ptr == LocB.Ptr)
-      return MustAlias;
+      return AliasResult::MustAlias;
 
     // Comparisons between global variables and other constants should be
     // handled by BasicAA.
@@ -84,7 +82,7 @@ public:
       return AAResultBase::alias(LocA, LocB, AAQI);
 
     AliasResult QueryResult = query(LocA, LocB);
-    if (QueryResult == MayAlias)
+    if (QueryResult == AliasResult::MayAlias)
       return AAResultBase::alias(LocA, LocB, AAQI);
 
     return QueryResult;

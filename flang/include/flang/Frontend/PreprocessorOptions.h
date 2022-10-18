@@ -11,19 +11,35 @@
 /// is the class for all preprocessor options.
 ///
 //===----------------------------------------------------------------------===//
+//
+// Coding style: https://mlir.llvm.org/getting_started/DeveloperGuide/
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef LLVM_FLANG_PREPROCESSOROPTIONS_H
-#define LLVM_FLANG_PREPROCESSOROPTIONS_H
+#ifndef FORTRAN_FRONTEND_PREPROCESSOROPTIONS_H
+#define FORTRAN_FRONTEND_PREPROCESSOROPTIONS_H
 
 #include "llvm/ADT/StringRef.h"
 
 namespace Fortran::frontend {
 
+/// Communicates whether to include/exclude predefined and command
+/// line preprocessor macros
+enum class PPMacrosFlag : uint8_t {
+  /// Use the file extension to decide
+  Unknown,
+
+  Include,
+  Exclude
+};
+
 /// This class is used for passing the various options used
 /// in preprocessor initialization to the parser options.
-class PreprocessorOptions {
-public:
+struct PreprocessorOptions {
+  PreprocessorOptions() {}
+
   std::vector<std::pair<std::string, /*isUndef*/ bool>> macros;
+
   // Search directories specified by the user with -I
   // TODO: When adding support for more options related to search paths,
   // consider collecting them in a separate aggregate. For now we keep it here
@@ -32,8 +48,13 @@ public:
   // Search directories specified by the user with -fintrinsic-modules-path
   std::vector<std::string> searchDirectoriesFromIntrModPath;
 
-public:
-  PreprocessorOptions() {}
+  PPMacrosFlag macrosFlag = PPMacrosFlag::Unknown;
+
+  // -P: Suppress #line directives in -E output
+  bool noLineDirectives{false};
+
+  // -fno-reformat: Emit cooked character stream as -E output
+  bool noReformat{false};
 
   void addMacroDef(llvm::StringRef name) {
     macros.emplace_back(std::string(name), false);
@@ -46,4 +67,4 @@ public:
 
 } // namespace Fortran::frontend
 
-#endif // LLVM_FLANG_PREPROCESSOROPTIONS_H
+#endif // FORTRAN_FRONTEND_PREPROCESSOROPTIONS_H

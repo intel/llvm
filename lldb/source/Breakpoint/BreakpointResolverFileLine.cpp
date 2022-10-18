@@ -12,6 +12,8 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/Function.h"
+#include "lldb/Target/Target.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 
@@ -20,20 +22,19 @@ using namespace lldb_private;
 
 // BreakpointResolverFileLine:
 BreakpointResolverFileLine::BreakpointResolverFileLine(
-    const BreakpointSP &bkpt, const FileSpec &file_spec, uint32_t line_no,
-    uint32_t column, lldb::addr_t offset, bool check_inlines,
-    bool skip_prologue, bool exact_match)
+    const BreakpointSP &bkpt, lldb::addr_t offset, bool skip_prologue,
+    const SourceLocationSpec &location_spec,
+    llvm::Optional<llvm::StringRef> removed_prefix_opt)
     : BreakpointResolver(bkpt, BreakpointResolver::FileLineResolver, offset),
-      m_file_spec(file_spec), m_line_number(line_no), m_column(column),
-      m_inlines(check_inlines), m_skip_prologue(skip_prologue),
-      m_exact_match(exact_match) {}
+      m_location_spec(location_spec), m_skip_prologue(skip_prologue),
+      m_removed_prefix_opt(removed_prefix_opt) {}
 
 BreakpointResolver *BreakpointResolverFileLine::CreateFromStructuredData(
     const BreakpointSP &bkpt, const StructuredData::Dictionary &options_dict,
     Status &error) {
   llvm::StringRef filename;
-  uint32_t line_no;
-  uint32_t column;
+  uint32_t line;
+  uint16_t column;
   bool check_inlines;
   bool skip_prologue;
   bool exact_match;
@@ -49,7 +50,7 @@ BreakpointResolver *BreakpointResolverFileLine::CreateFromStructuredData(
   }
 
   success = options_dict.GetValueForKeyAsInteger(
-      GetKey(OptionNames::LineNumber), line_no);
+      GetKey(OptionNames::LineNumber), line);
   if (!success) {
     error.SetErrorString("BRFL::CFSD: Couldn't find line number entry.");
     return nullptr;
@@ -83,11 +84,13 @@ BreakpointResolver *BreakpointResolverFileLine::CreateFromStructuredData(
     return nullptr;
   }
 
-  FileSpec file_spec(filename);
+  SourceLocationSpec location_spec(FileSpec(filename), line, column,
+                                   check_inlines, exact_match);
+  if (!location_spec)
+    return nullptr;
 
-  return new BreakpointResolverFileLine(bkpt, file_spec, line_no, column,
-                                        offset, check_inlines, skip_prologue,
-                                        exact_match);
+  return new BreakpointResolverFileLine(bkpt, offset, skip_prologue,
+                                        location_spec);
 }
 
 StructuredData::ObjectSP
@@ -95,17 +98,19 @@ BreakpointResolverFileLine::SerializeToStructuredData() {
   StructuredData::DictionarySP options_dict_sp(
       new StructuredData::Dictionary());
 
-  options_dict_sp->AddStringItem(GetKey(OptionNames::FileName),
-                                 m_file_spec.GetPath());
-  options_dict_sp->AddIntegerItem(GetKey(OptionNames::LineNumber),
-                                  m_line_number);
-  options_dict_sp->AddIntegerItem(GetKey(OptionNames::Column),
-                                  m_column);
-  options_dict_sp->AddBooleanItem(GetKey(OptionNames::Inlines), m_inlines);
   options_dict_sp->AddBooleanItem(GetKey(OptionNames::SkipPrologue),
                                   m_skip_prologue);
+  options_dict_sp->AddStringItem(GetKey(OptionNames::FileName),
+                                 m_location_spec.GetFileSpec().GetPath());
+  options_dict_sp->AddIntegerItem(GetKey(OptionNames::LineNumber),
+                                  m_location_spec.GetLine().value_or(0));
+  options_dict_sp->AddIntegerItem(
+      GetKey(OptionNames::Column),
+      m_location_spec.GetColumn().value_or(LLDB_INVALID_COLUMN_NUMBER));
+  options_dict_sp->AddBooleanItem(GetKey(OptionNames::Inlines),
+                                  m_location_spec.GetCheckInlines());
   options_dict_sp->AddBooleanItem(GetKey(OptionNames::ExactMatch),
-                                  m_exact_match);
+                                  m_location_spec.GetExactMatch());
 
   return WrapOptionsDict(options_dict_sp);
 }
@@ -117,34 +122,14 @@ BreakpointResolverFileLine::SerializeToStructuredData() {
 // handling inlined functions -- in this case we need to make sure we look at
 // the declaration line of the inlined function, NOT the function it was
 // inlined into.
-void BreakpointResolverFileLine::FilterContexts(SymbolContextList &sc_list,
-                                                bool is_relative) {
-  if (m_exact_match)
+void BreakpointResolverFileLine::FilterContexts(SymbolContextList &sc_list) {
+  if (m_location_spec.GetExactMatch())
     return; // Nothing to do. Contexts are precise.
 
-  llvm::StringRef relative_path;
-  if (is_relative)
-    relative_path = m_file_spec.GetDirectory().GetStringRef();
-
-  Log * log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS);
+  Log *log = GetLog(LLDBLog::Breakpoints);
   for(uint32_t i = 0; i < sc_list.GetSize(); ++i) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(i, sc);
-    if (is_relative) {
-      // If the path was relative, make sure any matches match as long as the
-      // relative parts of the path match the path from support files
-      auto sc_dir = sc.line_entry.file.GetDirectory().GetStringRef();
-      if (!sc_dir.endswith(relative_path)) {
-        // We had a relative path specified and the relative directory doesn't
-        // match so remove this one
-        LLDB_LOG(log, "removing not matching relative path {0} since it "
-                "doesn't end with {1}", sc_dir, relative_path);
-        sc_list.RemoveContextAtIndex(i);
-        --i;
-        continue;
-      }
-    }
-
     if (!sc.block)
       continue;
 
@@ -187,19 +172,99 @@ void BreakpointResolverFileLine::FilterContexts(SymbolContextList &sc_list,
     // is 0, then we can't do this calculation.  That can happen if
     // GetStartLineSourceInfo gets an error, or if the first line number in
     // the function really is 0 - which happens for some languages.
-    
+
     // But only do this calculation if the line number we found in the SC
     // was different from the one requested in the source file.  If we actually
     // found an exact match it must be valid.
-    
-    if (m_line_number == sc.line_entry.line)
+
+    if (m_location_spec.GetLine() == sc.line_entry.line)
       continue;
 
     const int decl_line_is_too_late_fudge = 1;
-    if (line && m_line_number < line - decl_line_is_too_late_fudge) {
+    if (line &&
+        m_location_spec.GetLine() < line - decl_line_is_too_late_fudge) {
       LLDB_LOG(log, "removing symbol context at {0}:{1}", file, line);
       sc_list.RemoveContextAtIndex(i);
       --i;
+    }
+  }
+}
+
+void BreakpointResolverFileLine::DeduceSourceMapping(
+    SymbolContextList &sc_list) {
+  Target &target = GetBreakpoint()->GetTarget();
+  if (!target.GetAutoSourceMapRelative())
+    return;
+
+  Log *log = GetLog(LLDBLog::Breakpoints);
+  const llvm::StringRef path_separator = llvm::sys::path::get_separator(
+      m_location_spec.GetFileSpec().GetPathStyle());
+  // Check if "b" is a suffix of "a".
+  // And return llvm::None if not or the new path
+  // of "a" after consuming "b" from the back.
+  auto check_suffix =
+      [path_separator](llvm::StringRef a, llvm::StringRef b,
+                       bool case_sensitive) -> llvm::Optional<llvm::StringRef> {
+    if (case_sensitive ? a.consume_back(b) : a.consume_back_insensitive(b)) {
+      if (a.empty() || a.endswith(path_separator)) {
+        return a;
+      }
+    }
+    return llvm::None;
+  };
+
+  FileSpec request_file = m_location_spec.GetFileSpec();
+
+  // Only auto deduce source map if breakpoint is full path.
+  // Note: an existing source map reverse mapping (m_removed_prefix_opt has
+  // value) may make request_file relative.
+  if (!m_removed_prefix_opt.has_value() && request_file.IsRelative())
+    return;
+
+  const bool case_sensitive = request_file.IsCaseSensitive();
+  for (uint32_t i = 0; i < sc_list.GetSize(); ++i) {
+    SymbolContext sc;
+    sc_list.GetContextAtIndex(i, sc);
+
+    FileSpec sc_file = sc.line_entry.file;
+
+    if (FileSpec::Equal(sc_file, request_file, /*full*/true))
+      continue;
+
+    llvm::StringRef sc_file_dir = sc_file.GetDirectory().GetStringRef();
+    llvm::StringRef request_file_dir =
+        request_file.GetDirectory().GetStringRef();
+
+    llvm::StringRef new_mapping_from;
+    llvm::SmallString<256> new_mapping_to;
+
+    // Adding back any potentially reverse mapping stripped prefix.
+    // for new_mapping_to.
+    if (m_removed_prefix_opt.has_value())
+      llvm::sys::path::append(new_mapping_to, m_removed_prefix_opt.value());
+
+    llvm::Optional<llvm::StringRef> new_mapping_from_opt =
+        check_suffix(sc_file_dir, request_file_dir, case_sensitive);
+    if (new_mapping_from_opt) {
+      new_mapping_from = new_mapping_from_opt.value();
+      if (new_mapping_to.empty())
+        new_mapping_to = ".";
+    } else {
+      llvm::Optional<llvm::StringRef> new_mapping_to_opt =
+          check_suffix(request_file_dir, sc_file_dir, case_sensitive);
+      if (new_mapping_to_opt) {
+        new_mapping_from = ".";
+        llvm::sys::path::append(new_mapping_to, new_mapping_to_opt.value());
+      }
+    }
+
+    if (!new_mapping_from.empty() && !new_mapping_to.empty()) {
+      LLDB_LOG(log, "generating auto source map from {0} to {1}",
+               new_mapping_from, new_mapping_to);
+      if (target.GetSourcePathMap().AppendUnique(new_mapping_from,
+                                                 new_mapping_to,
+                                                 /*notify*/ true))
+        target.GetStatistics().IncreaseSourceMapDeduceCount();
     }
   }
 }
@@ -224,30 +289,30 @@ Searcher::CallbackReturn BreakpointResolverFileLine::SearchCallback(
   // file.  So we go through the match list and pull out the sets that have the
   // same file spec in their line_entry and treat each set separately.
 
-  FileSpec search_file_spec = m_file_spec;
-  const bool is_relative = m_file_spec.IsRelative();
-  if (is_relative)
-    search_file_spec.GetDirectory().Clear();
+  const uint32_t line = m_location_spec.GetLine().value_or(0);
+  const llvm::Optional<uint16_t> column = m_location_spec.GetColumn();
 
   const size_t num_comp_units = context.module_sp->GetNumCompileUnits();
   for (size_t i = 0; i < num_comp_units; i++) {
     CompUnitSP cu_sp(context.module_sp->GetCompileUnitAtIndex(i));
     if (cu_sp) {
       if (filter.CompUnitPasses(*cu_sp))
-        cu_sp->ResolveSymbolContext(search_file_spec, m_line_number, m_inlines,
-                                    m_exact_match, eSymbolContextEverything,
+        cu_sp->ResolveSymbolContext(m_location_spec, eSymbolContextEverything,
                                     sc_list);
     }
   }
 
-  FilterContexts(sc_list, is_relative);
+  FilterContexts(sc_list);
+
+  DeduceSourceMapping(sc_list);
 
   StreamString s;
-  s.Printf("for %s:%d ", m_file_spec.GetFilename().AsCString("<Unknown>"),
-           m_line_number);
+  s.Printf("for %s:%d ",
+           m_location_spec.GetFileSpec().GetFilename().AsCString("<Unknown>"),
+           line);
 
-  SetSCMatchesByLine(filter, sc_list, m_skip_prologue, s.GetString(),
-                     m_line_number, m_column);
+  SetSCMatchesByLine(filter, sc_list, m_skip_prologue, s.GetString(), line,
+                     column);
 
   return Searcher::eCallbackReturnContinue;
 }
@@ -257,11 +322,13 @@ lldb::SearchDepth BreakpointResolverFileLine::GetDepth() {
 }
 
 void BreakpointResolverFileLine::GetDescription(Stream *s) {
-  s->Printf("file = '%s', line = %u, ", m_file_spec.GetPath().c_str(),
-            m_line_number);
-  if (m_column)
-    s->Printf("column = %u, ", m_column);
-  s->Printf("exact_match = %d", m_exact_match);
+  s->Printf("file = '%s', line = %u, ",
+            m_location_spec.GetFileSpec().GetPath().c_str(),
+            m_location_spec.GetLine().value_or(0));
+  auto column = m_location_spec.GetColumn();
+  if (column)
+    s->Printf("column = %u, ", *column);
+  s->Printf("exact_match = %d", m_location_spec.GetExactMatch());
 }
 
 void BreakpointResolverFileLine::Dump(Stream *s) const {}
@@ -269,8 +336,7 @@ void BreakpointResolverFileLine::Dump(Stream *s) const {}
 lldb::BreakpointResolverSP
 BreakpointResolverFileLine::CopyForBreakpoint(BreakpointSP &breakpoint) {
   lldb::BreakpointResolverSP ret_sp(new BreakpointResolverFileLine(
-      breakpoint, m_file_spec, m_line_number, m_column, GetOffset(), m_inlines,
-      m_skip_prologue, m_exact_match));
+      breakpoint, GetOffset(), m_skip_prologue, m_location_spec));
 
   return ret_sp;
 }

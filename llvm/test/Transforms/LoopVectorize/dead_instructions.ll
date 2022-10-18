@@ -1,4 +1,4 @@
-; RUN: opt < %s -force-vector-width=2 -force-vector-interleave=2 -loop-vectorize -S | FileCheck %s
+; RUN: opt < %s -force-vector-width=2 -force-vector-interleave=2 -passes=loop-vectorize -S | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
 
@@ -18,7 +18,7 @@ target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
 ; CHECK-NOT:   add nuw nsw i64 %[[I0]], 1
 ; CHECK-NOT:   add nuw nsw i64 %[[I2]], 1
 ; CHECK-NOT:   icmp slt i64 {{.*}}, %n
-; CHECK:       %index.next = add i64 %index, 4
+; CHECK:       %index.next = add nuw i64 %index, 4
 ; CHECK:       %[[CMP:.+]] = icmp eq i64 %index.next, %n.vec
 ; CHECK:       br i1 %[[CMP]], label %middle.block, label %vector.body
 ;

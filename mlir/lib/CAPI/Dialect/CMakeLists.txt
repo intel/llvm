@@ -1,55 +1,135 @@
-# TODO: Make the check source feature optional as an argument on *_add_library.
-set(LLVM_OPTIONAL_SOURCES
-  Linalg.cpp
-  LinalgPasses.cpp
-  SCF.cpp
-  Shape.cpp
-  Standard.cpp
-  Tensor.cpp
+add_mlir_upstream_c_api_library(MLIRCAPIAsync
+  Async.cpp
+  AsyncPasses.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  DEPENDS
+  MLIRAsyncPassIncGen
+
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRAsyncDialect
+  MLIRAsyncTransforms
+  MLIRPass
 )
 
-add_mlir_public_c_api_library(MLIRCAPILinalg
+add_mlir_upstream_c_api_library(MLIRCAPIControlFlow
+  ControlFlow.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRControlFlowDialect
+)
+
+add_mlir_upstream_c_api_library(MLIRCAPIGPU
+  GPU.cpp
+  GPUPasses.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  DEPENDS
+  MLIRGPUPassIncGen
+
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRGPUTransforms
+  MLIRPass
+)
+
+add_mlir_upstream_c_api_library(MLIRCAPILLVM
+  LLVM.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRLLVMDialect
+)
+
+add_mlir_upstream_c_api_library(MLIRCAPILinalg
   Linalg.cpp
   LinalgPasses.cpp
 
+  PARTIAL_SOURCES_INTENDED
   DEPENDS
   MLIRLinalgPassIncGen
 
   LINK_LIBS PUBLIC
   MLIRCAPIIR
-  MLIRLinalg
+  MLIRLinalgDialect
   MLIRPass
   MLIRLinalgTransforms
 )
 
-add_mlir_public_c_api_library(MLIRCAPISCF
+add_mlir_upstream_c_api_library(MLIRCAPIMLProgram
+  MLProgram.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRMLProgramDialect
+)
+
+add_mlir_upstream_c_api_library(MLIRCAPISCF
   SCF.cpp
 
+  PARTIAL_SOURCES_INTENDED
   LINK_LIBS PUBLIC
   MLIRCAPIIR
-  MLIRSCF
+  MLIRSCFDialect
 )
 
-add_mlir_public_c_api_library(MLIRCAPIShape
+add_mlir_upstream_c_api_library(MLIRCAPIShape
   Shape.cpp
 
+  PARTIAL_SOURCES_INTENDED
   LINK_LIBS PUBLIC
   MLIRCAPIIR
-  MLIRShape
+  MLIRShapeDialect
 )
 
-add_mlir_public_c_api_library(MLIRCAPIStandard
-  Standard.cpp
+add_mlir_upstream_c_api_library(MLIRCAPISparseTensor
+  SparseTensor.cpp
+  SparseTensorPasses.cpp
 
+  PARTIAL_SOURCES_INTENDED
   LINK_LIBS PUBLIC
   MLIRCAPIIR
-  MLIRStandard
+  MLIRSparseTensorDialect
+  MLIRSparseTensorTransforms
 )
 
-add_mlir_public_c_api_library(MLIRCAPITensor
+add_mlir_upstream_c_api_library(MLIRCAPIFunc
+  Func.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRFuncDialect
+)
+
+add_mlir_upstream_c_api_library(MLIRCAPITensor
   Tensor.cpp
 
+  PARTIAL_SOURCES_INTENDED
   LINK_LIBS PUBLIC
   MLIRCAPIIR
-  MLIRTensor
+  MLIRTensorDialect
+)
+
+add_mlir_upstream_c_api_library(MLIRCAPIQuant
+  Quant.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRQuantDialect
+)
+
+add_mlir_upstream_c_api_library(MLIRCAPIPDL
+  PDL.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  LINK_LIBS PUBLIC
+  MLIRCAPIIR
+  MLIRPDLDialect
 )

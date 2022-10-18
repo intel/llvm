@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03, c++11, c++14, c++17, c++2a
+// UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
 
 // [utility.underlying], to_underlying
 // template <class T>
@@ -14,6 +14,7 @@
 
 #include <utility>
 #include <cassert>
+#include <cstdint>
 #include <limits>
 
 #include "test_macros.h"

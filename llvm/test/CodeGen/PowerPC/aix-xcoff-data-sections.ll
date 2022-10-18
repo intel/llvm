@@ -6,7 +6,7 @@
 ; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN:     -filetype=obj -data-sections -xcoff-traceback-table=false -o %t.o < %s
 ; RUN: llvm-objdump -D --symbol-description %t.o | FileCheck --check-prefix=CHECKOBJ %s
-; RUN: llvm-readobj -syms %t.o | FileCheck --check-prefix=CHECKSYM %s
+; RUN: llvm-readobj -s %t.o | FileCheck --check-prefix=CHECKSYM %s
 
 ;; Test to see if the default is correct for -data-sections on AIX.
 ; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
@@ -17,7 +17,7 @@
 ; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN:     -xcoff-traceback-table=false -filetype=obj -o %t.o < %s
 ; RUN: llvm-objdump -D --symbol-description %t.o | FileCheck --check-prefix=CHECKOBJ %s
-; RUN: llvm-readobj -syms %t.o | FileCheck --check-prefix=CHECKSYM %s
+; RUN: llvm-readobj -s %t.o | FileCheck --check-prefix=CHECKSYM %s
 
 ;; Test to see if the default is correct for -data-sections on AIX.
 ; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
@@ -29,7 +29,7 @@
 ; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN:     -xcoff-traceback-table=false -filetype=obj -o %t.o < %s
 ; RUN: llvm-objdump -D --symbol-description %t.o | FileCheck --check-prefix=CHECKOBJ %s
-; RUN: llvm-readobj -syms %t.o | FileCheck --check-prefix=CHECKSYM %s
+; RUN: llvm-readobj -s %t.o | FileCheck --check-prefix=CHECKSYM %s
 
 @ivar = local_unnamed_addr global i32 35, align 4
 @const_ivar = constant i32 35, align 4
@@ -71,7 +71,7 @@ entry:
 ; CHECK-NEXT:         .comm   a[RW],4,2
 ; CHECK-NEXT:         .comm   f[RW],4,2
 ; CHECK-NEXT:         .csect .rodata.str1.1L...str[RO],2
-; CHECK-NEXT:         .byte 'a,'b,'c,'d,'e,'f,'g,'h,0000
+; CHECK-NEXT:         .string "abcdefgh"
 ; CHECK32:            .csect p[RW],2
 ; CHECK32-NEXT:       .globl  p[RW]
 ; CHECK32-NEXT:       .align  2

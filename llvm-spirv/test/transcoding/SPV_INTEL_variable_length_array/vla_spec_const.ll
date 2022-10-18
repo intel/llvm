@@ -1,7 +1,7 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_variable_length_array
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv  --spec-const=0:i64:28 -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv  --spec-const=0:i64:28 -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; The IR was generated from the following source:
@@ -57,7 +57,7 @@
 ; CHECK-SPIRV: ReturnValue [[#SPEC_CONST]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" = type { %"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" }
 %"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" = type { i8 }
@@ -94,7 +94,7 @@ entry:
   %call = call spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(%"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" addrspace(4)* %0)
 ; CHECK-LLVM:  %[[SPEC_CONST:[[:alnum:]]+]] = call spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(
   %1 = call i8* @llvm.stacksave()
-; CHECK-LLVM: call i8* @llvm.stacksave()
+; CHECK-LLVM: call ptr @llvm.stacksave()
   store i8* %1, i8** %saved_stack, align 8
   %vla = alloca i32, i64 %call, align 4
 ; CHECK-LLVM: alloca i32, i64 %[[SPEC_CONST]], align 4
@@ -103,7 +103,7 @@ entry:
   store i32 42, i32* %ptridx, align 4, !tbaa !9
   %2 = load i8*, i8** %saved_stack, align 8
   call void @llvm.stackrestore(i8* %2)
-; CHECK-LLVM: call void @llvm.stackrestore(i8*
+; CHECK-LLVM: call void @llvm.stackrestore(ptr
   ret void
 }
 

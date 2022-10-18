@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -35,7 +34,7 @@ struct expected {
 
   struct promise_type {
     std::shared_ptr<Data> data;
-    std::shared_ptr<Data> get_return_object() { data = std::make_shared<Data>(); return data; }
+    expected get_return_object() { data = std::make_shared<Data>(); return {data}; }
     suspend_never initial_suspend() { return {}; }
     suspend_never final_suspend() noexcept { return {}; }
     void return_value(T v) { data->val = v; data->error = {}; }

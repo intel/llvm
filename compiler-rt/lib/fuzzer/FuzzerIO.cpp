@@ -23,6 +23,14 @@ namespace fuzzer {
 
 static FILE *OutputFile = stderr;
 
+FILE *GetOutputFile() {
+  return OutputFile;
+}
+
+void SetOutputFile(FILE *NewOutputFile) {
+  OutputFile = NewOutputFile;
+}
+
 long GetEpoch(const std::string &Path) {
   struct stat St;
   if (stat(Path.c_str(), &St))
@@ -90,10 +98,11 @@ void AppendToFile(const uint8_t *Data, size_t Size, const std::string &Path) {
   fclose(Out);
 }
 
-void ReadDirToVectorOfUnits(const char *Path, Vector<Unit> *V,
-                            long *Epoch, size_t MaxSize, bool ExitOnError) {
+void ReadDirToVectorOfUnits(const char *Path, std::vector<Unit> *V, long *Epoch,
+                            size_t MaxSize, bool ExitOnError,
+                            std::vector<std::string> *VPaths) {
   long E = Epoch ? *Epoch : 0;
-  Vector<std::string> Files;
+  std::vector<std::string> Files;
   ListFilesInDirRecursive(Path, Epoch, &Files, /*TopDir*/true);
   size_t NumLoaded = 0;
   for (size_t i = 0; i < Files.size(); i++) {
@@ -103,14 +112,16 @@ void ReadDirToVectorOfUnits(const char *Path, Vector<Unit> *V,
     if ((NumLoaded & (NumLoaded - 1)) == 0 && NumLoaded >= 1024)
       Printf("Loaded %zd/%zd files from %s\n", NumLoaded, Files.size(), Path);
     auto S = FileToVector(X, MaxSize, ExitOnError);
-    if (!S.empty())
+    if (!S.empty()) {
       V->push_back(S);
+      if (VPaths)
+        VPaths->push_back(X);
+    }
   }
 }
 
-
-void GetSizedFilesFromDir(const std::string &Dir, Vector<SizedFile> *V) {
-  Vector<std::string> Files;
+void GetSizedFilesFromDir(const std::string &Dir, std::vector<SizedFile> *V) {
+  std::vector<std::string> Files;
   ListFilesInDirRecursive(Dir, 0, &Files, /*TopDir*/true);
   for (auto &File : Files)
     if (size_t Size = FileSize(File))

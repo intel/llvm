@@ -49,16 +49,12 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
     CompactPtrT Batch[MaxNumCached];
   };
 
-  void initLinkerInitialized(GlobalStats *S, SizeClassAllocator *A) {
-    Stats.initLinkerInitialized();
+  void init(GlobalStats *S, SizeClassAllocator *A) {
+    DCHECK(isEmpty());
+    Stats.init();
     if (LIKELY(S))
       S->link(&Stats);
     Allocator = A;
-  }
-
-  void init(GlobalStats *S, SizeClassAllocator *A) {
-    memset(this, 0, sizeof(*this));
-    initLinkerInitialized(S, A);
   }
 
   void destroy(GlobalStats *S) {
@@ -109,19 +105,21 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
   }
 
   void drain() {
-    // Drain BatchClassId (0) the last as createBatch can refill it.
-    for (uptr I = NumClasses; I;) {
-      --I;
-      PerClass *C = &PerClassArray[I];
-      while (C->Count > 0)
-        drain(C, I);
+    // Drain BatchClassId last as createBatch can refill it.
+    for (uptr I = 0; I < NumClasses; ++I) {
+      if (I == BatchClassId)
+        continue;
+      while (PerClassArray[I].Count > 0)
+        drain(&PerClassArray[I], I);
     }
+    while (PerClassArray[BatchClassId].Count > 0)
+      drain(&PerClassArray[BatchClassId], BatchClassId);
     DCHECK(isEmpty());
   }
 
   TransferBatch *createBatch(uptr ClassId, void *B) {
-    if (ClassId != SizeClassMap::BatchClassId)
-      B = allocate(SizeClassMap::BatchClassId);
+    if (ClassId != BatchClassId)
+      B = allocate(BatchClassId);
     return reinterpret_cast<TransferBatch *>(B);
   }
 
@@ -129,15 +127,17 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
 
 private:
   static const uptr NumClasses = SizeClassMap::NumClasses;
+  static const uptr BatchClassId = SizeClassMap::BatchClassId;
   struct PerClass {
     u32 Count;
     u32 MaxCount;
+    // Note: ClassSize is zero for the transfer batch.
     uptr ClassSize;
     CompactPtrT Chunks[2 * TransferBatch::MaxNumCached];
   };
-  PerClass PerClassArray[NumClasses];
+  PerClass PerClassArray[NumClasses] = {};
   LocalStats Stats;
-  SizeClassAllocator *Allocator;
+  SizeClassAllocator *Allocator = nullptr;
 
   ALWAYS_INLINE void initCacheMaybe(PerClass *C) {
     if (LIKELY(C->MaxCount))
@@ -151,13 +151,19 @@ private:
       PerClass *P = &PerClassArray[I];
       const uptr Size = SizeClassAllocator::getSizeByClassId(I);
       P->MaxCount = 2 * TransferBatch::getMaxCached(Size);
-      P->ClassSize = Size;
+      if (I != BatchClassId) {
+        P->ClassSize = Size;
+      } else {
+        // ClassSize in this struct is only used for malloc/free stats, which
+        // should only track user allocations, not internal movements.
+        P->ClassSize = 0;
+      }
     }
   }
 
   void destroyBatch(uptr ClassId, void *B) {
-    if (ClassId != SizeClassMap::BatchClassId)
-      deallocate(SizeClassMap::BatchClassId, B);
+    if (ClassId != BatchClassId)
+      deallocate(BatchClassId, B);
   }
 
   NOINLINE bool refill(PerClass *C, uptr ClassId) {
@@ -178,8 +184,7 @@ private:
     TransferBatch *B =
         createBatch(ClassId, Allocator->decompactPtr(ClassId, C->Chunks[0]));
     if (UNLIKELY(!B))
-      reportOutOfMemory(
-          SizeClassAllocator::getSizeByClassId(SizeClassMap::BatchClassId));
+      reportOutOfMemory(SizeClassAllocator::getSizeByClassId(BatchClassId));
     B->setFromArray(&C->Chunks[0], Count);
     C->Count -= Count;
     for (uptr I = 0; I < C->Count; I++)

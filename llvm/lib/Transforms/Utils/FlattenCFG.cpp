@@ -145,9 +145,7 @@ bool FlattenCFGOpt::FlattenParallelAndOr(BasicBlock *BB, IRBuilder<> &Builder) {
 
   // Check predecessors of \param BB.
   SmallPtrSet<BasicBlock *, 16> Preds(pred_begin(BB), pred_end(BB));
-  for (SmallPtrSetIterator<BasicBlock *> PI = Preds.begin(), PE = Preds.end();
-       PI != PE; ++PI) {
-    BasicBlock *Pred = *PI;
+  for (BasicBlock *Pred : Preds) {
     BranchInst *PBI = dyn_cast<BranchInst>(Pred->getTerminator());
 
     // All predecessors should terminate with a branch.
@@ -162,7 +160,7 @@ bool FlattenCFGOpt::FlattenParallelAndOr(BasicBlock *BB, IRBuilder<> &Builder) {
       // of \param BB (BB4) and should not have address-taken.
       // There should exist only one such unconditional
       // branch among the predecessors.
-      if (UnCondBlock || !PP || (Preds.count(PP) == 0) ||
+      if (UnCondBlock || !PP || !Preds.contains(PP) ||
           Pred->hasAddressTaken())
         return false;
 
@@ -215,7 +213,7 @@ bool FlattenCFGOpt::FlattenParallelAndOr(BasicBlock *BB, IRBuilder<> &Builder) {
 
     // PS is the successor which is not BB. Check successors to identify
     // the last conditional branch.
-    if (Preds.count(PS) == 0) {
+    if (!Preds.contains(PS)) {
       // Case 2.
       LastCondBlock = Pred;
     } else {
@@ -360,7 +358,7 @@ bool FlattenCFGOpt::CompareIfRegionBlock(BasicBlock *Block1, BasicBlock *Block2,
       for (BasicBlock::iterator BI(PBI2), BE(PTI2); BI != BE; ++BI) {
         if (BI->mayReadFromMemory() || BI->mayWriteToMemory()) {
           // Check alias with Head2.
-          if (!AA || AA->alias(&*iter1, &*BI))
+          if (!AA || !AA->isNoAlias(&*iter1, &*BI))
             return false;
         }
       }
@@ -411,8 +409,10 @@ bool FlattenCFGOpt::CompareIfRegionBlock(BasicBlock *Block1, BasicBlock *Block2,
 /// approach goes for the opposite case.
 bool FlattenCFGOpt::MergeIfRegion(BasicBlock *BB, IRBuilder<> &Builder) {
   BasicBlock *IfTrue2, *IfFalse2;
-  Value *IfCond2 = GetIfCondition(BB, IfTrue2, IfFalse2);
-  Instruction *CInst2 = dyn_cast_or_null<Instruction>(IfCond2);
+  BranchInst *DomBI2 = GetIfCondition(BB, IfTrue2, IfFalse2);
+  if (!DomBI2)
+    return false;
+  Instruction *CInst2 = dyn_cast<Instruction>(DomBI2->getCondition());
   if (!CInst2)
     return false;
 
@@ -421,12 +421,17 @@ bool FlattenCFGOpt::MergeIfRegion(BasicBlock *BB, IRBuilder<> &Builder) {
     return false;
 
   BasicBlock *IfTrue1, *IfFalse1;
-  Value *IfCond1 = GetIfCondition(SecondEntryBlock, IfTrue1, IfFalse1);
-  Instruction *CInst1 = dyn_cast_or_null<Instruction>(IfCond1);
+  BranchInst *DomBI1 = GetIfCondition(SecondEntryBlock, IfTrue1, IfFalse1);
+  if (!DomBI1)
+    return false;
+  Instruction *CInst1 = dyn_cast<Instruction>(DomBI1->getCondition());
   if (!CInst1)
     return false;
 
   BasicBlock *FirstEntryBlock = CInst1->getParent();
+  // Don't die trying to process degenerate/unreachable code.
+  if (FirstEntryBlock == SecondEntryBlock)
+    return false;
 
   // Either then-path or else-path should be empty.
   bool InvertCond2 = false;
@@ -479,7 +484,7 @@ bool FlattenCFGOpt::MergeIfRegion(BasicBlock *BB, IRBuilder<> &Builder) {
   FirstEntryBlock->getInstList()
       .splice(FirstEntryBlock->end(), SecondEntryBlock->getInstList());
   BranchInst *PBI = cast<BranchInst>(FirstEntryBlock->getTerminator());
-  assert(PBI->getCondition() == IfCond2);
+  assert(PBI->getCondition() == CInst2);
   BasicBlock *SaveInsertBB = Builder.GetInsertBlock();
   BasicBlock::iterator SaveInsertPt = Builder.GetInsertPoint();
   Builder.SetInsertPoint(PBI);
@@ -494,7 +499,7 @@ bool FlattenCFGOpt::MergeIfRegion(BasicBlock *BB, IRBuilder<> &Builder) {
     PBI->swapSuccessors();
   }
   Value *NC = Builder.CreateBinOp(CombineOp, CInst1, CInst2);
-  PBI->replaceUsesOfWith(IfCond2, NC);
+  PBI->replaceUsesOfWith(CInst2, NC);
   Builder.SetInsertPoint(SaveInsertBB, SaveInsertPt);
 
   // Handle PHI node to replace its predecessors to FirstEntryBlock.

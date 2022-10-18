@@ -53,9 +53,10 @@ SPIRVType *SPIRVType::getArrayElementType() const {
 
 uint64_t SPIRVType::getArrayLength() const {
   assert(OpCode == OpTypeArray && "Not array type");
-  return static_cast<const SPIRVTypeArray *>(this)
-      ->getLength()
-      ->getZExtIntValue();
+  const SPIRVTypeArray *AsArray = static_cast<const SPIRVTypeArray *>(this);
+  assert(AsArray->getLength()->getOpCode() == OpConstant &&
+         "getArrayLength can only be called with constant array lengths");
+  return AsArray->getLength()->getZExtIntValue();
 }
 
 SPIRVWord SPIRVType::getBitWidth() const {
@@ -110,8 +111,12 @@ SPIRVWord SPIRVType::getVectorComponentCount() const {
 }
 
 SPIRVType *SPIRVType::getVectorComponentType() const {
-  assert(OpCode == OpTypeVector && "Not vector type");
-  return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == OpTypeVector)
+    return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
+  if (OpCode == internal::OpTypeJointMatrixINTEL)
+    return static_cast<const SPIRVTypeJointMatrixINTEL *>(this)->getCompType();
+  assert(0 && "getVectorComponentType(): Not a vector or joint matrix type");
+  return nullptr;
 }
 
 SPIRVWord SPIRVType::getMatrixColumnCount() const {
@@ -150,7 +155,8 @@ bool SPIRVType::isTypeArray() const { return OpCode == OpTypeArray; }
 bool SPIRVType::isTypeBool() const { return OpCode == OpTypeBool; }
 
 bool SPIRVType::isTypeComposite() const {
-  return isTypeVector() || isTypeArray() || isTypeStruct();
+  return isTypeVector() || isTypeArray() || isTypeStruct() ||
+         isTypeJointMatrixINTEL();
 }
 
 bool SPIRVType::isTypeFloat(unsigned Bits) const {
@@ -192,6 +198,10 @@ bool SPIRVType::isTypeStruct() const { return OpCode == OpTypeStruct; }
 
 bool SPIRVType::isTypeVector() const { return OpCode == OpTypeVector; }
 
+bool SPIRVType::isTypeJointMatrixINTEL() const {
+  return OpCode == internal::OpTypeJointMatrixINTEL;
+}
+
 bool SPIRVType::isTypeVectorBool() const {
   return isTypeVector() && getVectorComponentType()->isTypeBool();
 }
@@ -206,6 +216,10 @@ bool SPIRVType::isTypeVectorFloat() const {
 
 bool SPIRVType::isTypeVectorOrScalarBool() const {
   return isTypeBool() || isTypeVectorBool();
+}
+
+bool SPIRVType::isTypeVectorPointer() const {
+  return isTypeVector() && getVectorComponentType()->isTypePointer();
 }
 
 bool SPIRVType::isTypeSubgroupAvcINTEL() const {
@@ -246,8 +260,7 @@ SPIRVTypeArray::SPIRVTypeArray(SPIRVModule *M, SPIRVId TheId,
 void SPIRVTypeArray::validate() const {
   SPIRVEntry::validate();
   ElemType->validate();
-  assert(getValue(Length)->getType()->isTypeInt() &&
-         get<SPIRVConstant>(Length)->getZExtIntValue() > 0);
+  assert(getValue(Length)->getType()->isTypeInt());
 }
 
 SPIRVConstant *SPIRVTypeArray::getLength() const {
@@ -257,12 +270,32 @@ SPIRVConstant *SPIRVTypeArray::getLength() const {
 _SPIRV_IMP_ENCDEC3(SPIRVTypeArray, Id, ElemType, Length)
 
 void SPIRVTypeForwardPointer::encode(spv_ostream &O) const {
-  getEncoder(O) << Pointer << SC;
+  getEncoder(O) << PointerId << SC;
 }
 
 void SPIRVTypeForwardPointer::decode(std::istream &I) {
   auto Decoder = getDecoder(I);
-  SPIRVId PointerId;
   Decoder >> PointerId >> SC;
 }
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL(
+    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
+    std::vector<SPIRVValue *> Args)
+    : SPIRVType(M, FixedWC + Args.size(), OC, TheId), CompType(CompType),
+      Args(Args) {}
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL()
+    : SPIRVType(OC), CompType(nullptr),
+      Args({nullptr, nullptr, nullptr, nullptr}) {}
+
+void SPIRVTypeJointMatrixINTEL::encode(spv_ostream &O) const {
+  auto Encoder = getEncoder(O);
+  Encoder << Id << CompType << Args;
+}
+
+void SPIRVTypeJointMatrixINTEL::decode(std::istream &I) {
+  auto Decoder = getDecoder(I);
+  Decoder >> Id >> CompType >> Args;
+}
+
 } // namespace SPIRV

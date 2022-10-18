@@ -57,9 +57,7 @@ public:
     if ((Fpos = Stream.str().find(TypeStr)) != std::string::npos) {
       const char *NType;
       if (const PointerType *P = SPIR::dynCast<PointerType>(Type)) {
-        if ((NType =
-                 mangledPrimitiveStringfromName(P->getPointee()->toString())))
-          ThistypeStr << NType;
+        ThistypeStr << getPointeeMangling(P->getPointee());
       }
 #if defined(ENABLE_MANGLER_VECTOR_SUBSTITUTION)
       else if (const VectorType *PVec = SPIR::dynCast<VectorType>(Type)) {
@@ -110,25 +108,20 @@ public:
 
   MangleError visit(const PointerType *P) override {
     size_t Fpos = Stream.str().size();
-    std::string QualStr;
     MangleError Me = MANGLE_SUCCESS;
-    QualStr += getMangledAttribute((P->getAddressSpace()));
-    for (unsigned int I = ATTR_QUALIFIER_FIRST; I <= ATTR_QUALIFIER_LAST; I++) {
-      TypeAttributeEnum Qualifier = (TypeAttributeEnum)I;
-      if (P->hasQualifier(Qualifier)) {
-        QualStr += getMangledAttribute(Qualifier);
-      }
-    }
-    if (!mangleSubstitution(P, "P" + QualStr)) {
+    std::string AttrMangling = getPointerAttributesMangling(P);
+    if (!mangleSubstitution(P, "P" + AttrMangling)) {
       // A pointee type is substituted when it is a user type, a vector type
       // (but see a comment in the beginning of this file), a pointer type,
       // or a primitive type with qualifiers (addr. space and/or CV qualifiers).
       // So, stream "P", type qualifiers
-      Stream << "P" << QualStr;
+      Stream << "P" << AttrMangling;
       // and the pointee type itself.
       Me = P->getPointee()->accept(this);
-      // The type qualifiers plus a pointee type is a substitutable entity
-      recordSubstitution(Stream.str().substr(Fpos + 1));
+      // The type qualifiers plus a pointee type is a substitutable entity, but
+      // only when there are qualifiers in the first place.
+      if (!AttrMangling.empty())
+        recordSubstitution(Stream.str().substr(Fpos + 1));
       // The complete pointer type is substitutable as well
       recordSubstitution(Stream.str().substr(Fpos));
     }
@@ -176,12 +169,21 @@ public:
         }
       }
     Stream << "E";
+    // "Add" the function type (FvvE) and U13block_pointerFvvE to the
+    // substitution table. We don't actually substitute this if it's present,
+    // but since the block type only occurs at most once in any function we care
+    // about, this should be sufficient.
+    SeqId += 2;
     return MANGLE_SUCCESS;
   }
 
   MangleError visit(const UserDefinedType *PTy) override {
+    size_t Index = Stream.str().size();
     std::string Name = PTy->toString();
-    Stream << Name.size() << Name;
+    if (!mangleSubstitution(PTy, Name)) {
+      Stream << Name.size() << Name;
+      recordSubstitution(Stream.str().substr(Index));
+    }
     return MANGLE_SUCCESS;
   }
 

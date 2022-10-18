@@ -22,8 +22,6 @@ DECL_AS(unsigned int, j)
 #ifdef cl_khr_int64_base_atomics
 DECL_AS(long, l)
 DECL_AS(unsigned long, m)
-DECL_AS(long, x)
-DECL_AS(unsigned long, y)
 #endif
 
 #undef DECL_AS

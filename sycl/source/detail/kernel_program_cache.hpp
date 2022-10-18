@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/locked.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/locked.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/util.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -21,21 +21,22 @@
 #include <mutex>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
+// For testing purposes
+class MockKernelProgramCache;
+
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// Denotes build error data. The data is filled in from sycl::exception
   /// class instance.
   struct BuildError {
     std::string Msg;
     pi_int32 Code;
 
-    bool isFilledIn() const {
-      return !Msg.empty();
-    }
+    bool isFilledIn() const { return !Msg.empty(); }
   };
 
   /// Denotes pointer to some entity with its general state and build error.
@@ -61,7 +62,7 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildResult(T *P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
@@ -76,8 +77,15 @@ public:
 
   using PiKernelPtrT = std::atomic<PiKernelT *>;
   using KernelWithBuildStateT = BuildResult<PiKernelT>;
-  using KernelByNameT = std::map<string_class, KernelWithBuildStateT>;
+  using KernelByNameT = std::map<std::string, KernelWithBuildStateT>;
   using KernelCacheT = std::map<RT::PiProgram, KernelByNameT>;
+
+  using KernelFastCacheKeyT =
+      std::tuple<SerializedObj, OSModuleHandle, RT::PiDevice, std::string,
+                 std::string>;
+  using KernelFastCacheValT =
+      std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>;
+  using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   ~KernelProgramCache();
 
@@ -102,6 +110,33 @@ public:
     BR.MBuildCV.notify_all();
   }
 
+  template <typename KeyT>
+  KernelFastCacheValT tryToGetKernelFast(KeyT &&CacheKey) {
+    std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+    auto It = MKernelFastCache.find(CacheKey);
+    if (It != MKernelFastCache.end()) {
+      return It->second;
+    }
+    return std::make_tuple(nullptr, nullptr, nullptr);
+  }
+
+  template <typename KeyT, typename ValT>
+  void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
+    std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+    // if no insertion took place, thus some other thread has already inserted
+    // smth in the cache
+    MKernelFastCache.emplace(CacheKey, CacheVal);
+  }
+
+  /// Clears cache state.
+  ///
+  /// This member function should only be used in unit tests.
+  void reset() {
+    MCachedPrograms = ProgramCacheT{};
+    MKernelsPerProgramCache = KernelCacheT{};
+    MKernelFastCache = KernelFastCacheT{};
+  }
+
 private:
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
@@ -109,7 +144,11 @@ private:
   ProgramCacheT MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
   ContextPtr MParentContext;
+
+  std::mutex MKernelFastCacheMutex;
+  KernelFastCacheT MKernelFastCache;
+  friend class ::MockKernelProgramCache;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

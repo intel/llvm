@@ -25,7 +25,10 @@ add_lldb_library(lldbCore
   AddressResolver.cpp
   AddressResolverFileLine.cpp
   Communication.cpp
+  DataFileCache.cpp
   Debugger.cpp
+  DebuggerEvents.cpp
+  Declaration.cpp
   Disassembler.cpp
   DumpDataExtractor.cpp
   DumpRegisterValue.cpp
@@ -47,9 +50,11 @@ add_lldb_library(lldbCore
   RichManglingContext.cpp
   SearchFilter.cpp
   Section.cpp
+  SourceLocationSpec.cpp
   SourceManager.cpp
   StreamAsynchronousIO.cpp
   StreamFile.cpp
+  ThreadedCommunication.cpp
   UserSettingsController.cpp
   Value.cpp
   ValueObject.cpp
@@ -98,10 +103,6 @@ add_dependencies(lldbCore
 # Needed to properly resolve references in a debug build.
 # TODO: Remove once we have better layering
 set_target_properties(lldbCore PROPERTIES LINK_INTERFACE_MULTIPLICITY 5)
-
-if (LLDB_ENABLE_LIBEDIT)
-  target_include_directories(lldbCore PRIVATE ${LibEdit_INCLUDE_DIRS})
-endif()
 
 if (LLDB_ENABLE_CURSES)
   target_include_directories(lldbCore PRIVATE ${CURSES_INCLUDE_DIRS})

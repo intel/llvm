@@ -14,6 +14,7 @@
 #include "clang/AST/ASTImporterLookupTable.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "llvm/Support/FormatVariadic.h"
 
 namespace clang {
 
@@ -93,10 +94,19 @@ void ASTImporterLookupTable::add(DeclContext *DC, NamedDecl *ND) {
 }
 
 void ASTImporterLookupTable::remove(DeclContext *DC, NamedDecl *ND) {
-  DeclList &Decls = LookupTable[DC][ND->getDeclName()];
+  const DeclarationName Name = ND->getDeclName();
+  DeclList &Decls = LookupTable[DC][Name];
   bool EraseResult = Decls.remove(ND);
   (void)EraseResult;
-  assert(EraseResult == true && "Trying to remove not contained Decl");
+#ifndef NDEBUG
+  if (!EraseResult) {
+    std::string Message =
+        llvm::formatv("Trying to remove not contained Decl '{0}' of type {1}",
+                      Name.getAsString(), DC->getDeclKindName())
+            .str();
+    llvm_unreachable(Message.c_str());
+  }
+#endif
 }
 
 void ASTImporterLookupTable::add(NamedDecl *ND) {
@@ -117,6 +127,24 @@ void ASTImporterLookupTable::remove(NamedDecl *ND) {
     remove(ReDC, ND);
 }
 
+void ASTImporterLookupTable::update(NamedDecl *ND, DeclContext *OldDC) {
+  assert(OldDC != ND->getDeclContext() &&
+         "DeclContext should be changed before update");
+  if (contains(ND->getDeclContext(), ND)) {
+    assert(!contains(OldDC, ND) &&
+           "Decl should not be found in the old context if already in the new");
+    return;
+  }
+
+  remove(OldDC, ND);
+  add(ND);
+}
+
+void ASTImporterLookupTable::updateForced(NamedDecl *ND, DeclContext *OldDC) {
+  LookupTable[OldDC][ND->getDeclName()].remove(ND);
+  add(ND);
+}
+
 ASTImporterLookupTable::LookupResult
 ASTImporterLookupTable::lookup(DeclContext *DC, DeclarationName Name) const {
   auto DCI = LookupTable.find(DC->getPrimaryContext());
@@ -129,6 +157,10 @@ ASTImporterLookupTable::lookup(DeclContext *DC, DeclarationName Name) const {
     return {};
 
   return NamesI->second;
+}
+
+bool ASTImporterLookupTable::contains(DeclContext *DC, NamedDecl *ND) const {
+  return lookup(DC, ND->getDeclName()).contains(ND);
 }
 
 void ASTImporterLookupTable::dump(DeclContext *DC) const {

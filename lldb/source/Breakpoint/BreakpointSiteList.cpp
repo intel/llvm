@@ -14,9 +14,9 @@
 using namespace lldb;
 using namespace lldb_private;
 
-BreakpointSiteList::BreakpointSiteList() : m_mutex(), m_bp_site_list() {}
+BreakpointSiteList::BreakpointSiteList() = default;
 
-BreakpointSiteList::~BreakpointSiteList() {}
+BreakpointSiteList::~BreakpointSiteList() = default;
 
 // Add breakpoint site to the list.  However, if the element already exists in
 // the list, then we don't add it, and return LLDB_INVALID_BREAK_ID.

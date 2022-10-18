@@ -6,12 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-/// \file This pass extends the live ranges extends the live ranges of registers
-/// used as pointers in sequences of adjacent of SMEM and VMEM instructions if
-/// XNACK is enabled. A load that would overwrite a pointer would require
-/// breaking the soft clause. Artificially extend the life ranges of the pointer
-/// operands by adding implicit-def early-clobber operands throughout the soft
-/// clause.
+/// \file This pass extends the live ranges of registers used as pointers in
+/// sequences of adjacent SMEM and VMEM instructions if XNACK is enabled. A
+/// load that would overwrite a pointer would require breaking the soft clause.
+/// Artificially extend the live ranges of the pointer operands by adding
+/// implicit-def early-clobber operands throughout the soft clause.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -242,7 +241,7 @@ void SIFormMemoryClauses::collectRegUses(const MachineInstr &MI,
 }
 
 // Check register def/use conflicts, occupancy limits and collect def/use maps.
-// Return true if instruction can be bundled with previous. It it cannot
+// Return true if instruction can be bundled with previous. If it cannot
 // def/use maps are not updated.
 bool SIFormMemoryClauses::processRegUses(const MachineInstr &MI,
                                          RegUse &Defs, RegUse &Uses,

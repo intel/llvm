@@ -52,7 +52,7 @@ bool BreakpointIDList::AddBreakpointID(BreakpointID bp_id) {
 
 bool BreakpointIDList::AddBreakpointID(const char *bp_id_str) {
   auto bp_id = BreakpointID::ParseCanonicalReference(bp_id_str);
-  if (!bp_id.hasValue())
+  if (!bp_id)
     return false;
 
   m_breakpoint_ids.push_back(*bp_id);
@@ -76,7 +76,7 @@ bool BreakpointIDList::FindBreakpointID(BreakpointID &bp_id,
 bool BreakpointIDList::FindBreakpointID(const char *bp_id_str,
                                         size_t *position) const {
   auto bp_id = BreakpointID::ParseCanonicalReference(bp_id_str);
-  if (!bp_id.hasValue())
+  if (!bp_id)
     return false;
 
   return FindBreakpointID(*bp_id, position);
@@ -89,7 +89,7 @@ void BreakpointIDList::InsertStringArray(
 
   for (const char *str : string_array) {
     auto bp_id = BreakpointID::ParseCanonicalReference(str);
-    if (bp_id.hasValue())
+    if (bp_id)
       m_breakpoint_ids.push_back(*bp_id);
   }
   result.SetStatus(eReturnStatusSuccessFinishNoResult);
@@ -141,7 +141,6 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
       if (!error.Success()) {
         new_args.Clear();
         result.AppendError(error.AsCString());
-        result.SetStatus(eReturnStatusFailed);
         return;
       } else
         names_found.insert(std::string(current_arg));
@@ -164,13 +163,12 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
 
           BreakpointSP breakpoint_sp;
           auto bp_id = BreakpointID::ParseCanonicalReference(bp_id_str);
-          if (bp_id.hasValue())
+          if (bp_id)
             breakpoint_sp = target->GetBreakpointByID(bp_id->GetBreakpointID());
           if (!breakpoint_sp) {
             new_args.Clear();
             result.AppendErrorWithFormat("'%d' is not a valid breakpoint ID.\n",
                                          bp_id->GetBreakpointID());
-            result.SetStatus(eReturnStatusFailed);
             return;
           }
           const size_t num_locations = breakpoint_sp->GetNumLocations();
@@ -194,21 +192,19 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
     auto start_bp = BreakpointID::ParseCanonicalReference(range_from);
     auto end_bp = BreakpointID::ParseCanonicalReference(range_to);
 
-    if (!start_bp.hasValue() ||
+    if (!start_bp ||
         !target->GetBreakpointByID(start_bp->GetBreakpointID())) {
       new_args.Clear();
       result.AppendErrorWithFormat("'%s' is not a valid breakpoint ID.\n",
                                    range_from.str().c_str());
-      result.SetStatus(eReturnStatusFailed);
       return;
     }
 
-    if (!end_bp.hasValue() ||
+    if (!end_bp ||
         !target->GetBreakpointByID(end_bp->GetBreakpointID())) {
       new_args.Clear();
       result.AppendErrorWithFormat("'%s' is not a valid breakpoint ID.\n",
                                    range_to.str().c_str());
-      result.SetStatus(eReturnStatusFailed);
       return;
     }
     break_id_t start_bp_id = start_bp->GetBreakpointID();
@@ -224,7 +220,6 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
                          "both ends of range must specify"
                          " a breakpoint location, or neither can "
                          "specify a breakpoint location.");
-      result.SetStatus(eReturnStatusFailed);
       return;
     }
 
@@ -247,7 +242,6 @@ void BreakpointIDList::FindAndReplaceIDRanges(Args &old_args, Target *target,
             " must be within the same major breakpoint; you specified two"
             " different major breakpoints, %d and %d.\n",
             start_bp_id, end_bp_id);
-        result.SetStatus(eReturnStatusFailed);
         return;
       }
     }

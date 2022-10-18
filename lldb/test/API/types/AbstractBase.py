@@ -2,8 +2,6 @@
 Abstract base class of basic types provides a generic type tester method.
 """
 
-from __future__ import print_function
-
 import os
 import re
 import lldb
@@ -34,14 +32,11 @@ class GenericTester(TestBase):
         # used for all the test cases.
         self.exe_name = self.testMethodName
         golden = "{}-golden-output.txt".format(self.testMethodName)
-        if configuration.is_reproducer():
-            self.golden_filename = self.getReproducerArtifact(golden)
-        else:
-            self.golden_filename = self.getBuildArtifact(golden)
+        self.golden_filename = self.getBuildArtifact(golden)
 
     def tearDown(self):
         """Cleanup the test byproducts."""
-        if os.path.exists(self.golden_filename) and not configuration.is_reproducer():
+        if os.path.exists(self.golden_filename):
             os.remove(self.golden_filename)
         TestBase.tearDown(self)
 
@@ -104,9 +99,6 @@ class GenericTester(TestBase):
             # copy remote_path to local host
             self.runCmd('platform get-file {remote} "{local}"'.format(
                 remote=remote_path, local=self.golden_filename))
-        elif configuration.is_reproducer_replay():
-            # Don't overwrite the golden file generated at capture time.
-            self.runCmd('process launch')
         else:
             self.runCmd(
                 'process launch -o "{local}"'.format(local=self.golden_filename))

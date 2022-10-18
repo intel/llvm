@@ -54,11 +54,6 @@ void InstrumentationRuntimeMainThreadChecker::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString
-InstrumentationRuntimeMainThreadChecker::GetPluginNameStatic() {
-  return ConstString("MainThreadChecker");
-}
-
 lldb::InstrumentationRuntimeType
 InstrumentationRuntimeMainThreadChecker::GetTypeStatic() {
   return eInstrumentationRuntimeTypeMainThreadChecker;
@@ -105,14 +100,14 @@ InstrumentationRuntimeMainThreadChecker::RetrieveReportData(
   if (!apiname_ptr)
     return StructuredData::ObjectSP();
 
-  std::string apiName = "";
+  std::string apiName;
   Status read_error;
   target.ReadCStringFromMemory(apiname_ptr, apiName, read_error);
   if (read_error.Fail())
     return StructuredData::ObjectSP();
 
-  std::string className = "";
-  std::string selector = "";
+  std::string className;
+  std::string selector;
   if (apiName.substr(0, 2) == "-[") {
     size_t spacePos = apiName.find(' ');
     if (spacePos != std::string::npos) {
@@ -127,18 +122,13 @@ InstrumentationRuntimeMainThreadChecker::RetrieveReportData(
   StackFrameSP responsible_frame;
   for (unsigned I = 0; I < thread_sp->GetStackFrameCount(); ++I) {
     StackFrameSP frame = thread_sp->GetStackFrameAtIndex(I);
-    Address addr = frame->GetFrameCodeAddress();
+    Address addr = frame->GetFrameCodeAddressForSymbolication();
     if (addr.GetModule() == runtime_module_sp) // Skip PCs from the runtime.
       continue;
 
     // The first non-runtime frame is responsible for the bug.
     if (!responsible_frame)
       responsible_frame = frame;
-
-    // First frame in stacktrace should point to a real PC, not return address.
-    if (I != 0 && trace->GetSize() == 0) {
-      addr.Slide(-1);
-    }
 
     lldb::addr_t PC = addr.GetLoadAddress(&target);
     trace->AddItem(StructuredData::ObjectSP(new StructuredData::Integer(PC)));
@@ -224,8 +214,9 @@ void InstrumentationRuntimeMainThreadChecker::Activate() {
           .CreateBreakpoint(symbol_address, /*internal=*/true,
                             /*hardware=*/false)
           .get();
+  const bool sync = false;
   breakpoint->SetCallback(
-      InstrumentationRuntimeMainThreadChecker::NotifyBreakpointHit, this, true);
+      InstrumentationRuntimeMainThreadChecker::NotifyBreakpointHit, this, sync);
   breakpoint->SetBreakpointKind("main-thread-checker-report");
   SetBreakpointID(breakpoint->GetID());
 
@@ -271,8 +262,11 @@ InstrumentationRuntimeMainThreadChecker::GetBacktracesFromExtendedStopInfo(
       info->GetObjectForDotSeparatedPath("tid");
   tid_t tid = thread_id_obj ? thread_id_obj->GetIntegerValue() : 0;
 
-  HistoryThread *history_thread = new HistoryThread(*process_sp, tid, PCs);
-  ThreadSP new_thread_sp(history_thread);
+  // We gather symbolication addresses above, so no need for HistoryThread to
+  // try to infer the call addresses.
+  bool pcs_are_call_addresses = true;
+  ThreadSP new_thread_sp = std::make_shared<HistoryThread>(
+      *process_sp, tid, PCs, pcs_are_call_addresses);
 
   // Save this in the Process' ExtendedThreadList so a strong pointer retains
   // the object

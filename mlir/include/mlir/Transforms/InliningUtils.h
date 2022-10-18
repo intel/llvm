@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_TRANSFORMS_INLINING_UTILS_H
-#define MLIR_TRANSFORMS_INLINING_UTILS_H
+#ifndef MLIR_TRANSFORMS_INLININGUTILS_H
+#define MLIR_TRANSFORMS_INLININGUTILS_H
 
 #include "mlir/IR/DialectInterface.h"
 #include "mlir/IR/Location.h"
@@ -23,7 +23,6 @@ class Block;
 class BlockAndValueMapping;
 class CallableOpInterface;
 class CallOpInterface;
-class FuncOp;
 class OpBuilder;
 class Operation;
 class Region;
@@ -140,6 +139,11 @@ public:
                                                Location conversionLoc) const {
     return nullptr;
   }
+
+  /// Process a set of blocks that have been inlined for a call. This callback
+  /// is invoked before inlined terminator operations have been processed.
+  virtual void processInlinedCallBlocks(
+      Operation *call, iterator_range<Region::iterator> inlinedBlocks) const {}
 };
 
 /// This interface provides the hooks into the inlining interface.
@@ -178,6 +182,8 @@ public:
   virtual void handleTerminator(Operation *op, Block *newDest) const;
   virtual void handleTerminator(Operation *op,
                                 ArrayRef<Value> valuesToRepl) const;
+  virtual void processInlinedCallBlocks(
+      Operation *call, iterator_range<Region::iterator> inlinedBlocks) const;
 };
 
 //===----------------------------------------------------------------------===//
@@ -204,12 +210,24 @@ LogicalResult inlineRegion(InlinerInterface &interface, Region *src,
                            TypeRange regionResultTypes,
                            Optional<Location> inlineLoc = llvm::None,
                            bool shouldCloneInlinedRegion = true);
+LogicalResult inlineRegion(InlinerInterface &interface, Region *src,
+                           Block *inlineBlock, Block::iterator inlinePoint,
+                           BlockAndValueMapping &mapper,
+                           ValueRange resultsToReplace,
+                           TypeRange regionResultTypes,
+                           Optional<Location> inlineLoc = llvm::None,
+                           bool shouldCloneInlinedRegion = true);
 
 /// This function is an overload of the above 'inlineRegion' that allows for
 /// providing the set of operands ('inlinedOperands') that should be used
 /// in-favor of the region arguments when inlining.
 LogicalResult inlineRegion(InlinerInterface &interface, Region *src,
-                           Operation *inlinePoint,
+                           Operation *inlinePoint, ValueRange inlinedOperands,
+                           ValueRange resultsToReplace,
+                           Optional<Location> inlineLoc = llvm::None,
+                           bool shouldCloneInlinedRegion = true);
+LogicalResult inlineRegion(InlinerInterface &interface, Region *src,
+                           Block *inlineBlock, Block::iterator inlinePoint,
                            ValueRange inlinedOperands,
                            ValueRange resultsToReplace,
                            Optional<Location> inlineLoc = llvm::None,
@@ -225,6 +243,6 @@ LogicalResult inlineCall(InlinerInterface &interface, CallOpInterface call,
                          CallableOpInterface callable, Region *src,
                          bool shouldCloneInlinedRegion = true);
 
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_TRANSFORMS_INLINING_UTILS_H
+#endif // MLIR_TRANSFORMS_INLININGUTILS_H

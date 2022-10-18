@@ -602,7 +602,9 @@ bool MachTask::IsValid(task_t task) {
   return false;
 }
 
-bool MachTask::StartExceptionThread(bool unmask_signals, DNBError &err) {
+bool MachTask::StartExceptionThread(
+        const RNBContext::IgnoredExceptions &ignored_exceptions, 
+        DNBError &err) {
   DNBLogThreadedIf(LOG_EXCEPTIONS, "MachTask::%s ( )", __FUNCTION__);
 
   task_t task = TaskPortForProcessID(err);
@@ -631,10 +633,9 @@ bool MachTask::StartExceptionThread(bool unmask_signals, DNBError &err) {
       return false;
     }
 
-    if (unmask_signals) {
-      m_exc_port_info.mask = m_exc_port_info.mask &
-                             ~(EXC_MASK_BAD_ACCESS | EXC_MASK_BAD_INSTRUCTION |
-                               EXC_MASK_ARITHMETIC);
+    if (!ignored_exceptions.empty()) {
+      for (exception_mask_t mask : ignored_exceptions)
+        m_exc_port_info.mask = m_exc_port_info.mask & ~mask;
     }
 
     // Set the ability to get all exceptions on this port
@@ -984,15 +985,15 @@ nub_bool_t MachTask::DeallocateMemory(nub_addr_t addr) {
   allocation_collection::iterator pos, end = m_allocations.end();
   for (pos = m_allocations.begin(); pos != end; pos++) {
     if ((*pos).first == addr) {
+      size_t size = (*pos).second;
       m_allocations.erase(pos);
 #define ALWAYS_ZOMBIE_ALLOCATIONS 0
       if (ALWAYS_ZOMBIE_ALLOCATIONS ||
           getenv("DEBUGSERVER_ZOMBIE_ALLOCATIONS")) {
-        ::mach_vm_protect(task, (*pos).first, (*pos).second, 0, VM_PROT_NONE);
+        ::mach_vm_protect(task, addr, size, 0, VM_PROT_NONE);
         return true;
       } else
-        return ::mach_vm_deallocate(task, (*pos).first, (*pos).second) ==
-               KERN_SUCCESS;
+        return ::mach_vm_deallocate(task, addr, size) == KERN_SUCCESS;
     }
   }
   return false;

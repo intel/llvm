@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -Wno-sycl-2017-compat -triple spir64 -DCHECKDIAG -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -sycl-std=2017 -Wno-sycl-2017-compat -triple spir64 -DCHECKDIAG -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -sycl-std=2017 -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
 
 [[intel::kernel_args_restrict]] void func_do_not_ignore() {}
 

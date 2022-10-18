@@ -19,7 +19,6 @@
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/TypeSize.h"
-#include "llvm/Support/WithColor.h"
 #include <cassert>
 #include <cstdint>
 #include <string>
@@ -120,6 +119,12 @@ namespace llvm {
       return changeExtendedTypeToInteger();
     }
 
+    /// Test if the given EVT has zero size, this will fail if called on a
+    /// scalable type
+    bool isZeroSized() const {
+      return !isScalableVector() && getSizeInBits() == 0;
+    }
+
     /// Test if the given EVT is simple (as opposed to being extended).
     bool isSimple() const {
       return V.SimpleTy != MVT::INVALID_SIMPLE_VALUE_TYPE;
@@ -207,7 +212,9 @@ namespace llvm {
     }
 
     /// Return true if the bit size is a multiple of 8.
-    bool isByteSized() const { return getSizeInBits().isKnownMultipleOf(8); }
+    bool isByteSized() const {
+      return !isZeroSized() && getSizeInBits().isKnownMultipleOf(8);
+    }
 
     /// Return true if the size is a power-of-two number of bytes.
     bool isRound() const {
@@ -355,6 +362,12 @@ namespace llvm {
     TypeSize getStoreSize() const {
       TypeSize BaseSize = getSizeInBits();
       return {(BaseSize.getKnownMinSize() + 7) / 8, BaseSize.isScalable()};
+    }
+
+    // Return the number of bytes overwritten by a store of this value type or
+    // this value type's element type in the case of a vector.
+    uint64_t getScalarStoreSize() const {
+      return getScalarType().getStoreSize().getFixedSize();
     }
 
     /// Return the number of bits overwritten by a store of the specified value

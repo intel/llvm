@@ -8,8 +8,6 @@
 
 // UNSUPPORTED: c++03
 
-// XFAIL: LIBCXX-WINDOWS-FIXME
-
 // <filesystem>
 
 // void permissions(const path& p, perms prms,
@@ -128,18 +126,22 @@ TEST_CASE(basic_permissions_test)
           permissions(TC.p, TC.set_perms, TC.opts, ec);
           TEST_CHECK(!ec);
           auto pp = status(TC.p).permissions();
-          TEST_CHECK(pp == TC.expected);
+          TEST_CHECK(pp == NormalizeExpectedPerms(TC.expected));
         }
         if (TC.opts == perm_options::replace) {
           std::error_code ec = GetTestEC();
           permissions(TC.p, TC.set_perms, ec);
           TEST_CHECK(!ec);
           auto pp = status(TC.p).permissions();
-          TEST_CHECK(pp == TC.expected);
+          TEST_CHECK(pp == NormalizeExpectedPerms(TC.expected));
         }
     }
 }
 
+#ifndef _WIN32
+// This test isn't currently meaningful on Windows; the Windows file
+// permissions visible via std::filesystem doesn't show any difference
+// between owner/group/others.
 TEST_CASE(test_no_resolve_symlink_on_symlink)
 {
     scoped_test_env env;
@@ -160,7 +162,7 @@ TEST_CASE(test_no_resolve_symlink_on_symlink)
         {perms::owner_all, perms::group_all, perm_options::remove},
     };
     for (auto const& TC : cases) {
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(_AIX)
         // On OS X symlink permissions are supported. We should get an empty
         // error code and the expected permissions.
         const auto expected_link_perms = TC.expected;
@@ -182,5 +184,6 @@ TEST_CASE(test_no_resolve_symlink_on_symlink)
         TEST_CHECK(symlink_status(sym).permissions() == expected_link_perms);
     }
 }
+#endif
 
 TEST_SUITE_END()

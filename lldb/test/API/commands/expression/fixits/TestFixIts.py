@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class ExprCommandWithFixits(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test_with_dummy_target(self):
         """Test calling expressions in the dummy target with errors that can be fixed by the FixIts."""
 
@@ -47,7 +45,7 @@ class ExprCommandWithFixits(TestBase):
 
         # Try with one error in a top-level expression.
         # The Fix-It changes "ptr.m" to "ptr->m".
-        expr = "struct X { int m; }; X x; X *ptr = &x; int m = ptr.m;"
+        expr = "struct MyTy { int m; }; MyTy x; MyTy *ptr = &x; int m = ptr.m;"
         value = frame.EvaluateExpression(expr, top_level_options)
         # A successfully parsed top-level expression will yield an error
         # that there is 'no value'. If a parsing error would have happened we
@@ -81,6 +79,22 @@ class ExprCommandWithFixits(TestBase):
         self.assertTrue(
             error_string.find("my_pointer->second.a") != -1,
             "Fix was right")
+
+    def test_with_target_error_applies_fixit(self):
+        """ Check that applying a Fix-it which fails to execute correctly still 
+         prints that the Fix-it was applied. """
+        self.build()
+        (target, process, self.thread, bkpt) = lldbutil.run_to_source_breakpoint(self,
+                                        'Stop here to evaluate expressions',
+                                         lldb.SBFileSpec("main.cpp"))
+        # Enable fix-its as they were intentionally disabled by TestBase.setUp.
+        self.runCmd("settings set target.auto-apply-fixits true")
+        ret_val = lldb.SBCommandReturnObject()
+        result = self.dbg.GetCommandInterpreter().HandleCommand("expression null_pointer.first", ret_val)
+        self.assertEqual(result, lldb.eReturnStatusFailed, ret_val.GetError())
+
+        self.assertIn("Fix-it applied, fixed expression was:", ret_val.GetError())
+        self.assertIn("null_pointer->first", ret_val.GetError())
 
     # The final function call runs into SIGILL on aarch64-linux.
     @expectedFailureAll(archs=["aarch64"], oslist=["freebsd", "linux"],
@@ -132,25 +146,25 @@ class ExprCommandWithFixits(TestBase):
         # Disable retries which will fail.
         multiple_runs_options.SetRetriesWithFixIts(0)
         value = frame.EvaluateExpression(two_runs_expr, multiple_runs_options)
-        self.assertIn("expression failed to parse, fixed expression suggested:",
-                      value.GetError().GetCString())
-        self.assertIn("using typename T::TypeDef",
-                      value.GetError().GetCString())
+        errmsg = value.GetError().GetCString()
+        self.assertIn("expression failed to parse", errmsg)
+        self.assertIn("using declaration resolved to type without 'typename'",
+                      errmsg)
+        self.assertIn("fixed expression suggested:", errmsg)
+        self.assertIn("using typename T::TypeDef", errmsg)
         # The second Fix-It shouldn't be suggested here as Clang should have
         # aborted the parsing process.
-        self.assertNotIn("i->m",
-                      value.GetError().GetCString())
+        self.assertNotIn("i->m", errmsg)
 
         # Retry once, but the expression needs two retries.
         multiple_runs_options.SetRetriesWithFixIts(1)
         value = frame.EvaluateExpression(two_runs_expr, multiple_runs_options)
-        self.assertIn("expression failed to parse, fixed expression suggested:",
-                      value.GetError().GetCString())
+        errmsg = value.GetError().GetCString()
+        self.assertIn("expression failed to parse", errmsg)
+        self.assertIn("fixed expression suggested:", errmsg)
         # Both our fixed expressions should be in the suggested expression.
-        self.assertIn("using typename T::TypeDef",
-                      value.GetError().GetCString())
-        self.assertIn("i->m",
-                      value.GetError().GetCString())
+        self.assertIn("using typename T::TypeDef", errmsg)
+        self.assertIn("i->m", errmsg)
 
         # Retry twice, which will get the expression working.
         multiple_runs_options.SetRetriesWithFixIts(2)

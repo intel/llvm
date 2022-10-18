@@ -2,6 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
@@ -12,10 +13,10 @@
 ; CHECK-LLVM: declare spir_func %opencl.event_t* @_Z29async_work_group_strided_copyPU3AS1Dv2_hPU3AS3KS_jj9ocl_event(<2 x i8> addrspace(1)*, <2 x i8> addrspace(3)*, i32, i32, %opencl.event_t*)
 ; CHECK-LLVM: declare spir_func void @_Z17wait_group_eventsiPU3AS49ocl_event(i32, %opencl.event_t* addrspace(4)*)
 
-; CHECK-SPV-IR: call spir_func %opencl.event_t{{.*}}* @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_ii9ocl_event(i32 2
-; CHECK-SPV-IR: call spir_func void @_Z23__spirv_GroupWaitEventsiiPU3AS49ocl_event(i32 2
-; CHECK-SPV-IR: declare spir_func %opencl.event_t* @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_ii9ocl_event(i32, <2 x i8> addrspace(1)*, <2 x i8> addrspace(3)*, i32, i32, %opencl.event_t*)
-; CHECK-SPV-IR: declare spir_func void @_Z23__spirv_GroupWaitEventsiiPU3AS49ocl_event(i32, i32, %opencl.event_t* addrspace(4)*)
+; CHECK-SPV-IR: call spir_func %spirv.Event* @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_iiP13__spirv_Event(i32 2
+; CHECK-SPV-IR: call spir_func void @_Z23__spirv_GroupWaitEventsiiPU3AS4P13__spirv_Event(i32 2
+; CHECK-SPV-IR: declare spir_func %spirv.Event* @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_iiP13__spirv_Event(i32, <2 x i8> addrspace(1)*, <2 x i8> addrspace(3)*, i32, i32, %spirv.Event*
+; CHECK-SPV-IR: declare spir_func void @_Z23__spirv_GroupWaitEventsiiPU3AS4P13__spirv_Event(i32, i32, %spirv.Event* addrspace(4)*)
 
 ; CHECK-SPIRV-DAG: GroupAsyncCopy {{[0-9]+}} {{[0-9]+}} [[Scope:[0-9]+]]
 ; CHECK-SPIRV-DAG: Constant {{[0-9]+}} [[Scope]]

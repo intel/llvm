@@ -16,15 +16,22 @@ namespace testutils {
 // standard headers so we must provide streams through indirection to not
 // expose the system libc headers.
 class StreamWrapper {
-  void *OS;
+protected:
+  void *os;
 
 public:
-  StreamWrapper(void *OS) : OS(OS) {}
+  StreamWrapper(void *OS) : os(OS) {}
 
   template <typename T> StreamWrapper &operator<<(T t);
 };
 
 StreamWrapper outs();
+
+class OutputFileStream : public StreamWrapper {
+public:
+  explicit OutputFileStream(const char *FN);
+  ~OutputFileStream();
+};
 
 } // namespace testutils
 } // namespace __llvm_libc

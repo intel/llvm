@@ -9,11 +9,7 @@ define <2 x float> @foo({{float, float}}* %A) {
 ; CHECK-NEXT:    [[TMP0:%.*]] = bitcast { { float, float } }* [[A:%.*]] to <2 x float>*
 ; CHECK-NEXT:    [[TMP1:%.*]] = load <2 x float>, <2 x float>* [[TMP0]], align 8
 ; CHECK-NEXT:    [[TMP2:%.*]] = fmul <2 x float> [[TMP1]], <float 2.000000e+00, float 2.000000e+00>
-; CHECK-NEXT:    [[TMP3:%.*]] = extractelement <2 x float> [[TMP2]], i32 1
-; CHECK-NEXT:    [[INS1:%.*]] = insertelement <2 x float> poison, float [[TMP3]], i32 1
-; CHECK-NEXT:    [[TMP4:%.*]] = extractelement <2 x float> [[TMP2]], i32 0
-; CHECK-NEXT:    [[INS0:%.*]] = insertelement <2 x float> [[INS1]], float [[TMP4]], i32 0
-; CHECK-NEXT:    ret <2 x float> [[INS0]]
+; CHECK-NEXT:    ret <2 x float> [[TMP2]]
 ;
 entry:
   %0 = bitcast {{float, float}}* %A to <2 x float>*
@@ -34,13 +30,6 @@ entry:
 define {%Struct2Ty, %Struct2Ty} @StructOfStructOfStruct(i16 *%Ptr) {
 ; CHECK-LABEL: @StructOfStructOfStruct(
 ; CHECK-NEXT:    [[GEP0:%.*]] = getelementptr inbounds i16, i16* [[PTR:%.*]], i64 0
-; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 1
-; CHECK-NEXT:    [[GEP2:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 2
-; CHECK-NEXT:    [[GEP3:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 3
-; CHECK-NEXT:    [[GEP4:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 4
-; CHECK-NEXT:    [[GEP5:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 5
-; CHECK-NEXT:    [[GEP6:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 6
-; CHECK-NEXT:    [[GEP7:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 7
 ; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i16* [[GEP0]] to <8 x i16>*
 ; CHECK-NEXT:    [[TMP2:%.*]] = load <8 x i16>, <8 x i16>* [[TMP1]], align 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = add <8 x i16> [[TMP2]], <i16 1, i16 2, i16 3, i16 4, i16 5, i16 6, i16 7, i16 8>

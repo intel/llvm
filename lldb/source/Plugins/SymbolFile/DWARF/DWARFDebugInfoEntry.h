@@ -35,8 +35,7 @@ public:
   typedef collection::const_iterator const_iterator;
 
   DWARFDebugInfoEntry()
-      : m_offset(DW_INVALID_OFFSET), m_parent_idx(0), m_sibling_idx(0),
-        m_has_children(false), m_abbr_idx(0), m_tag(llvm::dwarf::DW_TAG_null) {}
+      : m_offset(DW_INVALID_OFFSET), m_sibling_idx(0), m_has_children(false) {}
 
   explicit operator bool() const { return m_offset != DW_INVALID_OFFSET; }
   bool operator==(const DWARFDebugInfoEntry &rhs) const;
@@ -66,6 +65,10 @@ public:
 
   uint64_t GetAttributeValueAsUnsigned(
       const DWARFUnit *cu, const dw_attr_t attr, uint64_t fail_value,
+      bool check_specification_or_abstract_origin = false) const;
+
+  llvm::Optional<uint64_t> GetAttributeValueAsOptionalUnsigned(
+      const DWARFUnit *cu, const dw_attr_t attr,
       bool check_specification_or_abstract_origin = false) const;
 
   DWARFDIE GetAttributeValueAsReference(
@@ -105,7 +108,7 @@ public:
       DWARFUnit *cu, const char *&name, const char *&mangled,
       DWARFRangeList &rangeList, int &decl_file, int &decl_line,
       int &decl_column, int &call_file, int &call_line, int &call_column,
-      lldb_private::DWARFExpression *frame_base = nullptr) const;
+      lldb_private::DWARFExpressionList *frame_base = nullptr) const;
 
   const DWARFAbbreviationDeclaration *
   GetAbbreviationDeclarationPtr(const DWARFUnit *cu) const;
@@ -167,14 +170,14 @@ protected:
   GetDWARFDeclContextStatic(const DWARFDebugInfoEntry *die, DWARFUnit *cu);
 
   dw_offset_t m_offset; // Offset within the .debug_info/.debug_types
-  uint32_t m_parent_idx; // How many to subtract from "this" to get the parent.
-                         // If zero this die has no parent
+  uint32_t m_parent_idx = 0;   // How many to subtract from "this" to get the
+                               // parent. If zero this die has no parent
   uint32_t m_sibling_idx : 31, // How many to add to "this" to get the sibling.
       // If it is zero, then the DIE doesn't have children, or the
       // DWARF claimed it had children but the DIE only contained
       // a single NULL terminating child.
       m_has_children : 1;
-  uint16_t m_abbr_idx;
+  uint16_t m_abbr_idx = 0;
   /// A copy of the DW_TAG value so we don't have to go through the compile
   /// unit abbrev table
   dw_tag_t m_tag = llvm::dwarf::DW_TAG_null;

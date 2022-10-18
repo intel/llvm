@@ -47,6 +47,9 @@ public:
 
   Status RemoveHardwareBreakpoint(lldb::addr_t addr) override;
 
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  GetSiginfo() const override;
+
 private:
   // Interface for friend classes
 
@@ -59,6 +62,9 @@ private:
   void SetStoppedByTrace();
   void SetStoppedByExec();
   void SetStoppedByWatchpoint(uint32_t wp_index);
+  void SetStoppedByFork(lldb::pid_t child_pid, lldb::tid_t child_tid);
+  void SetStoppedByVFork(lldb::pid_t child_pid, lldb::tid_t child_tid);
+  void SetStoppedByVForkDone();
   void SetStoppedWithNoReason();
   void SetStopped();
   void SetRunning();

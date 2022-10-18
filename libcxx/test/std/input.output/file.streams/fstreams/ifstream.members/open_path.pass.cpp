@@ -7,15 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: libcpp-has-no-filesystem-library
+// UNSUPPORTED: no-filesystem
 
 // Filesystem is supported on Apple platforms starting with macosx10.15.
-// UNSUPPORTED: with_system_cxx_lib=macosx10.14
-// UNSUPPORTED: with_system_cxx_lib=macosx10.13
-// UNSUPPORTED: with_system_cxx_lib=macosx10.12
-// UNSUPPORTED: with_system_cxx_lib=macosx10.11
-// UNSUPPORTED: with_system_cxx_lib=macosx10.10
-// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14}}
 
 // FILE_DEPENDENCIES: test.dat
 
@@ -45,6 +40,7 @@ int main(int, char**) {
     fs >> c;
     assert(c == 'r');
   }
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   {
     std::wifstream fs;
     assert(!fs.is_open());
@@ -57,6 +53,7 @@ int main(int, char**) {
     fs >> c;
     assert(c == L'r');
   }
+#endif
 
   return 0;
 }

@@ -1,3 +1,6 @@
+include(GNUInstallDirs)
+include(LLVMDistributionSupport)
+
 macro(set_flang_windows_version_resource_properties name)
   if (DEFINED windows_resource_file)
     set_windows_version_resource_properties(${name} ${windows_resource_file}
@@ -15,7 +18,7 @@ endmacro()
 
 macro(add_flang_library name)
   cmake_parse_arguments(ARG
-    "SHARED"
+    "SHARED;STATIC;INSTALL_WITH_TOOLCHAIN"
     ""
     "ADDITIONAL_HEADERS"
     ${ARGN})
@@ -50,7 +53,7 @@ macro(add_flang_library name)
   else()
     # llvm_add_library ignores BUILD_SHARED_LIBS if STATIC is explicitly set,
     # so we need to handle it here.
-    if (BUILD_SHARED_LIBS)
+    if (BUILD_SHARED_LIBS AND NOT ARG_STATIC)
       set(LIBTYPE SHARED OBJECT)
     else()
       set(LIBTYPE STATIC OBJECT)
@@ -62,21 +65,15 @@ macro(add_flang_library name)
 
   if (TARGET ${name})
 
-    if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY OR ${name} STREQUAL "libflang")
-      set(export_to_flangtargets)
-      if (${name} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
-          "flang-libraries" IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
-          NOT LLVM_DISTRIBUTION_COMPONENTS)
-        set(export_to_flangtargets EXPORT FlangTargets)
-        set_property(GLOBAL PROPERTY FLANG_HAS_EXPORTS True)
-      endif()
-
+    if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY OR ${name} STREQUAL "libflang"
+        OR ARG_INSTALL_WITH_TOOLCHAIN)
+      get_target_export_arg(${name} Flang export_to_flangtargets UMBRELLA flang-libraries)
       install(TARGETS ${name}
         COMPONENT ${name}
         ${export_to_flangtargets}
         LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}
         ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX}
-        RUNTIME DESTINATION bin)
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
       if (NOT LLVM_ENABLE_IDE)
         add_llvm_install_targets(install-${name}
@@ -110,16 +107,10 @@ macro(add_flang_tool name)
   add_flang_executable(${name} ${ARGN})
 
   if (FLANG_BUILD_TOOLS)
-    set(export_to_flangtargets)
-    if (${name} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
-        NOT LLVM_DISTRIBUTION_COMPONENTS)
-      set(export_to_flangtargets EXPORT FlangTargets)
-      set_property(GLOBAL PROPERTY FLANG_HAS_EXPORTS True)
-    endif()
-
+    get_target_export_arg(${name} Flang export_to_flangtargets)
     install(TARGETS ${name}
       ${export_to_flangtargets}
-      RUNTIME DESTINATION bin
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
       COMPONENT ${name})
 
     if(NOT LLVM_ENABLE_IDE)
@@ -132,8 +123,8 @@ macro(add_flang_tool name)
 endmacro()
 
 macro(add_flang_symlink name dest)
-  add_llvm_tool_symlink(${name} ${dest} ALWAYS_GENERATE)
+  llvm_add_tool_symlink(FLANG ${name} ${dest} ALWAYS_GENERATE)
   # Always generate install targets
-  llvm_install_symlink(${name} ${dest} ALWAYS_GENERATE)
+  llvm_install_symlink(FLANG ${name} ${dest} ALWAYS_GENERATE)
 endmacro()
 

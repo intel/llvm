@@ -3,7 +3,6 @@
 ; Test that operations that are not supported by SIMD are properly
 ; unrolled.
 
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 ; ==============================================================================
@@ -11,7 +10,7 @@ target triple = "wasm32-unknown-unknown"
 ; ==============================================================================
 
 ; CHECK-LABEL: ctlz_v16i8:
-; CHECK: i32.clz
+; CHECK: i8x16.popcnt
 declare <16 x i8> @llvm.ctlz.v16i8(<16 x i8>, i1)
 define <16 x i8> @ctlz_v16i8(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.ctlz.v16i8(<16 x i8> %x, i1 false)
@@ -19,14 +18,14 @@ define <16 x i8> @ctlz_v16i8(<16 x i8> %x) {
 }
 
 ; CHECK-LABEL: ctlz_v16i8_undef:
-; CHECK: i32.clz
+; CHECK: i8x16.popcnt
 define <16 x i8> @ctlz_v16i8_undef(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.ctlz.v16i8(<16 x i8> %x, i1 true)
   ret <16 x i8> %v
 }
 
 ; CHECK-LABEL: cttz_v16i8:
-; CHECK: i32.ctz
+; CHECK: i8x16.popcnt
 declare <16 x i8> @llvm.cttz.v16i8(<16 x i8>, i1)
 define <16 x i8> @cttz_v16i8(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.cttz.v16i8(<16 x i8> %x, i1 false)
@@ -34,18 +33,9 @@ define <16 x i8> @cttz_v16i8(<16 x i8> %x) {
 }
 
 ; CHECK-LABEL: cttz_v16i8_undef:
-; CHECK: i32.ctz
+; CHECK: i8x16.popcnt
 define <16 x i8> @cttz_v16i8_undef(<16 x i8> %x) {
   %v = call <16 x i8> @llvm.cttz.v16i8(<16 x i8> %x, i1 true)
-  ret <16 x i8> %v
-}
-
-; CHECK-LABEL: ctpop_v16i8:
-; Note: expansion does not use i32.popcnt
-; CHECK: v128.and
-declare <16 x i8> @llvm.ctpop.v16i8(<16 x i8>)
-define <16 x i8> @ctpop_v16i8(<16 x i8> %x) {
-  %v = call <16 x i8> @llvm.ctpop.v16i8(<16 x i8> %x)
   ret <16 x i8> %v
 }
 
@@ -130,8 +120,7 @@ define <8 x i16> @cttz_v8i16_undef(<8 x i16> %x) {
 }
 
 ; CHECK-LABEL: ctpop_v8i16:
-; Note: expansion does not use i32.popcnt
-; CHECK: v128.and
+; CHECK: i32.popcnt
 declare <8 x i16> @llvm.ctpop.v8i16(<8 x i16>)
 define <8 x i16> @ctpop_v8i16(<8 x i16> %x) {
   %v = call <8 x i16> @llvm.ctpop.v8i16(<8 x i16> %x)
@@ -219,8 +208,7 @@ define <4 x i32> @cttz_v4i32_undef(<4 x i32> %x) {
 }
 
 ; CHECK-LABEL: ctpop_v4i32:
-; Note: expansion does not use i32.popcnt
-; CHECK: v128.and
+; CHECK: i32.popcnt
 declare <4 x i32> @llvm.ctpop.v4i32(<4 x i32>)
 define <4 x i32> @ctpop_v4i32(<4 x i32> %x) {
   %v = call <4 x i32> @llvm.ctpop.v4i32(<4 x i32> %x)
@@ -308,8 +296,7 @@ define <2 x i64> @cttz_v2i64_undef(<2 x i64> %x) {
 }
 
 ; CHECK-LABEL: ctpop_v2i64:
-; Note: expansion does not use i64.popcnt
-; CHECK: v128.and
+; CHECK: i64.popcnt
 declare <2 x i64> @llvm.ctpop.v2i64(<2 x i64>)
 define <2 x i64> @ctpop_v2i64(<2 x i64> %x) {
   %v = call <2 x i64> @llvm.ctpop.v2i64(<2 x i64> %x)
@@ -366,38 +353,6 @@ define <2 x i64> @rotr_v2i64(<2 x i64> %x, <2 x i64> %y) {
 ; 4 x f32
 ; ==============================================================================
 
-; CHECK-LABEL: ceil_v4f32:
-; CHECK: f32.ceil
-declare <4 x float> @llvm.ceil.v4f32(<4 x float>)
-define <4 x float> @ceil_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.ceil.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: floor_v4f32:
-; CHECK: f32.floor
-declare <4 x float> @llvm.floor.v4f32(<4 x float>)
-define <4 x float> @floor_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.floor.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: trunc_v4f32:
-; CHECK: f32.trunc
-declare <4 x float> @llvm.trunc.v4f32(<4 x float>)
-define <4 x float> @trunc_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.trunc.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
-; CHECK-LABEL: nearbyint_v4f32:
-; CHECK: f32.nearest
-declare <4 x float> @llvm.nearbyint.v4f32(<4 x float>)
-define <4 x float> @nearbyint_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.nearbyint.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
 ; CHECK-LABEL: copysign_v4f32:
 ; CHECK: f32.copysign
 declare <4 x float> @llvm.copysign.v4f32(<4 x float>, <4 x float>)
@@ -424,9 +379,9 @@ define <4 x float> @cos_v4f32(<4 x float> %x) {
 
 ; CHECK-LABEL: powi_v4f32:
 ; CHECK: call $push[[L:[0-9]+]]=, __powisf2
-declare <4 x float> @llvm.powi.v4f32(<4 x float>, i32)
+declare <4 x float> @llvm.powi.v4f32.i32(<4 x float>, i32)
 define <4 x float> @powi_v4f32(<4 x float> %x, i32 %y) {
-  %v = call <4 x float> @llvm.powi.v4f32(<4 x float> %x, i32 %y)
+  %v = call <4 x float> @llvm.powi.v4f32.i32(<4 x float> %x, i32 %y)
   ret <4 x float> %v
 }
 
@@ -498,38 +453,6 @@ define <4 x float> @round_v4f32(<4 x float> %x) {
 ; 2 x f64
 ; ==============================================================================
 
-; CHECK-LABEL: ceil_v2f64:
-; CHECK: f64.ceil
-declare <2 x double> @llvm.ceil.v2f64(<2 x double>)
-define <2 x double> @ceil_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.ceil.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: floor_v2f64:
-; CHECK: f64.floor
-declare <2 x double> @llvm.floor.v2f64(<2 x double>)
-define <2 x double> @floor_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.floor.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: trunc_v2f64:
-; CHECK: f64.trunc
-declare <2 x double> @llvm.trunc.v2f64(<2 x double>)
-define <2 x double> @trunc_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.trunc.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: nearbyint_v2f64:
-; CHECK: f64.nearest
-declare <2 x double> @llvm.nearbyint.v2f64(<2 x double>)
-define <2 x double> @nearbyint_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.nearbyint.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
 ; CHECK-LABEL: copysign_v2f64:
 ; CHECK: f64.copysign
 declare <2 x double> @llvm.copysign.v2f64(<2 x double>, <2 x double>)
@@ -556,9 +479,9 @@ define <2 x double> @cos_v2f64(<2 x double> %x) {
 
 ; CHECK-LABEL: powi_v2f64:
 ; CHECK: call $push[[L:[0-9]+]]=, __powidf2
-declare <2 x double> @llvm.powi.v2f64(<2 x double>, i32)
+declare <2 x double> @llvm.powi.v2f64.i32(<2 x double>, i32)
 define <2 x double> @powi_v2f64(<2 x double> %x, i32 %y) {
-  %v = call <2 x double> @llvm.powi.v2f64(<2 x double> %x, i32 %y)
+  %v = call <2 x double> @llvm.powi.v2f64.i32(<2 x double> %x, i32 %y)
   ret <2 x double> %v
 }
 

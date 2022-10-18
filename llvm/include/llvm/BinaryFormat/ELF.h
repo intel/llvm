@@ -19,6 +19,7 @@
 #ifndef LLVM_BINARYFORMAT_ELF_H
 #define LLVM_BINARYFORMAT_ELF_H
 
+#include "llvm/ADT/StringRef.h"
 #include <cstdint>
 #include <cstring>
 
@@ -281,6 +282,7 @@ enum {
   EM_STM8 = 186,          // STMicroeletronics STM8 8-bit microcontroller
   EM_TILE64 = 187,        // Tilera TILE64 multicore architecture family
   EM_TILEPRO = 188,       // Tilera TILEPro multicore architecture family
+  EM_MICROBLAZE = 189,    // Xilinx MicroBlaze 32-bit RISC soft processor core
   EM_CUDA = 190,          // NVIDIA CUDA architecture
   EM_TILEGX = 191,        // Tilera TILE-Gx multicore architecture family
   EM_CLOUDSHIELD = 192,   // CloudShield architecture family
@@ -317,6 +319,7 @@ enum {
   EM_BPF = 247,           // Linux kernel bpf virtual machine
   EM_VE = 251,            // NEC SX-Aurora VE
   EM_CSKY = 252,          // C-SKY 32-bit processor
+  EM_LOONGARCH = 258,     // LoongArch
 };
 
 // Object file classes.
@@ -370,7 +373,8 @@ enum {
   // was never defined for V1.
   ELFABIVERSION_AMDGPU_HSA_V2 = 0,
   ELFABIVERSION_AMDGPU_HSA_V3 = 1,
-  ELFABIVERSION_AMDGPU_HSA_V4 = 2
+  ELFABIVERSION_AMDGPU_HSA_V4 = 2,
+  ELFABIVERSION_AMDGPU_HSA_V5 = 3
 };
 
 #define ELF_RELOC(name, value) name = value,
@@ -431,6 +435,7 @@ enum : unsigned {
   EF_ARM_ABI_FLOAT_SOFT = 0x00000200U, // EABI_VER5
   EF_ARM_VFP_FLOAT = 0x00000400U,      // Legacy pre EABI_VER5
   EF_ARM_ABI_FLOAT_HARD = 0x00000400U, // EABI_VER5
+  EF_ARM_BE8 = 0x00800000U,
   EF_ARM_EABI_UNKNOWN = 0x00000000U,
   EF_ARM_EABI_VER1 = 0x01000000U,
   EF_ARM_EABI_VER2 = 0x02000000U,
@@ -485,7 +490,12 @@ enum : unsigned {
   EF_AVR_ARCH_XMEGA4 = 104,
   EF_AVR_ARCH_XMEGA5 = 105,
   EF_AVR_ARCH_XMEGA6 = 106,
-  EF_AVR_ARCH_XMEGA7 = 107
+  EF_AVR_ARCH_XMEGA7 = 107,
+
+  EF_AVR_ARCH_MASK = 0x7f, // EF_AVR_ARCH_xxx selection mask
+
+  EF_AVR_LINKRELAX_PREPARED = 0x80, // The file is prepared for linker
+                                    // relaxation to be applied
 };
 
 // ELF Relocation types for AVR
@@ -555,6 +565,15 @@ enum : unsigned {
   EF_MIPS_ARCH = 0xf0000000       // Mask for applying EF_MIPS_ARCH_ variant
 };
 
+// MIPS-specific section indexes
+enum {
+  SHN_MIPS_ACOMMON = 0xff00,   // Common symbols which are defined and allocated
+  SHN_MIPS_TEXT = 0xff01,      // Not ABI compliant
+  SHN_MIPS_DATA = 0xff02,      // Not ABI compliant
+  SHN_MIPS_SCOMMON = 0xff03,   // Common symbols for global data area
+  SHN_MIPS_SUNDEFINED = 0xff04 // Undefined symbols for global data area
+};
+
 // ELF Relocation types for Mips
 enum {
 #include "ELFRelocs/Mips.def"
@@ -600,6 +619,8 @@ enum {
   EF_HEXAGON_MACH_V67 = 0x00000067,  // Hexagon V67
   EF_HEXAGON_MACH_V67T = 0x00008067, // Hexagon V67T
   EF_HEXAGON_MACH_V68 = 0x00000068,  // Hexagon V68
+  EF_HEXAGON_MACH_V69 = 0x00000069,  // Hexagon V69
+  EF_HEXAGON_MACH = 0x000003ff,      // Hexagon V..
 
   // Highest ISA version flags
   EF_HEXAGON_ISA_MACH = 0x00000000, // Same as specified in bits[11:0]
@@ -615,6 +636,8 @@ enum {
   EF_HEXAGON_ISA_V66 = 0x00000066,  // Hexagon V66 ISA
   EF_HEXAGON_ISA_V67 = 0x00000067,  // Hexagon V67 ISA
   EF_HEXAGON_ISA_V68 = 0x00000068,  // Hexagon V68 ISA
+  EF_HEXAGON_ISA_V69 = 0x00000069,  // Hexagon V69 ISA
+  EF_HEXAGON_ISA = 0x000003ff,      // Hexagon V.. ISA
 };
 
 // Hexagon-specific section indexes for common small data
@@ -644,12 +667,19 @@ enum : unsigned {
   EF_RISCV_FLOAT_ABI_SINGLE = 0x0002,
   EF_RISCV_FLOAT_ABI_DOUBLE = 0x0004,
   EF_RISCV_FLOAT_ABI_QUAD = 0x0006,
-  EF_RISCV_RVE = 0x0008
+  EF_RISCV_RVE = 0x0008,
+  EF_RISCV_TSO = 0x0010,
 };
 
 // ELF Relocation types for RISC-V
 enum {
 #include "ELFRelocs/RISCV.def"
+};
+
+enum {
+  // Symbol may follow different calling convention than the standard calling
+  // convention.
+  STO_RISCV_VARIANT_CC = 0x80
 };
 
 // ELF Relocation types for S390/zSeries
@@ -731,15 +761,21 @@ enum : unsigned {
   EF_AMDGPU_MACH_AMDGCN_GFX602        = 0x03a,
   EF_AMDGPU_MACH_AMDGCN_GFX705        = 0x03b,
   EF_AMDGPU_MACH_AMDGCN_GFX805        = 0x03c,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X3D = 0x03d,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X3E = 0x03e,
+  EF_AMDGPU_MACH_AMDGCN_GFX1035       = 0x03d,
+  EF_AMDGPU_MACH_AMDGCN_GFX1034       = 0x03e,
   EF_AMDGPU_MACH_AMDGCN_GFX90A        = 0x03f,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X40 = 0x040,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X41 = 0x041,
+  EF_AMDGPU_MACH_AMDGCN_GFX940        = 0x040,
+  EF_AMDGPU_MACH_AMDGCN_GFX1100       = 0x041,
+  EF_AMDGPU_MACH_AMDGCN_GFX1013       = 0x042,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X43 = 0x043,
+  EF_AMDGPU_MACH_AMDGCN_GFX1103       = 0x044,
+  EF_AMDGPU_MACH_AMDGCN_GFX1036       = 0x045,
+  EF_AMDGPU_MACH_AMDGCN_GFX1101       = 0x046,
+  EF_AMDGPU_MACH_AMDGCN_GFX1102       = 0x047,
 
   // First/last AMDGCN-based processors.
   EF_AMDGPU_MACH_AMDGCN_FIRST = EF_AMDGPU_MACH_AMDGCN_GFX600,
-  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_GFX90A,
+  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_GFX1102,
 
   // Indicates if the "xnack" target feature is enabled for all code contained
   // in the object.
@@ -842,10 +878,52 @@ enum {
 #include "ELFRelocs/VE.def"
 };
 
+// CSKY Specific e_flags
+enum : unsigned {
+  EF_CSKY_801 = 0xa,
+  EF_CSKY_802 = 0x10,
+  EF_CSKY_803 = 0x9,
+  EF_CSKY_805 = 0x11,
+  EF_CSKY_807 = 0x6,
+  EF_CSKY_810 = 0x8,
+  EF_CSKY_860 = 0xb,
+  EF_CSKY_800 = 0x1f,
+  EF_CSKY_FLOAT = 0x2000,
+  EF_CSKY_DSP = 0x4000,
+  EF_CSKY_ABIV2 = 0x20000000,
+  EF_CSKY_EFV1 = 0x1000000,
+  EF_CSKY_EFV2 = 0x2000000,
+  EF_CSKY_EFV3 = 0x3000000
+};
 
 // ELF Relocation types for CSKY
 enum {
 #include "ELFRelocs/CSKY.def"
+};
+
+// LoongArch Specific e_flags
+enum : unsigned {
+  // Reference: https://github.com/loongson/LoongArch-Documentation.
+  // The last commit hash (main branch) is
+  // 99016636af64d02dee05e39974d4c1e55875c45b.
+  // Note that there is an open PR
+  // https://github.com/loongson/LoongArch-Documentation/pull/47
+  // talking about using 0x1, 0x2, 0x3 for ILP32S/F/D and use EI_CLASS to
+  // distinguish LP64 and ILP32. If this PR get merged, we will update
+  // the definition here.
+  // Base ABI Types.
+  EF_LOONGARCH_BASE_ABI_LP64S = 0x1,  // LP64 soft-float ABI
+  EF_LOONGARCH_BASE_ABI_LP64F = 0x2,  // LP64 single-float ABI
+  EF_LOONGARCH_BASE_ABI_LP64D = 0x3,  // LP64 double-float ABI
+  EF_LOONGARCH_BASE_ABI_ILP32S = 0x5, // ILP32 soft-float ABI
+  EF_LOONGARCH_BASE_ABI_ILP32F = 0x6, // ILP32 single-float ABI
+  EF_LOONGARCH_BASE_ABI_ILP32D = 0x7, // ILP32 double-float ABI
+  EF_LOONGARCH_BASE_ABI_MASK = 0x7,   // Mask for selecting base ABI
+};
+
+// ELF Relocation types for LoongArch
+enum {
+#include "ELFRelocs/LoongArch.def"
 };
 
 #undef ELF_RELOC
@@ -919,17 +997,21 @@ enum : unsigned {
   // https://android.googlesource.com/platform/bionic/+/6f12bfece5dcc01325e0abba56a46b1bcf991c69/tools/relocation_packer/src/elf_file.cc#37
   SHT_ANDROID_REL = 0x60000001,
   SHT_ANDROID_RELA = 0x60000002,
-  SHT_LLVM_ODRTAB = 0x6fff4c00,             // LLVM ODR table.
-  SHT_LLVM_LINKER_OPTIONS = 0x6fff4c01,     // LLVM Linker Options.
-  SHT_LLVM_CALL_GRAPH_PROFILE = 0x6fff4c02, // LLVM Call Graph Profile.
-  SHT_LLVM_ADDRSIG = 0x6fff4c03, // List of address-significant symbols
-                                 // for safe ICF.
+  SHT_LLVM_ODRTAB = 0x6fff4c00,         // LLVM ODR table.
+  SHT_LLVM_LINKER_OPTIONS = 0x6fff4c01, // LLVM Linker Options.
+  SHT_LLVM_ADDRSIG = 0x6fff4c03,        // List of address-significant symbols
+                                        // for safe ICF.
   SHT_LLVM_DEPENDENT_LIBRARIES =
-      0x6fff4c04,                    // LLVM Dependent Library Specifiers.
-  SHT_LLVM_SYMPART = 0x6fff4c05,     // Symbol partition specification.
-  SHT_LLVM_PART_EHDR = 0x6fff4c06,   // ELF header for loadable partition.
-  SHT_LLVM_PART_PHDR = 0x6fff4c07,   // Phdrs for loadable partition.
-  SHT_LLVM_BB_ADDR_MAP = 0x6fff4c08, // LLVM Basic Block Address Map.
+      0x6fff4c04,                  // LLVM Dependent Library Specifiers.
+  SHT_LLVM_SYMPART = 0x6fff4c05,   // Symbol partition specification.
+  SHT_LLVM_PART_EHDR = 0x6fff4c06, // ELF header for loadable partition.
+  SHT_LLVM_PART_PHDR = 0x6fff4c07, // Phdrs for loadable partition.
+  SHT_LLVM_BB_ADDR_MAP_V0 =
+      0x6fff4c08, // LLVM Basic Block Address Map (old version kept for
+                  // backward-compatibility).
+  SHT_LLVM_CALL_GRAPH_PROFILE = 0x6fff4c09, // LLVM Call Graph Profile.
+  SHT_LLVM_BB_ADDR_MAP = 0x6fff4c0a,        // LLVM Basic Block Address Map.
+  SHT_LLVM_OFFLOADING = 0x6fff4c0b,         // LLVM device offloading data.
   // Android's experimental support for SHT_RELR sections.
   // https://android.googlesource.com/platform/bionic/+/b7feec74547f84559a1467aca02708ff61346d2a/libc/include/elf.h#512
   SHT_ANDROID_RELR = 0x6fffff00,   // Relocation entries; only offsets.
@@ -961,6 +1043,8 @@ enum : unsigned {
   SHT_MSP430_ATTRIBUTES = 0x70000003U,
 
   SHT_RISCV_ATTRIBUTES = 0x70000003U,
+
+  SHT_CSKY_ATTRIBUTES = 0x70000001U,
 
   SHT_HIPROC = 0x7fffffff, // Highest processor arch-specific type.
   SHT_LOUSER = 0x80000000, // Lowest type reserved for applications.
@@ -1012,6 +1096,9 @@ enum : unsigned {
   // Start of target-specific flags.
 
   SHF_MASKOS = 0x0ff00000,
+
+  // Solaris equivalent of SHF_GNU_RETAIN.
+  SHF_SUNW_NODISCARD = 0x00100000,
 
   // Bits indicating processor-specific flags.
   SHF_MASKPROC = 0xf0000000,
@@ -1300,12 +1387,17 @@ enum {
   // These all contain stack unwind tables.
   PT_ARM_EXIDX = 0x70000001,
   PT_ARM_UNWIND = 0x70000001,
+  // MTE memory tag segment type
+  PT_AARCH64_MEMTAG_MTE = 0x70000002,
 
   // MIPS program header types.
   PT_MIPS_REGINFO = 0x70000000,  // Register usage information.
   PT_MIPS_RTPROC = 0x70000001,   // Runtime procedure table.
   PT_MIPS_OPTIONS = 0x70000002,  // Options segment.
   PT_MIPS_ABIFLAGS = 0x70000003, // Abiflags segment.
+
+  // RISCV program header types.
+  PT_RISCV_ATTRIBUTES = 0x70000003,
 };
 
 // Segment flag bits.
@@ -1506,6 +1598,32 @@ enum {
   NT_GNU_BUILD_ID = 3,
   NT_GNU_GOLD_VERSION = 4,
   NT_GNU_PROPERTY_TYPE_0 = 5,
+  FDO_PACKAGING_METADATA = 0xcafe1a7e,
+};
+
+// Android note types.
+enum {
+  NT_ANDROID_TYPE_IDENT = 1,
+  NT_ANDROID_TYPE_KUSER = 3,
+  NT_ANDROID_TYPE_MEMTAG = 4,
+};
+
+// Memory tagging values used in NT_ANDROID_TYPE_MEMTAG notes.
+enum {
+  // Enumeration to determine the tagging mode. In Android-land, 'SYNC' means
+  // running all threads in MTE Synchronous mode, and 'ASYNC' means to use the
+  // kernels auto-upgrade feature to allow for either MTE Asynchronous,
+  // Asymmetric, or Synchronous mode. This allows silicon vendors to specify, on
+  // a per-cpu basis what 'ASYNC' should mean. Generally, the expectation is
+  // "pick the most precise mode that's very fast".
+  NT_MEMTAG_LEVEL_NONE = 0,
+  NT_MEMTAG_LEVEL_ASYNC = 1,
+  NT_MEMTAG_LEVEL_SYNC = 2,
+  NT_MEMTAG_LEVEL_MASK = 3,
+  // Bits indicating whether the loader should prepare for MTE to be enabled on
+  // the heap and/or stack.
+  NT_MEMTAG_HEAP = 4,
+  NT_MEMTAG_STACK = 8,
 };
 
 // Property types used in GNU_PROPERTY_TYPE_0 notes.
@@ -1584,6 +1702,23 @@ enum {
   NT_FREEBSD_PROCSTAT_AUXV = 16,
 };
 
+// NetBSD core note types.
+enum {
+  NT_NETBSDCORE_PROCINFO = 1,
+  NT_NETBSDCORE_AUXV = 2,
+  NT_NETBSDCORE_LWPSTATUS = 24,
+};
+
+// OpenBSD core note types.
+enum {
+  NT_OPENBSD_PROCINFO = 10,
+  NT_OPENBSD_AUXV = 11,
+  NT_OPENBSD_REGS = 20,
+  NT_OPENBSD_FPREGS = 21,
+  NT_OPENBSD_XFPREGS = 22,
+  NT_OPENBSD_WCOOKIE = 23,
+};
+
 // AMDGPU-specific section indices.
 enum {
   SHN_AMDGPU_LDS = 0xff00, // Variable in LDS; symbol encoded like SHN_COMMON
@@ -1604,6 +1739,13 @@ enum {
 enum {
   // Note types with values between 0 and 31 (inclusive) are reserved.
   NT_AMDGPU_METADATA = 32
+};
+
+// LLVMOMPOFFLOAD specific notes.
+enum : unsigned {
+  NT_LLVM_OPENMP_OFFLOAD_VERSION = 1,
+  NT_LLVM_OPENMP_OFFLOAD_PRODUCER = 2,
+  NT_LLVM_OPENMP_OFFLOAD_PRODUCER_VERSION = 3
 };
 
 enum {
@@ -1641,14 +1783,14 @@ struct Elf64_Chdr {
   Elf64_Xword ch_addralign;
 };
 
-// Node header for ELF32.
+// Note header for ELF32.
 struct Elf32_Nhdr {
   Elf32_Word n_namesz;
   Elf32_Word n_descsz;
   Elf32_Word n_type;
 };
 
-// Node header for ELF64.
+// Note header for ELF64.
 struct Elf64_Nhdr {
   Elf64_Word n_namesz;
   Elf64_Word n_descsz;
@@ -1658,11 +1800,18 @@ struct Elf64_Nhdr {
 // Legal values for ch_type field of compressed section header.
 enum {
   ELFCOMPRESS_ZLIB = 1,            // ZLIB/DEFLATE algorithm.
+  ELFCOMPRESS_ZSTD = 2,            // Zstandard algorithm
   ELFCOMPRESS_LOOS = 0x60000000,   // Start of OS-specific.
   ELFCOMPRESS_HIOS = 0x6fffffff,   // End of OS-specific.
   ELFCOMPRESS_LOPROC = 0x70000000, // Start of processor-specific.
   ELFCOMPRESS_HIPROC = 0x7fffffff  // End of processor-specific.
 };
+
+/// Convert an architecture name into ELF's e_machine value.
+uint16_t convertArchNameToEMachine(StringRef Arch);
+
+/// Convert an ELF's e_machine value into an architecture name.
+StringRef convertEMachineToArchName(uint16_t EMachine);
 
 } // end namespace ELF
 } // end namespace llvm

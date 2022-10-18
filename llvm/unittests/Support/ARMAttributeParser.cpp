@@ -38,7 +38,7 @@ bool testBuildAttr(unsigned Tag, unsigned Value,
   cantFail(Parser.parse(Bytes, support::little));
 
   Optional<unsigned> Attr = Parser.getAttributeValue(ExpectedTag);
-  return Attr.hasValue() && Attr.getValue() == ExpectedValue;
+  return Attr && *Attr == ExpectedValue;
 }
 
 void testParseError(ArrayRef<uint8_t> bytes, const char *msg) {
@@ -48,14 +48,14 @@ void testParseError(ArrayRef<uint8_t> bytes, const char *msg) {
 }
 
 bool testTagString(unsigned Tag, const char *name) {
-  return ELFAttrs::attrTypeAsString(Tag, ARMBuildAttrs::ARMAttributeTags)
+  return ELFAttrs::attrTypeAsString(Tag, ARMBuildAttrs::getARMAttributeTags())
              .str() == name;
 }
 
 TEST(ARMAttributeParser, UnknownCPU_arch) {
   static const uint8_t bytes[] = {'A', 15, 0, 0, 0, 'a', 'e', 'a', 'b',
-                                  'i', 0,  1, 7, 0, 0,   0,   6,   22};
-  testParseError(bytes, "unknown CPU_arch value: 22");
+                                  'i', 0,  1, 7, 0, 0,   0,   6,   23};
+  testParseError(bytes, "unknown CPU_arch value: 23");
 }
 
 TEST(CPUArchBuildAttr, testBuildAttr) {
@@ -99,6 +99,9 @@ TEST(CPUArchBuildAttr, testBuildAttr) {
                                ARMBuildAttrs::v8_M_Main));
   EXPECT_TRUE(testBuildAttr(6, 21, ARMBuildAttrs::CPU_arch,
                                ARMBuildAttrs::v8_1_M_Main));
+  EXPECT_TRUE(testBuildAttr(6, 22, ARMBuildAttrs::CPU_arch,
+                               ARMBuildAttrs::v9_A));
+
 }
 
 TEST(CPUArchProfileBuildAttr, testBuildAttr) {

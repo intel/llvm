@@ -12,6 +12,7 @@
 #include "lldb/Host/Config.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/ScriptInterpreter.h"
@@ -19,28 +20,6 @@
 
 using namespace lldb;
 using namespace lldb_private;
-
-static constexpr OptionEnumValueElement g_script_option_enumeration[] = {
-    {
-        eScriptLanguagePython,
-        "python",
-        "Python",
-    },
-    {
-        eScriptLanguageLua,
-        "lua",
-        "Lua",
-    },
-    {
-        eScriptLanguageNone,
-        "default",
-        "The default scripting language.",
-    },
-};
-
-static constexpr OptionEnumValues ScriptOptionEnum() {
-  return OptionEnumValues(g_script_option_enumeration);
-}
 
 #define LLDB_OPTIONS_script
 #include "CommandOptions.inc"
@@ -84,7 +63,7 @@ CommandObjectScript::CommandObjectScript(CommandInterpreter &interpreter)
           "results.  Start the interactive interpreter if no code is supplied.",
           "script [--language <scripting-language> --] [<script-code>]") {}
 
-CommandObjectScript::~CommandObjectScript() {}
+CommandObjectScript::~CommandObjectScript() = default;
 
 bool CommandObjectScript::DoExecute(llvm::StringRef command,
                                     CommandReturnObject &result) {
@@ -105,7 +84,6 @@ bool CommandObjectScript::DoExecute(llvm::StringRef command,
   if (language == lldb::eScriptLanguageNone) {
     result.AppendError(
         "the script-lang setting is set to none - scripting not available");
-    result.SetStatus(eReturnStatusFailed);
     return false;
   }
 
@@ -114,7 +92,6 @@ bool CommandObjectScript::DoExecute(llvm::StringRef command,
 
   if (script_interpreter == nullptr) {
     result.AppendError("no script interpreter");
-    result.SetStatus(eReturnStatusFailed);
     return false;
   }
 

@@ -14,10 +14,12 @@
 #ifndef LLVM_TOOLS_LLVM_REDUCE_DELTAMANAGER_H
 #define LLVM_TOOLS_LLVM_REDUCE_DELTAMANAGER_H
 
-#include "TestRunner.h"
-
 namespace llvm {
-void runDeltaPasses(TestRunner &Tester);
+class raw_ostream;
+class TestRunner;
+
+void printDeltaPasses(raw_ostream &OS);
+void runDeltaPasses(TestRunner &Tester, int MaxPassIterations);
 } // namespace llvm
 
 #endif

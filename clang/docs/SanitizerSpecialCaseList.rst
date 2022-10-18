@@ -26,7 +26,7 @@ certain source-level entities to:
 
 To achieve this, user may create a file listing the entities they want to
 ignore, and pass it to clang at compile-time using
-``-fsanitize-blacklist`` flag. See :doc:`UsersManual` for details.
+``-fsanitize-ignorelist`` flag. See :doc:`UsersManual` for details.
 
 Example
 =======
@@ -40,19 +40,19 @@ Example
     a[10] = 1;
   }
   int main() { bad_foo(); }
-  $ cat blacklist.txt
+  $ cat ignorelist.txt
   # Ignore reports from bad_foo function.
   fun:bad_foo
   $ clang -fsanitize=address foo.c ; ./a.out
   # AddressSanitizer prints an error report.
-  $ clang -fsanitize=address -fsanitize-blacklist=blacklist.txt foo.c ; ./a.out
+  $ clang -fsanitize=address -fsanitize-ignorelist=ignorelist.txt foo.c ; ./a.out
   # No error report here.
 
 Format
 ======
 
-Blacklists consist of entries, optionally grouped into sections. Empty lines and
-lines starting with "#" are ignored.
+Ignorelists consist of entries, optionally grouped into sections. Empty lines
+and lines starting with "#" are ignored.
 
 Section names are regular expressions written in square brackets that denote
 which sanitizer the following entries apply to. For example, ``[address]``
@@ -75,6 +75,9 @@ tool-specific docs.
     # Turn off checks for the source file (use absolute path or path relative
     # to the current working directory):
     src:/path/to/source/file.c
+    # Turn off checks for this main file, including files included by it.
+    # Useful when the main file instead of an included file should be ignored.
+    mainfile:file.c
     # Turn off checks for a particular functions (use mangled names):
     fun:MyFooBar
     fun:_Z8MyFooBarv
@@ -86,10 +89,25 @@ tool-specific docs.
     fun:*BadFunction*
     # Specific sanitizer tools may introduce categories.
     src:/special/path/*=special_sources
-    # Sections can be used to limit blacklist entries to specific sanitizers
+    # Sections can be used to limit ignorelist entries to specific sanitizers
     [address]
     fun:*BadASanFunc*
     # Section names are regular expressions
     [cfi-vcall|cfi-icall]
     fun:*BadCfiCall
     # Entries without sections are placed into [*] and apply to all sanitizers
+
+``mainfile`` is similar to applying ``-fno-sanitize=`` to a set of files but
+does not need plumbing into the build system. This works well for internal
+linkage functions but has a caveat for C++ vague linkage functions.
+
+C++ vague linkage functions (e.g. inline functions, template instantiations) are
+deduplicated at link time. A function (in an included file) ignored by a
+specific ``mainfile`` pattern may not be the prevailing copy picked by the
+linker. Therefore, using ``mainfile`` requires caution. It may still be useful,
+e.g. when patterns are picked in a way to ensure the prevailing one is ignored.
+(There is action-at-a-distance risk.)
+
+``mainfile`` can be useful enabling a ubsan check for a large code base when
+finding the direct stack frame triggering the failure for every failure is
+difficult.

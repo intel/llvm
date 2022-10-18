@@ -1,7 +1,7 @@
-; RUN: opt < %s -S -openmpopt        | FileCheck %s
-; RUN: opt < %s -S -passes=openmpopt | FileCheck %s
-; RUN: opt < %s -S -openmpopt        -openmp-ir-builder-optimistic-attributes | FileCheck %s --check-prefix=OPTIMISTIC
-; RUN: opt < %s -S -passes=openmpopt -openmp-ir-builder-optimistic-attributes | FileCheck %s --check-prefix=OPTIMISTIC
+; RUN: opt < %s -S -openmp-opt-cgscc        | FileCheck %s
+; RUN: opt < %s -S -passes=openmp-opt-cgscc | FileCheck %s
+; RUN: opt < %s -S -openmp-opt-cgscc        -openmp-ir-builder-optimistic-attributes | FileCheck %s --check-prefix=OPTIMISTIC
+; RUN: opt < %s -S -passes=openmp-opt-cgscc -openmp-ir-builder-optimistic-attributes | FileCheck %s --check-prefix=OPTIMISTIC
 
 target triple = "amdgcn-amd-amdhsa"
 
@@ -26,3 +26,7 @@ declare void @__kmpc_syncwarp(i64)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
 ; OPTIMISTIC-NEXT: declare void @__kmpc_syncwarp(i64)
+
+!llvm.module.flags = !{!0}
+
+!0 = !{i32 7, !"openmp", i32 50}

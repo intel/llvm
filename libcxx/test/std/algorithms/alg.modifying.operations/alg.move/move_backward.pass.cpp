@@ -6,10 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Older compilers don't support std::is_constant_evaluated
-// UNSUPPORTED: clang-4, clang-5, clang-6, clang-7, clang-8
-// UNSUPPORTED: apple-clang-9, apple-clang-10
-
 // <algorithm>
 
 // template<BidirectionalIterator InIter, BidirectionalIterator OutIter>
@@ -124,7 +120,7 @@ int main(int, char**)
     static_assert(test<const int*, random_access_iterator<int*> >());
     static_assert(test<const int*, contiguous_iterator<int*> >());
     static_assert(test<const int*, int*>());
-#endif  // TEST_STD_VER > 17
+#endif // TEST_STD_VER > 17
 
   return 0;
 }

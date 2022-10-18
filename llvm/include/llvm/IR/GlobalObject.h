@@ -18,13 +18,10 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Alignment.h"
-#include <string>
-#include <utility>
 
 namespace llvm {
 
 class Comdat;
-class MDNode;
 class Metadata;
 
 class GlobalObject : public GlobalValue {
@@ -46,14 +43,14 @@ protected:
   GlobalObject(Type *Ty, ValueTy VTy, Use *Ops, unsigned NumOps,
                LinkageTypes Linkage, const Twine &Name,
                unsigned AddressSpace = 0)
-      : GlobalValue(Ty, VTy, Ops, NumOps, Linkage, Name, AddressSpace),
-        ObjComdat(nullptr) {
+      : GlobalValue(Ty, VTy, Ops, NumOps, Linkage, Name, AddressSpace) {
     setGlobalValueSubClassData(0);
   }
+  ~GlobalObject();
 
-  Comdat *ObjComdat;
+  Comdat *ObjComdat = nullptr;
   enum {
-    LastAlignmentBit = 4,
+    LastAlignmentBit = 5,
     HasSectionHashEntryBit,
 
     GlobalObjectBits,
@@ -70,7 +67,7 @@ public:
   GlobalObject(const GlobalObject &) = delete;
 
   /// FIXME: Remove this function once transition to Align is over.
-  unsigned getAlignment() const {
+  uint64_t getAlignment() const {
     MaybeAlign Align = getAlign();
     return Align ? Align->value() : 0;
   }
@@ -124,7 +121,7 @@ public:
   bool hasComdat() const { return getComdat() != nullptr; }
   const Comdat *getComdat() const { return ObjComdat; }
   Comdat *getComdat() { return ObjComdat; }
-  void setComdat(Comdat *C) { ObjComdat = C; }
+  void setComdat(Comdat *C);
 
   using Value::addMetadata;
   using Value::clearMetadata;
@@ -155,7 +152,8 @@ public:
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Value *V) {
     return V->getValueID() == Value::FunctionVal ||
-           V->getValueID() == Value::GlobalVariableVal;
+           V->getValueID() == Value::GlobalVariableVal ||
+           V->getValueID() == Value::GlobalIFuncVal;
   }
 
 private:

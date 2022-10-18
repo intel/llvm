@@ -10,19 +10,22 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_DIAGNOSTICS_H
 
 #include "Protocol.h"
-#include "support/Path.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/SourceMgr.h"
 #include <cassert>
+#include <functional>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace clang {
 namespace tidy {
@@ -66,7 +69,11 @@ struct DiagBase {
   // Since File is only descriptive, we store a separate flag to distinguish
   // diags from the main file.
   bool InsideMainFile = false;
-  unsigned ID; // e.g. member of clang::diag, or clang-tidy assigned ID.
+  unsigned ID = 0; // e.g. member of clang::diag, or clang-tidy assigned ID.
+  // Feature modules can make use of this field to propagate data from a
+  // diagnostic to a CodeAction request. Each module should only append to the
+  // list.
+  llvm::json::Object OpaqueData;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const DiagBase &D);
 
@@ -91,12 +98,14 @@ struct Diag : DiagBase {
     Unknown,
     Clang,
     ClangTidy,
+    Clangd,
     ClangdConfig,
   } Source = Unknown;
   /// Elaborate on the problem, usually pointing to a related piece of code.
   std::vector<Note> Notes;
   /// *Alternative* fixes for this diagnostic, one should be chosen.
   std::vector<Fix> Fixes;
+  llvm::SmallVector<DiagnosticTag, 1> Tags;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Diag &D);
 
@@ -117,6 +126,10 @@ CodeAction toCodeAction(const Fix &D, const URIForFile &File);
 /// Convert from clang diagnostic level to LSP severity.
 int getSeverity(DiagnosticsEngine::Level L);
 
+/// Returns a URI providing more information about a particular diagnostic.
+llvm::Optional<std::string> getDiagnosticDocURI(Diag::DiagSource, unsigned ID,
+                                                llvm::StringRef Name);
+
 /// StoreDiags collects the diagnostics that can later be reported by
 /// clangd. It groups all notes for a diagnostic into a single Diag
 /// and filters out diagnostics that don't mention the main file (i.e. neither
@@ -132,22 +145,30 @@ public:
   void HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                         const clang::Diagnostic &Info) override;
 
+  /// When passed a main diagnostic, returns fixes to add to it.
+  /// When passed a note diagnostic, returns fixes to replace it with.
   using DiagFixer = std::function<std::vector<Fix>(DiagnosticsEngine::Level,
                                                    const clang::Diagnostic &)>;
   using LevelAdjuster = std::function<DiagnosticsEngine::Level(
       DiagnosticsEngine::Level, const clang::Diagnostic &)>;
+  using DiagCallback =
+      std::function<void(const clang::Diagnostic &, clangd::Diag &)>;
   /// If set, possibly adds fixes for diagnostics using \p Fixer.
   void contributeFixes(DiagFixer Fixer) { this->Fixer = Fixer; }
   /// If set, this allows the client of this class to adjust the level of
   /// diagnostics, such as promoting warnings to errors, or ignoring
   /// diagnostics.
   void setLevelAdjuster(LevelAdjuster Adjuster) { this->Adjuster = Adjuster; }
+  /// Invokes a callback every time a diagnostics is completely formed. Handler
+  /// of the callback can also mutate the diagnostic.
+  void setDiagCallback(DiagCallback CB) { DiagCB = std::move(CB); }
 
 private:
   void flushLastDiag();
 
   DiagFixer Fixer = nullptr;
   LevelAdjuster Adjuster = nullptr;
+  DiagCallback DiagCB = nullptr;
   std::vector<Diag> Output;
   llvm::Optional<LangOptions> LangOpts;
   llvm::Optional<Diag> LastDiag;
@@ -156,12 +177,12 @@ private:
   SourceManager *OrigSrcMgr = nullptr;
 
   llvm::DenseSet<std::pair<unsigned, unsigned>> IncludedErrorLocations;
-  bool LastPrimaryDiagnosticWasSuppressed = false;
 };
 
 /// Determine whether a (non-clang-tidy) diagnostic is suppressed by config.
 bool isBuiltinDiagnosticSuppressed(unsigned ID,
-                                   const llvm::StringSet<> &Suppressed);
+                                   const llvm::StringSet<> &Suppressed,
+                                   const LangOptions &);
 /// Take a user-specified diagnostic code, and convert it to a normalized form
 /// stored in the config and consumed by isBuiltinDiagnosticsSuppressed.
 ///

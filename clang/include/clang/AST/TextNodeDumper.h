@@ -19,6 +19,7 @@
 #include "clang/AST/CommentCommandTraits.h"
 #include "clang/AST/CommentVisitor.h"
 #include "clang/AST/DeclVisitor.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
@@ -69,10 +70,8 @@ public:
       return;
     }
 
-    // We need to capture an owning-string in the lambda because the lambda
-    // is invoked in a deferred manner.
-    std::string LabelStr(Label);
-    auto DumpWithIndent = [this, DoAddChild, LabelStr](bool IsLastChild) {
+    auto DumpWithIndent = [this, DoAddChild,
+                           Label(Label.str())](bool IsLastChild) {
       // Print out the appropriate tree structure and work out the prefix for
       // children of this node. For instance:
       //
@@ -89,8 +88,8 @@ public:
         OS << '\n';
         ColorScope Color(OS, ShowColors, IndentColor);
         OS << Prefix << (IsLastChild ? '`' : '|') << '-';
-        if (!LabelStr.empty())
-          OS << LabelStr << ": ";
+        if (!Label.empty())
+          OS << Label << ": ";
 
         this->Prefix.push_back(IsLastChild ? ' ' : '|');
         this->Prefix.push_back(' ');
@@ -190,6 +189,8 @@ public:
 
   void Visit(const GenericSelectionExpr::ConstAssociation &A);
 
+  void Visit(const concepts::Requirement *R);
+
   void Visit(const APValue &Value, QualType Ty);
 
   void dumpPointer(const void *Ptr);
@@ -245,12 +246,15 @@ public:
   void VisitLabelStmt(const LabelStmt *Node);
   void VisitGotoStmt(const GotoStmt *Node);
   void VisitCaseStmt(const CaseStmt *Node);
+  void VisitCompoundStmt(const CompoundStmt *Node);
   void VisitConstantExpr(const ConstantExpr *Node);
   void VisitCallExpr(const CallExpr *Node);
   void VisitCXXOperatorCallExpr(const CXXOperatorCallExpr *Node);
   void VisitCastExpr(const CastExpr *Node);
   void VisitImplicitCastExpr(const ImplicitCastExpr *Node);
   void VisitDeclRefExpr(const DeclRefExpr *Node);
+  void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *Node);
+  void VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *Node);
   void VisitPredefinedExpr(const PredefinedExpr *Node);
   void VisitCharacterLiteral(const CharacterLiteral *Node);
   void VisitIntegerLiteral(const IntegerLiteral *Node);
@@ -297,6 +301,7 @@ public:
   void VisitObjCBoolLiteralExpr(const ObjCBoolLiteralExpr *Node);
   void VisitOMPIteratorExpr(const OMPIteratorExpr *Node);
   void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *Node);
+  void VisitRequiresExpr(const RequiresExpr *Node);
 
   void VisitRValueReferenceType(const ReferenceType *T);
   void VisitArrayType(const ArrayType *T);
@@ -308,11 +313,15 @@ public:
   void VisitFunctionType(const FunctionType *T);
   void VisitFunctionProtoType(const FunctionProtoType *T);
   void VisitUnresolvedUsingType(const UnresolvedUsingType *T);
+  void VisitUsingType(const UsingType *T);
   void VisitTypedefType(const TypedefType *T);
   void VisitUnaryTransformType(const UnaryTransformType *T);
   void VisitTagType(const TagType *T);
   void VisitTemplateTypeParmType(const TemplateTypeParmType *T);
+  void VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *T);
   void VisitAutoType(const AutoType *T);
+  void VisitDeducedTemplateSpecializationType(
+      const DeducedTemplateSpecializationType *T);
   void VisitTemplateSpecializationType(const TemplateSpecializationType *T);
   void VisitInjectedClassNameType(const InjectedClassNameType *T);
   void VisitObjCInterfaceType(const ObjCInterfaceType *T);
@@ -352,6 +361,7 @@ public:
   void VisitUsingDecl(const UsingDecl *D);
   void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
   void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
+  void VisitUsingEnumDecl(const UsingEnumDecl *D);
   void VisitUsingShadowDecl(const UsingShadowDecl *D);
   void VisitConstructorUsingShadowDecl(const ConstructorUsingShadowDecl *D);
   void VisitLinkageSpecDecl(const LinkageSpecDecl *D);
@@ -372,6 +382,7 @@ public:
   void VisitConceptDecl(const ConceptDecl *D);
   void
   VisitLifetimeExtendedTemporaryDecl(const LifetimeExtendedTemporaryDecl *D);
+  void VisitHLSLBufferDecl(const HLSLBufferDecl *D);
 };
 
 } // namespace clang

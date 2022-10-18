@@ -25,7 +25,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <string>
 
@@ -47,6 +46,7 @@ static cl::opt<GVDAGType> ViewBlockFreqPropagationDAG(
                clEnumValN(GVDT_Count, "count", "display a graph using the real "
                                                "profile count if available.")));
 
+namespace llvm {
 cl::opt<std::string>
     ViewBlockFreqFuncName("view-bfi-func-name", cl::Hidden,
                           cl::desc("The option to specify "
@@ -86,6 +86,7 @@ cl::opt<std::string> PrintBlockFreqFuncName(
     "print-bfi-func-name", cl::Hidden,
     cl::desc("The option to specify the name of the function "
              "whose block frequency info is printed."));
+} // namespace llvm
 
 namespace llvm {
 

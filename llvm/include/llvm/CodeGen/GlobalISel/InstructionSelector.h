@@ -18,12 +18,9 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/BlockFrequencyInfo.h"
-#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/Support/CodeGenCoverage.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include <bitset>
 #include <cstddef>
@@ -34,6 +31,10 @@
 
 namespace llvm {
 
+class BlockFrequencyInfo;
+class CodeGenCoverage;
+class MachineBasicBlock;
+class ProfileSummaryInfo;
 class APInt;
 class APFloat;
 class GISelKnownBits;
@@ -140,6 +141,11 @@ enum {
   /// - InsnID - Instruction ID
   /// - The predicate to test
   GIM_CheckAPFloatImmPredicate,
+  /// Check an immediate predicate on the specified instruction
+  /// - InsnID - Instruction ID
+  /// - OpIdx - Operand index
+  /// - The predicate to test
+  GIM_CheckImmOperandPredicate,
   /// Check a memory operation has the specified atomic ordering.
   /// - InsnID - Instruction ID
   /// - Ordering - The AtomicOrdering value
@@ -189,6 +195,10 @@ enum {
   /// - InsnID - Instruction ID
   /// - PredicateID - The ID of the predicate function to call
   GIM_CheckCxxInsnPredicate,
+
+  /// Check if there's no use of the first result.
+  /// - InsnID - Instruction ID
+  GIM_CheckHasNoUse,
 
   /// Check the type for the specified operand
   /// - InsnID - Instruction ID

@@ -30,12 +30,13 @@
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include <algorithm>
 #include <string>
@@ -114,6 +115,13 @@ static cl::opt<unsigned>
     NumRepetitions("num-repetitions",
                    cl::desc("number of time to repeat the asm snippet"),
                    cl::cat(BenchmarkOptions), cl::init(10000));
+
+static cl::opt<unsigned>
+    LoopBodySize("loop-body-size",
+                 cl::desc("when repeating the instruction snippet by looping "
+                          "over it, duplicate the snippet until the loop body "
+                          "contains at least this many instruction"),
+                 cl::cat(BenchmarkOptions), cl::init(0));
 
 static cl::opt<unsigned> MaxConfigsPerOpcode(
     "max-configs-per-opcode",
@@ -290,12 +298,13 @@ void benchmarkMain() {
   if (exegesis::pfm::pfmInitialize())
     ExitWithError("cannot initialize libpfm");
 
-  InitializeNativeTarget();
-  InitializeNativeTargetAsmPrinter();
-  InitializeNativeTargetAsmParser();
-  InitializeNativeExegesisTarget();
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmPrinters();
+  InitializeAllAsmParsers();
+  InitializeAllExegesisTargets();
 
-  const LLVMState State(CpuName);
+  const LLVMState State = ExitOnErr(LLVMState::Create("", CpuName));
 
   // Preliminary check to ensure features needed for requested
   // benchmark mode are present on target CPU and/or OS.
@@ -364,7 +373,7 @@ void benchmarkMain() {
 
   for (const BenchmarkCode &Conf : Configurations) {
     InstructionBenchmark Result = ExitOnErr(Runner->runConfiguration(
-        Conf, NumRepetitions, Repetitors, DumpObjectToDisk));
+        Conf, NumRepetitions, LoopBodySize, Repetitors, DumpObjectToDisk));
     ExitOnFileError(BenchmarkFile, Result.writeYaml(State, BenchmarkFile));
   }
   exegesis::pfm::pfmTerminate();
@@ -402,40 +411,55 @@ static void analysisMain() {
         "and --analysis-inconsistencies-output-file must be specified");
   }
 
-  InitializeNativeTarget();
-  InitializeNativeTargetAsmPrinter();
-  InitializeNativeTargetDisassembler();
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmPrinters();
+  InitializeAllDisassemblers();
+  InitializeAllExegesisTargets();
+
+  auto MemoryBuffer = ExitOnFileError(
+      BenchmarkFile,
+      errorOrToExpected(MemoryBuffer::getFile(BenchmarkFile, /*IsText=*/true)));
+
+  const auto TriplesAndCpus = ExitOnFileError(
+      BenchmarkFile,
+      InstructionBenchmark::readTriplesAndCpusFromYamls(*MemoryBuffer));
+  if (TriplesAndCpus.empty()) {
+    errs() << "no benchmarks to analyze\n";
+    return;
+  }
+  if (TriplesAndCpus.size() > 1) {
+    ExitWithError("analysis file contains benchmarks from several CPUs. This "
+                  "is unsupported.");
+  }
+  auto TripleAndCpu = *TriplesAndCpus.begin();
+  if (!CpuName.empty()) {
+    llvm::errs() << "overridding file CPU name (" << TripleAndCpu.CpuName
+                 << ") with provided CPU name (" << CpuName << ")\n";
+    TripleAndCpu.CpuName = CpuName;
+  }
+  llvm::errs() << "using Triple '" << TripleAndCpu.LLVMTriple << "' and CPU '"
+               << TripleAndCpu.CpuName << "'\n";
 
   // Read benchmarks.
-  const LLVMState State("");
+  const LLVMState State = ExitOnErr(
+      LLVMState::Create(TripleAndCpu.LLVMTriple, TripleAndCpu.CpuName));
   const std::vector<InstructionBenchmark> Points = ExitOnFileError(
-      BenchmarkFile, InstructionBenchmark::readYamls(State, BenchmarkFile));
+      BenchmarkFile, InstructionBenchmark::readYamls(State, *MemoryBuffer));
 
   outs() << "Parsed " << Points.size() << " benchmark points\n";
   if (Points.empty()) {
     errs() << "no benchmarks to analyze\n";
     return;
   }
-  // FIXME: Check that all points have the same triple/cpu.
   // FIXME: Merge points from several runs (latency and uops).
-
-  std::string Error;
-  const auto *TheTarget =
-      TargetRegistry::lookupTarget(Points[0].LLVMTriple, Error);
-  if (!TheTarget) {
-    errs() << "unknown target '" << Points[0].LLVMTriple << "'\n";
-    return;
-  }
-
-  std::unique_ptr<MCInstrInfo> InstrInfo(TheTarget->createMCInstrInfo());
-  assert(InstrInfo && "Unable to create instruction info!");
 
   const auto Clustering = ExitOnErr(InstructionBenchmarkClustering::create(
       Points, AnalysisClusteringAlgorithm, AnalysisDbscanNumPoints,
-      AnalysisClusteringEpsilon, InstrInfo->getNumOpcodes()));
+      AnalysisClusteringEpsilon, &State.getSubtargetInfo(),
+      &State.getInstrInfo()));
 
-  const Analysis Analyzer(*TheTarget, std::move(InstrInfo), Clustering,
-                          AnalysisInconsistencyEpsilon,
+  const Analysis Analyzer(State, Clustering, AnalysisInconsistencyEpsilon,
                           AnalysisDisplayUnstableOpcodes);
 
   maybeRunAnalysis<Analysis::PrintClusters>(Analyzer, "analysis clusters",

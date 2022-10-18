@@ -15,6 +15,7 @@
 #define LLVM_IR_LLVMCONTEXT_H
 
 #include "llvm-c/Types.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/IR/DiagnosticHandler.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include <cstdint>
@@ -32,11 +33,9 @@ class Module;
 class OptPassGate;
 template <typename T> class SmallVectorImpl;
 template <typename T> class StringMapEntry;
-class SMDiagnostic;
 class StringRef;
 class Twine;
 class LLVMRemarkStreamer;
-class raw_ostream;
 
 namespace remarks {
 class RemarkStreamer;
@@ -94,6 +93,8 @@ public:
     OB_preallocated = 4,           // "preallocated"
     OB_gc_live = 5,                // "gc-live"
     OB_clang_arc_attachedcall = 6, // "clang.arc.attachedcall"
+    OB_ptrauth = 7,                // "ptrauth"
+    OB_kcfi = 8,                   // "kcfi"
   };
 
   /// getMDKindID - Return a unique non-zero ID for the specified metadata kind.
@@ -202,6 +203,11 @@ public:
   /// diagnostics.
   void setDiagnosticsHotnessRequested(bool Requested);
 
+  bool getMisExpectWarningRequested() const;
+  void setMisExpectWarningRequested(bool Requested);
+  void setDiagnosticsMisExpectTolerance(Optional<uint32_t> Tolerance);
+  uint32_t getDiagnosticsMisExpectTolerance() const;
+
   /// Return the minimum hotness value a diagnostic would need in order
   /// to be included in optimization diagnostics.
   ///
@@ -290,7 +296,7 @@ public:
   /// be prepared to drop the erroneous construct on the floor and "not crash".
   /// The generated code need not be correct.  The error message will be
   /// implicitly prefixed with "error: " and should not end with a ".".
-  void emitError(unsigned LocCookie, const Twine &ErrorStr);
+  void emitError(uint64_t LocCookie, const Twine &ErrorStr);
   void emitError(const Instruction *I, const Twine &ErrorStr);
   void emitError(const Twine &ErrorStr);
 
@@ -304,6 +310,18 @@ public:
   /// The lifetime of the object must be guaranteed to extend as long as the
   /// LLVMContext is used by compilation.
   void setOptPassGate(OptPassGate&);
+
+  /// Whether we've decided on using opaque pointers or typed pointers yet.
+  bool hasSetOpaquePointersValue() const;
+
+  /// Set whether opaque pointers are enabled. The method may be called multiple
+  /// times, but only with the same value. Note that creating a pointer type or
+  /// otherwise querying the opaque pointer mode performs an implicit set to
+  /// the default value.
+  void setOpaquePointers(bool Enable) const;
+
+  /// Whether typed pointers are supported. If false, all pointers are opaque.
+  bool supportsTypedPointers() const;
 
 private:
   // Module needs access to the add/removeModule methods.

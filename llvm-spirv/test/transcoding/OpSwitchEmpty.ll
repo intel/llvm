@@ -11,7 +11,8 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s  --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[X:[0-9]+]]
 ; CHECK-SPIRV: Switch [[X]] [[DEFAULT:[0-9]+]] {{$}}

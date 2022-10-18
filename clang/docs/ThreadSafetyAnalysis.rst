@@ -466,9 +466,9 @@ Use of these attributes has been deprecated.
 Warning flags
 -------------
 
-* ``-Wthread-safety``:  Umbrella flag which turns on the following three:
+* ``-Wthread-safety``:  Umbrella flag which turns on the following:
 
-  + ``-Wthread-safety-attributes``: Sanity checks on attribute syntax.
+  + ``-Wthread-safety-attributes``: Semantic checks for thread safety attributes.
   + ``-Wthread-safety-analysis``: The core analysis.
   + ``-Wthread-safety-precise``: Requires that mutex expressions match precisely.
        This warning can be disabled for code which has a lot of aliases.
@@ -640,8 +640,8 @@ mutex.  For example:
     Mutex mu;
 
   public:
-    // For thread safety analysis only.  Does not actually return mu.
-    Mutex* getMu() RETURN_CAPABILITY(mu) { return 0; }
+    // For thread safety analysis only.  Does not need to be defined.
+    Mutex* getMu() RETURN_CAPABILITY(mu);
 
     void doSomething() REQUIRES(mu);
   };
@@ -892,7 +892,7 @@ implementation.
 
     // Assert that is mutex is currently held for read operations.
     void AssertReaderHeld() ASSERT_SHARED_CAPABILITY(this);
-    
+
     // For negative capabilities.
     const Mutex& operator!() const { return *this; }
   };
@@ -1041,4 +1041,3 @@ implementation.
   #endif  // USE_LOCK_STYLE_THREAD_SAFETY_ATTRIBUTES
 
   #endif  // THREAD_SAFETY_ANALYSIS_MUTEX_H
-

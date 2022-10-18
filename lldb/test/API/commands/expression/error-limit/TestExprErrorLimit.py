@@ -10,14 +10,12 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @no_debug_info_test
     def test(self):
         # FIXME: The only reason this test needs to create a real target is because
         # the settings of the dummy target can't be changed with `settings set`.
         self.build()
-        target = self.dbg.CreateTarget(self.getBuildArtifact("a.out"))
+        target = self.createTestTarget()
 
         # Our test expression that is just several lines of malformed
         # integer literals (with a 'yerror' integer suffix). Every error

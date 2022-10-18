@@ -1,6 +1,6 @@
-; RUN: opt -passes='loop(unswitch<nontrivial>),verify<loops>' -simple-loop-unswitch-guards -S < %s | FileCheck %s
+; RUN: opt -passes='loop(simple-loop-unswitch<nontrivial>),verify<loops>' -simple-loop-unswitch-guards -S < %s | FileCheck %s
 ; RUN: opt -simple-loop-unswitch -enable-nontrivial-unswitch -simple-loop-unswitch-guards -S < %s | FileCheck %s
-; RUN: opt -passes='loop-mssa(unswitch<nontrivial>),verify<loops>' -simple-loop-unswitch-guards  -verify-memoryssa -S < %s | FileCheck %s
+; RUN: opt -passes='loop-mssa(simple-loop-unswitch<nontrivial>),verify<loops>' -simple-loop-unswitch-guards  -verify-memoryssa -S < %s | FileCheck %s
 
 declare void @llvm.experimental.guard(i1, ...)
 
@@ -81,7 +81,8 @@ exit:
 define void @test_conditional_guards(i1 %cond, i32 %N) {
 ; CHECK-LABEL: @test_conditional_guards(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    br i1 [[COND:%.*]], label [[ENTRY_SPLIT_US:%.*]], label [[ENTRY_SPLIT:%.*]]
+; CHECK-NEXT:    [[FROZEN:%.+]] = freeze i1 [[COND:%.*]]
+; CHECK-NEXT:    br i1 [[FROZEN]], label [[ENTRY_SPLIT_US:%.*]], label [[ENTRY_SPLIT:%.*]]
 ; CHECK:       entry.split.us:
 ; CHECK-NEXT:    br label [[LOOP_US:%.*]]
 ; CHECK:       loop.us:

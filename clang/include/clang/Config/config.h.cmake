@@ -8,14 +8,29 @@
 /* Bug report URL. */
 #define BUG_REPORT_URL "${BUG_REPORT_URL}"
 
+/* Default to -fPIE and -pie on Linux. */
+#cmakedefine01 CLANG_DEFAULT_PIE_ON_LINUX
+
 /* Default linker to use. */
 #define CLANG_DEFAULT_LINKER "${CLANG_DEFAULT_LINKER}"
 
 /* Default C/ObjC standard to use. */
 #cmakedefine CLANG_DEFAULT_STD_C LangStandard::lang_${CLANG_DEFAULT_STD_C}
+/* Always #define something so that missing the config.h #include at use sites
+ * becomes a compile error.
+ */
+#ifndef CLANG_DEFAULT_STD_C
+#define CLANG_DEFAULT_STD_C LangStandard::lang_unspecified
+#endif
 
 /* Default C++/ObjC++ standard to use. */
 #cmakedefine CLANG_DEFAULT_STD_CXX LangStandard::lang_${CLANG_DEFAULT_STD_CXX}
+/* Always #define something so that missing the config.h #include at use sites
+ * becomes a compile error.
+ */
+#ifndef CLANG_DEFAULT_STD_CXX
+#define CLANG_DEFAULT_STD_CXX LangStandard::lang_unspecified
+#endif
 
 /* Default C++ stdlib to use. */
 #define CLANG_DEFAULT_CXX_STDLIB "${CLANG_DEFAULT_CXX_STDLIB}"
@@ -38,8 +53,8 @@
 /* Default architecture for SystemZ. */
 #define CLANG_SYSTEMZ_DEFAULT_ARCH "${CLANG_SYSTEMZ_DEFAULT_ARCH}"
 
-/* Multilib suffix for libdir. */
-#define CLANG_LIBDIR_SUFFIX "${CLANG_LIBDIR_SUFFIX}"
+/* Multilib basename for libdir. */
+#define CLANG_INSTALL_LIBDIR_BASENAME "${CLANG_INSTALL_LIBDIR_BASENAME}"
 
 /* Relative directory for resource files */
 #define CLANG_RESOURCE_DIR "${CLANG_RESOURCE_DIR}"
@@ -75,6 +90,9 @@
 /* enable x86 relax relocations by default */
 #cmakedefine01 ENABLE_X86_RELAX_RELOCATIONS
 
+/* Enable IEEE binary128 as default long double format on PowerPC Linux. */
+#cmakedefine01 PPC_LINUX_DEFAULT_IEEELONGDOUBLE
+
 /* Enable each functionality of modules */
 #cmakedefine01 CLANG_ENABLE_ARCMT
 #cmakedefine01 CLANG_ENABLE_OBJC_REWRITER
@@ -82,5 +100,8 @@
 
 /* Spawn a new process clang.exe for the CC1 tool invocation, when necessary */
 #cmakedefine01 CLANG_SPAWN_CC1
+
+/* Whether to enable opaque pointers by default */
+#cmakedefine01 CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
 
 #endif

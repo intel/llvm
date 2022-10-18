@@ -37,11 +37,9 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <iterator>
 #include <limits>
-#include <string>
 #include <utility>
 
 using namespace llvm;
@@ -119,7 +117,7 @@ void RegScavenger::determineKillsAndDefs() {
   DefRegUnits.reset();
   for (const MachineOperand &MO : MI.operands()) {
     if (MO.isRegMask()) {
-      TmpRegUnits.clear();
+      TmpRegUnits.reset();
       for (unsigned RU = 0, RUEnd = TRI->getNumRegUnits(); RU != RUEnd; ++RU) {
         for (MCRegUnitRootIterator RURI(RU, TRI); RURI.isValid(); ++RURI) {
           if (MO.clobbersPhysReg(*RURI)) {
@@ -175,7 +173,7 @@ void RegScavenger::forward() {
     I.Restore = nullptr;
   }
 
-  if (MI.isDebugInstr())
+  if (MI.isDebugOrPseudoInstr())
     return;
 
   determineKillsAndDefs();
@@ -298,7 +296,7 @@ Register RegScavenger::findSurvivorReg(MachineBasicBlock::iterator StartMI,
 
   bool inVirtLiveRange = false;
   for (++MI; InstrLimit > 0 && MI != ME; ++MI, --InstrLimit) {
-    if (MI->isDebugInstr()) {
+    if (MI->isDebugOrPseudoInstr()) {
       ++InstrLimit; // Don't count debug instructions
       continue;
     }
@@ -369,6 +367,10 @@ findSurvivorBackwards(const MachineRegisterInfo &MRI,
   const TargetRegisterInfo &TRI = *MRI.getTargetRegisterInfo();
   LiveRegUnits Used(TRI);
 
+  assert(From->getParent() == To->getParent() &&
+         "Target instruction is in other than current basic block, use "
+         "enterBasicBlockEnd first");
+
   for (MachineBasicBlock::iterator I = From;; --I) {
     const MachineInstr &MI = *I;
 
@@ -423,6 +425,8 @@ findSurvivorBackwards(const MachineRegisterInfo &MRI,
       if (I == MBB.begin())
         break;
     }
+    assert(I != MBB.begin() && "Did not find target instruction while "
+                               "iterating backwards");
   }
 
   return std::make_pair(Survivor, Pos);
@@ -489,21 +493,20 @@ RegScavenger::spill(Register Reg, const TargetRegisterClass &RC, int SPAdj,
     // Spill the scavenged register before \p Before.
     int FI = Scavenged[SI].FrameIndex;
     if (FI < FIB || FI >= FIE) {
-      std::string Msg = std::string("Error while trying to spill ") +
-          TRI->getName(Reg) + " from class " + TRI->getRegClassName(&RC) +
-          ": Cannot scavenge register without an emergency spill slot!";
-      report_fatal_error(Msg.c_str());
+      report_fatal_error(Twine("Error while trying to spill ") +
+                         TRI->getName(Reg) + " from class " +
+                         TRI->getRegClassName(&RC) +
+                         ": Cannot scavenge register without an emergency "
+                         "spill slot!");
     }
-    TII->storeRegToStackSlot(*MBB, Before, Reg, true, Scavenged[SI].FrameIndex,
-                             &RC, TRI);
+    TII->storeRegToStackSlot(*MBB, Before, Reg, true, FI, &RC, TRI);
     MachineBasicBlock::iterator II = std::prev(Before);
 
     unsigned FIOperandNum = getFrameIndexOperandNum(*II);
     TRI->eliminateFrameIndex(II, SPAdj, FIOperandNum, this);
 
     // Restore the scavenged register before its use (or first terminator).
-    TII->loadRegFromStackSlot(*MBB, UseMI, Reg, Scavenged[SI].FrameIndex,
-                              &RC, TRI);
+    TII->loadRegFromStackSlot(*MBB, UseMI, Reg, FI, &RC, TRI);
     II = std::prev(UseMI);
 
     FIOperandNum = getFrameIndexOperandNum(*II);
@@ -528,6 +531,22 @@ Register RegScavenger::scavengeRegister(const TargetRegisterClass *RC,
         Candidates.reset(*AI);
   }
 
+  // If we have already scavenged some registers, remove them from the
+  // candidates. If we end up recursively calling eliminateFrameIndex, we don't
+  // want to be clobbering previously scavenged registers or their associated
+  // stack slots.
+  for (ScavengedInfo &SI : Scavenged) {
+    if (SI.Reg) {
+      if (isRegUsed(SI.Reg)) {
+        LLVM_DEBUG(
+          dbgs() << "Removing " << printReg(SI.Reg, TRI) <<
+          " from scavenging candidates since it was already scavenged\n");
+        for (MCRegAliasIterator AI(SI.Reg, TRI, true); AI.isValid(); ++AI)
+          Candidates.reset(*AI);
+      }
+    }
+  }
+
   // Try to find a register that's unused if there is one, as then we won't
   // have to spill.
   BitVector Available = getRegsAvailable(RC);
@@ -547,6 +566,12 @@ Register RegScavenger::scavengeRegister(const TargetRegisterClass *RC,
 
   if (!AllowSpill)
     return 0;
+
+#ifndef NDEBUG
+  for (ScavengedInfo &SI : Scavenged) {
+    assert(SI.Reg != SReg && "scavenged a previously scavenged register");
+  }
+#endif
 
   ScavengedInfo &Scavenged = spill(SReg, *RC, SPAdj, I, UseMI);
   Scavenged.Restore = &*std::prev(UseMI);

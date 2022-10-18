@@ -1,8 +1,4 @@
-; RUN: llc -mtriple=aarch64--linux-gnu -mattr=+sve --asm-verbose=false < %s 2>%t |FileCheck %s
-; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
-
-; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
-; WARN-NOT: warning
+; RUN: llc -mtriple=aarch64--linux-gnu -mattr=+sve --asm-verbose=false < %s |FileCheck %s
 
 declare i32 @llvm.vscale.i32()
 declare i64 @llvm.vscale.i64()
@@ -73,6 +69,23 @@ define i32 @combine_sub_vscale_i32(i32 %in) nounwind {
  %vscale = call i32 @llvm.vscale.i32()
  %sub = sub i32 %in, %vscale
  ret i32 %sub
+}
+
+; Tests of multiple uses of vscale when canonicalize
+; (sub X, (vscale * C)) to (add X,  (vscale * -C))
+define i64 @multiple_uses_sub_vscale_i64(i64 %x, i64 %y) nounwind {
+; CHECK-LABEL: multiple_uses_sub_vscale_i64:
+; CHECK-NEXT:  rdvl	x8, #1
+; CHECK-NEXT:  lsr	x8, x8, #4
+; CHECK-NEXT:  sub	x9, x0, x8
+; CHECK-NEXT:  add	x8, x1, x8
+; CHECK-NEXT:  mul	x0, x9, x8
+; CHECK-NEXT:  ret
+ %vscale = call i64 @llvm.vscale.i64()
+ %sub = sub i64 %x, %vscale
+ %add = add i64 %y, %vscale
+ %res = mul i64 %sub, %add
+ ret i64 %res
 }
 
 ; Fold (shl (vscale * C0), C1) to (vscale * (C0 << C1)).

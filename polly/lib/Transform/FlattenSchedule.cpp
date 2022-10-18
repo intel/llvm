@@ -35,7 +35,7 @@ void printSchedule(raw_ostream &OS, const isl::union_map &Schedule,
 }
 
 /// Flatten the schedule stored in an polly::Scop.
-class FlattenSchedule : public ScopPass {
+class FlattenSchedule final : public ScopPass {
 private:
   FlattenSchedule(const FlattenSchedule &) = delete;
   const FlattenSchedule &operator=(const FlattenSchedule &) = delete;
@@ -47,12 +47,12 @@ public:
   static char ID;
   explicit FlattenSchedule() : ScopPass(ID) {}
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredTransitive<ScopInfoRegionPass>();
     AU.setPreservesAll();
   }
 
-  virtual bool runOnScop(Scop &S) override {
+  bool runOnScop(Scop &S) override {
     // Keep a reference to isl_ctx to ensure that it is not freed before we free
     // OldSchedule.
     IslCtx = S.getSharedIslCtx();
@@ -79,7 +79,7 @@ public:
     return false;
   }
 
-  virtual void printScop(raw_ostream &OS, Scop &S) const override {
+  void printScop(raw_ostream &OS, Scop &S) const override {
     OS << "Schedule before flattening {\n";
     printSchedule(OS, OldSchedule, 4);
     OS << "}\n\n";
@@ -89,18 +89,63 @@ public:
     OS << "}\n";
   }
 
-  virtual void releaseMemory() override {
-    OldSchedule = nullptr;
+  void releaseMemory() override {
+    OldSchedule = {};
     IslCtx.reset();
   }
 };
 
 char FlattenSchedule::ID;
+
+/// Print result from FlattenSchedule.
+class FlattenSchedulePrinterLegacyPass final : public ScopPass {
+public:
+  static char ID;
+
+  FlattenSchedulePrinterLegacyPass()
+      : FlattenSchedulePrinterLegacyPass(outs()){};
+  explicit FlattenSchedulePrinterLegacyPass(llvm::raw_ostream &OS)
+      : ScopPass(ID), OS(OS) {}
+
+  bool runOnScop(Scop &S) override {
+    FlattenSchedule &P = getAnalysis<FlattenSchedule>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for region: '"
+       << S.getRegion().getNameStr() << "' in function '"
+       << S.getFunction().getName() << "':\n";
+    P.printScop(OS, S);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    ScopPass::getAnalysisUsage(AU);
+    AU.addRequired<FlattenSchedule>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char FlattenSchedulePrinterLegacyPass::ID = 0;
 } // anonymous namespace
 
 Pass *polly::createFlattenSchedulePass() { return new FlattenSchedule(); }
+
+Pass *polly::createFlattenSchedulePrinterLegacyPass(llvm::raw_ostream &OS) {
+  return new FlattenSchedulePrinterLegacyPass(OS);
+}
 
 INITIALIZE_PASS_BEGIN(FlattenSchedule, "polly-flatten-schedule",
                       "Polly - Flatten schedule", false, false)
 INITIALIZE_PASS_END(FlattenSchedule, "polly-flatten-schedule",
                     "Polly - Flatten schedule", false, false)
+
+INITIALIZE_PASS_BEGIN(FlattenSchedulePrinterLegacyPass,
+                      "polly-print-flatten-schedule",
+                      "Polly - Print flattened schedule", false, false)
+INITIALIZE_PASS_DEPENDENCY(FlattenSchedule)
+INITIALIZE_PASS_END(FlattenSchedulePrinterLegacyPass,
+                    "polly-print-flatten-schedule",
+                    "Polly - Print flattened schedule", false, false)

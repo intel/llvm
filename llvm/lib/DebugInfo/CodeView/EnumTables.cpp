@@ -104,7 +104,7 @@ static const EnumEntry<codeview::SourceLanguage> SourceLanguages[] = {
     CV_ENUM_ENT(SourceLanguage, ILAsm),   CV_ENUM_ENT(SourceLanguage, Java),
     CV_ENUM_ENT(SourceLanguage, JScript), CV_ENUM_ENT(SourceLanguage, MSIL),
     CV_ENUM_ENT(SourceLanguage, HLSL),    CV_ENUM_ENT(SourceLanguage, D),
-    CV_ENUM_ENT(SourceLanguage, Swift),
+    CV_ENUM_ENT(SourceLanguage, Swift),   CV_ENUM_ENT(SourceLanguage, Rust),
 };
 
 static const EnumEntry<uint32_t> CompileSym2FlagNames[] = {
@@ -189,7 +189,6 @@ static const EnumEntry<unsigned> CPUTypeNames[] = {
     CV_ENUM_CLASS_ENT(CPUType, ARM_XMAC),
     CV_ENUM_CLASS_ENT(CPUType, ARM_WMMX),
     CV_ENUM_CLASS_ENT(CPUType, ARM7),
-    CV_ENUM_CLASS_ENT(CPUType, ARM64),
     CV_ENUM_CLASS_ENT(CPUType, Omni),
     CV_ENUM_CLASS_ENT(CPUType, Ia64),
     CV_ENUM_CLASS_ENT(CPUType, Ia64_2),
@@ -201,6 +200,10 @@ static const EnumEntry<unsigned> CPUTypeNames[] = {
     CV_ENUM_CLASS_ENT(CPUType, EBC),
     CV_ENUM_CLASS_ENT(CPUType, Thumb),
     CV_ENUM_CLASS_ENT(CPUType, ARMNT),
+    CV_ENUM_CLASS_ENT(CPUType, ARM64),
+    CV_ENUM_CLASS_ENT(CPUType, HybridX86ARM64),
+    CV_ENUM_CLASS_ENT(CPUType, ARM64EC),
+    CV_ENUM_CLASS_ENT(CPUType, ARM64X),
     CV_ENUM_CLASS_ENT(CPUType, D3D11_Shader),
 };
 

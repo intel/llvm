@@ -34,11 +34,14 @@
 #include "clang/AST/ASTContext.h"
 
 namespace clang {
+class DynTypedNode;
 namespace syntax {
 class TokenBuffer;
 } // namespace syntax
 namespace clangd {
 
+// Note: It's safe for the node to be a TranslationUnitDecl, as this function
+//       does not deserialize the preamble.
 ASTNode dumpAST(const DynTypedNode &, const syntax::TokenBuffer &Tokens,
                 const ASTContext &);
 

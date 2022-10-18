@@ -209,6 +209,11 @@ void AMDGPUPALMetadata::setNumUsedVgprs(CallingConv::ID CC, unsigned Val) {
   getHwStage(CC)[".vgpr_count"] = MsgPackDoc.getNode(Val);
 }
 
+// Set the number of used agprs in the metadata.
+void AMDGPUPALMetadata::setNumUsedAgprs(CallingConv::ID CC, unsigned Val) {
+  getHwStage(CC)[".agpr_count"] = Val;
+}
+
 // Set the number of used sgprs in the metadata. This is an optional advisory
 // record for logging etc; wave dispatch actually uses the rsrc1 register for
 // the shader stage to determine the number of sgprs to allocate.
@@ -241,6 +246,27 @@ void AMDGPUPALMetadata::setFunctionScratchSize(const MachineFunction &MF,
                                                unsigned Val) {
   auto Node = getShaderFunction(MF.getFunction().getName());
   Node[".stack_frame_size_in_bytes"] = MsgPackDoc.getNode(Val);
+}
+
+// Set the amount of LDS used in bytes in the metadata.
+void AMDGPUPALMetadata::setFunctionLdsSize(const MachineFunction &MF,
+                                           unsigned Val) {
+  auto Node = getShaderFunction(MF.getFunction().getName());
+  Node[".lds_size"] = MsgPackDoc.getNode(Val);
+}
+
+// Set the number of used vgprs in the metadata.
+void AMDGPUPALMetadata::setFunctionNumUsedVgprs(const MachineFunction &MF,
+                                                unsigned Val) {
+  auto Node = getShaderFunction(MF.getFunction().getName());
+  Node[".vgpr_count"] = MsgPackDoc.getNode(Val);
+}
+
+// Set the number of used vgprs in the metadata.
+void AMDGPUPALMetadata::setFunctionNumUsedSgprs(const MachineFunction &MF,
+                                                unsigned Val) {
+  auto Node = getShaderFunction(MF.getFunction().getName());
+  Node[".sgpr_count"] = MsgPackDoc.getNode(Val);
 }
 
 // Set the hardware register bit in PAL metadata to enable wave32 on the

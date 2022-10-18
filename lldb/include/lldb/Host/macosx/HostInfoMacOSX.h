@@ -21,16 +21,10 @@ class ArchSpec;
 class HostInfoMacOSX : public HostInfoPosix {
   friend class HostInfoBase;
 
-private:
-  // Static class, unconstructable.
-  HostInfoMacOSX() = delete;
-  ~HostInfoMacOSX() = delete;
-
 public:
   static llvm::VersionTuple GetOSVersion();
   static llvm::VersionTuple GetMacCatalystVersion();
-  static bool GetOSBuildString(std::string &s);
-  static bool GetOSKernelDescription(std::string &s);
+  static llvm::Optional<std::string> GetOSBuildString();
   static FileSpec GetProgramFileSpec();
   static FileSpec GetXcodeContentsDirectory();
   static FileSpec GetXcodeDeveloperDirectory();

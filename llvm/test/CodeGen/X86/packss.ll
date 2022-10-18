@@ -121,28 +121,28 @@ define <8 x i16> @trunc_ashr_v4i32_icmp_v4i32(<4 x i32> %a, <4 x i32> %b) nounwi
 ; X86-SSE-LABEL: trunc_ashr_v4i32_icmp_v4i32:
 ; X86-SSE:       # %bb.0:
 ; X86-SSE-NEXT:    psrad $31, %xmm0
-; X86-SSE-NEXT:    pcmpgtd {{\.LCPI[0-9]+_[0-9]+}}, %xmm1
+; X86-SSE-NEXT:    pcmpgtd {{\.?LCPI[0-9]+_[0-9]+}}, %xmm1
 ; X86-SSE-NEXT:    packssdw %xmm1, %xmm0
 ; X86-SSE-NEXT:    retl
 ;
 ; X86-AVX-LABEL: trunc_ashr_v4i32_icmp_v4i32:
 ; X86-AVX:       # %bb.0:
 ; X86-AVX-NEXT:    vpsrad $31, %xmm0, %xmm0
-; X86-AVX-NEXT:    vpcmpgtd {{\.LCPI[0-9]+_[0-9]+}}, %xmm1, %xmm1
+; X86-AVX-NEXT:    vpcmpgtd {{\.?LCPI[0-9]+_[0-9]+}}, %xmm1, %xmm1
 ; X86-AVX-NEXT:    vpackssdw %xmm1, %xmm0, %xmm0
 ; X86-AVX-NEXT:    retl
 ;
 ; X64-SSE-LABEL: trunc_ashr_v4i32_icmp_v4i32:
 ; X64-SSE:       # %bb.0:
 ; X64-SSE-NEXT:    psrad $31, %xmm0
-; X64-SSE-NEXT:    pcmpgtd {{.*}}(%rip), %xmm1
+; X64-SSE-NEXT:    pcmpgtd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
 ; X64-SSE-NEXT:    packssdw %xmm1, %xmm0
 ; X64-SSE-NEXT:    retq
 ;
 ; X64-AVX-LABEL: trunc_ashr_v4i32_icmp_v4i32:
 ; X64-AVX:       # %bb.0:
 ; X64-AVX-NEXT:    vpsrad $31, %xmm0, %xmm0
-; X64-AVX-NEXT:    vpcmpgtd {{.*}}(%rip), %xmm1, %xmm1
+; X64-AVX-NEXT:    vpcmpgtd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
 ; X64-AVX-NEXT:    vpackssdw %xmm1, %xmm0, %xmm0
 ; X64-AVX-NEXT:    retq
   %1 = ashr <4 x i32> %a, <i32 31, i32 31, i32 31, i32 31>
@@ -159,7 +159,7 @@ define <8 x i16> @trunc_ashr_v4i64_demandedelts(<4 x i64> %a0) {
 ; X86-SSE-NEXT:    psllq $63, %xmm1
 ; X86-SSE-NEXT:    psllq $63, %xmm0
 ; X86-SSE-NEXT:    psrlq $63, %xmm0
-; X86-SSE-NEXT:    movdqa {{.*#+}} xmm2 = [1,0,0,0]
+; X86-SSE-NEXT:    movdqa {{.*#+}} xmm2 = [1,0,0,2147483648]
 ; X86-SSE-NEXT:    pxor %xmm2, %xmm0
 ; X86-SSE-NEXT:    psubq %xmm2, %xmm0
 ; X86-SSE-NEXT:    psrlq $63, %xmm1
@@ -196,11 +196,11 @@ define <8 x i16> @trunc_ashr_v4i64_demandedelts(<4 x i64> %a0) {
 ; X86-AVX2-NEXT:    vbroadcasti128 {{.*#+}} ymm1 = [63,0,0,0,63,0,0,0]
 ; X86-AVX2-NEXT:    # ymm1 = mem[0,1,0,1]
 ; X86-AVX2-NEXT:    vpsllvq %ymm1, %ymm0, %ymm0
-; X86-AVX2-NEXT:    vmovdqa {{.*#+}} ymm2 = [0,2147483648,0,2147483648,0,2147483648,0,2147483648]
-; X86-AVX2-NEXT:    vpsrlvq %ymm1, %ymm2, %ymm2
 ; X86-AVX2-NEXT:    vpsrlvq %ymm1, %ymm0, %ymm0
-; X86-AVX2-NEXT:    vpxor %ymm2, %ymm0, %ymm0
-; X86-AVX2-NEXT:    vpsubq %ymm2, %ymm0, %ymm0
+; X86-AVX2-NEXT:    vbroadcasti128 {{.*#+}} ymm1 = [1,0,0,2147483648,1,0,0,2147483648]
+; X86-AVX2-NEXT:    # ymm1 = mem[0,1,0,1]
+; X86-AVX2-NEXT:    vpxor %ymm1, %ymm0, %ymm0
+; X86-AVX2-NEXT:    vpsubq %ymm1, %ymm0, %ymm0
 ; X86-AVX2-NEXT:    vpshufd {{.*#+}} ymm0 = ymm0[0,0,0,0,4,4,4,4]
 ; X86-AVX2-NEXT:    vextracti128 $1, %ymm0, %xmm1
 ; X86-AVX2-NEXT:    vpackssdw %xmm1, %xmm0, %xmm0
@@ -370,7 +370,7 @@ define <32 x i8> @packsswb_icmp_zero_trunc_256(<16 x i16> %a0) {
 ; AVX2-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX2-NEXT:    vpcmpeqw %ymm1, %ymm0, %ymm0
 ; AVX2-NEXT:    vpacksswb %ymm0, %ymm1, %ymm0
-; AVX2-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,0,2,3]
+; AVX2-NEXT:    vpermq {{.*#+}} ymm0 = ymm0[0,1,0,3]
 ; AVX2-NEXT:    ret{{[l|q]}}
   %1 = icmp eq <16 x i16> %a0, zeroinitializer
   %2 = sext <16 x i1> %1 to <16 x i16>

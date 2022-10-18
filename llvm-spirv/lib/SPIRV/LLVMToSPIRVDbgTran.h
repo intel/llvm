@@ -46,14 +46,14 @@
 using namespace llvm;
 
 namespace SPIRV {
-class LLVMToSPIRV;
+class LLVMToSPIRVBase;
 
 class LLVMToSPIRVDbgTran {
 public:
   typedef std::vector<SPIRVWord> SPIRVWordVec;
 
   LLVMToSPIRVDbgTran(Module *TM = nullptr, SPIRVModule *TBM = nullptr,
-                     LLVMToSPIRV *Writer = nullptr)
+                     LLVMToSPIRVBase *Writer = nullptr)
       : BM(TBM), M(TM), SPIRVWriter(Writer), VoidT(nullptr),
         DebugInfoNone(nullptr) {}
   void transDebugMetadata();
@@ -143,9 +143,12 @@ private:
   // Imported declarations and modules
   SPIRVEntry *transDbgImportedEntry(const DIImportedEntity *IE);
 
+  // A module in programming language. Example - Fortran module, clang module.
+  SPIRVEntry *transDbgModule(const DIModule *IE);
+
   SPIRVModule *BM;
   Module *M;
-  LLVMToSPIRV *SPIRVWriter;
+  LLVMToSPIRVBase *SPIRVWriter;
   std::unordered_map<const MDNode *, SPIRVEntry *> MDMap;
   std::unordered_map<std::string, SPIRVExtInst *> FileMap;
   DebugInfoFinder DIF;

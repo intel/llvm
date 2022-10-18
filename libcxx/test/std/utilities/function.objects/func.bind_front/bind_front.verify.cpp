@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // functional
 
-// template <class F, class... Args> constexpr unspecified bind_front(F&&, Args&&...);
+// template <class F, class... Args>
+// constexpr unspecified bind_front(F&&, Args&&...);
 
 #include <functional>
 
@@ -39,7 +40,7 @@ int main(int, char**)
     const int c = 1;
 
     auto p = std::bind_front(pass, c);
-    static_assert(p() == 1); // expected-error {{static_assert expression is not an integral constant expression}}
+    static_assert(p() == 1); // expected-error-re {{{{(static_assert|static assertion)}} expression is not an integral constant expression}}
 
     auto d = std::bind_front(do_nothing, n); // expected-error {{no matching function for call to 'bind_front'}}
 

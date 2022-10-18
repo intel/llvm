@@ -55,21 +55,23 @@ namespace Intrinsic {
   /// version of getName if overloads are required.
   StringRef getName(ID id);
 
-  /// Return the LLVM name for an intrinsic, such as "llvm.ppc.altivec.lvx".
-  /// Note, this version of getName supports overloads, but not unnamed types.
-  /// It is less efficient than the StringRef version of this function. If no
-  /// overloads are required, it is safe to use this version, but better to use
-  /// the StringRef version.
-  std::string getName(ID Id, ArrayRef<Type *> Tys);
+  /// Return the LLVM name for an intrinsic, without encoded types for
+  /// overloading, such as "llvm.ssa.copy".
+  StringRef getBaseName(ID id);
 
-  /// Return the LLVM name for an intrinsic, such as "llvm.ssa.copy.p0s_s.1".
-  /// Note, this version of getName supports overloads and unnamed types, but is
-  /// less efficient than the StringRef version of this function.  If no
+  /// Return the LLVM name for an intrinsic, such as "llvm.ppc.altivec.lvx" or
+  /// "llvm.ssa.copy.p0s_s.1". Note, this version of getName supports overloads.
+  /// This is less efficient than the StringRef version of this function.  If no
   /// overloads are required, it is safe to use this version, but better to use
-  /// the StringRef version. A function type FT can be provided to avoid
-  /// computing it. It is used (or computed) if one of the types is based on an
-  /// unnamed type.
-  std::string getName(ID Id, ArrayRef<Type *> Tys, Module *M, FunctionType *FT);
+  /// the StringRef version. If one of the types is based on an unnamed type, a
+  /// function type will be computed. Providing FT will avoid this computation.
+  std::string getName(ID Id, ArrayRef<Type *> Tys, Module *M,
+                      FunctionType *FT = nullptr);
+
+  /// Return the LLVM name for an intrinsic. This is a special version only to
+  /// be used by LLVMIntrinsicCopyOverloadedName. It only supports overloads
+  /// based on named types.
+  std::string getNameNoUnnamedTypes(ID Id, ArrayRef<Type *> Tys);
 
   /// Return the function type for an intrinsic.
   FunctionType *getType(LLVMContext &Context, ID id,
@@ -102,8 +104,8 @@ namespace Intrinsic {
   int lookupLLVMIntrinsicByName(ArrayRef<const char *> NameTable,
                                 StringRef Name);
 
-  /// Map a GCC builtin name to an intrinsic ID.
-  ID getIntrinsicForGCCBuiltin(const char *Prefix, StringRef BuiltinName);
+  /// Map a Clang builtin name to an intrinsic ID.
+  ID getIntrinsicForClangBuiltin(const char *Prefix, StringRef BuiltinName);
 
   /// Map a MS builtin name to an intrinsic ID.
   ID getIntrinsicForMSBuiltin(const char *Prefix, StringRef BuiltinName);
@@ -138,7 +140,9 @@ namespace Intrinsic {
       Subdivide2Argument,
       Subdivide4Argument,
       VecOfBitcastsToInt,
-      AMX
+      AMX,
+      PPCQuad,
+      AnyPtrToElt,
     } Kind;
 
     union {
@@ -177,14 +181,15 @@ namespace Intrinsic {
       return (ArgKind)(Argument_Info & 7);
     }
 
-    // VecOfAnyPtrsToElt uses both an overloaded argument (for address space)
-    // and a reference argument (for matching vector width and element types)
+    // VecOfAnyPtrsToElt and AnyPtrToElt uses both an overloaded argument (for
+    // address space) and a reference argument (for matching vector width and
+    // element types)
     unsigned getOverloadArgNumber() const {
-      assert(Kind == VecOfAnyPtrsToElt);
+      assert(Kind == VecOfAnyPtrsToElt || Kind == AnyPtrToElt);
       return Argument_Info >> 16;
     }
     unsigned getRefArgNumber() const {
-      assert(Kind == VecOfAnyPtrsToElt);
+      assert(Kind == VecOfAnyPtrsToElt || Kind == AnyPtrToElt);
       return Argument_Info & 0xFFFF;
     }
 
@@ -242,6 +247,8 @@ namespace Intrinsic {
 
   // Checks if the intrinsic name matches with its signature and if not
   // returns the declaration with the same signature and remangled name.
+  // An existing GlobalValue with the wanted name but with a wrong prototype
+  // or of the wrong kind will be renamed by adding ".renamed" to the name.
   llvm::Optional<Function*> remangleIntrinsicFunction(Function *F);
 
 } // End Intrinsic namespace

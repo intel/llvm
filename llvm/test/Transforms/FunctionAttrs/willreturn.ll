@@ -73,7 +73,7 @@ B:
 
 ; Function without loops or non-willreturn calls will return.
 define void @willreturn_no_loop(i1 %c, i32* %p) {
-; CHECK: Function Attrs: willreturn
+; CHECK: Function Attrs: mustprogress willreturn
 ; CHECK-NEXT: define void @willreturn_no_loop(
 ;
   br i1 %c, label %if, label %else
@@ -151,6 +151,13 @@ bb1:
 
 bb2:
   br label %bb1
+}
+
+define linkonce i32 @square(i32) {
+; CHECK-NOT: Function Attrs: {{.*}}willreturn
+; CHECK: define linkonce i32 @square(
+    %2 = mul nsw i32 %0, %0
+    ret i32 %2
 }
 
 declare i64 @fn_noread() readnone

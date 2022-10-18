@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===--------------------------- istream ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -158,12 +158,15 @@ template <class Stream, class T>
 
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
-#include <version>
+#include <__iterator/istreambuf_iterator.h>
+#include <__utility/forward.h>
 #include <ostream>
+#include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_PUSH_MACROS
@@ -189,16 +192,14 @@ public:
     inline _LIBCPP_HIDE_FROM_ABI_AFTER_V1
     explicit basic_istream(basic_streambuf<char_type, traits_type>* __sb) : __gc_(0)
     { this->init(__sb); }
-    virtual ~basic_istream();
+    ~basic_istream() override;
 protected:
-#ifndef _LIBCPP_CXX03_LANG
     inline _LIBCPP_INLINE_VISIBILITY
     basic_istream(basic_istream&& __rhs);
 
     // 27.7.1.1.2 Assign/swap:
     inline _LIBCPP_INLINE_VISIBILITY
     basic_istream& operator=(basic_istream&& __rhs);
-#endif
 
     inline _LIBCPP_HIDE_FROM_ABI_AFTER_V1
     void swap(basic_istream& __rhs) {
@@ -206,10 +207,8 @@ protected:
       basic_ios<char_type, traits_type>::swap(__rhs);
     }
 
-#ifndef _LIBCPP_CXX03_LANG
     basic_istream           (const basic_istream& __rhs) = delete;
     basic_istream& operator=(const basic_istream& __rhs) = delete;
-#endif
 public:
 
     // 27.7.1.1.3 Prefix/suffix:
@@ -294,16 +293,15 @@ class _LIBCPP_TEMPLATE_VIS basic_istream<_CharT, _Traits>::sentry
 {
     bool __ok_;
 
-    sentry(const sentry&); // = delete;
-    sentry& operator=(const sentry&); // = delete;
-
 public:
     explicit sentry(basic_istream<_CharT, _Traits>& __is, bool __noskipws = false);
 //    ~sentry() = default;
 
     _LIBCPP_INLINE_VISIBILITY
-        _LIBCPP_EXPLICIT
-        operator bool() const {return __ok_;}
+    explicit operator bool() const {return __ok_;}
+
+    sentry(const sentry&) = delete;
+    sentry& operator=(const sentry&) = delete;
 };
 
 template <class _CharT, class _Traits>
@@ -333,8 +331,6 @@ basic_istream<_CharT, _Traits>::sentry::sentry(basic_istream<_CharT, _Traits>& _
         __is.setstate(ios_base::failbit);
 }
 
-#ifndef _LIBCPP_CXX03_LANG
-
 template <class _CharT, class _Traits>
 basic_istream<_CharT, _Traits>::basic_istream(basic_istream&& __rhs)
     : __gc_(__rhs.__gc_)
@@ -350,8 +346,6 @@ basic_istream<_CharT, _Traits>::operator=(basic_istream&& __rhs)
     swap(__rhs);
     return *this;
 }
-
-#endif  // _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits>
 basic_istream<_CharT, _Traits>::~basic_istream()
@@ -369,7 +363,7 @@ __input_arithmetic(basic_istream<_CharT, _Traits>& __is, _Tp& __n) {
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             typedef istreambuf_iterator<_CharT, _Traits> _Ip;
             typedef num_get<_CharT, _Ip> _Fp;
             use_facet<_Fp>(__is.getloc()).get(_Ip(__is), _Ip(), __is, __state, __n);
@@ -478,7 +472,7 @@ __input_arithmetic_with_numeric_limits(basic_istream<_CharT, _Traits>& __is, _Tp
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             typedef istreambuf_iterator<_CharT, _Traits> _Ip;
             typedef num_get<_CharT, _Ip> _Fp;
             long __temp;
@@ -508,7 +502,7 @@ __input_arithmetic_with_numeric_limits(basic_istream<_CharT, _Traits>& __is, _Tp
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         __is.setstate(__state);
     }
     return __is;
@@ -636,10 +630,10 @@ operator>>(basic_istream<char, _Traits>& __is, signed char* __s)
     return __is >> (char*)__s;
 }
 
-#endif  // _LIBCPP_STD_VER > 17
+#endif // _LIBCPP_STD_VER > 17
 
 template<class _CharT, class _Traits>
-basic_istream<_CharT, _Traits>&
+_LIBCPP_HIDE_FROM_ABI basic_istream<_CharT, _Traits>&
 operator>>(basic_istream<_CharT, _Traits>& __is, _CharT& __c)
 {
     ios_base::iostate __state = ios_base::goodbit;
@@ -734,7 +728,7 @@ basic_istream<_CharT, _Traits>::operator>>(basic_streambuf<char_type, traits_typ
                     throw;
                 }
             }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         }
         else
         {
@@ -854,7 +848,7 @@ basic_istream<_CharT, _Traits>::get(basic_streambuf<char_type, traits_type>& __s
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             while (true)
             {
                 typename traits_type::int_type __i = this->rdbuf()->sgetc();
@@ -878,7 +872,7 @@ basic_istream<_CharT, _Traits>::get(basic_streambuf<char_type, traits_type>& __s
             __state |= ios_base::badbit;
             // according to the spec, exceptions here are caught but not rethrown
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         if (__gc_ == 0)
            __state |= ios_base::failbit;
         this->setstate(__state);
@@ -898,7 +892,7 @@ basic_istream<_CharT, _Traits>::getline(char_type* __s, streamsize __n, char_typ
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             while (true)
             {
                 typename traits_type::int_type __i = this->rdbuf()->sgetc();
@@ -938,7 +932,7 @@ basic_istream<_CharT, _Traits>::getline(char_type* __s, streamsize __n, char_typ
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     }
     if (__n > 0)
         *__s = char_type();
@@ -960,7 +954,7 @@ basic_istream<_CharT, _Traits>::ignore(streamsize __n, int_type __dlm)
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             if (__n == numeric_limits<streamsize>::max())
             {
                 while (true)
@@ -1002,7 +996,7 @@ basic_istream<_CharT, _Traits>::ignore(streamsize __n, int_type __dlm)
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         this->setstate(__state);
     }
     return *this;
@@ -1021,7 +1015,7 @@ basic_istream<_CharT, _Traits>::peek()
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             __r = this->rdbuf()->sgetc();
             if (traits_type::eq_int_type(__r, traits_type::eof()))
                 __state |= ios_base::eofbit;
@@ -1036,7 +1030,7 @@ basic_istream<_CharT, _Traits>::peek()
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         this->setstate(__state);
     }
     return __r;
@@ -1054,7 +1048,7 @@ basic_istream<_CharT, _Traits>::read(char_type* __s, streamsize __n)
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             __gc_ = this->rdbuf()->sgetn(__s, __n);
             if (__gc_ != __n)
                 __state |= ios_base::failbit | ios_base::eofbit;
@@ -1069,7 +1063,7 @@ basic_istream<_CharT, _Traits>::read(char_type* __s, streamsize __n)
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     }
     else
     {
@@ -1091,7 +1085,7 @@ basic_istream<_CharT, _Traits>::readsome(char_type* __s, streamsize __n)
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             streamsize __c = this->rdbuf()->in_avail();
             switch (__c)
             {
@@ -1118,7 +1112,7 @@ basic_istream<_CharT, _Traits>::readsome(char_type* __s, streamsize __n)
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     }
     else
     {
@@ -1141,7 +1135,7 @@ basic_istream<_CharT, _Traits>::putback(char_type __c)
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             if (this->rdbuf() == nullptr || this->rdbuf()->sputbackc(__c) == traits_type::eof())
                 __state |= ios_base::badbit;
 #ifndef _LIBCPP_NO_EXCEPTIONS
@@ -1155,7 +1149,7 @@ basic_istream<_CharT, _Traits>::putback(char_type __c)
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     }
     else
     {
@@ -1178,7 +1172,7 @@ basic_istream<_CharT, _Traits>::unget()
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             if (this->rdbuf() == nullptr || this->rdbuf()->sungetc() == traits_type::eof())
                 __state |= ios_base::badbit;
 #ifndef _LIBCPP_NO_EXCEPTIONS
@@ -1192,7 +1186,7 @@ basic_istream<_CharT, _Traits>::unget()
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     }
     else
     {
@@ -1214,7 +1208,7 @@ basic_istream<_CharT, _Traits>::sync()
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             if (this->rdbuf() == nullptr)
                 return -1;
             if (this->rdbuf()->pubsync() == -1)
@@ -1233,7 +1227,7 @@ basic_istream<_CharT, _Traits>::sync()
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         this->setstate(__state);
     }
     return __r;
@@ -1251,7 +1245,7 @@ basic_istream<_CharT, _Traits>::tellg()
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         __r = this->rdbuf()->pubseekoff(0, ios_base::cur, ios_base::in);
 #ifndef _LIBCPP_NO_EXCEPTIONS
         }
@@ -1264,7 +1258,7 @@ basic_istream<_CharT, _Traits>::tellg()
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         this->setstate(__state);
     }
     return __r;
@@ -1282,7 +1276,7 @@ basic_istream<_CharT, _Traits>::seekg(pos_type __pos)
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             if (this->rdbuf()->pubseekpos(__pos, ios_base::in) == pos_type(-1))
                 __state |= ios_base::failbit;
 #ifndef _LIBCPP_NO_EXCEPTIONS
@@ -1296,7 +1290,7 @@ basic_istream<_CharT, _Traits>::seekg(pos_type __pos)
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         this->setstate(__state);
     }
     return *this;
@@ -1314,7 +1308,7 @@ basic_istream<_CharT, _Traits>::seekg(off_type __off, ios_base::seekdir __dir)
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             if (this->rdbuf()->pubseekoff(__off, __dir, ios_base::in) == pos_type(-1))
                 __state |= ios_base::failbit;
 #ifndef _LIBCPP_NO_EXCEPTIONS
@@ -1328,14 +1322,14 @@ basic_istream<_CharT, _Traits>::seekg(off_type __off, ios_base::seekdir __dir)
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         this->setstate(__state);
     }
     return *this;
 }
 
 template <class _CharT, class _Traits>
-basic_istream<_CharT, _Traits>&
+_LIBCPP_HIDE_FROM_ABI basic_istream<_CharT, _Traits>&
 ws(basic_istream<_CharT, _Traits>& __is)
 {
     ios_base::iostate __state = ios_base::goodbit;
@@ -1345,7 +1339,7 @@ ws(basic_istream<_CharT, _Traits>& __is)
 #ifndef _LIBCPP_NO_EXCEPTIONS
         try
         {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
             const ctype<_CharT>& __ct = use_facet<ctype<_CharT> >(__is.getloc());
             while (true)
             {
@@ -1370,25 +1364,23 @@ ws(basic_istream<_CharT, _Traits>& __is)
                 throw;
             }
         }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         __is.setstate(__state);
     }
     return __is;
 }
-
-#ifndef _LIBCPP_CXX03_LANG
 
 template <class _Stream, class _Tp, class = void>
 struct __is_istreamable : false_type { };
 
 template <class _Stream, class _Tp>
 struct __is_istreamable<_Stream, _Tp, decltype(
-    _VSTD::declval<_Stream>() >> _VSTD::declval<_Tp>(), void()
+    declval<_Stream>() >> declval<_Tp>(), void()
 )> : true_type { };
 
 template <class _Stream, class _Tp, class = typename enable_if<
     _And<is_base_of<ios_base, _Stream>,
-         __is_istreamable<_Stream&, _Tp&&>>::value
+         __is_istreamable<_Stream&, _Tp&&> >::value
 >::type>
 _LIBCPP_INLINE_VISIBILITY
 _Stream&& operator>>(_Stream&& __is, _Tp&& __x)
@@ -1396,8 +1388,6 @@ _Stream&& operator>>(_Stream&& __is, _Tp&& __x)
     __is >> _VSTD::forward<_Tp>(__x);
     return _VSTD::move(__is);
 }
-
-#endif  // _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits>
 class _LIBCPP_TEMPLATE_VIS basic_iostream
@@ -1418,22 +1408,19 @@ public:
       : basic_istream<_CharT, _Traits>(__sb)
     {}
 
-    virtual ~basic_iostream();
+    ~basic_iostream() override;
 protected:
-#ifndef _LIBCPP_CXX03_LANG
     inline _LIBCPP_INLINE_VISIBILITY
     basic_iostream(basic_iostream&& __rhs);
 
     // assign/swap
     inline _LIBCPP_INLINE_VISIBILITY
     basic_iostream& operator=(basic_iostream&& __rhs);
-#endif
+
     inline _LIBCPP_HIDE_FROM_ABI_AFTER_V1
     void swap(basic_iostream& __rhs)
     { basic_istream<char_type, traits_type>::swap(__rhs); }
 };
-
-#ifndef _LIBCPP_CXX03_LANG
 
 template <class _CharT, class _Traits>
 basic_iostream<_CharT, _Traits>::basic_iostream(basic_iostream&& __rhs)
@@ -1449,15 +1436,13 @@ basic_iostream<_CharT, _Traits>::operator=(basic_iostream&& __rhs)
     return *this;
 }
 
-#endif  // _LIBCPP_CXX03_LANG
-
 template <class _CharT, class _Traits>
 basic_iostream<_CharT, _Traits>::~basic_iostream()
 {
 }
 
 template<class _CharT, class _Traits, class _Allocator>
-basic_istream<_CharT, _Traits>&
+_LIBCPP_HIDE_FROM_ABI basic_istream<_CharT, _Traits>&
 operator>>(basic_istream<_CharT, _Traits>& __is,
            basic_string<_CharT, _Traits, _Allocator>& __str)
 {
@@ -1513,7 +1498,7 @@ operator>>(basic_istream<_CharT, _Traits>& __is,
 }
 
 template<class _CharT, class _Traits, class _Allocator>
-basic_istream<_CharT, _Traits>&
+_LIBCPP_HIDE_FROM_ABI basic_istream<_CharT, _Traits>&
 getline(basic_istream<_CharT, _Traits>& __is,
         basic_string<_CharT, _Traits, _Allocator>& __str, _CharT __dlm)
 {
@@ -1574,8 +1559,6 @@ getline(basic_istream<_CharT, _Traits>& __is,
     return getline(__is, __str, __is.widen('\n'));
 }
 
-#ifndef _LIBCPP_CXX03_LANG
-
 template<class _CharT, class _Traits, class _Allocator>
 inline _LIBCPP_INLINE_VISIBILITY
 basic_istream<_CharT, _Traits>&
@@ -1594,10 +1577,8 @@ getline(basic_istream<_CharT, _Traits>&& __is,
     return getline(__is, __str, __is.widen('\n'));
 }
 
-#endif  // _LIBCPP_CXX03_LANG
-
 template <class _CharT, class _Traits, size_t _Size>
-basic_istream<_CharT, _Traits>&
+_LIBCPP_HIDE_FROM_ABI basic_istream<_CharT, _Traits>&
 operator>>(basic_istream<_CharT, _Traits>& __is, bitset<_Size>& __x)
 {
     ios_base::iostate __state = ios_base::goodbit;
@@ -1613,7 +1594,7 @@ operator>>(basic_istream<_CharT, _Traits>& __is, bitset<_Size>& __x)
             size_t __c = 0;
             _CharT __zero = __ct.widen('0');
             _CharT __one = __ct.widen('1');
-            while (__c < _Size)
+            while (__c != _Size)
             {
                 typename _Traits::int_type __i = __is.rdbuf()->sgetc();
                 if (_Traits::eq_int_type(__i, _Traits::eof()))
@@ -1648,12 +1629,14 @@ operator>>(basic_istream<_CharT, _Traits>& __is, bitset<_Size>& __x)
     return __is;
 }
 
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_istream<char>)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_istream<wchar_t>)
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_iostream<char>)
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_istream<char>;
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_istream<wchar_t>;
+#endif
+extern template class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS basic_iostream<char>;
 
 _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS
 
-#endif  // _LIBCPP_ISTREAM
+#endif // _LIBCPP_ISTREAM

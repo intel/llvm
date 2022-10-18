@@ -389,7 +389,7 @@ void PlistPrinter::ReportMacroExpansions(raw_ostream &o, unsigned indent) {
     const Optional<StringRef> ExpansionText =
         getExpandedMacro(MacroExpansionLoc, CTU, MacroExpansions, SM);
 
-    if (!MacroName.hasValue() || !ExpansionText.hasValue())
+    if (!MacroName || !ExpansionText)
       continue;
 
     Indent(o, indent) << "<dict>\n";
@@ -407,11 +407,11 @@ void PlistPrinter::ReportMacroExpansions(raw_ostream &o, unsigned indent) {
 
     // Output the macro name.
     Indent(o, indent) << "<key>name</key>";
-    EmitString(o, MacroName.getValue()) << '\n';
+    EmitString(o, MacroName.value()) << '\n';
 
     // Output what it expands into.
     Indent(o, indent) << "<key>expansion</key>";
-    EmitString(o, ExpansionText.getValue()) << '\n';
+    EmitString(o, ExpansionText.value()) << '\n';
 
     // Finish up.
     --indent;
@@ -660,7 +660,7 @@ void PlistDiagnostics::FlushDiagnosticsImpl(
 
   // Open the file.
   std::error_code EC;
-  llvm::raw_fd_ostream o(OutputFile, EC, llvm::sys::fs::OF_Text);
+  llvm::raw_fd_ostream o(OutputFile, EC, llvm::sys::fs::OF_TextWithCRLF);
   if (EC) {
     llvm::errs() << "warning: could not create file: " << EC.message() << '\n';
     return;

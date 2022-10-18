@@ -1,3 +1,11 @@
+.. raw:: html
+
+      <style type="text/css">
+        .versionbadge { background-color: #1c913d; height: 20px; display: inline-block; width: 120px; text-align: center; border-radius: 5px; color: #FFFFFF; font-family="Verdana,Geneva,DejaVu Sans,sans-serif" }
+      </style>
+
+.. role:: versionbadge
+
 ==========================
 Clang-Format Style Options
 ==========================
@@ -23,6 +31,10 @@ When using ``-style=file``, :program:`clang-format` for each input file will
 try to find the ``.clang-format`` file located in the closest parent directory
 of the input file. When the standard input is used, the search is started from
 the current directory.
+
+When using ``-style=file:<format_file_path>``, :program:`clang-format` for
+each input file will use the format file located at `<format_file_path>`.
+The path may be absolute or relative to the working directory.
 
 The ``.clang-format`` file uses YAML format:
 
@@ -125,7 +137,7 @@ enumeration member (with a prefix, e.g. ``LS_Auto``), and as a value usable in
 the configuration (without a prefix: ``Auto``).
 
 
-**BasedOnStyle** (``string``)
+**BasedOnStyle** (``String``)
   The style used for all options not specifically set in the configuration.
 
   This option is supported only in the :program:`clang-format` configuration
@@ -141,16 +153,16 @@ the configuration (without a prefix: ``Auto``).
     <https://google.github.io/styleguide/cppguide.html>`_
   * ``Chromium``
     A style complying with `Chromium's style guide
-    <https://chromium.googlesource.com/chromium/src/+/master/styleguide/styleguide.md>`_
+    <https://chromium.googlesource.com/chromium/src/+/refs/heads/main/styleguide/styleguide.md>`_
   * ``Mozilla``
     A style complying with `Mozilla's style guide
-    <https://developer.mozilla.org/en-US/docs/Developer_Guide/Coding_Style>`_
+    <https://firefox-source-docs.mozilla.org/code-quality/coding-style/index.html>`_
   * ``WebKit``
     A style complying with `WebKit's style guide
     <https://www.webkit.org/coding/coding-style.html>`_
   * ``Microsoft``
     A style complying with `Microsoft's style guide
-    <https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-code-style-settings-reference?view=vs-2017>`_
+    <https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-code-style-settings-reference>`_
   * ``GNU``
     A style complying with the `GNU coding standards
     <https://www.gnu.org/prep/standards/standards.html>`_
@@ -166,10 +178,10 @@ the configuration (without a prefix: ``Auto``).
 
 .. START_FORMAT_STYLE_OPTIONS
 
-**AccessModifierOffset** (``int``)
+**AccessModifierOffset** (``Integer``) :versionbadge:`clang-format 3.3`
   The extra indent or outdent of access modifiers, e.g. ``public:``.
 
-**AlignAfterOpenBracket** (``BracketAlignmentStyle``)
+**AlignAfterOpenBracket** (``BracketAlignmentStyle``) :versionbadge:`clang-format 3.8`
   If ``true``, horizontally aligns arguments after an open bracket.
 
   This applies to round brackets (parentheses), angle brackets and square
@@ -202,9 +214,63 @@ the configuration (without a prefix: ``Auto``).
       someLongFunction(
           argument1, argument2);
 
+  * ``BAS_BlockIndent`` (in configuration: ``BlockIndent``)
+    Always break after an open bracket, if the parameters don't fit
+    on a single line. Closing brackets will be placed on a new line.
+    E.g.:
+
+    .. code-block:: c++
+
+      someLongFunction(
+          argument1, argument2
+      )
 
 
-**AlignConsecutiveAssignments** (``AlignConsecutiveStyle``)
+    .. warning:: 
+
+     Note: This currently only applies to parentheses.
+
+
+
+**AlignArrayOfStructures** (``ArrayInitializerAlignmentStyle``) :versionbadge:`clang-format 13`
+  if not ``None``, when using initialization for an array of structs
+  aligns the fields into columns.
+
+  NOTE: As of clang-format 15 this option only applied to arrays with equal
+  number of columns per row.
+
+  Possible values:
+
+  * ``AIAS_Left`` (in configuration: ``Left``)
+    Align array column and left justify the columns e.g.:
+
+    .. code-block:: c++
+
+      struct test demo[] =
+      {
+          {56, 23,    "hello"},
+          {-1, 93463, "world"},
+          {7,  5,     "!!"   }
+      };
+
+  * ``AIAS_Right`` (in configuration: ``Right``)
+    Align array column and right justify the columns e.g.:
+
+    .. code-block:: c++
+
+      struct test demo[] =
+      {
+          {56,    23, "hello"},
+          {-1, 93463, "world"},
+          { 7,     5,    "!!"}
+      };
+
+  * ``AIAS_None`` (in configuration: ``None``)
+    Don't align array initializer columns.
+
+
+
+**AlignConsecutiveAssignments** (``AlignConsecutiveStyle``) :versionbadge:`clang-format 3.8`
   Style of aligning consecutive assignments.
 
   ``Consecutive`` will result in formattings like:
@@ -215,70 +281,119 @@ the configuration (without a prefix: ``Auto``).
     int somelongname = 2;
     double c         = 3;
 
-  Possible values:
+  Nested configuration flags:
 
-  * ``ACS_None`` (in configuration: ``None``)
-     Do not align assignments on consecutive lines.
+  Alignment options.
 
-  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-     Align assignments on consecutive lines. This will result in
-     formattings like:
+  They can also be read as a whole for compatibility. The choices are:
+  - None
+  - Consecutive
+  - AcrossEmptyLines
+  - AcrossComments
+  - AcrossEmptyLinesAndComments
 
-     .. code-block:: c++
+  For example, to align across empty lines and not across comments, either
+  of these work.
 
-       int a            = 1;
-       int somelongname = 2;
-       double c         = 3;
+  .. code-block:: c++
 
-       int d = 3;
-       /* A comment. */
-       double e = 4;
+    AlignConsecutiveMacros: AcrossEmptyLines
 
-  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+    AlignConsecutiveMacros:
+      Enabled: true
+      AcrossEmptyLines: true
+      AcrossComments: false
 
-     .. code-block:: c++
+  * ``bool Enabled`` Whether aligning is enabled.
 
-       int a            = 1;
-       int somelongname = 2;
-       double c         = 3;
+    .. code-block:: c++
 
-       int d            = 3;
-       /* A comment. */
-       double e = 4;
+      #define SHORT_NAME       42
+      #define LONGER_NAME      0x007f
+      #define EVEN_LONGER_NAME (2)
+      #define foo(x)           (x * x)
+      #define bar(y, z)        (y + z)
 
-  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments, e.g.
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int aaaa : 1;
+      int b    : 12;
+      int ccc  : 8;
 
-       int a            = 1;
-       int somelongname = 2;
-       double c         = 3;
+      int         aaaa = 12;
+      float       b = 23;
+      std::string ccc;
 
-       int d    = 3;
-       /* A comment. */
-       double e = 4;
+  * ``bool AcrossEmptyLines`` Whether to align across empty lines.
 
-  * ``ACS_AcrossEmptyLinesAndComments``
-    (in configuration: ``AcrossEmptyLinesAndComments``)
+    .. code-block:: c++
 
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments and empty lines, e.g.
+      true:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int d            = 3;
 
-       int a            = 1;
-       int somelongname = 2;
-       double c         = 3;
+      false:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-       int d            = 3;
-       /* A comment. */
-       double e         = 4;
+      int d = 3;
 
-**AlignConsecutiveBitFields** (``AlignConsecutiveStyle``)
-  Style of aligning consecutive bit field.
+  * ``bool AcrossComments`` Whether to align across comments.
+
+    .. code-block:: c++
+
+      true:
+      int d    = 3;
+      /* A comment. */
+      double e = 4;
+
+      false:
+      int d = 3;
+      /* A comment. */
+      double e = 4;
+
+  * ``bool AlignCompound`` Only for ``AlignConsecutiveAssignments``.  Whether compound assignments
+    like ``+=`` are aligned along with ``=``.
+
+    .. code-block:: c++
+
+      true:
+      a   &= 2;
+      bbb  = 2;
+
+      false:
+      a &= 2;
+      bbb = 2;
+
+  * ``bool PadOperators`` Only for ``AlignConsecutiveAssignments``.  Whether short assignment
+    operators are left-padded to the same length as long ones in order to
+    put all assignment operators to the right of the left hand side.
+
+    .. code-block:: c++
+
+      true:
+      a   >>= 2;
+      bbb   = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+      false:
+      a >>= 2;
+      bbb = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+
+**AlignConsecutiveBitFields** (``AlignConsecutiveStyle``) :versionbadge:`clang-format 11`
+  Style of aligning consecutive bit fields.
 
   ``Consecutive`` will align the bitfield separators of consecutive lines.
   This will result in formattings like:
@@ -289,69 +404,118 @@ the configuration (without a prefix: ``Auto``).
     int b    : 12;
     int ccc  : 8;
 
-  Possible values:
+  Nested configuration flags:
 
-  * ``ACS_None`` (in configuration: ``None``)
-     Do not align bit fields on consecutive lines.
+  Alignment options.
 
-  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-     Align bit fields on consecutive lines. This will result in
-     formattings like:
+  They can also be read as a whole for compatibility. The choices are:
+  - None
+  - Consecutive
+  - AcrossEmptyLines
+  - AcrossComments
+  - AcrossEmptyLinesAndComments
 
-     .. code-block:: c++
+  For example, to align across empty lines and not across comments, either
+  of these work.
 
-       int aaaa : 1;
-       int b    : 12;
-       int ccc  : 8;
+  .. code-block:: c++
 
-       int d : 2;
-       /* A comment. */
-       int ee : 3;
+    AlignConsecutiveMacros: AcrossEmptyLines
 
-  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+    AlignConsecutiveMacros:
+      Enabled: true
+      AcrossEmptyLines: true
+      AcrossComments: false
 
-     .. code-block:: c++
+  * ``bool Enabled`` Whether aligning is enabled.
 
-       int aaaa : 1;
-       int b    : 12;
-       int ccc  : 8;
+    .. code-block:: c++
 
-       int d    : 2;
-       /* A comment. */
-       int ee : 3;
+      #define SHORT_NAME       42
+      #define LONGER_NAME      0x007f
+      #define EVEN_LONGER_NAME (2)
+      #define foo(x)           (x * x)
+      #define bar(y, z)        (y + z)
 
-  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments, e.g.
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int aaaa : 1;
+      int b    : 12;
+      int ccc  : 8;
 
-       int aaaa : 1;
-       int b    : 12;
-       int ccc  : 8;
+      int         aaaa = 12;
+      float       b = 23;
+      std::string ccc;
 
-       int d  : 2;
-       /* A comment. */
-       int ee : 3;
+  * ``bool AcrossEmptyLines`` Whether to align across empty lines.
 
-  * ``ACS_AcrossEmptyLinesAndComments``
-    (in configuration: ``AcrossEmptyLinesAndComments``)
+    .. code-block:: c++
 
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments and empty lines, e.g.
+      true:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int d            = 3;
 
-       int aaaa : 1;
-       int b    : 12;
-       int ccc  : 8;
+      false:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-       int d    : 2;
-       /* A comment. */
-       int ee   : 3;
+      int d = 3;
 
-**AlignConsecutiveDeclarations** (``AlignConsecutiveStyle``)
+  * ``bool AcrossComments`` Whether to align across comments.
+
+    .. code-block:: c++
+
+      true:
+      int d    = 3;
+      /* A comment. */
+      double e = 4;
+
+      false:
+      int d = 3;
+      /* A comment. */
+      double e = 4;
+
+  * ``bool AlignCompound`` Only for ``AlignConsecutiveAssignments``.  Whether compound assignments
+    like ``+=`` are aligned along with ``=``.
+
+    .. code-block:: c++
+
+      true:
+      a   &= 2;
+      bbb  = 2;
+
+      false:
+      a &= 2;
+      bbb = 2;
+
+  * ``bool PadOperators`` Only for ``AlignConsecutiveAssignments``.  Whether short assignment
+    operators are left-padded to the same length as long ones in order to
+    put all assignment operators to the right of the left hand side.
+
+    .. code-block:: c++
+
+      true:
+      a   >>= 2;
+      bbb   = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+      false:
+      a >>= 2;
+      bbb = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+
+**AlignConsecutiveDeclarations** (``AlignConsecutiveStyle``) :versionbadge:`clang-format 3.8`
   Style of aligning consecutive declarations.
 
   ``Consecutive`` will align the declaration names of consecutive lines.
@@ -363,69 +527,118 @@ the configuration (without a prefix: ``Auto``).
     float       b = 23;
     std::string ccc;
 
-  Possible values:
+  Nested configuration flags:
 
-  * ``ACS_None`` (in configuration: ``None``)
-     Do not align bit declarations on consecutive lines.
+  Alignment options.
 
-  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-     Align declarations on consecutive lines. This will result in
-     formattings like:
+  They can also be read as a whole for compatibility. The choices are:
+  - None
+  - Consecutive
+  - AcrossEmptyLines
+  - AcrossComments
+  - AcrossEmptyLinesAndComments
 
-     .. code-block:: c++
+  For example, to align across empty lines and not across comments, either
+  of these work.
 
-       int         aaaa = 12;
-       float       b = 23;
-       std::string ccc;
+  .. code-block:: c++
 
-       int a = 42;
-       /* A comment. */
-       bool c = false;
+    AlignConsecutiveMacros: AcrossEmptyLines
 
-  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+    AlignConsecutiveMacros:
+      Enabled: true
+      AcrossEmptyLines: true
+      AcrossComments: false
 
-     .. code-block:: c++
+  * ``bool Enabled`` Whether aligning is enabled.
 
-       int         aaaa = 12;
-       float       b = 23;
-       std::string ccc;
+    .. code-block:: c++
 
-       int         a = 42;
-       /* A comment. */
-       bool c = false;
+      #define SHORT_NAME       42
+      #define LONGER_NAME      0x007f
+      #define EVEN_LONGER_NAME (2)
+      #define foo(x)           (x * x)
+      #define bar(y, z)        (y + z)
 
-  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments, e.g.
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int aaaa : 1;
+      int b    : 12;
+      int ccc  : 8;
 
-       int         aaaa = 12;
-       float       b = 23;
-       std::string ccc;
+      int         aaaa = 12;
+      float       b = 23;
+      std::string ccc;
 
-       int  a = 42;
-       /* A comment. */
-       bool c = false;
+  * ``bool AcrossEmptyLines`` Whether to align across empty lines.
 
-  * ``ACS_AcrossEmptyLinesAndComments``
-    (in configuration: ``AcrossEmptyLinesAndComments``)
+    .. code-block:: c++
 
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments and empty lines, e.g.
+      true:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int d            = 3;
 
-       int         aaaa = 12;
-       float       b = 23;
-       std::string ccc;
+      false:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-       int         a = 42;
-       /* A comment. */
-       bool        c = false;
+      int d = 3;
 
-**AlignConsecutiveMacros** (``AlignConsecutiveStyle``)
+  * ``bool AcrossComments`` Whether to align across comments.
+
+    .. code-block:: c++
+
+      true:
+      int d    = 3;
+      /* A comment. */
+      double e = 4;
+
+      false:
+      int d = 3;
+      /* A comment. */
+      double e = 4;
+
+  * ``bool AlignCompound`` Only for ``AlignConsecutiveAssignments``.  Whether compound assignments
+    like ``+=`` are aligned along with ``=``.
+
+    .. code-block:: c++
+
+      true:
+      a   &= 2;
+      bbb  = 2;
+
+      false:
+      a &= 2;
+      bbb = 2;
+
+  * ``bool PadOperators`` Only for ``AlignConsecutiveAssignments``.  Whether short assignment
+    operators are left-padded to the same length as long ones in order to
+    put all assignment operators to the right of the left hand side.
+
+    .. code-block:: c++
+
+      true:
+      a   >>= 2;
+      bbb   = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+      false:
+      a >>= 2;
+      bbb = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+
+**AlignConsecutiveMacros** (``AlignConsecutiveStyle``) :versionbadge:`clang-format 9`
   Style of aligning consecutive macro definitions.
 
   ``Consecutive`` will result in formattings like:
@@ -438,69 +651,118 @@ the configuration (without a prefix: ``Auto``).
     #define foo(x)           (x * x)
     #define bar(y, z)        (y + z)
 
-  Possible values:
+  Nested configuration flags:
 
-  * ``ACS_None`` (in configuration: ``None``)
-     Do not align macro definitions on consecutive lines.
+  Alignment options.
 
-  * ``ACS_Consecutive`` (in configuration: ``Consecutive``)
-     Align macro definitions on consecutive lines. This will result in
-     formattings like:
+  They can also be read as a whole for compatibility. The choices are:
+  - None
+  - Consecutive
+  - AcrossEmptyLines
+  - AcrossComments
+  - AcrossEmptyLinesAndComments
 
-     .. code-block:: c++
+  For example, to align across empty lines and not across comments, either
+  of these work.
 
-       #define SHORT_NAME       42
-       #define LONGER_NAME      0x007f
-       #define EVEN_LONGER_NAME (2)
+  .. code-block:: c++
 
-       #define foo(x) (x * x)
-       /* some comment */
-       #define bar(y, z) (y + z)
+    AlignConsecutiveMacros: AcrossEmptyLines
 
-  * ``ACS_AcrossEmptyLines`` (in configuration: ``AcrossEmptyLines``)
-     Same as ACS_Consecutive, but also spans over empty lines, e.g.
+    AlignConsecutiveMacros:
+      Enabled: true
+      AcrossEmptyLines: true
+      AcrossComments: false
 
-     .. code-block:: c++
+  * ``bool Enabled`` Whether aligning is enabled.
 
-       #define SHORT_NAME       42
-       #define LONGER_NAME      0x007f
-       #define EVEN_LONGER_NAME (2)
+    .. code-block:: c++
 
-       #define foo(x)           (x * x)
-       /* some comment */
-       #define bar(y, z) (y + z)
+      #define SHORT_NAME       42
+      #define LONGER_NAME      0x007f
+      #define EVEN_LONGER_NAME (2)
+      #define foo(x)           (x * x)
+      #define bar(y, z)        (y + z)
 
-  * ``ACS_AcrossComments`` (in configuration: ``AcrossComments``)
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments, e.g.
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int aaaa : 1;
+      int b    : 12;
+      int ccc  : 8;
 
-       #define SHORT_NAME       42
-       #define LONGER_NAME      0x007f
-       #define EVEN_LONGER_NAME (2)
+      int         aaaa = 12;
+      float       b = 23;
+      std::string ccc;
 
-       #define foo(x)    (x * x)
-       /* some comment */
-       #define bar(y, z) (y + z)
+  * ``bool AcrossEmptyLines`` Whether to align across empty lines.
 
-  * ``ACS_AcrossEmptyLinesAndComments``
-    (in configuration: ``AcrossEmptyLinesAndComments``)
+    .. code-block:: c++
 
-     Same as ACS_Consecutive, but also spans over lines only containing
-     comments and empty lines, e.g.
+      true:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-     .. code-block:: c++
+      int d            = 3;
 
-       #define SHORT_NAME       42
-       #define LONGER_NAME      0x007f
-       #define EVEN_LONGER_NAME (2)
+      false:
+      int a            = 1;
+      int somelongname = 2;
+      double c         = 3;
 
-       #define foo(x)           (x * x)
-       /* some comment */
-       #define bar(y, z)        (y + z)
+      int d = 3;
 
-**AlignEscapedNewlines** (``EscapedNewlineAlignmentStyle``)
+  * ``bool AcrossComments`` Whether to align across comments.
+
+    .. code-block:: c++
+
+      true:
+      int d    = 3;
+      /* A comment. */
+      double e = 4;
+
+      false:
+      int d = 3;
+      /* A comment. */
+      double e = 4;
+
+  * ``bool AlignCompound`` Only for ``AlignConsecutiveAssignments``.  Whether compound assignments
+    like ``+=`` are aligned along with ``=``.
+
+    .. code-block:: c++
+
+      true:
+      a   &= 2;
+      bbb  = 2;
+
+      false:
+      a &= 2;
+      bbb = 2;
+
+  * ``bool PadOperators`` Only for ``AlignConsecutiveAssignments``.  Whether short assignment
+    operators are left-padded to the same length as long ones in order to
+    put all assignment operators to the right of the left hand side.
+
+    .. code-block:: c++
+
+      true:
+      a   >>= 2;
+      bbb   = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+      false:
+      a >>= 2;
+      bbb = 2;
+
+      a     = 2;
+      bbb >>= 2;
+
+
+**AlignEscapedNewlines** (``EscapedNewlineAlignmentStyle``) :versionbadge:`clang-format 5`
   Options for aligning backslashes in escaped newlines.
 
   Possible values:
@@ -540,7 +802,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlignOperands** (``OperandAlignmentStyle``)
+**AlignOperands** (``OperandAlignmentStyle``) :versionbadge:`clang-format 3.5`
   If ``true``, horizontally align operands of binary and ternary
   expressions.
 
@@ -584,7 +846,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlignTrailingComments** (``bool``)
+**AlignTrailingComments** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, aligns trailing comments.
 
   .. code-block:: c++
@@ -593,7 +855,7 @@ the configuration (without a prefix: ``Auto``).
     int a;     // My comment a      vs.     int a; // My comment a
     int b = 2; // comment  b                int b = 2; // comment about b
 
-**AllowAllArgumentsOnNextLine** (``bool``)
+**AllowAllArgumentsOnNextLine** (``Boolean``) :versionbadge:`clang-format 9`
   If a function call or braced initializer list doesn't fit on a
   line, allow putting all arguments onto the next line, even if
   ``BinPackArguments`` is ``false``.
@@ -610,25 +872,11 @@ the configuration (without a prefix: ``Auto``).
                  c,
                  d);
 
-**AllowAllConstructorInitializersOnNextLine** (``bool``)
-  If a constructor definition with a member initializer list doesn't
-  fit on a single line, allow putting all member initializers onto the next
-  line, if ```ConstructorInitializerAllOnOneLineOrOnePerLine``` is true.
-  Note that this parameter has no effect if
-  ```ConstructorInitializerAllOnOneLineOrOnePerLine``` is false.
+**AllowAllConstructorInitializersOnNextLine** (``Boolean``) :versionbadge:`clang-format 9`
+  This option is **deprecated**. See ``NextLine`` of
+  ``PackConstructorInitializers``.
 
-  .. code-block:: c++
-
-    true:
-    MyClass::MyClass() :
-        member0(0), member1(2) {}
-
-    false:
-    MyClass::MyClass() :
-        member0(0),
-        member1(2) {}
-
-**AllowAllParametersOfDeclarationOnNextLine** (``bool``)
+**AllowAllParametersOfDeclarationOnNextLine** (``Boolean``) :versionbadge:`clang-format 3.3`
   If the function declaration doesn't fit on a line,
   allow putting all parameters of a function declaration onto
   the next line even if ``BinPackParameters`` is ``false``.
@@ -646,7 +894,7 @@ the configuration (without a prefix: ``Auto``).
                     int d,
                     int e);
 
-**AllowShortBlocksOnASingleLine** (``ShortBlockStyle``)
+**AllowShortBlocksOnASingleLine** (``ShortBlockStyle``) :versionbadge:`clang-format 3.5`
   Dependent on the value, ``while (true) { continue; }`` can be put on a
   single line.
 
@@ -683,7 +931,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AllowShortCaseLabelsOnASingleLine** (``bool``)
+**AllowShortCaseLabelsOnASingleLine** (``Boolean``) :versionbadge:`clang-format 3.6`
   If ``true``, short case labels will be contracted to a single line.
 
   .. code-block:: c++
@@ -697,7 +945,7 @@ the configuration (without a prefix: ``Auto``).
                                               return;
                                             }
 
-**AllowShortEnumsOnASingleLine** (``bool``)
+**AllowShortEnumsOnASingleLine** (``Boolean``) :versionbadge:`clang-format 11`
   Allow short enums on a single line.
 
   .. code-block:: c++
@@ -706,13 +954,12 @@ the configuration (without a prefix: ``Auto``).
     enum { A, B } myEnum;
 
     false:
-    enum
-    {
+    enum {
       A,
       B
     } myEnum;
 
-**AllowShortFunctionsOnASingleLine** (``ShortFunctionStyle``)
+**AllowShortFunctionsOnASingleLine** (``ShortFunctionStyle``) :versionbadge:`clang-format 3.5`
   Dependent on the value, ``int f() { return 0; }`` can be put on a
   single line.
 
@@ -772,8 +1019,8 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AllowShortIfStatementsOnASingleLine** (``ShortIfStyle``)
-  If ``true``, ``if (a) return;`` can be put on a single line.
+**AllowShortIfStatementsOnASingleLine** (``ShortIfStyle``) :versionbadge:`clang-format 3.3`
+  Dependent on the value, ``if (a) return;`` can be put on a single line.
 
   Possible values:
 
@@ -783,35 +1030,74 @@ the configuration (without a prefix: ``Auto``).
     .. code-block:: c++
 
       if (a)
-        return ;
+        return;
+
+      if (b)
+        return;
+      else
+        return;
+
+      if (c)
+        return;
       else {
         return;
       }
 
   * ``SIS_WithoutElse`` (in configuration: ``WithoutElse``)
-    Without else put short ifs on the same line only if
-    the else is not a compound statement.
+    Put short ifs on the same line only if there is no else statement.
 
     .. code-block:: c++
 
       if (a) return;
+
+      if (b)
+        return;
       else
         return;
 
-  * ``SIS_Always`` (in configuration: ``Always``)
-    Always put short ifs on the same line if
-    the else is not a compound statement or not.
+      if (c)
+        return;
+      else {
+        return;
+      }
+
+  * ``SIS_OnlyFirstIf`` (in configuration: ``OnlyFirstIf``)
+    Put short ifs, but not else ifs nor else statements, on the same line.
 
     .. code-block:: c++
 
       if (a) return;
+
+      if (b) return;
+      else if (b)
+        return;
+      else
+        return;
+
+      if (c) return;
+      else {
+        return;
+      }
+
+  * ``SIS_AllIfsAndElse`` (in configuration: ``AllIfsAndElse``)
+    Always put short ifs, else ifs and else statements on the same
+    line.
+
+    .. code-block:: c++
+
+      if (a) return;
+
+      if (b) return;
+      else return;
+
+      if (c) return;
       else {
         return;
       }
 
 
 
-**AllowShortLambdasOnASingleLine** (``ShortLambdaStyle``)
+**AllowShortLambdasOnASingleLine** (``ShortLambdaStyle``) :versionbadge:`clang-format 9`
   Dependent on the value, ``auto lambda []() { return 0; }`` can be put on a
   single line.
 
@@ -850,11 +1136,11 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AllowShortLoopsOnASingleLine** (``bool``)
+**AllowShortLoopsOnASingleLine** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, ``while (true) continue;`` can be put on a single
   line.
 
-**AlwaysBreakAfterDefinitionReturnType** (``DefinitionReturnTypeBreakingStyle``)
+**AlwaysBreakAfterDefinitionReturnType** (``DefinitionReturnTypeBreakingStyle``) :versionbadge:`clang-format 3.7`
   The function definition return type breaking style to use.  This
   option is **deprecated** and is retained for backwards compatibility.
 
@@ -872,7 +1158,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlwaysBreakAfterReturnType** (``ReturnTypeBreakingStyle``)
+**AlwaysBreakAfterReturnType** (``ReturnTypeBreakingStyle``) :versionbadge:`clang-format 3.8`
   The function declaration return type breaking style to use.
 
   Possible values:
@@ -955,7 +1241,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AlwaysBreakBeforeMultilineStrings** (``bool``)
+**AlwaysBreakBeforeMultilineStrings** (``Boolean``) :versionbadge:`clang-format 3.4`
   If ``true``, always break before multiline string literals.
 
   This flag is mean to make cases where there are multiple multiline strings
@@ -970,7 +1256,7 @@ the configuration (without a prefix: ``Auto``).
          "bbbb"                                    "cccc";
          "cccc";
 
-**AlwaysBreakTemplateDeclarations** (``BreakTemplateDeclarationsStyle``)
+**AlwaysBreakTemplateDeclarations** (``BreakTemplateDeclarationsStyle``) :versionbadge:`clang-format 3.4`
   The template declaration breaking style to use.
 
   Possible values:
@@ -1015,7 +1301,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**AttributeMacros** (``std::vector<std::string>``)
+**AttributeMacros** (``List of Strings``) :versionbadge:`clang-format 12`
   A vector of strings that should be interpreted as attributes/qualifiers
   instead of identifiers. This can be useful for language extensions or
   static analyzer annotations.
@@ -1034,7 +1320,7 @@ the configuration (without a prefix: ``Auto``).
 
     AttributeMacros: ['__capability', '__output', '__ununsed']
 
-**BinPackArguments** (``bool``)
+**BinPackArguments** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``false``, a function call's arguments will either be all on the
   same line or will have one line each.
 
@@ -1053,7 +1339,7 @@ the configuration (without a prefix: ``Auto``).
         aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa);
     }
 
-**BinPackParameters** (``bool``)
+**BinPackParameters** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``false``, a function declaration's or function definition's
   parameters will either all be on the same line or will have one line each.
 
@@ -1068,7 +1354,7 @@ the configuration (without a prefix: ``Auto``).
            int aaaaaaaaaaaaaaaaaaaa,
            int aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) {}
 
-**BitFieldColonSpacing** (``BitFieldColonSpacingStyle``)
+**BitFieldColonSpacing** (``BitFieldColonSpacingStyle``) :versionbadge:`clang-format 12`
   The BitFieldColonSpacingStyle to use for bitfields.
 
   Possible values:
@@ -1105,7 +1391,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**BraceWrapping** (``BraceWrappingFlags``)
+**BraceWrapping** (``BraceWrappingFlags``) :versionbadge:`clang-format 3.8`
   Control of individual brace wrapping cases.
 
   If ``BreakBeforeBraces`` is set to ``BS_Custom``, use this to specify how
@@ -1122,6 +1408,14 @@ the configuration (without a prefix: ``Auto``).
 
   Nested configuration flags:
 
+  Precise control over the wrapping of braces.
+
+  .. code-block:: c++
+
+    # Should be declared this way:
+    BreakBeforeBraces: Custom
+    BraceWrapping:
+        AfterClass: true
 
   * ``bool AfterCaseLabel`` Wrap case labels.
 
@@ -1145,11 +1439,11 @@ the configuration (without a prefix: ``Auto``).
     .. code-block:: c++
 
       true:
-      class foo {};
-
-      false:
       class foo
       {};
+
+      false:
+      class foo {};
 
   * ``BraceWrappingAfterControlStatementStyle AfterControlStatement``
     Wrap control statements (``if``/``for``/``while``/``switch``/..).
@@ -1364,6 +1658,7 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
+      false:          true:
       int f()   vs.   int f()
       {}              {
                       }
@@ -1375,6 +1670,7 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
+      false:           true:
       class Foo   vs.  class Foo
       {}               {
                        }
@@ -1386,12 +1682,13 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
+      false:               true:
       namespace Foo   vs.  namespace Foo
       {}                   {
                            }
 
 
-**BreakAfterJavaFieldAnnotations** (``bool``)
+**BreakAfterJavaFieldAnnotations** (``Boolean``) :versionbadge:`clang-format 3.8`
   Break after each annotation on a field in Java files.
 
   .. code-block:: java
@@ -1401,7 +1698,24 @@ the configuration (without a prefix: ``Auto``).
      @Mock
      DataLoad loader;
 
-**BreakBeforeBinaryOperators** (``BinaryOperatorStyle``)
+**BreakArrays** (``Boolean``) :versionbadge:`clang-format 16`
+  If ``true``, clang-format will always break after a Json array `[`
+  otherwise it will scan until the closing `]` to determine if it should add
+  newlines between elements (prettier compatible).
+
+  NOTE: This is currently only for formatting JSON.
+
+  .. code-block:: c++
+
+     true:                                  false:
+     [                          vs.      [1, 2, 3, 4]
+       1,
+       2,
+       3,
+       4
+     ]
+
+**BreakBeforeBinaryOperators** (``BinaryOperatorStyle``) :versionbadge:`clang-format 3.6`
   The way to wrap binary operators.
 
   Possible values:
@@ -1450,7 +1764,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**BreakBeforeBraces** (``BraceBreakingStyle``)
+**BreakBeforeBraces** (``BraceBreakingStyle``) :versionbadge:`clang-format 3.7`
   The brace breaking style to use.
 
   Possible values:
@@ -1901,19 +2215,35 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**BreakBeforeConceptDeclarations** (``bool``)
-  If ``true``, concept will be placed on a new line.
+**BreakBeforeConceptDeclarations** (``BreakBeforeConceptDeclarationsStyle``) :versionbadge:`clang-format 12`
+  The concept declaration style to use.
 
-  .. code-block:: c++
+  Possible values:
 
-    true:
-     template<typename T>
-     concept ...
+  * ``BBCDS_Never`` (in configuration: ``Never``)
+    Keep the template declaration line together with ``concept``.
 
-    false:
-     template<typename T> concept ...
+    .. code-block:: c++
 
-**BreakBeforeTernaryOperators** (``bool``)
+      template <typename T> concept C = ...;
+
+  * ``BBCDS_Allowed`` (in configuration: ``Allowed``)
+    Breaking between template declaration and ``concept`` is allowed. The
+    actual behavior depends on the content and line breaking rules and
+    penalities.
+
+  * ``BBCDS_Always`` (in configuration: ``Always``)
+    Always break before ``concept``, putting it in the line after the
+    template declaration.
+
+    .. code-block:: c++
+
+      template <typename T>
+      concept C = ...;
+
+
+
+**BreakBeforeTernaryOperators** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, ternary operators will be placed after line breaks.
 
   .. code-block:: c++
@@ -1928,8 +2258,8 @@ the configuration (without a prefix: ``Auto``).
          firstValue :
          SecondValueVeryVeryVeryVeryLong;
 
-**BreakConstructorInitializers** (``BreakConstructorInitializersStyle``)
-  The constructor initializers style to use.
+**BreakConstructorInitializers** (``BreakConstructorInitializersStyle``) :versionbadge:`clang-format 5`
+  The break constructor initializers style to use.
 
   Possible values:
 
@@ -1963,7 +2293,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**BreakInheritanceList** (``BreakInheritanceListStyle``)
+**BreakInheritanceList** (``BreakInheritanceListStyle``) :versionbadge:`clang-format 7`
   The inheritance list style to use.
 
   Possible values:
@@ -1999,9 +2329,18 @@ the configuration (without a prefix: ``Auto``).
            Base2
        {};
 
+  * ``BILS_AfterComma`` (in configuration: ``AfterComma``)
+    Break inheritance list only after the commas.
+
+    .. code-block:: c++
+
+       class Foo : Base1,
+                   Base2
+       {};
 
 
-**BreakStringLiterals** (``bool``)
+
+**BreakStringLiterals** (``Boolean``) :versionbadge:`clang-format 3.9`
   Allow breaking string literals when formatting.
 
   .. code-block:: c++
@@ -2015,14 +2354,14 @@ the configuration (without a prefix: ``Auto``).
      const char* x =
        "veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongString";
 
-**ColumnLimit** (``unsigned``)
+**ColumnLimit** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The column limit.
 
   A column limit of ``0`` means that there is no column limit. In this case,
   clang-format will respect the input's line breaking decisions within
   statements unless they contradict other rules.
 
-**CommentPragmas** (``std::string``)
+**CommentPragmas** (``String``) :versionbadge:`clang-format 3.7`
   A regular expression that describes comments with special meaning,
   which should not be split into lines or otherwise changed.
 
@@ -2032,7 +2371,7 @@ the configuration (without a prefix: ``Auto``).
      // Will leave the following line unaffected
      #include <vector> // FOOBAR pragma: keep
 
-**CompactNamespaces** (``bool``)
+**CompactNamespaces** (``Boolean``) :versionbadge:`clang-format 5`
   If ``true``, consecutive namespace declarations will be on the same
   line. If ``false``, each namespace is declared on a new line.
 
@@ -2057,30 +2396,15 @@ the configuration (without a prefix: ``Auto``).
     namespace Extra {
     }}}
 
-**ConstructorInitializerAllOnOneLineOrOnePerLine** (``bool``)
-  If the constructor initializers don't fit on a line, put each
-  initializer on its own line.
+**ConstructorInitializerAllOnOneLineOrOnePerLine** (``Boolean``) :versionbadge:`clang-format 3.7`
+  This option is **deprecated**. See ``CurrentLine`` of
+  ``PackConstructorInitializers``.
 
-  .. code-block:: c++
-
-    true:
-    SomeClass::Constructor()
-        : aaaaaaaa(aaaaaaaa), aaaaaaaa(aaaaaaaa), aaaaaaaa(aaaaaaaaaaaaaaaaaaaaaaaaa) {
-      return 0;
-    }
-
-    false:
-    SomeClass::Constructor()
-        : aaaaaaaa(aaaaaaaa), aaaaaaaa(aaaaaaaa),
-          aaaaaaaa(aaaaaaaaaaaaaaaaaaaaaaaaa) {
-      return 0;
-    }
-
-**ConstructorInitializerIndentWidth** (``unsigned``)
+**ConstructorInitializerIndentWidth** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The number of characters to use for indentation of constructor
   initializer lists as well as inheritance lists.
 
-**ContinuationIndentWidth** (``unsigned``)
+**ContinuationIndentWidth** (``Unsigned``) :versionbadge:`clang-format 3.7`
   Indent width for line continuations.
 
   .. code-block:: c++
@@ -2091,7 +2415,7 @@ the configuration (without a prefix: ``Auto``).
        longFunction( // Again a long comment
          arg);
 
-**Cpp11BracedListStyle** (``bool``)
+**Cpp11BracedListStyle** (``Boolean``) :versionbadge:`clang-format 3.4`
   If ``true``, format braced lists as best suited for C++11 braced
   lists.
 
@@ -2114,21 +2438,74 @@ the configuration (without a prefix: ``Auto``).
      f(MyMap[{composite, key}]);            f(MyMap[{ composite, key }]);
      new int[3]{1, 2, 3};                   new int[3]{ 1, 2, 3 };
 
-**DeriveLineEnding** (``bool``)
+**DeriveLineEnding** (``Boolean``) :versionbadge:`clang-format 10`
   Analyze the formatted file for the most used line ending (``\r\n``
   or ``\n``). ``UseCRLF`` is only used as a fallback if none can be derived.
 
-**DerivePointerAlignment** (``bool``)
+**DerivePointerAlignment** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, analyze the formatted file for the most common
   alignment of ``&`` and ``*``.
   Pointer and reference alignment styles are going to be updated according
   to the preferences found in the file.
   ``PointerAlignment`` is then used only as fallback.
 
-**DisableFormat** (``bool``)
+**DisableFormat** (``Boolean``) :versionbadge:`clang-format 3.7`
   Disables formatting completely.
 
-**EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``)
+**EmptyLineAfterAccessModifier** (``EmptyLineAfterAccessModifierStyle``) :versionbadge:`clang-format 13`
+  Defines when to put an empty line after access modifiers.
+  ``EmptyLineBeforeAccessModifier`` configuration handles the number of
+  empty lines between two access modifiers.
+
+  Possible values:
+
+  * ``ELAAMS_Never`` (in configuration: ``Never``)
+    Remove all empty lines after access modifiers.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+        int i;
+      protected:
+        int j;
+        /* comment */
+      public:
+        foo() {}
+      private:
+      protected:
+      };
+
+  * ``ELAAMS_Leave`` (in configuration: ``Leave``)
+    Keep existing empty lines after access modifiers.
+    MaxEmptyLinesToKeep is applied instead.
+
+  * ``ELAAMS_Always`` (in configuration: ``Always``)
+    Always add empty line after access modifiers if there are none.
+    MaxEmptyLinesToKeep is applied also.
+
+    .. code-block:: c++
+
+      struct foo {
+      private:
+
+        int i;
+      protected:
+
+        int j;
+        /* comment */
+      public:
+
+        foo() {}
+      private:
+
+      protected:
+
+      };
+
+
+
+**EmptyLineBeforeAccessModifier** (``EmptyLineBeforeAccessModifierStyle``) :versionbadge:`clang-format 12`
   Defines in which cases to put empty line before access modifiers.
 
   Possible values:
@@ -2197,7 +2574,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**ExperimentalAutoDetectBinPacking** (``bool``)
+**ExperimentalAutoDetectBinPacking** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, clang-format detects whether function calls and
   definitions are formatted with one parameter per line.
 
@@ -2209,7 +2586,7 @@ the configuration (without a prefix: ``Auto``).
   NOTE: This is an experimental flag, that might go away or be renamed. Do
   not use this in config files, etc. Use at your own risk.
 
-**FixNamespaceComments** (``bool``)
+**FixNamespaceComments** (``Boolean``) :versionbadge:`clang-format 5`
   If ``true``, clang-format adds missing namespace end comments for
   short namespaces and fixes invalid existing ones. Short ones are
   controlled by "ShortNamespaceLines".
@@ -2222,7 +2599,7 @@ the configuration (without a prefix: ``Auto``).
      bar();                                 bar();
      } // namespace a                       }
 
-**ForEachMacros** (``std::vector<std::string>``)
+**ForEachMacros** (``List of Strings``) :versionbadge:`clang-format 3.7`
   A vector of macros that should be interpreted as foreach loops
   instead of as function calls.
 
@@ -2241,7 +2618,29 @@ the configuration (without a prefix: ``Auto``).
 
   For example: BOOST_FOREACH.
 
-**IncludeBlocks** (``IncludeBlocksStyle``)
+**IfMacros** (``List of Strings``) :versionbadge:`clang-format 13`
+  A vector of macros that should be interpreted as conditionals
+  instead of as function calls.
+
+  These are expected to be macros of the form:
+
+  .. code-block:: c++
+
+    IF(...)
+      <conditional-body>
+    else IF(...)
+      <conditional-body>
+
+  In the .clang-format configuration file, this can be configured like:
+
+  .. code-block:: yaml
+
+    IfMacros: ['IF']
+
+  For example: `KJ_IF_MAYBE
+  <https://github.com/capnproto/capnproto/blob/master/kjdoc/tour.md#maybes>`_
+
+**IncludeBlocks** (``IncludeBlocksStyle``) :versionbadge:`clang-format 6`
   Dependent on the value, multiple ``#include`` blocks can be sorted
   as one and divided based on category.
 
@@ -2281,7 +2680,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**IncludeCategories** (``std::vector<IncludeCategory>``)
+**IncludeCategories** (``List of IncludeCategories``) :versionbadge:`clang-format 3.8`
   Regular expressions denoting the different ``#include`` categories
   used for ordering ``#includes``.
 
@@ -2321,7 +2720,7 @@ the configuration (without a prefix: ``Auto``).
         Priority:        2
         SortPriority:    2
         CaseSensitive:   true
-      - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
+      - Regex:           '^((<|")(gtest|gmock|isl|json)/)'
         Priority:        3
       - Regex:           '<[[:alnum:].]+>'
         Priority:        4
@@ -2329,7 +2728,7 @@ the configuration (without a prefix: ``Auto``).
         Priority:        1
         SortPriority:    0
 
-**IncludeIsMainRegex** (``std::string``)
+**IncludeIsMainRegex** (``String``) :versionbadge:`clang-format 3.9`
   Specify a regular expression of suffixes that are allowed in the
   file-to-main-include mapping.
 
@@ -2342,7 +2741,7 @@ the configuration (without a prefix: ``Auto``).
   For example, if configured to "(_test)?$", then a header a.h would be seen
   as the "main" include in both a.cc and a_test.cc.
 
-**IncludeIsMainSourceRegex** (``std::string``)
+**IncludeIsMainSourceRegex** (``String``) :versionbadge:`clang-format 10`
   Specify a regular expression for files being formatted
   that are allowed to be considered "main" in the
   file-to-main-include mapping.
@@ -2362,7 +2761,7 @@ the configuration (without a prefix: ``Auto``).
   ``ClassImpl.hpp`` would not have the main include file put on top
   before any other include.
 
-**IndentAccessModifiers** (``bool``)
+**IndentAccessModifiers** (``Boolean``) :versionbadge:`clang-format 13`
   Specify whether access modifiers should have their own indentation level.
 
   When ``false``, access modifiers are indented (or outdented) relative to
@@ -2389,7 +2788,7 @@ the configuration (without a prefix: ``Auto``).
        return 1;                              return 1;
      }                                      }
 
-**IndentCaseBlocks** (``bool``)
+**IndentCaseBlocks** (``Boolean``) :versionbadge:`clang-format 11`
   Indent case label blocks one level from the case label.
 
   When ``false``, the block following the case label uses the same
@@ -2412,7 +2811,7 @@ the configuration (without a prefix: ``Auto``).
                                               }
                                             }
 
-**IndentCaseLabels** (``bool``)
+**IndentCaseLabels** (``Boolean``) :versionbadge:`clang-format 3.3`
   Indent case labels one level from the switch statement.
 
   When ``false``, use the same indentation level as for the switch
@@ -2431,7 +2830,7 @@ the configuration (without a prefix: ``Auto``).
        plop();                                  plop();
      }                                      }
 
-**IndentExternBlock** (``IndentExternBlockStyle``)
+**IndentExternBlock** (``IndentExternBlockStyle``) :versionbadge:`clang-format 11`
   IndentExternBlockStyle is the type of indenting of extern blocks.
 
   Possible values:
@@ -2477,7 +2876,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**IndentGotoLabels** (``bool``)
+**IndentGotoLabels** (``Boolean``) :versionbadge:`clang-format 10`
   Indent goto labels.
 
   When ``false``, goto labels are flushed left.
@@ -2494,7 +2893,7 @@ the configuration (without a prefix: ``Auto``).
        return 1;                              return 1;
      }                                      }
 
-**IndentPPDirectives** (``PPDirectiveIndentStyle``)
+**IndentPPDirectives** (``PPDirectiveIndentStyle``) :versionbadge:`clang-format 6`
   The preprocessor directive indenting style to use.
 
   Possible values:
@@ -2534,8 +2933,11 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**IndentRequires** (``bool``)
-  Indent the requires clause in a template
+**IndentRequiresClause** (``Boolean``) :versionbadge:`clang-format 15`
+  Indent the requires clause in a template. This only applies when
+  ``RequiresClausePosition`` is ``OwnLine``, or ``WithFollowing``.
+
+  In clang-format 12, 13 and 14 it was named ``IndentRequires``.
 
   .. code-block:: c++
 
@@ -2553,7 +2955,7 @@ the configuration (without a prefix: ``Auto``).
        //....
      }
 
-**IndentWidth** (``unsigned``)
+**IndentWidth** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The number of columns to use for indentation.
 
   .. code-block:: c++
@@ -2567,7 +2969,7 @@ the configuration (without a prefix: ``Auto``).
         }
      }
 
-**IndentWrappedFunctionNames** (``bool``)
+**IndentWrappedFunctionNames** (``Boolean``) :versionbadge:`clang-format 3.7`
   Indent if a function definition or declaration is wrapped after the
   type.
 
@@ -2581,7 +2983,40 @@ the configuration (without a prefix: ``Auto``).
      LoooooooooooooooooooooooooooooooooooooooongReturnType
      LoooooooooooooooooooooooooooooooongFunctionDeclaration();
 
-**InsertTrailingCommas** (``TrailingCommaStyle``)
+**InsertBraces** (``Boolean``) :versionbadge:`clang-format 15`
+  Insert braces after control statements (``if``, ``else``, ``for``, ``do``,
+  and ``while``) in C++ unless the control statements are inside macro
+  definitions or the braces would enclose preprocessor directives.
+
+  .. warning:: 
+
+   Setting this option to `true` could lead to incorrect code formatting due
+   to clang-format's lack of complete semantic information. As such, extra
+   care should be taken to review code changes made by this option.
+
+  .. code-block:: c++
+
+    false:                                    true:
+
+    if (isa<FunctionDecl>(D))        vs.      if (isa<FunctionDecl>(D)) {
+      handleFunctionDecl(D);                    handleFunctionDecl(D);
+    else if (isa<VarDecl>(D))                 } else if (isa<VarDecl>(D)) {
+      handleVarDecl(D);                         handleVarDecl(D);
+    else                                      } else {
+      return;                                   return;
+                                              }
+
+    while (i--)                      vs.      while (i--) {
+      for (auto *A : D.attrs())                 for (auto *A : D.attrs()) {
+        handleAttr(A);                            handleAttr(A);
+                                                }
+                                              }
+
+    do                               vs.      do {
+      --i;                                      --i;
+    while (i);                                } while (i);
+
+**InsertTrailingCommas** (``TrailingCommaStyle``) :versionbadge:`clang-format 11`
   If set to ``TCS_Wrapped`` will insert trailing commas in container
   literals (arrays and objects) that wrap across multiple lines.
   It is currently only available for JavaScript
@@ -2613,7 +3048,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**JavaImportGroups** (``std::vector<std::string>``)
+**JavaImportGroups** (``List of Strings``) :versionbadge:`clang-format 8`
   A vector of prefixes ordered by the desired groups for Java imports.
 
   One group's prefix can be a subset of another - the longest prefix is
@@ -2648,7 +3083,7 @@ the configuration (without a prefix: ``Auto``).
 
      import org.example.ClassD;
 
-**JavaScriptQuotes** (``JavaScriptQuoteStyle``)
+**JavaScriptQuotes** (``JavaScriptQuoteStyle``) :versionbadge:`clang-format 3.9`
   The JavaScriptQuoteStyle to use for JavaScript strings.
 
   Possible values:
@@ -2679,7 +3114,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**JavaScriptWrapImports** (``bool``)
+**JavaScriptWrapImports** (``Boolean``) :versionbadge:`clang-format 3.9`
   Whether to wrap JavaScript import/export statements.
 
   .. code-block:: js
@@ -2694,7 +3129,7 @@ the configuration (without a prefix: ``Auto``).
      false:
      import {VeryLongImportsAreAnnoying, VeryLongImportsAreAnnoying, VeryLongImportsAreAnnoying,} from "some/module.js"
 
-**KeepEmptyLinesAtTheStartOfBlocks** (``bool``)
+**KeepEmptyLinesAtTheStartOfBlocks** (``Boolean``) :versionbadge:`clang-format 3.7`
   If true, the empty line at the start of blocks is kept.
 
   .. code-block:: c++
@@ -2705,7 +3140,43 @@ the configuration (without a prefix: ``Auto``).
        bar();                               }
      }
 
-**Language** (``LanguageKind``)
+**LambdaBodyIndentation** (``LambdaBodyIndentationKind``) :versionbadge:`clang-format 13`
+  The indentation style of lambda bodies. ``Signature`` (the default)
+  causes the lambda body to be indented one additional level relative to
+  the indentation level of the signature. ``OuterScope`` forces the lambda
+  body to be indented one additional level relative to the parent scope
+  containing the lambda signature. For callback-heavy code, it may improve
+  readability to have the signature indented two levels and to use
+  ``OuterScope``. The KJ style guide requires ``OuterScope``.
+  `KJ style guide
+  <https://github.com/capnproto/capnproto/blob/master/style-guide.md>`_
+
+  Possible values:
+
+  * ``LBI_Signature`` (in configuration: ``Signature``)
+    Align lambda body relative to the lambda signature. This is the default.
+
+    .. code-block:: c++
+
+       someMethod(
+           [](SomeReallyLongLambdaSignatureArgument foo) {
+             return;
+           });
+
+  * ``LBI_OuterScope`` (in configuration: ``OuterScope``)
+    Align lambda body relative to the indentation level of the outer scope
+    the lambda signature resides in.
+
+    .. code-block:: c++
+
+       someMethod(
+           [](SomeReallyLongLambdaSignatureArgument foo) {
+         return;
+       });
+
+
+
+**Language** (``LanguageKind``) :versionbadge:`clang-format 3.5`
   Language, this format style is targeted at.
 
   Possible values:
@@ -2725,6 +3196,9 @@ the configuration (without a prefix: ``Auto``).
   * ``LK_JavaScript`` (in configuration: ``JavaScript``)
     Should be used for JavaScript.
 
+  * ``LK_Json`` (in configuration: ``Json``)
+    Should be used for JSON.
+
   * ``LK_ObjC`` (in configuration: ``ObjC``)
     Should be used for Objective-C, Objective-C++.
 
@@ -2739,9 +3213,14 @@ the configuration (without a prefix: ``Auto``).
     Should be used for Protocol Buffer messages in text format
     (https://developers.google.com/protocol-buffers/).
 
+  * ``LK_Verilog`` (in configuration: ``Verilog``)
+    Should be used for Verilog and SystemVerilog.
+    https://standards.ieee.org/ieee/1800/6700/
+    https://sci-hub.st/10.1109/IEEESTD.2018.8299595
 
 
-**MacroBlockBegin** (``std::string``)
+
+**MacroBlockBegin** (``String``) :versionbadge:`clang-format 3.7`
   A regular expression matching macros that start a block.
 
   .. code-block:: c++
@@ -2770,10 +3249,10 @@ the configuration (without a prefix: ``Auto``).
      bar();
      NS_TABLE_FOO_END
 
-**MacroBlockEnd** (``std::string``)
+**MacroBlockEnd** (``String``) :versionbadge:`clang-format 3.7`
   A regular expression matching macros that end a block.
 
-**MaxEmptyLinesToKeep** (``unsigned``)
+**MaxEmptyLinesToKeep** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The maximum number of consecutive empty lines to keep.
 
   .. code-block:: c++
@@ -2787,7 +3266,7 @@ the configuration (without a prefix: ``Auto``).
        return i;
      }
 
-**NamespaceIndentation** (``NamespaceIndentationKind``)
+**NamespaceIndentation** (``NamespaceIndentationKind``) :versionbadge:`clang-format 3.7`
   The indentation used for namespaces.
 
   Possible values:
@@ -2830,7 +3309,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**NamespaceMacros** (``std::vector<std::string>``)
+**NamespaceMacros** (``List of Strings``) :versionbadge:`clang-format 9`
   A vector of macros which are used to open namespace blocks.
 
   These are expected to be macros of the form:
@@ -2843,7 +3322,7 @@ the configuration (without a prefix: ``Auto``).
 
   For example: TESTSUITE
 
-**ObjCBinPackProtocolList** (``BinPackStyle``)
+**ObjCBinPackProtocolList** (``BinPackStyle``) :versionbadge:`clang-format 7`
   Controls bin-packing Objective-C protocol conformance list
   items into as few lines as possible when they go over ``ColumnLimit``.
 
@@ -2889,7 +3368,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**ObjCBlockIndentWidth** (``unsigned``)
+**ObjCBlockIndentWidth** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The number of characters to use for indentation of ObjC blocks.
 
   .. code-block:: objc
@@ -2900,7 +3379,7 @@ the configuration (without a prefix: ``Auto``).
          [self onOperationDone];
      }];
 
-**ObjCBreakBeforeNestedBlockParam** (``bool``)
+**ObjCBreakBeforeNestedBlockParam** (``Boolean``) :versionbadge:`clang-format 11`
   Break parameters list into lines when there is nested block
   parameters in a function call.
 
@@ -2924,44 +3403,116 @@ the configuration (without a prefix: ``Auto``).
              }]
      }
 
-**ObjCSpaceAfterProperty** (``bool``)
+**ObjCSpaceAfterProperty** (``Boolean``) :versionbadge:`clang-format 3.7`
   Add a space after ``@property`` in Objective-C, i.e. use
   ``@property (readonly)`` instead of ``@property(readonly)``.
 
-**ObjCSpaceBeforeProtocolList** (``bool``)
+**ObjCSpaceBeforeProtocolList** (``Boolean``) :versionbadge:`clang-format 3.7`
   Add a space in front of an Objective-C protocol list, i.e. use
   ``Foo <Protocol>`` instead of ``Foo<Protocol>``.
 
-**PenaltyBreakAssignment** (``unsigned``)
+**PPIndentWidth** (``Integer``) :versionbadge:`clang-format 13`
+  The number of columns to use for indentation of preprocessor statements.
+  When set to -1 (default) ``IndentWidth`` is used also for preprocessor
+  statements.
+
+  .. code-block:: c++
+
+     PPIndentWidth: 1
+
+     #ifdef __linux__
+     # define FOO
+     #else
+     # define BAR
+     #endif
+
+**PackConstructorInitializers** (``PackConstructorInitializersStyle``) :versionbadge:`clang-format 14`
+  The pack constructor initializers style to use.
+
+  Possible values:
+
+  * ``PCIS_Never`` (in configuration: ``Never``)
+    Always put each constructor initializer on its own line.
+
+    .. code-block:: c++
+
+       Constructor()
+           : a(),
+             b()
+
+  * ``PCIS_BinPack`` (in configuration: ``BinPack``)
+    Bin-pack constructor initializers.
+
+    .. code-block:: c++
+
+       Constructor()
+           : aaaaaaaaaaaaaaaaaaaa(), bbbbbbbbbbbbbbbbbbbb(),
+             cccccccccccccccccccc()
+
+  * ``PCIS_CurrentLine`` (in configuration: ``CurrentLine``)
+    Put all constructor initializers on the current line if they fit.
+    Otherwise, put each one on its own line.
+
+    .. code-block:: c++
+
+       Constructor() : a(), b()
+
+       Constructor()
+           : aaaaaaaaaaaaaaaaaaaa(),
+             bbbbbbbbbbbbbbbbbbbb(),
+             ddddddddddddd()
+
+  * ``PCIS_NextLine`` (in configuration: ``NextLine``)
+    Same as ``PCIS_CurrentLine`` except that if all constructor initializers
+    do not fit on the current line, try to fit them on the next line.
+
+    .. code-block:: c++
+
+       Constructor() : a(), b()
+
+       Constructor()
+           : aaaaaaaaaaaaaaaaaaaa(), bbbbbbbbbbbbbbbbbbbb(), ddddddddddddd()
+
+       Constructor()
+           : aaaaaaaaaaaaaaaaaaaa(),
+             bbbbbbbbbbbbbbbbbbbb(),
+             cccccccccccccccccccc()
+
+
+
+**PenaltyBreakAssignment** (``Unsigned``) :versionbadge:`clang-format 5`
   The penalty for breaking around an assignment operator.
 
-**PenaltyBreakBeforeFirstCallParameter** (``unsigned``)
+**PenaltyBreakBeforeFirstCallParameter** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The penalty for breaking a function call after ``call(``.
 
-**PenaltyBreakComment** (``unsigned``)
+**PenaltyBreakComment** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The penalty for each line break introduced inside a comment.
 
-**PenaltyBreakFirstLessLess** (``unsigned``)
+**PenaltyBreakFirstLessLess** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The penalty for breaking before the first ``<<``.
 
-**PenaltyBreakString** (``unsigned``)
+**PenaltyBreakOpenParenthesis** (``Unsigned``) :versionbadge:`clang-format 14`
+  The penalty for breaking after ``(``.
+
+**PenaltyBreakString** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The penalty for each line break introduced inside a string literal.
 
-**PenaltyBreakTemplateDeclaration** (``unsigned``)
+**PenaltyBreakTemplateDeclaration** (``Unsigned``) :versionbadge:`clang-format 7`
   The penalty for breaking after template declaration.
 
-**PenaltyExcessCharacter** (``unsigned``)
+**PenaltyExcessCharacter** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The penalty for each character outside of the column limit.
 
-**PenaltyIndentedWhitespace** (``unsigned``)
+**PenaltyIndentedWhitespace** (``Unsigned``) :versionbadge:`clang-format 12`
   Penalty for each character of whitespace indentation
   (counted relative to leading non-whitespace column).
 
-**PenaltyReturnTypeOnItsOwnLine** (``unsigned``)
+**PenaltyReturnTypeOnItsOwnLine** (``Unsigned``) :versionbadge:`clang-format 3.7`
   Penalty for putting the return type of a function onto its own
   line.
 
-**PointerAlignment** (``PointerAlignmentStyle``)
+**PointerAlignment** (``PointerAlignmentStyle``) :versionbadge:`clang-format 3.7`
   Pointer and reference alignment style.
 
   Possible values:
@@ -2989,7 +3540,84 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**RawStringFormats** (``std::vector<RawStringFormat>``)
+**QualifierAlignment** (``QualifierAlignmentStyle``) :versionbadge:`clang-format 14`
+  Different ways to arrange specifiers and qualifiers (e.g. const/volatile).
+
+  .. warning:: 
+
+   Setting ``QualifierAlignment``  to something other than `Leave`, COULD
+   lead to incorrect code formatting due to incorrect decisions made due to
+   clang-formats lack of complete semantic information.
+   As such extra care should be taken to review code changes made by the use
+   of this option.
+
+  Possible values:
+
+  * ``QAS_Leave`` (in configuration: ``Leave``)
+    Don't change specifiers/qualifiers to either Left or Right alignment
+    (default).
+
+    .. code-block:: c++
+
+       int const a;
+       const int *a;
+
+  * ``QAS_Left`` (in configuration: ``Left``)
+    Change specifiers/qualifiers to be left-aligned.
+
+    .. code-block:: c++
+
+       const int a;
+       const int *a;
+
+  * ``QAS_Right`` (in configuration: ``Right``)
+    Change specifiers/qualifiers to be right-aligned.
+
+    .. code-block:: c++
+
+       int const a;
+       int const *a;
+
+  * ``QAS_Custom`` (in configuration: ``Custom``)
+    Change specifiers/qualifiers to be aligned based on ``QualifierOrder``.
+    With:
+
+    .. code-block:: yaml
+
+      QualifierOrder: ['inline', 'static', 'type', 'const']
+
+
+    .. code-block:: c++
+
+
+       int const a;
+       int const *a;
+
+
+
+**QualifierOrder** (``List of Strings``) :versionbadge:`clang-format 14`
+  The order in which the qualifiers appear.
+  Order is an array that can contain any of the following:
+
+    * const
+    * inline
+    * static
+    * constexpr
+    * volatile
+    * restrict
+    * type
+
+  Note: it MUST contain 'type'.
+  Items to the left of 'type' will be placed to the left of the type and
+  aligned in the order supplied. Items to the right of 'type' will be placed
+  to the right of the type and aligned in the order supplied.
+
+
+  .. code-block:: yaml
+
+    QualifierOrder: ['inline', 'static', 'type', 'const', 'volatile' ]
+
+**RawStringFormats** (``List of RawStringFormats``) :versionbadge:`clang-format 6`
   Defines hints for detecting supported languages code blocks in raw
   strings.
 
@@ -3027,7 +3655,39 @@ the configuration (without a prefix: ``Auto``).
           BasedOnStyle: llvm
           CanonicalDelimiter: 'cc'
 
-**ReflowComments** (``bool``)
+**ReferenceAlignment** (``ReferenceAlignmentStyle``) :versionbadge:`clang-format 13`
+  Reference alignment style (overrides ``PointerAlignment`` for
+  references).
+
+  Possible values:
+
+  * ``RAS_Pointer`` (in configuration: ``Pointer``)
+    Align reference like ``PointerAlignment``.
+
+  * ``RAS_Left`` (in configuration: ``Left``)
+    Align reference to the left.
+
+    .. code-block:: c++
+
+      int& a;
+
+  * ``RAS_Right`` (in configuration: ``Right``)
+    Align reference to the right.
+
+    .. code-block:: c++
+
+      int &a;
+
+  * ``RAS_Middle`` (in configuration: ``Middle``)
+    Align reference in the middle.
+
+    .. code-block:: c++
+
+      int & a;
+
+
+
+**ReflowComments** (``Boolean``) :versionbadge:`clang-format 3.8`
   If ``true``, clang-format will attempt to re-flow comments.
 
   .. code-block:: c++
@@ -3042,7 +3702,210 @@ the configuration (without a prefix: ``Auto``).
      /* second veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongComment with plenty of
       * information */
 
-**ShortNamespaceLines** (``unsigned``)
+**RemoveBracesLLVM** (``Boolean``) :versionbadge:`clang-format 14`
+  Remove optional braces of control statements (``if``, ``else``, ``for``,
+  and ``while``) in C++ according to the LLVM coding style.
+
+  .. warning:: 
+
+   This option will be renamed and expanded to support other styles.
+
+  .. warning:: 
+
+   Setting this option to `true` could lead to incorrect code formatting due
+   to clang-format's lack of complete semantic information. As such, extra
+   care should be taken to review code changes made by this option.
+
+  .. code-block:: c++
+
+    false:                                     true:
+
+    if (isa<FunctionDecl>(D)) {        vs.     if (isa<FunctionDecl>(D))
+      handleFunctionDecl(D);                     handleFunctionDecl(D);
+    } else if (isa<VarDecl>(D)) {              else if (isa<VarDecl>(D))
+      handleVarDecl(D);                          handleVarDecl(D);
+    }
+
+    if (isa<VarDecl>(D)) {             vs.     if (isa<VarDecl>(D)) {
+      for (auto *A : D.attrs()) {                for (auto *A : D.attrs())
+        if (shouldProcessAttr(A)) {                if (shouldProcessAttr(A))
+          handleAttr(A);                             handleAttr(A);
+        }                                      }
+      }
+    }
+
+    if (isa<FunctionDecl>(D)) {        vs.     if (isa<FunctionDecl>(D))
+      for (auto *A : D.attrs()) {                for (auto *A : D.attrs())
+        handleAttr(A);                             handleAttr(A);
+      }
+    }
+
+    if (auto *D = (T)(D)) {            vs.     if (auto *D = (T)(D)) {
+      if (shouldProcess(D)) {                    if (shouldProcess(D))
+        handleVarDecl(D);                          handleVarDecl(D);
+      } else {                                   else
+        markAsIgnored(D);                          markAsIgnored(D);
+      }                                        }
+    }
+
+    if (a) {                           vs.     if (a)
+      b();                                       b();
+    } else {                                   else if (c)
+      if (c) {                                   d();
+        d();                                   else
+      } else {                                   e();
+        e();
+      }
+    }
+
+**RequiresClausePosition** (``RequiresClausePositionStyle``) :versionbadge:`clang-format 15`
+  The position of the ``requires`` clause.
+
+  Possible values:
+
+  * ``RCPS_OwnLine`` (in configuration: ``OwnLine``)
+    Always put the ``requires`` clause on its own line.
+
+    .. code-block:: c++
+
+      template <typename T>
+      requires C<T>
+      struct Foo {...
+
+      template <typename T>
+      requires C<T>
+      void bar(T t) {...
+
+      template <typename T>
+      void baz(T t)
+      requires C<T>
+      {...
+
+  * ``RCPS_WithPreceding`` (in configuration: ``WithPreceding``)
+    Try to put the clause together with the preceding part of a declaration.
+    For class templates: stick to the template declaration.
+    For function templates: stick to the template declaration.
+    For function declaration followed by a requires clause: stick to the
+    parameter list.
+
+    .. code-block:: c++
+
+      template <typename T> requires C<T>
+      struct Foo {...
+
+      template <typename T> requires C<T>
+      void bar(T t) {...
+
+      template <typename T>
+      void baz(T t) requires C<T>
+      {...
+
+  * ``RCPS_WithFollowing`` (in configuration: ``WithFollowing``)
+    Try to put the ``requires`` clause together with the class or function
+    declaration.
+
+    .. code-block:: c++
+
+      template <typename T>
+      requires C<T> struct Foo {...
+
+      template <typename T>
+      requires C<T> void bar(T t) {...
+
+      template <typename T>
+      void baz(T t)
+      requires C<T> {...
+
+  * ``RCPS_SingleLine`` (in configuration: ``SingleLine``)
+    Try to put everything in the same line if possible. Otherwise normal
+    line breaking rules take over.
+
+    .. code-block:: c++
+
+      // Fitting:
+      template <typename T> requires C<T> struct Foo {...
+
+      template <typename T> requires C<T> void bar(T t) {...
+
+      template <typename T> void bar(T t) requires C<T> {...
+
+      // Not fitting, one possible example:
+      template <typename LongName>
+      requires C<LongName>
+      struct Foo {...
+
+      template <typename LongName>
+      requires C<LongName>
+      void bar(LongName ln) {
+
+      template <typename LongName>
+      void bar(LongName ln)
+          requires C<LongName> {
+
+
+
+**SeparateDefinitionBlocks** (``SeparateDefinitionStyle``) :versionbadge:`clang-format 14`
+  Specifies the use of empty lines to separate definition blocks, including
+  classes, structs, enums, and functions.
+
+  .. code-block:: c++
+
+     Never                  v.s.     Always
+     #include <cstring>              #include <cstring>
+     struct Foo {
+       int a, b, c;                  struct Foo {
+     };                                int a, b, c;
+     namespace Ns {                  };
+     class Bar {
+     public:                         namespace Ns {
+       struct Foobar {               class Bar {
+         int a;                      public:
+         int b;                        struct Foobar {
+       };                                int a;
+     private:                            int b;
+       int t;                          };
+       int method1() {
+         // ...                      private:
+       }                               int t;
+       enum List {
+         ITEM1,                        int method1() {
+         ITEM2                           // ...
+       };                              }
+       template<typename T>
+       int method2(T x) {              enum List {
+         // ...                          ITEM1,
+       }                                 ITEM2
+       int i, j, k;                    };
+       int method3(int par) {
+         // ...                        template<typename T>
+       }                               int method2(T x) {
+     };                                  // ...
+     class C {};                       }
+     }
+                                       int i, j, k;
+
+                                       int method3(int par) {
+                                         // ...
+                                       }
+                                     };
+
+                                     class C {};
+                                     }
+
+  Possible values:
+
+  * ``SDS_Leave`` (in configuration: ``Leave``)
+    Leave definition blocks as they are.
+
+  * ``SDS_Always`` (in configuration: ``Always``)
+    Insert an empty line between definition blocks.
+
+  * ``SDS_Never`` (in configuration: ``Never``)
+    Remove any empty line between definition blocks.
+
+
+
+**ShortNamespaceLines** (``Unsigned``) :versionbadge:`clang-format 13`
   The maximal number of unwrapped lines that a short namespace spans.
   Defaults to 1.
 
@@ -3064,7 +3927,7 @@ the configuration (without a prefix: ``Auto``).
        int bar;                           int bar;
      } // namespace b                   } // namespace b
 
-**SortIncludes** (``SortIncludesOptions``)
+**SortIncludes** (``SortIncludesOptions``) :versionbadge:`clang-format 3.8`
   Controls if and how clang-format will sort ``#includes``.
   If ``Never``, includes are never sorted.
   If ``CaseInsensitive``, includes are sorted in an ASCIIbetical or case
@@ -3109,7 +3972,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**SortJavaStaticImport** (``SortJavaStaticImportOptions``)
+**SortJavaStaticImport** (``SortJavaStaticImportOptions``) :versionbadge:`clang-format 12`
   When sorting Java imports, by default static imports are placed before
   non-static imports. If ``JavaStaticImportAfterImport`` is ``After``,
   static imports are placed after non-static imports.
@@ -3136,7 +3999,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**SortUsingDeclarations** (``bool``)
+**SortUsingDeclarations** (``Boolean``) :versionbadge:`clang-format 5`
   If ``true``, clang-format will sort using declarations.
 
   The order of using declarations is defined as follows:
@@ -3153,7 +4016,7 @@ the configuration (without a prefix: ``Auto``).
      using std::cout;               vs.     using std::cin;
      using std::cin;                        using std::cout;
 
-**SpaceAfterCStyleCast** (``bool``)
+**SpaceAfterCStyleCast** (``Boolean``) :versionbadge:`clang-format 3.5`
   If ``true``, a space is inserted after C style casts.
 
   .. code-block:: c++
@@ -3161,7 +4024,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      (int) i;                       vs.     (int)i;
 
-**SpaceAfterLogicalNot** (``bool``)
+**SpaceAfterLogicalNot** (``Boolean``) :versionbadge:`clang-format 9`
   If ``true``, a space is inserted after the logical not operator (``!``).
 
   .. code-block:: c++
@@ -3169,7 +4032,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      ! someExpression();            vs.     !someExpression();
 
-**SpaceAfterTemplateKeyword** (``bool``)
+**SpaceAfterTemplateKeyword** (``Boolean``) :versionbadge:`clang-format 4`
   If ``true``, a space will be inserted after the 'template' keyword.
 
   .. code-block:: c++
@@ -3177,7 +4040,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      template <int> void foo();     vs.     template<int> void foo();
 
-**SpaceAroundPointerQualifiers** (``SpaceAroundPointerQualifiersStyle``)
+**SpaceAroundPointerQualifiers** (``SpaceAroundPointerQualifiersStyle``) :versionbadge:`clang-format 12`
   Defines in which cases to put a space before or after pointer qualifiers
 
   Possible values:
@@ -3217,7 +4080,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**SpaceBeforeAssignmentOperators** (``bool``)
+**SpaceBeforeAssignmentOperators** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``false``, spaces will be removed before assignment operators.
 
   .. code-block:: c++
@@ -3226,7 +4089,7 @@ the configuration (without a prefix: ``Auto``).
      int a = 5;                     vs.     int a= 5;
      a += 42;                               a+= 42;
 
-**SpaceBeforeCaseColon** (``bool``)
+**SpaceBeforeCaseColon** (``Boolean``) :versionbadge:`clang-format 12`
   If ``false``, spaces will be removed before case colon.
 
   .. code-block:: c++
@@ -3236,7 +4099,7 @@ the configuration (without a prefix: ``Auto``).
       case 1 : break;                         case 1: break;
     }                                       }
 
-**SpaceBeforeCpp11BracedList** (``bool``)
+**SpaceBeforeCpp11BracedList** (``Boolean``) :versionbadge:`clang-format 7`
   If ``true``, a space will be inserted before a C++11 braced list
   used to initialize an object (after the preceding identifier or type).
 
@@ -3248,7 +4111,7 @@ the configuration (without a prefix: ``Auto``).
      vector<int> { 1, 2, 3 };               vector<int>{ 1, 2, 3 };
      new int[3] { 1, 2, 3 };                new int[3]{ 1, 2, 3 };
 
-**SpaceBeforeCtorInitializerColon** (``bool``)
+**SpaceBeforeCtorInitializerColon** (``Boolean``) :versionbadge:`clang-format 7`
   If ``false``, spaces will be removed before constructor initializer
   colon.
 
@@ -3257,7 +4120,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      Foo::Foo() : a(a) {}                   Foo::Foo(): a(a) {}
 
-**SpaceBeforeInheritanceColon** (``bool``)
+**SpaceBeforeInheritanceColon** (``Boolean``) :versionbadge:`clang-format 7`
   If ``false``, spaces will be removed before inheritance colon.
 
   .. code-block:: c++
@@ -3265,7 +4128,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      class Foo : Bar {}             vs.     class Foo: Bar {}
 
-**SpaceBeforeParens** (``SpaceBeforeParensOptions``)
+**SpaceBeforeParens** (``SpaceBeforeParensStyle``) :versionbadge:`clang-format 3.5`
   Defines in which cases to put a space before opening parentheses.
 
   Possible values:
@@ -3293,10 +4156,12 @@ the configuration (without a prefix: ``Auto``).
          }
        }
 
-  * ``SBPO_ControlStatementsExceptForEachMacros`` (in configuration: ``ControlStatementsExceptForEachMacros``)
+  * ``SBPO_ControlStatementsExceptControlMacros`` (in configuration: ``ControlStatementsExceptControlMacros``)
     Same as ``SBPO_ControlStatements`` except this option doesn't apply to
-    ForEach macros. This is useful in projects where ForEach macros are
-    treated as function calls instead of control statements.
+    ForEach and If macros. This is useful in projects where ForEach/If
+    macros are treated as function calls instead of control statements.
+    ``SBPO_ControlStatementsExceptForEachMacros`` remains an alias for
+    backward compatibility.
 
     .. code-block:: c++
 
@@ -3333,9 +4198,120 @@ the configuration (without a prefix: ``Auto``).
          }
        }
 
+  * ``SBPO_Custom`` (in configuration: ``Custom``)
+    Configure each individual space before parentheses in
+    `SpaceBeforeParensOptions`.
 
 
-**SpaceBeforeRangeBasedForLoopColon** (``bool``)
+
+**SpaceBeforeParensOptions** (``SpaceBeforeParensCustom``) :versionbadge:`clang-format 14`
+  Control of individual space before parentheses.
+
+  If ``SpaceBeforeParens`` is set to ``Custom``, use this to specify
+  how each individual space before parentheses case should be handled.
+  Otherwise, this is ignored.
+
+  .. code-block:: yaml
+
+    # Example of usage:
+    SpaceBeforeParens: Custom
+    SpaceBeforeParensOptions:
+      AfterControlStatements: true
+      AfterFunctionDefinitionName: true
+
+  Nested configuration flags:
+
+  Precise control over the spacing before parentheses.
+
+  .. code-block:: c++
+
+    # Should be declared this way:
+    SpaceBeforeParens: Custom
+    SpaceBeforeParensOptions:
+      AfterControlStatements: true
+      AfterFunctionDefinitionName: true
+
+  * ``bool AfterControlStatements`` If ``true``, put space betwee control statement keywords
+    (for/if/while...) and opening parentheses.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       if (...) {}                     vs.    if(...) {}
+
+  * ``bool AfterForeachMacros`` If ``true``, put space between foreach macros and opening parentheses.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       FOREACH (...)                   vs.    FOREACH(...)
+         <loop-body>                            <loop-body>
+
+  * ``bool AfterFunctionDeclarationName`` If ``true``, put a space between function declaration name and opening
+    parentheses.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       void f ();                      vs.    void f();
+
+  * ``bool AfterFunctionDefinitionName`` If ``true``, put a space between function definition name and opening
+    parentheses.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       void f () {}                    vs.    void f() {}
+
+  * ``bool AfterIfMacros`` If ``true``, put space between if macros and opening parentheses.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       IF (...)                        vs.    IF(...)
+         <conditional-body>                     <conditional-body>
+
+  * ``bool AfterOverloadedOperator`` If ``true``, put a space between operator overloading and opening
+    parentheses.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       void operator++ (int a);        vs.    void operator++(int a);
+       object.operator++ (10);                object.operator++(10);
+
+  * ``bool AfterRequiresInClause`` If ``true``, put space between requires keyword in a requires clause and
+    opening parentheses, if there is one.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       template<typename T>            vs.    template<typename T>
+       requires (A<T> && B<T>)                requires(A<T> && B<T>)
+       ...                                    ...
+
+  * ``bool AfterRequiresInExpression`` If ``true``, put space between requires keyword in a requires expression
+    and opening parentheses.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       template<typename T>            vs.    template<typename T>
+       concept C = requires (T t) {           concept C = requires(T t) {
+                     ...                                    ...
+                   }                                      }
+
+  * ``bool BeforeNonEmptyParentheses`` If ``true``, put a space before opening parentheses only if the
+    parentheses are not empty.
+
+    .. code-block:: c++
+
+       true:                                  false:
+       void f (int a);                 vs.    void f();
+       f (a);                                 f();
+
+
+**SpaceBeforeRangeBasedForLoopColon** (``Boolean``) :versionbadge:`clang-format 7`
   If ``false``, spaces will be removed before range-based for loop
   colon.
 
@@ -3344,7 +4320,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      for (auto v : values) {}       vs.     for(auto v: values) {}
 
-**SpaceBeforeSquareBrackets** (``bool``)
+**SpaceBeforeSquareBrackets** (``Boolean``) :versionbadge:`clang-format 10`
   If ``true``, spaces will be before  ``[``.
   Lambdas will not be affected. Only the first ``[`` will get a space added.
 
@@ -3354,7 +4330,7 @@ the configuration (without a prefix: ``Auto``).
      int a [5];                    vs.      int a[5];
      int a [5][5];                 vs.      int a[5][5];
 
-**SpaceInEmptyBlock** (``bool``)
+**SpaceInEmptyBlock** (``Boolean``) :versionbadge:`clang-format 10`
   If ``true``, spaces will be inserted into ``{}``.
 
   .. code-block:: c++
@@ -3363,7 +4339,7 @@ the configuration (without a prefix: ``Auto``).
      void f() { }                   vs.   void f() {}
      while (true) { }                     while (true) {}
 
-**SpaceInEmptyParentheses** (``bool``)
+**SpaceInEmptyParentheses** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, spaces may be inserted into ``()``.
 
   .. code-block:: c++
@@ -3376,7 +4352,7 @@ the configuration (without a prefix: ``Auto``).
        }                                    }
      }                                    }
 
-**SpacesBeforeTrailingComments** (``unsigned``)
+**SpacesBeforeTrailingComments** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The number of spaces before trailing line comments
   (``//`` - comments).
 
@@ -3393,17 +4369,34 @@ the configuration (without a prefix: ``Auto``).
        }             // foo
      }
 
-**SpacesInAngles** (``bool``)
-  If ``true``, spaces will be inserted after ``<`` and before ``>``
-  in template argument lists.
+**SpacesInAngles** (``SpacesInAnglesStyle``) :versionbadge:`clang-format 3.4`
+  The SpacesInAnglesStyle to use for template argument lists.
 
-  .. code-block:: c++
+  Possible values:
 
-     true:                                  false:
-     static_cast< int >(arg);       vs.     static_cast<int>(arg);
-     std::function< void(int) > fct;        std::function<void(int)> fct;
+  * ``SIAS_Never`` (in configuration: ``Never``)
+    Remove spaces after ``<`` and before ``>``.
 
-**SpacesInCStyleCastParentheses** (``bool``)
+    .. code-block:: c++
+
+       static_cast<int>(arg);
+       std::function<void(int)> fct;
+
+  * ``SIAS_Always`` (in configuration: ``Always``)
+    Add spaces after ``<`` and before ``>``.
+
+    .. code-block:: c++
+
+       static_cast< int >(arg);
+       std::function< void(int) > fct;
+
+  * ``SIAS_Leave`` (in configuration: ``Leave``)
+    Keep a single space after ``<`` and before ``>`` if any spaces were
+    present. Option ``Standard: Cpp03`` takes precedence.
+
+
+
+**SpacesInCStyleCastParentheses** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, spaces may be inserted into C style casts.
 
   .. code-block:: c++
@@ -3411,7 +4404,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      x = ( int32 )y                 vs.     x = (int32)y
 
-**SpacesInConditionalStatement** (``bool``)
+**SpacesInConditionalStatement** (``Boolean``) :versionbadge:`clang-format 10`
   If ``true``, spaces will be inserted around if/for/switch/while
   conditions.
 
@@ -3421,7 +4414,7 @@ the configuration (without a prefix: ``Auto``).
      if ( a )  { ... }              vs.     if (a) { ... }
      while ( i < 5 )  { ... }               while (i < 5) { ... }
 
-**SpacesInContainerLiterals** (``bool``)
+**SpacesInContainerLiterals** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, spaces are inserted inside container literals (e.g.
   ObjC and Javascript array and dict literals).
 
@@ -3431,44 +4424,49 @@ the configuration (without a prefix: ``Auto``).
      var arr = [ 1, 2, 3 ];         vs.     var arr = [1, 2, 3];
      f({a : 1, b : 2, c : 3});              f({a: 1, b: 2, c: 3});
 
-**SpacesInLineCommentPrefix** (``SpacesInLineComment``)
+**SpacesInLineCommentPrefix** (``SpacesInLineComment``) :versionbadge:`clang-format 13`
   How many spaces are allowed at the start of a line comment. To disable the
   maximum set it to ``-1``, apart from that the maximum takes precedence
   over the minimum.
-  Minimum = 1 Maximum = -1
-  // One space is forced
 
-  //  but more spaces are possible
+  .. code-block:: c++
 
-  Minimum = 0
-  Maximum = 0
-  //Forces to start every comment directly after the slashes
+    Minimum = 1
+    Maximum = -1
+    // One space is forced
+
+    //  but more spaces are possible
+
+    Minimum = 0
+    Maximum = 0
+    //Forces to start every comment directly after the slashes
 
   Note that in line comment sections the relative indent of the subsequent
   lines is kept, that means the following:
 
   .. code-block:: c++
 
-  before:                                   after:
-  Minimum: 1
-  //if (b) {                                // if (b) {
-  //  return true;                          //   return true;
-  //}                                       // }
+    before:                                   after:
+    Minimum: 1
+    //if (b) {                                // if (b) {
+    //  return true;                          //   return true;
+    //}                                       // }
 
-  Maximum: 0
-  /// List:                                 ///List:
-  ///  - Foo                                /// - Foo
-  ///    - Bar                              ///   - Bar
+    Maximum: 0
+    /// List:                                 ///List:
+    ///  - Foo                                /// - Foo
+    ///    - Bar                              ///   - Bar
 
   Nested configuration flags:
 
+  Control of spaces within a single line comment
 
   * ``unsigned Minimum`` The minimum number of spaces at the start of the comment.
 
   * ``unsigned Maximum`` The maximum number of spaces at the start of the comment.
 
 
-**SpacesInParentheses** (``bool``)
+**SpacesInParentheses** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, spaces will be inserted after ``(`` and before ``)``.
 
   .. code-block:: c++
@@ -3476,7 +4474,7 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      t f( Deleted & ) & = delete;   vs.     t f(Deleted &) & = delete;
 
-**SpacesInSquareBrackets** (``bool``)
+**SpacesInSquareBrackets** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, spaces will be inserted after ``[`` and before ``]``.
   Lambdas without arguments or unspecified size array declarations will not
   be affected.
@@ -3487,7 +4485,7 @@ the configuration (without a prefix: ``Auto``).
      int a[ 5 ];                    vs.     int a[5];
      std::unique_ptr<int[]> foo() {} // Won't be affected
 
-**Standard** (``LanguageStandard``)
+**Standard** (``LanguageStandard``) :versionbadge:`clang-format 3.7`
   Parse and format C++ constructs compatible with this standard.
 
   .. code-block:: c++
@@ -3522,7 +4520,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**StatementAttributeLikeMacros** (``std::vector<std::string>``)
+**StatementAttributeLikeMacros** (``List of Strings``) :versionbadge:`clang-format 12`
   Macros which are ignored in front of a statement, as if they were an
   attribute. So that they are not parsed as identifier, for example for Qts
   emit.
@@ -3539,7 +4537,7 @@ the configuration (without a prefix: ``Auto``).
     unsigned char data = 'x';
     emit signal(data); // Now it's fine again.
 
-**StatementMacros** (``std::vector<std::string>``)
+**StatementMacros** (``List of Strings``) :versionbadge:`clang-format 8`
   A vector of macros that should be interpreted as complete
   statements.
 
@@ -3549,10 +4547,10 @@ the configuration (without a prefix: ``Auto``).
 
   For example: Q_UNUSED
 
-**TabWidth** (``unsigned``)
+**TabWidth** (``Unsigned``) :versionbadge:`clang-format 3.7`
   The number of columns used for tab stops.
 
-**TypenameMacros** (``std::vector<std::string>``)
+**TypenameMacros** (``List of Strings``) :versionbadge:`clang-format 9`
   A vector of macros that should be interpreted as type declarations
   instead of as function calls.
 
@@ -3570,11 +4568,11 @@ the configuration (without a prefix: ``Auto``).
 
   For example: OpenSSL STACK_OF, BSD LIST_ENTRY.
 
-**UseCRLF** (``bool``)
+**UseCRLF** (``Boolean``) :versionbadge:`clang-format 10`
   Use ``\r\n`` instead of ``\n`` for line breaks.
   Also used as fallback if ``DeriveLineEnding`` is true.
 
-**UseTab** (``UseTabStyle``)
+**UseTab** (``UseTabStyle``) :versionbadge:`clang-format 3.7`
   The way to use tab characters in the resulting file.
 
   Possible values:
@@ -3599,7 +4597,7 @@ the configuration (without a prefix: ``Auto``).
 
 
 
-**WhitespaceSensitiveMacros** (``std::vector<std::string>``)
+**WhitespaceSensitiveMacros** (``List of Strings``) :versionbadge:`clang-format 11`
   A vector of macros which are whitespace-sensitive and should not
   be touched.
 

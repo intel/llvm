@@ -11,7 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/X86TargetParser.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/ADT/StringSwitch.h"
+#include <numeric>
 
 using namespace llvm;
 using namespace llvm::X86;
@@ -53,7 +54,7 @@ public:
   }
 
   constexpr FeatureBitset &operator&=(const FeatureBitset &RHS) {
-    for (unsigned I = 0, E = array_lengthof(Bits); I != E; ++I) {
+    for (unsigned I = 0, E = std::size(Bits); I != E; ++I) {
       // GCC <6.2 crashes if this is written in a single statement.
       uint32_t NewBits = Bits[I] & RHS.Bits[I];
       Bits[I] = NewBits;
@@ -62,7 +63,7 @@ public:
   }
 
   constexpr FeatureBitset &operator|=(const FeatureBitset &RHS) {
-    for (unsigned I = 0, E = array_lengthof(Bits); I != E; ++I) {
+    for (unsigned I = 0, E = std::size(Bits); I != E; ++I) {
       // GCC <6.2 crashes if this is written in a single statement.
       uint32_t NewBits = Bits[I] | RHS.Bits[I];
       Bits[I] = NewBits;
@@ -73,7 +74,7 @@ public:
   // gcc 5.3 miscompiles this if we try to write this using operator&=.
   constexpr FeatureBitset operator&(const FeatureBitset &RHS) const {
     FeatureBitset Result;
-    for (unsigned I = 0, E = array_lengthof(Bits); I != E; ++I)
+    for (unsigned I = 0, E = std::size(Bits); I != E; ++I)
       Result.Bits[I] = Bits[I] & RHS.Bits[I];
     return Result;
   }
@@ -81,20 +82,20 @@ public:
   // gcc 5.3 miscompiles this if we try to write this using operator&=.
   constexpr FeatureBitset operator|(const FeatureBitset &RHS) const {
     FeatureBitset Result;
-    for (unsigned I = 0, E = array_lengthof(Bits); I != E; ++I)
+    for (unsigned I = 0, E = std::size(Bits); I != E; ++I)
       Result.Bits[I] = Bits[I] | RHS.Bits[I];
     return Result;
   }
 
   constexpr FeatureBitset operator~() const {
     FeatureBitset Result;
-    for (unsigned I = 0, E = array_lengthof(Bits); I != E; ++I)
+    for (unsigned I = 0, E = std::size(Bits); I != E; ++I)
       Result.Bits[I] = ~Bits[I];
     return Result;
   }
 
   constexpr bool operator!=(const FeatureBitset &RHS) const {
-    for (unsigned I = 0, E = array_lengthof(Bits); I != E; ++I)
+    for (unsigned I = 0, E = std::size(Bits); I != E; ++I)
       if (Bits[I] != RHS.Bits[I])
         return true;
     return false;
@@ -137,8 +138,8 @@ constexpr FeatureBitset FeaturesNocona =
 // Basic 64-bit capable CPU.
 constexpr FeatureBitset FeaturesX86_64 = FeaturesPentium4 | Feature64BIT;
 constexpr FeatureBitset FeaturesX86_64_V2 = FeaturesX86_64 | FeatureSAHF |
-                                            FeaturePOPCNT | FeatureSSE4_2 |
-                                            FeatureCMPXCHG16B;
+                                            FeaturePOPCNT | FeatureCRC32 |
+                                            FeatureSSE4_2 | FeatureCMPXCHG16B;
 constexpr FeatureBitset FeaturesX86_64_V3 =
     FeaturesX86_64_V2 | FeatureAVX2 | FeatureBMI | FeatureBMI2 | FeatureF16C |
     FeatureFMA | FeatureLZCNT | FeatureMOVBE | FeatureXSAVE;
@@ -151,7 +152,7 @@ constexpr FeatureBitset FeaturesCore2 =
     FeaturesNocona | FeatureSAHF | FeatureSSSE3;
 constexpr FeatureBitset FeaturesPenryn = FeaturesCore2 | FeatureSSE4_1;
 constexpr FeatureBitset FeaturesNehalem =
-    FeaturesPenryn | FeaturePOPCNT | FeatureSSE4_2;
+    FeaturesPenryn | FeaturePOPCNT | FeatureCRC32 | FeatureSSE4_2;
 constexpr FeatureBitset FeaturesWestmere = FeaturesNehalem | FeaturePCLMUL;
 constexpr FeatureBitset FeaturesSandyBridge =
     FeaturesWestmere | FeatureAVX | FeatureXSAVE | FeatureXSAVEOPT;
@@ -192,19 +193,20 @@ constexpr FeatureBitset FeaturesCannonlake =
     FeaturePKU | FeatureSHA;
 constexpr FeatureBitset FeaturesICLClient =
     FeaturesCannonlake | FeatureAVX512BITALG | FeatureAVX512VBMI2 |
-    FeatureAVX512VNNI | FeatureAVX512VPOPCNTDQ | FeatureCLWB | FeatureGFNI |
-    FeatureRDPID | FeatureVAES | FeatureVPCLMULQDQ;
+    FeatureAVX512VNNI | FeatureAVX512VPOPCNTDQ | FeatureGFNI | FeatureRDPID |
+    FeatureVAES | FeatureVPCLMULQDQ;
+constexpr FeatureBitset FeaturesRocketlake = FeaturesICLClient & ~FeatureSGX;
 constexpr FeatureBitset FeaturesICLServer =
-    FeaturesICLClient | FeaturePCONFIG | FeatureWBNOINVD;
+    FeaturesICLClient | FeatureCLWB | FeaturePCONFIG | FeatureWBNOINVD;
 constexpr FeatureBitset FeaturesTigerlake =
     FeaturesICLClient | FeatureAVX512VP2INTERSECT | FeatureMOVDIR64B |
-    FeatureMOVDIRI | FeatureSHSTK | FeatureKL | FeatureWIDEKL;
+    FeatureCLWB | FeatureMOVDIRI | FeatureSHSTK | FeatureKL | FeatureWIDEKL;
 constexpr FeatureBitset FeaturesSapphireRapids =
-    FeaturesICLServer | FeatureAMX_TILE | FeatureAMX_INT8 | FeatureAMX_BF16 |
-    FeatureAVX512BF16 | FeatureAVX512VP2INTERSECT | FeatureCLDEMOTE |
-    FeatureENQCMD | FeatureMOVDIR64B | FeatureMOVDIRI | FeaturePTWRITE |
-    FeatureSERIALIZE | FeatureSHSTK | FeatureTSXLDTRK | FeatureUINTR |
-    FeatureWAITPKG | FeatureAVXVNNI;
+    FeaturesICLServer | FeatureAMX_BF16 | FeatureAMX_INT8 | FeatureAMX_TILE |
+    FeatureAVX512BF16 | FeatureAVX512FP16 | FeatureAVX512VP2INTERSECT |
+    FeatureAVXVNNI | FeatureCLDEMOTE | FeatureENQCMD | FeatureMOVDIR64B |
+    FeatureMOVDIRI | FeaturePTWRITE | FeatureSERIALIZE | FeatureSHSTK |
+    FeatureTSXLDTRK | FeatureUINTR | FeatureWAITPKG;
 
 // Intel Atom processors.
 // Bonnell has feature parity with Core2 and adds MOVBE.
@@ -253,16 +255,17 @@ constexpr FeatureBitset FeaturesBTVER1 =
     FeatureSSE | FeatureSSE2 | FeatureSSE3 | FeatureSSSE3 | FeatureSSE4_A |
     FeatureSAHF;
 constexpr FeatureBitset FeaturesBTVER2 =
-    FeaturesBTVER1 | FeatureAES | FeatureAVX | FeatureBMI | FeatureF16C |
-    FeatureMOVBE | FeaturePCLMUL | FeatureXSAVE | FeatureXSAVEOPT;
+    FeaturesBTVER1 | FeatureAES | FeatureAVX | FeatureBMI | FeatureCRC32 |
+    FeatureF16C | FeatureMOVBE | FeaturePCLMUL | FeatureXSAVE | FeatureXSAVEOPT;
 
 // AMD Bulldozer architecture processors.
 constexpr FeatureBitset FeaturesBDVER1 =
     FeatureX87 | FeatureAES | FeatureAVX | FeatureCMPXCHG8B |
-    FeatureCMPXCHG16B | Feature64BIT | FeatureFMA4 | FeatureFXSR | FeatureLWP |
-    FeatureLZCNT | FeatureMMX | FeaturePCLMUL | FeaturePOPCNT | FeaturePRFCHW |
-    FeatureSAHF | FeatureSSE | FeatureSSE2 | FeatureSSE3 | FeatureSSSE3 |
-    FeatureSSE4_1 | FeatureSSE4_2 | FeatureSSE4_A | FeatureXOP | FeatureXSAVE;
+    FeatureCMPXCHG16B | FeatureCRC32 | Feature64BIT | FeatureFMA4 |
+    FeatureFXSR | FeatureLWP | FeatureLZCNT | FeatureMMX | FeaturePCLMUL |
+    FeaturePOPCNT | FeaturePRFCHW | FeatureSAHF | FeatureSSE | FeatureSSE2 |
+    FeatureSSE3 | FeatureSSSE3 | FeatureSSE4_1 | FeatureSSE4_2 | FeatureSSE4_A |
+    FeatureXOP | FeatureXSAVE;
 constexpr FeatureBitset FeaturesBDVER2 =
     FeaturesBDVER1 | FeatureBMI | FeatureFMA | FeatureF16C | FeatureTBM;
 constexpr FeatureBitset FeaturesBDVER3 =
@@ -275,15 +278,16 @@ constexpr FeatureBitset FeaturesBDVER4 = FeaturesBDVER3 | FeatureAVX2 |
 constexpr FeatureBitset FeaturesZNVER1 =
     FeatureX87 | FeatureADX | FeatureAES | FeatureAVX | FeatureAVX2 |
     FeatureBMI | FeatureBMI2 | FeatureCLFLUSHOPT | FeatureCLZERO |
-    FeatureCMPXCHG8B | FeatureCMPXCHG16B | Feature64BIT | FeatureF16C |
-    FeatureFMA | FeatureFSGSBASE | FeatureFXSR | FeatureLZCNT | FeatureMMX |
-    FeatureMOVBE | FeatureMWAITX | FeaturePCLMUL | FeaturePOPCNT |
+    FeatureCMPXCHG8B | FeatureCMPXCHG16B | FeatureCRC32 | Feature64BIT |
+    FeatureF16C | FeatureFMA | FeatureFSGSBASE | FeatureFXSR | FeatureLZCNT |
+    FeatureMMX | FeatureMOVBE | FeatureMWAITX | FeaturePCLMUL | FeaturePOPCNT |
     FeaturePRFCHW | FeatureRDRND | FeatureRDSEED | FeatureSAHF | FeatureSHA |
     FeatureSSE | FeatureSSE2 | FeatureSSE3 | FeatureSSSE3 | FeatureSSE4_1 |
     FeatureSSE4_2 | FeatureSSE4_A | FeatureXSAVE | FeatureXSAVEC |
     FeatureXSAVEOPT | FeatureXSAVES;
-constexpr FeatureBitset FeaturesZNVER2 =
-    FeaturesZNVER1 | FeatureCLWB | FeatureRDPID | FeatureWBNOINVD;
+constexpr FeatureBitset FeaturesZNVER2 = FeaturesZNVER1 | FeatureCLWB |
+                                         FeatureRDPID | FeatureRDPRU |
+                                         FeatureWBNOINVD;
 static constexpr FeatureBitset FeaturesZNVER3 = FeaturesZNVER2 |
                                                 FeatureINVPCID | FeaturePKU |
                                                 FeatureVAES | FeatureVPCLMULQDQ;
@@ -317,7 +321,7 @@ constexpr ProcInfo Processors[] = {
   { {"prescott"}, CK_Prescott, ~0U, FeaturesPrescott },
   { {"nocona"}, CK_Nocona, ~0U, FeaturesNocona },
   // Core microarchitecture based processors.
-  { {"core2"}, CK_Core2, ~0U, FeaturesCore2 },
+  { {"core2"}, CK_Core2, FEATURE_SSSE3, FeaturesCore2 },
   { {"penryn"}, CK_Penryn, ~0U, FeaturesPenryn },
   // Atom processors
   { {"bonnell"}, CK_Bonnell, FEATURE_SSSE3, FeaturesBonnell },
@@ -356,6 +360,8 @@ constexpr ProcInfo Processors[] = {
   { {"cannonlake"}, CK_Cannonlake, FEATURE_AVX512VBMI, FeaturesCannonlake },
   // Icelake client microarchitecture based processors.
   { {"icelake-client"}, CK_IcelakeClient, FEATURE_AVX512VBMI2, FeaturesICLClient },
+  // Rocketlake microarchitecture based processors.
+  { {"rocketlake"}, CK_Rocketlake, FEATURE_AVX512VBMI2, FeaturesRocketlake },
   // Icelake server microarchitecture based processors.
   { {"icelake-server"}, CK_IcelakeServer, FEATURE_AVX512VBMI2, FeaturesICLServer },
   // Tigerlake microarchitecture based processors.
@@ -467,6 +473,7 @@ constexpr FeatureBitset ImpliedFeaturesCLZERO = {};
 constexpr FeatureBitset ImpliedFeaturesCMOV = {};
 constexpr FeatureBitset ImpliedFeaturesCMPXCHG16B = {};
 constexpr FeatureBitset ImpliedFeaturesCMPXCHG8B = {};
+constexpr FeatureBitset ImpliedFeaturesCRC32 = {};
 constexpr FeatureBitset ImpliedFeaturesENQCMD = {};
 constexpr FeatureBitset ImpliedFeaturesFSGSBASE = {};
 constexpr FeatureBitset ImpliedFeaturesFXSR = {};
@@ -484,6 +491,7 @@ constexpr FeatureBitset ImpliedFeaturesPREFETCHWT1 = {};
 constexpr FeatureBitset ImpliedFeaturesPRFCHW = {};
 constexpr FeatureBitset ImpliedFeaturesPTWRITE = {};
 constexpr FeatureBitset ImpliedFeaturesRDPID = {};
+constexpr FeatureBitset ImpliedFeaturesRDPRU = {};
 constexpr FeatureBitset ImpliedFeaturesRDRND = {};
 constexpr FeatureBitset ImpliedFeaturesRDSEED = {};
 constexpr FeatureBitset ImpliedFeaturesRTM = {};
@@ -573,6 +581,8 @@ constexpr FeatureBitset ImpliedFeaturesAMX_BF16 = FeatureAMX_TILE;
 constexpr FeatureBitset ImpliedFeaturesAMX_INT8 = FeatureAMX_TILE;
 constexpr FeatureBitset ImpliedFeaturesHRESET = {};
 
+static constexpr FeatureBitset ImpliedFeaturesAVX512FP16 =
+    FeatureAVX512BW | FeatureAVX512DQ | FeatureAVX512VL;
 // Key Locker Features
 constexpr FeatureBitset ImpliedFeaturesKL = FeatureSSE2;
 constexpr FeatureBitset ImpliedFeaturesWIDEKL = FeatureKL;
@@ -656,4 +666,46 @@ void llvm::X86::updateImpliedFeatures(
   for (unsigned i = 0; i != CPU_FEATURE_MAX; ++i)
     if (ImpliedBits[i] && !FeatureInfos[i].Name.empty())
       Features[FeatureInfos[i].Name] = Enabled;
+}
+
+uint64_t llvm::X86::getCpuSupportsMask(ArrayRef<StringRef> FeatureStrs) {
+  // Processor features and mapping to processor feature value.
+  uint64_t FeaturesMask = 0;
+  for (const StringRef &FeatureStr : FeatureStrs) {
+    unsigned Feature = StringSwitch<unsigned>(FeatureStr)
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY)                                \
+  .Case(STR, llvm::X86::FEATURE_##ENUM)
+#include "llvm/Support/X86TargetParser.def"
+        ;
+    FeaturesMask |= (1ULL << Feature);
+  }
+  return FeaturesMask;
+}
+
+unsigned llvm::X86::getFeaturePriority(ProcessorFeatures Feat) {
+#ifndef NDEBUG
+  // Check that priorities are set properly in the .def file. We expect that
+  // "compat" features are assigned non-duplicate consecutive priorities
+  // starting from zero (0, 1, ..., num_features - 1).
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY) PRIORITY,
+  unsigned Priorities[] = {
+#include "llvm/Support/X86TargetParser.def"
+      std::numeric_limits<unsigned>::max() // Need to consume last comma.
+  };
+  std::array<unsigned, std::size(Priorities) - 1> HelperList;
+  std::iota(HelperList.begin(), HelperList.end(), 0);
+  assert(std::is_permutation(HelperList.begin(), HelperList.end(),
+                             std::begin(Priorities),
+                             std::prev(std::end(Priorities))) &&
+         "Priorities don't form consecutive range!");
+#endif
+
+  switch (Feat) {
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY)                                \
+  case X86::FEATURE_##ENUM:                                                    \
+    return PRIORITY;
+#include "llvm/Support/X86TargetParser.def"
+  default:
+    llvm_unreachable("No Feature Priority for non-CPUSupports Features");
+  }
 }

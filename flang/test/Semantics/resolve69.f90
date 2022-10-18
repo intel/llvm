@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 subroutine s1()
   ! C701 (R701) The type-param-value for a kind type parameter shall be a
   ! constant expression.
@@ -33,6 +33,8 @@ subroutine s1()
   type derived(typeKind, typeLen)
     integer, kind :: typeKind
     integer, len :: typeLen
+    character(typeKind) :: kindValue
+    character(typeLen) :: lenValue
   end type derived
 
   type (derived(constVal, 3)) :: constDerivedKind
@@ -53,3 +55,24 @@ subroutine s1()
   type (derived( :, :)), pointer :: colonDerivedLen2
   type (derived(4, :)), pointer :: colonDerivedLen3
 end subroutine s1
+Program d5
+  Type string(maxlen)
+    Integer,Kind :: maxlen
+    Character(maxlen) :: value
+  End Type
+  Type(string(80)) line
+  line%value = 'ok'
+  Print *,Trim(line%value)
+End Program
+
+!Not errors.
+subroutine outer
+  integer n
+ contains
+  character(n) function inner1()
+    inner1 = ''
+  end function inner1
+  function inner2()
+    real inner2(n)
+  end function inner2
+end subroutine outer

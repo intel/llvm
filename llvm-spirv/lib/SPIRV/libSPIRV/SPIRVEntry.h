@@ -63,6 +63,7 @@ class SPIRVDecoder;
 class SPIRVType;
 class SPIRVValue;
 class SPIRVDecorate;
+class SPIRVDecorateId;
 class SPIRVForward;
 class SPIRVMemberDecorate;
 class SPIRVLine;
@@ -296,12 +297,16 @@ public:
     return {};
   }
   const std::string &getName() const { return Name; }
+  size_t getNumDecorations() const { return Decorates.size(); }
   bool hasDecorate(Decoration Kind, size_t Index = 0,
                    SPIRVWord *Result = 0) const;
+  bool hasDecorateId(Decoration Kind, size_t Index = 0,
+                     SPIRVId *Result = 0) const;
   bool hasMemberDecorate(Decoration Kind, size_t Index = 0,
                          SPIRVWord MemberNumber = 0,
                          SPIRVWord *Result = 0) const;
   std::vector<SPIRVWord> getDecorationLiterals(Decoration Kind) const;
+  std::vector<SPIRVId> getDecorationIdLiterals(Decoration Kind) const;
   std::vector<SPIRVWord>
   getMemberDecorationLiterals(Decoration Kind, SPIRVWord MemberNumber) const;
   std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
@@ -310,6 +315,9 @@ public:
                                    SPIRVWord MemberNumber) const;
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorate const *> getDecorations(Decoration Kind) const;
+  std::vector<SPIRVDecorate const *> getDecorations() const;
+  std::set<SPIRVId> getDecorateId(Decoration Kind, size_t Index = 0) const;
+  std::vector<SPIRVDecorateId const *> getDecorationIds(Decoration Kind) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
   bool hasLine() const { return Line != nullptr; }
   bool hasLinkageType() const;
@@ -320,6 +328,7 @@ public:
   bool isExtInst(const SPIRVExtInstSetKind InstSet,
                  const SPIRVWord ExtOp) const;
   bool isDecorate() const { return OpCode == OpDecorate; }
+  bool isDecorateId() const { return OpCode == OpDecorateId; }
   bool isMemberDecorate() const { return OpCode == OpMemberDecorate; }
   bool isForward() const { return OpCode == internal::OpForward; }
   bool isLabel() const { return OpCode == OpLabel; }
@@ -336,9 +345,11 @@ public:
   virtual bool isImplemented() const { return true; }
 
   void addDecorate(SPIRVDecorate *);
+  void addDecorate(SPIRVDecorateId *);
   void addDecorate(Decoration Kind);
   void addDecorate(Decoration Kind, SPIRVWord Literal);
   void eraseDecorate(Decoration);
+  void eraseDecorateId(Decoration);
   void addMemberDecorate(SPIRVMemberDecorate *);
   void addMemberDecorate(SPIRVWord MemberNumber, Decoration Kind);
   void addMemberDecorate(SPIRVWord MemberNumber, Decoration Kind,
@@ -353,6 +364,7 @@ public:
   virtual void setScope(SPIRVEntry *Scope){};
   void takeAnnotations(SPIRVForward *);
   void takeDecorates(SPIRVEntry *);
+  void takeDecorateIds(SPIRVEntry *);
   void takeMemberDecorates(SPIRVEntry *);
 
   /// After a SPIRV entry is created during reading SPIRV binary by default
@@ -410,6 +422,7 @@ public:
 protected:
   /// An entry may have multiple FuncParamAttr decorations.
   typedef std::multimap<Decoration, const SPIRVDecorate *> DecorateMapType;
+  typedef std::multimap<Decoration, const SPIRVDecorateId *> DecorateIdMapType;
   typedef std::map<std::pair<SPIRVWord, Decoration>,
                    const SPIRVMemberDecorate *>
       MemberDecorateMapType;
@@ -432,6 +445,7 @@ protected:
   SPIRVWord WordCount;
 
   DecorateMapType Decorates;
+  DecorateIdMapType DecorateIds;
   MemberDecorateMapType MemberDecorates;
   std::shared_ptr<const SPIRVLine> Line;
 };
@@ -828,7 +842,7 @@ public:
   }
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    switch (Kind) {
+    switch (static_cast<unsigned>(Kind)) {
     case CapabilityDenormPreserve:
     case CapabilityDenormFlushToZero:
     case CapabilitySignedZeroInfNanPreserve:
@@ -842,7 +856,7 @@ public:
     case CapabilityVectorComputeINTEL:
     case CapabilityVectorAnyINTEL:
       return ExtensionID::SPV_INTEL_vector_compute;
-    case CapabilityFastCompositeINTEL:
+    case internal::CapabilityFastCompositeINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
     default:
       return {};
@@ -950,6 +964,27 @@ template <> struct InstToContinued<OpSpecConstantComposite> {
   constexpr static spv::Op OpCode = OpSpecConstantCompositeContinuedINTEL;
 };
 
+class SPIRVModuleProcessed : public SPIRVEntryNoId<OpModuleProcessed> {
+public:
+  SPIRVModuleProcessed(SPIRVModule *M, const std::string &Process)
+      : SPIRVEntryNoId(M, FixedWC + getSizeInWords(Process)),
+        ProcessStr(Process) {
+    updateModuleVersion();
+  }
+  SPIRVModuleProcessed() { updateModuleVersion(); }
+  _SPIRV_DCL_ENCDEC
+  void validate() const override;
+  SPIRVWord getRequiredSPIRVVersion() const override {
+    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+  }
+
+  std::string getProcessStr();
+
+private:
+  std::string ProcessStr;
+  static const SPIRVWord FixedWC = 1;
+};
+
 // ToDo: The following typedef's are place holders for SPIRV entity classes
 // to be implemented.
 // Each time a new class is implemented, remove the corresponding typedef.
@@ -976,9 +1011,6 @@ _SPIRV_OP(IAddCarry)
 _SPIRV_OP(ISubBorrow)
 _SPIRV_OP(SMulExtended)
 _SPIRV_OP(UMulExtended)
-_SPIRV_OP(BitFieldInsert)
-_SPIRV_OP(BitFieldSExtract)
-_SPIRV_OP(BitFieldUExtract)
 _SPIRV_OP(DPdx)
 _SPIRV_OP(DPdy)
 _SPIRV_OP(Fwidth)

@@ -381,8 +381,8 @@ void Init() {
 typedef int inte2 __attribute__((__ext_vector_type__(2)));
 
 void test_vector_literal(inte4 res) {
-  inte2 a = (inte2)(1, 2); //expected-warning{{expression result unused}}
-  inte4 b = (inte4)(a, a); //expected-error{{C-style cast from vector 'inte2' (vector of 2 'int' values) to vector 'inte4' (vector of 4 'int' values) of different size}} //expected-warning{{expression result unused}}
+  inte2 a = (inte2)(1, 2); //expected-warning{{left operand of comma operator has no effect}}
+  inte4 b = (inte4)(a, a); //expected-error{{C-style cast from vector 'inte2' (vector of 2 'int' values) to vector 'inte4' (vector of 4 'int' values) of different size}} //expected-warning{{left operand of comma operator has no effect}}
 }
 
 typedef __attribute__((__ext_vector_type__(4))) float vector_float4;
@@ -508,8 +508,8 @@ void use(char16 c) {
   E e;
   c &Value;   // expected-error{{cannot convert between scalar type 'PR45780::E' and vector type 'char16'}}
   c == Value; // expected-error{{cannot convert between scalar type 'PR45780::E' and vector type 'char16'}}
-  e | c;      // expected-error{{cannot convert between scalar type 'PR45780::E' and vector type 'char16'}}
-  e != c;     // expected-error{{cannot convert between scalar type 'PR45780::E' and vector type 'char16'}}
+  e | c;      // expected-error{{cannot convert between scalar type 'E' and vector type 'char16'}}
+  e != c;     // expected-error{{cannot convert between scalar type 'E' and vector type 'char16'}}
 }
 
 } // namespace PR45780

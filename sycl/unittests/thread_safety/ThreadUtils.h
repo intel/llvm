@@ -1,7 +1,10 @@
 #include <detail/scheduler/scheduler.hpp>
 
-#include <thread>
-#include <vector>
+#include <condition_variable> // std::conditional_variable
+#include <mutex>              // std::mutex, std::unique_lock
+#include <thread>             // std::thread
+#include <utility>            // std::forward
+#include <vector>             // std::vector
 
 /* Single use thread barrier which makes threads wait until defined number of
  * threads reach it.

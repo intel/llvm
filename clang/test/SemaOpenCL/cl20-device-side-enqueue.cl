@@ -1,11 +1,17 @@
 // RUN: %clang_cc1 %s -cl-std=CL2.0 -triple "spir-unknown-unknown" -verify -pedantic -fsyntax-only -DB32 -DQUALS=
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -triple "spir-unknown-unknown" -verify -pedantic -fsyntax-only -DB32 -DQUALS= -cl-ext=-cl_khr_subgroups
 // RUN: %clang_cc1 %s -cl-std=CL2.0 -triple "spir-unknown-unknown" -verify -pedantic -fsyntax-only -DB32 -DQUALS="const volatile"
 // RUN: %clang_cc1 %s -cl-std=CL2.0 -triple "spir64-unknown-unknown" -verify -pedantic -fsyntax-only -Wconversion -DWCONV -DQUALS=
 // RUN: %clang_cc1 %s -cl-std=CL2.0 -triple "spir64-unknown-unknown" -verify -pedantic -fsyntax-only -Wconversion -DWCONV -DQUALS="const volatile"
+// RUN: %clang_cc1 %s -cl-std=CL3.0 -triple "spir-unknown-unknown" -verify -pedantic -fsyntax-only -DB32 -DQUALS=
+// RUN: %clang_cc1 %s -cl-std=CL3.0 -triple "spir-unknown-unknown" -verify -pedantic -fsyntax-only -DB32 -DQUALS= -cl-ext=-cl_khr_subgroups,-__opencl_c_subgroups
+// RUN: %clang_cc1 %s -cl-std=CL3.0 -triple "spir-unknown-unknown" -verify -pedantic -fsyntax-only -DB32 -DQUALS="const volatile"
+// RUN: %clang_cc1 %s -cl-std=CL3.0 -triple "spir64-unknown-unknown" -verify -pedantic -fsyntax-only -Wconversion -DWCONV -DQUALS=
+// RUN: %clang_cc1 %s -cl-std=CL3.0 -triple "spir64-unknown-unknown" -verify -pedantic -fsyntax-only -Wconversion -DWCONV -DQUALS="const volatile"
 
 typedef struct {int a;} ndrange_t;
 // Diagnostic tests for different overloads of enqueue_kernel from Table 6.13.17.1 of OpenCL 2.0 Spec.
-kernel void enqueue_kernel_tests() {
+kernel void enqueue_kernel_tests(void) {
   queue_t default_queue;
   unsigned flags = 0;
   QUALS ndrange_t ndrange;
@@ -163,7 +169,7 @@ kernel void enqueue_kernel_tests() {
 }
 
 // Diagnostic tests for get_kernel_work_group_size and allowed block parameter types in dynamic parallelism.
-kernel void work_group_size_tests() {
+kernel void work_group_size_tests(void) {
   void (^const block_A)(void) = ^{
     return;
   };
@@ -212,8 +218,8 @@ kernel void work_group_size_tests() {
   size = get_kernel_preferred_work_group_size_multiple(block_A, 1); // expected-error{{too many arguments to function call, expected 1, have 2}}
 }
 
+#ifdef cl_khr_subgroups
 #pragma OPENCL EXTENSION cl_khr_subgroups : enable
-
 kernel void foo(global unsigned int *buf)
 {
   ndrange_t n;
@@ -231,15 +237,16 @@ kernel void bar(global unsigned int *buf)
 }
 
 #pragma OPENCL EXTENSION cl_khr_subgroups : disable
-
+#else
 kernel void foo1(global unsigned int *buf)
 {
   ndrange_t n;
-  buf[0] = get_kernel_max_sub_group_size_for_ndrange(n, ^(){}); // expected-error {{use of declaration 'get_kernel_max_sub_group_size_for_ndrange' requires cl_khr_subgroups support}}
+  buf[0] = get_kernel_max_sub_group_size_for_ndrange(n, ^(){}); // expected-error {{use of declaration 'get_kernel_max_sub_group_size_for_ndrange' requires cl_khr_subgroups or __opencl_c_subgroups support}}
 }
 
 kernel void bar1(global unsigned int *buf)
 {
   ndrange_t n;
-  buf[0] = get_kernel_sub_group_count_for_ndrange(n, ^(){}); // expected-error {{use of declaration 'get_kernel_sub_group_count_for_ndrange' requires cl_khr_subgroups support}}
+  buf[0] = get_kernel_sub_group_count_for_ndrange(n, ^(){}); // expected-error {{use of declaration 'get_kernel_sub_group_count_for_ndrange' requires cl_khr_subgroups or __opencl_c_subgroups support}}
 }
+#endif // ifdef cl_khr_subgroups

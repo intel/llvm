@@ -13,21 +13,23 @@
 #ifndef LLVM_OBJECT_SYMBOLICFILE_H
 #define LLVM_OBJECT_SYMBOLICFILE_H
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/MemoryBufferRef.h"
 #include <cinttypes>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
 #include <memory>
-#include <system_error>
 
 namespace llvm {
+
+class LLVMContext;
+class raw_ostream;
+
 namespace object {
 
 union DataRefImpl {
@@ -64,12 +66,16 @@ inline bool operator<(const DataRefImpl &a, const DataRefImpl &b) {
   return std::memcmp(&a, &b, sizeof(DataRefImpl)) < 0;
 }
 
-template <class content_type>
-class content_iterator
-    : public std::iterator<std::forward_iterator_tag, content_type> {
+template <class content_type> class content_iterator {
   content_type Current;
 
 public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = content_type;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
   content_iterator(content_type symb) : Current(std::move(symb)) {}
 
   const content_type *operator->() const { return &Current; }

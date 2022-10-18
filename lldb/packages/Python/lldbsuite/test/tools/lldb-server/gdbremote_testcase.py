@@ -59,8 +59,7 @@ class GdbRemoteTestCaseFactory(type):
         return super(GdbRemoteTestCaseFactory, cls).__new__(
                 cls, name, bases, newattrs)
 
-@add_metaclass(GdbRemoteTestCaseFactory)
-class GdbRemoteTestCaseBase(Base):
+class GdbRemoteTestCaseBase(Base, metaclass=GdbRemoteTestCaseFactory):
 
     # Default time out in seconds. The timeout is increased tenfold under Asan.
     DEFAULT_TIMEOUT =  20 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
@@ -162,9 +161,6 @@ class GdbRemoteTestCaseBase(Base):
         self._verbose_log_handler = None
         TestBase.tearDown(self)
 
-    def build(self, *args, **kwargs):
-        self.buildDefault(*args, **kwargs)
-
     def getLocalServerLogFile(self):
         return self.getLogBasenameForCurrentTest() + "-server.log"
 
@@ -227,8 +223,6 @@ class GdbRemoteTestCaseBase(Base):
             self.debug_monitor_exe = re.sub(r' \(deleted\)$', '', exe)
         else:
             self.debug_monitor_exe = get_lldb_server_exe()
-            if not self.debug_monitor_exe:
-                self.skipTest("lldb-server exe not found")
 
         self.debug_monitor_extra_args = ["gdbserver"]
         self.setUpServerLogging(is_llgs=True)
@@ -237,8 +231,6 @@ class GdbRemoteTestCaseBase(Base):
 
     def _init_debugserver_test(self):
         self.debug_monitor_exe = get_debugserver_exe()
-        if not self.debug_monitor_exe:
-            self.skipTest("debugserver exe not found")
         self.setUpServerLogging(is_llgs=False)
         self.reverse_connect = True
 
@@ -525,8 +517,9 @@ class GdbRemoteTestCaseBase(Base):
         server = self.connect_to_debug_monitor(attach_pid=attach_pid)
         self.assertIsNotNone(server)
 
+        self.do_handshake()
+
         # Build the expected protocol stream
-        self.add_no_ack_remote_stream()
         if inferior_env:
             for name, value in inferior_env.items():
                 self.add_set_environment_packets(name, value)
@@ -535,60 +528,13 @@ class GdbRemoteTestCaseBase(Base):
 
         return {"inferior": inferior, "server": server}
 
-    def expect_socket_recv(
-            self,
-            sock,
-            expected_content_regex
-            ):
-        response = ""
-        timeout_time = time.time() + self.DEFAULT_TIMEOUT
-
-        while not expected_content_regex.match(
-                response) and time.time() < timeout_time:
-            can_read, _, _ = select.select([sock], [], [], self.DEFAULT_TIMEOUT)
-            if can_read and sock in can_read:
-                recv_bytes = sock.recv(4096)
-                if recv_bytes:
-                    response += seven.bitcast_to_string(recv_bytes)
-
-        self.assertTrue(expected_content_regex.match(response))
-
-    def expect_socket_send(self, sock, content):
-        request_bytes_remaining = content
-        timeout_time = time.time() + self.DEFAULT_TIMEOUT
-
-        while len(request_bytes_remaining) > 0 and time.time() < timeout_time:
-            _, can_write, _ = select.select([], [sock], [], self.DEFAULT_TIMEOUT)
-            if can_write and sock in can_write:
-                written_byte_count = sock.send(request_bytes_remaining.encode())
-                request_bytes_remaining = request_bytes_remaining[
-                    written_byte_count:]
-        self.assertEqual(len(request_bytes_remaining), 0)
-
-    def do_handshake(self, stub_socket):
-        # Write the ack.
-        self.expect_socket_send(stub_socket, "+")
-
-        # Send the start no ack mode packet.
-        NO_ACK_MODE_REQUEST = "$QStartNoAckMode#b0"
-        bytes_sent = stub_socket.send(NO_ACK_MODE_REQUEST.encode())
-        self.assertEqual(bytes_sent, len(NO_ACK_MODE_REQUEST))
-
-        # Receive the ack and "OK"
-        self.expect_socket_recv(stub_socket, re.compile(
-            r"^\+\$OK#[0-9a-fA-F]{2}$"))
-
-        # Send the final ack.
-        self.expect_socket_send(stub_socket, "+")
-
-    def add_no_ack_remote_stream(self):
-        self.test_sequence.add_log_lines(
-            ["read packet: +",
-             "read packet: $QStartNoAckMode#b0",
-             "send packet: +",
-             "send packet: $OK#9a",
-             "read packet: +"],
-            True)
+    def do_handshake(self):
+        server = self._server
+        server.send_ack()
+        server.send_packet(b"QStartNoAckMode")
+        self.assertEqual(server.get_normal_packet(), b"+")
+        self.assertEqual(server.get_normal_packet(), b"OK")
+        server.send_ack()
 
     def add_verified_launch_packets(self, launch_args):
         self.test_sequence.add_log_lines(
@@ -773,7 +719,9 @@ class GdbRemoteTestCaseBase(Base):
                  "permissions",
                  "flags",
                  "name",
-                 "error"])
+                 "error",
+                 "dirty-pages",
+                 "type"])
             self.assertIsNotNone(val)
 
         mem_region_dict["name"] = seven.unhexlify(mem_region_dict.get("name", ""))
@@ -823,29 +771,20 @@ class GdbRemoteTestCaseBase(Base):
             thread_ids.extend(new_thread_infos)
         return thread_ids
 
-    def wait_for_thread_count(self, thread_count):
-        start_time = time.time()
-        timeout_time = start_time + self.DEFAULT_TIMEOUT
+    def launch_with_threads(self, thread_count):
+        procs = self.prep_debug_monitor_and_inferior(
+                inferior_args=["thread:new"]*(thread_count-1) + ["trap"])
 
-        actual_thread_count = 0
-        while actual_thread_count < thread_count:
-            self.reset_test_sequence()
-            self.add_threadinfo_collection_packets()
-
-            context = self.expect_gdbremote_sequence()
-            self.assertIsNotNone(context)
-
-            threads = self.parse_threadinfo_packets(context)
-            self.assertIsNotNone(threads)
-
-            actual_thread_count = len(threads)
-
-            if time.time() > timeout_time:
-                raise Exception(
-                    'timed out after {} seconds while waiting for theads: waiting for at least {} threads, found {}'.format(
-                        self.DEFAULT_TIMEOUT, thread_count, actual_thread_count))
-
-        return threads
+        self.test_sequence.add_log_lines([
+                "read packet: $c#00",
+                {"direction": "send",
+                    "regex": r"^\$T([0-9a-fA-F]{2})([^#]*)#..$",
+                    "capture": {1: "stop_signo", 2: "stop_reply_kv"}}], True)
+        self.add_threadinfo_collection_packets()
+        context = self.expect_gdbremote_sequence()
+        threads = self.parse_threadinfo_packets(context)
+        self.assertGreaterEqual(len(threads), thread_count)
+        return context, threads
 
     def add_set_breakpoint_packets(
             self,
@@ -885,9 +824,10 @@ class GdbRemoteTestCaseBase(Base):
                 "send packet: $OK#00",
             ], True)
 
-    def add_qSupported_packets(self):
+    def add_qSupported_packets(self, client_features=[]):
+        features = ''.join(';' + x for x in client_features)
         self.test_sequence.add_log_lines(
-            ["read packet: $qSupported#00",
+            ["read packet: $qSupported{}#00".format(features),
              {"direction": "send", "regex": r"^\$(.*)#[0-9a-fA-F]{2}", "capture": {1: "qSupported_response"}},
              ], True)
 
@@ -901,9 +841,16 @@ class GdbRemoteTestCaseBase(Base):
         "qXfer:libraries:read",
         "qXfer:libraries-svr4:read",
         "qXfer:features:read",
+        "qXfer:siginfo:read",
         "qEcho",
         "QPassSignals",
         "multiprocess",
+        "fork-events",
+        "vfork-events",
+        "memory-tagging",
+        "qSaveCore",
+        "native-signals",
+        "QNonStop",
     ]
 
     def parse_qSupported_response(self, context):
@@ -939,28 +886,6 @@ class GdbRemoteTestCaseBase(Base):
                     key)
 
         return supported_dict
-
-    def run_process_then_stop(self, run_seconds=1):
-        # Tell the stub to continue.
-        self.test_sequence.add_log_lines(
-            ["read packet: $vCont;c#a8"],
-            True)
-        context = self.expect_gdbremote_sequence()
-
-        # Wait for run_seconds.
-        time.sleep(run_seconds)
-
-        # Send an interrupt, capture a T response.
-        self.reset_test_sequence()
-        self.test_sequence.add_log_lines(
-            ["read packet: {}".format(chr(3)),
-             {"direction": "send", "regex": r"^\$T([0-9a-fA-F]+)([^#]+)#[0-9a-fA-F]{2}$", "capture": {1: "stop_result"}}],
-            True)
-        context = self.expect_gdbremote_sequence()
-        self.assertIsNotNone(context)
-        self.assertIsNotNone(context.get("stop_result"))
-
-        return context
 
     def continue_process_and_wait_for_stop(self):
         self.test_sequence.add_log_lines(
@@ -1581,17 +1506,18 @@ class GdbRemoteTestCaseBase(Base):
         # variable value
         if re.match("s390x", arch):
             expected_step_count = 2
-        # ARM64 requires "4" instructions: 2 to compute the address (adrp, add),
-        # one to materialize the constant (mov) and the store
+        # ARM64 requires "4" instructions: 2 to compute the address (adrp,
+        # add), one to materialize the constant (mov) and the store. Once
+        # addresses and constants are materialized, only one instruction is
+        # needed.
         if re.match("arm64", arch):
-            expected_step_count = 4
-
-        self.assertEqual(step_count, expected_step_count)
-
-        # ARM64: Once addresses and constants are materialized, only one
-        # instruction is needed.
-        if re.match("arm64", arch):
-            expected_step_count = 1
+            before_materialization_step_count = 4
+            after_matrialization_step_count = 1
+            self.assertIn(step_count, [before_materialization_step_count,
+                                       after_matrialization_step_count])
+            expected_step_count = after_matrialization_step_count
+        else:
+            self.assertEqual(step_count, expected_step_count)
 
         # Verify we hit the next state.
         args["expected_g_c1"] = "0"

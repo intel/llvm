@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-///
+/// \file
 /// This file declares a class that exposes a simple in-memory representation
 /// of a document of MsgPack objects, that can be read from MsgPack, written to
 /// MsgPack, and inspected and modified in memory. This is intended to be a
@@ -218,7 +218,7 @@ private:
 /// A DocNode that is a map.
 class MapDocNode : public DocNode {
 public:
-  MapDocNode() {}
+  MapDocNode() = default;
   MapDocNode(DocNode &N) : DocNode(N) { assert(getKind() == Type::Map); }
 
   // Map access methods.
@@ -248,7 +248,7 @@ public:
 /// A DocNode that is an array.
 class ArrayDocNode : public DocNode {
 public:
-  ArrayDocNode() {}
+  ArrayDocNode() = default;
   ArrayDocNode(DocNode &N) : DocNode(N) { assert(getKind() == Type::Array); }
 
   // Array access methods.

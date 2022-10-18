@@ -87,6 +87,9 @@ public:
   /// Return the current Hit Count.
   uint32_t GetHitCount() const { return m_hit_counter.GetValue(); }
 
+  /// Resets the current Hit Count.
+  void ResetHitCount() { m_hit_counter.Reset(); }
+
   /// Return the current Ignore Count.
   ///
   /// \return
@@ -202,8 +205,8 @@ public:
   /// hasn't been done already
   ///
   /// \return
-  ///    A pointer to the breakpoint options.
-  BreakpointOptions *GetLocationOptions();
+  ///    A reference to the breakpoint options.
+  BreakpointOptions &GetLocationOptions();
 
   /// Use this to access breakpoint options from this breakpoint location.
   /// This will return the options that have a setting for the specified
@@ -214,10 +217,10 @@ public:
   /// \return
   ///     A pointer to the containing breakpoint's options if this
   ///     location doesn't have its own copy.
-  const BreakpointOptions *GetOptionsSpecifyingKind(
-      BreakpointOptions::OptionKind kind) const;
+  const BreakpointOptions &
+  GetOptionsSpecifyingKind(BreakpointOptions::OptionKind kind) const;
 
-  bool ValidForThisThread(Thread *thread);
+  bool ValidForThisThread(Thread &thread);
 
   /// Invoke the callback action when the breakpoint is hit.
   ///
@@ -297,6 +300,10 @@ protected:
 
   void DecrementIgnoreCount();
 
+  /// BreakpointLocation::IgnoreCountShouldStop  can only be called once
+  /// per stop.  This method checks first against the loc and then the owner.
+  /// It also takes care of decrementing the ignore counters.
+  /// If it returns false we should continue, otherwise stop.
   bool IgnoreCountShouldStop();
 
 private:

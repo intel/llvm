@@ -38,17 +38,24 @@ cpu = [] if cpu == '' else ["-mcpu=" + cpu]
 
 llvm_config.use_default_substitutions()
 
-llvm_config.use_clang(additional_flags=["-fno-builtin",
-                                        "-I", libclc_inc,
-                                        "-target", target,
-                                        "-Xclang",
-                                        "-fdeclare-spirv-builtins",
-                                        "-Xclang",
-                                        "-mlink-builtin-bitcode",
-                                        "-Xclang",
-                                        os.path.join(config.llvm_libs_dir,
-                                                     "clc",
-                                                     builtins)] + cpu)
+clang_flags = [
+  "-fno-builtin",
+  "-I", libclc_inc,
+  "-target", target,
+  "-Xclang", "-fdeclare-spirv-builtins",
+  "-Xclang", "-mlink-builtin-bitcode",
+  "-Xclang", os.path.join(config.llvm_libs_dir, "clc", builtins),
+  "-nogpulib"
+]
+
+if target == 'amdgcn--amdhsa':
+    config.available_features.add('amdgcn')
+
+    # libclc for amdgcn is currently built for tahiti which doesn't support
+    # fp16 so disable the extension for the tests
+    clang_flags += ['-Xclang', '-cl-ext=-cl_khr_fp16']
+
+llvm_config.use_clang(additional_flags=clang_flags + cpu)
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 

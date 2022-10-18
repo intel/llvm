@@ -1,4 +1,4 @@
-//===-- platform_util.hpp - platform utilities ----------------*- C++ -*--===//
+//===--------- platform_util.hpp - platform utilities ----------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,16 +8,19 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
 #include <cstdint>
+
+#include <stddef.h> // for ::size_t
+
+#include <sycl/detail/defines.hpp>
 
 #ifdef _MSC_VER
 // This feature is not supported in MSVC.
 #define __builtin_expect(a, b) (a)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 struct PlatformUtil {
@@ -44,5 +47,5 @@ struct PlatformUtil {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

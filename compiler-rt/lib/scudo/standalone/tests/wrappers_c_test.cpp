@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "memtag.h"
 #include "scudo/interface.h"
 #include "tests/scudo_unit_test.h"
 
@@ -14,6 +15,10 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#ifndef __GLIBC_PREREQ
+#define __GLIBC_PREREQ(x, y) 0
+#endif
 
 extern "C" {
 void malloc_enable(void);
@@ -37,7 +42,7 @@ void *pvalloc(size_t size);
 
 static const size_t Size = 100U;
 
-TEST(ScudoWrappersCTest, Malloc) {
+TEST(ScudoWrappersCDeathTest, Malloc) {
   void *P = malloc(Size);
   EXPECT_NE(P, nullptr);
   EXPECT_LE(Size, malloc_usable_size(P));
@@ -94,6 +99,18 @@ TEST(ScudoWrappersCTest, Calloc) {
   EXPECT_EQ(errno, ENOMEM);
 }
 
+TEST(ScudoWrappersCTest, SmallAlign) {
+  void *P;
+  for (size_t Size = 1; Size <= 0x10000; Size <<= 1) {
+    for (size_t Align = 1; Align <= 0x10000; Align <<= 1) {
+      for (size_t Count = 0; Count < 3; ++Count) {
+        P = memalign(Align, Size);
+        EXPECT_TRUE(reinterpret_cast<uintptr_t>(P) % Align == 0);
+      }
+    }
+  }
+}
+
 TEST(ScudoWrappersCTest, Memalign) {
   void *P;
   for (size_t I = FIRST_32_SECOND_64(2U, 3U); I <= 18U; I++) {
@@ -141,7 +158,7 @@ TEST(ScudoWrappersCTest, AlignedAlloc) {
   EXPECT_EQ(errno, EINVAL);
 }
 
-TEST(ScudoWrappersCTest, Realloc) {
+TEST(ScudoWrappersCDeathTest, Realloc) {
   // realloc(nullptr, N) is malloc(N)
   void *P = realloc(nullptr, 0U);
   EXPECT_NE(P, nullptr);
@@ -245,8 +262,10 @@ TEST(ScudoWrappersCTest, OtherAlloc) {
 
 #if !SCUDO_FUCHSIA
 TEST(ScudoWrappersCTest, MallInfo) {
+  // mallinfo is deprecated.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
   const size_t BypassQuarantineSize = 1024U;
-
   struct mallinfo MI = mallinfo();
   size_t Allocated = MI.uordblks;
   void *P = malloc(BypassQuarantineSize);
@@ -258,6 +277,24 @@ TEST(ScudoWrappersCTest, MallInfo) {
   free(P);
   MI = mallinfo();
   EXPECT_GE(static_cast<size_t>(MI.fordblks), Free + BypassQuarantineSize);
+#pragma clang diagnostic pop
+}
+#endif
+
+#if __GLIBC_PREREQ(2, 33)
+TEST(ScudoWrappersCTest, MallInfo2) {
+  const size_t BypassQuarantineSize = 1024U;
+  struct mallinfo2 MI = mallinfo2();
+  size_t Allocated = MI.uordblks;
+  void *P = malloc(BypassQuarantineSize);
+  EXPECT_NE(P, nullptr);
+  MI = mallinfo2();
+  EXPECT_GE(MI.uordblks, Allocated + BypassQuarantineSize);
+  EXPECT_GT(MI.hblkhd, 0U);
+  size_t Free = MI.fordblks;
+  free(P);
+  MI = mallinfo2();
+  EXPECT_GE(MI.fordblks, Free + BypassQuarantineSize);
 }
 #endif
 
@@ -265,6 +302,10 @@ static uintptr_t BoundaryP;
 static size_t Count;
 
 static void callback(uintptr_t Base, size_t Size, void *Arg) {
+  if (scudo::archSupportsMemoryTagging()) {
+    Base = scudo::untagPointer(Base);
+    BoundaryP = scudo::untagPointer(BoundaryP);
+  }
   if (Base == BoundaryP)
     Count++;
 }
@@ -316,7 +357,7 @@ TEST(ScudoWrappersCTest, MallocIterateBoundary) {
 
 // Fuchsia doesn't have alarm, fork or malloc_info.
 #if !SCUDO_FUCHSIA
-TEST(ScudoWrappersCTest, MallocDisableDeadlock) {
+TEST(ScudoWrappersCDeathTest, MallocDisableDeadlock) {
   // We expect heap operations within a disable/enable scope to deadlock.
   EXPECT_DEATH(
       {
@@ -351,10 +392,10 @@ TEST(ScudoWrappersCTest, MallocInfo) {
   free(P2);
 }
 
-TEST(ScudoWrappersCTest, Fork) {
+TEST(ScudoWrappersCDeathTest, Fork) {
   void *P;
   pid_t Pid = fork();
-  EXPECT_GE(Pid, 0);
+  EXPECT_GE(Pid, 0) << strerror(errno);
   if (Pid == 0) {
     P = malloc(Size);
     EXPECT_NE(P, nullptr);

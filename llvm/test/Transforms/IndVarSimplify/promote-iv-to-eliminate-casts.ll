@@ -181,8 +181,8 @@ return:         ; preds = %bb
 define void @promote_latch_condition_decrementing_loop_01(i32* %p, i32* %a) {
 ; CHECK-LABEL: @promote_latch_condition_decrementing_loop_01(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, [[RNG0:!range !.*]]
-; CHECK-NEXT:    [[LEN_MINUS_1:%.*]] = add nsw i32 [[LEN]], -1
+; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, !range [[RNG0:![0-9]+]]
+; CHECK-NEXT:    [[LEN_MINUS_1:%.*]] = add i32 [[LEN]], -1
 ; CHECK-NEXT:    [[ZERO_CHECK:%.*]] = icmp eq i32 [[LEN]], 0
 ; CHECK-NEXT:    br i1 [[ZERO_CHECK]], label [[LOOPEXIT:%.*]], label [[PREHEADER:%.*]]
 ; CHECK:       preheader:
@@ -226,7 +226,7 @@ loop:
 define void @promote_latch_condition_decrementing_loop_02(i32* %p, i32* %a) {
 ; CHECK-LABEL: @promote_latch_condition_decrementing_loop_02(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, [[RNG0]]
+; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, !range [[RNG0]]
 ; CHECK-NEXT:    [[ZERO_CHECK:%.*]] = icmp eq i32 [[LEN]], 0
 ; CHECK-NEXT:    br i1 [[ZERO_CHECK]], label [[LOOPEXIT:%.*]], label [[PREHEADER:%.*]]
 ; CHECK:       preheader:
@@ -269,7 +269,7 @@ loop:
 define void @promote_latch_condition_decrementing_loop_03(i32* %p, i32* %a) {
 ; CHECK-LABEL: @promote_latch_condition_decrementing_loop_03(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, [[RNG0]]
+; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, !range [[RNG0]]
 ; CHECK-NEXT:    [[ZERO_CHECK:%.*]] = icmp eq i32 [[LEN]], 0
 ; CHECK-NEXT:    br i1 [[ZERO_CHECK]], label [[LOOPEXIT:%.*]], label [[PREHEADER:%.*]]
 ; CHECK:       preheader:
@@ -314,7 +314,7 @@ loop:
 define void @promote_latch_condition_decrementing_loop_04(i32* %p, i32* %a, i1 %cond) {
 ; CHECK-LABEL: @promote_latch_condition_decrementing_loop_04(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, [[RNG0]]
+; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, !range [[RNG0]]
 ; CHECK-NEXT:    [[LEN_MINUS_1:%.*]] = add nsw i32 [[LEN]], -1
 ; CHECK-NEXT:    br i1 [[COND:%.*]], label [[IF_TRUE:%.*]], label [[IF_FALSE:%.*]]
 ; CHECK:       if.true:
@@ -350,6 +350,68 @@ if.true:
   br label %merge
 
 if.false:
+  br label %merge
+
+merge:
+  %iv_start = phi i32 [ %len, %if.true ], [%len.minus.1, %if.false ]
+  %zero_check = icmp eq i32 %len, 0
+  br i1 %zero_check, label %loopexit, label %preheader
+
+preheader:
+  br label %loop
+
+loopexit:
+  ret void
+
+loop:
+  %iv = phi i32 [ %iv.next, %loop ], [ %iv_start, %preheader ]
+  %iv.wide = zext i32 %iv to i64
+  %el = getelementptr inbounds i32, i32* %a, i64 %iv.wide
+  store atomic i32 0, i32* %el unordered, align 4
+  %iv.next = add nsw i32 %iv, -1
+  %loopcond = icmp slt i32 %iv, 1
+  br i1 %loopcond, label %loopexit, label %loop
+}
+
+define void @promote_latch_condition_decrementing_loop_05(i32* %p, i32* %a, i1 %cond) {
+; CHECK-LABEL: @promote_latch_condition_decrementing_loop_05(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[LEN:%.*]] = load i32, i32* [[P:%.*]], align 4, !range [[RNG0]]
+; CHECK-NEXT:    br i1 [[COND:%.*]], label [[IF_TRUE:%.*]], label [[IF_FALSE:%.*]]
+; CHECK:       if.true:
+; CHECK-NEXT:    br label [[MERGE:%.*]]
+; CHECK:       if.false:
+; CHECK-NEXT:    [[LEN_MINUS_1:%.*]] = add nsw i32 [[LEN]], -1
+; CHECK-NEXT:    br label [[MERGE]]
+; CHECK:       merge:
+; CHECK-NEXT:    [[IV_START:%.*]] = phi i32 [ [[LEN]], [[IF_TRUE]] ], [ [[LEN_MINUS_1]], [[IF_FALSE]] ]
+; CHECK-NEXT:    [[ZERO_CHECK:%.*]] = icmp eq i32 [[LEN]], 0
+; CHECK-NEXT:    br i1 [[ZERO_CHECK]], label [[LOOPEXIT:%.*]], label [[PREHEADER:%.*]]
+; CHECK:       preheader:
+; CHECK-NEXT:    [[TMP0:%.*]] = zext i32 [[IV_START]] to i64
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loopexit.loopexit:
+; CHECK-NEXT:    br label [[LOOPEXIT]]
+; CHECK:       loopexit:
+; CHECK-NEXT:    ret void
+; CHECK:       loop:
+; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[INDVARS_IV_NEXT:%.*]], [[LOOP]] ], [ [[TMP0]], [[PREHEADER]] ]
+; CHECK-NEXT:    [[EL:%.*]] = getelementptr inbounds i32, i32* [[A:%.*]], i64 [[INDVARS_IV]]
+; CHECK-NEXT:    store atomic i32 0, i32* [[EL]] unordered, align 4
+; CHECK-NEXT:    [[LOOPCOND:%.*]] = icmp slt i64 [[INDVARS_IV]], 1
+; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nsw i64 [[INDVARS_IV]], -1
+; CHECK-NEXT:    br i1 [[LOOPCOND]], label [[LOOPEXIT_LOOPEXIT:%.*]], label [[LOOP]]
+;
+
+entry:
+  %len = load i32, i32* %p, align 4, !range !0
+  br i1 %cond, label %if.true, label %if.false
+
+if.true:
+  br label %merge
+
+if.false:
+  %len.minus.1 = add nsw i32 %len, -1
   br label %merge
 
 merge:

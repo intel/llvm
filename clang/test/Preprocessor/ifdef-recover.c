@@ -19,4 +19,16 @@
 #if f(2
 #endif
 
+/* expected-error@+3 {{macro name missing}} */
+/* expected-warning@+2 {{use of a '#elifdef' directive is a C2x extension}} */
+#ifdef FOO
+#elifdef
+#endif
+
+/* expected-error@+3 {{macro name must be an identifier}} */
+/* expected-warning@+2 {{use of a '#elifdef' directive is a C2x extension}} */
+#ifdef FOO
+#elifdef !
+#endif
+
 int x;

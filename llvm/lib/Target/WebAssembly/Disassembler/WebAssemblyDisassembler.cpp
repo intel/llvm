@@ -14,20 +14,19 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "MCTargetDesc/WebAssemblyInstPrinter.h"
-#include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "TargetInfo/WebAssemblyTargetInfo.h"
+#include "Utils/WebAssemblyTypeUtilities.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCDecoderOps.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
-#include "llvm/MC/MCFixedLenDisassembler.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolWasm.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/LEB128.h"
-#include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -204,7 +203,7 @@ MCDisassembler::DecodeStatus WebAssemblyDisassembler::getInstruction(
     case WebAssembly::OPERAND_OFFSET64:
     case WebAssembly::OPERAND_P2ALIGN:
     case WebAssembly::OPERAND_TYPEINDEX:
-    case WebAssembly::OPERAND_EVENT:
+    case WebAssembly::OPERAND_TAG:
     case MCOI::OPERAND_IMMEDIATE: {
       if (!parseLEBImmediate(MI, Size, Bytes, false))
         return MCDisassembler::Fail;
@@ -239,28 +238,6 @@ MCDisassembler::DecodeStatus WebAssemblyDisassembler::getInstruction(
         const MCExpr *Expr = MCSymbolRefExpr::create(
             WasmSym, MCSymbolRefExpr::VK_WASM_TYPEINDEX, getContext());
         MI.addOperand(MCOperand::createExpr(Expr));
-      }
-      break;
-    }
-    // heap_type operands, for e.g. ref.null:
-    case WebAssembly::OPERAND_HEAPTYPE: {
-      int64_t Val;
-      uint64_t PrevSize = Size;
-      if (!nextLEB(Val, Bytes, Size, true))
-        return MCDisassembler::Fail;
-      if (Val < 0 && Size == PrevSize + 1) {
-        // The HeapType encoding is like BlockType, in that encodings that
-        // decode as negative values indicate ValTypes.  In practice we expect
-        // either wasm::ValType::EXTERNREF or wasm::ValType::FUNCREF here.
-        //
-        // The positive SLEB values are reserved for future expansion and are
-        // expected to be type indices in the typed function references
-        // proposal, and should disassemble as MCSymbolRefExpr as in BlockType
-        // above.
-        MI.addOperand(MCOperand::createImm(Val & 0x7f));
-      } else {
-        MI.addOperand(
-            MCOperand::createImm(int64_t(WebAssembly::HeapType::Invalid)));
       }
       break;
     }

@@ -112,8 +112,8 @@ CheckPropertyAgainstProtocol(Sema &S, ObjCPropertyDecl *Prop,
     return;
 
   // Look for a property with the same name.
-  if (ObjCPropertyDecl *ProtoProp =
-      Proto->lookup(Prop->getDeclName()).find_first<ObjCPropertyDecl>()) {
+  if (ObjCPropertyDecl *ProtoProp = Proto->getProperty(
+          Prop->getIdentifier(), Prop->isInstanceProperty())) {
     S.DiagnosePropertyMismatch(Prop, ProtoProp, Proto->getIdentifier(), true);
     return;
   }
@@ -231,8 +231,8 @@ Decl *Sema::ActOnProperty(Scope *S, SourceLocation AtLoc,
     bool FoundInSuper = false;
     ObjCInterfaceDecl *CurrentInterfaceDecl = IFace;
     while (ObjCInterfaceDecl *Super = CurrentInterfaceDecl->getSuperClass()) {
-      if (ObjCPropertyDecl *SuperProp =
-          Super->lookup(Res->getDeclName()).find_first<ObjCPropertyDecl>()) {
+      if (ObjCPropertyDecl *SuperProp = Super->getProperty(
+              Res->getIdentifier(), Res->isInstanceProperty())) {
         DiagnosePropertyMismatch(Res, SuperProp, Super->getIdentifier(), false);
         FoundInSuper = true;
         break;
@@ -1028,7 +1028,7 @@ static bool hasWrittenStorageAttribute(ObjCPropertyDecl *Prop,
 
   // Find the corresponding property in the primary class definition.
   auto OrigClass = Category->getClassInterface();
-  for (auto Found : OrigClass->lookup(Prop->getDeclName())) {
+  for (auto *Found : OrigClass->lookup(Prop->getDeclName())) {
     if (ObjCPropertyDecl *OrigProp = dyn_cast<ObjCPropertyDecl>(Found))
       return OrigProp->getPropertyAttributesAsWritten() & OwnershipMask;
   }
@@ -1458,7 +1458,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       MarkDeclRefReferenced(SelfExpr);
       Expr *LoadSelfExpr = ImplicitCastExpr::Create(
           Context, SelfDecl->getType(), CK_LValueToRValue, SelfExpr, nullptr,
-          VK_RValue, FPOptionsOverride());
+          VK_PRValue, FPOptionsOverride());
       Expr *IvarRefExpr =
         new (Context) ObjCIvarRefExpr(Ivar,
                                       Ivar->getUsageType(SelfDecl->getType()),
@@ -1467,8 +1467,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
                                       LoadSelfExpr, true, true);
       ExprResult Res = PerformCopyInitialization(
           InitializedEntity::InitializeResult(PropertyDiagLoc,
-                                              getterMethod->getReturnType(),
-                                              /*NRVO=*/false),
+                                              getterMethod->getReturnType()),
           PropertyDiagLoc, IvarRefExpr);
       if (!Res.isInvalid()) {
         Expr *ResExpr = Res.getAs<Expr>();
@@ -1521,7 +1520,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       MarkDeclRefReferenced(SelfExpr);
       Expr *LoadSelfExpr = ImplicitCastExpr::Create(
           Context, SelfDecl->getType(), CK_LValueToRValue, SelfExpr, nullptr,
-          VK_RValue, FPOptionsOverride());
+          VK_PRValue, FPOptionsOverride());
       Expr *lhs =
         new (Context) ObjCIvarRefExpr(Ivar,
                                       Ivar->getUsageType(SelfDecl->getType()),

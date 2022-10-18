@@ -2,6 +2,9 @@
 _SPIRV_OP(Success, "")
 _SPIRV_OP(InvalidTargetTriple,
           "Expects spir-unknown-unknown or spir64-unknown-unknown.")
+_SPIRV_OP(InvalidSubArch, "Expecting v1.0-v1.4.")
+_SPIRV_OP(TripleMaxVersionIncompatible,
+          "Triple version and maximum version are incompatible.")
 _SPIRV_OP(InvalidAddressingModel, "Expects 0-2.")
 _SPIRV_OP(InvalidMemoryModel, "Expects 0-3.")
 _SPIRV_OP(InvalidFunctionControlMask, "")
@@ -17,3 +20,5 @@ _SPIRV_OP(InvalidInstruction, "Can't translate llvm instruction:\n")
 _SPIRV_OP(InvalidWordCount,
           "Can't encode instruction with word count greater than 65535:\n")
 _SPIRV_OP(Requires1_1, "Feature requires SPIR-V 1.1 or greater:")
+_SPIRV_OP(RequiresExtension,
+          "Feature requires the following SPIR-V extension:\n")

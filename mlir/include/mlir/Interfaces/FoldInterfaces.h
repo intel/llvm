@@ -10,6 +10,7 @@
 
 #include "mlir/IR/DialectInterface.h"
 #include "mlir/Support/LogicalResult.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace mlir {
@@ -43,6 +44,6 @@ public:
   virtual bool shouldMaterializeInto(Region *region) const { return false; }
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_INTERFACES_FOLDINTERFACES_H_

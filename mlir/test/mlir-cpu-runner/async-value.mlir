@@ -1,22 +1,21 @@
-// RUN:   mlir-opt %s -async-ref-counting                                      \
-// RUN:               -async-to-async-runtime                                  \
-// RUN:               -convert-async-to-llvm                                   \
-// RUN:               -convert-vector-to-llvm                                  \
-// RUN:               -convert-std-to-llvm                                     \
+// RUN:   mlir-opt %s -pass-pipeline="async-to-async-runtime,func.func(async-runtime-ref-counting,async-runtime-ref-counting-opt),convert-async-to-llvm,func.func(convert-arith-to-llvm),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:     -e main -entry-point-result=void -O0                               \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_c_runner_utils%shlibext  \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_runner_utils%shlibext    \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_async_runtime%shlibext   \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext  \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext    \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_async_runtime%shlibext   \
 // RUN: | FileCheck %s --dump-input=always
 
-func @main() {
+// FIXME: https://github.com/llvm/llvm-project/issues/57231
+// UNSUPPORTED: hwasan
+
+func.func @main() {
 
   // ------------------------------------------------------------------------ //
   // Blocking async.await outside of the async.execute.
   // ------------------------------------------------------------------------ //
   %token, %result = async.execute -> !async.value<f32> {
-    %0 = constant 123.456 : f32
+    %0 = arith.constant 123.456 : f32
     async.yield %0 : f32
   }
   %1 = async.await %result : !async.value<f32>
@@ -29,7 +28,7 @@ func @main() {
   // ------------------------------------------------------------------------ //
   %token0, %result0 = async.execute -> !async.value<f32> {
     %token1, %result2 = async.execute -> !async.value<f32> {
-      %2 = constant 456.789 : f32
+      %2 = arith.constant 456.789 : f32
       async.yield %2 : f32
     }
     %3 = async.await %result2 : !async.value<f32>
@@ -45,7 +44,7 @@ func @main() {
   // ------------------------------------------------------------------------ //
   %token2, %result2 = async.execute[%token0] -> !async.value<memref<f32>> {
     %5 = memref.alloc() : memref<f32>
-    %c0 = constant 0.25 : f32
+    %c0 = arith.constant 0.25 : f32
     memref.store %c0, %5[]: memref<f32>
     async.yield %5 : memref<f32>
   }
@@ -55,14 +54,14 @@ func @main() {
   // CHECK: Unranked Memref
   // CHECK-SAME: rank = 0 offset = 0 sizes = [] strides = []
   // CHECK-NEXT: [0.25]
-  call @print_memref_f32(%7): (memref<*xf32>) -> ()
+  call @printMemrefF32(%7): (memref<*xf32>) -> ()
 
   // ------------------------------------------------------------------------ //
   // Memref passed as async.execute operand.
   // ------------------------------------------------------------------------ //
   %token3 = async.execute(%result2 as %unwrapped : !async.value<memref<f32>>) {
     %8 = memref.load %unwrapped[]: memref<f32>
-    %9 = addf %8, %8 : f32
+    %9 = arith.addf %8, %8 : f32
     memref.store %9, %unwrapped[]: memref<f32>
     async.yield
   }
@@ -71,12 +70,12 @@ func @main() {
   // CHECK: Unranked Memref
   // CHECK-SAME: rank = 0 offset = 0 sizes = [] strides = []
   // CHECK-NEXT: [0.5]
-  call @print_memref_f32(%7): (memref<*xf32>) -> ()
+  call @printMemrefF32(%7): (memref<*xf32>) -> ()
 
   memref.dealloc %6 : memref<f32>
 
   return
 }
 
-func private @print_memref_f32(memref<*xf32>)
+func.func private @printMemrefF32(memref<*xf32>)
   attributes { llvm.emit_c_interface }

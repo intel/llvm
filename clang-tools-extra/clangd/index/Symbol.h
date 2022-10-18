@@ -9,9 +9,9 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOL_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOL_H
 
-#include "SymbolID.h"
-#include "SymbolLocation.h"
-#include "SymbolOrigin.h"
+#include "index/SymbolID.h"
+#include "index/SymbolLocation.h"
+#include "index/SymbolOrigin.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/StringSaver.h"
@@ -232,6 +232,8 @@ private:
   llvm::BumpPtrAllocator Arena; // Owns Symbol data that the Symbols do not.
   std::vector<Symbol> Symbols;  // Sorted by SymbolID to allow lookup.
 };
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const SymbolSlab &Slab);
 
 } // namespace clangd
 } // namespace clang

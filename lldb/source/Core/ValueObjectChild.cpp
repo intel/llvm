@@ -21,8 +21,8 @@
 #include <memory>
 #include <vector>
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 using namespace lldb_private;
 
@@ -43,7 +43,7 @@ ValueObjectChild::ValueObjectChild(
   SetLanguageFlags(language_flags);
 }
 
-ValueObjectChild::~ValueObjectChild() {}
+ValueObjectChild::~ValueObjectChild() = default;
 
 lldb::ValueType ValueObjectChild::GetValueType() const {
   return m_parent->GetValueType();
@@ -82,8 +82,8 @@ ConstString ValueObjectChild::GetDisplayTypeName() {
 }
 
 LazyBool ValueObjectChild::CanUpdateWithInvalidExecutionContext() {
-  if (m_can_update_with_invalid_exe_ctx.hasValue())
-    return m_can_update_with_invalid_exe_ctx.getValue();
+  if (m_can_update_with_invalid_exe_ctx)
+    return m_can_update_with_invalid_exe_ctx.value();
   if (m_parent) {
     ValueObject *opinionated_parent =
         m_parent->FollowParentChain([](ValueObject *valobj) -> bool {
@@ -93,11 +93,11 @@ LazyBool ValueObjectChild::CanUpdateWithInvalidExecutionContext() {
     if (opinionated_parent)
       return (m_can_update_with_invalid_exe_ctx =
                   opinionated_parent->CanUpdateWithInvalidExecutionContext())
-          .getValue();
+          .value();
   }
   return (m_can_update_with_invalid_exe_ctx =
               this->ValueObject::CanUpdateWithInvalidExecutionContext())
-      .getValue();
+      .value();
 }
 
 bool ValueObjectChild::UpdateValue() {

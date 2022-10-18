@@ -4,19 +4,24 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_unittest(FormatTests
   CleanupTest.cpp
+  DefinitionBlockSeparatorTest.cpp
   FormatTest.cpp
   FormatTestComments.cpp
   FormatTestCSharp.cpp
   FormatTestJS.cpp
   FormatTestJava.cpp
+  FormatTestJson.cpp
   FormatTestObjC.cpp
   FormatTestProto.cpp
   FormatTestRawStrings.cpp
   FormatTestSelective.cpp
   FormatTestTableGen.cpp
   FormatTestTextProto.cpp
+  FormatTestVerilog.cpp
+  MacroCallReconstructorTest.cpp
   MacroExpanderTest.cpp
   NamespaceEndCommentsFixerTest.cpp
+  QualifierFixerTest.cpp
   SortImportsTestJS.cpp
   SortImportsTestJava.cpp
   SortIncludesTest.cpp

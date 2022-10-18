@@ -13,7 +13,7 @@
 //
 // In LLVM CodeGen the runtime-handle metadata will be translated to
 // RuntimeHandle metadata in code object. Runtime allocates a global buffer
-// for each kernel with RuntimeHandel metadata and saves the kernel address
+// for each kernel with RuntimeHandle metadata and saves the kernel address
 // required for the AQL packet into the buffer. __enqueue_kernel function
 // in device library knows that the invoke function pointer in the block
 // literal is actually runtime handle and loads the kernel address from it
@@ -34,6 +34,7 @@
 #include "AMDGPU.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Module.h"
@@ -71,10 +72,10 @@ ModulePass* llvm::createAMDGPUOpenCLEnqueuedBlockLoweringPass() {
   return new AMDGPUOpenCLEnqueuedBlockLowering();
 }
 
-/// Collect direct or indrect callers of \p F and save them
+/// Collect direct or indirect callers of \p F and save them
 /// to \p Callers.
 static void collectCallers(Function *F, DenseSet<Function *> &Callers) {
-  for (auto U : F->users()) {
+  for (auto *U : F->users()) {
     if (auto *CI = dyn_cast<CallInst>(&*U)) {
       auto *Caller = CI->getParent()->getParent();
       if (Callers.insert(Caller).second)
@@ -94,7 +95,7 @@ static void collectFunctionUsers(User *U, DenseSet<Function *> &Funcs) {
   }
   if (!isa<Constant>(U))
     return;
-  for (auto UU : U->users())
+  for (auto *UU : U->users())
     collectFunctionUsers(&*UU, Funcs);
 }
 
@@ -122,7 +123,7 @@ bool AMDGPUOpenCLEnqueuedBlockLowering::runOnModule(Module &M) {
           /*isExternallyInitialized=*/false);
       LLVM_DEBUG(dbgs() << "runtime handle created: " << *GV << '\n');
 
-      for (auto U : F.users()) {
+      for (auto *U : F.users()) {
         auto *UU = &*U;
         if (!isa<ConstantExpr>(UU))
           continue;
@@ -137,7 +138,7 @@ bool AMDGPUOpenCLEnqueuedBlockLowering::runOnModule(Module &M) {
     }
   }
 
-  for (auto F : Callers) {
+  for (auto *F : Callers) {
     if (F->getCallingConv() != CallingConv::AMDGPU_KERNEL)
       continue;
     F->addFnAttr("calls-enqueue-kernel");

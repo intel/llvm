@@ -21,8 +21,7 @@
 #include "min_allocator.h"
 
 template <class C, class Iterator>
-void
-test(Iterator first, Iterator last, const typename C::allocator_type& a)
+TEST_CONSTEXPR_CXX20 void test(Iterator first, Iterator last, const typename C::allocator_type& a)
 {
     C c(first, last, a);
     LIBCPP_ASSERT(c.__invariants());
@@ -31,13 +30,13 @@ test(Iterator first, Iterator last, const typename C::allocator_type& a)
         assert(*i == *first);
 }
 
-int main(int, char**)
+TEST_CONSTEXPR_CXX20 bool tests()
 {
     bool a[] = {0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0};
     bool* an = a + sizeof(a)/sizeof(a[0]);
     {
     std::allocator<bool> alloc;
-    test<std::vector<bool> >(input_iterator<const bool*>(a), input_iterator<const bool*>(an), alloc);
+    test<std::vector<bool> >(cpp17_input_iterator<const bool*>(a), cpp17_input_iterator<const bool*>(an), alloc);
     test<std::vector<bool> >(forward_iterator<const bool*>(a), forward_iterator<const bool*>(an), alloc);
     test<std::vector<bool> >(bidirectional_iterator<const bool*>(a), bidirectional_iterator<const bool*>(an), alloc);
     test<std::vector<bool> >(random_access_iterator<const bool*>(a), random_access_iterator<const bool*>(an), alloc);
@@ -46,7 +45,7 @@ int main(int, char**)
 #if TEST_STD_VER >= 11
     {
     min_allocator<bool> alloc;
-    test<std::vector<bool, min_allocator<bool>> >(input_iterator<const bool*>(a), input_iterator<const bool*>(an), alloc);
+    test<std::vector<bool, min_allocator<bool>> >(cpp17_input_iterator<const bool*>(a), cpp17_input_iterator<const bool*>(an), alloc);
     test<std::vector<bool, min_allocator<bool>> >(forward_iterator<const bool*>(a), forward_iterator<const bool*>(an), alloc);
     test<std::vector<bool, min_allocator<bool>> >(bidirectional_iterator<const bool*>(a), bidirectional_iterator<const bool*>(an), alloc);
     test<std::vector<bool, min_allocator<bool>> >(random_access_iterator<const bool*>(a), random_access_iterator<const bool*>(an), alloc);
@@ -54,5 +53,14 @@ int main(int, char**)
     }
 #endif
 
-  return 0;
+    return true;
+}
+
+int main(int, char**)
+{
+    tests();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
+    return 0;
 }

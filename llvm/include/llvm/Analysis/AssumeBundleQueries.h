@@ -14,14 +14,14 @@
 #ifndef LLVM_ANALYSIS_ASSUMEBUNDLEQUERIES_H
 #define LLVM_ANALYSIS_ASSUMEBUNDLEQUERIES_H
 
-#include "llvm/IR/Attributes.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/IR/IntrinsicInst.h"
 
 namespace llvm {
-class IntrinsicInst;
 class AssumptionCache;
 class DominatorTree;
+class Instruction;
+class Value;
 
 /// Index of elements in the operand bundle.
 /// If the element exist it is guaranteed to be what is specified in this enum
@@ -39,12 +39,12 @@ enum AssumeBundleArg {
 ///
 /// Return true iff the queried attribute was found.
 /// If ArgVal is set. the argument will be stored to ArgVal.
-bool hasAttributeInAssume(CallInst &AssumeCI, Value *IsOn, StringRef AttrName,
+bool hasAttributeInAssume(AssumeInst &Assume, Value *IsOn, StringRef AttrName,
                           uint64_t *ArgVal = nullptr);
-inline bool hasAttributeInAssume(CallInst &AssumeCI, Value *IsOn,
+inline bool hasAttributeInAssume(AssumeInst &Assume, Value *IsOn,
                                  Attribute::AttrKind Kind,
                                  uint64_t *ArgVal = nullptr) {
-  return hasAttributeInAssume(AssumeCI, IsOn,
+  return hasAttributeInAssume(Assume, IsOn,
                               Attribute::getNameFromAttrKind(Kind), ArgVal);
 }
 
@@ -69,15 +69,15 @@ template<> struct DenseMapInfo<Attribute::AttrKind> {
 using RetainedKnowledgeKey = std::pair<Value *, Attribute::AttrKind>;
 
 struct MinMax {
-  unsigned Min;
-  unsigned Max;
+  uint64_t Min;
+  uint64_t Max;
 };
 
 /// A mapping from intrinsics (=`llvm.assume` calls) to a value range
 /// (=knowledge) that is encoded in them. How the value range is interpreted
 /// depends on the RetainedKnowledgeKey that was used to get this out of the
 /// RetainedKnowledgeMap.
-using Assume2KnowledgeMap = DenseMap<IntrinsicInst *, MinMax>;
+using Assume2KnowledgeMap = DenseMap<AssumeInst *, MinMax>;
 
 using RetainedKnowledgeMap =
     DenseMap<RetainedKnowledgeKey, Assume2KnowledgeMap>;
@@ -87,7 +87,7 @@ using RetainedKnowledgeMap =
 /// many queries are going to be made on the same llvm.assume.
 /// String attributes are not inserted in the map.
 /// If the IR changes the map will be outdated.
-void fillMapFromAssume(CallInst &AssumeCI, RetainedKnowledgeMap &Result);
+void fillMapFromAssume(AssumeInst &Assume, RetainedKnowledgeMap &Result);
 
 /// Represent one information held inside an operand bundle of an llvm.assume.
 /// AttrKind is the property that holds.
@@ -99,7 +99,7 @@ void fillMapFromAssume(CallInst &AssumeCI, RetainedKnowledgeMap &Result);
 ///  - ArgValue will be 4.
 struct RetainedKnowledge {
   Attribute::AttrKind AttrKind = Attribute::None;
-  unsigned ArgValue = 0;
+  uint64_t ArgValue = 0;
   Value *WasOn = nullptr;
   bool operator==(RetainedKnowledge Other) const {
     return AttrKind == Other.AttrKind && WasOn == Other.WasOn &&
@@ -121,13 +121,13 @@ struct RetainedKnowledge {
 
 /// Retreive the information help by Assume on the operand at index Idx.
 /// Assume should be an llvm.assume and Idx should be in the operand bundle.
-RetainedKnowledge getKnowledgeFromOperandInAssume(CallInst &Assume,
+RetainedKnowledge getKnowledgeFromOperandInAssume(AssumeInst &Assume,
                                                   unsigned Idx);
 
 /// Retreive the information help by the Use U of an llvm.assume. the use should
 /// be in the operand bundle.
 inline RetainedKnowledge getKnowledgeFromUseInAssume(const Use *U) {
-  return getKnowledgeFromOperandInAssume(*cast<CallInst>(U->getUser()),
+  return getKnowledgeFromOperandInAssume(*cast<AssumeInst>(U->getUser()),
                                          U->getOperandNo());
 }
 
@@ -142,7 +142,7 @@ constexpr StringRef IgnoreBundleTag = "ignore";
 ///
 /// the argument to the call of llvm.assume may still be useful even if the
 /// function returned true.
-bool isAssumeWithEmptyBundle(CallInst &Assume);
+bool isAssumeWithEmptyBundle(AssumeInst &Assume);
 
 /// Return a valid Knowledge associated to the Use U if its Attribute kind is
 /// in AttrKinds.
@@ -168,7 +168,7 @@ RetainedKnowledge getKnowledgeValidInContext(
 
 /// This extracts the Knowledge from an element of an operand bundle.
 /// This is mostly for use in the assume builder.
-RetainedKnowledge getKnowledgeFromBundle(CallInst &Assume,
+RetainedKnowledge getKnowledgeFromBundle(AssumeInst &Assume,
                                          const CallBase::BundleOpInfo &BOI);
 
 } // namespace llvm

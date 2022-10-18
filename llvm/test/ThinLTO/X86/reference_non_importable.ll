@@ -2,6 +2,7 @@
 ; RUN: opt -module-summary %p/Inputs/reference_non_importable.ll -o %t2.bc
 
 ; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN:     -opaque-pointers \
 ; RUN:     -r=%t1.bc,_foo,pxl \
 ; RUN:     -r=%t1.bc,_b,pxl \
 ; RUN:     -r=%t2.bc,_main,pxl \
@@ -22,7 +23,7 @@ target triple = "x86_64-apple-macosx10.11.0"
 
 ; We want foo to be imported in the main module!
 ; RUN: llvm-dis < %t.o.2.3.import.bc  | FileCheck  %s --check-prefix=IMPORT
-; IMPORT: define available_externally dso_local i8** @foo()
+; IMPORT: define available_externally dso_local ptr @foo()
 define i8 **@foo() {
 	ret i8 **@b
 }

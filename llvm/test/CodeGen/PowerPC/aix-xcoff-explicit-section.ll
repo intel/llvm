@@ -5,7 +5,7 @@
 ; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN:     -xcoff-traceback-table=false -filetype=obj -o %t.o < %s
 ; RUN: llvm-objdump -D --symbol-description %t.o | FileCheck --check-prefix=CHECKOBJ %s
-; RUN: llvm-readobj -syms %t.o | FileCheck --check-prefix=CHECKSYM %s
+; RUN: llvm-readobj -s %t.o | FileCheck --check-prefix=CHECKSYM %s
 
 @ext_const = constant i32 1, section ".ext_const_sec", align 4
 @ext_var = global i32 1, section ".ext_var_sec", align 4
@@ -25,7 +25,7 @@ entry:
 ; CHECK-NEXT:         .globl  .ext_fun
 ; CHECK-NEXT:         .align  4
 ; CHECK-NEXT:         .csect ext_fun[DS]
-; CHECK:              .csect .ext_fun_sec[PR],2
+; CHECK:              .csect .ext_fun_sec[PR],5
 ; CHECK-NEXT: .ext_fun:
 ; CHECK:              .csect .ext_const_sec[RO],2
 ; CHECK-NEXT:         .globl  ext_const
@@ -90,7 +90,7 @@ entry:
 ; CHECKSYM-NEXT:        SectionLen: 28
 ; CHECKSYM-NEXT:        ParameterHashIndex: 0x0
 ; CHECKSYM-NEXT:        TypeChkSectNum: 0x0
-; CHECKSYM-NEXT:        SymbolAlignmentLog2: 4
+; CHECKSYM-NEXT:        SymbolAlignmentLog2: 5
 ; CHECKSYM-NEXT:        SymbolType: XTY_SD (0x1)
 ; CHECKSYM-NEXT:        StorageMappingClass: XMC_PR (0x0)
 ; CHECKSYM-NEXT:        StabInfoIndex: 0x0

@@ -1,4 +1,7 @@
-// RUN: %clang_cc1 -fsyntax-only -fdouble-square-bracket-attributes -verify %s
+// RUN: %clang_cc1 -fsyntax-only -std=c2x -verify %s
+
+// This is the latest version of fallthrough that we support.
+_Static_assert(__has_c_attribute(fallthrough) == 201910L);
 
 void f(int n) {
   switch (n) {
@@ -65,7 +68,7 @@ void g(void) {
     return;
 
   case 0:
-    [[fallthrough, fallthrough]]; // expected-error {{multiple times}}
+    [[fallthrough, fallthrough]]; // ok
   case 1:
     [[fallthrough(0)]]; // expected-error {{argument list}}
   case 2:

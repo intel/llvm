@@ -8,6 +8,8 @@
 
 // <codecvt>
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 // template <class Elem, unsigned long Maxcode = 0x10ffff,
 //           codecvt_mode Mode = (codecvt_mode)0>
 // class codecvt_utf8_utf16
@@ -302,7 +304,7 @@ void TestHelper<CharT, 4>::test() {
 }
 
 int main(int, char**) {
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(TEST_HAS_NO_WIDE_CHARACTERS)
   TestHelper<wchar_t>::test();
 #endif
   TestHelper<char32_t>::test();

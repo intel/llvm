@@ -11,8 +11,7 @@
 
 #include <cstdint>
 
-namespace lld {
-namespace macho {
+namespace lld::macho {
 
 class OutputSection;
 class InputSection;
@@ -26,8 +25,9 @@ public:
 };
 
 template <class LP> void writeResult();
+void resetWriter();
 
-template <class LP> void createSyntheticSections();
+void createSyntheticSections();
 
 // Add bindings for symbols that need weak or non-lazy bindings.
 void addNonLazyBindingEntries(const Symbol *, const InputSection *,
@@ -35,7 +35,6 @@ void addNonLazyBindingEntries(const Symbol *, const InputSection *,
 
 extern OutputSection *firstTLVDataSection;
 
-} // namespace macho
-} // namespace lld
+} // namespace lld::macho
 
 #endif

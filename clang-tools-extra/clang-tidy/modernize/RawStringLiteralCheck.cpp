@@ -25,7 +25,7 @@ bool containsEscapes(StringRef HayStack, StringRef Escapes) {
     return false;
 
   while (BackSlash != StringRef::npos) {
-    if (Escapes.find(HayStack[BackSlash + 1]) == StringRef::npos)
+    if (!Escapes.contains(HayStack[BackSlash + 1]))
       return false;
     BackSlash = HayStack.find('\\', BackSlash + 2);
   }
@@ -44,7 +44,7 @@ bool containsEscapedCharacters(const MatchFinder::MatchResult &Result,
                                const StringLiteral *Literal,
                                const CharsBitSet &DisallowedChars) {
   // FIXME: Handle L"", u8"", u"" and U"" literals.
-  if (!Literal->isAscii())
+  if (!Literal->isOrdinary())
     return false;
 
   for (const unsigned char C : Literal->getBytes())
@@ -56,7 +56,7 @@ bool containsEscapedCharacters(const MatchFinder::MatchResult &Result,
       *Result.SourceManager, Result.Context->getLangOpts());
   StringRef Text = Lexer::getSourceText(CharRange, *Result.SourceManager,
                                         Result.Context->getLangOpts());
-  if (isRawStringLiteral(Text))
+  if (Text.empty() || isRawStringLiteral(Text))
     return false;
 
   return containsEscapes(Text, R"('\"?x01)");

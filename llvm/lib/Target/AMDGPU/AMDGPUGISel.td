@@ -47,9 +47,29 @@ def gi_vop3pmods :
     GIComplexOperandMatcher<s32, "selectVOP3PMods">,
     GIComplexPatternEquiv<VOP3PMods>;
 
+def gi_vop3pmodsdot :
+    GIComplexOperandMatcher<s32, "selectVOP3PModsDOT">,
+    GIComplexPatternEquiv<VOP3PModsDOT>;
+
+def gi_dotiuvop3pmods :
+    GIComplexOperandMatcher<s32, "selectDotIUVOP3PMods">,
+    GIComplexPatternEquiv<DotIUVOP3PMods>;
+
+def gi_wmmaopselvop3pmods :
+    GIComplexOperandMatcher<s32, "selectWMMAOpSelVOP3PMods">,
+    GIComplexPatternEquiv<WMMAOpSelVOP3PMods>;
+
 def gi_vop3opselmods :
     GIComplexOperandMatcher<s32, "selectVOP3OpSelMods">,
     GIComplexPatternEquiv<VOP3OpSelMods>;
+
+def gi_vinterpmods :
+    GIComplexOperandMatcher<s32, "selectVINTERPMods">,
+    GIComplexPatternEquiv<VINTERPMods>;
+
+def gi_vinterpmods_hi :
+    GIComplexOperandMatcher<s32, "selectVINTERPModsHi">,
+    GIComplexPatternEquiv<VINTERPModsHi>;
 
 // FIXME: Why do we have both VOP3OpSel and VOP3OpSelMods?
 def gi_vop3opsel :
@@ -68,12 +88,16 @@ def gi_smrd_sgpr :
     GIComplexOperandMatcher<s64, "selectSmrdSgpr">,
     GIComplexPatternEquiv<SMRDSgpr>;
 
+def gi_smrd_sgpr_imm :
+    GIComplexOperandMatcher<s64, "selectSmrdSgprImm">,
+    GIComplexPatternEquiv<SMRDSgprImm>;
+
 def gi_flat_offset :
     GIComplexOperandMatcher<s64, "selectFlatOffset">,
-    GIComplexPatternEquiv<FLATOffset>;
-def gi_flat_offset_signed :
-    GIComplexOperandMatcher<s64, "selectFlatOffsetSigned">,
-    GIComplexPatternEquiv<FLATOffsetSigned>;
+    GIComplexPatternEquiv<FlatOffset>;
+def gi_global_offset :
+    GIComplexOperandMatcher<s64, "selectGlobalOffset">,
+    GIComplexPatternEquiv<GlobalOffset>;
 def gi_global_saddr :
     GIComplexOperandMatcher<s64, "selectGlobalSAddr">,
     GIComplexPatternEquiv<GlobalSAddr>;
@@ -86,12 +110,16 @@ def gi_mubuf_scratch_offen :
     GIComplexPatternEquiv<MUBUFScratchOffen>;
 
 def gi_flat_scratch_offset :
-    GIComplexOperandMatcher<s32, "selectFlatOffsetSigned">,
+    GIComplexOperandMatcher<s32, "selectScratchOffset">,
     GIComplexPatternEquiv<ScratchOffset>;
 
 def gi_flat_scratch_saddr :
     GIComplexOperandMatcher<s32, "selectScratchSAddr">,
     GIComplexPatternEquiv<ScratchSAddr>;
+
+def gi_flat_scratch_svaddr :
+    GIComplexOperandMatcher<s32, "selectScratchSVAddr">,
+    GIComplexPatternEquiv<ScratchSVAddr>;
 
 def gi_ds_1addr_1offset :
     GIComplexOperandMatcher<s32, "selectDS1Addr1Offset">,
@@ -121,13 +149,19 @@ def gi_smrd_buffer_imm32 :
     GIComplexOperandMatcher<s64, "selectSMRDBufferImm32">,
     GIComplexPatternEquiv<SMRDBufferImm32>;
 
+def gi_smrd_buffer_sgpr_imm :
+    GIComplexOperandMatcher<s64, "selectSMRDBufferSgprImm">,
+    GIComplexPatternEquiv<SMRDBufferSgprImm>;
+
 // Separate load nodes are defined to glue m0 initialization in
 // SelectionDAG. The GISel selector can just insert m0 initialization
-// directly before before selecting a glue-less load, so hide this
+// directly before selecting a glue-less load, so hide this
 // distinction.
 
 def : GINodeEquiv<G_LOAD, AMDGPUld_glue> {
   let CheckMMOIsNonAtomic = 1;
+  let IfSignExtend = G_SEXTLOAD;
+  let IfZeroExtend = G_ZEXTLOAD;
 }
 
 def : GINodeEquiv<G_STORE, AMDGPUst_glue> {
@@ -157,6 +191,7 @@ def : GINodeEquiv<G_ATOMICRMW_UMAX, atomic_load_umax_glue>;
 def : GINodeEquiv<G_ATOMICRMW_FADD, atomic_load_fadd_glue>;
 
 def : GINodeEquiv<G_AMDGPU_FFBH_U32, AMDGPUffbh_u32_impl>;
+def : GINodeEquiv<G_AMDGPU_FFBL_B32, AMDGPUffbl_b32_impl>;
 def : GINodeEquiv<G_AMDGPU_FMIN_LEGACY, AMDGPUfmin_legacy>;
 def : GINodeEquiv<G_AMDGPU_FMAX_LEGACY, AMDGPUfmax_legacy>;
 def : GINodeEquiv<G_AMDGPU_RCP_IFLAG, AMDGPUrcp_iflag>;
@@ -167,7 +202,10 @@ def : GINodeEquiv<G_AMDGPU_CVT_F32_UBYTE2, AMDGPUcvt_f32_ubyte2>;
 def : GINodeEquiv<G_AMDGPU_CVT_F32_UBYTE3, AMDGPUcvt_f32_ubyte3>;
 
 def : GINodeEquiv<G_AMDGPU_CVT_PK_I16_I32, AMDGPUpk_i16_i32_impl>;
-def : GINodeEquiv<G_AMDGPU_MED3, AMDGPUsmed3>;
+def : GINodeEquiv<G_AMDGPU_SMED3, AMDGPUsmed3>;
+def : GINodeEquiv<G_AMDGPU_UMED3, AMDGPUumed3>;
+def : GINodeEquiv<G_AMDGPU_FMED3, AMDGPUfmed3_impl>;
+def : GINodeEquiv<G_AMDGPU_CLAMP, AMDGPUclamp>;
 
 def : GINodeEquiv<G_AMDGPU_ATOMIC_CMPXCHG, AMDGPUatomic_cmp_swap>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_LOAD, SIbuffer_load>;
@@ -215,6 +253,9 @@ def : GINodeEquiv<G_AMDGPU_BUFFER_ATOMIC_FMIN, SIbuffer_atomic_fmin>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_ATOMIC_FMAX, SIbuffer_atomic_fmax>;
 def : GINodeEquiv<G_AMDGPU_BUFFER_ATOMIC_CMPSWAP, SIbuffer_atomic_cmpswap>;
 def : GINodeEquiv<G_AMDGPU_S_BUFFER_LOAD, SIsbuffer_load>;
+
+def : GINodeEquiv<G_FPTRUNC_ROUND_UPWARD, SIfptrunc_round_upward>;
+def : GINodeEquiv<G_FPTRUNC_ROUND_DOWNWARD, SIfptrunc_round_downward>;
 
 class GISelSop2Pat <
   SDPatternOperator node,

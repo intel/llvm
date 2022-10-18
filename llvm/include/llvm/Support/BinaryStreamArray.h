@@ -5,6 +5,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+///
+/// \file
+/// Lightweight arrays that are backed by an arbitrary BinaryStream.  This file
+/// provides two different array implementations.
+///
+///     VarStreamArray - Arrays of variable length records.  The user specifies
+///       an Extractor type that can extract a record from a given offset and
+///       return the number of bytes consumed by the record.
+///
+///     FixedStreamArray - Arrays of fixed length records.  This is similar in
+///       spirit to ArrayRef<T>, but since it is backed by a BinaryStream, the
+///       elements of the array need not be laid out in contiguous memory.
+///
 
 #ifndef LLVM_SUPPORT_BINARYSTREAMARRAY_H
 #define LLVM_SUPPORT_BINARYSTREAMARRAY_H
@@ -17,16 +30,6 @@
 #include <cassert>
 #include <cstdint>
 
-/// Lightweight arrays that are backed by an arbitrary BinaryStream.  This file
-/// provides two different array implementations.
-///
-///     VarStreamArray - Arrays of variable length records.  The user specifies
-///       an Extractor type that can extract a record from a given offset and
-///       return the number of bytes consumed by the record.
-///
-///     FixedStreamArray - Arrays of fixed length records.  This is similar in
-///       spirit to ArrayRef<T>, but since it is backed by a BinaryStream, the
-///       elements of the array need not be laid out in contiguous memory.
 namespace llvm {
 
 /// VarStreamArrayExtractor is intended to be specialized to provide customized
@@ -108,6 +111,8 @@ public:
 
   bool valid() const { return Stream.valid(); }
 
+  bool isOffsetValid(uint32_t Offset) const { return at(Offset) != end(); }
+
   uint32_t skew() const { return Skew; }
   Iterator end() const { return Iterator(E); }
 
@@ -150,7 +155,7 @@ private:
 template <typename ValueType, typename Extractor>
 class VarStreamArrayIterator
     : public iterator_facade_base<VarStreamArrayIterator<ValueType, Extractor>,
-                                  std::forward_iterator_tag, ValueType> {
+                                  std::forward_iterator_tag, const ValueType> {
   typedef VarStreamArrayIterator<ValueType, Extractor> IterType;
   typedef VarStreamArray<ValueType, Extractor> ArrayType;
 
@@ -190,11 +195,6 @@ public:
   }
 
   const ValueType &operator*() const {
-    assert(Array && !HasError);
-    return ThisValue;
-  }
-
-  ValueType &operator*() {
     assert(Array && !HasError);
     return ThisValue;
   }
@@ -325,7 +325,7 @@ public:
   FixedStreamArrayIterator(const FixedStreamArray<T> &Array, uint32_t Index)
       : Array(Array), Index(Index) {}
 
-  FixedStreamArrayIterator<T>(const FixedStreamArrayIterator<T> &Other)
+  FixedStreamArrayIterator(const FixedStreamArrayIterator<T> &Other)
       : Array(Other.Array), Index(Other.Index) {}
   FixedStreamArrayIterator<T> &
   operator=(const FixedStreamArrayIterator<T> &Other) {

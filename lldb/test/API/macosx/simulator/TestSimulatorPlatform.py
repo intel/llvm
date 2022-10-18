@@ -3,13 +3,9 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 import json
-import unittest2
 
 
-@skipIfReproducer
 class TestSimulatorPlatformLaunching(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def check_load_commands(self, expected_load_command):
@@ -42,7 +38,7 @@ class TestSimulatorPlatformLaunching(TestBase):
         if expected_version:
             self.assertEquals(aout_info['min_version_os_sdk'], expected_version)
 
-
+    @skipIf(bugnumber="rdar://76995109")
     def run_with(self, arch, os, vers, env, expected_load_command):
         env_list = [env] if env else []
         triple = '-'.join([arch, 'apple', os + vers] + env_list)
@@ -57,10 +53,12 @@ class TestSimulatorPlatformLaunching(TestBase):
             version_min = '-m{}-version-min={}'.format(os, vers)
 
         sdk_root = lldbutil.get_xcode_sdk_root(sdk)
+        clang = lldbutil.get_xcode_clang(sdk)
 
         self.build(
             dictionary={
                 'ARCH': arch,
+                'CC': clang,
                 'ARCH_CFLAGS': '-target {} {}'.format(triple, version_min),
                 'SDKROOT': sdk_root
             })

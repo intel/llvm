@@ -124,9 +124,25 @@ void test(Opaque o, OpaqueClass oc, Defined d) {
   switch (d) {
   case Defined::a:
     break;
-  case (Defined)2: // expected-warning {{case value not in enumerated type 'OpaqueEnumWarnings::Defined'}}
+  case (Defined)2: // expected-warning {{case value not in enumerated type 'Defined'}}
     break;
   }
 }
 
 }
+
+namespace EmptyEnum {
+
+enum Empty : int {};
+void test(Empty e) {
+  switch (e) {
+  case (Empty)0:
+    break;
+  }
+  switch (e) {
+  default:
+    break;
+  }
+}
+
+} // namespace EmptyEnum

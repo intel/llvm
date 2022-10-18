@@ -34,7 +34,7 @@ int main() {
 // Check lambda declaration inside the wrapper
 
 // CHECK: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})'
+// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})'
 
 // Check accessor initialization
 
@@ -70,5 +70,5 @@ int main() {
 // Check kernel wrapper attributes
 
 // CHECK: OpenCLKernelAttr {{.*}} Implicit
-// CHECK: AsmLabelAttr {{.*}} Implicit "{{.*}}kernel_wrapper{{.*}}"
 // CHECK: ArtificialAttr {{.*}} Implicit
+// CHECK: AsmLabelAttr {{.*}} Implicit "{{.*}}kernel_wrapper{{.*}}"

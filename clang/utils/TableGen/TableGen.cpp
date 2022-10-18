@@ -13,6 +13,7 @@
 #include "TableGenBackends.h" // Declares all backends.
 #include "ASTTableGen.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/TableGen/Error.h"
@@ -30,6 +31,7 @@ enum ActionType {
   GenClangAttrSubjectMatchRulesParserStringSwitches,
   GenClangAttrImpl,
   GenClangAttrList,
+  GenClangAttrDocTable,
   GenClangAttrSubjectMatchRuleList,
   GenClangAttrPCHRead,
   GenClangAttrPCHWrite,
@@ -63,6 +65,7 @@ enum ActionType {
   GenClangCommentCommandInfo,
   GenClangCommentCommandList,
   GenClangOpenCLBuiltins,
+  GenClangOpenCLBuiltinTests,
   GenClangSPIRVBuiltins,
   GenArmNeon,
   GenArmFP16,
@@ -87,6 +90,7 @@ enum ActionType {
   GenRISCVVectorHeader,
   GenRISCVVectorBuiltins,
   GenRISCVVectorBuiltinCG,
+  GenRISCVVectorBuiltinSema,
   GenAttrDocs,
   GenDiagDocs,
   GenOptDocs,
@@ -115,6 +119,8 @@ cl::opt<ActionType> Action(
                    "Generate clang attribute implementations"),
         clEnumValN(GenClangAttrList, "gen-clang-attr-list",
                    "Generate a clang attribute list"),
+        clEnumValN(GenClangAttrDocTable, "gen-clang-attr-doc-table",
+                   "Generate a table of attribute documentation"),
         clEnumValN(GenClangAttrSubjectMatchRuleList,
                    "gen-clang-attr-subject-match-rule-list",
                    "Generate a clang attribute subject match rule list"),
@@ -195,6 +201,8 @@ cl::opt<ActionType> Action(
                    "documentation comments"),
         clEnumValN(GenClangOpenCLBuiltins, "gen-clang-opencl-builtins",
                    "Generate OpenCL builtin declaration handlers"),
+        clEnumValN(GenClangOpenCLBuiltinTests, "gen-clang-opencl-builtin-tests",
+                   "Generate OpenCL builtin declaration tests"),
         clEnumValN(GenClangSPIRVBuiltins, "gen-clang-spirv-builtins",
                    "Generate SPIR-V builtin declaration handlers"),
         clEnumValN(GenArmNeon, "gen-arm-neon", "Generate arm_neon.h for clang"),
@@ -240,6 +248,8 @@ cl::opt<ActionType> Action(
                    "Generate riscv_vector_builtins.inc for clang"),
         clEnumValN(GenRISCVVectorBuiltinCG, "gen-riscv-vector-builtin-codegen",
                    "Generate riscv_vector_builtin_cg.inc for clang"),
+        clEnumValN(GenRISCVVectorBuiltinSema, "gen-riscv-vector-builtin-sema",
+                   "Generate riscv_vector_builtin_sema.inc for clang"),
         clEnumValN(GenAttrDocs, "gen-attr-docs",
                    "Generate attribute documentation"),
         clEnumValN(GenDiagDocs, "gen-diag-docs",
@@ -279,6 +289,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenClangAttrList:
     EmitClangAttrList(Records, OS);
+    break;
+  case GenClangAttrDocTable:
+    EmitClangAttrDocTable(Records, OS);
     break;
   case GenClangAttrSubjectMatchRuleList:
     EmitClangAttrSubjectMatchRuleList(Records, OS);
@@ -374,6 +387,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
   case GenClangOpenCLBuiltins:
     EmitClangOpenCLBuiltins(Records, OS);
     break;
+  case GenClangOpenCLBuiltinTests:
+    EmitClangOpenCLBuiltinTests(Records, OS);
+    break;
   case GenClangSPIRVBuiltins:
     EmitClangSPIRVBuiltins(Records, OS);
     break;
@@ -451,6 +467,9 @@ bool ClangTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenRISCVVectorBuiltinCG:
     EmitRVVBuiltinCG(Records, OS);
+    break;
+  case GenRISCVVectorBuiltinSema:
+    EmitRVVBuiltinSema(Records, OS);
     break;
   case GenAttrDocs:
     EmitClangAttrDocs(Records, OS);

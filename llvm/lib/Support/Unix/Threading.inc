@@ -18,6 +18,7 @@
 #if defined(__APPLE__)
 #include <mach/mach_init.h>
 #include <mach/mach_port.h>
+#include <pthread/qos.h>
 #endif
 
 #include <pthread.h>
@@ -48,22 +49,10 @@
 #include <unistd.h>      // For syscall()
 #endif
 
-static void *threadFuncSync(void *Arg) {
-  SyncThreadInfo *TI = static_cast<SyncThreadInfo *>(Arg);
-  TI->UserFn(TI->UserData);
-  return nullptr;
-}
-
-static void *threadFuncAsync(void *Arg) {
-  std::unique_ptr<AsyncThreadInfo> Info(static_cast<AsyncThreadInfo *>(Arg));
-  (*Info)();
-  return nullptr;
-}
-
-static void
+namespace llvm {
+pthread_t
 llvm_execute_on_thread_impl(void *(*ThreadFunc)(void *), void *Arg,
-                            llvm::Optional<unsigned> StackSizeInBytes,
-                            JoiningPolicy JP) {
+                            llvm::Optional<unsigned> StackSizeInBytes) {
   int errnum;
 
   // Construct the attributes object.
@@ -90,17 +79,34 @@ llvm_execute_on_thread_impl(void *(*ThreadFunc)(void *), void *Arg,
   if ((errnum = ::pthread_create(&Thread, &Attr, ThreadFunc, Arg)) != 0)
     ReportErrnumFatal("pthread_create failed", errnum);
 
-  if (JP == JoiningPolicy::Join) {
-    // Wait for the thread
-    if ((errnum = ::pthread_join(Thread, nullptr)) != 0) {
-      ReportErrnumFatal("pthread_join failed", errnum);
-    }
-  } else if (JP == JoiningPolicy::Detach) {
-    if ((errnum = ::pthread_detach(Thread)) != 0) {
-      ReportErrnumFatal("pthread_detach failed", errnum);
-    }
+  return Thread;
+}
+
+void llvm_thread_detach_impl(pthread_t Thread) {
+  int errnum;
+
+  if ((errnum = ::pthread_detach(Thread)) != 0) {
+    ReportErrnumFatal("pthread_detach failed", errnum);
   }
 }
+
+void llvm_thread_join_impl(pthread_t Thread) {
+  int errnum;
+
+  if ((errnum = ::pthread_join(Thread, nullptr)) != 0) {
+    ReportErrnumFatal("pthread_join failed", errnum);
+  }
+}
+
+pthread_t llvm_thread_get_id_impl(pthread_t Thread) {
+  return Thread;
+}
+
+pthread_t llvm_thread_get_current_id_impl() {
+  return ::pthread_self();
+}
+
+} // namespace llvm
 
 uint64_t llvm::get_threadid() {
 #if defined(__APPLE__)
@@ -253,27 +259,29 @@ SetThreadPriorityResult llvm::set_thread_priority(ThreadPriority Priority) {
   // SCHED_OTHER   the standard round-robin time-sharing policy;
   return !pthread_setschedparam(
              pthread_self(),
-             Priority == ThreadPriority::Background ? SCHED_IDLE : SCHED_OTHER,
+             // FIXME: consider SCHED_BATCH for Low
+             Priority == ThreadPriority::Default ? SCHED_OTHER : SCHED_IDLE,
              &priority)
              ? SetThreadPriorityResult::SUCCESS
              : SetThreadPriorityResult::FAILURE;
 #elif defined(__APPLE__)
-  // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/getpriority.2.html
-  // When setting a thread into background state the scheduling priority is set
-  // to lowest value, disk and network IO are throttled. Network IO will be
-  // throttled for any sockets the thread opens after going into background
-  // state. Any previously opened sockets are not affected.
-
-  // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/getiopolicy_np.3.html
-  // I/Os with THROTTLE policy are called THROTTLE I/Os. If a THROTTLE I/O
-  // request occurs within a small time window (usually a fraction of a second)
-  // of another NORMAL I/O request, the thread that issues the THROTTLE I/O is
-  // forced to sleep for a certain interval. This slows down the thread that
-  // issues the THROTTLE I/O so that NORMAL I/Os can utilize most of the disk
-  // I/O bandwidth.
-  return !setpriority(PRIO_DARWIN_THREAD, 0,
-                      Priority == ThreadPriority::Background ? PRIO_DARWIN_BG
-                                                             : 0)
+  // https://developer.apple.com/documentation/apple-silicon/tuning-your-code-s-performance-for-apple-silicon
+  //
+  // Background - Applies to work that isn’t visible to the user and may take significant
+  // time to complete. Examples include indexing, backing up, or synchronizing data. This
+  // class emphasizes energy efficiency.
+  //
+  // Utility - Applies to work that takes anywhere from a few seconds to a few minutes to
+  // complete. Examples include downloading a document or importing data. This class
+  // offers a balance between responsiveness, performance, and energy efficiency.
+  const auto qosClass = [&](){
+    switch (Priority) {
+      case ThreadPriority::Background: return QOS_CLASS_BACKGROUND;
+      case ThreadPriority::Low: return QOS_CLASS_UTILITY;
+      case ThreadPriority::Default: return QOS_CLASS_DEFAULT;
+    }
+  }();
+  return !pthread_set_qos_class_self_np(qosClass, 0)
              ? SetThreadPriorityResult::SUCCESS
              : SetThreadPriorityResult::FAILURE;
 #endif

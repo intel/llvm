@@ -36,6 +36,8 @@ public:
     llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
     Attach(lldb::pid_t pid, NativeDelegate &native_delegate,
            MainLoop &mainloop) const override;
+
+    Extension GetSupportedExtensions() const override;
   };
 
   // NativeProcessProtocol Interface
@@ -86,9 +88,12 @@ public:
   static Status PtraceWrapper(int req, lldb::pid_t pid, void *addr = nullptr,
                               int data = 0, int *result = nullptr);
 
+  llvm::Expected<std::string> SaveCore(llvm::StringRef path_hint) override;
+
 private:
   MainLoop::SignalHandleUP m_sigchld_handle;
   ArchSpec m_arch;
+  MainLoop& m_main_loop;
   LazyBool m_supports_mem_region = eLazyBoolCalculate;
   std::vector<std::pair<MemoryRegionInfo, FileSpec>> m_mem_region_cache;
 
@@ -106,6 +111,8 @@ private:
   void MonitorSIGSTOP(lldb::pid_t pid);
   void MonitorSIGTRAP(lldb::pid_t pid);
   void MonitorSignal(lldb::pid_t pid, int signal);
+  void MonitorClone(::pid_t child_pid, bool is_vfork,
+                    NativeThreadNetBSD &parent_thread);
 
   Status PopulateMemoryRegionCache();
   void SigchldHandler();

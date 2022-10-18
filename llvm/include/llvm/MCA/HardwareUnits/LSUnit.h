@@ -55,7 +55,7 @@ public:
   MemoryGroup()
       : NumPredecessors(0), NumExecutingPredecessors(0),
         NumExecutedPredecessors(0), NumInstructions(0), NumExecuting(0),
-        NumExecuted(0), CriticalPredecessor(), CriticalMemoryInstruction() {}
+        NumExecuted(0), CriticalPredecessor() {}
   MemoryGroup(MemoryGroup &&) = default;
 
   size_t getNumSuccessors() const {
@@ -160,10 +160,15 @@ public:
       MG->onGroupIssued(CriticalMemoryInstruction, true);
   }
 
-  void onInstructionExecuted() {
+  void onInstructionExecuted(const InstRef &IR) {
     assert(isReady() && !isExecuted() && "Invalid internal state!");
     --NumExecuting;
     ++NumExecuted;
+
+    if (CriticalMemoryInstruction &&
+        CriticalMemoryInstruction.getSourceIndex() == IR.getSourceIndex()) {
+      CriticalMemoryInstruction.invalidate();
+    }
 
     if (!isExecuted())
       return;

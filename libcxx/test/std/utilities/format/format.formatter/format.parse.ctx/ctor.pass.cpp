@@ -6,7 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -15,7 +15,9 @@
 //                            size_t num_args = 0) noexcept
 
 #include <format>
+
 #include <cassert>
+#include <string_view>
 #include <type_traits>
 
 #include "test_macros.h"
@@ -38,18 +40,18 @@ constexpr void test(const CharT* fmt) {
       !std::is_move_assignable_v<std::basic_format_parse_context<CharT> >);
 
   ASSERT_NOEXCEPT(
-      std::basic_format_parse_context{std::basic_string_view<CharT>{}});
+      std::basic_format_parse_context<CharT>{std::basic_string_view<CharT>{}});
   ASSERT_NOEXCEPT(
-      std::basic_format_parse_context{std::basic_string_view<CharT>{}, 42});
+      std::basic_format_parse_context<CharT>{std::basic_string_view<CharT>{}, 42});
 
   {
     std::basic_format_parse_context<CharT> context(fmt);
-    assert(context.begin() == &fmt[0]);
-    assert(context.end() == &fmt[3]);
+    assert(std::to_address(context.begin()) == &fmt[0]);
+    assert(std::to_address(context.end()) == &fmt[3]);
   }
   {
     std::basic_string_view view{fmt};
-    std::basic_format_parse_context context(view);
+    std::basic_format_parse_context<CharT> context(view);
     assert(context.begin() == view.begin());
     assert(context.end() == view.end());
   }
@@ -58,13 +60,11 @@ constexpr void test(const CharT* fmt) {
 constexpr bool test() {
   test("abc");
   test(L"abc");
-#ifndef _LIBCPP_NO_HAS_CHAR8_T
+#ifndef TEST_HAS_NO_CHAR8_T
   test(u8"abc");
 #endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
   test(u"abc");
   test(U"abc");
-#endif
 
   return true;
 }

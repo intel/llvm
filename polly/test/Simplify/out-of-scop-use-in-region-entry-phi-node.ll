@@ -1,10 +1,10 @@
-; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-scops -polly-simplify -analyze < %s | FileCheck %s
+; RUN: opt %loadPolly -polly-stmt-granularity=bb -polly-print-scops -polly-print-simplify -disable-output < %s | FileCheck %s
 ;
 ; %tmp5 must keep the Value WRITE MemoryAccess, because as an incoming value of
 ; %tmp4, it is an "external use".
 ;
 ; A common mistake is to assume that %tmp5 is used by %tmp4 in bb3, when
-; practially it's the incoming block %bb9 which is the user.
+; practically it's the incoming block %bb9 which is the user.
 ;
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 

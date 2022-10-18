@@ -36,11 +36,13 @@ void AddOneLineSummary(TypeCategoryImpl::SharedPointer category_sp,
                        ConstString type_name, TypeSummaryImpl::Flags flags,
                        bool regex = false);
 
+/// Add a summary that is implemented by a C++ callback.
 void AddCXXSummary(TypeCategoryImpl::SharedPointer category_sp,
                    CXXFunctionSummaryFormat::Callback funct,
                    const char *description, ConstString type_name,
                    TypeSummaryImpl::Flags flags, bool regex = false);
 
+/// Add a synthetic that is implemented by a C++ callback.
 void AddCXXSynthetic(TypeCategoryImpl::SharedPointer category_sp,
                      CXXSyntheticChildren::CreateFrontEndCallback generator,
                      const char *description, ConstString type_name,
@@ -54,7 +56,7 @@ void AddFilter(TypeCategoryImpl::SharedPointer category_sp,
 
 size_t ExtractIndexFromString(const char *item_name);
 
-lldb::addr_t GetArrayAddressOrPointerValue(ValueObject &valobj);
+Address GetArrayAddressOrPointerValue(ValueObject &valobj);
 
 lldb::ValueObjectSP GetValueOfLibCXXCompressedPair(ValueObject &pair);
 

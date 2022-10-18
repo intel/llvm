@@ -37,14 +37,12 @@ NativeRegisterContextFreeBSD::CreateHostNativeRegisterContextFreeBSD(
 NativeRegisterContextFreeBSD_arm64::NativeRegisterContextFreeBSD_arm64(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread)
     : NativeRegisterContextRegisterInfo(
-          native_thread, new RegisterInfoPOSIX_arm64(target_arch))
+          native_thread, new RegisterInfoPOSIX_arm64(target_arch, 0))
 #ifdef LLDB_HAS_FREEBSD_WATCHPOINT
       ,
       m_read_dbreg(false)
 #endif
 {
-  GetRegisterInfo().ConfigureVectorRegisterInfos(
-      RegisterInfoPOSIX_arm64::eVectorQuadwordAArch64);
   ::memset(&m_hwp_regs, 0, sizeof(m_hwp_regs));
   ::memset(&m_hbp_regs, 0, sizeof(m_hbp_regs));
 }
@@ -79,8 +77,6 @@ Status NativeRegisterContextFreeBSD_arm64::ReadRegisterSet(uint32_t set) {
     return NativeProcessFreeBSD::PtraceWrapper(
         PT_GETFPREGS, m_thread.GetID(),
         m_reg_data.data() + sizeof(RegisterInfoPOSIX_arm64::GPR));
-  case RegisterInfoPOSIX_arm64::SVERegSet:
-    return Status("not supported");
   }
   llvm_unreachable("NativeRegisterContextFreeBSD_arm64::ReadRegisterSet");
 }
@@ -94,8 +90,6 @@ Status NativeRegisterContextFreeBSD_arm64::WriteRegisterSet(uint32_t set) {
     return NativeProcessFreeBSD::PtraceWrapper(
         PT_SETFPREGS, m_thread.GetID(),
         m_reg_data.data() + sizeof(RegisterInfoPOSIX_arm64::GPR));
-  case RegisterInfoPOSIX_arm64::SVERegSet:
-    return Status("not supported");
   }
   llvm_unreachable("NativeRegisterContextFreeBSD_arm64::WriteRegisterSet");
 }
@@ -155,7 +149,7 @@ Status NativeRegisterContextFreeBSD_arm64::WriteRegister(
 }
 
 Status NativeRegisterContextFreeBSD_arm64::ReadAllRegisterValues(
-    lldb::DataBufferSP &data_sp) {
+    lldb::WritableDataBufferSP &data_sp) {
   Status error;
 
   error = ReadRegisterSet(RegisterInfoPOSIX_arm64::GPRegSet);
@@ -192,7 +186,7 @@ Status NativeRegisterContextFreeBSD_arm64::WriteAllRegisterValues(
     return error;
   }
 
-  uint8_t *src = data_sp->GetBytes();
+  const uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
     error.SetErrorStringWithFormat("NativeRegisterContextFreeBSD_arm64::%s "
                                    "DataBuffer::GetBytes() returned a null "
@@ -233,7 +227,7 @@ llvm::Error NativeRegisterContextFreeBSD_arm64::CopyHardwareWatchpointsFrom(
 
 llvm::Error NativeRegisterContextFreeBSD_arm64::ReadHardwareDebugInfo() {
 #ifdef LLDB_HAS_FREEBSD_WATCHPOINT
-  Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_REGISTERS));
+  Log *log = GetLog(POSIXLog::Registers);
 
   // we're fully stateful, so no need to reread control registers ever
   if (m_read_dbreg)

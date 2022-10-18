@@ -67,7 +67,7 @@ define i1 @fptosi_f32toi1(float %x) #0 {
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X87-NEXT:    fistps {{[0-9]+}}(%esp)
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X87-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X87-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X87-NEXT:    addl $8, %esp
 ; X87-NEXT:    .cfi_def_cfa_offset 4
 ; X87-NEXT:    retl
@@ -114,7 +114,7 @@ define i8 @fptosi_f32toi8(float %x) #0 {
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X87-NEXT:    fistps {{[0-9]+}}(%esp)
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X87-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X87-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X87-NEXT:    addl $8, %esp
 ; X87-NEXT:    .cfi_def_cfa_offset 4
 ; X87-NEXT:    retl
@@ -339,7 +339,7 @@ define i1 @fptoui_f32toi1(float %x) #0 {
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X87-NEXT:    fistps {{[0-9]+}}(%esp)
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X87-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X87-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X87-NEXT:    addl $8, %esp
 ; X87-NEXT:    .cfi_def_cfa_offset 4
 ; X87-NEXT:    retl
@@ -386,7 +386,7 @@ define i8 @fptoui_f32toi8(float %x) #0 {
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X87-NEXT:    fistps {{[0-9]+}}(%esp)
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X87-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X87-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X87-NEXT:    addl $8, %esp
 ; X87-NEXT:    .cfi_def_cfa_offset 4
 ; X87-NEXT:    retl
@@ -679,7 +679,7 @@ define i64 @fptoui_f32toi64(float %x) #0 {
 ; X87-NEXT:    andl $-8, %esp
 ; X87-NEXT:    subl $16, %esp
 ; X87-NEXT:    flds 8(%ebp)
-; X87-NEXT:    flds {{\.LCPI[0-9]+_[0-9]+}}
+; X87-NEXT:    flds {{\.?LCPI[0-9]+_[0-9]+}}
 ; X87-NEXT:    fcom %st(1)
 ; X87-NEXT:    wait
 ; X87-NEXT:    fnstsw %ax
@@ -754,7 +754,7 @@ define i8 @fptosi_f64toi8(double %x) #0 {
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X87-NEXT:    fistps {{[0-9]+}}(%esp)
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X87-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X87-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X87-NEXT:    addl $8, %esp
 ; X87-NEXT:    .cfi_def_cfa_offset 4
 ; X87-NEXT:    retl
@@ -979,7 +979,7 @@ define i1 @fptoui_f64toi1(double %x) #0 {
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X87-NEXT:    fistps {{[0-9]+}}(%esp)
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X87-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X87-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X87-NEXT:    addl $8, %esp
 ; X87-NEXT:    .cfi_def_cfa_offset 4
 ; X87-NEXT:    retl
@@ -1026,7 +1026,7 @@ define i8 @fptoui_f64toi8(double %x) #0 {
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
 ; X87-NEXT:    fistps {{[0-9]+}}(%esp)
 ; X87-NEXT:    fldcw {{[0-9]+}}(%esp)
-; X87-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X87-NEXT:    movzbl {{[0-9]+}}(%esp), %eax
 ; X87-NEXT:    addl $8, %esp
 ; X87-NEXT:    .cfi_def_cfa_offset 4
 ; X87-NEXT:    retl
@@ -1319,7 +1319,7 @@ define i64 @fptoui_f64toi64(double %x) #0 {
 ; X87-NEXT:    andl $-8, %esp
 ; X87-NEXT:    subl $16, %esp
 ; X87-NEXT:    fldl 8(%ebp)
-; X87-NEXT:    flds {{\.LCPI[0-9]+_[0-9]+}}
+; X87-NEXT:    flds {{\.?LCPI[0-9]+_[0-9]+}}
 ; X87-NEXT:    fcom %st(1)
 ; X87-NEXT:    wait
 ; X87-NEXT:    fnstsw %ax

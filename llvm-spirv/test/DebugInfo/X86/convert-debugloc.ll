@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-allow-extra-diexpressions
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -dwarf-version=5 -filetype=obj -O0 < %t.ll | llvm-dwarfdump - \
 ; RUN:   | FileCheck %s --check-prefix=DW5 "--implicit-check-not={{DW_TAG|NULL}}"
@@ -54,7 +54,7 @@ target triple = "spir64-unknown-unknown"
 define dso_local signext i8 @foo(i8 signext %x) !dbg !7 {
 entry:
   call void @llvm.dbg.value(metadata i8 %x, metadata !11, metadata !DIExpression()), !dbg !12
-  call void @llvm.dbg.value(metadata i8 32, metadata !13, metadata !DIExpression(DW_OP_LLVM_convert, 8, DW_ATE_signed, DW_OP_LLVM_convert, 32, DW_ATE_signed, DW_OP_stack_value)), !dbg !15
+  call void @llvm.dbg.value(metadata i8 32, metadata !13, metadata !DIExpression(DW_OP_lit0, DW_OP_plus, DW_OP_LLVM_convert, 8, DW_ATE_signed, DW_OP_LLVM_convert, 32, DW_ATE_signed, DW_OP_stack_value)), !dbg !15
   ret i8 %x, !dbg !16
 }
 

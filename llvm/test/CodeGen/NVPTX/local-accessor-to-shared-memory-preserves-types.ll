@@ -2,7 +2,7 @@
 ; ModuleID = 'bitcasts.bc'
 source_filename = "bitcasts.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
-target triple = "nvptx64-nvidia-cuda-sycldevice"
+target triple = "nvptx64-nvidia-cuda"
 
 ; This test checks that the transformation always bitcasts to the correct type.
 

@@ -3,9 +3,13 @@ add_mlir_interface(CastInterfaces)
 add_mlir_interface(ControlFlowInterfaces)
 add_mlir_interface(CopyOpInterface)
 add_mlir_interface(DerivedAttributeOpInterface)
+add_mlir_interface(InferIntRangeInterface)
 add_mlir_interface(InferTypeOpInterface)
 add_mlir_interface(LoopLikeInterface)
+add_mlir_interface(ParallelCombiningOpInterface)
+add_mlir_interface(ShapedOpInterfaces)
 add_mlir_interface(SideEffectInterfaces)
+add_mlir_interface(TilingInterface)
 add_mlir_interface(VectorInterfaces)
 add_mlir_interface(ViewLikeInterface)
 
@@ -20,16 +24,16 @@ add_public_tablegen_target(MLIRDataLayoutInterfacesIncGen)
 add_dependencies(mlir-generic-headers MLIRDataLayoutInterfacesIncGen)
 
 add_mlir_doc(DataLayoutInterfaces
-  -gen-attr-interface-docs
   DataLayoutAttrInterface
-  Interfaces/)
+  Interfaces/
+  -gen-attr-interface-docs)
 
 add_mlir_doc(DataLayoutInterfaces
-  -gen-type-interface-docs
   DataLayoutTypeInterface
-  Interfaces/)
+  Interfaces/
+  -gen-type-interface-docs)
 
 add_mlir_doc(DataLayoutInterfaces
-  -gen-op-interface-docs
   DataLayoutOpInterface
-  Interfaces/)
+  Interfaces/
+  -gen-op-interface-docs)

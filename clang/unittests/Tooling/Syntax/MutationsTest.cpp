@@ -30,7 +30,7 @@ protected:
 
     Transform(Source, Root);
 
-    auto Replacements = syntax::computeReplacements(*Arena, *Root);
+    auto Replacements = syntax::computeReplacements(*TM, *Root);
     auto Output = tooling::applyAllReplacements(Source.code(), Replacements);
     if (!Output) {
       ADD_FAILURE() << "could not apply replacements: "
@@ -47,15 +47,15 @@ protected:
                                           TranslationUnit *Root) {
     auto *S = cast<syntax::Statement>(nodeByRange(Input.range(), Root));
     ASSERT_TRUE(S->canModify()) << "cannot remove a statement";
-    syntax::removeStatement(*Arena, S);
+    syntax::removeStatement(*Arena, *TM, S);
     EXPECT_TRUE(S->isDetached());
     EXPECT_FALSE(S->isOriginal())
         << "node removed from tree cannot be marked as original";
   };
 };
 
-INSTANTIATE_TEST_CASE_P(SyntaxTreeTests, MutationTest,
-                        ::testing::ValuesIn(allTestClangConfigs()), );
+INSTANTIATE_TEST_SUITE_P(SyntaxTreeTests, MutationTest,
+                        ::testing::ValuesIn(allTestClangConfigs()) );
 
 TEST_P(MutationTest, RemoveStatement_InCompound) {
   CheckTransformation(RemoveStatement, "void test() { [[100+100;]] test(); }",

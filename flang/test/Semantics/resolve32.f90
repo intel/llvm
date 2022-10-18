@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 module m2
   public s2, s4
   private s3

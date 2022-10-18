@@ -264,10 +264,10 @@ static void genShuffleBland(MVT VT, ArrayRef<int> Mask,
   assert(VT.getSizeInBits() >= 256 &&
          "This function doesn't accept width smaller then 256");
   unsigned NumOfElm = VT.getVectorNumElements();
-  for (unsigned i = 0; i < Mask.size(); i++)
-    Out.push_back(Mask[i] + LowOffset);
-  for (unsigned i = 0; i < Mask.size(); i++)
-    Out.push_back(Mask[i] + HighOffset + NumOfElm);
+  for (int I : Mask)
+    Out.push_back(I + LowOffset);
+  for (int I : Mask)
+    Out.push_back(I + HighOffset + NumOfElm);
 }
 
 // reorderSubVector returns the data to is the original state. And de-facto is
@@ -724,29 +724,33 @@ bool X86InterleavedAccessGroup::lowerIntoOptimizedSequence() {
   auto *ShuffleTy = cast<FixedVectorType>(Shuffles[0]->getType());
 
   if (isa<LoadInst>(Inst)) {
-    // Try to generate target-sized register(/instruction).
-    decompose(Inst, Factor, ShuffleTy, DecomposedVectors);
-
     auto *ShuffleEltTy = cast<FixedVectorType>(Inst->getType());
     unsigned NumSubVecElems = ShuffleEltTy->getNumElements() / Factor;
-    // Perform matrix-transposition in order to compute interleaved
-    // results by generating some sort of (optimized) target-specific
-    // instructions.
-
     switch (NumSubVecElems) {
     default:
       return false;
     case 4:
-      transpose_4x4(DecomposedVectors, TransposedVectors);
-      break;
     case 8:
     case 16:
     case 32:
     case 64:
-      deinterleave8bitStride3(DecomposedVectors, TransposedVectors,
-                              NumSubVecElems);
+      if (ShuffleTy->getNumElements() != NumSubVecElems)
+        return false;
       break;
     }
+
+    // Try to generate target-sized register(/instruction).
+    decompose(Inst, Factor, ShuffleTy, DecomposedVectors);
+
+    // Perform matrix-transposition in order to compute interleaved
+    // results by generating some sort of (optimized) target-specific
+    // instructions.
+
+    if (NumSubVecElems == 4)
+      transpose_4x4(DecomposedVectors, TransposedVectors);
+    else
+      deinterleave8bitStride3(DecomposedVectors, TransposedVectors,
+                              NumSubVecElems);
 
     // Now replace the unoptimized-interleaved-vectors with the
     // transposed-interleaved vectors.

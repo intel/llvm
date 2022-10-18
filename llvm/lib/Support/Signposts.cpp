@@ -1,16 +1,15 @@
 //===-- Signposts.cpp - Interval debug annotations ------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/Signposts.h"
-#include "llvm/Support/Timer.h"
-
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Config/config.h"
+
 #if LLVM_SUPPORT_XCODE_SIGNPOSTS
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/Mutex.h"
@@ -26,18 +25,20 @@ using namespace llvm;
 namespace {
 os_log_t *LogCreator() {
   os_log_t *X = new os_log_t;
-  *X = os_log_create("org.llvm.signposts", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
+  *X = os_log_create("org.llvm.signposts", "toolchain");
   return X;
 }
-void LogDeleter(os_log_t *X) {
-  os_release(*X);
-  delete X;
-}
+struct LogDeleter {
+  void operator()(os_log_t *X) const {
+    os_release(*X);
+    delete X;
+  }
+};
 } // end anonymous namespace
 
 namespace llvm {
 class SignpostEmitterImpl {
-  using LogPtrTy = std::unique_ptr<os_log_t, std::function<void(os_log_t *)>>;
+  using LogPtrTy = std::unique_ptr<os_log_t, LogDeleter>;
   using LogTy = LogPtrTy::element_type;
 
   LogPtrTy SignpostLog;
@@ -59,7 +60,7 @@ class SignpostEmitterImpl {
   }
 
 public:
-  SignpostEmitterImpl() : SignpostLog(LogCreator(), LogDeleter), Signposts() {}
+  SignpostEmitterImpl() : SignpostLog(LogCreator()) {}
 
   bool isEnabled() const {
     if (SIGNPOSTS_AVAILABLE())
@@ -72,7 +73,7 @@ public:
       if (SIGNPOSTS_AVAILABLE()) {
         // Both strings used here are required to be constant literal strings.
         os_signpost_interval_begin(getLogger(), getSignpostForObject(O),
-                                   "LLVM Timers", "Begin %s", Name.data());
+                                   "LLVM Timers", "%s", Name.data());
       }
     }
   }
@@ -82,12 +83,15 @@ public:
       if (SIGNPOSTS_AVAILABLE()) {
         // Both strings used here are required to be constant literal strings.
         os_signpost_interval_end(getLogger(), getSignpostForObject(O),
-                                 "LLVM Timers", "End %s", Name.data());
+                                 "LLVM Timers", "");
       }
     }
   }
 };
 } // end namespace llvm
+#else
+/// Definition necessary for use of std::unique_ptr in SignpostEmitter::Impl.
+class llvm::SignpostEmitterImpl {};
 #endif // if LLVM_SUPPORT_XCODE_SIGNPOSTS
 
 #if LLVM_SUPPORT_XCODE_SIGNPOSTS
@@ -98,17 +102,11 @@ public:
 
 SignpostEmitter::SignpostEmitter() {
 #if HAVE_ANY_SIGNPOST_IMPL
-  Impl = new SignpostEmitterImpl();
-#else  // if HAVE_ANY_SIGNPOST_IMPL
-  Impl = nullptr;
+  Impl = std::make_unique<SignpostEmitterImpl>();
 #endif // if !HAVE_ANY_SIGNPOST_IMPL
 }
 
-SignpostEmitter::~SignpostEmitter() {
-#if HAVE_ANY_SIGNPOST_IMPL
-  delete Impl;
-#endif // if HAVE_ANY_SIGNPOST_IMPL
-}
+SignpostEmitter::~SignpostEmitter() = default;
 
 bool SignpostEmitter::isEnabled() const {
 #if HAVE_ANY_SIGNPOST_IMPL

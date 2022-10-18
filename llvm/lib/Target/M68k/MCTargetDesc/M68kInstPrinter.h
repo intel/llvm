@@ -1,4 +1,4 @@
-//===-- M68kInstPrinter.h - Convert M68k MCInst to asm ------*- C++ -*-===//
+//===-- M68kInstPrinter.h - Convert M68k MCInst to asm ----------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -65,7 +65,7 @@ private:
   //
   void printPCRelImm(const MCInst *MI, uint64_t Address, unsigned opNum,
                      raw_ostream &O) {
-    printOperand(MI, opNum, O);
+    printAbsMem(MI, opNum, O);
   }
 
   void printARI8Mem(const MCInst *MI, unsigned opNum, raw_ostream &O) {
@@ -166,4 +166,4 @@ private:
 };
 } // end namespace llvm
 
-#endif
+#endif // LLVM_LIB_TARGET_M68K_INSTPRINTER_M68KINSTPRINTER_H

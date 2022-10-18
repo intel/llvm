@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -sycl-std=2020 -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2020 -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.h %s
 //
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
+// CHECK: #include <sycl/detail/kernel_desc.hpp>
 //
 // CHECK: class first_kernel;
 // CHECK-NEXT: namespace second_namespace {
@@ -48,9 +48,10 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 40 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52 },
 // CHECK-EMPTY:
+// CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 //
-// CHECK: template <> struct KernelInfo<class first_kernel> {
+// CHECK: template <> struct KernelInfo<first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
 // CHECK: template <> struct KernelInfo<::fourth_kernel<::template_arg_ns::namespaced_arg<1>>> {
 
@@ -85,17 +86,17 @@ struct other_base {
 };
 struct base {
   int i, j;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  sycl::accessor<char, 1, sycl::access::mode::read> acc;
 };
 
 struct base2 : other_base,
-               cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> {
+               sycl::accessor<char, 1, sycl::access::mode::read> {
   int i;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  sycl::accessor<char, 1, sycl::access::mode::read> acc;
 };
 
 struct captured : base, base2 {
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  sycl::accessor<char, 1, sycl::access::mode::read> acc;
   void use() const {}
 };
 
@@ -103,13 +104,13 @@ struct captured : base, base2 {
 
 int main() {
 
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc1;
-  cl::sycl::accessor<float, 2, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::local,
-                     cl::sycl::access::placeholder::true_t>
+  sycl::accessor<char, 1, sycl::access::mode::read> acc1;
+  sycl::accessor<float, 2, sycl::access::mode::write,
+                     sycl::access::target::local,
+                     sycl::access::placeholder::true_t>
       acc2;
   int i = 13;
-  cl::sycl::sampler smplr;
+  sycl::sampler smplr;
   struct {
     char c;
     int i;

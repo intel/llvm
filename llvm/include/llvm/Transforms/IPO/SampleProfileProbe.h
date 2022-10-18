@@ -16,24 +16,29 @@
 #define LLVM_TRANSFORMS_IPO_SAMPLEPROFILEPROBE_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LazyCallGraph.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/PseudoProbe.h"
 #include "llvm/ProfileData/SampleProf.h"
-#include "llvm/Target/TargetMachine.h"
 #include <unordered_map>
 
 namespace llvm {
+class Any;
+class BasicBlock;
+class Function;
+class Instruction;
+class Loop;
+class PassInstrumentationCallbacks;
+class TargetMachine;
 
 class Module;
 
 using namespace sampleprof;
 using BlockIdMap = std::unordered_map<BasicBlock *, uint32_t>;
 using InstructionIdMap = std::unordered_map<Instruction *, uint32_t>;
-using ProbeFactorMap = std::unordered_map<uint64_t, float>;
+// Map from tuples of Probe id and inline stack hash code to distribution
+// factors.
+using ProbeFactorMap = std::unordered_map<std::pair<uint64_t, uint64_t>, float,
+                                          pair_hash<uint64_t, uint64_t>>;
 using FuncProbeFactorMap = StringMap<ProbeFactorMap>;
 
 enum class PseudoProbeReservedId { Invalid = 0, Last = Invalid };
@@ -135,11 +140,23 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
+// Pseudo probe distribution factor updater.
+// Sample profile annotation can happen in both LTO prelink and postlink. The
+// postlink-time re-annotation can degrade profile quality because of prelink
+// code duplication transformation, such as loop unrolling, jump threading,
+// indirect call promotion etc. As such, samples corresponding to a source
+// location may be aggregated multiple times in postlink. With a concept of
+// distribution factor for pseudo probes, samples can be distributed among
+// duplicated probes reasonable based on the assumption that optimizations
+// duplicating code well-maintain the branch frequency information (BFI). This
+// pass updates distribution factors for each pseudo probe at the end of the
+// prelink pipeline, to reflect an estimated portion of the real execution
+// count.
 class PseudoProbeUpdatePass : public PassInfoMixin<PseudoProbeUpdatePass> {
   void runOnFunction(Function &F, FunctionAnalysisManager &FAM);
 
 public:
-  PseudoProbeUpdatePass() {}
+  PseudoProbeUpdatePass() = default;
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_MATCHERS_H
-#define LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_MATCHERS_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_MATCHERS_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_MATCHERS_H
 #include "Protocol.h"
 #include "gmock/gmock.h"
 
@@ -132,6 +132,8 @@ PolySubsequenceMatcher<Args...> HasSubsequence(Args &&... M) {
 template <typename InnerMatcher> class OptionalMatcher {
 public:
   explicit OptionalMatcher(const InnerMatcher &matcher) : matcher_(matcher) {}
+  OptionalMatcher(const OptionalMatcher&) = default;
+  OptionalMatcher &operator=(const OptionalMatcher&) = delete;
 
   // This type conversion operator template allows Optional(m) to be
   // used as a matcher for any Optional type whose value type is
@@ -155,6 +157,9 @@ private:
     explicit Impl(const InnerMatcher &matcher)
         : matcher_(::testing::MatcherCast<const Value &>(matcher)) {}
 
+    Impl(const Impl&) = default;
+    Impl &operator=(const Impl&) = delete;
+
     virtual void DescribeTo(::std::ostream *os) const {
       *os << "has a value that ";
       matcher_.DescribeTo(os);
@@ -168,7 +173,7 @@ private:
     virtual bool
     MatchAndExplain(Optional optional,
                     ::testing::MatchResultListener *listener) const {
-      if (!optional.hasValue())
+      if (!optional)
         return false;
 
       *listener << "which has a value ";
@@ -177,13 +182,9 @@ private:
 
   private:
     const Matcher<const Value &> matcher_;
-
-    GTEST_DISALLOW_ASSIGN_(Impl);
   };
 
   const InnerMatcher matcher_;
-
-  GTEST_DISALLOW_ASSIGN_(OptionalMatcher);
 };
 
 // Creates a matcher that matches an Optional that has a value

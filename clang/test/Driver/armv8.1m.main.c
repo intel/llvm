@@ -2,6 +2,10 @@
 // RUN: FileCheck --check-prefix=CHECK-DSP < %t %s
 // CHECK-DSP: "-target-feature" "+dsp"
 
+// RUN: %clang -target arm-arm-none-eabi -march=armv8.1-m.main+pacbti -### %s 2> %t
+// RUN: FileCheck --check-prefix=CHECK-PACBTI < %t %s
+// CHECK-PACBTI: "-target-feature" "+pacbti"
+
 // RUN: %clang -target arm-arm-none-eabi -march=armv8.1-m.main+fp  -### %s 2> %t
 // RUN: FileCheck --check-prefix=CHECK-FP < %t %s
 // CHECK-FP-DAG: "-target-feature" "+fp-armv8d16sp"
@@ -22,7 +26,8 @@
 // CHECK-NOFP-DAG: "-target-feature" "-fp64"
 // CHECK-NOFP-DAG: "-target-feature" "-d32"
 // CHECK-NOFP-DAG: "-target-feature" "-neon"
-// CHECK-NOFP-DAG: "-target-feature" "-crypto"
+// CHECK-NOFP-DAG: "-target-feature" "-sha2"
+// CHECK-NOFP-DAG: "-target-feature" "-aes"
 
 // RUN: %clang -target arm-arm-none-eabi -march=armv8.1-m.main+fp.dp  -### %s 2> %t
 // RUN: FileCheck --check-prefix=CHECK-FPDP < %t %s

@@ -11,7 +11,7 @@
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 
@@ -55,9 +55,11 @@ llvm::Error TestAsmPrinter::init(const Target *TheTarget, StringRef TripleName,
     return make_error<StringError>("no target machine for target " + TripleName,
                                    inconvertibleErrorCode());
 
-  MC.reset(new MCContext(TM->getMCAsmInfo(), TM->getMCRegisterInfo(),
-                         TM->getObjFileLowering()));
+  Triple TheTriple(TripleName);
+  MC.reset(new MCContext(TheTriple, TM->getMCAsmInfo(), TM->getMCRegisterInfo(),
+                         TM->getMCSubtargetInfo()));
   TM->getObjFileLowering()->Initialize(*MC, *TM);
+  MC->setObjectFileInfo(TM->getObjFileLowering());
 
   MS = new StrictMock<MockMCStreamer>(MC.get());
 

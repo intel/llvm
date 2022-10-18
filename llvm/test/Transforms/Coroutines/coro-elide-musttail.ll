@@ -2,8 +2,6 @@
 ; Only run with new pass manager since old pass manager's alias analysis isn't
 ; powerful enough to tell that the tailcall's arguments don't alias the frame.
 ;
-; RUN: opt < %s -coro-elide -S | FileCheck %s
-; RUN: opt < %s -disable-basic-aa -coro-elide -S | FileCheck %s -check-prefix=NOAA
 ; RUN: opt < %s -passes='coro-elide' -S | FileCheck %s
 ; RUN: opt < %s -aa-pipeline= -passes='coro-elide' -S | FileCheck %s -check-prefix=NOAA
 
@@ -15,7 +13,7 @@
 @"bar.resumers" = private constant [3 x void (%"bar.Frame"*)*] [void (%"bar.Frame"*)* @"bar.resume", void (%"bar.Frame"*)* undef, void (%"bar.Frame"*)* undef]
 
 declare dso_local void @"bar"() align 2
-declare dso_local fastcc void @"bar.resume"(%"bar.Frame"*) align 2
+declare dso_local fastcc void @"bar.resume"(%"bar.Frame"* align 8 dereferenceable(24)) align 2
 
 ; There is a musttail call.
 ; With alias analysis, we can tell that the frame does not interfere with CALL34, and hence we can keep the tailcalls.

@@ -23,7 +23,7 @@
 #include "llvm/Support/MD5.h"
 
 static llvm::cl::opt<bool>
-    EnableValueProfiling("enable-value-profiling", llvm::cl::ZeroOrMore,
+    EnableValueProfiling("enable-value-profiling",
                          llvm::cl::desc("Enable value profiling"),
                          llvm::cl::Hidden, llvm::cl::init(false));
 
@@ -131,7 +131,7 @@ public:
   static_assert(LastHashType <= TooBig, "Too many types in HashType");
 
   PGOHash(PGOHashVersion HashVersion)
-      : Working(0), Count(0), HashVersion(HashVersion), MD5() {}
+      : Working(0), Count(0), HashVersion(HashVersion) {}
   void combine(HashType Type);
   uint64_t finalize();
   PGOHashVersion getHashVersion() const { return HashVersion; }
@@ -649,6 +649,14 @@ struct ComputeRegionCounts : public ConstStmtVisitor<ComputeRegionCounts> {
 
   void VisitIfStmt(const IfStmt *S) {
     RecordStmtCount(S);
+
+    if (S->isConsteval()) {
+      const Stmt *Stm = S->isNegatedConsteval() ? S->getThen() : S->getElse();
+      if (Stm)
+        Visit(Stm);
+      return;
+    }
+
     uint64_t ParentCount = CurrentCount;
     if (S->getInit())
       Visit(S->getInit());
@@ -814,6 +822,8 @@ void CodeGenPGO::assignRegionCounters(GlobalDecl GD, llvm::Function *Fn) {
   CGM.ClearUnusedCoverageMapping(D);
   if (Fn->hasFnAttribute(llvm::Attribute::NoProfile))
     return;
+  if (Fn->hasFnAttribute(llvm::Attribute::SkipProfile))
+    return;
 
   setFuncName(Fn);
 
@@ -960,6 +970,12 @@ void CodeGenPGO::emitCounterIncrement(CGBuilderTy &Builder, const Stmt *S,
     Builder.CreateCall(
         CGM.getIntrinsic(llvm::Intrinsic::instrprof_increment_step),
         makeArrayRef(Args));
+}
+
+void CodeGenPGO::setValueProfilingFlag(llvm::Module &M) {
+  if (CGM.getCodeGenOpts().hasProfileClangInstr())
+    M.addModuleFlag(llvm::Module::Warning, "EnableValueProfiling",
+                    uint32_t(EnableValueProfiling));
 }
 
 // This method either inserts a call to the profile run-time during

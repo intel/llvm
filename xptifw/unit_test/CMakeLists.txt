@@ -25,21 +25,44 @@ if (NOT DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
   # Add googletest directly to our build. This defines
-  # the gtest and gtest_main targets.
+  # the llvm_gtest and llvm_gtest_main targets.
   add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
                   ${CMAKE_CURRENT_BINARY_DIR}/googletest-build
                   EXCLUDE_FROM_ALL)
 
-  # The gtest/gtest_main targets carry header search path
-  # dependencies automatically when using CMake 2.8.11 or
+  # The llvm_gtest/llvm_gtest_main targets carry header search
+  # path dependencies automatically when using CMake 2.8.11 or
   # later. Otherwise we have to add them here ourselves.
   if (CMAKE_VERSION VERSION_LESS 2.8.11)
     include_directories("${gtest_SOURCE_DIR}/include")
   endif()
 endif()
 
-# Now simply link against gtest or gtest_main as needed. Eg
-add_executable(xpti_tests xpti_api_tests.cpp xpti_correctness_tests.cpp)
-target_link_libraries(xpti_tests gtest)
-target_link_libraries(xpti_tests gtest_main xptifw)
-add_test(NAME example_test COMMAND xpti_tests)
+add_executable(XPTIFWUnitTests EXCLUDE_FROM_ALL
+  xpti_api_tests.cpp
+  xpti_correctness_tests.cpp
+)
+
+# Silence warnings from GTest
+target_include_directories(XPTIFWUnitTests SYSTEM PRIVATE
+  ${gtest_SOURCE_DIR}/include
+  ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
+)
+
+if (TARGET LLVMSupport)
+  set(SUPPORT_LIB LLVMSupport)
+endif()
+
+target_link_libraries(XPTIFWUnitTests PRIVATE
+  llvm_gtest
+  llvm_gtest_main
+  xptifw
+  ${SUPPORT_LIB}
+)
+
+add_test(NAME XPTIFWTests COMMAND XPTIFWUnitTests)
+
+add_custom_target(check-xptifw-unittest COMMAND
+  $<TARGET_PROPERTY:XPTIFWUnitTests,RUNTIME_OUTPUT_DIRECTORY>/XPTIFWUnitTests)
+add_dependencies(check-xptifw-unittest XPTIFWUnitTests)
+add_dependencies(check-xptifw check-xptifw-unittest)

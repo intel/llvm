@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "VE.h"
 #include "VETargetMachine.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
@@ -140,6 +141,12 @@ public:
   bool selectADDRzii(SDValue N, SDValue &Base, SDValue &Index, SDValue &Offset);
   bool selectADDRri(SDValue N, SDValue &Base, SDValue &Offset);
   bool selectADDRzi(SDValue N, SDValue &Base, SDValue &Offset);
+
+  /// SelectInlineAsmMemoryOperand - Implement addressing mode selection for
+  /// inline asm expressions.
+  bool SelectInlineAsmMemoryOperand(const SDValue &Op,
+                                    unsigned ConstraintID,
+                                    std::vector<SDValue> &OutOps) override;
 
   StringRef getPassName() const override {
     return "VE DAG->DAG Pattern Instruction Selection";
@@ -335,12 +342,75 @@ void VEDAGToDAGISel::Select(SDNode *N) {
   }
 
   switch (N->getOpcode()) {
+
+  // Late eliminate the LEGALAVL wrapper
+  case VEISD::LEGALAVL:
+    ReplaceNode(N, N->getOperand(0).getNode());
+    return;
+
+  // Lower (broadcast 1) and (broadcast 0) to VM[P]0
+  case VEISD::VEC_BROADCAST: {
+    MVT SplatResTy = N->getSimpleValueType(0);
+    if (SplatResTy.getVectorElementType() != MVT::i1)
+      break;
+
+    // Constant non-zero broadcast.
+    auto BConst = dyn_cast<ConstantSDNode>(N->getOperand(0));
+    if (!BConst)
+      break;
+    bool BCTrueMask = (BConst->getSExtValue() != 0);
+    if (!BCTrueMask)
+      break;
+
+    // Packed or non-packed.
+    SDValue New;
+    if (SplatResTy.getVectorNumElements() == StandardVectorWidth) {
+      New = CurDAG->getCopyFromReg(CurDAG->getEntryNode(), SDLoc(N), VE::VM0,
+                                   MVT::v256i1);
+    } else if (SplatResTy.getVectorNumElements() == PackedVectorWidth) {
+      New = CurDAG->getCopyFromReg(CurDAG->getEntryNode(), SDLoc(N), VE::VMP0,
+                                   MVT::v512i1);
+    } else
+      break;
+
+    // Replace.
+    ReplaceNode(N, New.getNode());
+    return;
+  }
+
   case VEISD::GLOBAL_BASE_REG:
     ReplaceNode(N, getGlobalBaseReg());
     return;
   }
 
   SelectCode(N);
+}
+
+/// SelectInlineAsmMemoryOperand - Implement addressing mode selection for
+/// inline asm expressions.
+bool
+VEDAGToDAGISel::SelectInlineAsmMemoryOperand(const SDValue &Op,
+                                             unsigned ConstraintID,
+                                             std::vector<SDValue> &OutOps) {
+  SDValue Op0, Op1;
+  switch (ConstraintID) {
+  default:
+    llvm_unreachable("Unexpected asm memory constraint");
+  case InlineAsm::Constraint_o:
+  case InlineAsm::Constraint_m: // memory
+    // Try to match ADDRri since reg+imm style is safe for all VE instructions
+    // with a memory operand.
+    if (selectADDRri(Op, Op0, Op1)) {
+      OutOps.push_back(Op0);
+      OutOps.push_back(Op1);
+      return false;
+    }
+    // Otherwise, require the address to be in a register and immediate 0.
+    OutOps.push_back(Op);
+    OutOps.push_back(CurDAG->getTargetConstant(0, SDLoc(Op), MVT::i32));
+    return false;
+  }
+  return true;
 }
 
 SDNode *VEDAGToDAGISel::getGlobalBaseReg() {

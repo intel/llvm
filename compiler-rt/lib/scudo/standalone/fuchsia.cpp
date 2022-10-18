@@ -17,6 +17,7 @@
 #include <lib/sync/mutex.h> // for sync_mutex_t
 #include <stdlib.h>         // for getenv()
 #include <zircon/compiler.h>
+#include <zircon/process.h>
 #include <zircon/sanitizer.h>
 #include <zircon/syscalls.h>
 
@@ -41,7 +42,7 @@ static void *allocateVmar(uptr Size, MapPlatformData *Data, bool AllowNoMem) {
       Size, &Data->Vmar, &Data->VmarBase);
   if (UNLIKELY(Status != ZX_OK)) {
     if (Status != ZX_ERR_NO_MEMORY || !AllowNoMem)
-      dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY);
+      dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY ? Size : 0);
     return nullptr;
   }
   return reinterpret_cast<void *>(Data->VmarBase);
@@ -49,15 +50,16 @@ static void *allocateVmar(uptr Size, MapPlatformData *Data, bool AllowNoMem) {
 
 void *map(void *Addr, uptr Size, const char *Name, uptr Flags,
           MapPlatformData *Data) {
-  DCHECK_EQ(Size % PAGE_SIZE, 0);
+  DCHECK_EQ(Size % getPageSizeCached(), 0);
   const bool AllowNoMem = !!(Flags & MAP_ALLOWNOMEM);
 
   // For MAP_NOACCESS, just allocate a Vmar and return.
   if (Flags & MAP_NOACCESS)
     return allocateVmar(Size, Data, AllowNoMem);
 
-  const zx_handle_t Vmar = Data ? Data->Vmar : _zx_vmar_root_self();
-  CHECK_NE(Vmar, ZX_HANDLE_INVALID);
+  const zx_handle_t Vmar = (Data && Data->Vmar != ZX_HANDLE_INVALID)
+                               ? Data->Vmar
+                               : _zx_vmar_root_self();
 
   zx_status_t Status;
   zx_handle_t Vmo;
@@ -71,7 +73,7 @@ void *map(void *Addr, uptr Size, const char *Name, uptr Flags,
     Status = _zx_vmo_set_size(Vmo, VmoSize + Size);
     if (Status != ZX_OK) {
       if (Status != ZX_ERR_NO_MEMORY || !AllowNoMem)
-        dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY);
+        dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY ? Size : 0);
       return nullptr;
     }
   } else {
@@ -79,7 +81,7 @@ void *map(void *Addr, uptr Size, const char *Name, uptr Flags,
     Status = _zx_vmo_create(Size, ZX_VMO_RESIZABLE, &Vmo);
     if (UNLIKELY(Status != ZX_OK)) {
       if (Status != ZX_ERR_NO_MEMORY || !AllowNoMem)
-        dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY);
+        dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY ? Size : 0);
       return nullptr;
     }
     _zx_object_set_property(Vmo, ZX_PROP_NAME, Name, strlen(Name));
@@ -88,6 +90,8 @@ void *map(void *Addr, uptr Size, const char *Name, uptr Flags,
   uintptr_t P;
   zx_vm_option_t MapFlags =
       ZX_VM_PERM_READ | ZX_VM_PERM_WRITE | ZX_VM_ALLOW_FAULTS;
+  if (Addr)
+    DCHECK(Data);
   const uint64_t Offset =
       Addr ? reinterpret_cast<uintptr_t>(Addr) - Data->VmarBase : 0;
   if (Offset)
@@ -96,14 +100,16 @@ void *map(void *Addr, uptr Size, const char *Name, uptr Flags,
   // No need to track the Vmo if we don't intend on resizing it. Close it.
   if (Flags & MAP_RESIZABLE) {
     DCHECK(Data);
-    DCHECK_EQ(Data->Vmo, ZX_HANDLE_INVALID);
-    Data->Vmo = Vmo;
+    if (Data->Vmo == ZX_HANDLE_INVALID)
+      Data->Vmo = Vmo;
+    else
+      DCHECK_EQ(Data->Vmo, Vmo);
   } else {
     CHECK_EQ(_zx_handle_close(Vmo), ZX_OK);
   }
   if (UNLIKELY(Status != ZX_OK)) {
     if (Status != ZX_ERR_NO_MEMORY || !AllowNoMem)
-      dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY);
+      dieOnMapUnmapError(Status == ZX_ERR_NO_MEMORY ? Size : 0);
     return nullptr;
   }
   if (Data)
@@ -121,7 +127,9 @@ void unmap(void *Addr, uptr Size, uptr Flags, MapPlatformData *Data) {
     CHECK_EQ(_zx_vmar_destroy(Vmar), ZX_OK);
     CHECK_EQ(_zx_handle_close(Vmar), ZX_OK);
   } else {
-    const zx_handle_t Vmar = Data ? Data->Vmar : _zx_vmar_root_self();
+    const zx_handle_t Vmar = (Data && Data->Vmar != ZX_HANDLE_INVALID)
+                                 ? Data->Vmar
+                                 : _zx_vmar_root_self();
     const zx_status_t Status =
         _zx_vmar_unmap(Vmar, reinterpret_cast<uintptr_t>(Addr), Size);
     if (UNLIKELY(Status != ZX_OK))

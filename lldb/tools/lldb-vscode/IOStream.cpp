@@ -8,7 +8,7 @@
 
 #include "IOStream.h"
 
-#if defined(_WIN32) 
+#if defined(_WIN32)
 #include <io.h>
 #else
 #include <netinet/in.h>
@@ -22,7 +22,7 @@
 
 using namespace lldb_vscode;
 
-StreamDescriptor::StreamDescriptor() {}
+StreamDescriptor::StreamDescriptor() = default;
 
 StreamDescriptor::StreamDescriptor(StreamDescriptor &&other) {
   *this = std::move(other);

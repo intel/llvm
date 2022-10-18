@@ -172,11 +172,11 @@ Utility
 
 This module contains the lowest layers of LLDB. A lot of these classes don't
 really have anything to do with debugging -- they are just there because the
-higher layers of the debugger use these clasess to implement their
+higher layers of the debugger use these classes to implement their
 functionality. Others are data structures used in many other parts of the
-debugger (TraceOptions). Most of the functionality in this module could be
-useful in an application that is not a debugger; however, providing a general
-purpose C++ library is an explicit non-goal of this module.
+debugger. Most of the functionality in this module could be useful in an
+application that is not a debugger; however, providing a general purpose C++
+library is an explicit non-goal of this module..
 
 This module provides following functionality:
 

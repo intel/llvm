@@ -1,4 +1,4 @@
-//===-- M68kISelLowering.h - M68k DAG Lowering Interface ----*- C++ -*-===//
+//===-- M68kISelLowering.h - M68k DAG Lowering Interface --------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -43,7 +43,7 @@ enum NodeType {
   CMP,
 
   /// M68k bit-test instructions.
-  BT,
+  BTST,
 
   /// M68k Select
   SELECT,
@@ -156,9 +156,23 @@ public:
                                              unsigned JTI,
                                              MCContext &Ctx) const override;
 
+  ConstraintType getConstraintType(StringRef ConstraintStr) const override;
+
+  std::pair<unsigned, const TargetRegisterClass *>
+  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                               StringRef Constraint, MVT VT) const override;
+
+  // Lower operand with C_Immediate and C_Other constraint type
+  void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
+                                    std::vector<SDValue> &Ops,
+                                    SelectionDAG &DAG) const override;
+
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *MBB) const override;
+
+  CCAssignFn *getCCAssignFn(CallingConv::ID CC, bool Return,
+                            bool IsVarArg) const;
 
 private:
   unsigned GetAlignedArgumentStackSize(unsigned StackSize,
@@ -190,8 +204,8 @@ private:
                            const CCValAssign &VA, ISD::ArgFlagsTy Flags) const;
 
   SDValue LowerXALUO(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerToBT(SDValue And, ISD::CondCode CC, const SDLoc &DL,
-                    SelectionDAG &DAG) const;
+  SDValue LowerToBTST(SDValue And, ISD::CondCode CC, const SDLoc &DL,
+                      SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCCCARRY(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
@@ -206,6 +220,8 @@ private:
   SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
 
   SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
                           CallingConv::ID CallConv, bool IsVarArg,
@@ -262,4 +278,4 @@ private:
 };
 } // namespace llvm
 
-#endif // M68kISELLOWERING_H
+#endif // LLVM_LIB_TARGET_M68K_M68KISELLOWERING_H

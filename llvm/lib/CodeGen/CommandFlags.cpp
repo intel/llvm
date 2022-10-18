@@ -13,10 +13,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/CommandFlags.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/Triple.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
+#include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Host.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 using namespace llvm;
 
@@ -52,11 +58,12 @@ CGOPT(ThreadModel::Model, ThreadModel)
 CGOPT_EXP(CodeModel::Model, CodeModel)
 CGOPT(ExceptionHandling, ExceptionModel)
 CGOPT_EXP(CodeGenFileType, FileType)
-CGOPT(FramePointer::FP, FramePointerUsage)
+CGOPT(FramePointerKind, FramePointerUsage)
 CGOPT(bool, EnableUnsafeFPMath)
 CGOPT(bool, EnableNoInfsFPMath)
 CGOPT(bool, EnableNoNaNsFPMath)
 CGOPT(bool, EnableNoSignedZerosFPMath)
+CGOPT(bool, EnableApproxFuncFPMath)
 CGOPT(bool, EnableNoTrappingFPMath)
 CGOPT(bool, EnableAIXExtendedAltivecABI)
 CGOPT(DenormalMode::DenormalModeKind, DenormalFPMath)
@@ -64,23 +71,21 @@ CGOPT(DenormalMode::DenormalModeKind, DenormalFP32Math)
 CGOPT(bool, EnableHonorSignDependentRoundingFPMath)
 CGOPT(FloatABI::ABIType, FloatABIForCalls)
 CGOPT(FPOpFusion::FPOpFusionMode, FuseFPOps)
+CGOPT(SwiftAsyncFramePointerMode, SwiftAsyncFramePointer)
 CGOPT(bool, DontPlaceZerosInBSS)
 CGOPT(bool, EnableGuaranteedTailCallOpt)
 CGOPT(bool, DisableTailCalls)
 CGOPT(bool, StackSymbolOrdering)
-CGOPT(unsigned, OverrideStackAlignment)
 CGOPT(bool, StackRealign)
 CGOPT(std::string, TrapFuncName)
 CGOPT(bool, UseCtors)
+CGOPT(bool, LowerGlobalDtorsViaCxaAtExit)
 CGOPT(bool, RelaxELFRelocations)
 CGOPT_EXP(bool, DataSections)
 CGOPT_EXP(bool, FunctionSections)
 CGOPT(bool, IgnoreXCOFFVisibility)
 CGOPT(bool, XCOFFTracebackTable)
 CGOPT(std::string, BBSections)
-CGOPT(std::string, StackProtectorGuard)
-CGOPT(unsigned, StackProtectorGuardOffset)
-CGOPT(std::string, StackProtectorGuardReg)
 CGOPT(unsigned, TLSSize)
 CGOPT(bool, EmulatedTLS)
 CGOPT(bool, UniqueSectionNames)
@@ -92,10 +97,11 @@ CGOPT(bool, EnableAddrsig)
 CGOPT(bool, EmitCallSiteInfo)
 CGOPT(bool, EnableMachineFunctionSplitter)
 CGOPT(bool, EnableDebugEntryValues)
-CGOPT(bool, PseudoProbeForProfiling)
-CGOPT(bool, ValueTrackingVariableLocations)
 CGOPT(bool, ForceDwarfFrameSection)
 CGOPT(bool, XRayOmitFunctionIndex)
+CGOPT(bool, DebugStrictDwarf)
+CGOPT(unsigned, AlignLoops)
+CGOPT(bool, JMCInstrument)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -182,16 +188,16 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
                      "Emit nothing, for performance testing")));
   CGBINDOPT(FileType);
 
-  static cl::opt<FramePointer::FP> FramePointerUsage(
+  static cl::opt<FramePointerKind> FramePointerUsage(
       "frame-pointer",
       cl::desc("Specify frame pointer elimination optimization"),
-      cl::init(FramePointer::None),
+      cl::init(FramePointerKind::None),
       cl::values(
-          clEnumValN(FramePointer::All, "all",
+          clEnumValN(FramePointerKind::All, "all",
                      "Disable frame pointer elimination"),
-          clEnumValN(FramePointer::NonLeaf, "non-leaf",
+          clEnumValN(FramePointerKind::NonLeaf, "non-leaf",
                      "Disable frame pointer elimination for non-leaf frame"),
-          clEnumValN(FramePointer::None, "none",
+          clEnumValN(FramePointerKind::None, "none",
                      "Enable frame pointer elimination")));
   CGBINDOPT(FramePointerUsage);
 
@@ -219,6 +225,12 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
                "the sign of 0 is insignificant"),
       cl::init(false));
   CGBINDOPT(EnableNoSignedZerosFPMath);
+
+  static cl::opt<bool> EnableApproxFuncFPMath(
+      "enable-approx-func-fp-math",
+      cl::desc("Enable FP math optimizations that assume approx func"),
+      cl::init(false));
+  CGBINDOPT(EnableApproxFuncFPMath);
 
   static cl::opt<bool> EnableNoTrappingFPMath(
       "enable-no-trapping-fp-math",
@@ -279,6 +291,18 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
                      "Only fuse FP ops when the result won't be affected.")));
   CGBINDOPT(FuseFPOps);
 
+  static cl::opt<SwiftAsyncFramePointerMode> SwiftAsyncFramePointer(
+      "swift-async-fp",
+      cl::desc("Determine when the Swift async frame pointer should be set"),
+      cl::init(SwiftAsyncFramePointerMode::Always),
+      cl::values(clEnumValN(SwiftAsyncFramePointerMode::DeploymentBased, "auto",
+                            "Determine based on deployment target"),
+                 clEnumValN(SwiftAsyncFramePointerMode::Always, "always",
+                            "Always set the bit"),
+                 clEnumValN(SwiftAsyncFramePointerMode::Never, "never",
+                            "Never set the bit")));
+  CGBINDOPT(SwiftAsyncFramePointer);
+
   static cl::opt<bool> DontPlaceZerosInBSS(
       "nozero-initialized-in-bss",
       cl::desc("Don't place zero-initialized symbols into bss section"),
@@ -306,11 +330,6 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(true));
   CGBINDOPT(StackSymbolOrdering);
 
-  static cl::opt<unsigned> OverrideStackAlignment(
-      "stack-alignment", cl::desc("Override default stack alignment"),
-      cl::init(0));
-  CGBINDOPT(OverrideStackAlignment);
-
   static cl::opt<bool> StackRealign(
       "stackrealign",
       cl::desc("Force align the stack to the minimum alignment"),
@@ -327,6 +346,12 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
                                 cl::desc("Use .ctors instead of .init_array."),
                                 cl::init(false));
   CGBINDOPT(UseCtors);
+
+  static cl::opt<bool> LowerGlobalDtorsViaCxaAtExit(
+      "lower-global-dtors-via-cxa-atexit",
+      cl::desc("Lower llvm.global_dtors (global destructors) via __cxa_atexit"),
+      cl::init(true));
+  CGBINDOPT(LowerGlobalDtorsViaCxaAtExit);
 
   static cl::opt<bool> RelaxELFRelocations(
       "relax-elf-relocations",
@@ -364,21 +389,6 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init("none"));
   CGBINDOPT(BBSections);
 
-  static cl::opt<std::string> StackProtectorGuard(
-      "stack-protector-guard", cl::desc("Stack protector guard mode"),
-      cl::init("none"));
-  CGBINDOPT(StackProtectorGuard);
-
-  static cl::opt<std::string> StackProtectorGuardReg(
-      "stack-protector-guard-reg", cl::desc("Stack protector guard register"),
-      cl::init("none"));
-  CGBINDOPT(StackProtectorGuardReg);
-
-  static cl::opt<unsigned> StackProtectorGuardOffset(
-      "stack-protector-guard-offset", cl::desc("Stack protector guard offset"),
-      cl::init((unsigned)-1));
-  CGBINDOPT(StackProtectorGuardOffset);
-
   static cl::opt<unsigned> TLSSize(
       "tls-size", cl::desc("Bit size of immediate TLS offsets"), cl::init(0));
   CGBINDOPT(TLSSize);
@@ -414,6 +424,7 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::values(
           clEnumValN(DebuggerKind::GDB, "gdb", "gdb"),
           clEnumValN(DebuggerKind::LLDB, "lldb", "lldb"),
+          clEnumValN(DebuggerKind::DBX, "dbx", "dbx"),
           clEnumValN(DebuggerKind::SCE, "sce", "SCE targets (e.g. PS4)")));
   CGBINDOPT(DebuggerTuningOpt);
 
@@ -441,17 +452,6 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::init(false));
   CGBINDOPT(EnableDebugEntryValues);
 
-  static cl::opt<bool> PseudoProbeForProfiling(
-      "pseudo-probe-for-profiling", cl::desc("Emit pseudo probes for AutoFDO"),
-      cl::init(false));
-  CGBINDOPT(PseudoProbeForProfiling);
-
-  static cl::opt<bool> ValueTrackingVariableLocations(
-      "experimental-debug-variable-locations",
-      cl::desc("Use experimental new value-tracking variable locations"),
-      cl::init(false));
-  CGBINDOPT(ValueTrackingVariableLocations);
-
   static cl::opt<bool> EnableMachineFunctionSplitter(
       "split-machine-functions",
       cl::desc("Split out cold basic blocks from machine functions based on "
@@ -468,6 +468,20 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       "no-xray-index", cl::desc("Don't emit xray_fn_idx section"),
       cl::init(false));
   CGBINDOPT(XRayOmitFunctionIndex);
+
+  static cl::opt<bool> DebugStrictDwarf(
+      "strict-dwarf", cl::desc("use strict dwarf"), cl::init(false));
+  CGBINDOPT(DebugStrictDwarf);
+
+  static cl::opt<unsigned> AlignLoops("align-loops",
+                                      cl::desc("Default alignment for loops"));
+  CGBINDOPT(AlignLoops);
+
+  static cl::opt<bool> JMCInstrument(
+      "enable-jmc-instrument",
+      cl::desc("Instrument functions with a call to __CheckForDebuggerJustMyCode"),
+      cl::init(false));
+  CGBINDOPT(JMCInstrument);
 
 #undef CGBINDOPT
 
@@ -495,24 +509,6 @@ codegen::getBBSectionsMode(llvm::TargetOptions &Options) {
   }
 }
 
-llvm::StackProtectorGuards
-codegen::getStackProtectorGuardMode(llvm::TargetOptions &Options) {
-  if (getStackProtectorGuard() == "tls")
-    return StackProtectorGuards::TLS;
-  if (getStackProtectorGuard() == "global")
-    return StackProtectorGuards::Global;
-  if (getStackProtectorGuard() != "none") {
-    ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
-        MemoryBuffer::getFile(getStackProtectorGuard());
-    if (!MBOrErr)
-      errs() << "error illegal stack protector guard mode: "
-             << MBOrErr.getError().message() << "\n";
-    else
-      Options.BBSectionsFuncListBuf = std::move(*MBOrErr);
-  }
-  return StackProtectorGuards::None;
-}
-
 // Common utility function tightly tied to the options listed here. Initializes
 // a TargetOptions object with CodeGen flags and returns it.
 TargetOptions
@@ -523,6 +519,7 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.NoInfsFPMath = getEnableNoInfsFPMath();
   Options.NoNaNsFPMath = getEnableNoNaNsFPMath();
   Options.NoSignedZerosFPMath = getEnableNoSignedZerosFPMath();
+  Options.ApproxFuncFPMath = getEnableApproxFuncFPMath();
   Options.NoTrappingFPMath = getEnableNoTrappingFPMath();
 
   DenormalMode::DenormalModeKind DenormKind = getDenormalFPMath();
@@ -537,21 +534,18 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.EnableAIXExtendedAltivecABI = getEnableAIXExtendedAltivecABI();
   Options.NoZerosInBSS = getDontPlaceZerosInBSS();
   Options.GuaranteedTailCallOpt = getEnableGuaranteedTailCallOpt();
-  Options.StackAlignmentOverride = getOverrideStackAlignment();
   Options.StackSymbolOrdering = getStackSymbolOrdering();
   Options.UseInitArray = !getUseCtors();
+  Options.LowerGlobalDtorsViaCxaAtExit = getLowerGlobalDtorsViaCxaAtExit();
   Options.RelaxELFRelocations = getRelaxELFRelocations();
   Options.DataSections =
-      getExplicitDataSections().getValueOr(TheTriple.hasDefaultDataSections());
+      getExplicitDataSections().value_or(TheTriple.hasDefaultDataSections());
   Options.FunctionSections = getFunctionSections();
   Options.IgnoreXCOFFVisibility = getIgnoreXCOFFVisibility();
   Options.XCOFFTracebackTable = getXCOFFTracebackTable();
   Options.BBSections = getBBSectionsMode(Options);
   Options.UniqueSectionNames = getUniqueSectionNames();
   Options.UniqueBasicBlockSectionNames = getUniqueBasicBlockSectionNames();
-  Options.StackProtectorGuard = getStackProtectorGuardMode(Options);
-  Options.StackProtectorGuardOffset = getStackProtectorGuardOffset();
-  Options.StackProtectorGuardReg = getStackProtectorGuardReg();
   Options.TLSSize = getTLSSize();
   Options.EmulatedTLS = getEmulatedTLS();
   Options.ExplicitEmulatedTLS = EmulatedTLSView->getNumOccurrences() > 0;
@@ -561,17 +555,18 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.EmitAddrsig = getEnableAddrsig();
   Options.EmitCallSiteInfo = getEmitCallSiteInfo();
   Options.EnableDebugEntryValues = getEnableDebugEntryValues();
-  Options.PseudoProbeForProfiling = getPseudoProbeForProfiling();
-  Options.ValueTrackingVariableLocations = getValueTrackingVariableLocations();
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
   Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
+  Options.DebugStrictDwarf = getDebugStrictDwarf();
+  Options.LoopAlignment = getAlignLoops();
+  Options.JMCInstrument = getJMCInstrument();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 
   Options.ThreadModel = getThreadModel();
   Options.EABIVersion = getEABIVersion();
   Options.DebuggerTuning = getDebuggerTuningOpt();
-
+  Options.SwiftAsyncFramePointer = getSwiftAsyncFramePointer();
   return Options;
 }
 
@@ -641,7 +636,7 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
                                     Function &F) {
   auto &Ctx = F.getContext();
   AttributeList Attrs = F.getAttributes();
-  AttrBuilder NewAttrs;
+  AttrBuilder NewAttrs(Ctx);
 
   if (!CPU.empty() && !F.hasFnAttribute("target-cpu"))
     NewAttrs.addAttribute("target-cpu", CPU);
@@ -660,11 +655,11 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
   }
   if (FramePointerUsageView->getNumOccurrences() > 0 &&
       !F.hasFnAttribute("frame-pointer")) {
-    if (getFramePointerUsage() == FramePointer::All)
+    if (getFramePointerUsage() == FramePointerKind::All)
       NewAttrs.addAttribute("frame-pointer", "all");
-    else if (getFramePointerUsage() == FramePointer::NonLeaf)
+    else if (getFramePointerUsage() == FramePointerKind::NonLeaf)
       NewAttrs.addAttribute("frame-pointer", "non-leaf");
-    else if (getFramePointerUsage() == FramePointer::None)
+    else if (getFramePointerUsage() == FramePointerKind::None)
       NewAttrs.addAttribute("frame-pointer", "none");
   }
   if (DisableTailCallsView->getNumOccurrences() > 0)
@@ -677,6 +672,7 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
   HANDLE_BOOL_ATTR(EnableNoInfsFPMathView, "no-infs-fp-math");
   HANDLE_BOOL_ATTR(EnableNoNaNsFPMathView, "no-nans-fp-math");
   HANDLE_BOOL_ATTR(EnableNoSignedZerosFPMathView, "no-signed-zeros-fp-math");
+  HANDLE_BOOL_ATTR(EnableApproxFuncFPMathView, "approx-func-fp-math");
 
   if (DenormalFPMathView->getNumOccurrences() > 0 &&
       !F.hasFnAttribute("denormal-fp-math")) {
@@ -704,13 +700,11 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
           if (const auto *F = Call->getCalledFunction())
             if (F->getIntrinsicID() == Intrinsic::debugtrap ||
                 F->getIntrinsicID() == Intrinsic::trap)
-              Call->addAttribute(
-                  AttributeList::FunctionIndex,
+              Call->addFnAttr(
                   Attribute::get(Ctx, "trap-func-name", getTrapFuncName()));
 
   // Let NewAttrs override Attrs.
-  F.setAttributes(
-      Attrs.addAttributes(Ctx, AttributeList::FunctionIndex, NewAttrs));
+  F.setAttributes(Attrs.addFnAttributes(Ctx, NewAttrs));
 }
 
 /// Set function attributes of functions in Module M based on CPU,

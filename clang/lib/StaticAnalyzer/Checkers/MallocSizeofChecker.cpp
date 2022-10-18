@@ -139,6 +139,10 @@ static bool typesCompatible(ASTContext &C, QualType A, QualType B) {
   if (B->isVoidPointerType() && A->getAs<PointerType>())
     return true;
 
+  // sizeof(pointer type) is compatible with void*
+  if (A->isVoidPointerType() && B->getAs<PointerType>())
+    return true;
+
   while (true) {
     A = A.getCanonicalType();
     B = B.getCanonicalType();
@@ -224,9 +228,9 @@ public:
           OS << '\'' << Callee->getIdentifier()->getName() << '\'';
         else
           OS << "call";
-        OS << " is converted to a pointer of type '"
-            << PointeeType.getAsString() << "', which is incompatible with "
-            << "sizeof operand type '" << SizeofType.getAsString() << "'";
+        OS << " is converted to a pointer of type '" << PointeeType
+           << "', which is incompatible with "
+           << "sizeof operand type '" << SizeofType << "'";
         SmallVector<SourceRange, 4> Ranges;
         Ranges.push_back(i->AllocCall->getCallee()->getSourceRange());
         Ranges.push_back(SFinder.Sizeofs[0]->getSourceRange());

@@ -25,21 +25,30 @@
 #endif
 
 template <class C, class Iterator>
-void test(Iterator first, Iterator last) {
-  C c(first, last);
-  LIBCPP_ASSERT(c.__invariants());
-  assert(c.size() == static_cast<std::size_t>(std::distance(first, last)));
-  LIBCPP_ASSERT(is_contiguous_container_asan_correct(c));
-  for (typename C::const_iterator i = c.cbegin(), e = c.cend(); i != e;
-       ++i, ++first)
+TEST_CONSTEXPR_CXX20 void test(Iterator first, Iterator last) {
+  {
+    C c(first, last);
+    LIBCPP_ASSERT(c.__invariants());
+    assert(c.size() == static_cast<std::size_t>(std::distance(first, last)));
+    LIBCPP_ASSERT(is_contiguous_container_asan_correct(c));
+    for (typename C::const_iterator i = c.cbegin(), e = c.cend(); i != e;
+      ++i, ++first)
     assert(*i == *first);
+  }
+  // Test with an empty range
+  {
+    C c(first, first);
+    LIBCPP_ASSERT(c.__invariants());
+    assert(c.empty());
+    LIBCPP_ASSERT(is_contiguous_container_asan_correct(c));
+  }
 }
 
-static void basic_test_cases() {
+TEST_CONSTEXPR_CXX20 void basic_test_cases() {
   int a[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 1, 0};
   int* an = a + sizeof(a) / sizeof(a[0]);
-  test<std::vector<int> >(input_iterator<const int*>(a),
-                          input_iterator<const int*>(an));
+  test<std::vector<int> >(cpp17_input_iterator<const int*>(a),
+                          cpp17_input_iterator<const int*>(an));
   test<std::vector<int> >(forward_iterator<const int*>(a),
                           forward_iterator<const int*>(an));
   test<std::vector<int> >(bidirectional_iterator<const int*>(a),
@@ -49,7 +58,7 @@ static void basic_test_cases() {
   test<std::vector<int> >(a, an);
 
   test<std::vector<int, limited_allocator<int, 63> > >(
-      input_iterator<const int*>(a), input_iterator<const int*>(an));
+      cpp17_input_iterator<const int*>(a), cpp17_input_iterator<const int*>(an));
   // Add 1 for implementations that dynamically allocate a container proxy.
   test<std::vector<int, limited_allocator<int, 18 + 1> > >(
       forward_iterator<const int*>(a), forward_iterator<const int*>(an));
@@ -61,8 +70,8 @@ static void basic_test_cases() {
       random_access_iterator<const int*>(an));
   test<std::vector<int, limited_allocator<int, 18 + 1> > >(a, an);
 #if TEST_STD_VER >= 11
-  test<std::vector<int, min_allocator<int> > >(input_iterator<const int*>(a),
-                                               input_iterator<const int*>(an));
+  test<std::vector<int, min_allocator<int> > >(cpp17_input_iterator<const int*>(a),
+                                               cpp17_input_iterator<const int*>(an));
   test<std::vector<int, min_allocator<int> > >(
       forward_iterator<const int*>(a), forward_iterator<const int*>(an));
   test<std::vector<int, min_allocator<int> > >(
@@ -75,7 +84,7 @@ static void basic_test_cases() {
 #endif
 }
 
-void emplaceable_concept_tests() {
+TEST_CONSTEXPR_CXX20 void emplaceable_concept_tests() {
 #if TEST_STD_VER >= 11
   int arr1[] = {42};
   int arr2[] = {1, 101, 42};
@@ -95,7 +104,7 @@ void emplaceable_concept_tests() {
   }
   {
     using T = EmplaceConstructibleAndMoveInsertable<int>;
-    using It = input_iterator<int*>;
+    using It = cpp17_input_iterator<int*>;
     {
       std::vector<T> v(It(arr1), It(std::end(arr1)));
       assert(v[0].copied == 0);
@@ -132,7 +141,7 @@ void test_ctor_under_alloc() {
   }
   {
     using C = TCT::vector<>;
-    using It = input_iterator<int*>;
+    using It = cpp17_input_iterator<int*>;
     {
       ExpectConstructGuard<int&> G(1);
       C v(It(arr1), It(std::end(arr1)));
@@ -151,19 +160,15 @@ struct B2 { int y; };
 struct Der : B1, B2 { int z; };
 
 // Initialize a vector with a different value type.
-void test_ctor_with_different_value_type() {
+TEST_CONSTEXPR_CXX20 void test_ctor_with_different_value_type() {
   {
     // Make sure initialization is performed with each element value, not with
     // a memory blob.
     float array[3] = {0.0f, 1.0f, 2.0f};
-#ifdef TEST_COMPILER_C1XX
-    #pragma warning(push)
-    #pragma warning(disable: 4244) // conversion from 'float' to 'int', possible loss of data
-#endif // TEST_COMPILER_C1XX
+    TEST_DIAGNOSTIC_PUSH
+    TEST_MSVC_DIAGNOSTIC_IGNORED(4244) // conversion from 'float' to 'int', possible loss of data
     std::vector<int> v(array, array + 3);
-#ifdef TEST_COMPILER_C1XX
-    #pragma warning(pop)
-#endif // TEST_COMPILER_C1XX
+    TEST_DIAGNOSTIC_POP
     assert(v[0] == 0);
     assert(v[1] == 1);
     assert(v[2] == 2);
@@ -184,12 +189,20 @@ void test_ctor_with_different_value_type() {
   }
 }
 
-
-int main(int, char**) {
+TEST_CONSTEXPR_CXX20 bool tests() {
   basic_test_cases();
   emplaceable_concept_tests(); // See PR34898
-  test_ctor_under_alloc();
   test_ctor_with_different_value_type();
 
-  return 0;
+  return true;
+}
+
+int main(int, char**)
+{
+    tests();
+    test_ctor_under_alloc();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
+    return 0;
 }

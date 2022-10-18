@@ -1,9 +1,9 @@
-; RUN: opt %loadPolly -polly-scops -analyze < %s \
+; RUN: opt %loadPolly -polly-print-scops -disable-output < %s \
 ; RUN:  -polly-invariant-load-hoisting \
 ; RUN:  | FileCheck %s
 
 ; Verify that a delinearized and a not delinearized access are not
-; canonizalized.
+; canonicalized.
 
 ; CHECK:      Stmt_body1
 ; CHECK-NEXT:   Domain :=

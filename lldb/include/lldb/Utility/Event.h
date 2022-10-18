@@ -22,8 +22,8 @@
 #include <memory>
 #include <string>
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class Event;
@@ -42,7 +42,9 @@ public:
   virtual ~EventData();
 
   virtual ConstString GetFlavor() const = 0;
-
+  
+  virtual Log *GetLogChannel() { return nullptr; }
+  
   virtual void Dump(Stream *s) const;
 
 private:
@@ -99,9 +101,9 @@ private:
 
 class EventDataReceipt : public EventData {
 public:
-  EventDataReceipt() : EventData(), m_predicate(false) {}
+  EventDataReceipt() : m_predicate(false) {}
 
-  ~EventDataReceipt() override {}
+  ~EventDataReceipt() override = default;
 
   static ConstString GetFlavorString() {
     static ConstString g_flavor("Process::ProcessEventData");

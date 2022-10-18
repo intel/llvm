@@ -1,4 +1,4 @@
-! RUN: %S/../test_errors.sh %s %t %flang -fopenacc
+! RUN: %python %S/../test_errors.py %s %flang -fopenacc
 
 ! Check OpenACC clause validity for the following construct and directive:
 !   2.6.5 Data
@@ -23,6 +23,8 @@ program openacc_data_validity
   real :: reduction_r
   logical :: reduction_l
   real(8), dimension(N, N) :: aa, bb, cc
+  real(8), dimension(:), allocatable :: dd
+  real(8), pointer :: p
   logical :: ifCondition = .TRUE.
   type(atype) :: t
   type(atype), dimension(10) :: ta
@@ -42,6 +44,12 @@ program openacc_data_validity
   !$acc enter data copyin(i) copyout(i)
 
   !$acc enter data create(aa) if(.TRUE.)
+
+  !$acc enter data create(a(1:10))
+
+  !$acc enter data create(t%arr)
+
+  !$acc enter data create(t%arr(2:4))
 
   !ERROR: At most one IF clause can appear on the ENTER DATA directive
   !$acc enter data create(aa) if(.TRUE.) if(ifCondition)
@@ -65,6 +73,7 @@ program openacc_data_validity
 
   !$acc enter data create(aa) wait(wait1) wait(wait2)
 
+  !ERROR: Argument `bb` on the ATTACH clause must be a variable or array with the POINTER or ALLOCATABLE attribute
   !$acc enter data attach(bb)
 
   !ERROR: At least one of COPYOUT, DELETE, DETACH clause must appear on the EXIT DATA directive
@@ -80,7 +89,11 @@ program openacc_data_validity
   !ERROR: At most one FINALIZE clause can appear on the EXIT DATA directive
   !$acc exit data delete(aa) finalize finalize
 
+  !ERROR: Argument `cc` on the DETACH clause must be a variable or array with the POINTER or ALLOCATABLE attribute
   !$acc exit data detach(cc)
+
+  !ERROR: Argument on the DETACH clause must be a variable or array with the POINTER or ALLOCATABLE attribute
+  !$acc exit data detach(/i/)
 
   !$acc exit data copyout(bb)
 
@@ -144,7 +157,7 @@ program openacc_data_validity
   !$acc data no_create(aa) present(bb, cc)
   !$acc end data
 
-  !$acc data deviceptr(aa) attach(bb, cc)
+  !$acc data deviceptr(aa) attach(dd, p)
   !$acc end data
 
   !$acc data copy(aa, bb) default(none)

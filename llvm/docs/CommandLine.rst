@@ -661,7 +661,7 @@ declared, the command line option ``-help-list`` becomes visible which will
 print the command line options as uncategorized list.
 
 Note that Options that are not explicitly categorized will be placed in the
-``cl::GeneralCategory`` category.
+``cl::getGeneralCategory()`` category.
 
 .. _Reference Guide:
 
@@ -767,7 +767,7 @@ The idiom for usage is like this:
 .. code-block:: c++
 
   static cl::list<std::string> Files(cl::Positional, cl::OneOrMore);
-  static cl::list<std::string> Libraries("l", cl::ZeroOrMore);
+  static cl::list<std::string> Libraries("l");
 
   int main(int argc, char**argv) {
     // ...

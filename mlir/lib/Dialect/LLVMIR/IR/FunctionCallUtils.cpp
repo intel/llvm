@@ -35,6 +35,11 @@ static constexpr llvm::StringRef kPrintNewline = "printNewline";
 static constexpr llvm::StringRef kMalloc = "malloc";
 static constexpr llvm::StringRef kAlignedAlloc = "aligned_alloc";
 static constexpr llvm::StringRef kFree = "free";
+static constexpr llvm::StringRef kGenericAlloc = "_mlir_memref_to_llvm_alloc";
+static constexpr llvm::StringRef kGenericAlignedAlloc =
+    "_mlir_memref_to_llvm_aligned_alloc";
+static constexpr llvm::StringRef kGenericFree = "_mlir_memref_to_llvm_free";
+static constexpr llvm::StringRef kMemRefCopy = "memrefCopy";
 
 /// Generic print function lookupOrCreate helper.
 LLVM::LLVMFuncOp mlir::LLVM::lookupOrCreateFn(ModuleOp moduleOp, StringRef name,
@@ -114,12 +119,33 @@ LLVM::LLVMFuncOp mlir::LLVM::lookupOrCreateFreeFn(ModuleOp moduleOp) {
       LLVM::LLVMVoidType::get(moduleOp->getContext()));
 }
 
-Operation::result_range mlir::LLVM::createLLVMCall(OpBuilder &b, Location loc,
-                                                   LLVM::LLVMFuncOp fn,
-                                                   ValueRange paramTypes,
-                                                   ArrayRef<Type> resultTypes) {
-  return b
-      .create<LLVM::CallOp>(loc, resultTypes, b.getSymbolRefAttr(fn),
-                            paramTypes)
-      ->getResults();
+LLVM::LLVMFuncOp mlir::LLVM::lookupOrCreateGenericAllocFn(ModuleOp moduleOp,
+                                                          Type indexType) {
+  return LLVM::lookupOrCreateFn(
+      moduleOp, kGenericAlloc, indexType,
+      LLVM::LLVMPointerType::get(IntegerType::get(moduleOp->getContext(), 8)));
+}
+
+LLVM::LLVMFuncOp
+mlir::LLVM::lookupOrCreateGenericAlignedAllocFn(ModuleOp moduleOp,
+                                                Type indexType) {
+  return LLVM::lookupOrCreateFn(
+      moduleOp, kGenericAlignedAlloc, {indexType, indexType},
+      LLVM::LLVMPointerType::get(IntegerType::get(moduleOp->getContext(), 8)));
+}
+
+LLVM::LLVMFuncOp mlir::LLVM::lookupOrCreateGenericFreeFn(ModuleOp moduleOp) {
+  return LLVM::lookupOrCreateFn(
+      moduleOp, kGenericFree,
+      LLVM::LLVMPointerType::get(IntegerType::get(moduleOp->getContext(), 8)),
+      LLVM::LLVMVoidType::get(moduleOp->getContext()));
+}
+
+LLVM::LLVMFuncOp
+mlir::LLVM::lookupOrCreateMemRefCopyFn(ModuleOp moduleOp, Type indexType,
+                                       Type unrankedDescriptorType) {
+  return LLVM::lookupOrCreateFn(
+      moduleOp, kMemRefCopy,
+      ArrayRef<Type>{indexType, unrankedDescriptorType, unrankedDescriptorType},
+      LLVM::LLVMVoidType::get(moduleOp->getContext()));
 }

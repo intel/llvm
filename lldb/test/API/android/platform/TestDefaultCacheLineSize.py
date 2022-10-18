@@ -11,14 +11,12 @@ from lldbsuite.test import lldbutil
 
 
 class DefaultCacheLineSizeTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
+    NO_DEBUG_INFO_TESTCASE = True
 
     @skipUnlessTargetAndroid
     def test_cache_line_size(self):
-        self.build(dictionary=self.getBuildFlags())
-        exe = self.getBuildArtifact("a.out")
-        target = self.dbg.CreateTarget(exe)
+        self.build()
+        target = self.createTestTarget()
         self.assertTrue(target and target.IsValid(), "Target is valid")
 
         breakpoint = target.BreakpointCreateByName("main")
@@ -42,4 +40,4 @@ class DefaultCacheLineSizeTestCase(TestBase):
 
         # Run to completion.
         process.Continue()
-        self.assertEqual(process.GetState(), lldb.eStateExited, PROCESS_EXITED)
+        self.assertState(process.GetState(), lldb.eStateExited, PROCESS_EXITED)

@@ -35,8 +35,8 @@ public:
       parser::CharBlock sourcePosition, D directive,
       std::string &&upperCaseDirName)
       : context_{context}, sourcePosition_{sourcePosition},
-        upperCaseDirName_{std::move(upperCaseDirName)}, currentDirective_{
-                                                            directive} {}
+        upperCaseDirName_{std::move(upperCaseDirName)},
+        currentDirective_{directive}, numDoConstruct_{0} {}
   template <typename T> bool Pre(const T &) { return true; }
   template <typename T> void Post(const T &) {}
 
@@ -45,16 +45,39 @@ public:
     return true;
   }
 
+  bool Pre(const parser::DoConstruct &) {
+    numDoConstruct_++;
+    return true;
+  }
+  void Post(const parser::DoConstruct &) { numDoConstruct_--; }
   void Post(const parser::ReturnStmt &) { EmitBranchOutError("RETURN"); }
   void Post(const parser::ExitStmt &exitStmt) {
     if (const auto &exitName{exitStmt.v}) {
       CheckConstructNameBranching("EXIT", exitName.value());
+    } else {
+      CheckConstructNameBranching("EXIT");
     }
   }
-  void Post(const parser::StopStmt &) { EmitBranchOutError("STOP"); }
   void Post(const parser::CycleStmt &cycleStmt) {
     if (const auto &cycleName{cycleStmt.v}) {
       CheckConstructNameBranching("CYCLE", cycleName.value());
+    } else {
+      switch ((llvm::omp::Directive)currentDirective_) {
+      // exclude directives which do not need a check for unlabelled CYCLES
+      case llvm::omp::Directive::OMPD_do:
+      case llvm::omp::Directive::OMPD_simd:
+      case llvm::omp::Directive::OMPD_parallel_do:
+      case llvm::omp::Directive::OMPD_parallel_do_simd:
+      case llvm::omp::Directive::OMPD_distribute_parallel_do:
+      case llvm::omp::Directive::OMPD_distribute_parallel_do_simd:
+      case llvm::omp::Directive::OMPD_distribute_parallel_for:
+      case llvm::omp::Directive::OMPD_distribute_simd:
+      case llvm::omp::Directive::OMPD_distribute_parallel_for_simd:
+        return;
+      default:
+        break;
+      }
+      CheckConstructNameBranching("CYCLE");
     }
   }
 
@@ -68,6 +91,14 @@ private:
         .Say(currentStatementSourcePosition_,
             "%s statement is not allowed in a %s construct"_err_en_US, stmt,
             upperCaseDirName_)
+        .Attach(sourcePosition_, GetEnclosingMsg());
+  }
+
+  inline void EmitUnlabelledBranchOutError(const char *stmt) {
+    context_
+        .Say(currentStatementSourcePosition_,
+            "%s to construct outside of %s construct is not allowed"_err_en_US,
+            stmt, upperCaseDirName_)
         .Attach(sourcePosition_, GetEnclosingMsg());
   }
 
@@ -102,11 +133,24 @@ private:
     }
   }
 
+  // Check branching for unlabelled CYCLES and EXITs
+  void CheckConstructNameBranching(const char *stmt) {
+    // found an enclosing looping construct for the unlabelled EXIT/CYCLE
+    if (numDoConstruct_ > 0) {
+      return;
+    }
+    // did not found an enclosing looping construct within the OpenMP/OpenACC
+    // directive
+    EmitUnlabelledBranchOutError(stmt);
+  }
+
   SemanticsContext &context_;
   parser::CharBlock currentStatementSourcePosition_;
   parser::CharBlock sourcePosition_;
   std::string upperCaseDirName_;
   D currentDirective_;
+  int numDoConstruct_; // tracks number of DoConstruct found AFTER encountering
+                       // an OpenMP/OpenACC directive
 };
 
 // Generic structure checker for directives/clauses language such as OpenMP
@@ -204,9 +248,12 @@ protected:
   }
 
   // Check if the given clause is present in the current context
-  const PC *FindClause(C type) {
-    auto it{GetContext().clauseInfo.find(type)};
-    if (it != GetContext().clauseInfo.end()) {
+  const PC *FindClause(C type) { return FindClause(GetContext(), type); }
+
+  // Check if the given clause is present in the given context
+  const PC *FindClause(DirectiveContext &context, C type) {
+    auto it{context.clauseInfo.find(type)};
+    if (it != context.clauseInfo.end()) {
       return it->second;
     }
     return nullptr;
@@ -448,9 +495,7 @@ template <typename D, typename C, typename PC, std::size_t ClauseEnumSize>
 void DirectiveStructureChecker<D, C, PC,
     ClauseEnumSize>::CheckNotAllowedIfClause(C clause,
     common::EnumSet<C, ClauseEnumSize> set) {
-  if (std::find(GetContext().actualClauses.begin(),
-          GetContext().actualClauses.end(),
-          clause) == GetContext().actualClauses.end()) {
+  if (!llvm::is_contained(GetContext().actualClauses, clause)) {
     return; // Clause is not present
   }
 
@@ -505,7 +550,7 @@ void DirectiveStructureChecker<D, C, PC,
     ClauseEnumSize>::RequiresPositiveParameter(const C &clause,
     const parser::ScalarIntExpr &i, llvm::StringRef paramName) {
   if (const auto v{GetIntValue(i)}) {
-    if (*v <= 0) {
+    if (*v < 0) {
       context_.Say(GetContext().clauseSource,
           "The %s of the %s clause must be "
           "a positive integer expression"_err_en_US,

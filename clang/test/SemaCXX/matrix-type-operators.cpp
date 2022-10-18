@@ -12,13 +12,13 @@ struct MyMatrix {
 template <typename EltTy0, unsigned R0, unsigned C0, typename EltTy1, unsigned R1, unsigned C1, typename EltTy2, unsigned R2, unsigned C2>
 typename MyMatrix<EltTy2, R2, C2>::matrix_t add(MyMatrix<EltTy0, R0, C0> &A, MyMatrix<EltTy1, R1, C1> &B) {
   char *v1 = A.value + B.value;
-  // expected-error@-1 {{cannot initialize a variable of type 'char *' with an rvalue of type 'MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'MyMatrix<float, 2, 2>::matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))'))}}
-  // expected-error@-3 {{invalid operands to binary expression ('MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
+  // expected-error@-1 {{cannot initialize a variable of type 'char *' with an rvalue of type 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))'))}}
+  // expected-error@-3 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
 
   return A.value + B.value;
-  // expected-error@-1 {{invalid operands to binary expression ('MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'MyMatrix<float, 2, 2>::matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))'))}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
+  // expected-error@-1 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))'))}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
 }
 
 void test_add_template(unsigned *Ptr1, float *Ptr2) {
@@ -28,25 +28,25 @@ void test_add_template(unsigned *Ptr1, float *Ptr2) {
   Mat1.value = *((decltype(Mat1)::matrix_t *)Ptr1);
   unsigned v1 = add<unsigned, 2, 2, unsigned, 2, 2, unsigned, 2, 2>(Mat1, Mat1);
   // expected-error@-1 {{cannot initialize a variable of type 'unsigned int' with an rvalue of type 'typename MyMatrix<unsigned int, 2U, 2U>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
-  // expected-note@-2 {{in instantiation of function template specialization 'add<unsigned int, 2, 2, unsigned int, 2, 2, unsigned int, 2, 2>' requested here}}
+  // expected-note@-2 {{in instantiation of function template specialization 'add<unsigned int, 2U, 2U, unsigned int, 2U, 2U, unsigned int, 2U, 2U>' requested here}}
 
   Mat1.value = add<unsigned, 2, 2, unsigned, 3, 3, unsigned, 2, 2>(Mat1, Mat2);
-  // expected-note@-1 {{in instantiation of function template specialization 'add<unsigned int, 2, 2, unsigned int, 3, 3, unsigned int, 2, 2>' requested here}}
+  // expected-note@-1 {{in instantiation of function template specialization 'add<unsigned int, 2U, 2U, unsigned int, 3U, 3U, unsigned int, 2U, 2U>' requested here}}
 
   Mat1.value = add<unsigned, 3, 3, float, 2, 2, unsigned, 2, 2>(Mat2, Mat3);
-  // expected-note@-1 {{in instantiation of function template specialization 'add<unsigned int, 3, 3, float, 2, 2, unsigned int, 2, 2>' requested here}}
+  // expected-note@-1 {{in instantiation of function template specialization 'add<unsigned int, 3U, 3U, float, 2U, 2U, unsigned int, 2U, 2U>' requested here}}
 }
 
 template <typename EltTy0, unsigned R0, unsigned C0, typename EltTy1, unsigned R1, unsigned C1, typename EltTy2, unsigned R2, unsigned C2>
 typename MyMatrix<EltTy2, R2, C2>::matrix_t subtract(MyMatrix<EltTy0, R0, C0> &A, MyMatrix<EltTy1, R1, C1> &B) {
   char *v1 = A.value - B.value;
-  // expected-error@-1 {{cannot initialize a variable of type 'char *' with an rvalue of type 'MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'MyMatrix<float, 2, 2>::matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))')}}
-  // expected-error@-3 {{invalid operands to binary expression ('MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))')}}
+  // expected-error@-1 {{cannot initialize a variable of type 'char *' with an rvalue of type 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))')}}
+  // expected-error@-3 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))')}}
 
   return A.value - B.value;
-  // expected-error@-1 {{invalid operands to binary expression ('MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'MyMatrix<float, 2, 2>::matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))')}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))')}}
+  // expected-error@-1 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))') and 'matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))')}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))')}}
 }
 
 void test_subtract_template(unsigned *Ptr1, float *Ptr2) {
@@ -56,31 +56,31 @@ void test_subtract_template(unsigned *Ptr1, float *Ptr2) {
   Mat1.value = *((decltype(Mat1)::matrix_t *)Ptr1);
   unsigned v1 = subtract<unsigned, 2, 2, unsigned, 2, 2, unsigned, 2, 2>(Mat1, Mat1);
   // expected-error@-1 {{cannot initialize a variable of type 'unsigned int' with an rvalue of type 'typename MyMatrix<unsigned int, 2U, 2U>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
-  // expected-note@-2 {{in instantiation of function template specialization 'subtract<unsigned int, 2, 2, unsigned int, 2, 2, unsigned int, 2, 2>' requested here}}
+  // expected-note@-2 {{in instantiation of function template specialization 'subtract<unsigned int, 2U, 2U, unsigned int, 2U, 2U, unsigned int, 2U, 2U>' requested here}}
 
   Mat1.value = subtract<unsigned, 2, 2, unsigned, 3, 3, unsigned, 2, 2>(Mat1, Mat2);
-  // expected-note@-1 {{in instantiation of function template specialization 'subtract<unsigned int, 2, 2, unsigned int, 3, 3, unsigned int, 2, 2>' requested here}}
+  // expected-note@-1 {{in instantiation of function template specialization 'subtract<unsigned int, 2U, 2U, unsigned int, 3U, 3U, unsigned int, 2U, 2U>' requested here}}
 
   Mat1.value = subtract<unsigned, 3, 3, float, 2, 2, unsigned, 2, 2>(Mat2, Mat3);
-  // expected-note@-1 {{in instantiation of function template specialization 'subtract<unsigned int, 3, 3, float, 2, 2, unsigned int, 2, 2>' requested here}}
+  // expected-note@-1 {{in instantiation of function template specialization 'subtract<unsigned int, 3U, 3U, float, 2U, 2U, unsigned int, 2U, 2U>' requested here}}
 }
 
 template <typename EltTy0, unsigned R0, unsigned C0, typename EltTy1, unsigned R1, unsigned C1, typename EltTy2, unsigned R2, unsigned C2>
 typename MyMatrix<EltTy2, R2, C2>::matrix_t multiply(MyMatrix<EltTy0, R0, C0> &A, MyMatrix<EltTy1, R1, C1> &B) {
   char *v1 = A.value * B.value;
-  // expected-error@-1 {{cannot initialize a variable of type 'char *' with an rvalue of type 'unsigned int __attribute__((matrix_type(2, 2)))'}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<unsigned int, 3, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))') and 'MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
-  // expected-error@-3 {{invalid operands to binary expression ('MyMatrix<float, 2, 2>::matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))') and 'MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))'))}}
+  // expected-error@-1 {{cannot initialize a variable of type 'char *' with an rvalue of type 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
+  // expected-error@-3 {{invalid operands to binary expression ('matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))'))}}
 
   MyMatrix<int, 5, 6> m;
   B.value = m.value * A.value;
-  // expected-error@-1 {{invalid operands to binary expression ('MyMatrix<int, 5, 6>::matrix_t' (aka 'int __attribute__((matrix_type(5, 6)))') and 'MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))'))}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<int, 5, 6>::matrix_t' (aka 'int __attribute__((matrix_type(5, 6)))') and 'MyMatrix<unsigned int, 3, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))'))}}
-  // expected-error@-3 {{invalid operands to binary expression ('MyMatrix<int, 5, 6>::matrix_t' (aka 'int __attribute__((matrix_type(5, 6)))') and 'MyMatrix<float, 2, 2>::matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))'))}}
+  // expected-error@-1 {{invalid operands to binary expression ('matrix_t' (aka 'int __attribute__((matrix_type(5, 6)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))'))}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'int __attribute__((matrix_type(5, 6)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))'))}}
+  // expected-error@-3 {{invalid operands to binary expression ('matrix_t' (aka 'int __attribute__((matrix_type(5, 6)))') and 'matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))'))}}
 
   return A.value * B.value;
-  // expected-error@-1 {{invalid operands to binary expression ('MyMatrix<unsigned int, 3, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))') and 'MyMatrix<unsigned int, 3, 3>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<float, 2, 2>::matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))') and 'MyMatrix<unsigned int, 2, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))'))}}
+  // expected-error@-1 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 3)))'))}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'float __attribute__((matrix_type(2, 2)))') and 'matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))'))}}
 }
 
 void test_multiply_template(unsigned *Ptr1, float *Ptr2) {
@@ -89,19 +89,19 @@ void test_multiply_template(unsigned *Ptr1, float *Ptr2) {
   MyMatrix<float, 2, 2> Mat3;
   Mat1.value = *((decltype(Mat1)::matrix_t *)Ptr1);
   unsigned v1 = multiply<unsigned, 2, 2, unsigned, 2, 2, unsigned, 2, 2>(Mat1, Mat1);
-  // expected-note@-1 {{in instantiation of function template specialization 'multiply<unsigned int, 2, 2, unsigned int, 2, 2, unsigned int, 2, 2>' requested here}}
+  // expected-note@-1 {{in instantiation of function template specialization 'multiply<unsigned int, 2U, 2U, unsigned int, 2U, 2U, unsigned int, 2U, 2U>' requested here}}
   // expected-error@-2 {{cannot initialize a variable of type 'unsigned int' with an rvalue of type 'typename MyMatrix<unsigned int, 2U, 2U>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(2, 2)))')}}
 
   MyMatrix<unsigned, 3, 2> Mat4;
   Mat1.value = multiply<unsigned, 3, 2, unsigned, 3, 3, unsigned, 2, 2>(Mat4, Mat2);
-  // expected-note@-1 {{in instantiation of function template specialization 'multiply<unsigned int, 3, 2, unsigned int, 3, 3, unsigned int, 2, 2>' requested here}}
+  // expected-note@-1 {{in instantiation of function template specialization 'multiply<unsigned int, 3U, 2U, unsigned int, 3U, 3U, unsigned int, 2U, 2U>' requested here}}
 
   Mat1.value = multiply<float, 2, 2, unsigned, 2, 2, unsigned, 2, 2>(Mat3, Mat1);
-  // expected-note@-1 {{in instantiation of function template specialization 'multiply<float, 2, 2, unsigned int, 2, 2, unsigned int, 2, 2>' requested here}}
+  // expected-note@-1 {{in instantiation of function template specialization 'multiply<float, 2U, 2U, unsigned int, 2U, 2U, unsigned int, 2U, 2U>' requested here}}
 
   Mat4.value = Mat4.value * Mat1;
   // expected-error@-1 {{no viable conversion from 'MyMatrix<unsigned int, 2, 2>' to 'unsigned int'}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<unsigned int, 3, 2>::matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))') and 'MyMatrix<unsigned int, 2, 2>')}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'unsigned int __attribute__((matrix_type(3, 2)))') and 'MyMatrix<unsigned int, 2, 2>')}}
 }
 
 struct UserT {};
@@ -116,19 +116,19 @@ struct StructWithC {
 void test_DoubleWrapper(MyMatrix<double, 10, 9> &m, StructWithC &c) {
   m.value = m.value + c;
   // expected-error@-1 {{no viable conversion from 'StructWithC' to 'double'}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<double, 10, 9>::matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))') and 'StructWithC')}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))') and 'StructWithC')}}
 
   m.value = c + m.value;
   // expected-error@-1 {{no viable conversion from 'StructWithC' to 'double'}}
-  // expected-error@-2 {{invalid operands to binary expression ('StructWithC' and 'MyMatrix<double, 10, 9>::matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))'))}}
+  // expected-error@-2 {{invalid operands to binary expression ('StructWithC' and 'matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))'))}}
 
   m.value = m.value - c;
   // expected-error@-1 {{no viable conversion from 'StructWithC' to 'double'}}
-  // expected-error@-2 {{invalid operands to binary expression ('MyMatrix<double, 10, 9>::matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))') and 'StructWithC')}}
+  // expected-error@-2 {{invalid operands to binary expression ('matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))') and 'StructWithC')}}
 
   m.value = c - m.value;
   // expected-error@-1 {{no viable conversion from 'StructWithC' to 'double'}}
-  // expected-error@-2 {{invalid operands to binary expression ('StructWithC' and 'MyMatrix<double, 10, 9>::matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))'))}}
+  // expected-error@-2 {{invalid operands to binary expression ('StructWithC' and 'matrix_t' (aka 'double __attribute__((matrix_type(10, 9)))'))}}
 }
 
 sx5x10_t get_matrix();
@@ -179,12 +179,12 @@ void insert(sx5x10_t a, float f) {
 
   a[4, 5] = 5.0;
   // expected-error@-1 {{comma expressions are not allowed as indices in matrix subscript expressions}}
-  // expected-warning@-2 {{expression result unused}}
+  // expected-warning@-2 {{left operand of comma operator has no effect}}
 
   a[4, 5, 4] = 5.0;
   // expected-error@-1 {{comma expressions are not allowed as indices in matrix subscript expressions}}
-  // expected-warning@-2 {{expression result unused}}
-  // expected-warning@-3 {{expression result unused}}
+  // expected-warning@-2 {{left operand of comma operator has no effect}}
+  // expected-warning@-3 {{left operand of comma operator has no effect}}
 }
 
 void extract(sx5x10_t a, float f) {

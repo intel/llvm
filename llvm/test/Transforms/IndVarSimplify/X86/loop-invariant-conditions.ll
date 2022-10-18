@@ -193,7 +193,7 @@ for.end:                                          ; preds = %if.end, %entry
 define void @test7(i64 %start, i64* %inc_ptr) {
 ; CHECK-LABEL: @test7(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, [[RNG0:!range !.*]]
+; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, !range [[RNG0:![0-9]+]]
 ; CHECK-NEXT:    [[OK:%.*]] = icmp sge i64 [[INC]], 0
 ; CHECK-NEXT:    br i1 [[OK]], label [[LOOP_PREHEADER:%.*]], label [[FOR_END:%.*]]
 ; CHECK:       loop.preheader:
@@ -311,14 +311,12 @@ for.end:                                          ; preds = %if.end, %entry
 define void @test3_neg(i64 %start) {
 ; CHECK-LABEL: @test3_neg(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[SMAX:%.*]] = call i64 @llvm.smax.i64(i64 [[START:%.*]], i64 -1)
-; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[SMAX]], 1
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[START]], [[ENTRY:%.*]] ], [ [[INDVARS_IV_NEXT:%.*]], [[LOOP]] ]
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add i64 [[INDVARS_IV]], 1
-; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i64 [[INDVARS_IV_NEXT]], [[TMP0]]
-; CHECK-NEXT:    br i1 [[EXITCOND]], label [[LOOP]], label [[FOR_END:%.*]]
+; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[START:%.*]], [[ENTRY:%.*]] ], [ [[INDVARS_IV_NEXT:%.*]], [[LOOP]] ]
+; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nsw i64 [[INDVARS_IV]], 1
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i64 [[INDVARS_IV]], -1
+; CHECK-NEXT:    br i1 [[CMP1]], label [[LOOP]], label [[FOR_END:%.*]]
 ; CHECK:       for.end:
 ; CHECK-NEXT:    ret void
 ;
@@ -338,18 +336,16 @@ for.end:                                          ; preds = %if.end, %entry
 define void @test4_neg(i64 %start) {
 ; CHECK-LABEL: @test4_neg(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[SMAX:%.*]] = call i64 @llvm.smax.i64(i64 [[START:%.*]], i64 0)
-; CHECK-NEXT:    [[TMP0:%.*]] = add nuw i64 [[SMAX]], 1
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[START]], [[ENTRY:%.*]] ], [ [[INDVARS_IV_NEXT:%.*]], [[BACKEDGE:%.*]] ]
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add i64 [[INDVARS_IV]], 1
+; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[START:%.*]], [[ENTRY:%.*]] ], [ [[INDVARS_IV_NEXT:%.*]], [[BACKEDGE:%.*]] ]
+; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nsw i64 [[INDVARS_IV]], 1
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[INDVARS_IV_NEXT]], 25
 ; CHECK-NEXT:    br i1 [[CMP]], label [[BACKEDGE]], label [[FOR_END:%.*]]
 ; CHECK:       backedge:
 ; CHECK-NEXT:    call void @foo()
-; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp eq i64 [[INDVARS_IV_NEXT]], [[TMP0]]
-; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_END]], label [[LOOP]]
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp sgt i64 [[INDVARS_IV]], -1
+; CHECK-NEXT:    br i1 [[CMP1]], label [[FOR_END]], label [[LOOP]]
 ; CHECK:       for.end:
 ; CHECK-NEXT:    ret void
 ;
@@ -403,7 +399,7 @@ for.end:                                          ; preds = %if.end, %entry
 define void @test8(i64 %start, i64* %inc_ptr) {
 ; CHECK-LABEL: @test8(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, [[RNG1:!range !.*]]
+; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, !range [[RNG1:![0-9]+]]
 ; CHECK-NEXT:    [[OK:%.*]] = icmp sge i64 [[INC]], 0
 ; CHECK-NEXT:    br i1 [[OK]], label [[LOOP_PREHEADER:%.*]], label [[FOR_END:%.*]]
 ; CHECK:       loop.preheader:
@@ -478,15 +474,12 @@ define void @test10() {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
-; CHECK-NEXT:    [[PHI1:%.*]] = phi i32 [ [[PHI2:%.*]], [[LATCH:%.*]] ], [ 0, [[ENTRY:%.*]] ]
-; CHECK-NEXT:    [[DEC:%.*]] = add nuw nsw i32 [[PHI1]], -1
 ; CHECK-NEXT:    br i1 false, label [[LEFT:%.*]], label [[RIGHT:%.*]]
 ; CHECK:       left:
-; CHECK-NEXT:    br label [[LATCH]]
+; CHECK-NEXT:    br label [[LATCH:%.*]]
 ; CHECK:       right:
 ; CHECK-NEXT:    br label [[LATCH]]
 ; CHECK:       latch:
-; CHECK-NEXT:    [[PHI2]] = phi i32 [ [[PHI1]], [[LEFT]] ], [ [[DEC]], [[RIGHT]] ]
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp slt i32 -1, undef
 ; CHECK-NEXT:    br i1 true, label [[EXIT:%.*]], label [[LOOP]]
 ; CHECK:       exit:
@@ -523,7 +516,7 @@ exit:
 define void @test11(i64* %inc_ptr) {
 ; CHECK-LABEL: @test11(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, [[RNG0]]
+; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, !range [[RNG0]]
 ; CHECK-NEXT:    [[NE_COND:%.*]] = icmp ne i64 [[INC]], 0
 ; CHECK-NEXT:    br i1 [[NE_COND]], label [[LOOP_PREHEADER:%.*]], label [[EXIT:%.*]]
 ; CHECK:       loop.preheader:
@@ -574,7 +567,7 @@ exit:
 define void @test12(i64* %inc_ptr) {
 ; CHECK-LABEL: @test12(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, [[RNG0]]
+; CHECK-NEXT:    [[INC:%.*]] = load i64, i64* [[INC_PTR:%.*]], align 8, !range [[RNG0]]
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ [[INC]], [[ENTRY:%.*]] ], [ [[IV_NEXT:%.*]], [[BACKEDGE:%.*]] ]

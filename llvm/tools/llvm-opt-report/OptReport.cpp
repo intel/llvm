@@ -15,6 +15,7 @@
 
 #include "llvm-c/Remarks.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/Remarks/Remark.h"
 #include "llvm/Remarks/RemarkFormat.h"
 #include "llvm/Remarks/RemarkParser.h"
 #include "llvm/Support/CommandLine.h"
@@ -247,7 +248,7 @@ static bool readLocationInfo(LocationInfoTy &LocationInfo) {
 
 static bool writeReport(LocationInfoTy &LocationInfo) {
   std::error_code EC;
-  llvm::raw_fd_ostream OS(OutputFileName, EC, llvm::sys::fs::OF_Text);
+  llvm::raw_fd_ostream OS(OutputFileName, EC, llvm::sys::fs::OF_TextWithCRLF);
   if (EC) {
     WithColor::error() << "Can't open file " << OutputFileName << ": "
                        << EC.message() << "\n";

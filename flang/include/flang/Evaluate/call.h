@@ -130,6 +130,13 @@ public:
     dummyIntent_ = intent;
     return *this;
   }
+  std::optional<parser::CharBlock> sourceLocation() const {
+    return sourceLocation_;
+  }
+  ActualArgument &set_sourceLocation(std::optional<parser::CharBlock> at) {
+    sourceLocation_ = at;
+    return *this;
+  }
 
   // Wrap this argument in parentheses
   void Parenthesize();
@@ -148,6 +155,7 @@ private:
   std::optional<parser::CharBlock> keyword_;
   bool isPassedObject_{false};
   common::Intent dummyIntent_{common::Intent::Default};
+  std::optional<parser::CharBlock> sourceLocation_;
 };
 
 using ActualArguments = std::vector<std::optional<ActualArgument>>;
@@ -191,6 +199,7 @@ struct ProcedureDesignator {
   std::optional<DynamicType> GetType() const;
   int Rank() const;
   bool IsElemental() const;
+  bool IsPure() const;
   std::optional<Expr<SubscriptInteger>> LEN() const;
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &) const;
 
@@ -218,6 +227,22 @@ public:
   int Rank() const;
   bool IsElemental() const { return proc_.IsElemental(); }
   bool hasAlternateReturns() const { return hasAlternateReturns_; }
+
+  Expr<SomeType> *UnwrapArgExpr(int n) {
+    if (static_cast<std::size_t>(n) < arguments_.size() && arguments_[n]) {
+      return arguments_[n]->UnwrapExpr();
+    } else {
+      return nullptr;
+    }
+  }
+  const Expr<SomeType> *UnwrapArgExpr(int n) const {
+    if (static_cast<std::size_t>(n) < arguments_.size() && arguments_[n]) {
+      return arguments_[n]->UnwrapExpr();
+    } else {
+      return nullptr;
+    }
+  }
+
   bool operator==(const ProcedureRef &) const;
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &) const;
 
@@ -236,9 +261,6 @@ public:
       : ProcedureRef{std::move(p), std::move(a)} {}
 
   std::optional<DynamicType> GetType() const { return proc_.GetType(); }
-  std::optional<Constant<Result>> Fold(FoldingContext &); // for intrinsics
 };
-
-FOR_EACH_SPECIFIC_TYPE(extern template class FunctionRef, )
 } // namespace Fortran::evaluate
 #endif // FORTRAN_EVALUATE_CALL_H_

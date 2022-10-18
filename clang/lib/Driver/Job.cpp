@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/Job.h"
-#include "InputInfo.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -43,7 +43,7 @@ Command::Command(const Action &Source, const Tool &Creator,
       Executable(Executable), Arguments(Arguments) {
   for (const auto &II : Inputs)
     if (II.isFilename())
-      InputFilenames.push_back(II.getFilename());
+      InputInfoList.push_back(II);
   for (const auto &II : Outputs)
     if (II.isFilename())
       OutputFilenames.push_back(II.getFilename());
@@ -162,11 +162,22 @@ void Command::addDiagForErrorCode(int ErrorCode, StringRef CustomDiag) {
   ErrorCodeDiagMap[ErrorCode] = CustomDiag.str();
 }
 
+void Command::addExitForErrorCode(int ErrorCode, bool Exit) {
+  ErrorCodeExitMap[ErrorCode] = Exit;
+}
+
 StringRef Command::getDiagForErrorCode(int ErrorCode) const {
   auto ErrorCodeDiagIt = ErrorCodeDiagMap.find(ErrorCode);
   if (ErrorCodeDiagIt != ErrorCodeDiagMap.end())
     return ErrorCodeDiagIt->second;
   return StringRef();
+}
+
+bool Command::getWillExitForErrorCode(int ErrorCode) const {
+  auto ErrorCodeExitIt = ErrorCodeExitMap.find(ErrorCode);
+  if (ErrorCodeExitIt != ErrorCodeExitMap.end())
+    return ErrorCodeExitIt->second;
+  return true;
 }
 
 /// Rewrite relative include-like flag paths to absolute ones.
@@ -248,9 +259,10 @@ void Command::Print(raw_ostream &OS, const char *Terminator, bool Quote,
         }
       }
 
-      auto Found = llvm::find_if(InputFilenames,
-                                 [&Arg](StringRef IF) { return IF == Arg; });
-      if (Found != InputFilenames.end() &&
+      auto Found = llvm::find_if(InputInfoList, [&Arg](const InputInfo &II) {
+        return II.getFilename() == Arg;
+      });
+      if (Found != InputInfoList.end() &&
           (i == 0 || StringRef(Args[i - 1]) != "-main-file-name")) {
         // Replace the input file name with the crashinfo's file name.
         OS << ' ';
@@ -311,10 +323,15 @@ void Command::setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) {
   Environment.push_back(nullptr);
 }
 
+void Command::setRedirectFiles(
+    const std::vector<Optional<std::string>> &Redirects) {
+  RedirectFiles = Redirects;
+}
+
 void Command::PrintFileNames() const {
   if (PrintInputFilenames) {
-    for (const char *Arg : InputFilenames)
-      llvm::outs() << llvm::sys::path::filename(Arg) << "\n";
+    for (const auto &Arg : InputInfoList)
+      llvm::outs() << llvm::sys::path::filename(Arg.getFilename()) << "\n";
     llvm::outs().flush();
   }
 }
@@ -362,6 +379,22 @@ int Command::Execute(ArrayRef<llvm::Optional<StringRef>> Redirects,
   }
 
   auto Args = llvm::toStringRefArray(Argv.data());
+
+  // Use Job-specific redirect files if they are present.
+  if (!RedirectFiles.empty()) {
+    std::vector<Optional<StringRef>> RedirectFilesOptional;
+    for (const auto &Ele : RedirectFiles)
+      if (Ele)
+        RedirectFilesOptional.push_back(Optional<StringRef>(*Ele));
+      else
+        RedirectFilesOptional.push_back(None);
+
+    return llvm::sys::ExecuteAndWait(Executable, Args, Env,
+                                     makeArrayRef(RedirectFilesOptional),
+                                     /*secondsToWait=*/0, /*memoryLimit=*/0,
+                                     ErrMsg, ExecutionFailed, &ProcStat);
+  }
+
   return llvm::sys::ExecuteAndWait(Executable, Args, Env, Redirects,
                                    /*secondsToWait*/ 0, /*memoryLimit*/ 0,
                                    ErrMsg, ExecutionFailed, &ProcStat);
@@ -398,6 +431,8 @@ int CC1Command::Execute(ArrayRef<llvm::Optional<StringRef>> Redirects,
   Argv.push_back(getExecutable());
   Argv.append(getArguments().begin(), getArguments().end());
   Argv.push_back(nullptr);
+  Argv.pop_back(); // The terminating null element shall not be part of the
+                   // slice (main() behavior).
 
   // This flag simply indicates that the program couldn't start, which isn't
   // applicable here.

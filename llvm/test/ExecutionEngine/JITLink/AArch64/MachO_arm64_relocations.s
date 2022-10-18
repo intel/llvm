@@ -1,6 +1,6 @@
 # RUN: rm -rf %t && mkdir -p %t
 # RUN: llvm-mc -triple=arm64-apple-darwin19 -filetype=obj -o %t/macho_reloc.o %s
-# RUN: llvm-jitlink -noexec -define-abs external_data=0xdeadbeef -define-abs external_func=0xcafef00d -check=%s %t/macho_reloc.o
+# RUN: llvm-jitlink -noexec -abs external_data=0xdeadbeef -abs external_func=0xcafef00d -check=%s %t/macho_reloc.o
 
         .section        __TEXT,__text,regular,pure_instructions
 
@@ -39,15 +39,35 @@ _main:
 # within the page.
 #
 # jitlink-check: *{8}(got_addr(macho_reloc.o, external_data)) = external_data
-# jitlink-check: decode_operand(test_gotpage21, 1) = (got_addr(macho_reloc.o, external_data)[32:12] - test_gotpage21[32:12])
-# jitlink-check: decode_operand(test_gotpageoff12, 2) = got_addr(macho_reloc.o, external_data)[11:3]
-        .globl  test_gotpage21
+# jitlink-check: decode_operand(test_gotpage21_external, 1) = \
+# jitlink-check:     (got_addr(macho_reloc.o, external_data)[32:12] - \
+# jitlink-check:        test_gotpage21_external[32:12])
+# jitlink-check: decode_operand(test_gotpageoff12_external, 2) = \
+# jitlink-check:     got_addr(macho_reloc.o, external_data)[11:3]
+        .globl  test_gotpage21_external
         .p2align  2
-test_gotpage21:
+test_gotpage21_external:
         adrp  x0, external_data@GOTPAGE
-        .globl  test_gotpageoff12
-test_gotpageoff12:
+        .globl  test_gotpageoff12_external
+test_gotpageoff12_external:
         ldr   x0, [x0, external_data@GOTPAGEOFF]
+
+# Check ARM64_RELOC_GOTPAGE21 / ARM64_RELOC_GOTPAGEOFF12 handling with a
+# reference to a defined symbol. Validate both the reference to the GOT entry,
+# and also the content of the GOT entry.
+# jitlink-check: *{8}(got_addr(macho_reloc.o, named_data)) = named_data
+# jitlink-check: decode_operand(test_gotpage21_defined, 1) = \
+# jitlink-check:     (got_addr(macho_reloc.o, named_data)[32:12] - \
+# jitlink-check:        test_gotpage21_defined[32:12])
+# jitlink-check: decode_operand(test_gotpageoff12_defined, 2) = \
+# jitlink-check:     got_addr(macho_reloc.o, named_data)[11:3]
+        .globl  test_gotpage21_defined
+        .p2align  2
+test_gotpage21_defined:
+        adrp  x0, named_data@GOTPAGE
+        .globl  test_gotpageoff12_defined
+test_gotpageoff12_defined:
+        ldr   x0, [x0, named_data@GOTPAGEOFF]
 
 # Check ARM64_RELOC_PAGE21 / ARM64_RELOC_PAGEOFF12 handling with a reference to
 # a local symbol.
@@ -58,7 +78,8 @@ test_gotpageoff12:
 # For the GOTPAGEOFF12 relocation we test the ADD instruction, all LDR/GPR
 # variants and all LDR/Neon variants.
 #
-# jitlink-check: decode_operand(test_page21, 1) = ((named_data + 256) - test_page21)[32:12]
+# jitlink-check: decode_operand(test_page21, 1)[20:0] = \
+# jitlink-check:     ((named_data + 256) - test_page21)[32:12]
 # jitlink-check: decode_operand(test_pageoff12add, 2) = (named_data + 256)[11:0]
 # jitlink-check: decode_operand(test_pageoff12gpr8, 2) = (named_data + 256)[11:0]
 # jitlink-cherk: decode_operand(test_pageoff12gpr8s, 2) = (named_data + 256)[11:0]

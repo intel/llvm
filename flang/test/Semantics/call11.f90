@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Test 15.7 C1591 & others: contexts requiring pure subprograms
 
 module m

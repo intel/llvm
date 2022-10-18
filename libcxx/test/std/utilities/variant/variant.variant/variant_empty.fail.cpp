@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -20,7 +19,7 @@
 
 int main(int, char**)
 {
-    // expected-error@variant:* 1 {{static_assert failed}}
+    // expected-error-re@variant:* 1 {{{{(static_assert|static assertion)}} failed}}
     std::variant<> v; // expected-note {{requested here}}
 
   return 0;

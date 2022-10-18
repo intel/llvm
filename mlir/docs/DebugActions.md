@@ -1,7 +1,5 @@
 # Debug Actions
 
-[TOC]
-
 This file documents the infrastructure for `Debug Actions`. This is a DEBUG only
 API that allows for external entities to control various aspects of compiler
 execution. This is conceptually similar to something like `DebugCounters` in
@@ -22,6 +20,8 @@ surrounding debug actions is shown below:
 The exact definition of an `external entity` is left opaque, to allow for more
 interesting handlers. The set of possible action queries is detailed in the
 [`action manager`](#debug-action-manager) section below.
+
+[TOC]
 
 ## Debug Action
 
@@ -117,7 +117,7 @@ bool shouldApplyPattern(Operation *currentOp, const Pattern &currentPattern) {
 ## Debug Action Handler
 
 A debug action handler provides the internal implementation for the various
-action related queries within the [`DebugActionManager`](debug-action-manager).
+action related queries within the [`DebugActionManager`](#debug-action-manager).
 Action handlers allow for external entities to control and inject external
 information into the compiler. Handlers can be registered with the
 `DebugActionManager` using `registerActionHandler`. There are two types of

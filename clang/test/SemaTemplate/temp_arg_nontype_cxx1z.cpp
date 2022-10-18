@@ -43,7 +43,7 @@ namespace Function {
   typedef A<void (*)(), i> d;
   typedef A<void (*)(), &i> d;
   typedef A<void (*)(), i<>> d;
-  typedef A<void (*)(), i<int>> e; // expected-error {{is not implicitly convertible}}
+  typedef A<void (*)(), i<int>> e; // expected-error {{value of type '<overloaded function type>' is not implicitly convertible to 'void (*)()'}}
 
   typedef A<void (*)(), 0> x; // expected-error {{not allowed in a converted constant}}
   typedef A<void (*)(), nullptr> y;
@@ -131,7 +131,7 @@ namespace DeduceDifferentType {
 
   struct X { constexpr operator int() { return 0; } } x;
   template<X &> struct C {};
-  template<int N> int c(C<N>); // expected-error {{value of type 'int' is not implicitly convertible to 'DeduceDifferentType::X &'}}
+  template<int N> int c(C<N>); // expected-error {{value of type 'int' is not implicitly convertible to 'X &'}}
   int c_imp = c(C<x>()); // expected-error {{no matching function}}
   int c_exp = c<x>(C<x>()); // expected-error {{no matching function}}
 
@@ -528,3 +528,54 @@ namespace decay {
     x1.f(x2);
   }
 }
+
+namespace TypeSuffix {
+  template <auto N> struct A {};
+  template <> struct A<1> { using type = int; }; // expected-note {{'A<1>::type' declared here}}
+  A<1L>::type a;                                 // expected-error {{no type named 'type' in 'TypeSuffix::A<1L>'; did you mean 'A<1>::type'?}}
+
+  template <auto N> struct B {};
+  template <> struct B<1> { using type = int; }; // expected-note {{'B<1>::type' declared here}}
+  B<2>::type b;                                  // expected-error {{no type named 'type' in 'TypeSuffix::B<2>'; did you mean 'B<1>::type'?}}
+
+  template <auto N> struct C {};
+  template <> struct C<'a'> { using type = signed char; }; // expected-note {{'C<'a'>::type' declared here}}
+  C<(signed char)'a'>::type c;                             // expected-error {{no type named 'type' in 'TypeSuffix::C<(signed char)'a'>'; did you mean 'C<'a'>::type'?}}
+
+  template <auto N> struct D {};
+  template <> struct D<'a'> { using type = signed char; }; // expected-note {{'D<'a'>::type' declared here}}
+  D<'b'>::type d;                                          // expected-error {{no type named 'type' in 'TypeSuffix::D<'b'>'; did you mean 'D<'a'>::type'?}}
+
+  template <auto N> struct E {};
+  template <> struct E<'a'> { using type = unsigned char; }; // expected-note {{'E<'a'>::type' declared here}}
+  E<(unsigned char)'a'>::type e;                             // expected-error {{no type named 'type' in 'TypeSuffix::E<(unsigned char)'a'>'; did you mean 'E<'a'>::type'?}}
+
+  template <auto N> struct F {};
+  template <> struct F<'a'> { using type = unsigned char; }; // expected-note {{'F<'a'>::type' declared here}}
+  F<'b'>::type f;                                            // expected-error {{no type named 'type' in 'TypeSuffix::F<'b'>'; did you mean 'F<'a'>::type'?}}
+
+  template <auto... N> struct X {};
+  X<1, 1u>::type y; // expected-error {{no type named 'type' in 'TypeSuffix::X<1, 1U>'}}
+  X<1, 1>::type z; // expected-error {{no type named 'type' in 'TypeSuffix::X<1, 1>'}}
+}
+
+namespace no_crash {
+template <class T>
+class Base {
+public:
+  template <class> class EntryPointSpec {};
+  template <auto Method>
+  using EntryPoint = EntryPointSpec<T>;
+};
+
+class Derived : Base<Derived>{
+  template <class...> class Spec {};
+
+  void Invalid(Undefined) const; // expected-error {{unknown type name 'Undefined'}}
+  void crash() {
+    return Spec{
+        EntryPoint<&Invalid>()
+    };
+  }
+};
+} // no_crash

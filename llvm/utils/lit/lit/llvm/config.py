@@ -38,7 +38,7 @@ class LLVMConfig(object):
             # Many tools behave strangely if these environment variables aren't
             # set.
             self.with_system_environment(
-                ['SystemDrive', 'SystemRoot', 'TEMP', 'TMP'])
+                ['SystemDrive', 'SystemRoot', 'TEMP', 'TMP', 'PLATFORM'])
             self.use_lit_shell = True
 
             global lit_path_displayed
@@ -55,6 +55,19 @@ class LLVMConfig(object):
 
         if not self.use_lit_shell:
             features.add('shell')
+
+        self.with_system_environment([
+            'ASAN_SYMBOLIZER_PATH',
+            'HWASAN_SYMBOLIZER_PATH',
+            'MSAN_SYMBOLIZER_PATH',
+            'TSAN_SYMBOLIZER_PATH',
+            'UBSAN_SYMBOLIZER_PATH'
+            'ASAN_OPTIONS',
+            'HWASAN_OPTIONS',
+            'MSAN_OPTIONS',
+            'TSAN_OPTIONS',
+            'UBSAN_OPTIONS',
+        ])
 
         # Running on Darwin OS
         if platform.system() == 'Darwin':
@@ -89,6 +102,8 @@ class LLVMConfig(object):
         sanitizers = frozenset(x.lower() for x in sanitizers.split(';'))
         if 'address' in sanitizers:
             features.add('asan')
+        if 'hwaddress' in sanitizers:
+            features.add('hwasan')
         if 'memory' in sanitizers or 'memorywithorigins' in sanitizers:
             features.add('msan')
         if 'undefined' in sanitizers:
@@ -97,6 +112,9 @@ class LLVMConfig(object):
         have_zlib = getattr(config, 'have_zlib', None)
         if have_zlib:
             features.add('zlib')
+        have_zstd = getattr(config, 'have_zstd', None)
+        if have_zstd:
+            features.add('zstd')
 
         # Check if we should run long running tests.
         long_tests = lit_config.params.get('run_long_tests', None)
@@ -118,6 +136,8 @@ class LLVMConfig(object):
             elif re.match(r'^x86_64.*', target_triple):
                 features.add('target-x86_64')
             elif re.match(r'^aarch64.*', target_triple):
+                features.add('target-aarch64')
+            elif re.match(r'^arm64.*', target_triple):
                 features.add('target-aarch64')
             elif re.match(r'^arm.*', target_triple):
                 features.add('target-arm')
@@ -401,19 +421,27 @@ class LLVMConfig(object):
 
         self.add_err_msg_substitutions()
 
-    def use_llvm_tool(self, name, search_env=None, required=False, quiet=False):
+    def use_llvm_tool(self, name, search_env=None, required=False, quiet=False,
+                      search_paths=None, use_installed=False):
         """Find the executable program 'name', optionally using the specified
-        environment variable as an override before searching the
-        configuration's PATH."""
+        environment variable as an override before searching the build directory
+        and then optionally the configuration's PATH."""
         # If the override is specified in the environment, use it without
         # validation.
+        tool = None
         if search_env:
             tool = self.config.environment.get(search_env)
-            if tool:
-                return tool
 
-        # Otherwise look in the path.
-        tool = lit.util.which(name, self.config.environment['PATH'])
+        if not tool:
+            if search_paths is None:
+                search_paths = [self.config.llvm_tools_dir]
+            # Use the specified search paths.
+            path = os.pathsep.join(search_paths)
+            tool = lit.util.which(name, path)
+
+        if not tool and use_installed:
+            # Otherwise look in the path, if enabled.
+            tool = lit.util.which(name, self.config.environment['PATH'])
 
         if required and not tool:
             message = "couldn't find '{}' program".format(name)
@@ -429,11 +457,11 @@ class LLVMConfig(object):
         return tool
 
     def use_clang(self, additional_tool_dirs=[], additional_flags=[],
-                  required=True):
+                  required=True, use_installed=False):
         """Configure the test suite to be able to invoke clang.
 
         Sets up some environment variables important to clang, locates a
-        just-built or installed clang, and add a set of standard
+        just-built or optionally an installed clang, and add a set of standard
         substitutions useful to any test suite that makes use of clang.
 
         """
@@ -479,14 +507,13 @@ class LLVMConfig(object):
 
         lib_dir_props = [
             self.config.name.lower() + '_libs_dir',
-            'clang_libs_dir',
             'llvm_shlib_dir',
             'llvm_libs_dir',
             ]
-        paths = [getattr(self.config, pp) for pp in lib_dir_props
-                 if getattr(self.config, pp, None)]
+        lib_paths = [getattr(self.config, pp) for pp in lib_dir_props
+                     if getattr(self.config, pp, None)]
 
-        self.with_environment('LD_LIBRARY_PATH', paths, append_path=True)
+        self.with_environment('LD_LIBRARY_PATH', lib_paths, append_path=True)
 
         shl = getattr(self.config, 'llvm_shlib_dir', None)
         pext = getattr(self.config, 'llvm_plugin_ext', None)
@@ -497,7 +524,8 @@ class LLVMConfig(object):
 
         # Discover the 'clang' and 'clangcc' to use.
         self.config.clang = self.use_llvm_tool(
-            'clang', search_env='CLANG', required=required)
+            'clang', search_env='CLANG', required=required,
+            search_paths=paths, use_installed=use_installed)
         if self.config.clang:
           self.config.available_features.add('clang')
           builtin_include_dir = self.get_clang_builtin_include_dir(
@@ -516,6 +544,8 @@ class LLVMConfig(object):
                         extra_args=['--driver-mode=cpp']+additional_flags),
               ToolSubst('%clang_cl', command=self.config.clang,
                         extra_args=['--driver-mode=cl']+additional_flags),
+              ToolSubst('%clang_dxc', command=self.config.clang,
+                        extra_args=['--driver-mode=dxc']+additional_flags),
               ToolSubst('%clangxx', command=self.config.clang,
                         extra_args=['--driver-mode=g++']+additional_flags),
               ]
@@ -541,6 +571,32 @@ class LLVMConfig(object):
         else:
             self.config.substitutions.append(
                 ('%target_itanium_abi_host_triple', ''))
+
+        # TODO: Many tests work across many language standards. Before
+        # https://discourse.llvm.org/t/lit-run-a-run-line-multiple-times-with-different-replacements/64932
+        # has a solution, provide substitutions to conveniently try every standard with LIT_CLANG_STD_GROUP.
+        clang_std_group = int(os.environ.get('LIT_CLANG_STD_GROUP', '0'))
+        clang_std_values = ('98', '11', '14', '17', '20', '2b')
+        def add_std_cxx(s):
+            t = s[8:]
+            if t.endswith('-'):
+                t += clang_std_values[-1]
+            l = clang_std_values.index(t[0:2] if t[0:2] != '23' else '2b')
+            h = clang_std_values.index(t[3:5])
+            # Let LIT_CLANG_STD_GROUP=0 pick the highest value (likely the most relevant
+            # standard).
+            l = h - clang_std_group % (h-l+1)
+            self.config.substitutions.append((s, '-std=c++' + clang_std_values[l]))
+
+        add_std_cxx('%std_cxx98-14')
+        add_std_cxx('%std_cxx98-')
+        add_std_cxx('%std_cxx11-14')
+        add_std_cxx('%std_cxx11-')
+        add_std_cxx('%std_cxx14-')
+        add_std_cxx('%std_cxx17-20')
+        add_std_cxx('%std_cxx17-')
+        add_std_cxx('%std_cxx20-')
+        add_std_cxx('%std_cxx23-')
 
         # FIXME: Find nicer way to prohibit this.
         def prefer(this, to):
@@ -569,11 +625,12 @@ class LLVMConfig(object):
             (' %clang-cl ',
              '''\"*** invalid substitution, use '%clang_cl'. ***\"'''))
 
-    def use_lld(self, additional_tool_dirs=[], required=True):
+    def use_lld(self, additional_tool_dirs=[], required=True,
+                use_installed=False):
         """Configure the test suite to be able to invoke lld.
 
         Sets up some environment variables important to lld, locates a
-        just-built or installed lld, and add a set of standard
+        just-built or optionally an installed lld, and add a set of standard
         substitutions useful to any test suite that makes use of lld.
 
         """
@@ -588,27 +645,40 @@ class LLVMConfig(object):
 
         lib_dir_props = [self.config.name.lower() + '_libs_dir',
                          'lld_libs_dir', 'llvm_libs_dir']
-        paths = [getattr(self.config, pp) for pp in lib_dir_props
-                 if getattr(self.config, pp, None)]
+        lib_paths = [getattr(self.config, pp) for pp in lib_dir_props
+                     if getattr(self.config, pp, None)]
 
-        self.with_environment('LD_LIBRARY_PATH', paths, append_path=True)
+        self.with_environment('LD_LIBRARY_PATH', lib_paths, append_path=True)
 
-        # Discover the 'clang' and 'clangcc' to use.
+        # Discover the LLD executables to use.
 
-        ld_lld = self.use_llvm_tool('ld.lld', required=required)
-        lld_link = self.use_llvm_tool('lld-link', required=required)
-        ld64_lld = self.use_llvm_tool('ld64.lld', required=required)
-        wasm_ld = self.use_llvm_tool('wasm-ld', required=required)
+        ld_lld = self.use_llvm_tool('ld.lld', required=required,
+                                    search_paths=paths,
+                                    use_installed=use_installed)
+        lld_link = self.use_llvm_tool('lld-link', required=required,
+                                      search_paths=paths,
+                                      use_installed=use_installed)
+        ld64_lld = self.use_llvm_tool('ld64.lld', required=required,
+                                      search_paths=paths,
+                                      use_installed=use_installed)
+        wasm_ld = self.use_llvm_tool('wasm-ld', required=required,
+                                     search_paths=paths,
+                                     use_installed=use_installed)
 
         was_found = ld_lld and lld_link and ld64_lld and wasm_ld
         tool_substitutions = []
         if ld_lld:
             tool_substitutions.append(ToolSubst(r'ld\.lld', command=ld_lld))
+            self.config.available_features.add('ld.lld')
         if lld_link:
             tool_substitutions.append(ToolSubst('lld-link', command=lld_link))
+            self.config.available_features.add('lld-link')
         if ld64_lld:
             tool_substitutions.append(ToolSubst(r'ld64\.lld', command=ld64_lld))
+            self.config.available_features.add('ld64.lld')
         if wasm_ld:
             tool_substitutions.append(ToolSubst('wasm-ld', command=wasm_ld))
+            self.config.available_features.add('wasm-ld')
         self.add_tool_substitutions(tool_substitutions)
+
         return was_found

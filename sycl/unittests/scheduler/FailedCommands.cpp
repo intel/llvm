@@ -9,17 +9,26 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-using namespace cl::sycl;
+#include <helpers/PiMock.hpp>
+
+using namespace sycl;
 
 TEST_F(SchedulerTest, FailedDependency) {
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  queue Queue(context(Plt), default_selector_v);
+
   detail::Requirement MockReq = getMockRequirement();
-  MockCommand MDep(detail::getSyclObjImpl(MQueue));
-  MockCommand MUser(detail::getSyclObjImpl(MQueue));
+  MockCommand MDep(detail::getSyclObjImpl(Queue));
+  MockCommand MUser(detail::getSyclObjImpl(Queue));
   MDep.addUser(&MUser);
-  MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr});
+  std::vector<detail::Command *> ToCleanUp;
+  (void)MUser.addDep(detail::DepDesc{&MDep, &MockReq, nullptr}, ToCleanUp);
   MUser.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   MDep.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueFailed;
 
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
   bool Enqueued =
       MockScheduler::enqueueCommand(&MUser, Res, detail::NON_BLOCKING);

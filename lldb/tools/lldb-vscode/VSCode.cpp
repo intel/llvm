@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <chrono>
+#include <cstdarg>
 #include <fstream>
 #include <mutex>
 #include <sstream>
-#include <stdarg.h>
 
 #include "LLDBUtils.h"
 #include "VSCode.h"
@@ -30,18 +30,19 @@ namespace lldb_vscode {
 VSCode g_vsc;
 
 VSCode::VSCode()
-    : variables(), broadcaster("lldb-vscode"), num_regs(0), num_locals(0),
-      num_globals(0), log(),
+    : broadcaster("lldb-vscode"),
       exception_breakpoints(
           {{"cpp_catch", "C++ Catch", lldb::eLanguageTypeC_plus_plus},
            {"cpp_throw", "C++ Throw", lldb::eLanguageTypeC_plus_plus},
-           {"objc_catch", "Objective C Catch", lldb::eLanguageTypeObjC},
-           {"objc_throw", "Objective C Throw", lldb::eLanguageTypeObjC},
+           {"objc_catch", "Objective-C Catch", lldb::eLanguageTypeObjC},
+           {"objc_throw", "Objective-C Throw", lldb::eLanguageTypeObjC},
            {"swift_catch", "Swift Catch", lldb::eLanguageTypeSwift},
            {"swift_throw", "Swift Throw", lldb::eLanguageTypeSwift}}),
       focus_tid(LLDB_INVALID_THREAD_ID), sent_terminated_event(false),
-      stop_at_entry(false), is_attach(false),
-      reverse_request_seq(0), waiting_for_run_in_terminal(false) {
+      stop_at_entry(false), is_attach(false), configuration_done_sent(false),
+      reverse_request_seq(0), waiting_for_run_in_terminal(false),
+      progress_event_reporter(
+          [&](const ProgressEvent &event) { SendJSON(event.ToJSON()); }) {
   const char *log_file_path = getenv("LLDBVSCODE_LOG");
 #if defined(_WIN32)
   // Windows opens stdout and stdin in text mode which converts \n to 13,10
@@ -57,7 +58,7 @@ VSCode::VSCode()
     log.reset(new std::ofstream(log_file_path));
 }
 
-VSCode::~VSCode() {}
+VSCode::~VSCode() = default;
 
 int64_t VSCode::GetLineForPC(int64_t sourceReference, lldb::addr_t pc) const {
   auto pos = source_map.find(sourceReference);
@@ -322,49 +323,7 @@ void VSCode::SendOutput(OutputType o, const llvm::StringRef output) {
 
 void VSCode::SendProgressEvent(uint64_t progress_id, const char *message,
                                uint64_t completed, uint64_t total) {
-  enum ProgressEventType {
-    progressInvalid,
-    progressStart,
-    progressUpdate,
-    progressEnd
-  };
-  const char *event_name = nullptr;
-  ProgressEventType event_type = progressInvalid;
-  if (completed == 0) {
-    event_type = progressStart;
-    event_name = "progressStart";
-  } else if (completed == total) {
-    event_type = progressEnd;
-    event_name = "progressEnd";
-  } else if (completed < total) {
-    event_type = progressUpdate;
-    event_name = "progressUpdate";
-  }
-  if (event_type == progressInvalid)
-    return;
-
-  llvm::json::Object event(CreateEventObject(event_name));
-  llvm::json::Object body;
-  std::string progress_id_str;
-  llvm::raw_string_ostream progress_id_strm(progress_id_str);
-  progress_id_strm << progress_id;
-  progress_id_strm.flush();
-  body.try_emplace("progressId", progress_id_str);
-  if (event_type == progressStart) {
-    EmplaceSafeString(body, "title", message);
-    body.try_emplace("cancellable", false);
-  }
-  auto now = std::chrono::duration<double>(
-      std::chrono::system_clock::now().time_since_epoch());
-  std::string timestamp(llvm::formatv("{0:f9}", now.count()));
-  EmplaceSafeString(body, "timestamp", timestamp);
-
-  if (0 < total && total < UINT64_MAX) {
-    uint32_t percentage = (uint32_t)(((float)completed / (float)total) * 100.0);
-    body.try_emplace("percentage", percentage);
-  }
-  event.try_emplace("body", std::move(body));
-  SendJSON(llvm::json::Value(std::move(event)));
+  progress_event_reporter.Push(progress_id, message, completed, total);
 }
 
 void __attribute__((format(printf, 3, 4)))
@@ -422,10 +381,12 @@ lldb::SBFrame VSCode::GetLLDBFrame(const llvm::json::Object &arguments) {
 
 llvm::json::Value VSCode::CreateTopLevelScopes() {
   llvm::json::Array scopes;
-  scopes.emplace_back(CreateScope("Locals", VARREF_LOCALS, num_locals, false));
-  scopes.emplace_back(
-      CreateScope("Globals", VARREF_GLOBALS, num_globals, false));
-  scopes.emplace_back(CreateScope("Registers", VARREF_REGS, num_regs, false));
+  scopes.emplace_back(CreateScope("Locals", VARREF_LOCALS,
+                                  g_vsc.variables.locals.GetSize(), false));
+  scopes.emplace_back(CreateScope("Globals", VARREF_GLOBALS,
+                                  g_vsc.variables.globals.GetSize(), false));
+  scopes.emplace_back(CreateScope("Registers", VARREF_REGS,
+                                  g_vsc.variables.registers.GetSize(), false));
   return llvm::json::Value(std::move(scopes));
 }
 
@@ -565,6 +526,86 @@ PacketStatus VSCode::SendReverseRequest(llvm::json::Object request,
 void VSCode::RegisterRequestCallback(std::string request,
                                      RequestCallback callback) {
   request_handlers[request] = callback;
+}
+
+lldb::SBError VSCode::WaitForProcessToStop(uint32_t seconds) {
+  lldb::SBError error;
+  lldb::SBProcess process = target.GetProcess();
+  if (!process.IsValid()) {
+    error.SetErrorString("invalid process");
+    return error;
+  }
+  auto timeout_time =
+      std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+  while (std::chrono::steady_clock::now() < timeout_time) {
+    const auto state = process.GetState();
+    switch (state) {
+      case lldb::eStateAttaching:
+      case lldb::eStateConnected:
+      case lldb::eStateInvalid:
+      case lldb::eStateLaunching:
+      case lldb::eStateRunning:
+      case lldb::eStateStepping:
+      case lldb::eStateSuspended:
+        break;
+      case lldb::eStateDetached:
+        error.SetErrorString("process detached during launch or attach");
+        return error;
+      case lldb::eStateExited:
+        error.SetErrorString("process exited during launch or attach");
+        return error;
+      case lldb::eStateUnloaded:
+        error.SetErrorString("process unloaded during launch or attach");
+        return error;
+      case lldb::eStateCrashed:
+      case lldb::eStateStopped:
+        return lldb::SBError(); // Success!
+    }
+    std::this_thread::sleep_for(std::chrono::microseconds(250));
+  }
+  error.SetErrorStringWithFormat("process failed to stop within %u seconds",
+                                 seconds);
+  return error;
+}
+
+void Variables::Clear() {
+  locals.Clear();
+  globals.Clear();
+  registers.Clear();
+  expandable_variables.clear();
+}
+
+int64_t Variables::GetNewVariableRefence(bool is_permanent) {
+  if (is_permanent)
+    return next_permanent_var_ref++;
+  return next_temporary_var_ref++;
+}
+
+bool Variables::IsPermanentVariableReference(int64_t var_ref) {
+  return var_ref >= PermanentVariableStartIndex;
+}
+
+lldb::SBValue Variables::GetVariable(int64_t var_ref) const {
+  if (IsPermanentVariableReference(var_ref)) {
+    auto pos = expandable_permanent_variables.find(var_ref);
+    if (pos != expandable_permanent_variables.end())
+      return pos->second;
+  } else {
+    auto pos = expandable_variables.find(var_ref);
+    if (pos != expandable_variables.end())
+      return pos->second;
+  }
+  return lldb::SBValue();
+}
+
+int64_t Variables::InsertExpandableVariable(lldb::SBValue variable,
+                                            bool is_permanent) {
+  int64_t var_ref = GetNewVariableRefence(is_permanent);
+  if (is_permanent)
+    expandable_permanent_variables.insert(std::make_pair(var_ref, variable));
+  else
+    expandable_variables.insert(std::make_pair(var_ref, variable));
+  return var_ref;
 }
 
 } // namespace lldb_vscode

@@ -469,7 +469,9 @@ class Sema;
       unrelated_class,
       bad_qualifiers,
       lvalue_ref_to_rvalue,
-      rvalue_ref_to_lvalue
+      rvalue_ref_to_lvalue,
+      too_few_initializers,
+      too_many_initializers,
     };
 
     // This can be null, e.g. for implicit object arguments.
@@ -519,8 +521,12 @@ class Sema;
     /// specifies that there is no conversion from the source type to
     /// the target type.  AmbiguousConversion represents the unique
     /// ambiguous conversion (C++0x [over.best.ics]p10).
+    /// StaticObjectArgumentConversion represents the conversion rules for
+    /// the synthesized first argument of calls to static member functions
+    /// ([over.best.ics.general]p8).
     enum Kind {
       StandardConversion = 0,
+      StaticObjectArgumentConversion,
       UserDefinedConversion,
       AmbiguousConversion,
       EllipsisConversion,
@@ -533,11 +539,17 @@ class Sema;
     };
 
     /// ConversionKind - The kind of implicit conversion sequence.
-    unsigned ConversionKind : 30;
+    unsigned ConversionKind : 31;
 
-    /// Whether the target is really a std::initializer_list, and the
-    /// sequence only represents the worst element conversion.
-    unsigned StdInitializerListElement : 1;
+    // Whether the initializer list was of an incomplete array.
+    unsigned InitializerListOfIncompleteArray : 1;
+
+    /// When initializing an array or std::initializer_list from an
+    /// initializer-list, this is the array or std::initializer_list type being
+    /// initialized. The remainder of the conversion sequence, including ToType,
+    /// describe the worst conversion of an initializer to an element of the
+    /// array or std::initializer_list. (Note, 'worst' is not well defined.)
+    QualType InitializerListContainerType;
 
     void setKind(Kind K) {
       destruct();
@@ -568,16 +580,21 @@ class Sema;
     };
 
     ImplicitConversionSequence()
-        : ConversionKind(Uninitialized), StdInitializerListElement(false) {
+        : ConversionKind(Uninitialized),
+          InitializerListOfIncompleteArray(false) {
       Standard.setAsIdentityConversion();
     }
 
     ImplicitConversionSequence(const ImplicitConversionSequence &Other)
         : ConversionKind(Other.ConversionKind),
-          StdInitializerListElement(Other.StdInitializerListElement) {
+          InitializerListOfIncompleteArray(
+              Other.InitializerListOfIncompleteArray),
+          InitializerListContainerType(Other.InitializerListContainerType) {
       switch (ConversionKind) {
       case Uninitialized: break;
       case StandardConversion: Standard = Other.Standard; break;
+      case StaticObjectArgumentConversion:
+        break;
       case UserDefinedConversion: UserDefined = Other.UserDefined; break;
       case AmbiguousConversion: Ambiguous.copyFrom(Other.Ambiguous); break;
       case EllipsisConversion: break;
@@ -611,6 +628,7 @@ class Sema;
     unsigned getKindRank() const {
       switch (getKind()) {
       case StandardConversion:
+      case StaticObjectArgumentConversion:
         return 0;
 
       case UserDefinedConversion:
@@ -629,6 +647,9 @@ class Sema;
 
     bool isBad() const { return getKind() == BadConversion; }
     bool isStandard() const { return getKind() == StandardConversion; }
+    bool isStaticObjectArgument() const {
+      return getKind() == StaticObjectArgumentConversion;
+    }
     bool isEllipsis() const { return getKind() == EllipsisConversion; }
     bool isAmbiguous() const { return getKind() == AmbiguousConversion; }
     bool isUserDefined() const { return getKind() == UserDefinedConversion; }
@@ -654,6 +675,7 @@ class Sema;
     }
 
     void setStandard() { setKind(StandardConversion); }
+    void setStaticObjectArgument() { setKind(StaticObjectArgumentConversion); }
     void setEllipsis() { setKind(EllipsisConversion); }
     void setUserDefined() { setKind(UserDefinedConversion); }
 
@@ -670,14 +692,22 @@ class Sema;
       Standard.setAllToTypes(T);
     }
 
-    /// Whether the target is really a std::initializer_list, and the
-    /// sequence only represents the worst element conversion.
-    bool isStdInitializerListElement() const {
-      return StdInitializerListElement;
+    // True iff this is a conversion sequence from an initializer list to an
+    // array or std::initializer.
+    bool hasInitializerListContainerType() const {
+      return !InitializerListContainerType.isNull();
     }
-
-    void setStdInitializerListElement(bool V = true) {
-      StdInitializerListElement = V;
+    void setInitializerListContainerType(QualType T, bool IA) {
+      InitializerListContainerType = T;
+      InitializerListOfIncompleteArray = IA;
+    }
+    bool isInitializerListOfIncompleteArray() const {
+      return InitializerListOfIncompleteArray;
+    }
+    QualType getInitializerListContainerType() const {
+      assert(hasInitializerListContainerType() &&
+             "not initializer list container");
+      return InitializerListContainerType;
     }
 
     /// Form an "implicit" conversion sequence from nullptr_t to bool, for a
@@ -760,9 +790,6 @@ class Sema;
     /// This candidate was not viable because its address could not be taken.
     ovl_fail_addr_not_available,
 
-    /// This candidate was not viable because its OpenCL extension is disabled.
-    ovl_fail_ext_disabled,
-
     /// This inherited constructor is not viable because it would slice the
     /// argument.
     ovl_fail_inhctor_slice,
@@ -779,6 +806,10 @@ class Sema;
     /// This candidate was not viable because its associated constraints were
     /// not satisfied.
     ovl_fail_constraints_not_satisfied,
+
+    /// This candidate was not viable because it has internal linkage and is
+    /// from a different module unit than the use.
+    ovl_fail_module_mismatched,
   };
 
   /// A list of implicit conversion sequences for the arguments of an
@@ -907,6 +938,8 @@ class Sema;
         return Function->getNumParams();
       return ExplicitCallArguments;
     }
+
+    bool NotValidBecauseConstraintExprHasError() const;
 
   private:
     friend class OverloadCandidateSet;
@@ -1051,9 +1084,6 @@ class Sema;
 
     void destroyCandidates();
 
-    /// Whether diagnostics should be deferred.
-    bool shouldDeferDiags(Sema &S, ArrayRef<Expr *> Args, SourceLocation OpLoc);
-
   public:
     OverloadCandidateSet(SourceLocation Loc, CandidateSetKind CSK,
                          OperatorRewriteInfo RewriteInfo = {})
@@ -1065,6 +1095,9 @@ class Sema;
     SourceLocation getLocation() const { return Loc; }
     CandidateSetKind getKind() const { return Kind; }
     OperatorRewriteInfo getRewriteInfo() const { return RewriteInfo; }
+
+    /// Whether diagnostics should be deferred.
+    bool shouldDeferDiags(Sema &S, ArrayRef<Expr *> Args, SourceLocation OpLoc);
 
     /// Determine when this overload candidate will be new to the
     /// overload set.
@@ -1186,6 +1219,20 @@ class Sema;
     Info.Constructor = dyn_cast<CXXConstructorDecl>(D);
     return Info;
   }
+
+  // Returns false if signature help is relevant despite number of arguments
+  // exceeding parameters. Specifically, it returns false when
+  // PartialOverloading is true and one of the following:
+  // * Function is variadic
+  // * Function is template variadic
+  // * Function is an instantiation of template variadic function
+  // The last case may seem strange. The idea is that if we added one more
+  // argument, we'd end up with a function similar to Function. Since, in the
+  // context of signature help and/or code completion, we do not know what the
+  // type of the next argument (that the user is typing) will be, this is as
+  // good candidate as we can get, despite the fact that it takes one less
+  // parameter.
+  bool shouldEnforceArgLimit(bool PartialOverloading, FunctionDecl *Function);
 
 } // namespace clang
 

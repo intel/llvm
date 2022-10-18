@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
@@ -392,6 +392,7 @@ subroutine s12()
 
   call intentInOutSub(jvar, ivar)
   do ivar = 1,10
+    !WARNING: Possible redefinition of DO variable 'ivar'
     call intentInOutSub(jvar, ivar)
   end do
 
@@ -435,8 +436,8 @@ subroutine s13()
     jvar = 83 + intentInFunc(intentOutFunc(ivar))
   end do
 
-  ! Warning for passing a DO variable to an INTENT(INOUT) dummy
   do ivar = 1, 10
+    !WARNING: Possible redefinition of DO variable 'ivar'
     jvar = intentInOutFunc(ivar)
   end do
 

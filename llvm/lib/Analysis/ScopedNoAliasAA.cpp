@@ -36,7 +36,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/InitializePasses.h"
@@ -64,10 +63,10 @@ AliasResult ScopedNoAliasAAResult::alias(const MemoryLocation &LocA,
   const MDNode *ANoAlias = LocA.AATags.NoAlias, *BNoAlias = LocB.AATags.NoAlias;
 
   if (!mayAliasInScopes(AScopes, BNoAlias))
-    return NoAlias;
+    return AliasResult::NoAlias;
 
   if (!mayAliasInScopes(BScopes, ANoAlias))
-    return NoAlias;
+    return AliasResult::NoAlias;
 
   // If they may alias, chain to the next AliasAnalysis.
   return AAResultBase::alias(LocA, LocB, AAQI);

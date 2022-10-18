@@ -17,6 +17,8 @@
 #include "llvm/XRay/InstrumentationMap.h"
 #include "llvm/XRay/Trace.h"
 
+#include <cmath>
+
 using namespace llvm;
 using namespace llvm::xray;
 
@@ -232,10 +234,11 @@ Error GraphRenderer::accountRecord(const XRayRecord &Record) {
       if (!DeduceSiblingCalls)
         return make_error<StringError>("No matching ENTRY record",
                                        make_error_code(errc::invalid_argument));
-      auto Parent = std::find_if(
-          ThreadStack.rbegin(), ThreadStack.rend(),
-          [&](const FunctionAttr &A) { return A.FuncId == Record.FuncId; });
-      if (Parent == ThreadStack.rend())
+      bool FoundParent =
+          llvm::any_of(llvm::reverse(ThreadStack), [&](const FunctionAttr &A) {
+            return A.FuncId == Record.FuncId;
+          });
+      if (!FoundParent)
         return make_error<StringError>(
             "No matching Entry record in stack",
             make_error_code(errc::invalid_argument)); // There is no matching
@@ -523,7 +526,7 @@ static CommandRegistration Unused(&GraphC, []() -> Error {
   auto &GR = *GROrError;
 
   std::error_code EC;
-  raw_fd_ostream OS(GraphOutput, EC, sys::fs::OpenFlags::OF_Text);
+  raw_fd_ostream OS(GraphOutput, EC, sys::fs::OpenFlags::OF_TextWithCRLF);
   if (EC)
     return make_error<StringError>(
         Twine("Cannot open file '") + GraphOutput + "' for writing.", EC);

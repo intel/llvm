@@ -161,12 +161,41 @@ TEST(IndexTest, Simple) {
 }
 
 TEST(IndexTest, IndexPreprocessorMacros) {
-  std::string Code = "#define INDEX_MAC 1";
+  std::string Code = R"cpp(
+    #define INDEX_MAC 1
+    #define INDEX_MAC_UNDEF 1
+    #undef INDEX_MAC_UNDEF
+    #define INDEX_MAC_REDEF 1
+    #undef INDEX_MAC_REDEF
+    #define INDEX_MAC_REDEF 2
+  )cpp";
   auto Index = std::make_shared<Indexer>();
   IndexingOptions Opts;
   Opts.IndexMacrosInPreprocessor = true;
   tooling::runToolOnCode(std::make_unique<IndexAction>(Index, Opts), Code);
-  EXPECT_THAT(Index->Symbols, Contains(QName("INDEX_MAC")));
+  EXPECT_THAT(Index->Symbols,
+              Contains(AllOf(QName("INDEX_MAC"), WrittenAt(Position(2, 13)),
+                             DeclAt(Position(2, 13)),
+                             HasRole(SymbolRole::Definition))));
+  EXPECT_THAT(
+      Index->Symbols,
+      AllOf(Contains(AllOf(QName("INDEX_MAC_UNDEF"), WrittenAt(Position(3, 13)),
+                           DeclAt(Position(3, 13)),
+                           HasRole(SymbolRole::Definition))),
+            Contains(AllOf(QName("INDEX_MAC_UNDEF"), WrittenAt(Position(4, 12)),
+                           DeclAt(Position(3, 13)),
+                           HasRole(SymbolRole::Undefinition)))));
+  EXPECT_THAT(
+      Index->Symbols,
+      AllOf(Contains(AllOf(QName("INDEX_MAC_REDEF"), WrittenAt(Position(5, 13)),
+                           DeclAt(Position(5, 13)),
+                           HasRole(SymbolRole::Definition))),
+            Contains(AllOf(QName("INDEX_MAC_REDEF"), WrittenAt(Position(6, 12)),
+                           DeclAt(Position(5, 13)),
+                           HasRole(SymbolRole::Undefinition))),
+            Contains(AllOf(QName("INDEX_MAC_REDEF"), WrittenAt(Position(7, 13)),
+                           DeclAt(Position(7, 13)),
+                           HasRole(SymbolRole::Definition)))));
 
   Opts.IndexMacrosInPreprocessor = false;
   Index->Symbols.clear();
@@ -348,6 +377,21 @@ TEST(IndexTest, RelationBaseOf) {
                              Not(HasRole(SymbolRole::RelationBaseOf)))));
 }
 
+TEST(IndexTest, EnumBase) {
+  std::string Code = R"cpp(
+    typedef int MyTypedef;
+    enum Foo : MyTypedef;
+    enum Foo : MyTypedef {};
+  )cpp";
+  auto Index = std::make_shared<Indexer>();
+  tooling::runToolOnCode(std::make_unique<IndexAction>(Index), Code);
+  EXPECT_THAT(
+      Index->Symbols,
+      AllOf(Contains(AllOf(QName("MyTypedef"), HasRole(SymbolRole::Reference),
+                           WrittenAt(Position(3, 16)))),
+            Contains(AllOf(QName("MyTypedef"), HasRole(SymbolRole::Reference),
+                           WrittenAt(Position(4, 16))))));
+}
 } // namespace
 } // namespace index
 } // namespace clang

@@ -2,7 +2,6 @@ include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/..)
 include_directories(${LLDB_SOURCE_DIR}/source)
-include_directories(MacOSX/DarwinLog)
 
 include_directories(MacOSX)
 
@@ -83,7 +82,29 @@ if (CXX_SUPPORTS_NO_EXTENDED_OFFSETOF)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-extended-offsetof")
 endif ()
 
-check_library_exists(compression compression_encode_buffer "" HAVE_LIBCOMPRESSION)
+include(CheckCSourceCompiles)
+check_c_source_compiles(
+    "
+    #include <TargetConditionals.h>
+    #if TARGET_CPU_ARM64
+    #if TARGET_OS_OSX
+    #warning Building for macOS
+    #else
+    #error Not building for macOS
+    #endif
+    #else
+    #error Not building for ARM64
+    #endif
+    int main() { return 0; }
+    "
+    BUILDING_FOR_ARM64_OSX
+)
+
+# You can only debug arm64e processes using an arm64e debugserver.
+option(LLDB_ENABLE_ARM64E_DEBUGSERVER "Build debugserver for arm64 and arm64e" OFF)
+if (BUILDING_FOR_ARM64_OSX AND LLDB_ENABLE_ARM64E_DEBUGSERVER)
+  set(CMAKE_OSX_ARCHITECTURES "arm64;arm64e")
+endif ()
 
 find_library(SECURITY_LIBRARY Security)
 
@@ -102,6 +123,7 @@ set_property(GLOBAL PROPERTY
   LLDB_DEBUGSERVER_CODESIGN_IDENTITY ${debugserver_codesign_identity})
 
 if(APPLE)
+  set(LIBCOMPRESSION compression)
   if(APPLE_EMBEDDED)
     find_library(BACKBOARD_LIBRARY BackBoardServices
       PATHS ${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks)
@@ -121,10 +143,6 @@ if(APPLE)
       set(SKIP_TEST_DEBUGSERVER ON CACHE BOOL "" FORCE)
     endif()
   endif()
-endif()
-
-if(HAVE_LIBCOMPRESSION)
-  set(LIBCOMPRESSION compression)
 endif()
 
 if(LLDB_USE_ENTITLEMENTS)
@@ -183,8 +201,8 @@ set(lldbDebugserverCommonSources
   DNBThreadResumeActions.cpp
   JSON.cpp
   StdStringExtractor.cpp
+  StringConvert.cpp
   # JSON reader depends on the following LLDB-common files
-  ${LLDB_SOURCE_DIR}/source/Host/common/StringConvert.cpp
   ${LLDB_SOURCE_DIR}/source/Host/common/SocketAddress.cpp
   # end JSON reader dependencies
   libdebugserver.cpp
@@ -212,7 +230,12 @@ set(lldbDebugserverCommonSources
   ${generated_mach_interfaces}
   ${DEBUGSERVER_VERS_GENERATED_FILE})
 
-add_library(lldbDebugserverCommon ${lldbDebugserverCommonSources})
+# Tell LLVM not to complain about these source files.
+set(LLVM_OPTIONAL_SOURCES
+  ${lldbDebugserverCommonSources}
+  debugserver.cpp)
+
+add_lldb_library(lldbDebugserverCommon ${lldbDebugserverCommonSources})
 set_target_properties(lldbDebugserverCommon PROPERTIES FOLDER "lldb libraries/debugserver")
 
 target_link_libraries(lldbDebugserverCommon
@@ -226,16 +249,10 @@ target_link_libraries(lldbDebugserverCommon
                       ${LOCKDOWN_LIBRARY}
                       ${CAROUSELSERVICES_LIBRARY}
                       lldbDebugserverArchSupport
-                      lldbDebugserverDarwin_DarwinLog
                       ${FOUNDATION_LIBRARY}
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION}
                       ${ENERGY_LIBRARY})
-if(HAVE_LIBCOMPRESSION)
-  set_property(TARGET lldbDebugserverCommon APPEND PROPERTY
-                COMPILE_DEFINITIONS HAVE_LIBCOMPRESSION)
-endif()
-set(LLVM_OPTIONAL_SOURCES ${lldbDebugserverCommonSources})
 add_lldb_tool(debugserver ADD_TO_FRAMEWORK
   debugserver.cpp
   LINK_LIBS lldbDebugserverCommon
@@ -291,19 +308,14 @@ if(APPLE_EMBEDDED)
     -F${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks
     )
 
-  add_library(lldbDebugserverCommon_NonUI ${lldbDebugserverCommonSources})
+  add_lldb_library(lldbDebugserverCommon_NonUI ${lldbDebugserverCommonSources})
   target_link_libraries(lldbDebugserverCommon_NonUI
                       INTERFACE ${COCOA_LIBRARY}
                       ${CORE_FOUNDATION_LIBRARY}
                       ${FOUNDATION_LIBRARY}
                       lldbDebugserverArchSupport
-                      lldbDebugserverDarwin_DarwinLog
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION})
-  if(HAVE_LIBCOMPRESSION)
-    set_property(TARGET lldbDebugserverCommon_NonUI APPEND PROPERTY
-                  COMPILE_DEFINITIONS HAVE_LIBCOMPRESSION)
-  endif()
 
   add_lldb_tool(debugserver-nonui
     debugserver.cpp

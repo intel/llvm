@@ -19,6 +19,9 @@
 
 namespace clang {
 
+class DiagnosticsEngine;
+class TargetInfo;
+
 namespace {
 // This enum maps OpenCL version(s) into value. These values are used as
 // a mask to indicate in which OpenCL version(s) extension is a core or
@@ -51,19 +54,36 @@ static inline OpenCLVersionID encodeOpenCLVersion(unsigned OpenCLVersion) {
   }
 }
 
-// Simple helper to check if OpenCL C version is contained in a given encoded
-// OpenCL C version mask
-static inline bool isOpenCLVersionIsContainedInMask(const LangOptions &LO,
-                                                    unsigned Mask) {
-  auto CLVer = LO.OpenCLCPlusPlus ? 200 : LO.OpenCLVersion;
+// Check if OpenCL C version is contained in a given encoded OpenCL C version
+// mask.
+static inline bool isOpenCLVersionContainedInMask(const LangOptions &LO,
+                                                  unsigned Mask) {
+  auto CLVer = LO.getOpenCLCompatibleVersion();
   OpenCLVersionID Code = encodeOpenCLVersion(CLVer);
   return Mask & Code;
 }
+
 } // end anonymous namespace
 
 /// OpenCL supported extensions and optional core features
 class OpenCLOptions {
+
 public:
+  // OpenCL C v1.2 s6.5 - All program scope variables must be declared in the
+  // __constant address space.
+  // OpenCL C v2.0 s6.5.1 - Variables defined at program scope and static
+  // variables inside a function can also be declared in the global
+  // address space.
+  // OpenCL C v3.0 s6.7.1 - Variables at program scope or static or extern
+  // variables inside functions can be declared in global address space if
+  // the __opencl_c_program_scope_global_variables feature is supported
+  // C++ for OpenCL inherits rule from OpenCL C v2.0.
+  bool areProgramScopeVariablesSupported(const LangOptions &Opts) const {
+    return Opts.getOpenCLCompatibleVersion() == 200 ||
+           (Opts.getOpenCLCompatibleVersion() == 300 &&
+            isSupported("__opencl_c_program_scope_global_variables", Opts));
+  }
+
   struct OpenCLOptionInfo {
     // Does this option have pragma.
     bool WithPragma = false;
@@ -95,18 +115,17 @@ public:
     // Is option available in OpenCL version \p LO.
     bool isAvailableIn(const LangOptions &LO) const {
       // In C++ mode all extensions should work at least as in v2.0.
-      auto CLVer = LO.OpenCLCPlusPlus ? 200 : LO.OpenCLVersion;
-      return CLVer >= Avail;
+      return LO.getOpenCLCompatibleVersion() >= Avail;
     }
 
     // Is core option in OpenCL version \p LO.
     bool isCoreIn(const LangOptions &LO) const {
-      return isAvailableIn(LO) && isOpenCLVersionIsContainedInMask(LO, Core);
+      return isAvailableIn(LO) && isOpenCLVersionContainedInMask(LO, Core);
     }
 
     // Is optional core option in OpenCL version \p LO.
     bool isOptionalCoreIn(const LangOptions &LO) const {
-      return isAvailableIn(LO) && isOpenCLVersionIsContainedInMask(LO, Opt);
+      return isAvailableIn(LO) && isOpenCLVersionContainedInMask(LO, Opt);
     }
   };
 
@@ -154,7 +173,6 @@ public:
   void support(llvm::StringRef Ext, bool V = true);
 
   OpenCLOptions();
-  OpenCLOptions(const OpenCLOptions &) = default;
 
   // Set supported options based on target settings and language version
   void addSupport(const llvm::StringMap<bool> &FeaturesMap,
@@ -167,6 +185,27 @@ public:
   friend class ASTReader;
 
   using OpenCLOptionInfoMap = llvm::StringMap<OpenCLOptionInfo>;
+
+  template <typename... Args>
+  static bool isOpenCLOptionCoreIn(const LangOptions &LO, Args &&... args) {
+    return OpenCLOptionInfo(std::forward<Args>(args)...).isCoreIn(LO);
+  }
+
+  template <typename... Args>
+  static bool isOpenCLOptionAvailableIn(const LangOptions &LO,
+                                        Args &&... args) {
+    return OpenCLOptionInfo(std::forward<Args>(args)...).isAvailableIn(LO);
+  }
+
+  // Diagnose feature dependencies for OpenCL C 3.0. Return false if target
+  // doesn't follow these requirements.
+  static bool diagnoseUnsupportedFeatureDependencies(const TargetInfo &TI,
+                                                     DiagnosticsEngine &Diags);
+
+  // Diagnose that features and equivalent extension are set to same values.
+  // Return false if target doesn't follow these requirements.
+  static bool diagnoseFeatureExtensionDifferences(const TargetInfo &TI,
+                                                  DiagnosticsEngine &Diags);
 
 private:
   // Option is enabled via pragma

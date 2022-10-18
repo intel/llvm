@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The -gdb-index option instructs the linker to emit a .gdb_index section.
+// The --gdb-index option instructs the linker to emit a .gdb_index section.
 // The section contains information to make gdb startup faster.
 // The format of the section is described at
 // https://sourceware.org/gdb/onlinedocs/gdb/Index-Section-Format.html.
@@ -14,8 +14,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "DWARF.h"
+#include "InputSection.h"
 #include "Symbols.h"
-#include "Target.h"
 #include "lld/Common/Memory.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugPubTable.h"
 #include "llvm/Object/ELFObjectFile.h"
@@ -27,11 +27,9 @@ using namespace lld::elf;
 
 template <class ELFT> LLDDwarfObj<ELFT>::LLDDwarfObj(ObjFile<ELFT> *obj) {
   // Get the ELF sections to retrieve sh_flags. See the SHF_GROUP comment below.
-  ArrayRef<typename ELFT::Shdr> objSections =
-      CHECK(obj->getObj().sections(), obj);
+  ArrayRef<typename ELFT::Shdr> objSections = obj->template getELFShdrs<ELFT>();
   assert(objSections.size() == obj->getSections().size());
-  for (auto it : llvm::enumerate(obj->getSections())) {
-    InputSectionBase *sec = it.value();
+  for (auto [i, sec] : llvm::enumerate(obj->getSections())) {
     if (!sec)
       continue;
 
@@ -58,7 +56,7 @@ template <class ELFT> LLDDwarfObj<ELFT>::LLDDwarfObj(ObjFile<ELFT> *obj) {
     else if (sec->name == ".debug_line_str")
       lineStrSection = toStringRef(sec->data());
     else if (sec->name == ".debug_info" &&
-             !(objSections[it.index()].sh_flags & ELF::SHF_GROUP)) {
+             !(objSections[i].sh_flags & ELF::SHF_GROUP)) {
       // In DWARF v5, -fdebug-types-section places type units in .debug_info
       // sections in COMDAT groups. They are not compile units and thus should
       // be ignored for .gdb_index/diagnostics purposes.
@@ -137,9 +135,10 @@ template <class ELFT>
 Optional<RelocAddrEntry> LLDDwarfObj<ELFT>::find(const llvm::DWARFSection &s,
                                                  uint64_t pos) const {
   auto &sec = static_cast<const LLDDWARFSection &>(s);
-  if (sec.sec->areRelocsRela)
-    return findAux(*sec.sec, pos, sec.sec->template relas<ELFT>());
-  return findAux(*sec.sec, pos, sec.sec->template rels<ELFT>());
+  const RelsOrRelas<ELFT> rels = sec.sec->template relsOrRelas<ELFT>();
+  if (rels.areRelocsRel())
+    return findAux(*sec.sec, pos, rels.rels);
+  return findAux(*sec.sec, pos, rels.relas);
 }
 
 template class elf::LLDDwarfObj<ELF32LE>;

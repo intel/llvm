@@ -47,6 +47,7 @@ public:
     uint64_t sp;    // x31
     uint64_t pc;    // pc
     uint32_t cpsr;  // cpsr
+    uint32_t pad;
   };
   LLVM_PACKED_END
 
@@ -81,7 +82,8 @@ public:
   RegisterInfoPOSIX_arm64(const lldb_private::ArchSpec &target_arch,
                           lldb_private::Flags opt_regsets);
 
-  size_t GetGPRSize() const override;
+  static size_t GetGPRSizeStatic();
+  size_t GetGPRSize() const override { return GetGPRSizeStatic(); }
 
   size_t GetFPRSize() const override;
 
@@ -103,12 +105,15 @@ public:
   uint32_t ConfigureVectorLength(uint32_t sve_vq);
 
   bool VectorSizeIsValid(uint32_t vq) {
+    // coverity[unsigned_compare]
     if (vq >= eVectorQuadwordAArch64 && vq <= eVectorQuadwordAArch64SVEMax)
       return true;
     return false;
   }
 
   bool IsSVEEnabled() const { return m_opt_regsets.AnySet(eRegsetMaskSVE); }
+  bool IsPAuthEnabled() const { return m_opt_regsets.AnySet(eRegsetMaskPAuth); }
+  bool IsMTEEnabled() const { return m_opt_regsets.AnySet(eRegsetMaskMTE); }
 
   bool IsSVEReg(unsigned reg) const;
   bool IsSVEZReg(unsigned reg) const;

@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,7 +10,8 @@
 
 // template <class T> constexpr T* launder(T* p) noexcept;
 
-// UNSUPPORTED: c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORETD: c++17 && !stdlib=libc++
 
 #include <new>
 #include <cassert>

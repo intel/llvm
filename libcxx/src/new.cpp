@@ -1,4 +1,4 @@
-//===--------------------------- new.cpp ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <new>
 #include <stdlib.h>
 
-#include "new"
 #include "include/atomic_support.h"
 
 #if defined(_LIBCPP_ABI_MICROSOFT)
@@ -89,14 +89,14 @@ operator new(size_t size, const std::nothrow_t&) noexcept
 #ifndef _LIBCPP_NO_EXCEPTIONS
     try
     {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         p = ::operator new(size);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     }
     catch (...)
     {
     }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     return p;
 }
 
@@ -115,14 +115,14 @@ operator new[](size_t size, const std::nothrow_t&) noexcept
 #ifndef _LIBCPP_NO_EXCEPTIONS
     try
     {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         p = ::operator new[](size);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     }
     catch (...)
     {
     }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     return p;
 }
 
@@ -210,14 +210,14 @@ operator new(size_t size, std::align_val_t alignment, const std::nothrow_t&) noe
 #ifndef _LIBCPP_NO_EXCEPTIONS
     try
     {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         p = ::operator new(size, alignment);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     }
     catch (...)
     {
     }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     return p;
 }
 
@@ -236,14 +236,14 @@ operator new[](size_t size, std::align_val_t alignment, const std::nothrow_t&) n
 #ifndef _LIBCPP_NO_EXCEPTIONS
     try
     {
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
         p = ::operator new[](size, alignment);
 #ifndef _LIBCPP_NO_EXCEPTIONS
     }
     catch (...)
     {
     }
-#endif  // _LIBCPP_NO_EXCEPTIONS
+#endif // _LIBCPP_NO_EXCEPTIONS
     return p;
 }
 

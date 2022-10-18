@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <ctime>
+#include <ratio>
 
 namespace llvm {
 
@@ -22,13 +23,13 @@ class raw_ostream;
 namespace sys {
 
 /// A time point on the system clock. This is provided for two reasons:
-/// - to insulate us agains subtle differences in behavoir to differences in
-///   system clock precision (which is implementation-defined and differs between
-///   platforms).
+/// - to insulate us against subtle differences in behavior to differences in
+///   system clock precision (which is implementation-defined and differs
+///   between platforms).
 /// - to shorten the type name
-/// The default precision is nanoseconds. If need a specific precision specify
-/// it explicitly. If unsure, use the default. If you need a time point on a
-/// clock other than the system_clock, use std::chrono directly.
+/// The default precision is nanoseconds. If you need a specific precision
+/// specify it explicitly. If unsure, use the default. If you need a time point
+/// on a clock other than the system_clock, use std::chrono directly.
 template <typename D = std::chrono::nanoseconds>
 using TimePoint = std::chrono::time_point<std::chrono::system_clock, D>;
 
@@ -72,9 +73,21 @@ struct format_provider<sys::TimePoint<>> {
                      StringRef Style);
 };
 
+namespace detail {
+template <typename Period> struct unit { static const char value[]; };
+template <typename Period> const char unit<Period>::value[] = "";
+
+template <> struct unit<std::ratio<3600>> { static const char value[]; };
+template <> struct unit<std::ratio<60>> { static const char value[]; };
+template <> struct unit<std::ratio<1>> { static const char value[]; };
+template <> struct unit<std::milli> { static const char value[]; };
+template <> struct unit<std::micro> { static const char value[]; };
+template <> struct unit<std::nano> { static const char value[]; };
+} // namespace detail
+
 /// Implementation of format_provider<T> for duration types.
 ///
-/// The options string of a duration  type has the grammar:
+/// The options string of a duration type has the grammar:
 ///
 ///   duration_options  ::= [unit][show_unit [number_options]]
 ///   unit              ::= `h`|`m`|`s`|`ms|`us`|`ns`
@@ -95,18 +108,6 @@ struct format_provider<sys::TimePoint<>> {
 ///  If the unit of the duration type is not one of the units specified above,
 ///  it is still possible to format it, provided you explicitly request a
 ///  display unit or you request that the unit is not displayed.
-
-namespace detail {
-template <typename Period> struct unit { static const char value[]; };
-template <typename Period> const char unit<Period>::value[] = "";
-
-template <> struct unit<std::ratio<3600>> { static const char value[]; };
-template <> struct unit<std::ratio<60>> { static const char value[]; };
-template <> struct unit<std::ratio<1>> { static const char value[]; };
-template <> struct unit<std::milli> { static const char value[]; };
-template <> struct unit<std::micro> { static const char value[]; };
-template <> struct unit<std::nano> { static const char value[]; };
-} // namespace detail
 
 template <typename Rep, typename Period>
 struct format_provider<std::chrono::duration<Rep, Period>> {

@@ -14,7 +14,7 @@
 
 extern "C" {
 
-__attribute__((weak)) const char *__scudo_default_options();
+__attribute__((weak)) const char *__scudo_default_options(void);
 
 // Post-allocation & pre-deallocation hooks.
 // They must be thread-safe and not use heap related functions.
@@ -101,14 +101,14 @@ struct scudo_error_info {
   struct scudo_error_report reports[3];
 };
 
-const char *__scudo_get_stack_depot_addr();
-size_t __scudo_get_stack_depot_size();
+const char *__scudo_get_stack_depot_addr(void);
+size_t __scudo_get_stack_depot_size(void);
 
-const char *__scudo_get_region_info_addr();
-size_t __scudo_get_region_info_size();
+const char *__scudo_get_region_info_addr(void);
+size_t __scudo_get_region_info_size(void);
 
-const char *__scudo_get_ring_buffer_addr();
-size_t __scudo_get_ring_buffer_size();
+const char *__scudo_get_ring_buffer_addr(void);
+size_t __scudo_get_ring_buffer_size(void);
 
 #ifndef M_DECAY_TIME
 #define M_DECAY_TIME -100
@@ -120,7 +120,7 @@ size_t __scudo_get_ring_buffer_size();
 
 // Tune the allocator's choice of memory tags to make it more likely that
 // a certain class of memory errors will be detected. The value argument should
-// be one of the enumerators of the scudo_memtag_tuning enum below.
+// be one of the M_MEMTAG_TUNING_* constants below.
 #ifndef M_MEMTAG_TUNING
 #define M_MEMTAG_TUNING -102
 #endif
@@ -145,13 +145,15 @@ size_t __scudo_get_ring_buffer_size();
 #define M_TSDS_COUNT_MAX -202
 #endif
 
-enum scudo_memtag_tuning {
-  // Tune for buffer overflows.
-  M_MEMTAG_TUNING_BUFFER_OVERFLOW,
+// Tune for buffer overflows.
+#ifndef M_MEMTAG_TUNING_BUFFER_OVERFLOW
+#define M_MEMTAG_TUNING_BUFFER_OVERFLOW 0
+#endif
 
-  // Tune for use-after-free.
-  M_MEMTAG_TUNING_UAF,
-};
+// Tune for use-after-free.
+#ifndef M_MEMTAG_TUNING_UAF
+#define M_MEMTAG_TUNING_UAF 1
+#endif
 
 } // extern "C"
 

@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! 9.4.5
 subroutine s1
   type :: t(k, l)
@@ -8,7 +8,7 @@ subroutine s1
   type(t(1, 2)) :: x
   !ERROR: Assignment to constant 'x%k' is not allowed
   x%k = 4
-  !ERROR: Left-hand side of assignment is not modifiable
+  !ERROR: Assignment to constant 'x%l' is not allowed
   x%l = 3
 end
 
@@ -117,13 +117,20 @@ subroutine s7
 end
 
 subroutine s8
-  !ERROR: Assignment to subprogram 's8' is not allowed
+  !ERROR: Assignment to procedure 's8' is not allowed
   s8 = 1.0
 end
 
 real function f9() result(r)
-  !ERROR: Assignment to subprogram 'f9' is not allowed
+  !ERROR: Assignment to procedure 'f9' is not allowed
   f9 = 1.0
+end
+
+subroutine s9
+  real f9a
+  !ERROR: Assignment to procedure 'f9a' is not allowed
+  f9a = 1.0
+  print *, f9a(1)
 end
 
 !ERROR: No explicit type declared for dummy argument 'n'
@@ -141,3 +148,85 @@ subroutine s11
   !ERROR: Subroutine name is not allowed here
   a = s11
 end
+
+subroutine s12()
+  type dType(l1, k1, l2, k2)
+    integer, len :: l1
+    integer, kind :: k1
+    integer, len :: l2
+    integer, kind :: k2
+  end type
+
+  contains
+    subroutine sub(arg1, arg2, arg3)
+      integer :: arg1
+      type(dType(arg1, 2, *, 4)) :: arg2
+      type(dType(*, 2, arg1, 4)) :: arg3
+      type(dType(1, 2, 3, 4)) :: local1
+      type(dType(1, 2, 3, 4)) :: local2
+      type(dType(1, 2, arg1, 4)) :: local3
+      type(dType(9, 2, 3, 4)) :: local4
+      type(dType(1, 9, 3, 4)) :: local5
+
+      arg2 = arg3
+      arg2 = local1
+      arg3 = local1
+      local1 = local2
+      local2 = local3
+      !ERROR: No intrinsic or user-defined ASSIGNMENT(=) matches operand types TYPE(dtype(k1=2_4,k2=4_4,l1=1_4,l2=3_4)) and TYPE(dtype(k1=2_4,k2=4_4,l1=9_4,l2=3_4))
+      local1 = local4 ! mismatched constant KIND type parameter
+      !ERROR: No intrinsic or user-defined ASSIGNMENT(=) matches operand types TYPE(dtype(k1=2_4,k2=4_4,l1=1_4,l2=3_4)) and TYPE(dtype(k1=9_4,k2=4_4,l1=1_4,l2=3_4))
+      local1 = local5 ! mismatched constant LEN type parameter
+    end subroutine sub
+end subroutine s12
+
+subroutine s13()
+  interface assignment(=)
+    procedure :: cToR, cToRa, cToI
+  end interface
+  real :: x(1)
+  integer :: n(1)
+  x='0' ! fine
+  n='0' ! fine
+  !ERROR: Defined assignment in WHERE must be elemental, but 'ctora' is not
+  where ([1==1]) x='*'
+  where ([1==1]) n='*' ! fine
+  forall (j=1:1)
+    !ERROR: The mask or variable must not be scalar
+    where (j==1)
+      !ERROR: Defined assignment in WHERE must be elemental, but 'ctor' is not
+      !ERROR: The mask or variable must not be scalar
+      x(j)='?'
+      !ERROR: The mask or variable must not be scalar
+      n(j)='?' ! fine
+    !ERROR: The mask or variable must not be scalar
+    elsewhere (.false.)
+      !ERROR: Defined assignment in WHERE must be elemental, but 'ctor' is not
+      !ERROR: The mask or variable must not be scalar
+      x(j)='1'
+      !ERROR: The mask or variable must not be scalar
+      n(j)='1' ! fine
+    elsewhere
+      !ERROR: Defined assignment in WHERE must be elemental, but 'ctor' is not
+      !ERROR: The mask or variable must not be scalar
+      x(j)='9'
+      !ERROR: The mask or variable must not be scalar
+      n(j)='9' ! fine
+    end where
+  end forall
+  x='0' ! still fine
+  n='0' ! still fine
+ contains
+  subroutine cToR(x, c)
+    real, intent(out) :: x
+    character, intent(in) :: c
+  end subroutine
+  subroutine cToRa(x, c)
+    real, intent(out) :: x(:)
+    character, intent(in) :: c
+  end subroutine
+  elemental subroutine cToI(n, c)
+    integer, intent(out) :: n
+    character, intent(in) :: c
+  end subroutine
+end subroutine s13

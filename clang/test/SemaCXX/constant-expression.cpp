@@ -88,8 +88,8 @@ enum {
 
 void diags(int n) {
   switch (n) {
-    case (1/0, 1): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
-    case (int)(1/0, 2.0): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
+    case (1/0, 1): // expected-error {{not an integral constant expression}} expected-note {{division by zero}} expected-warning {{left operand of comma operator has no effect}}
+    case (int)(1/0, 2.0): // expected-error {{not an integral constant expression}} expected-note {{division by zero}} expected-warning {{left operand of comma operator has no effect}}
     case __imag(1/0): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
     case (int)__imag((double)(1/0)): // expected-error {{not an integral constant expression}} expected-note {{division by zero}}
       ;
@@ -121,7 +121,7 @@ namespace FloatConvert {
 // PR12626
 namespace test3 {
   struct X; // expected-note {{forward declaration of 'test3::X'}}
-  struct Y { bool b; X x; }; // expected-error {{field has incomplete type 'test3::X'}}
+  struct Y { bool b; X x; }; // expected-error {{field has incomplete type 'X'}}
   int f() { return Y().b; }
 }
 

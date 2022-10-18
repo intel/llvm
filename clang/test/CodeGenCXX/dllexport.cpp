@@ -1,11 +1,11 @@
-// RUN: %clang_cc1 -triple i686-windows-msvc   -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O1 -mconstructor-aliases -disable-llvm-passes -o - %s -w -fms-compatibility-version=19.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M32 -check-prefix=MSVC2015 %s
-// RUN: %clang_cc1 -triple i686-windows-msvc   -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O1 -mconstructor-aliases -disable-llvm-passes -o - %s -w -fms-compatibility-version=18.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M32 -check-prefix=MSVC2013 -check-prefix=M32MSVC2013 %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple i686-windows-msvc   -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O1 -mconstructor-aliases -disable-llvm-passes -o - %s -w -fms-compatibility-version=19.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M32 -check-prefix=MSVC2015 %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple i686-windows-msvc   -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O1 -mconstructor-aliases -disable-llvm-passes -o - %s -w -fms-compatibility-version=18.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M32 -check-prefix=MSVC2013 -check-prefix=M32MSVC2013 %s
 
-// RUN: %clang_cc1 -triple x86_64-windows-msvc -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w -fms-compatibility-version=19.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M64 -check-prefix=MSVC2015 %s
-// RUN: %clang_cc1 -triple x86_64-windows-msvc -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w -fms-compatibility-version=18.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M64 -check-prefix=MSVC2013 %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple x86_64-windows-msvc -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w -fms-compatibility-version=19.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M64 -check-prefix=MSVC2015 %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple x86_64-windows-msvc -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w -fms-compatibility-version=18.00 | FileCheck -allow-deprecated-dag-overlap --check-prefix=MSC --check-prefix=M64 -check-prefix=MSVC2013 %s
 
-// RUN: %clang_cc1 -triple i686-windows-gnu    -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w | FileCheck -allow-deprecated-dag-overlap --check-prefix=GNU --check-prefix=G32 %s
-// RUN: %clang_cc1 -triple x86_64-windows-gnu  -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w | FileCheck -allow-deprecated-dag-overlap --check-prefix=GNU %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple i686-windows-gnu    -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w | FileCheck -allow-deprecated-dag-overlap --check-prefix=GNU --check-prefix=G32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple x86_64-windows-gnu  -emit-llvm -std=c++1y -fno-threadsafe-statics -fms-extensions -O0 -o - %s -w | FileCheck -allow-deprecated-dag-overlap --check-prefix=GNU %s
 
 // Helper structs to make templates more expressive.
 struct ImplicitInst_Exported {};
@@ -535,7 +535,7 @@ struct SomeTemplate {
 // MSVC2013-DAG: define weak_odr dso_local dllexport {{.+}} @"??4?$SomeTemplate@H@@Q{{.+}}0@A{{.+}}0@@Z"
 struct __declspec(dllexport) InheritFromTemplate : SomeTemplate<int> {};
 
-// M32-DAG: define weak_odr dso_local dllexport x86_thiscallcc void @"??_F?$SomeTemplate@H@@QAEXXZ"({{.*}}) comdat
+// M32-DAG: define weak_odr dso_local dllexport x86_thiscallcc void @"??_F?$SomeTemplate@H@@QAEXXZ"({{.*}}) {{#[0-9]+}} comdat
 
 namespace PR23801 {
 template <typename>
@@ -552,7 +552,7 @@ struct __declspec(dllexport) B {
 
 }
 //
-// M32-DAG: define weak_odr dso_local dllexport x86_thiscallcc void @"??_FB@PR23801@@QAEXXZ"({{.*}}) comdat
+// M32-DAG: define weak_odr dso_local dllexport x86_thiscallcc void @"??_FB@PR23801@@QAEXXZ"({{.*}}) {{#[0-9]+}} comdat
 
 struct __declspec(dllexport) T {
   // Copy assignment operator:

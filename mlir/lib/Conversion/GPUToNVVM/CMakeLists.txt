@@ -4,18 +4,21 @@ add_public_tablegen_target(MLIRGPUToNVVMIncGen)
 
 add_mlir_conversion_library(MLIRGPUToNVVMTransforms
   LowerGpuOpsToNVVMOps.cpp
+  WmmaOpsToNvvm.cpp
 
   DEPENDS
   MLIRConversionPassIncGen
   MLIRGPUToNVVMIncGen
 
   LINK_LIBS PUBLIC
-  MLIRGPU
+  MLIRArithToLLVM
+  MLIRFuncToLLVM
+  MLIRGPUOps
   MLIRGPUToGPURuntimeTransforms
-  MLIRLLVMIR
-  MLIRMemRef
-  MLIRNVVMIR
+  MLIRLLVMCommonConversion
+  MLIRLLVMDialect
+  MLIRMemRefToLLVM
+  MLIRNVVMDialect
   MLIRPass
-  MLIRStandardToLLVM
   MLIRTransformUtils
   )

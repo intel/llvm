@@ -1,9 +1,8 @@
 //===--- ASTConcept.cpp - Concepts Related AST Data Structures --*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -20,10 +19,11 @@
 #include "llvm/ADT/FoldingSet.h"
 using namespace clang;
 
-ASTConstraintSatisfaction::ASTConstraintSatisfaction(const ASTContext &C,
-    const ConstraintSatisfaction &Satisfaction):
-    NumRecords{Satisfaction.Details.size()},
-    IsSatisfied{Satisfaction.IsSatisfied} {
+ASTConstraintSatisfaction::ASTConstraintSatisfaction(
+    const ASTContext &C, const ConstraintSatisfaction &Satisfaction)
+    : NumRecords{Satisfaction.Details.size()},
+      IsSatisfied{Satisfaction.IsSatisfied}, ContainsErrors{
+                                                 Satisfaction.ContainsErrors} {
   for (unsigned I = 0; I < NumRecords; ++I) {
     auto &Detail = Satisfaction.Details[I];
     if (Detail.second.is<Expr *>())
@@ -46,7 +46,6 @@ ASTConstraintSatisfaction::ASTConstraintSatisfaction(const ASTContext &C,
     }
   }
 }
-
 
 ASTConstraintSatisfaction *
 ASTConstraintSatisfaction::Create(const ASTContext &C,

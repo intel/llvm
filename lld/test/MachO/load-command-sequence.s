@@ -30,11 +30,11 @@
 # COMMON: segname __DATA_CONST
 # COMMON: sectname __got
 # COMMON: segname __DATA_CONST
+# COMMON: sectname __const
+# COMMON: segname __DATA_CONST
 # COMMON: cmd LC_SEGMENT_64
 # COMMON: segname __DATA
 # COMMON: sectname __data
-# COMMON: segname __DATA
-# COMMON: sectname __const
 # COMMON: segname __DATA
 # COMMON: cmd LC_SEGMENT_64
 # COMMON: segname __LINKEDIT
@@ -43,11 +43,13 @@
 # COMMON: cmd LC_DYSYMTAB
 
 # EXEC: cmd LC_LOAD_DYLINKER
-# EXEC: cmd LC_MAIN
 # DYLIB: cmd LC_ID_DYLIB
 
 # COMMON: cmd LC_UUID
 # COMMON: cmd LC_BUILD_VERSION
+
+# EXEC: cmd LC_MAIN
+
 # COMMON: cmd LC_LOAD_DYLIB
 
 .section __TEXT,__cstring

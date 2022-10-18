@@ -9,13 +9,13 @@ define void @t1() nounwind {
 ; CHECK:       ## %bb.0: ## %entry
 ; CHECK-NEXT:    pushq %rax
 ; CHECK-NEXT:    callq _return_v1di
-; CHECK-NEXT:    movq _g_v1di@{{.*}}(%rip), %rcx
+; CHECK-NEXT:    movq _g_v1di@GOTPCREL(%rip), %rcx
 ; CHECK-NEXT:    movq %rax, (%rcx)
 ; CHECK-NEXT:    popq %rax
 ; CHECK-NEXT:    retq
 entry:
   %call = call <1 x i64> @return_v1di()		; <<1 x i64>> [#uses=0]
-  store <1 x i64> %call, <1 x i64>* @g_v1di
+  store <1 x i64> %call, ptr @g_v1di
   ret void
 }
 

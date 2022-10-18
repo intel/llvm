@@ -1,0 +1,200 @@
+:extension_name: SPV_INTEL_bfloat16_conversion
+:capability_name: Bfloat16ConversionINTEL
+:capability_token: 6115
+:FToBF16_token: 6116
+:BF16ToF_token: 6117
+:FToBF16_name: OpConvertFToBF16INTEL
+:BF16ToF_name: OpConvertBF16ToFINTEL
+
+{extension_name}
+================
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Alexey Sotkin, Intel +
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | A
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 5.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension allows to convert single-precision 32-bit floating-point value to
+bfloat16 format and vice versa. This extension doesn't introduce bfloat16 type
+in SPIR-V, instead instructions below use 16-bit integer type whose bit pattern
+represents (bitcasted from) a bfloat16 value.
+
+== Extension Name
+
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== New Instructions
+
+Instructions added under the *{capability_name}* capability:
+
+[subs="attributes"]
+----
+{FToBF16_name}
+{BF16ToF_name}
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_name}* | {capability_token} 
+|{FToBF16_name} | {FToBF16_token}
+|{BF16ToF_name} | {BF16ToF_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.5
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {capability_token} | *{capability_name}*
+| Reserved. +
+ +
+See also extension: *{extension_name}*
+|====
+--
+
+=== Instructions
+
+==== 3.37.11. Conversion Instructions
+
+[cols="1,1,3*3",width="100%"]
+|=====
+4+|[[OpConvertFToBF16]]*{FToBF16_name}* +
+ +
+Convert value numerically from 32-bit floating point to bfloat16, which is
+represented as a 16-bit unsigned integer. +
+ +
+'Result Type' must be a scalar or vector of integer type.
+The component width must be 16 bits. Bit pattern in the Result represents a
+bfloat16 value. +
+ +
+'Float Value' must be a scalar or vector of floating-point type.
+It must have the same number of components as Result Type.
+The component width must be 32 bits. +
+ +
+Results are computed per component. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 4 | {FToBF16_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Float Value'
+| '<id>' +
+|=====
+
+[cols="1,1,3*3",width="100%"]
+|=====
+4+|[[OpConvertBF16ToF]]*{BF16ToF_name}* +
+ +
+Interpret a 16-bit integer as bfloat16 and convert the value numerically to
+32-bit floating point type. +
+ +
+'Result Type' must be a scalar or vector of floating-point.
+The component width must be 32 bits. +
+ +
+'Bfloat16 Value' must be a scalar or vector of integer type, which is
+interpreted as a bfloat16 type. The type must have the same number of components
+as the Result Type. The component width must be 16 bits. +
+ +
+Results are computed per component. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 4 | {BF16ToF_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Bfloat16 Value'
+| '<id>' +
+|=====
+
+
+== Issues
+
+// . first issue
+// +
+// --
+// *RESOLVED*:
+// --
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-06-03|Alexey Sotkin|Initial revision
+|========================================

@@ -7,7 +7,7 @@
 
 
 ; GCN-LABEL: {{^}}insert_vgpr_offset_multiple_in_block:
-; GCN-DAG: s_load_dwordx16 s{{\[}}[[S_ELT0:[0-9]+]]:[[S_ELT15:[0-9]+]]{{\]}}
+; GCN-DAG: s_load_dwordx16 s[[[S_ELT0:[0-9]+]]:[[S_ELT15:[0-9]+]]]
 ; GCN-DAG: {{buffer|flat|global}}_load_dword [[IDX0:v[0-9]+]]
 ; GCN-DAG: v_mov_b32 [[INS0:v[0-9]+]], 62
 
@@ -63,6 +63,23 @@ entry:
   %out2 = getelementptr <16 x float>, <16 x float> addrspace(1)* %out1, i32 1
   store <16 x float> %ins2, <16 x float> addrspace(1)* %out2
 
+  ret void
+}
+
+declare hidden void @foo()
+
+; For functions with calls, we were not accounting for m0_lo16/m0_hi16
+; uses on the BUNDLE created when expanding the insert register pseudo.
+; GCN-LABEL: {{^}}insertelement_with_call:
+; GCN: s_set_gpr_idx_on s{{[0-9]+}}, gpr_idx(DST)
+; GCN-NEXT: v_mov_b32_e32 {{v[0-9]+}}, 8
+; GCN-NEXT: s_set_gpr_idx_off
+; GCN: s_swappc_b64
+define amdgpu_kernel void @insertelement_with_call(<16 x i32> addrspace(1)* %ptr, i32 %idx) #0 {
+  %vec = load <16 x i32>, <16 x i32> addrspace(1)* %ptr
+  %i6 = insertelement <16 x i32> %vec, i32 8, i32 %idx
+  call void @foo()
+  store <16 x i32> %i6, <16 x i32> addrspace(1)* null
   ret void
 }
 

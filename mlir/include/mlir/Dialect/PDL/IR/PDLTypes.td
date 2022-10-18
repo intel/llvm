@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_PDL_IR_PDLTYPES
 #define MLIR_DIALECT_PDL_IR_PDLTYPES
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/Dialect/PDL/IR/PDLDialect.td"
 
 //===----------------------------------------------------------------------===//
@@ -20,7 +21,7 @@ include "mlir/Dialect/PDL/IR/PDLDialect.td"
 //===----------------------------------------------------------------------===//
 
 class PDL_Type<string name, string typeMnemonic>
-    : TypeDef<PDL_Dialect, name, "::mlir::pdl::PDLType"> {
+    : TypeDef<PDL_Dialect, name, [], "::mlir::pdl::PDLType"> {
   let mnemonic = typeMnemonic;
 }
 
@@ -66,6 +67,7 @@ def PDL_Range : PDL_Type<"Range", "range"> {
     }]>,
   ];
   let genVerifyDecl = 1;
+  let hasCustomAssemblyFormat = 1;
   let skipDefaultBuilders = 1;
 }
 

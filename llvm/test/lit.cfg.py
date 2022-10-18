@@ -40,7 +40,7 @@ llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(
-    ['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP', 'ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH'])
+    ['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP'])
 
 
 # Set up OCAMLPATH to include newly built OCaml libraries.
@@ -88,6 +88,7 @@ llvm_config.use_default_substitutions()
 # Add site-specific substitutions.
 config.substitutions.append(('%llvmshlibdir', config.llvm_shlib_dir))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
+config.substitutions.append(('%pluginext', config.llvm_plugin_ext))
 config.substitutions.append(('%exeext', config.llvm_exe_ext))
 
 
@@ -114,6 +115,8 @@ ld64_cmd = config.ld64_executable
 asan_rtlib = get_asan_rtlib()
 if asan_rtlib:
     ld64_cmd = 'DYLD_INSERT_LIBRARIES={} {}'.format(asan_rtlib, ld64_cmd)
+if config.osx_sysroot:
+    ld64_cmd = '{} -syslibroot {}'.format(ld64_cmd, config.osx_sysroot)
 
 ocamlc_command = '%s ocamlc -cclib -L%s %s' % (
     config.ocamlfind_executable, config.llvm_lib_dir, config.ocaml_flags)
@@ -136,6 +139,7 @@ config.substitutions.append(
 config.llvm_locstats_used = os.path.exists(llvm_locstats_tool)
 
 tools = [
+    ToolSubst('%llvm', FindTool('llvm'), unresolved='ignore'),
     ToolSubst('%lli', FindTool('lli'), post='.', extra_args=lli_args),
     ToolSubst('%llc_dwarf', FindTool('llc'), extra_args=llc_args),
     ToolSubst('%go', config.go_executable, unresolved='ignore'),
@@ -155,17 +159,19 @@ tools = [
 tools.extend([
     'dsymutil', 'lli', 'lli-child-target', 'llvm-ar', 'llvm-as',
     'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config',
-    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-diff', 'llvm-dis',
-    'llvm-dwarfdump', 'llvm-dlltool', 'llvm-exegesis', 'llvm-extract',
-    'llvm-isel-fuzzer', 'llvm-ifs',
+    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-debuginfod-find', 'llvm-debuginfod',
+    'llvm-diff', 'llvm-dis', 'llvm-dwarfdump', 'llvm-dwarfutil', 'llvm-dlltool',
+    'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
     'llvm-install-name-tool', 'llvm-jitlink', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
-    'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump',
-    'llvm-pdbutil', 'llvm-profdata', 'llvm-ranlib', 'llvm-rc', 'llvm-readelf',
-    'llvm-readobj', 'llvm-rtdyld', 'llvm-size', 'llvm-split', 'llvm-strings',
-    'llvm-strip', 'llvm-tblgen', 'llvm-undname', 'llvm-c-test', 'llvm-cxxfilt',
-    'llvm-xray', 'yaml2obj', 'obj2yaml', 'yaml-bench', 'verify-uselistorder',
-    'bugpoint', 'llc', 'llvm-symbolizer', 'opt', 'sancov', 'sanstats'])
+    'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump', 'llvm-otool',
+    'llvm-pdbutil', 'llvm-profdata', 'llvm-profgen', 'llvm-ranlib', 'llvm-rc', 'llvm-readelf',
+    'llvm-readobj', 'llvm-remark-size-diff', 'llvm-rtdyld', 'llvm-sim',
+    'llvm-size', 'llvm-spirv', 'llvm-split', 'llvm-stress', 'llvm-strings', 'llvm-strip',
+    'llvm-tblgen', 'llvm-tapi-diff', 'llvm-undname', 'llvm-windres',
+    'llvm-c-test', 'llvm-cxxfilt', 'llvm-xray', 'yaml2obj', 'obj2yaml',
+    'yaml-bench', 'verify-uselistorder', 'bugpoint', 'llc', 'llvm-symbolizer',
+    'opt', 'sancov', 'sanstats', 'llvm-remarkutil', 'spirv-to-ir-wrapper'])
 
 # The following tools are optional
 tools.extend([
@@ -177,7 +183,66 @@ tools.extend([
     ToolSubst('Kaleidoscope-Ch6', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch7', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch8', unresolved='ignore'),
-    ToolSubst('LLJITWithThinLTOSummaries', unresolved='ignore')])
+    ToolSubst('LLJITWithThinLTOSummaries', unresolved='ignore'),
+    ToolSubst('LLJITWithRemoteDebugging', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsBasicUsage', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsAddObjectFile', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsRemovableCode', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsReflectProcessSymbols', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsLazy', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsVeryLazy', unresolved='ignore'),
+    ToolSubst('dxil-dis', unresolved='ignore')])
+
+# Find (major, minor) version of ptxas
+def ptxas_version(ptxas):
+    ptxas_cmd = subprocess.Popen([ptxas, '--version'], stdout=subprocess.PIPE)
+    ptxas_out = ptxas_cmd.stdout.read().decode('ascii')
+    ptxas_cmd.wait()
+    match = re.search('release (\d+)\.(\d+)', ptxas_out)
+    if match:
+        return (int(match.group(1)), int(match.group(2)))
+    print('couldn\'t determine ptxas version')
+    return None
+
+def enable_ptxas(ptxas_executable):
+    version = ptxas_version(ptxas_executable)
+    if version:
+        # ptxas is supposed to be backward compatible with previous
+        # versions, so add a feature for every known version prior to
+        # the current one.
+        ptxas_known_versions = [
+            (9, 0), (9, 1), (9, 2),
+            (10, 0), (10, 1), (10, 2),
+            (11, 0), (11, 1), (11, 2), (11, 3), (11, 4), (11, 5), (11, 6),
+        ]
+
+        def version_int(ver):
+            return ver[0] * 100 + ver[1]
+
+        # ignore ptxas if its version is below the minimum supported
+        # version
+        min_version = ptxas_known_versions[0]
+        if version_int(version) < version_int(min_version):
+            print(
+                'Warning: ptxas version {}.{} is not supported'.format(
+                    version[0], version[1]))
+            return
+
+        for known_version in ptxas_known_versions:
+            if version_int(known_version) <= version_int(version):
+                major, minor = known_version
+                config.available_features.add(
+                    'ptxas-{}.{}'.format(major, minor))
+
+    config.available_features.add('ptxas')
+    tools.extend([ToolSubst('%ptxas', ptxas_executable),
+                  ToolSubst('%ptxas-verify', '{} -c -o /dev/null -'.format(
+                      ptxas_executable))])
+
+ptxas_executable = \
+    os.environ.get('LLVM_PTXAS_EXECUTABLE', None) or config.ptxas_executable
+if ptxas_executable:
+    enable_ptxas(ptxas_executable)
 
 llvm_config.add_tool_substitutions(tools, config.llvm_tools_dir)
 
@@ -229,11 +294,25 @@ else:
 if not config.build_shared_libs and not config.link_llvm_dylib:
     config.available_features.add('static-libs')
 
+if config.link_llvm_dylib:
+    config.available_features.add('llvm-dylib')
+    config.substitutions.append(
+        ('%llvmdylib',
+         '{}/libLLVM-{}{}'.format(config.llvm_shlib_dir,
+                                  config.llvm_dylib_version,
+                                  config.llvm_shlib_ext)))
+
 if config.have_tf_aot:
     config.available_features.add("have_tf_aot")
 
 if config.have_tf_api:
     config.available_features.add("have_tf_api")
+
+if config.llvm_inliner_model_autogenerated:
+    config.available_features.add("llvm_inliner_model_autogenerated")
+
+if config.llvm_raevict_model_autogenerated:
+    config.available_features.add("llvm_raevict_model_autogenerated")
 
 def have_cxx_shared_library():
     readobj_exe = lit.util.which('llvm-readobj', config.llvm_tools_dir)
@@ -243,7 +322,7 @@ def have_cxx_shared_library():
 
     try:
         readobj_cmd = subprocess.Popen(
-            [readobj_exe, '-needed-libs', readobj_exe], stdout=subprocess.PIPE)
+            [readobj_exe, '--needed-libs', readobj_exe], stdout=subprocess.PIPE)
     except OSError:
         print('could not exec llvm-readobj')
         return False
@@ -272,6 +351,12 @@ if config.libcxx_used:
 # Some tests are "generic" and require a valid default triple
 if config.target_triple:
     config.available_features.add('default_triple')
+    # Direct object generation
+    if not config.target_triple.startswith(("nvptx", "xcore")):
+        config.available_features.add('object-emission')
+
+if config.have_llvm_driver:
+  config.available_features.add('llvm-driver')
 
 import subprocess
 
@@ -355,8 +440,9 @@ if 'darwin' == sys.platform:
         if 'hw.optional.fma: 1' in result:
             config.available_features.add('fma3')
 
-# .debug_frame is not emitted for targeting Windows x64.
-if not re.match(r'^x86_64.*-(windows-gnu|windows-msvc)', config.target_triple):
+# .debug_frame is not emitted for targeting Windows x64, aarch64/arm64, AIX, or Apple Silicon Mac.
+if not re.match(r'^(x86_64|aarch64|arm64|powerpc|powerpc64).*-(windows-gnu|windows-msvc|aix)', config.target_triple) \
+    and not re.match(r'^arm64(e)?-apple-(macos|darwin)', config.target_triple):
     config.available_features.add('debug_frame')
 
 if config.have_libxar:
@@ -368,8 +454,41 @@ if config.enable_threads:
 if config.have_libxml2:
     config.available_features.add('libxml2')
 
+if config.have_curl:
+    config.available_features.add('curl')
+
 if config.have_opt_viewer_modules:
     config.available_features.add('have_opt_viewer_modules')
 
 if config.expensive_checks:
     config.available_features.add('expensive_checks')
+
+if "MemoryWithOrigins" in config.llvm_use_sanitizer:
+    config.available_features.add('use_msan_with_origins')
+
+def exclude_unsupported_files_for_aix(dirname):
+   for filename in os.listdir(dirname):
+       source_path = os.path.join( dirname, filename)
+       if os.path.isdir(source_path):
+           continue
+       f = open(source_path, 'r')
+       try:
+          data = f.read()
+          # 64-bit object files are not supported on AIX, so exclude the tests.
+          if ('-emit-obj' in data or '-filetype=obj' in data) and '64' in config.target_triple:
+            config.excludes += [ filename ]
+       finally:
+          f.close()
+
+if 'aix' in config.target_triple:
+    for directory in ('/CodeGen/X86', '/DebugInfo', '/DebugInfo/X86', '/DebugInfo/Generic', '/LTO/X86', '/Linker'):
+        exclude_unsupported_files_for_aix(config.test_source_root + directory)
+
+# Some tools support an environment variable "OBJECT_MODE" on AIX OS, which
+# controls the kind of objects they will support. If there is no "OBJECT_MODE"
+# environment variable specified, the default behaviour is to support 32-bit
+# objects only. In order to not affect most test cases, which expect to support
+# 32-bit and 64-bit objects by default, set the environment variable
+# "OBJECT_MODE" to 'any' by default on AIX OS.
+if 'system-aix' in config.available_features:
+    config.environment['OBJECT_MODE'] = 'any'

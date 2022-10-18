@@ -17,6 +17,8 @@
 
 namespace lldb_private {
 
+class ScriptedThread;
+
 class StackFrameList {
 public:
   // Constructors and Destructors
@@ -86,11 +88,9 @@ public:
 
 protected:
   friend class Thread;
+  friend class ScriptedThread;
 
   bool SetFrameAtIndex(uint32_t idx, lldb::StackFrameSP &frame_sp);
-
-  static void Merge(std::unique_ptr<StackFrameList> &curr_up,
-                    lldb::StackFrameListSP &prev_sp);
 
   void GetFramesUpTo(uint32_t end_idx);
 

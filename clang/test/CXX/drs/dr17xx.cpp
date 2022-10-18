@@ -27,6 +27,18 @@ namespace dr1715 { // dr1715: 3.9
 #endif
 }
 
+namespace dr1734 { // dr1734: no
+#if __cplusplus >= 201103L
+struct A {
+    A(const A&) = delete;
+};
+// FIXME: 'A' should not be trivially copyable because the class lacks at least
+// one non-deleted copy constructor, move constructor, copy assignment
+// operator, or move assignment operator.
+static_assert(__is_trivially_copyable(A), "");
+#endif
+}
+
 namespace dr1736 { // dr1736: 3.9
 #if __cplusplus >= 201103L
 struct S {
@@ -55,7 +67,7 @@ namespace dr1753 { // dr1753: 11
     n.dr1753::~T(); // expected-error {{'dr1753' does not refer to a type name in pseudo-destructor}}
     n.dr1753::T::~T();
 
-    n.A::~T(); // expected-error {{the type of object expression ('dr1753::T' (aka 'int')) does not match the type being destroyed ('dr1753::A') in pseudo-destructor expression}}
+    n.A::~T(); // expected-error {{the type of object expression ('T' (aka 'int')) does not match the type being destroyed ('A') in pseudo-destructor expression}}
     n.A::T::~T();
 
     n.B::~T(); // expected-error {{'B' does not refer to a type name in pseudo-destructor expression}}
@@ -123,5 +135,14 @@ namespace dr1778 { // dr1778: 9
   struct D { B b; D() noexcept(true) = default; };
   static_assert(!noexcept(C()), "");
   static_assert(noexcept(D()), "");
+#endif
+}
+
+namespace dr1762 { // dr1762: 14
+#if __cplusplus >= 201103L
+  float operator ""_E(const char *);
+  // expected-error@+2 {{invalid suffix on literal; C++11 requires a space between literal and identifier}}
+  // expected-warning@+1 {{user-defined literal suffixes not starting with '_' are reserved; no literal will invoke this operator}}
+  float operator ""E(const char *);
 #endif
 }

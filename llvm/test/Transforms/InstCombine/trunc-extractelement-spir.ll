@@ -5,8 +5,8 @@ target triple = "spir"
 
 define i32 @shrinkExtractElt_i64_to_i32_0(<3 x i64> %x) {
 ; CHECK-LABEL: @shrinkExtractElt_i64_to_i32_0(
-; CHECK-NOT:    [[TMP1:%.*]] = bitcast <3 x i64> [[X:%.*]] to <6 x i32>
-; CHECK-NOT:    [[T:%.*]] = extractelement <6 x i32> [[TMP1]], i32 0
+; CHECK-NOT:    {{%.+}} = bitcast <3 x i64> {{%.+}} to <6 x i32>
+; CHECK-NOT:    {{%.+}} = extractelement <6 x i32> {{%.+}}, i32 0
 
   %e = extractelement <3 x i64> %x, i32 0
   %t = trunc i64 %e to i32

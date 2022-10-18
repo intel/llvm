@@ -1,25 +1,25 @@
 // Test target codegen - host bc file has to be created first.
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple i386-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm-bc %s -o %t-x86-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple i386-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm-bc %s -o %t-x86-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
 
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple i386-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm-bc %s -o %t-x86-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-64
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple i386-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm-bc %s -o %t-x86-host.bc
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -verify -fopenmp -fopenmp-cuda-mode -fexceptions -fcxx-exceptions -x c++ -triple nvptx-unknown-unknown -fopenmp-targets=nvptx-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -o - | FileCheck %s --check-prefix CHECK --check-prefix CHECK-32
 
 // expected-no-diagnostics
 #ifndef HEADER
 #define HEADER
 
 // Check that the execution mode of all 2 target regions on the gpu is set to NonSPMD Mode.
-// CHECK-DAG: {{@__omp_offloading_.+l37}}_exec_mode = weak constant i8 0
-// CHECK-DAG: {{@__omp_offloading_.+l43}}_exec_mode = weak constant i8 0
-// CHECK-DAG: {{@__omp_offloading_.+l48}}_exec_mode = weak constant i8 0
-// CHECK-DAG: {{@__omp_offloading_.+l53}}_exec_mode = weak constant i8 0
+// CHECK-DAG: {{@__omp_offloading_.+l37}}_exec_mode = weak constant i8 2
+// CHECK-DAG: {{@__omp_offloading_.+l43}}_exec_mode = weak constant i8 2
+// CHECK-DAG: {{@__omp_offloading_.+l48}}_exec_mode = weak constant i8 2
+// CHECK-DAG: {{@__omp_offloading_.+l53}}_exec_mode = weak constant i8 2
 
 #define N 1000
 #define M 10
@@ -70,37 +70,37 @@ int bar(int n){
 }
 
 // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+}}_l37(
-// CHECK: call void @__kmpc_spmd_kernel_init(i32 %{{.+}}, i16 0)
-// CHECK: call void @__kmpc_spmd_kernel_deinit_v2(i16 0)
+// CHECK: call i32 @__kmpc_target_init({{.*}}, i8 2, i1 false, i1 true)
+// CHECK: call void @__kmpc_target_deinit({{.*}}, i8 2, i1 true)
 
-// CHECK: call void @__kmpc_for_static_init_4({{.+}}, {{.+}}, {{.+}} 91,
-// CHECK: call void @__kmpc_for_static_fini(
+// CHECK: call void @__kmpc_distribute_static_init_4({{.+}}, {{.+}}, {{.+}} 91,
+// CHECK: call void @__kmpc_distribute_static_fini(
 // CHECK: ret void
 
 // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+}}_l43(
-// CHECK: call void @__kmpc_spmd_kernel_init(i32 %{{.+}}, i16 0)
-// CHECK: call void @__kmpc_spmd_kernel_deinit_v2(i16 0)
+// CHECK: call i32 @__kmpc_target_init({{.*}}, i8 2, i1 false, i1 true)
+// CHECK: call void @__kmpc_target_deinit({{.*}}, i8 2, i1 true)
 
-// CHECK: call void @__kmpc_for_static_init_4({{.+}}, {{.+}}, {{.+}} 91,
-// CHECK: call void @__kmpc_for_static_fini(
+// CHECK: call void @__kmpc_distribute_static_init_4({{.+}}, {{.+}}, {{.+}} 91,
+// CHECK: call void @__kmpc_distribute_static_fini(
 // CHECK: ret void
 
 // CHECK-LABEL: define {{.*}}void {{@__omp_offloading_.+}}_l48(
-// CHECK: call void @__kmpc_spmd_kernel_init(i32 %{{.+}}, i16 0)
-// CHECK: call void @__kmpc_spmd_kernel_deinit_v2(i16 0)
+// CHECK: call i32 @__kmpc_target_init({{.*}}, i8 2, i1 false, i1 true)
+// CHECK: call void @__kmpc_target_deinit({{.*}}, i8 2, i1 true)
 
-// CHECK: call void @__kmpc_for_static_init_4({{.+}}, {{.+}}, {{.+}} 91,
-// CHECK: call void @__kmpc_for_static_fini(
+// CHECK: call void @__kmpc_distribute_static_init_4({{.+}}, {{.+}}, {{.+}} 91,
+// CHECK: call void @__kmpc_distribute_static_fini(
 // CHECK: ret void
 
 // CHECK: define {{.*}}void {{@__omp_offloading_.+}}_l53({{.+}}, i{{32|64}} [[F_IN:%.+]])
 // CHECK: store {{.+}} [[F_IN]], {{.+}}* {{.+}},
-// CHECK: call void @__kmpc_spmd_kernel_init(i32 %{{.+}}, i16 0)
-// CHECK: call void @__kmpc_spmd_kernel_deinit_v2(i16 0)
+// CHECK: call i32 @__kmpc_target_init({{.*}}, i8 2, i1 false, i1 true)
+// CHECK: call void @__kmpc_target_deinit({{.*}}, i8 2, i1 true)
 
 // CHECK: store {{.+}} 99, {{.+}}* [[COMB_UB:%.+]], align
-// CHECK: call void @__kmpc_for_static_init_4({{.+}}, {{.+}}, {{.+}} 91, {{.+}}, {{.+}}, {{.+}}* [[COMB_UB]],
-// CHECK: call void @__kmpc_for_static_fini(
+// CHECK: call void @__kmpc_distribute_static_init_4({{.+}}, {{.+}}, {{.+}} 91, {{.+}}, {{.+}}, {{.+}}* [[COMB_UB]],
+// CHECK: call void @__kmpc_distribute_static_fini(
 // CHECK: ret void
 
 #endif

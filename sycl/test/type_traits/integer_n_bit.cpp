@@ -7,10 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = sycl;
+namespace d = sycl::detail;
 
 template <bool... V> using bool_list = d::value_list<bool, V...>;
 
@@ -31,8 +31,8 @@ using TypeList =
                  uint64_t, s::vec<int8_t, 2>, s::vec<int16_t, 2>,
                  s::vec<int32_t, 2>, s::vec<int64_t, 2>, s::vec<uint8_t, 2>,
                  s::vec<uint16_t, 2>, s::vec<uint32_t, 2>, s::vec<uint64_t, 2>,
-                 bool, float, double, half, s::vec<float, 2>, s::vec<double, 2>,
-                 s::vec<half, 2>>;
+                 bool, float, double, s::half, s::vec<float, 2>,
+                 s::vec<double, 2>, s::vec<s::half, 2>>;
 
 int main() {
   check<d::is_igeninteger8bit, TypeList,

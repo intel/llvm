@@ -17,18 +17,20 @@
 #include "Plugins/ExpressionParser/Clang/ClangASTMetadata.h"
 #include "Plugins/ExpressionParser/Clang/ClangUtil.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
+#include "lldb/Core/Declaration.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Symbol/Declaration.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/TypeMap.h"
 #include "lldb/Symbol/TypeSystem.h"
-
+#include "lldb/Utility/LLDBLog.h"
+#include "llvm/DebugInfo/PDB/ConcreteSymbolEnumerator.h"
 #include "llvm/DebugInfo/PDB/IPDBLineNumber.h"
 #include "llvm/DebugInfo/PDB/IPDBSourceFile.h"
 #include "llvm/DebugInfo/PDB/PDBSymbol.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolData.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolFunc.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeArray.h"
+#include "llvm/DebugInfo/PDB/PDBSymbolTypeBaseClass.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeBuiltin.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeEnum.h"
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeFunctionArg.h"
@@ -355,7 +357,7 @@ static clang::CallingConv TranslateCallingConvention(PDB_CallingConv pdb_cc) {
 
 PDBASTParser::PDBASTParser(lldb_private::TypeSystemClang &ast) : m_ast(ast) {}
 
-PDBASTParser::~PDBASTParser() {}
+PDBASTParser::~PDBASTParser() = default;
 
 // DebugInfoASTParser interface
 
@@ -497,7 +499,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       // Class). Set it false for now.
       bool isScoped = false;
 
-      ast_enum = m_ast.CreateEnumerationType(name.c_str(), decl_context,
+      ast_enum = m_ast.CreateEnumerationType(name, decl_context,
                                              OptionalClangModuleID(), decl,
                                              builtin_type, isScoped);
 
@@ -534,8 +536,12 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
     auto type_def = llvm::dyn_cast<PDBSymbolTypeTypedef>(&type);
     assert(type_def);
 
+    SymbolFile *symbol_file = m_ast.GetSymbolFile();
+    if (!symbol_file)
+      return nullptr;
+
     lldb_private::Type *target_type =
-        m_ast.GetSymbolFile()->ResolveTypeUID(type_def->getTypeId());
+        symbol_file->ResolveTypeUID(type_def->getTypeId());
     if (!target_type)
       return nullptr;
 
@@ -609,8 +615,13 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       auto arg = arg_enum->getChildAtIndex(arg_idx);
       if (!arg)
         break;
+
+      SymbolFile *symbol_file = m_ast.GetSymbolFile();
+      if (!symbol_file)
+        return nullptr;
+
       lldb_private::Type *arg_type =
-          m_ast.GetSymbolFile()->ResolveTypeUID(arg->getSymIndexId());
+          symbol_file->ResolveTypeUID(arg->getSymIndexId());
       // If there's some error looking up one of the dependent types of this
       // function signature, bail.
       if (!arg_type)
@@ -621,8 +632,12 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
     lldbassert(arg_list.size() <= num_args);
 
     auto pdb_return_type = func_sig->getReturnType();
+    SymbolFile *symbol_file = m_ast.GetSymbolFile();
+    if (!symbol_file)
+      return nullptr;
+
     lldb_private::Type *return_type =
-        m_ast.GetSymbolFile()->ResolveTypeUID(pdb_return_type->getSymIndexId());
+        symbol_file->ResolveTypeUID(pdb_return_type->getSymIndexId());
     // If there's some error looking up one of the dependent types of this
     // function signature, bail.
     if (!return_type)
@@ -654,10 +669,13 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
     if (uint64_t size = array_type->getLength())
       bytes = size;
 
+    SymbolFile *symbol_file = m_ast.GetSymbolFile();
+    if (!symbol_file)
+      return nullptr;
+
     // If array rank > 0, PDB gives the element type at N=0. So element type
     // will parsed in the order N=0, N=1,..., N=rank sequentially.
-    lldb_private::Type *element_type =
-        m_ast.GetSymbolFile()->ResolveTypeUID(element_uid);
+    lldb_private::Type *element_type = symbol_file->ResolveTypeUID(element_uid);
     if (!element_type)
       return nullptr;
 
@@ -668,7 +686,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       if (TypeSystemClang::StartTagDeclarationDefinition(element_ast_type)) {
         TypeSystemClang::CompleteTagDeclarationDefinition(element_ast_type);
       } else {
-        // We are not able to start defintion.
+        // We are not able to start definition.
         return nullptr;
       }
     }
@@ -693,7 +711,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       bytes = size;
     Encoding encoding = TranslateBuiltinEncoding(builtin_kind);
     CompilerType builtin_ast_type = GetBuiltinTypeForPDBEncodingAndBitSize(
-        m_ast, *builtin_type, encoding, bytes.getValueOr(0) * 8);
+        m_ast, *builtin_type, encoding, bytes.value_or(0) * 8);
 
     if (builtin_type->isConstType())
       builtin_ast_type = builtin_ast_type.AddConstModifier();
@@ -711,7 +729,12 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
   case PDB_SymType::PointerType: {
     auto *pointer_type = llvm::dyn_cast<PDBSymbolTypePointer>(&type);
     assert(pointer_type);
-    Type *pointee_type = m_ast.GetSymbolFile()->ResolveTypeUID(
+
+    SymbolFile *symbol_file = m_ast.GetSymbolFile();
+    if (!symbol_file)
+      return nullptr;
+
+    Type *pointee_type = symbol_file->ResolveTypeUID(
         pointer_type->getPointeeType()->getSymIndexId());
     if (!pointee_type)
       return nullptr;
@@ -719,8 +742,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
     if (pointer_type->isPointerToDataMember() ||
         pointer_type->isPointerToMemberFunction()) {
       auto class_parent_uid = pointer_type->getRawSymbol().getClassParentId();
-      auto class_parent_type =
-          m_ast.GetSymbolFile()->ResolveTypeUID(class_parent_uid);
+      auto class_parent_type = symbol_file->ResolveTypeUID(class_parent_uid);
       assert(class_parent_type);
 
       CompilerType pointer_ast_type;
@@ -779,7 +801,8 @@ bool PDBASTParser::CompleteTypeFromPDB(
   if (uid_it == m_forward_decl_to_uid.end())
     return true;
 
-  auto symbol_file = static_cast<SymbolFilePDB *>(m_ast.GetSymbolFile());
+  auto symbol_file = static_cast<SymbolFilePDB *>(
+      m_ast.GetSymbolFile()->GetBackingSymbolFile());
   if (!symbol_file)
     return false;
 
@@ -813,7 +836,8 @@ PDBASTParser::GetDeclForSymbol(const llvm::pdb::PDBSymbol &symbol) {
   if (it != m_uid_to_decl.end())
     return it->second;
 
-  auto symbol_file = static_cast<SymbolFilePDB *>(m_ast.GetSymbolFile());
+  auto symbol_file = static_cast<SymbolFilePDB *>(
+      m_ast.GetSymbolFile()->GetBackingSymbolFile());
   if (!symbol_file)
     return nullptr;
 
@@ -950,7 +974,7 @@ PDBASTParser::GetDeclForSymbol(const llvm::pdb::PDBSymbol &symbol) {
       }
     }
     if (params.size())
-      m_ast.SetFunctionParameters(decl, params.data(), params.size());
+      m_ast.SetFunctionParameters(decl, params);
 
     m_uid_to_decl[sym_id] = decl;
 
@@ -979,7 +1003,8 @@ PDBASTParser::GetDeclContextForSymbol(const llvm::pdb::PDBSymbol &symbol) {
     return result;
   }
 
-  auto symbol_file = static_cast<SymbolFilePDB *>(m_ast.GetSymbolFile());
+  auto symbol_file = static_cast<SymbolFilePDB *>(
+      m_ast.GetSymbolFile()->GetBackingSymbolFile());
   if (!symbol_file)
     return nullptr;
 
@@ -1019,7 +1044,8 @@ clang::DeclContext *PDBASTParser::GetDeclContextContainingSymbol(
   if (specs.empty())
     return m_ast.GetTranslationUnitDecl();
 
-  auto symbol_file = static_cast<SymbolFilePDB *>(m_ast.GetSymbolFile());
+  auto symbol_file = static_cast<SymbolFilePDB *>(
+      m_ast.GetSymbolFile()->GetBackingSymbolFile());
   if (!symbol_file)
     return m_ast.GetTranslationUnitDecl();
 
@@ -1072,7 +1098,8 @@ clang::DeclContext *PDBASTParser::GetDeclContextContainingSymbol(
 
 void PDBASTParser::ParseDeclsForDeclContext(
     const clang::DeclContext *decl_context) {
-  auto symbol_file = static_cast<SymbolFilePDB *>(m_ast.GetSymbolFile());
+  auto symbol_file = static_cast<SymbolFilePDB *>(
+      m_ast.GetSymbolFile()->GetBackingSymbolFile());
   if (!symbol_file)
     return;
 
@@ -1278,7 +1305,7 @@ void PDBASTParser::AddRecordMembers(
             TypeSystemClang::SetIntegerInitializerForVariable(
                 decl, value.toAPSInt().extOrTrunc(type_width));
           } else {
-            LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_AST),
+            LLDB_LOG(GetLog(LLDBLog::AST),
                      "Class '{0}' has a member '{1}' of type '{2}' ({3} bits) "
                      "which resolves to a wider constant value ({4} bits). "
                      "Ignoring constant.",
@@ -1296,7 +1323,7 @@ void PDBASTParser::AddRecordMembers(
                   decl, value.toAPFloat());
               decl->setConstexpr(true);
             } else {
-              LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_AST),
+              LLDB_LOG(GetLog(LLDBLog::AST),
                        "Class '{0}' has a member '{1}' of type '{2}' ({3} "
                        "bits) which resolves to a constant value of mismatched "
                        "width ({4} bits). Ignoring constant.",

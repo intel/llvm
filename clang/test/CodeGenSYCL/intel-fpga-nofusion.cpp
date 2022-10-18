@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-is-device -internal-isystem %S/Inputs -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -internal-isystem %S/Inputs -emit-llvm %s -o - | FileCheck %s
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 void nofusion() {

@@ -1,9 +1,9 @@
 // ParamTLS has limited size. Everything that does not fit is considered fully
 // initialized.
 
-// RUN: %clangxx_msan -O0 %s -o %t && %run %t
-// RUN: %clangxx_msan -fsanitize-memory-track-origins -O0 %s -o %t && %run %t
-// RUN: %clangxx_msan -fsanitize-memory-track-origins=2 -O0 %s -o %t && %run %t
+// RUN: %clangxx_msan -fno-sanitize-memory-param-retval -O0 %s -o %t && %run %t
+// RUN: %clangxx_msan -fno-sanitize-memory-param-retval -fsanitize-memory-track-origins -O0 %s -o %t && %run %t
+// RUN: %clangxx_msan -fno-sanitize-memory-param-retval -fsanitize-memory-track-origins=2 -O0 %s -o %t && %run %t
 //
 // AArch64 fails with:
 // void f801(S<801>): Assertion `__msan_test_shadow(&s, sizeof(s)) == -1' failed
@@ -27,7 +27,7 @@
 #define NO_OVERFLOW(x) assert(__msan_test_shadow(&x, sizeof(x)) == 0)
 
 #if defined(__x86_64__)
-// In x86_64, if argument is partially outside tls, it is considered completly
+// In x86_64, if argument is partially outside tls, it is considered completely
 // unpoisoned
 #define PARTIAL_OVERFLOW(x) OVERFLOW(x)
 #else

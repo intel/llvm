@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Check for semantic errors in NULLIFY statements
 
 INTEGER, PARAMETER :: maxvalue=1024
@@ -22,10 +22,10 @@ Nullify(x(2)%p)
 !ERROR: name in NULLIFY statement must have the POINTER attribute
 Nullify(pi)
 
-!ERROR: name in NULLIFY statement must have the POINTER attribute
+!ERROR: name in NULLIFY statement must be a variable or procedure pointer
 Nullify(prp)
 
-!ERROR: name in NULLIFY statement must be a variable or procedure pointer name
+!ERROR: name in NULLIFY statement must be a variable or procedure pointer
 Nullify(maxvalue)
 
 End Program
@@ -34,16 +34,18 @@ End Program
 ! that has reported errors
 module badNullify
   interface
-    module function ptrFun()
+    function ptrFun()
       integer, pointer :: ptrFun
     end function
   end interface
 contains
   !ERROR: 'ptrfun' was not declared a separate module procedure
+  !ERROR: 'ptrfun' is already declared in this scoping unit
   module function ptrFun()
     integer, pointer :: ptrFun
     real :: realVar
     nullify(ptrFun)
+    !ERROR: name in NULLIFY statement must have the POINTER attribute
     nullify(realVar)
   end function
 end module

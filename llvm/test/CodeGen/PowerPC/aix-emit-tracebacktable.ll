@@ -133,8 +133,15 @@ entry:
   ret double %add10
 }
 
+define i32 @foo(i32 %i1, i32 %i2, i32 %i3, i32 %i4, i32 %i5, i32 %i6, i32 %i7, float %f1, float %f2, float %f3, float %f4, float %f5, float %f6, float %f7, float %f8, float %f9, float %f10, float %f11, float %f12, float %f13, float %f14, i32 %i8) {
+entry:
+  %i1.addr = alloca i32, align 4
+  store i32 %i1, i32* %i1.addr, align 4
+  ret i32 %i1
+}
+
 ; CHECK-ASM-LABEL:  ._Z10add_structifd1SP2SD1Di:{{[[:space:]] *}}# %bb.0:
-; CHECK-FUNC-LABEL: csect ._Z10add_structifd1SP2SD1Di[PR],2{{[[:space:]] *}}# %bb.0:
+; CHECK-FUNC-LABEL: csect ._Z10add_structifd1SP2SD1Di[PR],5{{[[:space:]] *}}# %bb.0:
 ; COMMON-NEXT:   lwz 4, L..C0(2)
 ; COMMON-NEXT:   stfs 1, -24(1)
 ; COMMON-NEXT:   lfs 0, 0(4)
@@ -155,19 +162,19 @@ entry:
 ; COMMON-NEXT:  .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; COMMON-NEXT:                                        # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
 ; COMMON-NEXT:  .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
-; COMMON-NEXT:  .byte   0x00                            # -HasVectorInfo, -HasExtensionTable, NumOfGPRsSaved = 0
+; COMMON-NEXT:  .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; COMMON-NEXT:  .byte   0x05                            # NumberOfFixedParms = 5
 ; COMMON-NEXT:  .byte   0x05                            # NumberOfFPParms = 2, +HasParmsOnStack
 ; COMMON-NEXT:  .vbyte  4, 0x58000000                   # Parameter type = i, f, d, i, i, i, i
 ; CHECK-ASM-NEXT:   .vbyte  4, L.._Z10add_structifd1SP2SD1Di0-._Z10add_structifd1SP2SD1Di # Function size
 ; CHECK-FUNC-NEXT:   .vbyte  4, L.._Z10add_structifd1SP2SD1Di0-._Z10add_structifd1SP2SD1Di[PR] # Function size
 ; COMMON-NEXT:  .vbyte  2, 0x001a                       # Function name len = 26
-; COMMON-NEXT:  .byte   '_,'Z,'1,'0,'a,'d,'d,'_,'s,'t,'r,'u,'c,'t,'i,'f,'d,'1,'S,'P,'2,'S,'D,'1,'D,'i # Function Name
+; COMMON-NEXT:  .byte   "_Z10add_structifd1SP2SD1Di"    # Function Name
 ; COMMON-NEXT:                                        # -- End function
 
 
 ; CHECK-ASM-LABEL:     .main:{{[[:space:]] *}}# %bb.0:
-; CHECK-FUNC-LABEL:   .csect .main[PR],2{{[[:space:]] *}}# %bb.0
+; CHECK-FUNC-LABEL:    .csect .main[PR],5{{[[:space:]] *}}# %bb.0
 ; COMMON-NEXT:   mflr 0
 ; COMMON-NEXT:   stw 0, 8(1)
 ; COMMON:        mtlr 0
@@ -184,18 +191,18 @@ entry:
 ; COMMON-NEXT:  .byte   0x41                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; COMMON-NEXT:                                        # OnConditionDirective = 0, -IsCRSaved, +IsLRSaved
 ; COMMON-NEXT:  .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
-; COMMON-NEXT:  .byte   0x00                            # -HasVectorInfo, -HasExtensionTable, NumOfGPRsSaved = 0
+; COMMON-NEXT:  .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; COMMON-NEXT:  .byte   0x00                            # NumberOfFixedParms = 0
 ; COMMON-NEXT:  .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack
 ; CHECK-ASM-NEXT:   .vbyte  4, L..main0-.main               # Function size
 ; CHECK-FUNC-NEXT:   .vbyte  4, L..main0-.main[PR]               # Function size
 ; COMMON-NEXT:  .vbyte  2, 0x0004                       # Function name len = 4
-; COMMON-NEXT:  .byte   'm,'a,'i,'n                     # Function Name
+; COMMON-NEXT:  .byte   "main"                        # Function Name
 ; COMMON-NEXT:                                        # -- End function
 
 
 ; CHECK-ASM-LABEL:    ._Z7add_bari1SfdP2SD1Di:{{[[:space:]] *}}# %bb.0:
-; CHECK-FUNC-LABEL:   .csect ._Z7add_bari1SfdP2SD1Di[PR],2{{[[:space:]] *}}# %bb.0:
+; CHECK-FUNC-LABEL:   .csect ._Z7add_bari1SfdP2SD1Di[PR],5{{[[:space:]] *}}# %bb.0:
 ; COMMON:       .vbyte  4, 0x00000000                   # Traceback table begin
 ; COMMON-NEXT:  .byte   0x00                            # Version = 0
 ; COMMON-NEXT:  .byte   0x09                            # Language = CPlusPlus
@@ -207,12 +214,39 @@ entry:
 ; COMMON-NEXT:  .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; COMMON-NEXT:                                        # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
 ; COMMON-NEXT:  .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
-; COMMON-NEXT:  .byte   0x00                            # -HasVectorInfo, -HasExtensionTable, NumOfGPRsSaved = 0
+; COMMON-NEXT:  .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; COMMON-NEXT:  .byte   0x05                            # NumberOfFixedParms = 5
 ; COMMON-NEXT:  .byte   0x05                            # NumberOfFPParms = 2, +HasParmsOnStack
 ; COMMON-NEXT:  .vbyte  4, 0x16000000                   # Parameter type = i, i, i, f, d, i, i
 ; CHECK-ASM-NEXT:  .vbyte  4, L.._Z7add_bari1SfdP2SD1Di0-._Z7add_bari1SfdP2SD1Di # Function size
 ; CHECK-FUNC-NEXT:  .vbyte  4, L.._Z7add_bari1SfdP2SD1Di0-._Z7add_bari1SfdP2SD1Di[PR] # Function size
 ; COMMON-NEXT:  .vbyte  2, 0x0016                       # Function name len = 22
-; COMMON-NEXT:  .byte   '_,'Z,'7,'a,'d,'d,'_,'b,'a,'r,'i,'1,'S,'f,'d,'P,'2,'S,'D,'1,'D,'i # Function Name
+; COMMON-NEXT:  .byte   "_Z7add_bari1SfdP2SD1Di"        # Function Name
+; COMMON-NEXT:                                        # -- End function
+
+
+; CHECK-ASM-LABEL:    .foo:{{[[:space:]] *}}# %bb.0:
+; CHECK-FUNC-LABEL:   .csect .foo[PR],5{{[[:space:]] *}}# %bb.0:
+; COMMON:       stw 3, -4(1)
+; COMMON-NEXT:  blr
+; COMMON-NEXT:L..foo0:
+; COMMON-NEXT:  .vbyte  4, 0x00000000                   # Traceback table begin
+; COMMON-NEXT:  .byte   0x00                            # Version = 0
+; COMMON-NEXT:  .byte   0x09                            # Language = CPlusPlus
+; COMMON-NEXT:  .byte   0x20                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
+; COMMON-NEXT:                                        # +HasTraceBackTableOffset, -IsInternalProcedure
+; COMMON-NEXT:                                        # -HasControlledStorage, -IsTOCless
+; COMMON-NEXT:                                        # -IsFloatingPointPresent
+; COMMON-NEXT:                                        # -IsFloatingPointOperationLogOrAbortEnabled
+; COMMON-NEXT:  .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
+; COMMON-NEXT:                                        # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
+; COMMON-NEXT:  .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
+; COMMON-NEXT:  .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
+; COMMON-NEXT:  .byte   0x07                            # NumberOfFixedParms = 7
+; COMMON-NEXT:  .byte   0x1b                            # NumberOfFPParms = 13, +HasParmsOnStack
+; COMMON-NEXT:  .vbyte  4, 0x01555554                   # Parameter type = i, i, i, i, i, i, i, f, f, f, f, f, f, f, f, f, f, f, f, ...
+; CHECK-ASM-NEXT:  .vbyte  4, L..foo0-.foo                 # Function size
+; CHECK-FUNC-NEXT: .vbyte  4, L..foo0-.foo[PR]                 # Function size
+; COMMON-NEXT:  .vbyte  2, 0x0003                       # Function name len = 3
+; COMMON-NEXT:  .byte   "foo"                           # Function Name
 ; COMMON-NEXT:                                        # -- End function

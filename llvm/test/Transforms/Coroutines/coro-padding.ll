@@ -1,13 +1,12 @@
 ; Check that we will insert the correct padding if natural alignment of the
 ; spilled data does not match the alignment specified in alloca instruction.
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 %PackedStruct = type <{ i64 }>
 
 declare void @consume(%PackedStruct*)
 
-define i8* @f() "coroutine.presplit"="1" {
+define i8* @f() presplitcoroutine {
 entry:
   %data = alloca %PackedStruct, align 32
   %id = call token @llvm.coro.id(i32 0, i8* null, i8* null, i8* null)

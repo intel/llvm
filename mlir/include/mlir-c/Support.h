@@ -22,9 +22,17 @@
 //===----------------------------------------------------------------------===//
 // Visibility annotations.
 // Use MLIR_CAPI_EXPORTED for exported functions.
+//
+// On Windows, if MLIR_CAPI_ENABLE_WINDOWS_DLL_DECLSPEC is defined, then
+// __declspec(dllexport) and __declspec(dllimport) will be generated. This
+// can only be enabled if actually building DLLs. It is generally, mutually
+// exclusive with the use of other mechanisms for managing imports/exports
+// (i.e. CMake's WINDOWS_EXPORT_ALL_SYMBOLS feature).
 //===----------------------------------------------------------------------===//
 
-#if defined(MLIR_CAPI_DISABLE_VISIBILITY_ANNOTATIONS)
+#if (defined(_WIN32) || defined(__CYGWIN__)) &&                                \
+    !defined(MLIR_CAPI_ENABLE_WINDOWS_DLL_DECLSPEC)
+// Visibility annotations disabled.
 #define MLIR_CAPI_EXPORTED
 #elif defined(_WIN32) || defined(__CYGWIN__)
 // Windows visibility declarations.
@@ -41,6 +49,17 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define DEFINE_C_API_STRUCT(name, storage)                                     \
+  struct name {                                                                \
+    storage *ptr;                                                              \
+  };                                                                           \
+  typedef struct name name
+
+DEFINE_C_API_STRUCT(MlirTypeID, const void);
+DEFINE_C_API_STRUCT(MlirTypeIDAllocator, void);
+
+#undef DEFINE_C_API_STRUCT
 
 //===----------------------------------------------------------------------===//
 // MlirStringRef.
@@ -70,6 +89,10 @@ inline static MlirStringRef mlirStringRefCreate(const char *str,
 /// mlirStringRefCreate if the length of the string is known.
 MLIR_CAPI_EXPORTED MlirStringRef
 mlirStringRefCreateFromCString(const char *str);
+
+/// Returns true if two string references are equal, false otherwise.
+MLIR_CAPI_EXPORTED bool mlirStringRefEqual(MlirStringRef string,
+                                           MlirStringRef other);
 
 /// A callback for returning string references.
 ///
@@ -114,6 +137,38 @@ inline static MlirLogicalResult mlirLogicalResultFailure() {
   MlirLogicalResult res = {0};
   return res;
 }
+
+//===----------------------------------------------------------------------===//
+// TypeID API.
+//===----------------------------------------------------------------------===//
+
+/// `ptr` must be 8 byte aligned and unique to a type valid for the duration of
+/// the returned type id's usage
+MLIR_CAPI_EXPORTED MlirTypeID mlirTypeIDCreate(const void *ptr);
+
+/// Checks whether a type id is null.
+static inline bool mlirTypeIDIsNull(MlirTypeID typeID) { return !typeID.ptr; }
+
+/// Checks if two type ids are equal.
+MLIR_CAPI_EXPORTED bool mlirTypeIDEqual(MlirTypeID typeID1, MlirTypeID typeID2);
+
+/// Returns the hash value of the type id.
+MLIR_CAPI_EXPORTED size_t mlirTypeIDHashValue(MlirTypeID typeID);
+
+//===----------------------------------------------------------------------===//
+// TypeIDAllocator API.
+//===----------------------------------------------------------------------===//
+
+/// Creates a type id allocator for dynamic type id creation
+MLIR_CAPI_EXPORTED MlirTypeIDAllocator mlirTypeIDAllocatorCreate();
+
+/// Deallocates the allocator and all allocated type ids
+MLIR_CAPI_EXPORTED void
+mlirTypeIDAllocatorDestroy(MlirTypeIDAllocator allocator);
+
+/// Allocates a type id that is valid for the lifetime of the allocator
+MLIR_CAPI_EXPORTED MlirTypeID
+mlirTypeIDAllocatorAllocateTypeID(MlirTypeIDAllocator allocator);
 
 #ifdef __cplusplus
 }

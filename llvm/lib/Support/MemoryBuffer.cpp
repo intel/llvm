@@ -14,15 +14,14 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Config/config.h"
 #include "llvm/Support/Errc.h"
-#include "llvm/Support/Errno.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SmallVectorMemoryBuffer.h"
 #include <cassert>
-#include <cerrno>
 #include <cstring>
 #include <new>
 #include <sys/types.h>
@@ -32,13 +31,17 @@
 #else
 #include <io.h>
 #endif
+
+#ifdef __MVS__
+#include "llvm/Support/AutoConvert.h"
+#endif
 using namespace llvm;
 
 //===----------------------------------------------------------------------===//
 // MemoryBuffer implementation itself.
 //===----------------------------------------------------------------------===//
 
-MemoryBuffer::~MemoryBuffer() { }
+MemoryBuffer::~MemoryBuffer() = default;
 
 /// init - Initialize this MemoryBuffer as a reference to externally allocated
 /// memory, memory that we know is already null terminated.
@@ -219,25 +222,16 @@ public:
   MemoryBuffer::BufferKind getBufferKind() const override {
     return MemoryBuffer::MemoryBuffer_MMap;
   }
+
+  void dontNeedIfMmap() override { MFR.dontNeed(); }
 };
 } // namespace
 
 static ErrorOr<std::unique_ptr<WritableMemoryBuffer>>
 getMemoryBufferForStream(sys::fs::file_t FD, const Twine &BufferName) {
-  const ssize_t ChunkSize = 4096*4;
-  SmallString<ChunkSize> Buffer;
-  // Read into Buffer until we hit EOF.
-  for (;;) {
-    Buffer.reserve(Buffer.size() + ChunkSize);
-    Expected<size_t> ReadBytes = sys::fs::readNativeFile(
-        FD, makeMutableArrayRef(Buffer.end(), ChunkSize));
-    if (!ReadBytes)
-      return errorToErrorCode(ReadBytes.takeError());
-    if (*ReadBytes == 0)
-      break;
-    Buffer.set_size(Buffer.size() + *ReadBytes);
-  }
-
+  SmallString<sys::fs::DefaultReadChunkSize> Buffer;
+  if (Error E = sys::fs::readNativeFileToEOF(FD, Buffer))
+    return errorToErrorCode(std::move(E));
   return getMemBufferCopyImpl(Buffer, BufferName);
 }
 
@@ -259,7 +253,7 @@ static ErrorOr<std::unique_ptr<MB>>
 getFileAux(const Twine &Filename, uint64_t MapSize, uint64_t Offset,
            bool IsText, bool RequiresNullTerminator, bool IsVolatile) {
   Expected<sys::fs::file_t> FDOrErr = sys::fs::openNativeFileForRead(
-      Filename, IsText ? sys::fs::OF_Text : sys::fs::OF_None);
+      Filename, IsText ? sys::fs::OF_TextWithCRLF : sys::fs::OF_None);
   if (!FDOrErr)
     return errorToErrorCode(FDOrErr.takeError());
   sys::fs::file_t FD = *FDOrErr;
@@ -295,6 +289,8 @@ WritableMemoryBuffer::getNewUninitMemBuffer(size_t Size, const Twine &BufferName
   StringRef NameRef = BufferName.toStringRef(NameBuf);
   size_t AlignedStringLen = alignTo(sizeof(MemBuffer) + NameRef.size() + 1, 16);
   size_t RealLen = AlignedStringLen + Size + 1;
+  if (RealLen <= Size) // Check for rollover.
+    return nullptr;
   char *Mem = static_cast<char*>(operator new(RealLen, std::nothrow));
   if (!Mem)
     return nullptr;
@@ -467,6 +463,12 @@ getOpenFileImpl(sys::fs::file_t FD, const Twine &Filename, uint64_t FileSize,
       return std::move(Result);
   }
 
+#ifdef __MVS__
+  // Set codepage auto-conversion for z/OS.
+  if (auto EC = llvm::enableAutoConversion(FD))
+    return EC;
+#endif
+
   auto Buf = WritableMemoryBuffer::getNewUninitMemBuffer(MapSize, Filename);
   if (!Buf) {
     // Failed to create a buffer. The only way it can fail is if
@@ -512,7 +514,7 @@ ErrorOr<std::unique_ptr<MemoryBuffer>> MemoryBuffer::getSTDIN() {
   //
   // FIXME: That isn't necessarily true, we should try to mmap stdin and
   // fallback if it fails.
-  sys::ChangeStdinToBinary();
+  sys::ChangeStdinMode(sys::fs::OF_Text);
 
   return getMemoryBufferForStream(sys::fs::getStdinHandle(), "<stdin>");
 }
@@ -536,4 +538,4 @@ MemoryBufferRef MemoryBuffer::getMemBufferRef() const {
   return MemoryBufferRef(Data, Identifier);
 }
 
-SmallVectorMemoryBuffer::~SmallVectorMemoryBuffer() {}
+SmallVectorMemoryBuffer::~SmallVectorMemoryBuffer() = default;

@@ -28,9 +28,10 @@ struct IndexingOptions {
       SystemSymbolFilterKind::DeclarationsOnly;
   bool IndexFunctionLocals = false;
   bool IndexImplicitInstantiation = false;
-  // Whether to index macro definitions in the Preprocesor when preprocessor
+  bool IndexMacros = true;
+  // Whether to index macro definitions in the Preprocessor when preprocessor
   // callback is not available (e.g. after parsing has finished). Note that
-  // macro references are not available in Proprocessor.
+  // macro references are not available in Preprocessor.
   bool IndexMacrosInPreprocessor = false;
   // Has no effect if IndexFunctionLocals are false.
   bool IndexParametersInDeclarations = false;

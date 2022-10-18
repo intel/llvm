@@ -61,6 +61,7 @@ public:
     UndefinedKind,
     LazyArchiveKind,
     LazyObjectKind,
+    LazyDLLSymbolKind,
 
     LastDefinedCOFFKind = DefinedCommonKind,
     LastDefinedKind = DefinedSyntheticKind,
@@ -92,7 +93,8 @@ public:
   bool isLive() const;
 
   bool isLazy() const {
-    return symbolKind == LazyArchiveKind || symbolKind == LazyObjectKind;
+    return symbolKind == LazyArchiveKind || symbolKind == LazyObjectKind ||
+           symbolKind == LazyDLLSymbolKind;
   }
 
 private:
@@ -104,7 +106,11 @@ protected:
       : symbolKind(k), isExternal(true), isCOMDAT(false),
         writtenToSymtab(false), pendingArchiveLoad(false), isGCRoot(false),
         isRuntimePseudoReloc(false), deferUndefined(false), canInline(true),
-        nameSize(n.size()), nameData(n.empty() ? nullptr : n.data()) {}
+        isWeak(false), nameSize(n.size()),
+        nameData(n.empty() ? nullptr : n.data()) {
+    assert((!n.empty() || k <= LastDefinedCOFFKind) &&
+           "If the name is empty, the Symbol must be a DefinedCOFF.");
+  }
 
   const unsigned symbolKind : 8;
   unsigned isExternal : 1;
@@ -139,6 +145,11 @@ public:
   // is overwritten after LTO, LTO shouldn't inline the symbol because it
   // doesn't know the final contents of the symbol.
   unsigned canInline : 1;
+
+  // True if the symbol is weak. This is only tracked for bitcode/LTO symbols.
+  // This information isn't written to the output; rather, it's used for
+  // managing weak symbol overrides.
+  unsigned isWeak : 1;
 
 protected:
   // Symbol name length. Assume symbol lengths fit in a 32-bit integer.
@@ -195,10 +206,11 @@ public:
   DefinedRegular(InputFile *f, StringRef n, bool isCOMDAT,
                  bool isExternal = false,
                  const coff_symbol_generic *s = nullptr,
-                 SectionChunk *c = nullptr)
+                 SectionChunk *c = nullptr, bool isWeak = false)
       : DefinedCOFF(DefinedRegularKind, f, n, s), data(c ? &c->repl : nullptr) {
     this->isExternal = isExternal;
     this->isCOMDAT = isCOMDAT;
+    this->isWeak = isWeak;
   }
 
   static bool classof(const Symbol *s) {
@@ -303,10 +315,22 @@ public:
 
 class LazyObject : public Symbol {
 public:
-  LazyObject(LazyObjFile *f, StringRef n)
-      : Symbol(LazyObjectKind, n), file(f) {}
+  LazyObject(InputFile *f, StringRef n) : Symbol(LazyObjectKind, n), file(f) {}
   static bool classof(const Symbol *s) { return s->kind() == LazyObjectKind; }
-  LazyObjFile *file;
+  InputFile *file;
+};
+
+// MinGW only.
+class LazyDLLSymbol : public Symbol {
+public:
+  LazyDLLSymbol(DLLFile *f, DLLFile::Symbol *s, StringRef n)
+      : Symbol(LazyDLLSymbolKind, n), file(f), sym(s) {}
+  static bool classof(const Symbol *s) {
+    return s->kind() == LazyDLLSymbolKind;
+  }
+
+  DLLFile *file;
+  DLLFile::Symbol *sym;
 };
 
 // Undefined symbols.
@@ -423,6 +447,7 @@ inline uint64_t Defined::getRVA() {
     return cast<DefinedRegular>(this)->getRVA();
   case LazyArchiveKind:
   case LazyObjectKind:
+  case LazyDLLSymbolKind:
   case UndefinedKind:
     llvm_unreachable("Cannot get the address for an undefined symbol.");
   }
@@ -447,6 +472,7 @@ inline Chunk *Defined::getChunk() {
     return cast<DefinedCommon>(this)->getChunk();
   case LazyArchiveKind:
   case LazyObjectKind:
+  case LazyDLLSymbolKind:
   case UndefinedKind:
     llvm_unreachable("Cannot get the chunk of an undefined symbol.");
   }
@@ -467,6 +493,7 @@ union SymbolUnion {
   alignas(DefinedImportThunk) char h[sizeof(DefinedImportThunk)];
   alignas(DefinedLocalImport) char i[sizeof(DefinedLocalImport)];
   alignas(LazyObject) char j[sizeof(LazyObject)];
+  alignas(LazyDLLSymbol) char k[sizeof(LazyDLLSymbol)];
 };
 
 template <typename T, typename... ArgT>

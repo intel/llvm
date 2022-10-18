@@ -1,26 +1,17 @@
+function(link_llvm_libs target)
+  foreach(LIB ${ARGN})
+    target_include_directories(${target} SYSTEM PRIVATE ${LLVM_MAIN_INCLUDE_DIR})
+    target_link_libraries(${target} PRIVATE ${LIB})
+  endforeach()
+endfunction()
+
 add_subdirectory(sycl-ls)
 
-# TODO: move each tool in its own sub-directory
-add_executable(get_device_count_by_type get_device_count_by_type.cpp)
-add_dependencies(get_device_count_by_type ocl-headers ocl-icd level-zero-loader)
-
-if(MSVC)
-  set(LEVEL_ZERO_LIBRARY
-    "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}ze_loader${CMAKE_STATIC_LIBRARY_SUFFIX}")
-else()
-  set(LEVEL_ZERO_LIBRARY
-    "${LLVM_LIBRARY_OUTPUT_INTDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}ze_loader${CMAKE_SHARED_LIBRARY_SUFFIX}")
+if (SYCL_ENABLE_XPTI_TRACING)
+  if (UNIX)
+    add_subdirectory(sycl-prof)
+    add_subdirectory(sycl-trace)
+    add_subdirectory(sycl-sanitize)
+  endif()
 endif()
 
-target_link_libraries(get_device_count_by_type
-  PRIVATE
-    OpenCL::Headers
-    LevelZeroLoader::Headers
-    ${OpenCL_LIBRARIES}
-    ${LEVEL_ZERO_LIBRARY}
-    $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cudadrv>
-)
-target_compile_definitions(get_device_count_by_type
-  PRIVATE
-    $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
-)

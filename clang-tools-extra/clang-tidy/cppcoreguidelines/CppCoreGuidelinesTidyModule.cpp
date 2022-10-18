@@ -14,6 +14,7 @@
 #include "../modernize/AvoidCArraysCheck.h"
 #include "../modernize/UseOverrideCheck.h"
 #include "../readability/MagicNumbersCheck.h"
+#include "AvoidConstOrRefDataMembersCheck.h"
 #include "AvoidGotoCheck.h"
 #include "AvoidNonConstGlobalVariablesCheck.h"
 #include "InitVariablesCheck.h"
@@ -35,6 +36,7 @@
 #include "ProTypeVarargCheck.h"
 #include "SlicingCheck.h"
 #include "SpecialMemberFunctionsCheck.h"
+#include "VirtualClassDestructorCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -46,6 +48,8 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<modernize::AvoidCArraysCheck>(
         "cppcoreguidelines-avoid-c-arrays");
+    CheckFactories.registerCheck<AvoidConstOrRefDataMembersCheck>(
+        "cppcoreguidelines-avoid-const-or-ref-data-members");
     CheckFactories.registerCheck<AvoidGotoCheck>(
         "cppcoreguidelines-avoid-goto");
     CheckFactories.registerCheck<readability::MagicNumbersCheck>(
@@ -94,6 +98,8 @@ public:
     CheckFactories.registerCheck<SlicingCheck>("cppcoreguidelines-slicing");
     CheckFactories.registerCheck<misc::UnconventionalAssignOperatorCheck>(
         "cppcoreguidelines-c-copy-assignment-signature");
+    CheckFactories.registerCheck<VirtualClassDestructorCheck>(
+        "cppcoreguidelines-virtual-class-destructor");
   }
 
   ClangTidyOptions getModuleOptions() override {
@@ -101,10 +107,7 @@ public:
     ClangTidyOptions::OptionMap &Opts = Options.CheckOptions;
 
     Opts["cppcoreguidelines-non-private-member-variables-in-classes."
-         "IgnoreClassesWithAllMemberVariablesBeingPublic"] = "1";
-
-    Opts["cppcoreguidelines-explicit-virtual-functions."
-         "IgnoreDestructors"] = "1";
+         "IgnoreClassesWithAllMemberVariablesBeingPublic"] = "true";
 
     return Options;
   }

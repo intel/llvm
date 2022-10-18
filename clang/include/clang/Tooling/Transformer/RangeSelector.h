@@ -12,8 +12,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLING_REFACTOR_RANGE_SELECTOR_H_
-#define LLVM_CLANG_TOOLING_REFACTOR_RANGE_SELECTOR_H_
+#ifndef LLVM_CLANG_TOOLING_TRANSFORMER_RANGESELECTOR_H
+#define LLVM_CLANG_TOOLING_TRANSFORMER_RANGESELECTOR_H
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Basic/SourceLocation.h"
@@ -50,7 +50,7 @@ inline RangeSelector range(std::string BeginID, std::string EndID) {
 /// Selects the (empty) range [B,B) when \p Selector selects the range [B,E).
 RangeSelector before(RangeSelector Selector);
 
-/// Selects the the point immediately following \p Selector. That is, the
+/// Selects the point immediately following \p Selector. That is, the
 /// (empty) range [E,E), when \p Selector selects either
 /// * the CharRange [B,E) or
 /// * the TokenRange [B,E'] where the token at E' spans the range [E',E).
@@ -73,9 +73,9 @@ RangeSelector statement(std::string ID);
 /// binding in the match result.
 RangeSelector member(std::string ID);
 
-/// Given a node with a "name", (like \c NamedDecl, \c DeclRefExpr or \c
-/// CxxCtorInitializer) selects the name's token.  Only selects the final
-/// identifier of a qualified name, but not any qualifiers or template
+/// Given a node with a "name", (like \c NamedDecl, \c DeclRefExpr, \c
+/// CxxCtorInitializer, and \c TypeLoc) selects the name's token.  Only selects
+/// the final identifier of a qualified name, but not any qualifiers or template
 /// arguments.  For example, for `::foo::bar::baz` and `::foo::bar::baz<int>`,
 /// it selects only `baz`.
 ///
@@ -105,4 +105,4 @@ RangeSelector expansion(RangeSelector S);
 } // namespace transformer
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLING_REFACTOR_RANGE_SELECTOR_H_
+#endif // LLVM_CLANG_TOOLING_TRANSFORMER_RANGESELECTOR_H

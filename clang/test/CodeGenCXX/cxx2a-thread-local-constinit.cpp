@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -std=c++2a %s -emit-llvm -o - | FileCheck --check-prefix=CHECK --check-prefix=LINUX %s
-// RUN: %clang_cc1 -triple x86_64-apple-darwin12  -std=c++2a %s -emit-llvm -o - | FileCheck --check-prefix=CHECK --check-prefix=DARWIN %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-linux-gnu -std=c++2a %s -emit-llvm -o - | FileCheck --check-prefix=CHECK --check-prefix=LINUX %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin12  -std=c++2a %s -emit-llvm -o - | FileCheck --check-prefix=CHECK --check-prefix=DARWIN %s
 
 // Check variable definitions/declarations. Note that on Darwin, typically the
 // variable's symbol is marked internal, and only the _ZTW function is
@@ -31,7 +31,8 @@ int get_a() { return a; }
 
 // CHECK-LABEL: define{{.*}} i32 @_Z5get_bv()
 // CHECK-NOT: call
-// CHECK: load i32, i32* @b
+// CHECK: [[B_ADDR:%.+]] = call align 4 i32* @llvm.threadlocal.address.p0i32(i32* align 4 @b)
+// CHECK: load i32, i32* [[B_ADDR]]
 // CHECK-NOT: call
 // CHECK: }
 int get_b() { return b; }
@@ -52,10 +53,20 @@ int get_c() { return c; }
 // LINUX-LABEL: define weak_odr {{.*}} @_ZTW1c()
 // CHECK-NOT: br i1
 // CHECK-NOT: call
-// CHECK: ret i32* @c
+// CHECK: [[C_ADDR:%.+]] = call align 4 i32* @llvm.threadlocal.address.p0i32(i32* align 4 @c)
+// CHECK: ret i32* [[C_ADDR]]
 // CHECK: }
 
 thread_local int c = 0;
+
+// PR51079: We must assume an incomplete class type might have non-trivial
+// destruction, and so speculatively call the thread wrapper.
+
+// CHECK-LABEL: define {{.*}} @_Z6get_e3v(
+// CHECK: call {{.*}}* @_ZTW2e3()
+// CHECK-LABEL: }
+extern thread_local constinit struct DestructedFwdDecl e3;
+DestructedFwdDecl &get_e3() { return e3; }
 
 int d_init();
 
@@ -84,3 +95,11 @@ thread_local constinit int f = 4;
 // CHECK-LABEL: define {{.*}}__tls_init
 // CHECK: call {{.*}} [[D_INIT]]
 // CHECK: call {{.*}} [[E2_INIT]]
+
+// Because the call wrapper may be called speculatively (and simply because
+// it's required by the ABI), it must always be emitted for an external linkage
+// variable, even if the variable has constant initialization and constant
+// destruction.
+struct NotDestructed { int n = 0; };
+thread_local constinit NotDestructed nd;
+// CHECK-LABEL: define {{.*}} @_ZTW2nd

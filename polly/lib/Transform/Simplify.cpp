@@ -37,7 +37,7 @@ namespace {
 /// that the analysis of accesses in a statement is becoming too complex. Chosen
 /// to be relatively small because all the common cases should access only few
 /// array elements per statement.
-static int const SimplifyMaxDisjuncts = 4;
+static unsigned const SimplifyMaxDisjuncts = 4;
 
 TWO_STATISTICS(ScopsProcessed, "Number of SCoPs processed");
 TWO_STATISTICS(ScopsModified, "Number of SCoPs simplified");
@@ -81,7 +81,7 @@ static bool isImplicitWrite(MemoryAccess *MA) {
   return MA->isWrite() && MA->isOriginalScalarKind();
 }
 
-/// Like isl::union_map::add_map, but may also return an underapproximated
+/// Like isl::union_map::unite, but may also return an underapproximated
 /// result if getting too complex.
 ///
 /// This is implemented by adding disjuncts to the results until the limit is
@@ -95,30 +95,31 @@ static isl::union_map underapproximatedAddMap(isl::union_map UMap,
 
   // Fast path: If known that we cannot exceed the disjunct limit, just add
   // them.
-  if (isl_map_n_basic_map(PrevMap.get()) + isl_map_n_basic_map(Map.get()) <=
+  if (unsignedFromIslSize(PrevMap.n_basic_map()) +
+          unsignedFromIslSize(Map.n_basic_map()) <=
       SimplifyMaxDisjuncts)
-    return UMap.add_map(Map);
+    return UMap.unite(Map);
 
   isl::map Result = isl::map::empty(PrevMap.get_space());
   for (isl::basic_map BMap : PrevMap.get_basic_map_list()) {
-    if (Result.n_basic_map() > SimplifyMaxDisjuncts)
+    if (unsignedFromIslSize(Result.n_basic_map()) > SimplifyMaxDisjuncts)
       break;
     Result = Result.unite(BMap);
   }
   for (isl::basic_map BMap : Map.get_basic_map_list()) {
-    if (isl_map_n_basic_map(Result.get()) > SimplifyMaxDisjuncts)
+    if (unsignedFromIslSize(Result.n_basic_map()) > SimplifyMaxDisjuncts)
       break;
     Result = Result.unite(BMap);
   }
 
   isl::union_map UResult =
       UMap.subtract(isl::map::universe(PrevMap.get_space()));
-  UResult.add_map(Result);
+  UResult.unite(Result);
 
   return UResult;
 }
 
-class SimplifyImpl {
+class SimplifyImpl final {
 private:
   /// The invocation id (if there are multiple instances in the pass manager's
   /// pipeline) to determine which statistics to update.
@@ -248,8 +249,7 @@ void SimplifyImpl::removeEmptyDomainStmts() {
 void SimplifyImpl::removeOverwrites() {
   for (auto &Stmt : *S) {
     isl::set Domain = Stmt.getDomain();
-    isl::union_map WillBeOverwritten =
-        isl::union_map::empty(S->getParamSpace());
+    isl::union_map WillBeOverwritten = isl::union_map::empty(S->getIslCtx());
 
     SmallVector<MemoryAccess *, 32> Accesses(getAccessesInOrder(Stmt));
 
@@ -330,7 +330,7 @@ void SimplifyImpl::coalesceWrites() {
 
     // List of all eligible (for coalescing) writes of the future.
     // { [Domain[] -> Element[]] -> [Value[] -> MemoryAccess[]] }
-    isl::union_map FutureWrites = isl::union_map::empty(S->getParamSpace());
+    isl::union_map FutureWrites = isl::union_map::empty(S->getIslCtx());
 
     // Iterate over accesses from the last to the first.
     SmallVector<MemoryAccess *, 32> Accesses(getAccessesInOrder(Stmt));
@@ -444,7 +444,7 @@ void SimplifyImpl::coalesceWrites() {
         TouchedAccesses.insert(MA);
       }
       isl::union_map NewFutureWrites =
-          isl::union_map::empty(FutureWrites.get_space());
+          isl::union_map::empty(FutureWrites.ctx());
       for (isl::map FutureWrite : FutureWrites.get_map_list()) {
         MemoryAccess *MA = (MemoryAccess *)FutureWrite.get_space()
                                .range()
@@ -452,7 +452,7 @@ void SimplifyImpl::coalesceWrites() {
                                .get_tuple_id(isl::dim::out)
                                .get_user();
         if (!TouchedAccesses.count(MA))
-          NewFutureWrites = NewFutureWrites.add_map(FutureWrite);
+          NewFutureWrites = NewFutureWrites.unite(FutureWrite);
       }
       FutureWrites = NewFutureWrites;
 
@@ -468,7 +468,7 @@ void SimplifyImpl::coalesceWrites() {
         // { [Domain[] -> Element[]] -> [Value[] -> MemoryAccess[]] }
         isl::map AccRelValAcc =
             isl::map::from_domain_and_range(AccRelWrapped, ValAccSet.wrap());
-        FutureWrites = FutureWrites.add_map(AccRelValAcc);
+        FutureWrites = FutureWrites.unite(AccRelValAcc);
       }
     }
   }
@@ -499,7 +499,7 @@ void SimplifyImpl::removeRedundantWrites() {
     // List of element reads that still have the same value while iterating
     // through the MemoryAccesses.
     // { [Domain[] -> Element[]] -> Val[] }
-    isl::union_map Known = isl::union_map::empty(S->getParamSpace());
+    isl::union_map Known = isl::union_map::empty(S->getIslCtx());
 
     SmallVector<MemoryAccess *, 32> Accesses(getAccessesInOrder(Stmt));
     for (MemoryAccess *MA : Accesses) {
@@ -552,7 +552,7 @@ void SimplifyImpl::removeRedundantWrites() {
           isl::map AccRelVal = isl::map::from_domain_and_range(
               AccRelWrapped, makeValueSet(LoadedVal));
 
-          Known = Known.add_map(AccRelVal);
+          Known = Known.unite(AccRelVal);
         }
       } else if (MA->isWrite()) {
         // Remove (possibly) overwritten values from the known elements set.
@@ -754,7 +754,7 @@ void SimplifyImpl::printScop(raw_ostream &OS, Scop &S) const {
   printAccesses(OS);
 }
 
-class SimplifyWrapperPass : public ScopPass {
+class SimplifyWrapperPass final : public ScopPass {
 public:
   static char ID;
   int CallNo;
@@ -762,13 +762,13 @@ public:
 
   explicit SimplifyWrapperPass(int CallNo = 0) : ScopPass(ID), CallNo(CallNo) {}
 
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const override {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredTransitive<ScopInfoRegionPass>();
     AU.addRequired<LoopInfoWrapperPass>();
     AU.setPreservesAll();
   }
 
-  virtual bool runOnScop(Scop &S) override {
+  bool runOnScop(Scop &S) override {
     LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 
     Impl.emplace(CallNo);
@@ -777,12 +777,12 @@ public:
     return false;
   }
 
-  virtual void printScop(raw_ostream &OS, Scop &S) const override {
+  void printScop(raw_ostream &OS, Scop &S) const override {
     if (Impl)
       Impl->printScop(OS, S);
   }
 
-  virtual void releaseMemory() override { Impl.reset(); }
+  void releaseMemory() override { Impl.reset(); }
 };
 
 char SimplifyWrapperPass::ID;
@@ -850,3 +850,49 @@ INITIALIZE_PASS_BEGIN(SimplifyWrapperPass, "polly-simplify", "Polly - Simplify",
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_END(SimplifyWrapperPass, "polly-simplify", "Polly - Simplify",
                     false, false)
+
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Print result from SimplifyWrapperPass.
+class SimplifyPrinterLegacyPass final : public ScopPass {
+public:
+  static char ID;
+
+  SimplifyPrinterLegacyPass() : SimplifyPrinterLegacyPass(outs()) {}
+  explicit SimplifyPrinterLegacyPass(llvm::raw_ostream &OS)
+      : ScopPass(ID), OS(OS) {}
+
+  bool runOnScop(Scop &S) override {
+    SimplifyWrapperPass &P = getAnalysis<SimplifyWrapperPass>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for region: '"
+       << S.getRegion().getNameStr() << "' in function '"
+       << S.getFunction().getName() << "':\n";
+    P.printScop(OS, S);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    ScopPass::getAnalysisUsage(AU);
+    AU.addRequired<SimplifyWrapperPass>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char SimplifyPrinterLegacyPass::ID = 0;
+} // namespace
+
+Pass *polly::createSimplifyPrinterLegacyPass(raw_ostream &OS) {
+  return new SimplifyPrinterLegacyPass(OS);
+}
+
+INITIALIZE_PASS_BEGIN(SimplifyPrinterLegacyPass, "polly-print-simplify",
+                      "Polly - Print Simplify actions", false, false)
+INITIALIZE_PASS_DEPENDENCY(SimplifyWrapperPass)
+INITIALIZE_PASS_END(SimplifyPrinterLegacyPass, "polly-print-simplify",
+                    "Polly - Print Simplify actions", false, false)

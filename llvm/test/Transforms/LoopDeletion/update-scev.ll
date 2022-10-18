@@ -1,7 +1,5 @@
-; RUN: opt -S -analyze -scalar-evolution -loop-deletion -scalar-evolution -verify-scev < %s -enable-new-pm=0 | FileCheck %s --check-prefix=SCEV-EXPRS
 ; RUN: opt -S -passes='print<scalar-evolution>,loop-deletion,print<scalar-evolution>' -verify-scev < %s 2>&1 | FileCheck %s --check-prefix=SCEV-EXPRS
-; RUN: opt -S -loop-deletion < %s | FileCheck %s --check-prefix=IR-AFTER-TRANSFORM
-; RUN: opt -S -indvars -loop-deletion -indvars < %s | FileCheck %s --check-prefix=ORIGINAL-CRASH
+; RUN: opt -S -passes=loop-deletion < %s | FileCheck %s --check-prefix=IR-AFTER-TRANSFORM
 
 ; Checking for a crash.  Loop-deletion would change the loop
 ; disposition of an instruction, but not update SCEV.
@@ -9,9 +7,8 @@
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.11.0"
 
-define void @pr27570() {
+define void @pr27570(i1 %c1) {
 ; IR-AFTER-TRANSFORM-LABEL: @pr27570(
-; ORIGINAL-CRASH: @pr27570(
 entry:
   br label %for.cond
 
@@ -55,7 +52,7 @@ for.inc11:                                        ; preds = %for.body6
   br i1 %tobool, label %for.cond14, label %for.body
 
 for.cond14:                                       ; preds = %for.cond14, %for.inc11
-  br i1 undef, label %for.cond, label %for.cond14
+  br i1 %c1, label %for.cond, label %for.cond14
 }
 
 declare void @sideeffect(i32)
@@ -68,7 +65,7 @@ define void @test2(double* %bx, i64 %by) local_unnamed_addr align 2 {
 ; IR-AFTER-TRANSFORM-NOT: for.body7.1:
 
 ; SCEV-EXPRS-LABEL: test2
-; SCEV-EXPRS:     %inc.lcssa.1 = phi i64 [ undef, %for.body7.preheader.1 ]
+; SCEV-EXPRS:     %inc.lcssa.1 = phi i64 [ poison, %for.body7.preheader.1 ]
 ; SCEV-EXPRS-NEXT: -->  undef
 entry:
   %cmp = icmp sgt i64 %by, 0

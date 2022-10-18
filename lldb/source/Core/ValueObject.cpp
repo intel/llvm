@@ -9,6 +9,7 @@
 #include "lldb/Core/ValueObject.h"
 
 #include "lldb/Core/Address.h"
+#include "lldb/Core/Declaration.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ValueObjectCast.h"
 #include "lldb/Core/ValueObjectChild.h"
@@ -27,7 +28,6 @@
 #include "lldb/Host/Config.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/CompilerType.h"
-#include "lldb/Symbol/Declaration.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Symbol/Variable.h"
@@ -42,8 +42,8 @@
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Flags.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/Logging.h"
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
@@ -57,10 +57,10 @@
 #include <memory>
 #include <tuple>
 
-#include <assert.h>
-#include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
+#include <cassert>
+#include <cinttypes>
+#include <cstdio>
+#include <cstring>
 
 #include <lldb/Core/ValueObject.h>
 
@@ -106,7 +106,7 @@ ValueObject::ValueObject(ExecutionContextScope *exe_scope,
 }
 
 // Destructor
-ValueObject::~ValueObject() {}
+ValueObject::~ValueObject() = default;
 
 bool ValueObject::UpdateValueIfNeeded(bool update_format) {
 
@@ -200,7 +200,7 @@ bool ValueObject::UpdateValueIfNeeded(bool update_format) {
 }
 
 bool ValueObject::UpdateFormatsIfNeeded() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS));
+  Log *log = GetLog(LLDBLog::DataFormatters);
   LLDB_LOGF(log,
             "[%s %p] checking for FormatManager revisions. ValueObject "
             "rev: %d - Global rev: %d",
@@ -265,7 +265,7 @@ CompilerType ValueObject::MaybeCalculateCompleteType() {
           process_sp->GetLanguageRuntime(GetObjectRuntimeLanguage())) {
     if (llvm::Optional<CompilerType> complete_type =
             runtime->GetRuntimeType(compiler_type)) {
-      m_override_type = complete_type.getValue();
+      m_override_type = *complete_type;
       if (m_override_type.IsValid())
         return m_override_type;
     }
@@ -721,7 +721,7 @@ size_t ValueObject::GetPointeeData(DataExtractor &data, uint32_t item_idx,
         if (target) {
           heap_buf_ptr->SetByteSize(bytes);
           size_t bytes_read = target->ReadMemory(
-              so_addr, false, heap_buf_ptr->GetBytes(), bytes, error);
+              so_addr, heap_buf_ptr->GetBytes(), bytes, error, true);
           if (error.Success()) {
             data.SetData(data_sp);
             return bytes_read;
@@ -792,7 +792,7 @@ bool ValueObject::SetData(DataExtractor &data, Status &error) {
   uint64_t count = 0;
   const Encoding encoding = GetCompilerType().GetEncoding(count);
 
-  const size_t byte_size = GetByteSize().getValueOr(0);
+  const size_t byte_size = GetByteSize().value_or(0);
 
   Value::ValueType value_type = m_value.GetValueType();
 
@@ -848,16 +848,18 @@ bool ValueObject::SetData(DataExtractor &data, Status &error) {
 }
 
 static bool CopyStringDataToBufferSP(const StreamString &source,
-                                     lldb::DataBufferSP &destination) {
-  destination = std::make_shared<DataBufferHeap>(source.GetSize() + 1, 0);
-  memcpy(destination->GetBytes(), source.GetString().data(), source.GetSize());
+                                     lldb::WritableDataBufferSP &destination) {
+  llvm::StringRef src = source.GetString();
+  src = src.rtrim('\0');
+  destination = std::make_shared<DataBufferHeap>(src.size(), 0);
+  memcpy(destination->GetBytes(), src.data(), src.size());
   return true;
 }
 
 std::pair<size_t, bool>
-ValueObject::ReadPointedString(lldb::DataBufferSP &buffer_sp, Status &error,
-                               uint32_t max_length, bool honor_array,
-                               Format item_format) {
+ValueObject::ReadPointedString(lldb::WritableDataBufferSP &buffer_sp,
+                               Status &error, uint32_t max_length,
+                               bool honor_array, Format item_format) {
   bool was_capped = false;
   StreamString s;
   ExecutionContext exe_ctx(GetExecutionContextRef());
@@ -912,8 +914,8 @@ ValueObject::ReadPointedString(lldb::DataBufferSP &buffer_sp, Status &error,
           CopyStringDataToBufferSP(s, buffer_sp);
           return {0, was_capped};
         }
-        buffer_sp = std::make_shared<DataBufferHeap>(cstr_len, 0);
-        memcpy(buffer_sp->GetBytes(), cstr, cstr_len);
+        s << llvm::StringRef(cstr, cstr_len);
+        CopyStringDataToBufferSP(s, buffer_sp);
         return {cstr_len, was_capped};
       } else {
         s << "<invalid address>";
@@ -1182,7 +1184,7 @@ bool ValueObject::DumpPrintableRepresentation(
                eFormatVectorOfChar)) // print char[] & char* directly
       {
         Status error;
-        lldb::DataBufferSP buffer_sp;
+        lldb::WritableDataBufferSP buffer_sp;
         std::pair<size_t, bool> read_string = ReadPointedString(
             buffer_sp, error, 0, (custom_format == eFormatVectorOfChar) ||
                                      (custom_format == eFormatCharArray));
@@ -1196,6 +1198,7 @@ bool ValueObject::DumpPrintableRepresentation(
         options.SetQuote('"');
         options.SetSourceSize(buffer_sp->GetByteSize());
         options.SetIsTruncated(read_string.second);
+        options.SetBinaryZeroIsTerminator(custom_format != eFormatVectorOfChar);
         formatters::StringPrinter::ReadBufferAndDumpToStream<
             lldb_private::formatters::StringPrinter::StringElementType::ASCII>(
             options);
@@ -1471,7 +1474,7 @@ bool ValueObject::SetValueFromCString(const char *value_str, Status &error) {
   uint64_t count = 0;
   const Encoding encoding = GetCompilerType().GetEncoding(count);
 
-  const size_t byte_size = GetByteSize().getValueOr(0);
+  const size_t byte_size = GetByteSize().value_or(0);
 
   Value::ValueType value_type = m_value.GetValueType();
 
@@ -1577,7 +1580,7 @@ bool ValueObject::IsRuntimeSupportValue() {
   if (!process)
     return false;
 
-  // We trust the the compiler did the right thing and marked runtime support
+  // We trust that the compiler did the right thing and marked runtime support
   // values as artificial.
   if (!GetVariable() || !GetVariable()->IsArtificial())
     return false;
@@ -1653,13 +1656,13 @@ ValueObjectSP ValueObject::GetSyntheticBitFieldChild(uint32_t from, uint32_t to,
       uint32_t bit_field_offset = from;
       if (GetDataExtractor().GetByteOrder() == eByteOrderBig)
         bit_field_offset =
-            GetByteSize().getValueOr(0) * 8 - bit_field_size - bit_field_offset;
+            GetByteSize().value_or(0) * 8 - bit_field_size - bit_field_offset;
       // We haven't made a synthetic array member for INDEX yet, so lets make
       // one and cache it for any future reference.
       ValueObjectChild *synthetic_child = new ValueObjectChild(
-          *this, GetCompilerType(), index_const_str,
-          GetByteSize().getValueOr(0), 0, bit_field_size, bit_field_offset,
-          false, false, eAddressTypeInvalid, 0);
+          *this, GetCompilerType(), index_const_str, GetByteSize().value_or(0),
+          0, bit_field_size, bit_field_offset, false, false,
+          eAddressTypeInvalid, 0);
 
       // Cache the value if we got one back...
       if (synthetic_child) {
@@ -2110,7 +2113,7 @@ ValueObjectSP ValueObject::GetValueForExpressionPath_Impl(
         return ValueObjectSP();
       }
     }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case '.': // or fallthrough from ->
     {
       if (options.m_check_dot_vs_arrow_syntax &&
@@ -2796,12 +2799,11 @@ ValueObjectSP ValueObject::CastPointerType(const char *name, TypeSP &type_sp) {
   return valobj_sp;
 }
 
-ValueObject::EvaluationPoint::EvaluationPoint()
-    : m_mod_id(), m_exe_ctx_ref(), m_needs_update(true) {}
+ValueObject::EvaluationPoint::EvaluationPoint() : m_mod_id(), m_exe_ctx_ref() {}
 
 ValueObject::EvaluationPoint::EvaluationPoint(ExecutionContextScope *exe_scope,
                                               bool use_selected)
-    : m_mod_id(), m_exe_ctx_ref(), m_needs_update(true) {
+    : m_mod_id(), m_exe_ctx_ref() {
   ExecutionContext exe_ctx(exe_scope);
   TargetSP target_sp(exe_ctx.GetTargetSP());
   if (target_sp) {
@@ -2838,9 +2840,9 @@ ValueObject::EvaluationPoint::EvaluationPoint(ExecutionContextScope *exe_scope,
 
 ValueObject::EvaluationPoint::EvaluationPoint(
     const ValueObject::EvaluationPoint &rhs)
-    : m_mod_id(), m_exe_ctx_ref(rhs.m_exe_ctx_ref), m_needs_update(true) {}
+    : m_mod_id(), m_exe_ctx_ref(rhs.m_exe_ctx_ref) {}
 
-ValueObject::EvaluationPoint::~EvaluationPoint() {}
+ValueObject::EvaluationPoint::~EvaluationPoint() = default;
 
 // This function checks the EvaluationPoint against the current process state.
 // If the current state matches the evaluation point, or the evaluation point

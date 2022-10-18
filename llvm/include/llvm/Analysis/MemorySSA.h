@@ -66,6 +66,19 @@
 /// MemoryDefs are not disambiguated because it would require multiple reaching
 /// definitions, which would require multiple phis, and multiple memoryaccesses
 /// per instruction.
+///
+/// In addition to the def/use graph described above, MemoryDefs also contain
+/// an "optimized" definition use.  The "optimized" use points to some def
+/// reachable through the memory def chain.  The optimized def *may* (but is
+/// not required to) alias the original MemoryDef, but no def *closer* to the
+/// source def may alias it.  As the name implies, the purpose of the optimized
+/// use is to allow caching of clobber searches for memory defs.  The optimized
+/// def may be nullptr, in which case clients must walk the defining access
+/// chain.
+///
+/// When iterating the uses of a MemoryDef, both defining uses and optimized
+/// uses will be encountered.  If only one type is needed, the client must
+/// filter the use walk.
 //
 //===----------------------------------------------------------------------===//
 
@@ -73,30 +86,18 @@
 #define LLVM_ANALYSIS_MEMORYSSA_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
-#include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/ADT/simple_ilist.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/PHITransAddr.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedUser.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
-#include "llvm/IR/Value.h"
-#include "llvm/IR/ValueHandle.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -106,15 +107,16 @@
 
 namespace llvm {
 
-/// Enables memory ssa as a dependency for loop passes.
-extern cl::opt<bool> EnableMSSALoopDependency;
-
-class AllocaInst;
+template <class GraphType> struct GraphTraits;
+class BasicBlock;
 class Function;
 class Instruction;
+class LLVMContext;
 class MemoryAccess;
 class MemorySSAWalker;
-class LLVMContext;
+class Module;
+class Use;
+class Value;
 class raw_ostream;
 
 namespace MSSAHelpers {
@@ -263,17 +265,12 @@ public:
     return MA->getValueID() == MemoryUseVal || MA->getValueID() == MemoryDefVal;
   }
 
-  // Sadly, these have to be public because they are needed in some of the
-  // iterators.
+  /// Do we have an optimized use?
   inline bool isOptimized() const;
+  /// Return the MemoryAccess associated with the optimized use, or nullptr.
   inline MemoryAccess *getOptimized() const;
+  /// Sets the optimized use for a MemoryDef.
   inline void setOptimized(MemoryAccess *);
-
-  // Retrieve AliasResult type of the optimized access. Ideally this would be
-  // returned by the caching walker and may go away in the future.
-  Optional<AliasResult> getOptimizedAccessType() const {
-    return isOptimized() ? OptimizedAccessAlias : None;
-  }
 
   /// Reset the ID of what this MemoryUse was optimized to, causing it to
   /// be rewalked by the walker if necessary.
@@ -288,30 +285,23 @@ protected:
                  DeleteValueTy DeleteValue, Instruction *MI, BasicBlock *BB,
                  unsigned NumOperands)
       : MemoryAccess(C, Vty, DeleteValue, BB, NumOperands),
-        MemoryInstruction(MI), OptimizedAccessAlias(MayAlias) {
+        MemoryInstruction(MI) {
     setDefiningAccess(DMA);
   }
 
   // Use deleteValue() to delete a generic MemoryUseOrDef.
   ~MemoryUseOrDef() = default;
 
-  void setOptimizedAccessType(Optional<AliasResult> AR) {
-    OptimizedAccessAlias = AR;
-  }
-
-  void setDefiningAccess(MemoryAccess *DMA, bool Optimized = false,
-                         Optional<AliasResult> AR = MayAlias) {
+  void setDefiningAccess(MemoryAccess *DMA, bool Optimized = false) {
     if (!Optimized) {
       setOperand(0, DMA);
       return;
     }
     setOptimized(DMA);
-    setOptimizedAccessType(AR);
   }
 
 private:
   Instruction *MemoryInstruction;
-  Optional<AliasResult> OptimizedAccessAlias;
 };
 
 /// Represents read-only accesses to memory
@@ -328,7 +318,8 @@ public:
                        /*NumOperands=*/1) {}
 
   // allocate space for exactly one operand
-  void *operator new(size_t s) { return User::operator new(s, 1); }
+  void *operator new(size_t S) { return User::operator new(S, 1); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   static bool classof(const Value *MA) {
     return MA->getValueID() == MemoryUseVal;
@@ -341,6 +332,9 @@ public:
     setOperand(0, DMA);
   }
 
+  /// Whether the MemoryUse is optimized. If ensureOptimizedUses() was called,
+  /// uses will usually be optimized, but this is not guaranteed (e.g. due to
+  /// invalidation and optimization limits.)
   bool isOptimized() const {
     return getDefiningAccess() && OptimizedID == getDefiningAccess()->getID();
   }
@@ -388,7 +382,8 @@ public:
         ID(Ver) {}
 
   // allocate space for exactly two operands
-  void *operator new(size_t s) { return User::operator new(s, 2); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   static bool classof(const Value *MA) {
     return MA->getValueID() == MemoryDefVal;
@@ -483,9 +478,11 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(MemoryUseOrDef, MemoryAccess)
 /// issue.
 class MemoryPhi final : public MemoryAccess {
   // allocate space for exactly zero operands
-  void *operator new(size_t s) { return User::operator new(s); }
+  void *operator new(size_t S) { return User::operator new(S); }
 
 public:
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
+
   /// Provide fast operand accessors
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(MemoryAccess);
 
@@ -781,21 +778,29 @@ public:
   /// dominates Use \p B.
   bool dominates(const MemoryAccess *A, const Use &B) const;
 
+  enum class VerificationLevel { Fast, Full };
   /// Verify that MemorySSA is self consistent (IE definitions dominate
   /// all uses, uses appear in the right places).  This is used by unit tests.
-  void verifyMemorySSA() const;
+  void verifyMemorySSA(VerificationLevel = VerificationLevel::Fast) const;
 
   /// Used in various insertion functions to specify whether we are talking
   /// about the beginning or end of a block.
   enum InsertionPlace { Beginning, End, BeforeTerminator };
 
+  /// By default, uses are *not* optimized during MemorySSA construction.
+  /// Calling this method will attempt to optimize all MemoryUses, if this has
+  /// not happened yet for this MemorySSA instance. This should be done if you
+  /// plan to query the clobbering access for most uses, or if you walk the
+  /// def-use chain of uses.
+  void ensureOptimizedUses();
+
 protected:
-  // Used by Memory SSA annotater, dumpers, and wrapper pass
-  friend class MemorySSAAnnotatedWriter;
+  // Used by Memory SSA dumpers and wrapper pass
   friend class MemorySSAPrinterLegacyPass;
   friend class MemorySSAUpdater;
 
-  void verifyOrderingDominationAndDefUses(Function &F) const;
+  void verifyOrderingDominationAndDefUses(
+      Function &F, VerificationLevel = VerificationLevel::Fast) const;
   void verifyDominationNumbers(const Function &F) const;
   void verifyPrevDefInPhis(Function &F) const;
 
@@ -863,7 +868,7 @@ private:
   AccessList *getOrCreateAccessList(const BasicBlock *);
   DefsList *getOrCreateDefsList(const BasicBlock *);
   void renumberBlock(const BasicBlock *) const;
-  AliasAnalysis *AA;
+  AliasAnalysis *AA = nullptr;
   DominatorTree *DT;
   Function &F;
 
@@ -890,8 +895,16 @@ private:
   std::unique_ptr<ClobberWalkerBase<AliasAnalysis>> WalkerBase;
   std::unique_ptr<CachingWalker<AliasAnalysis>> Walker;
   std::unique_ptr<SkipSelfWalker<AliasAnalysis>> SkipWalker;
-  unsigned NextID;
+  unsigned NextID = 0;
+  bool IsOptimized = false;
 };
+
+/// Enables verification of MemorySSA.
+///
+/// The checks which this flag enables is exensive and disabled by default
+/// unless `EXPENSIVE_CHECKS` is defined.  The flag `-verify-memoryssa` can be
+/// used to selectively enable the verification without re-compilation.
+extern bool VerifyMemorySSA;
 
 // Internal MemorySSA utils, for use by MemorySSA classes and walkers
 class MemorySSAUtil {
@@ -947,6 +960,17 @@ class MemorySSAPrinterPass : public PassInfoMixin<MemorySSAPrinterPass> {
 
 public:
   explicit MemorySSAPrinterPass(raw_ostream &OS) : OS(OS) {}
+
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+};
+
+/// Printer pass for \c MemorySSA via the walker.
+class MemorySSAWalkerPrinterPass
+    : public PassInfoMixin<MemorySSAWalkerPrinterPass> {
+  raw_ostream &OS;
+
+public:
+  explicit MemorySSAWalkerPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
@@ -1099,7 +1123,7 @@ public:
     return MP->getIncomingBlock(ArgNo);
   }
 
-  typename BaseT::iterator::pointer operator*() const {
+  typename std::iterator_traits<BaseT>::pointer operator*() const {
     assert(Access && "Tried to access past the end of our iterator");
     // Go to the first argument for phis, and the defining access for everything
     // else.
@@ -1178,11 +1202,9 @@ class upward_defs_iterator
   using BaseT = upward_defs_iterator::iterator_facade_base;
 
 public:
-  upward_defs_iterator(const MemoryAccessPair &Info, DominatorTree *DT,
-                       bool *PerformedPhiTranslation = nullptr)
+  upward_defs_iterator(const MemoryAccessPair &Info, DominatorTree *DT)
       : DefIterator(Info.first), Location(Info.second),
-        OriginalAccess(Info.first), DT(DT),
-        PerformedPhiTranslation(PerformedPhiTranslation) {
+        OriginalAccess(Info.first), DT(DT) {
     CurrentPair.first = nullptr;
 
     WalkingPhi = Info.first && isa<MemoryPhi>(Info.first);
@@ -1195,7 +1217,7 @@ public:
     return DefIterator == Other.DefIterator;
   }
 
-  BaseT::iterator::reference operator*() const {
+  typename std::iterator_traits<BaseT>::reference operator*() const {
     assert(DefIterator != OriginalAccess->defs_end() &&
            "Tried to access past the end of our iterator");
     return CurrentPair;
@@ -1217,41 +1239,30 @@ private:
   /// Returns true if \p Ptr is guaranteed to be loop invariant for any possible
   /// loop. In particular, this guarantees that it only references a single
   /// MemoryLocation during execution of the containing function.
-  bool IsGuaranteedLoopInvariant(Value *Ptr) const;
+  bool IsGuaranteedLoopInvariant(const Value *Ptr) const;
 
   void fillInCurrentPair() {
     CurrentPair.first = *DefIterator;
     CurrentPair.second = Location;
     if (WalkingPhi && Location.Ptr) {
-      // Mark size as unknown, if the location is not guaranteed to be
-      // loop-invariant for any possible loop in the function. Setting the size
-      // to unknown guarantees that any memory accesses that access locations
-      // after the pointer are considered as clobbers, which is important to
-      // catch loop carried dependences.
-      if (Location.Ptr &&
-          !IsGuaranteedLoopInvariant(const_cast<Value *>(Location.Ptr)))
-        CurrentPair.second =
-            Location.getWithNewSize(LocationSize::beforeOrAfterPointer());
       PHITransAddr Translator(
           const_cast<Value *>(Location.Ptr),
           OriginalAccess->getBlock()->getModule()->getDataLayout(), nullptr);
 
       if (!Translator.PHITranslateValue(OriginalAccess->getBlock(),
-                                        DefIterator.getPhiArgBlock(), DT,
-                                        true)) {
-        Value *TransAddr = Translator.getAddr();
-        if (TransAddr != Location.Ptr) {
-          CurrentPair.second = CurrentPair.second.getWithNewPtr(TransAddr);
+                                        DefIterator.getPhiArgBlock(), DT, true))
+        if (Translator.getAddr() != CurrentPair.second.Ptr)
+          CurrentPair.second =
+              CurrentPair.second.getWithNewPtr(Translator.getAddr());
 
-          if (TransAddr &&
-              !IsGuaranteedLoopInvariant(const_cast<Value *>(TransAddr)))
-            CurrentPair.second = CurrentPair.second.getWithNewSize(
-                LocationSize::beforeOrAfterPointer());
-
-          if (PerformedPhiTranslation)
-            *PerformedPhiTranslation = true;
-        }
-      }
+      // Mark size as unknown, if the location is not guaranteed to be
+      // loop-invariant for any possible loop in the function. Setting the size
+      // to unknown guarantees that any memory accesses that access locations
+      // after the pointer are considered as clobbers, which is important to
+      // catch loop carried dependences.
+      if (!IsGuaranteedLoopInvariant(CurrentPair.second.Ptr))
+        CurrentPair.second = CurrentPair.second.getWithNewSize(
+            LocationSize::beforeOrAfterPointer());
     }
   }
 
@@ -1261,13 +1272,11 @@ private:
   MemoryAccess *OriginalAccess = nullptr;
   DominatorTree *DT = nullptr;
   bool WalkingPhi = false;
-  bool *PerformedPhiTranslation = nullptr;
 };
 
 inline upward_defs_iterator
-upward_defs_begin(const MemoryAccessPair &Pair, DominatorTree &DT,
-                  bool *PerformedPhiTranslation = nullptr) {
-  return upward_defs_iterator(Pair, &DT, PerformedPhiTranslation);
+upward_defs_begin(const MemoryAccessPair &Pair, DominatorTree &DT) {
+  return upward_defs_iterator(Pair, &DT);
 }
 
 inline upward_defs_iterator upward_defs_end() { return upward_defs_iterator(); }

@@ -1,4 +1,4 @@
-! RUN: %S/test_modfile.sh %s %t %f18
+! RUN: %python %S/test_modfile.py %s %flang_fc1
 ! Tests parameterized derived type instantiation with KIND parameters
 
 module m

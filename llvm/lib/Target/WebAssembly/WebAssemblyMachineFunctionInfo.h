@@ -16,13 +16,13 @@
 #define LLVM_LIB_TARGET_WEBASSEMBLY_WEBASSEMBLYMACHINEFUNCTIONINFO_H
 
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
-#include "llvm/BinaryFormat/Wasm.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/WasmEHFuncInfo.h"
 #include "llvm/MC/MCSymbolWasm.h"
 
 namespace llvm {
+
+struct WasmEHFuncInfo;
 
 namespace yaml {
 struct WebAssemblyFunctionInfo;
@@ -31,7 +31,7 @@ struct WebAssemblyFunctionInfo;
 /// This class is derived from MachineFunctionInfo and contains private
 /// WebAssembly-specific information for each MachineFunction.
 class WebAssemblyFunctionInfo final : public MachineFunctionInfo {
-  const MachineFunction &MF;
+  const MachineFunction *MF;
 
   std::vector<MVT> Params;
   std::vector<MVT> Results;
@@ -70,11 +70,16 @@ class WebAssemblyFunctionInfo final : public MachineFunctionInfo {
   WasmEHFuncInfo *WasmEHInfo = nullptr;
 
 public:
-  explicit WebAssemblyFunctionInfo(MachineFunction &MF)
-      : MF(MF), WasmEHInfo(MF.getWasmEHFuncInfo()) {}
+  explicit WebAssemblyFunctionInfo(MachineFunction &MF_)
+      : MF(&MF_), WasmEHInfo(MF_.getWasmEHFuncInfo()) {}
   ~WebAssemblyFunctionInfo() override;
 
-  const MachineFunction &getMachineFunction() const { return MF; }
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
+
+  const MachineFunction &getMachineFunction() const { return *MF; }
 
   void initializeBaseYamlFields(const yaml::WebAssemblyFunctionInfo &YamlMFI);
 
@@ -166,6 +171,10 @@ public:
   void setWasmEHFuncInfo(WasmEHFuncInfo *Info) { WasmEHInfo = Info; }
 };
 
+void computeLegalValueVTs(const WebAssemblyTargetLowering &TLI,
+                          LLVMContext &Ctx, const DataLayout &DL, Type *Ty,
+                          SmallVectorImpl<MVT> &ValueVTs);
+
 void computeLegalValueVTs(const Function &F, const TargetMachine &TM, Type *Ty,
                           SmallVectorImpl<MVT> &ValueVTs);
 
@@ -188,6 +197,8 @@ namespace yaml {
 using BBNumberMap = DenseMap<int, int>;
 
 struct WebAssemblyFunctionInfo final : public yaml::MachineFunctionInfo {
+  std::vector<FlowStringValue> Params;
+  std::vector<FlowStringValue> Results;
   bool CFGStackified = false;
   // The same as WasmEHFuncInfo's SrcToUnwindDest, but stored in the mapping of
   // BB numbers
@@ -202,6 +213,8 @@ struct WebAssemblyFunctionInfo final : public yaml::MachineFunctionInfo {
 
 template <> struct MappingTraits<WebAssemblyFunctionInfo> {
   static void mapping(IO &YamlIO, WebAssemblyFunctionInfo &MFI) {
+    YamlIO.mapOptional("params", MFI.Params, std::vector<FlowStringValue>());
+    YamlIO.mapOptional("results", MFI.Results, std::vector<FlowStringValue>());
     YamlIO.mapOptional("isCFGStackified", MFI.CFGStackified, false);
     YamlIO.mapOptional("wasmEHFuncInfo", MFI.SrcToUnwindDest);
   }

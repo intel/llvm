@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_DLP:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_II:[0-9]+]]
@@ -12,8 +12,17 @@
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_LC_3:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_MI:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_MI_2:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_MI_3:[0-9]+]]
 // CHECK: br label %for.cond,   !llvm.loop ![[MD_SI:[0-9]+]]
 // CHECK: br label %for.cond2,  !llvm.loop ![[MD_SI_2:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_SI_3:[0-9]+]]
+// CHECK: br label %for.cond, !llvm.loop ![[MD_LCA:[0-9]+]]
+// CHECK: br label %for.cond2, !llvm.loop ![[MD_LCA_1:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_LCA_2:[0-9]+]]
+// CHECK: br label %for.cond24, !llvm.loop ![[MD_LCA_3:[0-9]+]]
+// CHECK: br label %for.cond,   !llvm.loop ![[MD_MRD:[0-9]+]]
+// CHECK: br label %for.cond2,  !llvm.loop ![[MD_MRD_2:[0-9]+]]
+// CHECK: br label %for.cond13, !llvm.loop ![[MD_MRD_3:[0-9]+]]
 
 void disable_loop_pipelining() {
   int a[10];
@@ -83,7 +92,7 @@ void loop_coalesce() {
       a[i] = 0;
 }
 
-template <int A>
+template <int A, int B>
 void max_interleaving() {
   int a[10];
   // CHECK: ![[MD_MI]] = distinct !{![[MD_MI]], ![[MP]], ![[MD_max_interleaving:[0-9]+]]}
@@ -94,9 +103,15 @@ void max_interleaving() {
   // CHECK-NEXT: ![[MD_max_interleaving_2]] = !{!"llvm.loop.max_interleaving.count", i32 2}
   [[intel::max_interleaving(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // CHECK: ![[MD_MI_3]] = distinct !{![[MD_MI_3]], ![[MP]], ![[MD_max_interleaving_3:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_interleaving_3]] = !{!"llvm.loop.max_interleaving.count", i32 0}
+  [[intel::max_interleaving(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
 }
 
-template <int A>
+template <int A, int B>
 void speculated_iterations() {
   int a[10];
   // CHECK: ![[MD_SI]] = distinct !{![[MD_SI]], ![[MP]], ![[MD_speculated_iterations:[0-9]+]]}
@@ -106,6 +121,53 @@ void speculated_iterations() {
   // CHECK: ![[MD_SI_2]] = distinct !{![[MD_SI_2]], ![[MP]], ![[MD_speculated_iterations_2:[0-9]+]]}
   // CHECK-NEXT: ![[MD_speculated_iterations_2]] = !{!"llvm.loop.intel.speculated.iterations.count", i32 5}
   [[intel::speculated_iterations(5)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+
+  // CHECK: ![[MD_SI_3]] = distinct !{![[MD_SI_3]], ![[MP]], ![[MD_speculated_iterations_3:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_speculated_iterations_3]] = !{!"llvm.loop.intel.speculated.iterations.count", i32 0}
+  [[intel::speculated_iterations(B)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
+// Add CodeGen tests for FPGA loop_count attributes.
+template <int A>
+void loop_count_control() {
+  int a[10];
+  // CHECK: ![[MD_LCA]] = distinct !{![[MD_LCA]], ![[MP:[0-9]+]], ![[MD_loop_count_avg:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_loop_count_avg]] = !{!"llvm.loop.intel.loopcount_avg", i32 12}
+  [[intel::loop_count_avg(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_LCA_1]] = distinct !{![[MD_LCA_1]], ![[MP:[0-9]+]], ![[MD_loop_count_max:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_loop_count_max]] = !{!"llvm.loop.intel.loopcount_max", i32 4}
+  [[intel::loop_count_max(4)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_LCA_2]] = distinct !{![[MD_LCA_2]], ![[MP:[0-9]+]], ![[MD_loop_count_min:[0-9]+]], ![[MD_loop_count_max_1:[0-9]+]], ![[MD_loop_count_avg_1:[0-9]+]], ![[MD_loop_count:[0-9]+]]}
+  // CHECK: ![[MD_loop_count_min]] = !{!"llvm.loop.intel.loopcount_min", i32 4}
+  // CHECK: ![[MD_loop_count_max_1]] = !{!"llvm.loop.intel.loopcount_max", i32 40}
+  // CHECK: ![[MD_loop_count_avg_1]] = !{!"llvm.loop.intel.loopcount_avg", i32 21}
+  // CHECK-NEXT: ![[MD_loop_count]] = !{!"llvm.loop.intel.loopcount", i32 30}
+  [[intel::loop_count_min(4)]] [[intel::loop_count_max(40)]] [[intel::loop_count_avg(21)]] [[intel::loop_count(30)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_LCA_3]] = distinct !{![[MD_LCA_3]], ![[MP:[0-9]+]], ![[MD_loop_count_1:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_loop_count_1]] = !{!"llvm.loop.intel.loopcount", i32 12}
+  [[intel::loop_count(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+}
+
+template <int A, int B>
+void max_reinvocation_delay() {
+  int a[10];
+  // CHECK: ![[MD_MRD]] = distinct !{![[MD_MRD]], ![[MP]], ![[MD_max_reinvocation_delay:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_reinvocation_delay]] = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 3}
+  [[intel::max_reinvocation_delay(A)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_MRD_2]] = distinct !{![[MD_MRD_2]], ![[MP]], ![[MD_max_reinvocation_delay_2:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_reinvocation_delay_2]] = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 5}
+  [[intel::max_reinvocation_delay(5)]] for (int i = 0; i != 10; ++i)
+      a[i] = 0;
+  // CHECK: ![[MD_MRD_3]] = distinct !{![[MD_MRD_3]], ![[MP]], ![[MD_max_reinvocation_delay_3:[0-9]+]]}
+  // CHECK-NEXT: ![[MD_max_reinvocation_delay_3]] = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 1}
+  [[intel::max_reinvocation_delay(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
 
@@ -121,8 +183,10 @@ int main() {
     initiation_interval<6>();
     max_concurrency<0>();
     loop_coalesce<2>();
-    max_interleaving<3>();
-    speculated_iterations<4>();
+    max_interleaving<3, 0>();
+    speculated_iterations<4, 0>();
+    loop_count_control<12>();
+    max_reinvocation_delay<3, 1>();
   });
   return 0;
 }

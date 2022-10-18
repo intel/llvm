@@ -12,7 +12,6 @@
 
 #include "OperatingSystemPython.h"
 
-#include "Plugins/Process/Utility/DynamicRegisterInfo.h"
 #include "Plugins/Process/Utility/RegisterContextDummy.h"
 #include "Plugins/Process/Utility/RegisterContextMemory.h"
 #include "Plugins/Process/Utility/ThreadMemory.h"
@@ -30,6 +29,7 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadList.h"
 #include "lldb/Utility/DataBufferHeap.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StructuredData.h"
@@ -66,12 +66,7 @@ OperatingSystem *OperatingSystemPython::CreateInstance(Process *process,
   return nullptr;
 }
 
-ConstString OperatingSystemPython::GetPluginNameStatic() {
-  static ConstString g_name("python");
-  return g_name;
-}
-
-const char *OperatingSystemPython::GetPluginDescriptionStatic() {
+llvm::StringRef OperatingSystemPython::GetPluginDescriptionStatic() {
   return "Operating system plug-in that gathers OS information from a python "
          "class that implements the necessary OperatingSystem functionality.";
 }
@@ -91,13 +86,13 @@ OperatingSystemPython::OperatingSystemPython(lldb_private::Process *process,
     std::string os_plugin_class_name(
         python_module_path.GetFilename().AsCString(""));
     if (!os_plugin_class_name.empty()) {
-      const bool init_session = false;
+      LoadScriptOptions options;
       char python_module_path_cstr[PATH_MAX];
       python_module_path.GetPath(python_module_path_cstr,
                                  sizeof(python_module_path_cstr));
       Status error;
-      if (m_interpreter->LoadScriptingModule(python_module_path_cstr,
-                                             init_session, error)) {
+      if (m_interpreter->LoadScriptingModule(python_module_path_cstr, options,
+                                             error)) {
         // Strip the ".py" extension if there is one
         size_t py_extension_pos = os_plugin_class_name.rfind(".py");
         if (py_extension_pos != std::string::npos)
@@ -115,13 +110,13 @@ OperatingSystemPython::OperatingSystemPython(lldb_private::Process *process,
   }
 }
 
-OperatingSystemPython::~OperatingSystemPython() {}
+OperatingSystemPython::~OperatingSystemPython() = default;
 
 DynamicRegisterInfo *OperatingSystemPython::GetDynamicRegisterInfo() {
   if (m_register_info_up == nullptr) {
     if (!m_interpreter || !m_python_object_sp)
       return nullptr;
-    Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
+    Log *log = GetLog(LLDBLog::OS);
 
     LLDB_LOGF(log,
               "OperatingSystemPython::GetDynamicRegisterInfo() fetching "
@@ -141,20 +136,13 @@ DynamicRegisterInfo *OperatingSystemPython::GetDynamicRegisterInfo() {
   return m_register_info_up.get();
 }
 
-// PluginInterface protocol
-ConstString OperatingSystemPython::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t OperatingSystemPython::GetPluginVersion() { return 1; }
-
 bool OperatingSystemPython::UpdateThreadList(ThreadList &old_thread_list,
                                              ThreadList &core_thread_list,
                                              ThreadList &new_thread_list) {
   if (!m_interpreter || !m_python_object_sp)
     return false;
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OS));
+  Log *log = GetLog(LLDBLog::OS);
 
   // First thing we have to do is to try to get the API lock, and the
   // interpreter lock. We're going to change the thread content of the process,
@@ -314,7 +302,7 @@ OperatingSystemPython::CreateRegisterContextForThread(Thread *thread,
   (void)api_lock.try_lock(); // See above.
   auto interpreter_lock = m_interpreter->AcquireInterpreterLock();
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
 
   if (reg_data_addr != LLDB_INVALID_ADDRESS) {
     // The registers data is in contiguous memory, just create the register
@@ -376,7 +364,7 @@ OperatingSystemPython::CreateThreadStopReason(lldb_private::Thread *thread) {
 
 lldb::ThreadSP OperatingSystemPython::CreateThread(lldb::tid_t tid,
                                                    addr_t context) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
 
   LLDB_LOGF(log,
             "OperatingSystemPython::CreateThread (tid = 0x%" PRIx64

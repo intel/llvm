@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Enforce 18.2.3.3
 
 program test
@@ -19,7 +19,7 @@ program test
   call c_f_pointer(scalarC, fptr=arrayIntF, [1_8])
   !ERROR: CPTR= argument to C_F_POINTER() must be a C_PTR
   call c_f_pointer(j, scalarIntF)
-  !ERROR: CPTR= argument to C_F_POINTER() must be scalar
+  !ERROR: Rank of dummy argument is 0, but actual argument has rank 1
   call c_f_pointer(arrayC, scalarIntF)
   !ERROR: SHAPE= argument to C_F_POINTER() must appear when FPTR= is an array
   call c_f_pointer(scalarC, arrayIntF)
@@ -29,4 +29,6 @@ program test
   call c_f_pointer(scalarC, charDeferredF)
   !ERROR: FPTR= argument to C_F_POINTER() may not be a coindexed object
   call c_f_pointer(scalarC, coindexed[0]%p)
+  !ERROR: FPTR= argument to C_F_POINTER() must have a type
+  call c_f_pointer(scalarC, null())
 end program

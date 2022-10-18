@@ -13,13 +13,10 @@
 
 #include "llvm/CodeGen/MIRParser/MIRParser.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/AsmParser/SlotMapping.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MIRParser/MIParser.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -29,7 +26,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -46,6 +43,8 @@
 using namespace llvm;
 
 namespace llvm {
+class MDNode;
+class RegisterBank;
 
 /// This class implements the parsing of LLVM IR that's embedded inside a MIR
 /// file.
@@ -143,6 +142,10 @@ public:
   bool initializeJumpTableInfo(PerFunctionMIParsingState &PFS,
                                const yaml::MachineJumpTable &YamlJTI);
 
+  bool parseMachineMetadataNodes(PerFunctionMIParsingState &PFS,
+                                 MachineFunction &MF,
+                                 const yaml::MachineFunction &YMF);
+
 private:
   bool parseMDNode(PerFunctionMIParsingState &PFS, MDNode *&Node,
                    const yaml::StringValue &Source);
@@ -150,6 +153,9 @@ private:
   bool parseMBBReference(PerFunctionMIParsingState &PFS,
                          MachineBasicBlock *&MBB,
                          const yaml::StringValue &Source);
+
+  bool parseMachineMetadata(PerFunctionMIParsingState &PFS,
+                            const yaml::StringValue &Source);
 
   /// Return a MIR diagnostic converted from an MI string diagnostic.
   SMDiagnostic diagFromMIStringDiag(const SMDiagnostic &Error,
@@ -175,8 +181,7 @@ static void handleYAMLDiag(const SMDiagnostic &Diag, void *Context) {
 MIRParserImpl::MIRParserImpl(std::unique_ptr<MemoryBuffer> Contents,
                              StringRef Filename, LLVMContext &Context,
                              std::function<void(Function &)> Callback)
-    : SM(),
-      Context(Context),
+    : Context(Context),
       In(SM.getMemoryBuffer(SM.AddNewSourceBuffer(std::move(Contents), SMLoc()))
              ->getBuffer(),
          nullptr, handleYAMLDiag, this),
@@ -343,17 +348,32 @@ void MIRParserImpl::computeFunctionProperties(MachineFunction &MF) {
 
   bool HasPHI = false;
   bool HasInlineAsm = false;
+  bool AllTiedOpsRewritten = true, HasTiedOps = false;
   for (const MachineBasicBlock &MBB : MF) {
     for (const MachineInstr &MI : MBB) {
       if (MI.isPHI())
         HasPHI = true;
       if (MI.isInlineAsm())
         HasInlineAsm = true;
+      for (unsigned I = 0; I < MI.getNumOperands(); ++I) {
+        const MachineOperand &MO = MI.getOperand(I);
+        if (!MO.isReg() || !MO.getReg())
+          continue;
+        unsigned DefIdx;
+        if (MO.isUse() && MI.isRegTiedToDefOperand(I, &DefIdx)) {
+          HasTiedOps = true;
+          if (MO.getReg() != MI.getOperand(DefIdx).getReg())
+            AllTiedOpsRewritten = false;
+        }
+      }
     }
   }
   if (!HasPHI)
     Properties.set(MachineFunctionProperties::Property::NoPHIs);
   MF.setHasInlineAsm(HasInlineAsm);
+
+  if (HasTiedOps && AllTiedOpsRewritten)
+    Properties.set(MachineFunctionProperties::Property::TiedOpsRewritten);
 
   if (isSSA(MF))
     Properties.set(MachineFunctionProperties::Property::IsSSA);
@@ -417,9 +437,9 @@ void MIRParserImpl::setupDebugValueTracking(
   MF.setDebugInstrNumberingCount(MaxInstrNum);
 
   // Load any substitutions.
-  for (auto &Sub : YamlMF.DebugValueSubstitutions) {
-    MF.makeDebugValueSubstitution(std::make_pair(Sub.SrcInst, Sub.SrcOp),
-                                  std::make_pair(Sub.DstInst, Sub.DstOp));
+  for (const auto &Sub : YamlMF.DebugValueSubstitutions) {
+    MF.makeDebugValueSubstitution({Sub.SrcInst, Sub.SrcOp},
+                                  {Sub.DstInst, Sub.DstOp}, Sub.Subreg);
   }
 }
 
@@ -438,6 +458,12 @@ MIRParserImpl::initializeMachineFunction(const yaml::MachineFunction &YamlMF,
   MF.setExposesReturnsTwice(YamlMF.ExposesReturnsTwice);
   MF.setHasWinCFI(YamlMF.HasWinCFI);
 
+  MF.setCallsEHReturn(YamlMF.CallsEHReturn);
+  MF.setCallsUnwindInit(YamlMF.CallsUnwindInit);
+  MF.setHasEHCatchret(YamlMF.HasEHCatchret);
+  MF.setHasEHScopes(YamlMF.HasEHScopes);
+  MF.setHasEHFunclets(YamlMF.HasEHFunclets);
+
   if (YamlMF.Legalized)
     MF.getProperties().set(MachineFunctionProperties::Property::Legalized);
   if (YamlMF.RegBankSelected)
@@ -447,6 +473,12 @@ MIRParserImpl::initializeMachineFunction(const yaml::MachineFunction &YamlMF,
     MF.getProperties().set(MachineFunctionProperties::Property::Selected);
   if (YamlMF.FailedISel)
     MF.getProperties().set(MachineFunctionProperties::Property::FailedISel);
+  if (YamlMF.FailsVerification)
+    MF.getProperties().set(
+        MachineFunctionProperties::Property::FailsVerification);
+  if (YamlMF.TracksDebugUserValues)
+    MF.getProperties().set(
+        MachineFunctionProperties::Property::TracksDebugUserValues);
 
   PerFunctionMIParsingState PFS(MF, SM, IRSlots, *Target);
   if (parseRegisterInfo(PFS, YamlMF))
@@ -457,6 +489,9 @@ MIRParserImpl::initializeMachineFunction(const yaml::MachineFunction &YamlMF,
     if (initializeConstantPool(PFS, *ConstantPool, YamlMF))
       return true;
   }
+  if (!YamlMF.MachineMetadataNodes.empty() &&
+      parseMachineMetadataNodes(PFS, MF, YamlMF))
+    return true;
 
   StringRef BlockStr = YamlMF.Body.Value.Value;
   SMDiagnostic Error;
@@ -608,7 +643,7 @@ bool MIRParserImpl::parseRegisterInfo(PerFunctionMIParsingState &PFS,
   // be saved for the caller).
   if (YamlMF.CalleeSavedRegisters) {
     SmallVector<MCPhysReg, 16> CalleeSavedRegisters;
-    for (const auto &RegSource : YamlMF.CalleeSavedRegisters.getValue()) {
+    for (const auto &RegSource : *YamlMF.CalleeSavedRegisters) {
       Register Reg;
       if (parseNamedRegisterReference(PFS, Reg, RegSource.Value, Error))
         return error(Error, RegSource.SourceRange);
@@ -779,7 +814,7 @@ bool MIRParserImpl::initializeFrameInfo(PerFunctionMIParsingState &PFS,
                                  Object.CalleeSavedRestored, ObjectIdx))
       return true;
     if (Object.LocalOffset)
-      MFI.mapLocalFrameObject(ObjectIdx, Object.LocalOffset.getValue());
+      MFI.mapLocalFrameObject(ObjectIdx, *Object.LocalOffset);
     if (parseStackObjectsDebugInfo(PFS, Object, ObjectIdx))
       return true;
   }
@@ -796,6 +831,15 @@ bool MIRParserImpl::initializeFrameInfo(PerFunctionMIParsingState &PFS,
       return error(Error, YamlMFI.StackProtector.SourceRange);
     MFI.setStackProtectorIndex(FI);
   }
+
+  if (!YamlMFI.FunctionContext.Value.empty()) {
+    SMDiagnostic Error;
+    int FI;
+    if (parseStackObjectReference(PFS, FI, YamlMFI.FunctionContext.Value, Error))
+      return error(Error, YamlMFI.FunctionContext.SourceRange);
+    MFI.setFunctionContextIndex(FI);
+  }
+
   return false;
 }
 
@@ -879,7 +923,7 @@ bool MIRParserImpl::initializeConstantPool(PerFunctionMIParsingState &PFS,
       return error(Error, YamlConstant.Value.SourceRange);
     const Align PrefTypeAlign =
         M.getDataLayout().getPrefTypeAlign(Value->getType());
-    const Align Alignment = YamlConstant.Alignment.getValueOr(PrefTypeAlign);
+    const Align Alignment = YamlConstant.Alignment.value_or(PrefTypeAlign);
     unsigned Index = ConstantPool.getConstantPoolIndex(Value, Alignment);
     if (!ConstantPoolSlots.insert(std::make_pair(YamlConstant.ID.Value, Index))
              .second)
@@ -917,6 +961,29 @@ bool MIRParserImpl::parseMBBReference(PerFunctionMIParsingState &PFS,
   SMDiagnostic Error;
   if (llvm::parseMBBReference(PFS, MBB, Source.Value, Error))
     return error(Error, Source.SourceRange);
+  return false;
+}
+
+bool MIRParserImpl::parseMachineMetadata(PerFunctionMIParsingState &PFS,
+                                         const yaml::StringValue &Source) {
+  SMDiagnostic Error;
+  if (llvm::parseMachineMetadata(PFS, Source.Value, Source.SourceRange, Error))
+    return error(Error, Source.SourceRange);
+  return false;
+}
+
+bool MIRParserImpl::parseMachineMetadataNodes(
+    PerFunctionMIParsingState &PFS, MachineFunction &MF,
+    const yaml::MachineFunction &YMF) {
+  for (const auto &MDS : YMF.MachineMetadataNodes) {
+    if (parseMachineMetadata(PFS, MDS))
+      return true;
+  }
+  // Report missing definitions from forward referenced nodes.
+  if (!PFS.MachineForwardRefMDNodes.empty())
+    return error(PFS.MachineForwardRefMDNodes.begin()->second.second,
+                 "use of undefined metadata '!" +
+                     Twine(PFS.MachineForwardRefMDNodes.begin()->first) + "'");
   return false;
 }
 
@@ -970,7 +1037,7 @@ SMDiagnostic MIRParserImpl::diagFromBlockStringDiag(const SMDiagnostic &Error,
 MIRParser::MIRParser(std::unique_ptr<MIRParserImpl> Impl)
     : Impl(std::move(Impl)) {}
 
-MIRParser::~MIRParser() {}
+MIRParser::~MIRParser() = default;
 
 std::unique_ptr<Module>
 MIRParser::parseIRModule(DataLayoutCallbackTy DataLayoutCallback) {
@@ -984,7 +1051,7 @@ bool MIRParser::parseMachineFunctions(Module &M, MachineModuleInfo &MMI) {
 std::unique_ptr<MIRParser> llvm::createMIRParserFromFile(
     StringRef Filename, SMDiagnostic &Error, LLVMContext &Context,
     std::function<void(Function &)> ProcessIRFunction) {
-  auto FileOrErr = MemoryBuffer::getFileOrSTDIN(Filename);
+  auto FileOrErr = MemoryBuffer::getFileOrSTDIN(Filename, /*IsText=*/true);
   if (std::error_code EC = FileOrErr.getError()) {
     Error = SMDiagnostic(Filename, SourceMgr::DK_Error,
                          "Could not open input file: " + EC.message());

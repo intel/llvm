@@ -69,6 +69,10 @@ static char RandCh(Random &Rand) {
 
 size_t MutationDispatcher::Mutate_Custom(uint8_t *Data, size_t Size,
                                          size_t MaxSize) {
+  if (EF->__msan_unpoison)
+    EF->__msan_unpoison(Data, Size);
+  if (EF->__msan_unpoison_param)
+    EF->__msan_unpoison_param(4);
   return EF->LLVMFuzzerCustomMutator(Data, Size, MaxSize,
                                      Rand.Rand<unsigned int>());
 }
@@ -83,9 +87,18 @@ size_t MutationDispatcher::Mutate_CustomCrossOver(uint8_t *Data, size_t Size,
     return 0;
   CustomCrossOverInPlaceHere.resize(MaxSize);
   auto &U = CustomCrossOverInPlaceHere;
+
+  if (EF->__msan_unpoison) {
+    EF->__msan_unpoison(Data, Size);
+    EF->__msan_unpoison(Other.data(), Other.size());
+    EF->__msan_unpoison(U.data(), U.size());
+  }
+  if (EF->__msan_unpoison_param)
+    EF->__msan_unpoison_param(7);
   size_t NewSize = EF->LLVMFuzzerCustomCrossOver(
       Data, Size, Other.data(), Other.size(), U.data(), U.size(),
       Rand.Rand<unsigned int>());
+
   if (!NewSize)
     return 0;
   assert(NewSize <= MaxSize && "CustomCrossOver returned overisized unit");
@@ -182,7 +195,8 @@ size_t MutationDispatcher::ApplyDictionaryEntry(uint8_t *Data, size_t Size,
     Size += W.size();
   } else {  // Overwrite some bytes with W.
     if (W.size() > Size) return 0;
-    size_t Idx = UsePositionHint ? DE.GetPositionHint() : Rand(Size - W.size());
+    size_t Idx =
+        UsePositionHint ? DE.GetPositionHint() : Rand(Size + 1 - W.size());
     memcpy(Data + Idx, W.data(), W.size());
   }
   return Size;
@@ -466,12 +480,12 @@ void MutationDispatcher::RecordSuccessfulMutationSequence() {
     assert(DE->GetW().size());
     // Linear search is fine here as this happens seldom.
     if (!PersistentAutoDictionary.ContainsWord(DE->GetW()))
-      PersistentAutoDictionary.push_back({DE->GetW(), 1});
+      PersistentAutoDictionary.push_back(*DE);
   }
 }
 
 void MutationDispatcher::PrintRecommendedDictionary() {
-  Vector<DictionaryEntry> V;
+  std::vector<DictionaryEntry> V;
   for (auto &DE : PersistentAutoDictionary)
     if (!ManualDictionary.ContainsWord(DE.GetW()))
       V.push_back(DE);
@@ -526,7 +540,7 @@ size_t MutationDispatcher::DefaultMutate(uint8_t *Data, size_t Size,
 // Mutates Data in place, returns new size.
 size_t MutationDispatcher::MutateImpl(uint8_t *Data, size_t Size,
                                       size_t MaxSize,
-                                      Vector<Mutator> &Mutators) {
+                                      std::vector<Mutator> &Mutators) {
   assert(MaxSize > 0);
   // Some mutations may fail (e.g. can't insert more bytes if Size == MaxSize),
   // in which case they will return 0.
@@ -548,7 +562,7 @@ size_t MutationDispatcher::MutateImpl(uint8_t *Data, size_t Size,
 // Mask represents the set of Data bytes that are worth mutating.
 size_t MutationDispatcher::MutateWithMask(uint8_t *Data, size_t Size,
                                           size_t MaxSize,
-                                          const Vector<uint8_t> &Mask) {
+                                          const std::vector<uint8_t> &Mask) {
   size_t MaskedSize = std::min(Size, Mask.size());
   // * Copy the worthy bytes into a temporary array T
   // * Mutate T

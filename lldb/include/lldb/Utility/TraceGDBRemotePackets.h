@@ -11,6 +11,8 @@
 
 #include "llvm/Support/JSON.h"
 
+#include <chrono>
+
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-enumerations.h"
 
@@ -41,10 +43,13 @@ llvm::json::Value toJSON(const TraceSupportedResponse &packet);
 struct TraceStartRequest {
   /// Tracing technology name, e.g. intel-pt, arm-coresight.
   std::string type;
+
   /// If \a llvm::None, then this starts tracing the whole process. Otherwise,
   /// only tracing for the specified threads is enabled.
-  llvm::Optional<std::vector<int64_t>> tids;
+  llvm::Optional<std::vector<lldb::tid_t>> tids;
 
+  /// \return
+  ///     \b true if \a tids is \a None, i.e. whole process tracing.
   bool IsProcessTracing() const;
 };
 
@@ -57,7 +62,7 @@ llvm::json::Value toJSON(const TraceStartRequest &packet);
 /// jLLDBTraceStop gdb-remote packet
 /// \{
 struct TraceStopRequest {
-  TraceStopRequest() {}
+  TraceStopRequest() = default;
 
   TraceStopRequest(llvm::StringRef type, const std::vector<lldb::tid_t> &tids);
 
@@ -69,7 +74,7 @@ struct TraceStopRequest {
   std::string type;
   /// If \a llvm::None, then this stops tracing the whole process. Otherwise,
   /// only tracing for the specified threads is stopped.
-  llvm::Optional<std::vector<int64_t>> tids;
+  llvm::Optional<std::vector<lldb::tid_t>> tids;
 };
 
 bool fromJSON(const llvm::json::Value &value, TraceStopRequest &packet,
@@ -94,7 +99,7 @@ struct TraceBinaryData {
   /// Identifier of data to fetch with jLLDBTraceGetBinaryData.
   std::string kind;
   /// Size in bytes for this data.
-  int64_t size;
+  uint64_t size;
 };
 
 bool fromJSON(const llvm::json::Value &value, TraceBinaryData &packet,
@@ -103,9 +108,9 @@ bool fromJSON(const llvm::json::Value &value, TraceBinaryData &packet,
 llvm::json::Value toJSON(const TraceBinaryData &packet);
 
 struct TraceThreadState {
-  int64_t tid;
+  lldb::tid_t tid;
   /// List of binary data objects for this thread.
-  std::vector<TraceBinaryData> binaryData;
+  std::vector<TraceBinaryData> binary_data;
 };
 
 bool fromJSON(const llvm::json::Value &value, TraceThreadState &packet,
@@ -113,9 +118,24 @@ bool fromJSON(const llvm::json::Value &value, TraceThreadState &packet,
 
 llvm::json::Value toJSON(const TraceThreadState &packet);
 
+struct TraceCpuState {
+  lldb::cpu_id_t id;
+  /// List of binary data objects for this core.
+  std::vector<TraceBinaryData> binary_data;
+};
+
+bool fromJSON(const llvm::json::Value &value, TraceCpuState &packet,
+              llvm::json::Path path);
+
+llvm::json::Value toJSON(const TraceCpuState &packet);
+
 struct TraceGetStateResponse {
-  std::vector<TraceThreadState> tracedThreads;
-  std::vector<TraceBinaryData> processBinaryData;
+  std::vector<TraceThreadState> traced_threads;
+  std::vector<TraceBinaryData> process_binary_data;
+  llvm::Optional<std::vector<TraceCpuState>> cpus;
+  llvm::Optional<std::vector<std::string>> warnings;
+
+  void AddWarning(llvm::StringRef warning);
 };
 
 bool fromJSON(const llvm::json::Value &value, TraceGetStateResponse &packet,
@@ -132,11 +152,9 @@ struct TraceGetBinaryDataRequest {
   /// Identifier for the data.
   std::string kind;
   /// Optional tid if the data is related to a thread.
-  llvm::Optional<int64_t> tid;
-  /// Offset in bytes from where to start reading the data.
-  int64_t offset;
-  /// Number of bytes to read.
-  int64_t size;
+  llvm::Optional<lldb::tid_t> tid;
+  /// Optional core id if the data is related to a cpu core.
+  llvm::Optional<lldb::cpu_id_t> cpu_id;
 };
 
 bool fromJSON(const llvm::json::Value &value,

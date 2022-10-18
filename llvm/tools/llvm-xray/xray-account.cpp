@@ -23,6 +23,8 @@
 #include "llvm/XRay/InstrumentationMap.h"
 #include "llvm/XRay/Trace.h"
 
+#include <cmath>
+
 using namespace llvm;
 using namespace llvm::xray;
 
@@ -201,10 +203,10 @@ bool LatencyAccountant::accountRecord(const XRayRecord &Record) {
 
     // Look for the parent up the stack.
     auto Parent =
-        std::find_if(ThreadStack.Stack.rbegin(), ThreadStack.Stack.rend(),
-                     [&](const std::pair<const int32_t, uint64_t> &E) {
-                       return E.first == Record.FuncId;
-                     });
+        llvm::find_if(llvm::reverse(ThreadStack.Stack),
+                      [&](const std::pair<const int32_t, uint64_t> &E) {
+                        return E.first == Record.FuncId;
+                      });
     if (Parent == ThreadStack.Stack.rend())
       return false;
 
@@ -459,7 +461,7 @@ static CommandRegistration Unused(&Account, []() -> Error {
   }
 
   std::error_code EC;
-  raw_fd_ostream OS(AccountOutput, EC, sys::fs::OpenFlags::OF_Text);
+  raw_fd_ostream OS(AccountOutput, EC, sys::fs::OpenFlags::OF_TextWithCRLF);
   if (EC)
     return make_error<StringError>(
         Twine("Cannot open file '") + AccountOutput + "' for writing.", EC);

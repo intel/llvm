@@ -52,7 +52,6 @@ template <> struct PointerLikeTypeTraits<clang::Expr *> {
 namespace clang {
 
 class ASTContext;
-class DiagnosticBuilder;
 class Expr;
 struct PrintingPolicy;
 class TypeSourceInfo;
@@ -389,7 +388,8 @@ public:
   TemplateArgument getPackExpansionPattern() const;
 
   /// Print this template argument to the given output stream.
-  void print(const PrintingPolicy &Policy, raw_ostream &Out) const;
+  void print(const PrintingPolicy &Policy, raw_ostream &Out,
+             bool IncludeType) const;
 
   /// Debugging aid that dumps the template argument.
   void dump(raw_ostream &Out) const;
@@ -512,7 +512,8 @@ public:
   }
 
   TypeSourceInfo *getTypeSourceInfo() const {
-    assert(Argument.getKind() == TemplateArgument::Type);
+    if (Argument.getKind() != TemplateArgument::Type)
+      return nullptr;
     return LocInfo.getAsTypeSourceInfo();
   }
 
@@ -617,6 +618,9 @@ private:
 
   ASTTemplateArgumentListInfo(const TemplateArgumentListInfo &List);
 
+  // FIXME: Is it ever necessary to copy to another context?
+  ASTTemplateArgumentListInfo(const ASTTemplateArgumentListInfo *List);
+
 public:
   /// The source location of the left angle bracket ('<').
   SourceLocation LAngleLoc;
@@ -646,6 +650,10 @@ public:
 
   static const ASTTemplateArgumentListInfo *
   Create(const ASTContext &C, const TemplateArgumentListInfo &List);
+
+  // FIXME: Is it ever necessary to copy to another context?
+  static const ASTTemplateArgumentListInfo *
+  Create(const ASTContext &C, const ASTTemplateArgumentListInfo *List);
 };
 
 /// Represents an explicit template argument list in C++, e.g.,

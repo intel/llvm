@@ -14,7 +14,7 @@
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static pi_result
 redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
@@ -77,14 +77,8 @@ static pi_result redefinedEventsWait(pi_uint32 num_events,
 pi_result redefinedEventRelease(pi_event event) { return PI_SUCCESS; }
 
 TEST_F(SchedulerTest, InOrderQueueDeps) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
@@ -97,12 +91,13 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
 
-  context Ctx{Plt};
-  queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
-  cl::sycl::detail::QueueImplPtr InOrderQueueImpl =
+  context Ctx{Plt.get_devices()[0]};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+  sycl::detail::QueueImplPtr InOrderQueueImpl =
       detail::getSyclObjImpl(InOrderQueue);
 
-  device HostDevice;
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
@@ -112,18 +107,21 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   buffer<int, 1> Buf(&val, range<1>(1));
   detail::Requirement Req = getMockRequirement(Buf);
 
+  std::vector<detail::Command *> AuxCmds;
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req);
-  MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl);
-  MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req, AuxCmds);
+  MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl, AuxCmds);
+  MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 
   // Check that sequential memory movements submitted to the same in-order
   // queue do not depend on each other.
-  detail::Command *Cmd = MS.insertMemoryMove(Record, &Req, DefaultHostQueue);
+  detail::Command *Cmd =
+      MS.insertMemoryMove(Record, &Req, DefaultHostQueue, AuxCmds);
   detail::EnqueueResultT Res;
+  auto ReadLock = MS.acquireGraphReadLock();
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
-  Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl);
+  Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
-  Cmd = MS.insertMemoryMove(Record, &Req, DefaultHostQueue);
+  Cmd = MS.insertMemoryMove(Record, &Req, DefaultHostQueue, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
 }

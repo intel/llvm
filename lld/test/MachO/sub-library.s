@@ -1,5 +1,5 @@
 # REQUIRES: x86
-# RUN: mkdir -p %t
+# RUN: rm -rf %t; mkdir -p %t
 
 ## Create a libsuper that has libgoodbye as a sub-library, which in turn has
 ## libhello as another sub-library.
@@ -18,14 +18,23 @@
 ## Check that they have the appropriate LC_REEXPORT_DYLIB commands, and that
 ## NO_REEXPORTED_DYLIBS is (un)set as appropriate.
 
-# RUN: llvm-objdump --macho --all-headers %t/libhello.dylib | FileCheck %s \
-# RUN:   --check-prefix=HELLO-HEADERS
+# RUN: llvm-otool -hv %t/libhello.dylib | \
+# RUN:     FileCheck --check-prefix=HELLO-HEADERS %s
 # HELLO-HEADERS: NO_REEXPORTED_DYLIBS
 
-# RUN: llvm-objdump --macho --all-headers %t/libgoodbye.dylib | FileCheck %s \
+# RUN: llvm-otool -l %t/libgoodbye.dylib | FileCheck %s \
 # RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/libhello.dylib
 
-# RUN: llvm-objdump --macho --all-headers %t/libsuper.dylib | FileCheck %s \
+# RUN: llvm-otool -l %t/libsuper.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/libgoodbye.dylib
+
+# RUN: %lld -dylib -L%t -reexport-lgoodbye -install_name \
+# RUN:   @executable_path/libsuper.dylib %t/libsuper.o -o %t/libsuper.dylib
+# RUN: llvm-otool -l %t/libsuper.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/libgoodbye.dylib
+# RUN: %lld -dylib -reexport_library %t/libgoodbye.dylib -install_name \
+# RUN:   @executable_path/libsuper.dylib %t/libsuper.o -o %t/libsuper.dylib
+# RUN: llvm-otool -l %t/libsuper.dylib | FileCheck %s \
 # RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/libgoodbye.dylib
 
 # REEXPORT-HEADERS-NOT: NO_REEXPORTED_DYLIBS
@@ -53,21 +62,59 @@
 
 
 ## We can match dylibs without extensions too.
-# RUN: mkdir -p %t/Hello.framework/Versions
-# RUN: %lld -dylib %t/libhello.o -o %t/Hello.framework/Versions/Hello
-# RUN: %lld -dylib -o %t/libgoodbye2.dylib -sub_library Hello %t/Hello.framework/Versions/Hello %t/libgoodbye.o
-# RUN: llvm-objdump --macho --all-headers %t/libgoodbye2.dylib | FileCheck %s \
-# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Versions/Hello
+# RUN: mkdir -p %t/Hello.framework
+# RUN: %lld -dylib %t/libhello.o -o %t/Hello.framework/Hello
+# RUN: %lld -dylib -o %t/libgoodbye2.dylib -sub_library Hello %t/Hello.framework/Hello %t/libgoodbye.o
+# RUN: llvm-otool -l %t/libgoodbye2.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Hello
 
 ## -sub_umbrella works almost identically...
-# RUN: %lld -dylib -o %t/libgoodbye3.dylib -sub_umbrella Hello %t/Hello.framework/Versions/Hello %t/libgoodbye.o
-# RUN: llvm-objdump --macho --all-headers %t/libgoodbye3.dylib | FileCheck %s \
-# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Versions/Hello
+# RUN: %lld -dylib -o %t/libgoodbye3.dylib -sub_umbrella Hello %t/Hello.framework/Hello %t/libgoodbye.o
+# RUN: llvm-otool -l %t/libgoodbye3.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Hello
+
+# RUN: %lld -dylib -o %t/libgoodbye3.dylib -F %t -framework Hello -sub_umbrella Hello %t/libgoodbye.o
+# RUN: llvm-otool -l %t/libgoodbye3.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Hello
+
+# RUN: %lld -dylib -o %t/libgoodbye3.dylib -F %t -reexport_framework Hello %t/libgoodbye.o
+# RUN: llvm-otool -l %t/libgoodbye3.dylib | FileCheck %s \
+# RUN:   --check-prefix=REEXPORT-HEADERS -DPATH=%t/Hello.framework/Hello
 
 ## But it doesn't match .dylib extensions:
 # RUN: not %lld -dylib -L%t -sub_umbrella libhello -lhello %t/libgoodbye.o \
 # RUN:   -o %t/libgoodbye.dylib 2>&1 | FileCheck %s --check-prefix=MISSING-FRAMEWORK
 # MISSING-FRAMEWORK: error: -sub_umbrella libhello does not match a supplied dylib
+
+
+## Check that -F (but not -L) can override the search path in install_name for
+## frameworks.
+# RUN: mkdir -p %t/Hello2.framework
+# RUN: %lld -dylib %t/libhello.o \
+# RUN:   -install_name /path/to/Hello2.framework/Hello2 \
+# RUN:   -o %t/Hello2.framework/Hello2
+# RUN: %lld -dylib -o %t/libgoodbye4.dylib %t/libgoodbye.o \
+# RUN:   -reexport_library %t/Hello2.framework/Hello2
+# RUN: not %lld -lSystem -o %t/hello %t/libgoodbye4.dylib %t/sub-library.o 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=NOTFOUND
+# RUN: not %lld -lSystem -o %t/hello -L%t %t/libgoodbye4.dylib %t/sub-library.o 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=NOTFOUND
+# NOTFOUND: unable to locate re-export with install name /path/to/Hello2.framework/Hello2
+# RUN: %lld -lSystem -o %t/hello -F%t %t/libgoodbye4.dylib %t/sub-library.o
+
+## Check that -L (but not -F) can override the search path in install_name for
+## libraries.
+# RUN: %lld -dylib %t/libhello.o \
+# RUN:   -install_name /path/to/libhello2.dylib \
+# RUN:   -o %t/libhello2.dylib
+# RUN: %lld -dylib -o %t/libgoodbye5.dylib %t/libgoodbye.o \
+# RUN:   -reexport_library %t/libhello2.dylib
+# RUN: not %lld -lSystem -o %t/hello %t/libgoodbye5.dylib %t/sub-library.o 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=NOTFOUND2
+# RUN: not %lld -lSystem -o %t/hello -F%t %t/libgoodbye5.dylib %t/sub-library.o 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=NOTFOUND2
+# NOTFOUND2: unable to locate re-export with install name /path/to/libhello2.dylib
+# RUN: %lld -lSystem -o %t/hello -L%t %t/libgoodbye5.dylib %t/sub-library.o
 
 .text
 .globl _main

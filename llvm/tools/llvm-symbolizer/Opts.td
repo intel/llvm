@@ -1,31 +1,46 @@
 include "llvm/Option/OptParser.td"
 
 multiclass B<string name, string help1, string help2> {
-  def NAME: Flag<["--", "-"], name>, HelpText<help1>;
-  def no_ # NAME: Flag<["--", "-"], "no-" # name>, HelpText<help2>;
+  def NAME: Flag<["--"], name>, HelpText<help1>;
+  def no_ # NAME: Flag<["--"], "no-" # name>, HelpText<help2>;
 }
 
 multiclass Eq<string name, string help> {
-  def NAME #_EQ : Joined<["--", "-"], name #"=">,
+  def NAME #_EQ : Joined<["--"], name #"=">,
                   HelpText<help>;
-  def : Separate<["--", "-"], name>, Alias<!cast<Joined>(NAME #_EQ)>;
+  def : Separate<["--"], name>, Alias<!cast<Joined>(NAME #_EQ)>;
 }
 
-class F<string name, string help>: Flag<["--", "-"], name>, HelpText<help>;
+class F<string name, string help>: Flag<["--"], name>, HelpText<help>;
+
+def grp_mach_o : OptionGroup<"kind">,
+                 HelpText<"llvm-symbolizer Mach-O Specific Options">;
 
 def addresses : F<"addresses", "Show address before line information">;
 defm adjust_vma
     : Eq<"adjust-vma", "Add specified offset to object file addresses">,
       MetaVarName<"<offset>">;
 def basenames : Flag<["--"], "basenames">, HelpText<"Strip directory names from paths">;
+defm build_id : Eq<"build-id", "Build ID used to look up the object file">;
+defm cache_size : Eq<"cache-size", "Max size in bytes of the in-memory binary cache.">;
+def color : F<"color", "Use color when symbolizing log markup.">;
+def color_EQ : Joined<["--"], "color=">, HelpText<"Whether to use color when symbolizing log markup: always, auto, never">, Values<"always,auto,never">;
 defm debug_file_directory : Eq<"debug-file-directory", "Path to directory where to look for debug files">, MetaVarName<"<dir>">;
-defm default_arch : Eq<"default-arch", "Default architecture (for multi-arch objects)">;
+defm debuginfod : B<"debuginfod", "Use debuginfod to find debug binaries", "Don't use debuginfod to find debug binaries">;
+defm default_arch
+    : Eq<"default-arch", "Default architecture (for multi-arch objects)">,
+      Group<grp_mach_o>;
 defm demangle : B<"demangle", "Demangle function names", "Don't demangle function names">;
+def filter_markup : Flag<["--"], "filter-markup">, HelpText<"Filter symbolizer markup from stdin.">;
 def functions : F<"functions", "Print function name for a given address">;
 def functions_EQ : Joined<["--"], "functions=">, HelpText<"Print function name for a given address">, Values<"none,short,linkage">;
 def help : F<"help", "Display this help">;
 defm dwp : Eq<"dwp", "Path to DWP file to be use for any split CUs">, MetaVarName<"<file>">;
-defm dsym_hint : Eq<"dsym-hint", "Path to .dSYM bundles to search for debug info for the object files">, MetaVarName<"<dir>">;
+defm dsym_hint
+    : Eq<"dsym-hint",
+         "Path to .dSYM bundles to search for debug info for the object files">,
+      MetaVarName<"<dir>">,
+      Group<grp_mach_o>;
 defm fallback_debug_path : Eq<"fallback-debug-path", "Fallback path for debug binaries">, MetaVarName<"<dir>">;
 defm inlines : B<"inlines", "Print all inlined frames for a given address",
                  "Do not print inlined frames">;
@@ -33,9 +48,9 @@ defm obj
     : Eq<"obj", "Path to object file to be symbolized (if not provided, "
                 "object file should be specified for each input line)">, MetaVarName<"<file>">;
 defm output_style
-    : Eq<"output-style", "Specify print style. Supported styles: LLVM, GNU">,
+    : Eq<"output-style", "Specify print style. Supported styles: LLVM, GNU, JSON">,
       MetaVarName<"style">,
-      Values<"LLVM,GNU">;
+      Values<"LLVM,GNU,JSON">;
 def pretty_print : F<"pretty-print", "Make the output more human friendly">;
 defm print_source_context_lines : Eq<"print-source-context-lines", "Print N lines of source file context">;
 def relative_address : F<"relative-address", "Interpret addresses as addresses relative to the image base">;

@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_AARCH64_AARCH64ISELLOWERING_H
 
 #include "AArch64.h"
+#include "Utils/AArch64SMEAttributes.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/SelectionDAG.h"
@@ -55,6 +56,11 @@ enum NodeType : unsigned {
   // x29, x29` marker instruction.
   CALL_RVMARKER,
 
+  CALL_BTI, // Function call followed by a BTI instruction.
+
+  SMSTART,
+  SMSTOP,
+
   // Produces the full sequence of instructions for getting the thread pointer
   // offset of a variable into X0, using the TLSDesc model.
   TLSDESC_CALLSEQ,
@@ -66,7 +72,6 @@ enum NodeType : unsigned {
   RET_FLAG, // Return with a flag operand. Operand 0 is the chain operand.
   BRCOND,   // Conditional branch instruction; "b.cond".
   CSEL,
-  FCSEL, // Conditional move instruction.
   CSINV, // Conditional select invert.
   CSNEG, // Conditional select negate.
   CSINC, // Conditional select increment.
@@ -78,27 +83,34 @@ enum NodeType : unsigned {
   SBC, // adc, sbc instructions
 
   // Predicated instructions where inactive lanes produce undefined results.
-  ADD_PRED,
+  ABDS_PRED,
+  ABDU_PRED,
   FADD_PRED,
   FDIV_PRED,
   FMA_PRED,
-  FMAXNM_PRED,
-  FMINNM_PRED,
   FMAX_PRED,
+  FMAXNM_PRED,
   FMIN_PRED,
+  FMINNM_PRED,
   FMUL_PRED,
   FSUB_PRED,
   MUL_PRED,
+  MULHS_PRED,
+  MULHU_PRED,
   SDIV_PRED,
   SHL_PRED,
   SMAX_PRED,
   SMIN_PRED,
   SRA_PRED,
   SRL_PRED,
-  SUB_PRED,
   UDIV_PRED,
   UMAX_PRED,
   UMIN_PRED,
+
+  // Unpredicated vector instructions
+  BIC,
+
+  SRAD_MERGE_OP1,
 
   // Predicated instructions with the result of inactive lanes provided by the
   // last operand.
@@ -150,6 +162,7 @@ enum NodeType : unsigned {
   DUPLANE16,
   DUPLANE32,
   DUPLANE64,
+  DUPLANE128,
 
   // Vector immedate moves
   MOVI,
@@ -168,9 +181,6 @@ enum NodeType : unsigned {
   // element must be identical.
   BSP,
 
-  // Vector arithmetic negation
-  NEG,
-
   // Vector shuffles
   ZIP1,
   ZIP2,
@@ -182,6 +192,7 @@ enum NodeType : unsigned {
   REV32,
   REV64,
   EXT,
+  SPLICE,
 
   // Vector shift by scalar
   VSHL,
@@ -226,17 +237,11 @@ enum NodeType : unsigned {
   SADDV,
   UADDV,
 
-  // Vector halving addition
-  SHADD,
-  UHADD,
-
-  // Vector rounding halving addition
-  SRHADD,
-  URHADD,
-
-  // Absolute difference
-  UABD,
-  SABD,
+  // Add Pairwise of two vectors
+  ADDP,
+  // Add Long Pairwise
+  SADDLP,
+  UADDLP,
 
   // udot/sdot instructions
   UDOT,
@@ -290,6 +295,8 @@ enum NodeType : unsigned {
   SMULL,
   UMULL,
 
+  PMULL,
+
   // Reciprocal estimates and steps.
   FRECPE,
   FRECPS,
@@ -321,6 +328,8 @@ enum NodeType : unsigned {
 
   BITREVERSE_MERGE_PASSTHRU,
   BSWAP_MERGE_PASSTHRU,
+  REVH_MERGE_PASSTHRU,
+  REVW_MERGE_PASSTHRU,
   CTLZ_MERGE_PASSTHRU,
   CTPOP_MERGE_PASSTHRU,
   DUP_MERGE_PASSTHRU,
@@ -328,6 +337,10 @@ enum NodeType : unsigned {
 
   // Cast between vectors of the same element type but differ in length.
   REINTERPRET_CAST,
+
+  // Nodes to build an LD64B / ST64B 64-bit quantity out of i64, and vice versa
+  LS64_BUILD,
+  LS64_EXTRACT,
 
   LD1_MERGE_ZERO,
   LD1S_MERGE_ZERO,
@@ -400,6 +413,14 @@ enum NodeType : unsigned {
   SSTNT1_PRED,
   SSTNT1_INDEX_PRED,
 
+  // SME
+  RDSVL,
+  REVD_MERGE_PASSTHRU,
+
+  // Asserts that a function argument (i32) is zero-extended to i8 by
+  // the caller
+  ASSERT_ZEXT_BOOL,
+
   // Strict (exception-raising) floating point comparison
   STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
   STRICT_FCMPE,
@@ -435,28 +456,19 @@ enum NodeType : unsigned {
   STZ2G,
 
   LDP,
+  LDNP,
+  LDNP128,
   STP,
   STNP,
+
+  // Memory Operations
+  MOPS_MEMSET,
+  MOPS_MEMSET_TAGGING,
+  MOPS_MEMCOPY,
+  MOPS_MEMMOVE,
 };
 
 } // end namespace AArch64ISD
-
-namespace {
-
-// Any instruction that defines a 32-bit result zeros out the high half of the
-// register. Truncate can be lowered to EXTRACT_SUBREG. CopyFromReg may
-// be copying from a truncate. But any other 32-bit operation will zero-extend
-// up to 64 bits. AssertSext/AssertZext aren't saying anything about the upper
-// 32 bits, they're probably just qualifying a CopyFromReg.
-// FIXME: X86 also checks for CMOV here. Do we need something similar?
-static inline bool isDef32(const SDNode &N) {
-  unsigned Opc = N.getOpcode();
-  return Opc != ISD::TRUNCATE && Opc != TargetOpcode::EXTRACT_SUBREG &&
-         Opc != ISD::CopyFromReg && Opc != ISD::AssertSext &&
-         Opc != ISD::AssertZext;
-}
-
-} // end anonymous namespace
 
 namespace AArch64 {
 /// Possible values of current rounding mode, which is specified in bits
@@ -474,12 +486,16 @@ const unsigned RoundingBitsPos = 22;
 } // namespace AArch64
 
 class AArch64Subtarget;
-class AArch64TargetMachine;
 
 class AArch64TargetLowering : public TargetLowering {
 public:
   explicit AArch64TargetLowering(const TargetMachine &TM,
                                  const AArch64Subtarget &STI);
+
+  /// Control the following reassociation of operands: (op (op x, c1), y) -> (op
+  /// (op x, y), c1) where N0 is (op x, c1) and N1 is y.
+  bool isReassocProfitable(SelectionDAG &DAG, SDValue N0,
+                           SDValue N1) const override;
 
   /// Selects the correct CCAssignFn for a given CallingConvention value.
   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
@@ -541,6 +557,10 @@ public:
   /// should be stack expanded.
   bool isShuffleMaskLegal(ArrayRef<int> M, EVT VT) const override;
 
+  /// Similar to isShuffleMaskLegal. Return true is the given 'select with zero'
+  /// shuffle mask can be codegen'd directly.
+  bool isVectorClearMaskLegal(ArrayRef<int> M, EVT VT) const override;
+
   /// Return the ISD::SETCC ValueType.
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
@@ -552,6 +572,20 @@ public:
 
   MachineBasicBlock *EmitLoweredCatchRet(MachineInstr &MI,
                                            MachineBasicBlock *BB) const;
+
+  MachineBasicBlock *EmitTileLoad(unsigned Opc, unsigned BaseReg,
+                                  MachineInstr &MI,
+                                  MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitFill(MachineInstr &MI, MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitMopa(unsigned Opc, unsigned BaseReg, MachineInstr &MI,
+                              MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitInsertVectorToTile(unsigned Opc, unsigned BaseReg,
+                                            MachineInstr &MI,
+                                            MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitZero(MachineInstr &MI, MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitAddVectorToTile(unsigned Opc, unsigned BaseReg,
+                                         MachineInstr &MI,
+                                         MachineBasicBlock *BB) const;
 
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
@@ -576,6 +610,9 @@ public:
   bool shouldSinkOperands(Instruction *I,
                           SmallVectorImpl<Use *> &Ops) const override;
 
+  bool optimizeExtendOrTruncateConversion(Instruction *I,
+                                          Loop *L) const override;
+
   bool hasPairedLoad(EVT LoadedType, Align &RequiredAligment) const override;
 
   unsigned getMaxSupportedInterleaveFactor() const override { return 4; }
@@ -590,6 +627,9 @@ public:
   bool isLegalAddImmediate(int64_t) const override;
   bool isLegalICmpImmediate(int64_t) const override;
 
+  bool isMulAddWithConstProfitable(SDValue AddNode,
+                                   SDValue ConstNode) const override;
+
   bool shouldConsiderGEPOffsetSplit() const override;
 
   EVT getOptimalMemOpType(const MemOp &Op,
@@ -603,14 +643,6 @@ public:
   bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
                              unsigned AS,
                              Instruction *I = nullptr) const override;
-
-  /// Return the cost of the scaling factor used in the addressing
-  /// mode represented by AM for this target, for a load/store
-  /// of the specified type.
-  /// If the AM is supported, the return value must be >= 0.
-  /// If the AM is not supported, it returns a negative value.
-  int getScalingFactorCost(const DataLayout &DL, const AddrMode &AM, Type *Ty,
-                           unsigned AS) const override;
 
   /// Return true if an FMA operation is faster than a pair of fmul and fadd
   /// instructions. fmuladd intrinsics will be expanded to FMAs when this method
@@ -627,6 +659,13 @@ public:
   /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
   bool isDesirableToCommuteWithShift(const SDNode *N,
                                      CombineLevel Level) const override;
+
+  /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
+  bool isDesirableToCommuteXorWithShift(const SDNode *N) const override;
+
+  /// Return true if it is profitable to fold a pair of shifts into a mask.
+  bool shouldFoldConstantShiftPairToMask(const SDNode *N,
+                                         CombineLevel Level) const override;
 
   /// Returns true if it is beneficial to convert a load of a constant
   /// to just the constant itself.
@@ -645,16 +684,20 @@ public:
     return TargetLowering::shouldFormOverflowOp(Opcode, VT, true);
   }
 
-  Value *emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
+  Value *emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy, Value *Addr,
                         AtomicOrdering Ord) const override;
-  Value *emitStoreConditional(IRBuilder<> &Builder, Value *Val,
-                              Value *Addr, AtomicOrdering Ord) const override;
+  Value *emitStoreConditional(IRBuilderBase &Builder, Value *Val, Value *Addr,
+                              AtomicOrdering Ord) const override;
 
-  void emitAtomicCmpXchgNoStoreLLBalance(IRBuilder<> &Builder) const override;
+  void emitAtomicCmpXchgNoStoreLLBalance(IRBuilderBase &Builder) const override;
+
+  bool isOpSuitableForLDPSTP(const Instruction *I) const;
+  bool shouldInsertFencesForAtomic(const Instruction *I) const override;
 
   TargetLoweringBase::AtomicExpansionKind
   shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
-  bool shouldExpandAtomicStoreInIR(StoreInst *SI) const override;
+  TargetLoweringBase::AtomicExpansionKind
+  shouldExpandAtomicStoreInIR(StoreInst *SI) const override;
   TargetLoweringBase::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
 
@@ -667,7 +710,7 @@ public:
 
   /// If the target has a standard location for the stack protector cookie,
   /// returns the address of that location. Otherwise, returns nullptr.
-  Value *getIRStackGuard(IRBuilder<> &IRB) const override;
+  Value *getIRStackGuard(IRBuilderBase &IRB) const override;
 
   void insertSSPDeclarations(Module &M) const override;
   Value *getSDagStackGuard(const Module &M) const override;
@@ -675,7 +718,7 @@ public:
 
   /// If the target has a standard location for the unsafe stack pointer,
   /// returns the address of that location. Otherwise, returns nullptr.
-  Value *getSafeStackPointerLocation(IRBuilder<> &IRB) const override;
+  Value *getSafeStackPointerLocation(IRBuilderBase &IRB) const override;
 
   /// If a physical register, this returns the register that receives the
   /// exception address on entry to an EH pad.
@@ -696,23 +739,22 @@ public:
   bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
 
   bool canMergeStoresTo(unsigned AddressSpace, EVT MemVT,
-                        const SelectionDAG &DAG) const override {
+                        const MachineFunction &MF) const override {
     // Do not merge to float value size (128 bytes) if no implicit
     // float attribute is set.
 
-    bool NoFloat = DAG.getMachineFunction().getFunction().hasFnAttribute(
-        Attribute::NoImplicitFloat);
+    bool NoFloat = MF.getFunction().hasFnAttribute(Attribute::NoImplicitFloat);
 
     if (NoFloat)
       return (MemVT.getSizeInBits() <= 64);
     return true;
   }
 
-  bool isCheapToSpeculateCttz() const override {
+  bool isCheapToSpeculateCttz(Type *) const override {
     return true;
   }
 
-  bool isCheapToSpeculateCtlz() const override {
+  bool isCheapToSpeculateCtlz(Type *) const override {
     return true;
   }
 
@@ -729,7 +771,9 @@ public:
     if (!VT.isVector())
       return hasAndNotCompare(Y);
 
-    return VT.getSizeInBits() >= 64; // vector 'bic'
+    TypeSize TS = VT.getSizeInBits();
+    // TODO: We should be able to use bic/bif too for SVE.
+    return !TS.isScalable() && TS.getFixedValue() >= 64; // vector 'bic'
   }
 
   bool shouldProduceAndByConstByHoistingConstFromShiftsLHSOfAnd(
@@ -758,6 +802,8 @@ public:
 
   bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
+  bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
+
   bool hasBitPreservingFPLogic(EVT VT) const override {
     // FIXME: Is this always true? It should be true for vectors at least.
     return VT == MVT::f32 || VT == MVT::f64;
@@ -776,6 +822,8 @@ public:
     return true;
   }
 
+  bool supportKCFIBundles() const override { return true; }
+
   /// Enable aggressive FMA fusion on targets that want it.
   bool enableAggressiveFMAFusion(EVT VT) const override;
 
@@ -785,20 +833,21 @@ public:
   /// Returns true if \p VecTy is a legal interleaved access type. This
   /// function checks the vector element type and the overall width of the
   /// vector.
-  bool isLegalInterleavedAccessType(VectorType *VecTy,
-                                    const DataLayout &DL) const;
+  bool isLegalInterleavedAccessType(VectorType *VecTy, const DataLayout &DL,
+                                    bool &UseScalable) const;
 
   /// Returns the number of interleaved accesses that will be generated when
   /// lowering accesses of the given type.
-  unsigned getNumInterleavedAccesses(VectorType *VecTy,
-                                     const DataLayout &DL) const;
+  unsigned getNumInterleavedAccesses(VectorType *VecTy, const DataLayout &DL,
+                                     bool UseScalable) const;
 
   MachineMemOperand::Flags getTargetMMOFlags(
     const Instruction &I) const override;
 
-  bool functionArgumentNeedsConsecutiveRegisters(Type *Ty,
-                                                 CallingConv::ID CallConv,
-                                                 bool isVarArg) const override;
+  bool functionArgumentNeedsConsecutiveRegisters(
+      Type *Ty, CallingConv::ID CallConv, bool isVarArg,
+      const DataLayout &DL) const override;
+
   /// Used for exception handling on Win64.
   bool needsFixedCatchObjects() const override;
 
@@ -819,6 +868,22 @@ public:
     return 128;
   }
 
+  bool isAllActivePredicate(SelectionDAG &DAG, SDValue N) const;
+  EVT getPromotedVTForPredicate(EVT VT) const;
+
+  EVT getAsmOperandValueType(const DataLayout &DL, Type *Ty,
+                             bool AllowUnknown = false) const override;
+
+  bool shouldExpandGetActiveLaneMask(EVT VT, EVT OpVT) const override;
+
+  /// If a change in streaming mode is required on entry to/return from a
+  /// function call it emits and returns the corresponding SMSTART or SMSTOP node.
+  /// \p Entry tells whether this is before/after the Call, which is necessary
+  /// because PSTATE.SM is only queried once.
+  SDValue changeStreamingMode(SelectionDAG &DAG, SDLoc DL, bool Enable,
+                              SDValue Chain, SDValue InFlag,
+                              SDValue PStateSM, bool Entry) const;
+
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can
   /// make the right decision when generating code for different targets.
@@ -826,7 +891,7 @@ private:
 
   bool isExtFreeImpl(const Instruction *Ext) const override;
 
-  void addTypeForNEON(MVT VT, MVT PromotedBitwiseVT);
+  void addTypeForNEON(MVT VT);
   void addTypeForFixedLengthSVE(MVT VT);
   void addDRTypeForNEON(MVT VT);
   void addQRTypeForNEON(MVT VT);
@@ -847,19 +912,21 @@ private:
                           SmallVectorImpl<SDValue> &InVals, bool isThisReturn,
                           SDValue ThisVal) const;
 
+  SDValue LowerLOAD(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerStore128(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerABS(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerMGATHER(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMSCATTER(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue LowerMLOAD(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
 
-  bool isEligibleForTailCallOptimization(
-      SDValue Callee, CallingConv::ID CalleeCC, bool isVarArg,
-      const SmallVectorImpl<ISD::OutputArg> &Outs,
-      const SmallVectorImpl<SDValue> &OutVals,
-      const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
+  bool
+  isEligibleForTailCallOptimization(const CallLoweringInfo &CLI) const;
 
   /// Finds the incoming stack arguments which overlap the given fixed stack
   /// object and incorporates their load into the current chain. This prevents
@@ -936,32 +1003,36 @@ private:
   SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSPLAT_VECTOR(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerSTEP_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDUPQLane(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerToPredicatedOp(SDValue Op, SelectionDAG &DAG, unsigned NewOp,
-                              bool OverrideNEON = false) const;
+  SDValue LowerToPredicatedOp(SDValue Op, SelectionDAG &DAG,
+                              unsigned NewOp) const;
   SDValue LowerToScalableOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVECTOR_SPLICE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINSERT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDIV(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorSRA_SRL_SHL(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerShiftParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVSETCC(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerCTPOP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerCTPOP_PARITY(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCTTZ(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerBitreverse(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerMinMax(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFCOPYSIGN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVectorFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVectorOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerXOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCONCAT_VECTORS(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFSINCOS(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerBITCAST(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVSCALE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerTRUNCATE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
@@ -971,14 +1042,13 @@ private:
   SDValue LowerWindowsDYNAMIC_STACKALLOC(SDValue Op, SDValue Chain,
                                          SDValue &Size,
                                          SelectionDAG &DAG) const;
-  SDValue LowerSVEStructLoad(unsigned Intrinsic, ArrayRef<SDValue> LoadOps,
-                             EVT VT, SelectionDAG &DAG, const SDLoc &DL) const;
 
   SDValue LowerFixedLengthVectorIntDivideToSVE(SDValue Op,
                                                SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorIntExtendToSVE(SDValue Op,
                                                SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorLoadToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthVectorMLoadToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVECREDUCE_SEQ_FADD(SDValue ScalarOp, SelectionDAG &DAG) const;
   SDValue LowerPredReductionToSVE(SDValue ScalarOp, SelectionDAG &DAG) const;
   SDValue LowerReductionToSVE(unsigned Opcode, SDValue ScalarOp,
@@ -986,12 +1056,25 @@ private:
   SDValue LowerFixedLengthVectorSelectToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorSetccToSVE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorStoreToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthVectorMStoreToSVE(SDValue Op,
+                                            SelectionDAG &DAG) const;
   SDValue LowerFixedLengthVectorTruncateToSVE(SDValue Op,
                                               SelectionDAG &DAG) const;
   SDValue LowerFixedLengthExtractVectorElt(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFixedLengthInsertVectorElt(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthBitcastToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthConcatVectorsToSVE(SDValue Op,
+                                             SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthFPExtendToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthFPRoundToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthIntToFPToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthFPToIntToSVE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFixedLengthVECTOR_SHUFFLEToSVE(SDValue Op,
+                                              SelectionDAG &DAG) const;
 
   SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
+                        SmallVectorImpl<SDNode *> &Created) const override;
+  SDValue BuildSREMPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                         SmallVectorImpl<SDNode *> &Created) const override;
   SDValue getSqrtEstimate(SDValue Operand, SelectionDAG &DAG, int Enabled,
                           int &ExtraSteps, bool &UseOneConst,
@@ -1034,7 +1117,7 @@ private:
   }
 
   bool shouldExtendGSIndex(EVT VT, EVT &EltTy) const override;
-  bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
+  bool shouldRemoveExtendFromGSIndex(EVT IndexVT, EVT DataVT) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
   bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
   bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
@@ -1050,6 +1133,8 @@ private:
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
+  void ReplaceBITCASTResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                             SelectionDAG &DAG) const;
   void ReplaceExtractSubVectorResults(SDNode *N,
                                       SmallVectorImpl<SDValue> &Results,
                                       SelectionDAG &DAG) const;
@@ -1060,6 +1145,15 @@ private:
 
   bool shouldLocalize(const MachineInstr &MI,
                       const TargetTransformInfo *TTI) const override;
+
+  bool SimplifyDemandedBitsForTargetNode(SDValue Op,
+                                         const APInt &OriginalDemandedBits,
+                                         const APInt &OriginalDemandedElts,
+                                         KnownBits &Known,
+                                         TargetLoweringOpt &TLO,
+                                         unsigned Depth) const override;
+
+  bool isTargetCanonicalConstantNode(SDValue Op) const override;
 
   // Normally SVE is only used for byte size vectors that do not fit within a
   // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
@@ -1075,7 +1169,16 @@ private:
   // These can make "bitcasting" a multiphase process. REINTERPRET_CAST is used
   // to transition between unpacked and packed types of the same element type,
   // with BITCAST used otherwise.
+  // This function does not handle predicate bitcasts.
   SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
+
+  // Returns the runtime value for PSTATE.SM. When the function is streaming-
+  // compatible, this generates a call to __arm_sme_state.
+  SDValue getPStateSM(SelectionDAG &DAG, SDValue Chain, SMEAttrs Attrs,
+                      SDLoc DL, EVT VT) const;
+
+  bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
+                                              LLT Ty2) const override;
 };
 
 namespace AArch64 {

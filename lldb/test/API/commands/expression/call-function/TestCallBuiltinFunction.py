@@ -12,15 +12,13 @@ from lldbsuite.test import lldbutil
 
 class ExprCommandCallBuiltinFunction(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     # Builtins are expanded by Clang, so debug info shouldn't matter.
     NO_DEBUG_INFO_TESTCASE = True
 
     def test(self):
         self.build()
 
-        target = self.dbg.CreateTarget(self.getBuildArtifact("a.out"))
+        target = self.createTestTarget()
 
         self.expect_expr("__builtin_isinf(0.0f)", result_type="int", result_value="0")
         self.expect_expr("__builtin_isnormal(0.0f)", result_type="int", result_value="0")

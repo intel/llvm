@@ -1,0 +1,164 @@
+:extension_name: SPV_INTEL_non_constant_addrspace_printf
+:capability_name: NonConstantAddrspacePrintfINTEL
+:capability_token: 6411
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Leonid Pauzin, Intel +
+- Dmitry Sidorov, Intel +
+- Nikita Kornev, Intel +
+
+== Notice
+
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2022-01-13
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5, Revision 6.
+
+Also it modifies OpenCL Extended Instruction Set Specification, Version 1.00,
+Revision 7.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+The extension allows format argument of the extended SPIR-V instruction *printf*
+to be a pointer in generic, private, local and global address spaces.
+
+
+== Extension Name
+
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_name}* | {capability_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.5
+
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {capability_token} | *{capability_name}*
+| Reserved. +
+ +
+See also extension: *{extension_name}*
+|====
+--
+
+
+== Modifications to the OpenCL Extended Instruction Set Specification, Version 1.0, Revision 6
+
+
+=== Misc instructions
+
+Modify Section 2.8, _printf_ definition: 
+
+[cols="8", width="100%"]
+|====
+8+^|*printf* +
+The _printf_ extended instruction writes output to an implementation-defined
+stream such as stdout under control of the string pointed to by format that
+specifies how subsequent arguments are converted for output. If there are
+insufficient arguments for the format, the behavior is undefined. If the format
+is exhausted while arguments remain, the excess arguments are evaluated (as
+always) but are otherwise ignored. The printf instruction returns when the end
+of the format string is encountered. The format string must be resolvable at
+compile time, i.e. cannot be dynamically created by the executing program
+itself.
+
+_printf_ returns 0 if it was executed successfully and -1 otherwise
+
+_Result Type_ must be _i32_.
+
+_format_ must be a _pointer(constant, generic, private, local, global)_ to _i8_.
+
+| 6 + variable | 12 | _<id>_ +
+ _Result Type_ | _Result <id>_ | extended +
+ instructions set +
+ _<id>_ | 184 | _<id>_ +
+ _format_ | _<id>, <id>, …_ +
+ _additional_ +
+ _arguments_
+|====
+
+
+=== Issues
+
+None
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-01-13|Leonid Pauzin|Initial revision
+|========================================

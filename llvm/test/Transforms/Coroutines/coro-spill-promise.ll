@@ -1,13 +1,12 @@
 ; Check that promise object is reloaded from the correct index of the coro frame.
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 %"class.task::promise_type" = type { [64 x i8] }
 
 declare void @consume(i32*)
 declare void @consume2(%"class.task::promise_type"*)
 
-define i8* @f() "coroutine.presplit"="1" {
+define i8* @f() presplitcoroutine {
 entry:
   %data = alloca i32, align 4
   %__promise = alloca %"class.task::promise_type", align 64

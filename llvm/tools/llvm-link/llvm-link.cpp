@@ -41,21 +41,25 @@
 #include <utility>
 using namespace llvm;
 
-static cl::list<std::string>
-InputFilenames(cl::Positional, cl::OneOrMore,
-               cl::desc("<input bitcode files>"));
+static cl::OptionCategory LinkCategory("Link Options");
+
+static cl::list<std::string> InputFilenames(cl::Positional, cl::OneOrMore,
+                                            cl::desc("<input bitcode files>"),
+                                            cl::cat(LinkCategory));
 
 static cl::list<std::string> OverridingInputs(
-    "override", cl::ZeroOrMore, cl::value_desc("filename"),
+    "override", cl::value_desc("filename"),
     cl::desc(
-        "input bitcode file which can override previously defined symbol(s)"));
+        "input bitcode file which can override previously defined symbol(s)"),
+    cl::cat(LinkCategory));
 
 // Option to simulate function importing for testing. This enables using
 // llvm-link to simulate ThinLTO backend processes.
 static cl::list<std::string> Imports(
-    "import", cl::ZeroOrMore, cl::value_desc("function:filename"),
+    "import", cl::value_desc("function:filename"),
     cl::desc("Pair of function name and filename, where function should be "
-             "imported from bitcode in filename"));
+             "imported from bitcode in filename"),
+    cl::cat(LinkCategory));
 
 // Option to support testing of function importing. The module summary
 // must be specified in the case were we request imports via the -import
@@ -64,54 +68,66 @@ static cl::list<std::string> Imports(
 // consistent promotion and renaming of locals.
 static cl::opt<std::string>
     SummaryIndex("summary-index", cl::desc("Module summary index filename"),
-                 cl::init(""), cl::value_desc("filename"));
+                 cl::init(""), cl::value_desc("filename"),
+                 cl::cat(LinkCategory));
 
 static cl::opt<std::string>
-OutputFilename("o", cl::desc("Override output filename"), cl::init("-"),
-               cl::value_desc("filename"));
+    OutputFilename("o", cl::desc("Override output filename"), cl::init("-"),
+                   cl::value_desc("filename"), cl::cat(LinkCategory));
 
-static cl::opt<bool>
-Internalize("internalize", cl::desc("Internalize linked symbols"));
+static cl::opt<bool> Internalize("internalize",
+                                 cl::desc("Internalize linked symbols"),
+                                 cl::cat(LinkCategory));
 
 static cl::opt<bool>
     DisableDITypeMap("disable-debug-info-type-map",
-                     cl::desc("Don't use a uniquing type map for debug info"));
+                     cl::desc("Don't use a uniquing type map for debug info"),
+                     cl::cat(LinkCategory));
 
-static cl::opt<bool>
-OnlyNeeded("only-needed", cl::desc("Link only needed symbols"));
+static cl::opt<bool> OnlyNeeded("only-needed",
+                                cl::desc("Link only needed symbols"),
+                                cl::cat(LinkCategory));
 
-static cl::opt<bool>
-Force("f", cl::desc("Enable binary output on terminals"));
+static cl::opt<bool> Force("f", cl::desc("Enable binary output on terminals"),
+                           cl::cat(LinkCategory));
 
-static cl::opt<bool>
-    DisableLazyLoad("disable-lazy-loading",
-                    cl::desc("Disable lazy module loading"));
+static cl::opt<bool> DisableLazyLoad("disable-lazy-loading",
+                                     cl::desc("Disable lazy module loading"),
+                                     cl::cat(LinkCategory));
 
-static cl::opt<bool>
-    OutputAssembly("S", cl::desc("Write output as LLVM assembly"), cl::Hidden);
+static cl::opt<bool> OutputAssembly("S",
+                                    cl::desc("Write output as LLVM assembly"),
+                                    cl::Hidden, cl::cat(LinkCategory));
 
-static cl::opt<bool>
-Verbose("v", cl::desc("Print information about actions taken"));
+static cl::opt<bool> Verbose("v",
+                             cl::desc("Print information about actions taken"),
+                             cl::cat(LinkCategory));
 
-static cl::opt<bool>
-DumpAsm("d", cl::desc("Print assembly as linked"), cl::Hidden);
+static cl::opt<bool> DumpAsm("d", cl::desc("Print assembly as linked"),
+                             cl::Hidden, cl::cat(LinkCategory));
 
-static cl::opt<bool>
-SuppressWarnings("suppress-warnings", cl::desc("Suppress all linking warnings"),
-                 cl::init(false));
+static cl::opt<bool> SuppressWarnings("suppress-warnings",
+                                      cl::desc("Suppress all linking warnings"),
+                                      cl::init(false), cl::cat(LinkCategory));
 
 static cl::opt<bool> PreserveBitcodeUseListOrder(
     "preserve-bc-uselistorder",
     cl::desc("Preserve use-list order when writing LLVM bitcode."),
-    cl::init(true), cl::Hidden);
+    cl::init(true), cl::Hidden, cl::cat(LinkCategory));
 
 static cl::opt<bool> PreserveAssemblyUseListOrder(
     "preserve-ll-uselistorder",
     cl::desc("Preserve use-list order when writing LLVM assembly."),
-    cl::init(false), cl::Hidden);
+    cl::init(false), cl::Hidden, cl::cat(LinkCategory));
 
 static cl::opt<bool> NoVerify("disable-verify",
-                              cl::desc("Do not run the verifier"), cl::Hidden);
+                              cl::desc("Do not run the verifier"), cl::Hidden,
+                              cl::cat(LinkCategory));
+
+static cl::opt<bool> IgnoreNonBitcode(
+    "ignore-non-bitcode",
+    cl::desc("Do not report an error for non-bitcode files in archives"),
+    cl::Hidden);
 
 static ExitOnError ExitOnErr;
 
@@ -153,17 +169,21 @@ static std::unique_ptr<Module> loadArFile(const char *Argv0,
   if (Verbose)
     errs() << "Reading library archive file '" << ArchiveName
            << "' to memory\n";
-  Error Err = Error::success();
-  object::Archive Archive(*Buffer, Err);
-  ExitOnErr(std::move(Err));
+  Expected<std::unique_ptr<object::Archive>> ArchiveOrError =
+      object::Archive::create(Buffer->getMemBufferRef());
+  if (!ArchiveOrError)
+    ExitOnErr(ArchiveOrError.takeError());
+
+  std::unique_ptr<object::Archive> Archive = std::move(ArchiveOrError.get());
+
   Linker L(*Result);
-  for (const object::Archive::Child &C : Archive.children(Err)) {
+  Error Err = Error::success();
+  for (const object::Archive::Child &C : Archive->children(Err)) {
     Expected<StringRef> Ename = C.getName();
     if (Error E = Ename.takeError()) {
       errs() << Argv0 << ": ";
-      WithColor::error()
-          << " failed to read name of archive member"
-          << ArchiveName << "'\n";
+      WithColor::error() << " failed to read name of archive member"
+                         << ArchiveName << "'\n";
       return nullptr;
     }
     std::string ChildName = Ename.get().str();
@@ -180,10 +200,12 @@ static std::unique_ptr<Module> loadArFile(const char *Argv0,
       return nullptr;
     };
 
-    if (!isBitcode(reinterpret_cast<const unsigned char *>
-                   (MemBuf.get().getBufferStart()),
-                   reinterpret_cast<const unsigned char *>
-                   (MemBuf.get().getBufferEnd()))) {
+    if (!isBitcode(reinterpret_cast<const unsigned char *>(
+                       MemBuf.get().getBufferStart()),
+                   reinterpret_cast<const unsigned char *>(
+                       MemBuf.get().getBufferEnd()))) {
+      if (IgnoreNonBitcode)
+        continue;
       errs() << Argv0 << ": ";
       WithColor::error() << "  member of archive is not a bitcode file: '"
                          << ChildName << "'\n";
@@ -281,7 +303,7 @@ struct LLVMLinkDiagnosticHandler : public DiagnosticHandler {
     return true;
   }
 };
-}
+} // namespace
 
 /// Import any functions requested via the -import option.
 static bool importFunctions(const char *argv0, Module &DestModule) {
@@ -352,8 +374,7 @@ static bool importFunctions(const char *argv0, Module &DestModule) {
 }
 
 static bool linkFiles(const char *argv0, LLVMContext &Context, Linker &L,
-                      const cl::list<std::string> &Files,
-                      unsigned Flags) {
+                      const cl::list<std::string> &Files, unsigned Flags) {
   // Filter out flags that don't apply to the first file we load.
   unsigned ApplicableFlags = Flags & Linker::Flags::OverrideFromSrc;
   // Similar to some flags, internalization doesn't apply to the first file.
@@ -436,8 +457,9 @@ int main(int argc, char **argv) {
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
   LLVMContext Context;
-  Context.setDiagnosticHandler(
-    std::make_unique<LLVMLinkDiagnosticHandler>(), true);
+  Context.setDiagnosticHandler(std::make_unique<LLVMLinkDiagnosticHandler>(),
+                               true);
+  cl::HideUnrelatedOptions({&LinkCategory, &getColorCategory()});
   cl::ParseCommandLineOptions(argc, argv, "llvm linker\n");
 
   if (!DisableDITypeMap)
@@ -468,7 +490,8 @@ int main(int argc, char **argv) {
 
   std::error_code EC;
   ToolOutputFile Out(OutputFilename, EC,
-                     OutputAssembly ? sys::fs::OF_Text : sys::fs::OF_None);
+                     OutputAssembly ? sys::fs::OF_TextWithCRLF
+                                    : sys::fs::OF_None);
   if (EC) {
     WithColor::error() << EC.message() << '\n';
     return 1;

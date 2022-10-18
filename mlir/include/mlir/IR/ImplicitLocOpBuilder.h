@@ -63,7 +63,7 @@ public:
   /// Create an operation of specific op type at the current insertion point and
   /// location.
   template <typename OpTy, typename... Args>
-  OpTy create(Args &&... args) {
+  OpTy create(Args &&...args) {
     return OpBuilder::create<OpTy>(curLoc, std::forward<Args>(args)...);
   }
 
@@ -71,23 +71,21 @@ public:
   /// and immediately try to fold it. This functions populates 'results' with
   /// the results after folding the operation.
   template <typename OpTy, typename... Args>
-  void createOrFold(llvm::SmallVectorImpl<Value> &results, Args &&... args) {
+  void createOrFold(llvm::SmallVectorImpl<Value> &results, Args &&...args) {
     OpBuilder::createOrFold<OpTy>(results, curLoc, std::forward<Args>(args)...);
   }
 
   /// Overload to create or fold a single result operation.
   template <typename OpTy, typename... Args>
-  typename std::enable_if<OpTy::template hasTrait<mlir::OpTrait::OneResult>(),
-                          Value>::type
-  createOrFold(Args &&... args) {
+  std::enable_if_t<OpTy::template hasTrait<mlir::OpTrait::OneResult>(), Value>
+  createOrFold(Args &&...args) {
     return OpBuilder::createOrFold<OpTy>(curLoc, std::forward<Args>(args)...);
   }
 
   /// Overload to create or fold a zero result operation.
   template <typename OpTy, typename... Args>
-  typename std::enable_if<OpTy::template hasTrait<mlir::OpTrait::ZeroResult>(),
-                          OpTy>::type
-  createOrFold(Args &&... args) {
+  std::enable_if_t<OpTy::template hasTrait<mlir::OpTrait::ZeroResults>(), OpTy>
+  createOrFold(Args &&...args) {
     return OpBuilder::createOrFold<OpTy>(curLoc, std::forward<Args>(args)...);
   }
 

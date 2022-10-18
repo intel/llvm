@@ -15,6 +15,7 @@
 # sys.path.insert(0, os.path.abspath('.'))
 
 import datetime
+from docutils import nodes
 
 # -- Project information -----------------------------------------------------
 
@@ -32,8 +33,7 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'recommonmark',
-    'sphinx_markdown_tables'
+    'myst_parser'
 ]
 
 # The name of the Pygments (syntax highlighting) style to use.
@@ -46,19 +46,39 @@ html_theme = 'haiku'
 # The suffix of source filenames.
 source_suffix = ['.rst', '.md']
 
-# Extensions are mostly in asciidoc which has poor support in Sphinx
-exclude_patterns = ['extensions/*']
+exclude_patterns = [
+    # Extensions are mostly in asciidoc which has poor support in Sphinx.
+    'extensions/*',
+    'design/opencl-extensions/*',
+    'design/spirv-extensions/*',
 
-source_parsers = {'.md': 'recommonmark.parser.CommonMarkParser'}
+    # Sphinx complains about syntax errors in these files.
+    'design/DeviceLibExtensions.rst',
+    'design/SYCLPipesLoweringToSPIRV.rst',
+    'design/fpga_io_pipes_design.rst',
+    'design/Reduction_status.md'
+]
 
 suppress_warnings = [ 'misc.highlighting_failure' ]
 
 def on_missing_reference(app, env, node, contnode):
-    if node['reftype'] == 'any':
-        contnode['refuri'] = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + contnode['refuri']
-        return contnode
-    else:
-        return None
+    # Get the directory that contains the *source* file of the link.  These
+    # files are always relative to the directory containing "conf.py"
+    # (<top>/sycl/doc).  For example, the file "sycl/doc/design/foo.md" will
+    # have a directory "design".
+    refdoc_components = node['refdoc'].split('/')
+    dirs = '/'.join(refdoc_components[:-1])
+    if dirs: dirs += '/'
+
+    # A missing reference usually occurs when the target file of the link is
+    # not processed by Sphinx.  Compensate by creating a link that goes to the
+    # file's location in the GitHub repo.
+    new_target = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + dirs + \
+        node['reftarget']
+
+    newnode = nodes.reference('', '', internal=False, refuri=new_target)
+    newnode.append(contnode)
+    return newnode
 
 def setup(app):
     app.connect('missing-reference', on_missing_reference)

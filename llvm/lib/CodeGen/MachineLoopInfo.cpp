@@ -17,12 +17,12 @@
 #include "llvm/Analysis/LoopInfoImpl.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
 
 using namespace llvm;
 
@@ -115,8 +115,8 @@ DebugLoc MachineLoop::getStartLoc() const {
 }
 
 MachineBasicBlock *
-MachineLoopInfo::findLoopPreheader(MachineLoop *L,
-                                   bool SpeculativePreheader) const {
+MachineLoopInfo::findLoopPreheader(MachineLoop *L, bool SpeculativePreheader,
+                                   bool FindMultiLoopPreheader) const {
   if (MachineBasicBlock *PB = L->getLoopPreheader())
     return PB;
 
@@ -139,12 +139,14 @@ MachineLoopInfo::findLoopPreheader(MachineLoop *L,
 
   // Check if the preheader candidate is a successor of any other loop
   // headers. We want to avoid having two loop setups in the same block.
-  for (MachineBasicBlock *S : Preheader->successors()) {
-    if (S == HB)
-      continue;
-    MachineLoop *T = getLoopFor(S);
-    if (T && T->getHeader() == S)
-      return nullptr;
+  if (!FindMultiLoopPreheader) {
+    for (MachineBasicBlock *S : Preheader->successors()) {
+      if (S == HB)
+        continue;
+      MachineLoop *T = getLoopFor(S);
+      if (T && T->getHeader() == S)
+        return nullptr;
+    }
   }
   return Preheader;
 }
@@ -152,7 +154,9 @@ MachineLoopInfo::findLoopPreheader(MachineLoop *L,
 bool MachineLoop::isLoopInvariant(MachineInstr &I) const {
   MachineFunction *MF = I.getParent()->getParent();
   MachineRegisterInfo *MRI = &MF->getRegInfo();
-  const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
+  const TargetSubtargetInfo &ST = MF->getSubtarget();
+  const TargetRegisterInfo *TRI = ST.getRegisterInfo();
+  const TargetInstrInfo *TII = ST.getInstrInfo();
 
   // The instruction is loop invariant if all of its operands are.
   for (const MachineOperand &MO : I.operands()) {
@@ -172,7 +176,8 @@ bool MachineLoop::isLoopInvariant(MachineInstr &I) const {
         // However, if the physreg is known to always be caller saved/restored
         // then this use is safe to hoist.
         if (!MRI->isConstantPhysReg(Reg) &&
-            !(TRI->isCallerPreservedPhysReg(Reg.asMCReg(), *I.getMF())))
+            !(TRI->isCallerPreservedPhysReg(Reg.asMCReg(), *I.getMF())) &&
+            !TII->isIgnorableUse(MO))
           return false;
         // Otherwise it's safe to move.
         continue;

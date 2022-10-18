@@ -1,11 +1,10 @@
 ; Check that we can handle spills of array allocas
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 declare void @consume.double.ptr(double*)
 declare void @consume.i32.ptr(i32*)
 
-define i8* @f() "coroutine.presplit"="1" {
+define i8* @f() presplitcoroutine {
 entry:
   %prefix = alloca double
   %data = alloca i32, i32 4

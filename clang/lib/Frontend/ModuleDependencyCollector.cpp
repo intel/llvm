@@ -47,9 +47,9 @@ struct ModuleDependencyPPCallbacks : public PPCallbacks {
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
-                          CharSourceRange FilenameRange, const FileEntry *File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          CharSourceRange FilenameRange,
+                          Optional<FileEntryRef> File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override {
     if (!File)
       return;
@@ -148,7 +148,7 @@ void ModuleDependencyCollector::writeFileMap() {
   std::error_code EC;
   SmallString<256> YAMLPath = VFSDir;
   llvm::sys::path::append(YAMLPath, "vfs.yaml");
-  llvm::raw_fd_ostream OS(YAMLPath, EC, llvm::sys::fs::OF_Text);
+  llvm::raw_fd_ostream OS(YAMLPath, EC, llvm::sys::fs::OF_TextWithCRLF);
   if (EC) {
     HasErrors = true;
     return;

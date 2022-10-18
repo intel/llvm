@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/WindowsMachineFlag.h"
 #include "llvm/Object/WindowsResource.h"
@@ -20,7 +21,6 @@
 #include "llvm/Support/BinaryStreamError.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
@@ -48,7 +48,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-static const opt::OptTable::Info InfoTable[] = {
+const opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -66,13 +66,21 @@ public:
 };
 }
 
-static LLVM_ATTRIBUTE_NORETURN void reportError(Twine Msg) {
+[[noreturn]] static void reportError(Twine Msg) {
   errs() << Msg;
   exit(1);
 }
 
 static void reportError(StringRef Input, std::error_code EC) {
   reportError(Twine(Input) + ": " + EC.message() + ".\n");
+}
+
+static void error(StringRef Input, Error EC) {
+  if (!EC)
+    return;
+  handleAllErrors(std::move(EC), [&](const ErrorInfoBase &EI) {
+    reportError(Twine(Input) + ": " + EI.message() + ".\n");
+  });
 }
 
 static void error(Error EC) {
@@ -95,6 +103,16 @@ template <typename T> T error(Expected<T> EC) {
   return std::move(EC.get());
 }
 
+template <typename T> T error(StringRef Input, Expected<T> EC) {
+  if (!EC)
+    error(Input, EC.takeError());
+  return std::move(EC.get());
+}
+
+template <typename T> T error(StringRef Input, ErrorOr<T> &&EC) {
+  return error(Input, errorOrToExpected(std::move(EC)));
+}
+
 int main(int Argc, const char **Argv) {
   InitLLVM X(Argc, Argv);
 
@@ -104,7 +122,7 @@ int main(int Argc, const char **Argv) {
   opt::InputArgList InputArgs = T.ParseArgs(ArgsArr, MAI, MAC);
 
   if (InputArgs.hasArg(OPT_HELP)) {
-    T.PrintHelp(outs(), "llvm-cvtres [options] file...", "Resource Converter");
+    T.printHelp(outs(), "llvm-cvtres [options] file...", "Resource Converter");
     return 0;
   }
 
@@ -155,15 +173,17 @@ int main(int Argc, const char **Argv) {
   WindowsResourceParser Parser;
 
   for (const auto &File : InputFiles) {
-    Expected<OwningBinary<Binary>> BinaryOrErr = createBinary(File);
-    if (!BinaryOrErr)
-      reportError(File, errorToErrorCode(BinaryOrErr.takeError()));
-
-    Binary &Binary = *BinaryOrErr.get().getBinary();
-
-    WindowsResource *RF = dyn_cast<WindowsResource>(&Binary);
-    if (!RF)
+    std::unique_ptr<MemoryBuffer> Buffer = error(
+        File, MemoryBuffer::getFileOrSTDIN(File, /*IsText=*/false,
+                                           /*RequiresNullTerminator=*/false));
+    file_magic Type = identify_magic(Buffer->getMemBufferRef().getBuffer());
+    if (Type != file_magic::windows_resource)
       reportError(File + ": unrecognized file format.\n");
+    std::unique_ptr<WindowsResource> Binary = error(
+        File,
+        WindowsResource::createWindowsResource(Buffer->getMemBufferRef()));
+
+    WindowsResource *RF = Binary.get();
 
     if (Verbose) {
       int EntryNumber = 0;
@@ -199,12 +219,14 @@ int main(int Argc, const char **Argv) {
   error(FileBuffer->commit());
 
   if (Verbose) {
-    Expected<OwningBinary<Binary>> BinaryOrErr = createBinary(OutputFile);
-    if (!BinaryOrErr)
-      reportError(OutputFile, errorToErrorCode(BinaryOrErr.takeError()));
-    Binary &Binary = *BinaryOrErr.get().getBinary();
+    std::unique_ptr<MemoryBuffer> Buffer =
+        error(OutputFile,
+              MemoryBuffer::getFileOrSTDIN(OutputFile, /*IsText=*/false,
+                                           /*RequiresNullTerminator=*/false));
+
     ScopedPrinter W(errs());
-    W.printBinaryBlock("Output File Raw Data", Binary.getData());
+    W.printBinaryBlock("Output File Raw Data",
+                       Buffer->getMemBufferRef().getBuffer());
   }
 
   return 0;

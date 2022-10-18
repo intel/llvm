@@ -11,7 +11,6 @@
 #ifndef FORTRAN_RUNTIME_TERMINATOR_H_
 #define FORTRAN_RUNTIME_TERMINATOR_H_
 
-#include "entry-names.h"
 #include <cstdarg>
 
 namespace Fortran::runtime {
@@ -24,6 +23,10 @@ public:
   Terminator(const Terminator &) = default;
   explicit Terminator(const char *sourceFileName, int sourceLine = 0)
       : sourceFileName_{sourceFileName}, sourceLine_{sourceLine} {}
+
+  const char *sourceFileName() const { return sourceFileName_; }
+  int sourceLine() const { return sourceLine_; }
+
   void SetLocation(const char *sourceFileName = nullptr, int sourceLine = 0) {
     sourceFileName_ = sourceFileName;
     sourceLine_ = sourceLine;

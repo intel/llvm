@@ -16,6 +16,7 @@
 
 #include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/OptReportHandler.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -39,7 +40,8 @@
 
 namespace llvm {
 class Error;
-}
+class raw_ostream;
+} // namespace llvm
 
 namespace clang {
 
@@ -164,9 +166,9 @@ struct DiagnosticStorage {
   /// The values for the various substitution positions.
   ///
   /// This is used when the argument is not an std::string. The specific value
-  /// is mangled into an intptr_t and the interpretation depends on exactly
+  /// is mangled into an uint64_t and the interpretation depends on exactly
   /// what sort of argument kind it is.
-  intptr_t DiagArgumentsVal[MaxArguments];
+  uint64_t DiagArgumentsVal[MaxArguments];
 
   /// The values for the various substitution positions that have
   /// string arguments.
@@ -294,6 +296,7 @@ private:
   DiagnosticConsumer *Client = nullptr;
   std::unique_ptr<DiagnosticConsumer> Owner;
   SourceManager *SourceMgr = nullptr;
+  SyclOptReportHandler SyclOptReport;
 
   /// Mapping information for diagnostics.
   ///
@@ -544,8 +547,13 @@ public:
   DiagnosticsEngine &operator=(const DiagnosticsEngine &) = delete;
   ~DiagnosticsEngine();
 
+  friend void DiagnosticsTestHelper(DiagnosticsEngine &);
   LLVM_DUMP_METHOD void dump() const;
   LLVM_DUMP_METHOD void dump(StringRef DiagName) const;
+
+  /// Retrieve the SyclOptReport info.
+  SyclOptReportHandler &getSYCLOptReport() { return SyclOptReport; }
+  const SyclOptReportHandler &getSYCLOptReport() const { return SyclOptReport; }
 
   const IntrusiveRefCntPtr<DiagnosticIDs> &getDiagnosticIDs() const {
     return Diags;
@@ -807,6 +815,9 @@ public:
   bool setSeverityForGroup(diag::Flavor Flavor, StringRef Group,
                            diag::Severity Map,
                            SourceLocation Loc = SourceLocation());
+  bool setSeverityForGroup(diag::Flavor Flavor, diag::Group Group,
+                           diag::Severity Map,
+                           SourceLocation Loc = SourceLocation());
 
   /// Set the warning-as-error flag for the given diagnostic group.
   ///
@@ -887,9 +898,9 @@ public:
     LastDiagLevel = Other.LastDiagLevel;
   }
 
-  /// Reset the state of the diagnostic object to its initial
-  /// configuration.
-  void Reset();
+  /// Reset the state of the diagnostic object to its initial configuration.
+  /// \param[in] soft - if true, doesn't reset the diagnostic mappings and state
+  void Reset(bool soft = false);
 
   //===--------------------------------------------------------------------===//
   // DiagnosticsEngine classification and reporting interfaces.
@@ -1176,7 +1187,7 @@ public:
     DiagStorage = nullptr;
   }
 
-  void AddTaggedVal(intptr_t V, DiagnosticsEngine::ArgumentKind Kind) const {
+  void AddTaggedVal(uint64_t V, DiagnosticsEngine::ArgumentKind Kind) const {
     if (!DiagStorage)
       DiagStorage = getStorage();
 
@@ -1341,8 +1352,8 @@ public:
   // It is necessary to limit this to rvalue reference to avoid calling this
   // function with a bitfield lvalue argument since non-const reference to
   // bitfield is not allowed.
-  template <typename T, typename = typename std::enable_if<
-                            !std::is_lvalue_reference<T>::value>::type>
+  template <typename T,
+            typename = std::enable_if_t<!std::is_lvalue_reference<T>::value>>
   const DiagnosticBuilder &operator<<(T &&V) const {
     assert(isActive() && "Clients must not add to cleared diagnostic!");
     const StreamingDiagnostic &DB = *this;
@@ -1399,6 +1410,18 @@ inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
   return DB;
 }
 
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             long I) {
+  DB.AddTaggedVal(I, DiagnosticsEngine::ak_sint);
+  return DB;
+}
+
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             long long I) {
+  DB.AddTaggedVal(I, DiagnosticsEngine::ak_sint);
+  return DB;
+}
+
 // We use enable_if here to prevent that this overload is selected for
 // pointers or other arguments that are implicitly convertible to bool.
 template <typename T>
@@ -1411,6 +1434,18 @@ operator<<(const StreamingDiagnostic &DB, T I) {
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                              unsigned I) {
+  DB.AddTaggedVal(I, DiagnosticsEngine::ak_uint);
+  return DB;
+}
+
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             unsigned long I) {
+  DB.AddTaggedVal(I, DiagnosticsEngine::ak_uint);
+  return DB;
+}
+
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             unsigned long long I) {
   DB.AddTaggedVal(I, DiagnosticsEngine::ak_uint);
   return DB;
 }
@@ -1577,18 +1612,18 @@ public:
 
   /// Return the specified signed integer argument.
   /// \pre getArgKind(Idx) == DiagnosticsEngine::ak_sint
-  int getArgSInt(unsigned Idx) const {
+  int64_t getArgSInt(unsigned Idx) const {
     assert(getArgKind(Idx) == DiagnosticsEngine::ak_sint &&
            "invalid argument accessor!");
-    return (int)DiagObj->DiagStorage.DiagArgumentsVal[Idx];
+    return (int64_t)DiagObj->DiagStorage.DiagArgumentsVal[Idx];
   }
 
   /// Return the specified unsigned integer argument.
   /// \pre getArgKind(Idx) == DiagnosticsEngine::ak_uint
-  unsigned getArgUInt(unsigned Idx) const {
+  uint64_t getArgUInt(unsigned Idx) const {
     assert(getArgKind(Idx) == DiagnosticsEngine::ak_uint &&
            "invalid argument accessor!");
-    return (unsigned)DiagObj->DiagStorage.DiagArgumentsVal[Idx];
+    return DiagObj->DiagStorage.DiagArgumentsVal[Idx];
   }
 
   /// Return the specified IdentifierInfo argument.
@@ -1602,7 +1637,7 @@ public:
 
   /// Return the specified non-string argument in an opaque form.
   /// \pre getArgKind(Idx) != DiagnosticsEngine::ak_std_string
-  intptr_t getRawArg(unsigned Idx) const {
+  uint64_t getRawArg(unsigned Idx) const {
     assert(getArgKind(Idx) != DiagnosticsEngine::ak_std_string &&
            "invalid argument accessor!");
     return DiagObj->DiagStorage.DiagArgumentsVal[Idx];
@@ -1701,6 +1736,9 @@ public:
     return llvm::makeArrayRef(FixIts);
   }
 };
+
+// Simple debug printing of StoredDiagnostic.
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const StoredDiagnostic &);
 
 /// Abstract interface, implemented by clients of the front-end, which
 /// formats and prints fully processed diagnostics.

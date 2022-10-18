@@ -12,42 +12,32 @@
 
 libomptarget_say("Building offloading runtime library libomptarget.")
 
-set(LIBOMPTARGET_SRC_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/api.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/interface.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/rtl.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/omptarget.cpp
+add_llvm_library(omptarget
+  SHARED
+
+  api.cpp
+  device.cpp
+  interface.cpp
+  interop.cpp
+  omptarget.cpp
+  rtl.cpp
+  LegacyAPI.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${LIBOMPTARGET_INCLUDE_DIR}
+
+  LINK_COMPONENTS
+  Support
+  Object
+
+  LINK_LIBS 
+  PRIVATE
+  "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports"
+  NO_INSTALL_RPATH
 )
+target_include_directories(omptarget PRIVATE ${LIBOMPTARGET_INCLUDE_DIR})
 
-set(LIBOMPTARGET_SRC_FILES ${LIBOMPTARGET_SRC_FILES} PARENT_SCOPE)
-
-include_directories(${LIBOMPTARGET_LLVM_INCLUDE_DIRS})
-
-# Build libomptarget library with libdl dependency. Add LLVMSupport
-# dependency if building in-tree with profiling enabled.
-if(OPENMP_STANDALONE_BUILD OR (NOT OPENMP_ENABLE_LIBOMPTARGET_PROFILING))
-  add_library(omptarget SHARED ${LIBOMPTARGET_SRC_FILES})
-  target_link_libraries(omptarget
-    ${CMAKE_DL_LIBS}
-    "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports")
-else()
-  set(LLVM_LINK_COMPONENTS
-    Support
-    )
-  add_llvm_library(omptarget SHARED ${LIBOMPTARGET_SRC_FILES}
-      LINK_LIBS ${CMAKE_DL_LIBS}
-      "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports"
-      )
-  target_compile_definitions(omptarget PUBLIC OMPTARGET_PROFILE_ENABLED)
-endif()
-
-# libomptarget needs to be set separately because add_llvm_library doesn't
-# conform with location configuration of its parent scope.
-set_target_properties(omptarget
-  PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY ${LIBOMPTARGET_LIBRARY_DIR})
-
-# Install libomptarget under the lib destination folder.
-install(TARGETS omptarget LIBRARY COMPONENT omptarget
-  DESTINATION "${OPENMP_INSTALL_LIBDIR}")
+# libomptarget.so needs to be aware of where the plugins live as they
+# are now separated in the build directory.
+set_target_properties(omptarget PROPERTIES INSTALL_RPATH "$ORIGIN" BUILD_RPATH "$ORIGIN:${CMAKE_CURRENT_BINARY_DIR}/..")
+install(TARGETS omptarget LIBRARY COMPONENT omptarget DESTINATION "${OPENMP_INSTALL_LIBDIR}")

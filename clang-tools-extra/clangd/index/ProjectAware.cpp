@@ -9,20 +9,13 @@
 #include "ProjectAware.h"
 #include "Config.h"
 #include "index/Index.h"
-#include "index/MemIndex.h"
-#include "index/Merge.h"
 #include "index/Ref.h"
-#include "index/Serialization.h"
 #include "index/Symbol.h"
 #include "index/SymbolID.h"
-#include "support/Logger.h"
 #include "support/Threading.h"
 #include "support/Trace.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/ErrorHandling.h"
 #include <map>
 #include <memory>
 #include <mutex>
@@ -128,9 +121,9 @@ ProjectAwareIndex::indexedFiles() const {
 
 SymbolIndex *ProjectAwareIndex::getIndex() const {
   const auto &C = Config::current();
-  if (!C.Index.External)
+  if (C.Index.External.Kind == Config::ExternalIndexSpec::None)
     return nullptr;
-  const auto &External = *C.Index.External;
+  const auto &External = C.Index.External;
   std::lock_guard<std::mutex> Lock(Mu);
   auto Entry = IndexForSpec.try_emplace(External, nullptr);
   if (Entry.second)

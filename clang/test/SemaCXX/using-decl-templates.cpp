@@ -95,9 +95,39 @@ namespace aliastemplateinst {
 
 namespace DontDiagnoseInvalidTest {
 template <bool Value> struct Base {
-  static_assert(Value, ""); // expected-error {{static_assert failed}}
+  static_assert(Value, ""); // expected-error {{static assertion failed}}
 };
 struct Derived : Base<false> { // expected-note {{requested here}}
   using Base<false>::Base; // OK. Don't diagnose that 'Base' isn't a base class of Derived.
 };
 } // namespace DontDiagnoseInvalidTest
+
+namespace func_templ {
+namespace sss {
+double foo(int, double);
+template <class T>
+T foo(T);
+} // namespace sss
+
+namespace oad {
+void foo();
+}
+
+namespace oad {
+using sss::foo;
+}
+
+namespace sss {
+using oad::foo;
+}
+
+namespace sss {
+double foo(int, double) { return 0; }
+// There used to be an error with the below declaration when the example should
+// be accepted.
+template <class T>
+T foo(T t) { // OK
+  return t;
+}
+} // namespace sss
+} // namespace func_templ

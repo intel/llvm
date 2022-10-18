@@ -38,11 +38,17 @@
 // EP: "-P"
 // EP: "-o" "-"
 
+// RUN: %clang_cl /external:Ipath  -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_I %s
+// RUN: %clang_cl /external:I path -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_I %s
+// EXTERNAL_I: "-isystem" "path"
+
 // RUN: %clang_cl /fp:fast /fp:except -### -- %s 2>&1 | FileCheck -check-prefix=fpexcept %s
 // fpexcept-NOT: -menable-unsafe-fp-math
+// fpexcept: -ffp-exception-behavior=strict
 
 // RUN: %clang_cl /fp:fast /fp:except /fp:except- -### -- %s 2>&1 | FileCheck -check-prefix=fpexcept_ %s
 // fpexcept_: -menable-unsafe-fp-math
+// fpexcept_: -ffp-exception-behavior=ignore
 
 // RUN: %clang_cl /fp:precise /fp:fast -### -- %s 2>&1 | FileCheck -check-prefix=fpfast %s
 // fpfast: -menable-unsafe-fp-math
@@ -55,21 +61,39 @@
 // RUN: %clang_cl /fp:fast /fp:strict -### -- %s 2>&1 | FileCheck -check-prefix=fpstrict %s
 // fpstrict-NOT: -menable-unsafe-fp-math
 // fpstrict-NOT: -ffast-math
+// fpstrict: -ffp-contract=off
+
+// RUN: %clang_cl /fp:strict /fp:contract -### -- %s 2>&1 | FileCheck -check-prefix=fpcontract %s
+// fpcontract: -ffp-contract=on
+
+// RUN: %clang_cl /fsanitize=address -### -- %s 2>&1 | FileCheck -check-prefix=fsanitize_address %s
+// fsanitize_address: -fsanitize=address
 
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE-FILE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE-FILE %s
 // CHECK-PROFILE-INSTR-GENERATE: "-fprofile-instrument=clang" "--dependent-lib=clang_rt.profile{{[^"]*}}.lib"
 // CHECK-PROFILE-INSTR-GENERATE-FILE: "-fprofile-instrument-path=/tmp/somefile.profraw"
 
 // RUN: %clang_cl -### /FA -fprofile-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
 // CHECK-PROFILE-GENERATE: "-fprofile-instrument=llvm" "--dependent-lib=clang_rt.profile{{[^"]*}}.lib"
 
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use=file -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-generate -fprofile-instr-use=file -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
 // CHECK-NO-MIX-GEN-USE: '{{[a-z=-]*}}' not allowed with '{{[a-z=-]*}}'
 
 // RUN: %clang_cl -### /FA -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
+// RUN: %clang_cl -### /FA -fprofile-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
+// RUN: %clang_cl -### /FA -fprofile-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-instr-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
+// RUN: %clang_cl -### /FAcsu -fprofile-use=/tmp/somefile.prof -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE-FILE %s
 // CHECK-PROFILE-USE: "-fprofile-instrument-use-path=default.profdata"
 // CHECK-PROFILE-USE-FILE: "-fprofile-instrument-use-path=/tmp/somefile.prof"
 
@@ -110,6 +134,9 @@
 
 // RUN: %clang_cl /Gw /Gw- -### -- %s 2>&1 | FileCheck -check-prefix=Gw_ %s
 // Gw_-NOT: -fdata-sections
+
+// RUN: %clang_cl /hotpatch -### -- %s 2>&1 | FileCheck -check-prefix=hotpatch %s
+// hotpatch: -fms-hotpatch
 
 // RUN: %clang_cl /Imyincludedir -### -- %s 2>&1 | FileCheck -check-prefix=SLASH_I %s
 // RUN: %clang_cl /I myincludedir -### -- %s 2>&1 | FileCheck -check-prefix=SLASH_I %s
@@ -299,6 +326,10 @@
 // RUN: %clang_cl /d1PP -### -- %s 2>&1 | FileCheck -check-prefix=d1PP %s
 // d1PP: -dD
 
+// RUN: %clang_cl --target=i686-pc-windows-msvc /c /QIntel-jcc-erratum -### -- %s 2>&1 | FileCheck -check-prefix=jcceratum %s
+// jcceratum: "-mllvm" "-x86-branches-within-32B-boundaries"
+
+
 // We forward any unrecognized -W diagnostic options to cc1.
 // RUN: %clang_cl -Wunused-pragmas -### -- %s 2>&1 | FileCheck -check-prefix=WJoined %s
 // WJoined: "-cc1"
@@ -320,34 +351,17 @@
 // RUN: %clang_cl -c -fno-delete-null-pointer-checks -### -- %s 2>&1 | FileCheck -check-prefix=NONULL %s
 // NONULL: "-fno-delete-null-pointer-checks"
 
-// We recognize -f[no-]delayed-template-parsing.
-// /Zc:twoPhase[-] has the opposite meaning.
-// RUN: %clang_cl -c -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDDEFAULT %s
-// DELAYEDDEFAULT: "-fdelayed-template-parsing"
-// RUN: %clang_cl -c -fdelayed-template-parsing -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDON %s
-// RUN: %clang_cl -c /Zc:twoPhase- -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDON %s
-// DELAYEDON: "-fdelayed-template-parsing"
-// RUN: %clang_cl -c -fno-delayed-template-parsing -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDOFF %s
-// RUN: %clang_cl -c /Zc:twoPhase -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDOFF %s
-// DELAYEDOFF-NOT: "-fdelayed-template-parsing"
-
-// RUN: %clang_cl -c -### /std:c++latest -- %s 2>&1 | FileCheck -check-prefix CHECK-LATEST-CHAR8_T %s
-// CHECK-LATEST-CHAR8_T-NOT: "-fchar8_t"
-// RUN: %clang_cl -c -### /Zc:char8_t -- %s 2>&1 | FileCheck -check-prefix CHECK-CHAR8_T %s
-// CHECK-CHAR8_T: "-fchar8_t"
-// RUN: %clang_cl -c -### /Zc:char8_t- -- %s 2>&1 | FileCheck -check-prefix CHECK-CHAR8_T_ %s
-// CHECK-CHAR8_T_: "-fno-char8_t"
-
 // RUN: %clang_cl -c -### /std:c11 -- %s 2>&1 | FileCheck -check-prefix CHECK-C11 %s
 // CHECK-C11: -std=c11
 
 // For some warning ids, we can map from MSVC warning to Clang warning.
-// RUN: %clang_cl -wd4005 -wd4100 -wd4910 -wd4996 -### -- %s 2>&1 | FileCheck -check-prefix=Wno %s
+// RUN: %clang_cl -wd4005 -wd4100 -wd4910 -wd4996 -wd12345678 -### -- %s 2>&1 | FileCheck -check-prefix=Wno %s
 // Wno: "-cc1"
 // Wno: "-Wno-macro-redefined"
 // Wno: "-Wno-unused-parameter"
 // Wno: "-Wno-dllexport-explicit-instantiation-decl"
 // Wno: "-Wno-deprecated-declarations"
+// Wno-NOT: "-wd
 
 // Ignored options. Check that we don't get "unused during compilation" errors.
 // RUN: %clang_cl /c \
@@ -379,16 +393,8 @@
 // RUN:    /volatile:iso \
 // RUN:    /w12345 \
 // RUN:    /wd1234 \
-// RUN:    /Zc:__cplusplus \
-// RUN:    /Zc:auto \
-// RUN:    /Zc:forScope \
-// RUN:    /Zc:inline \
-// RUN:    /Zc:rvalueCast \
-// RUN:    /Zc:ternary \
-// RUN:    /Zc:wchar_t \
-// RUN:    /ZH:MD5 \
-// RUN:    /ZH:SHA1 \
-// RUN:    /ZH:SHA_256 \
+// RUN:    /Wv \
+// RUN:    /Wv:17 \
 // RUN:    /Zm \
 // RUN:    /Zo \
 // RUN:    /Zo- \
@@ -413,6 +419,7 @@
 // (/Zs is for syntax-only)
 // RUN: %clang_cl /Zs \
 // RUN:     /await \
+// RUN:     /await:strict \
 // RUN:     /constexpr:depth1000 /constexpr:backtrace1000 /constexpr:steps1000 \
 // RUN:     /AIfoo \
 // RUN:     /AI foo_does_not_exist \
@@ -421,6 +428,19 @@
 // RUN:     /clr:pure \
 // RUN:     /d2FH4 \
 // RUN:     /docname \
+// RUN:     /experimental:external \
+// RUN:     /experimental:module \
+// RUN:     /experimental:preprocessor \
+// RUN:     /exportHeader /headerName:foo \
+// RUN:     /external:anglebrackets \
+// RUN:     /external:env:var \
+// RUN:     /external:W0 \
+// RUN:     /external:W1 \
+// RUN:     /external:W2 \
+// RUN:     /external:W3 \
+// RUN:     /external:W4 \
+// RUN:     /external:templates- \
+// RUN:     /headerUnit foo.h=foo.ifc /headerUnit:quote foo.h=foo.ifc /headerUnit:angle foo.h=foo.ifc \
 // RUN:     /EHsc \
 // RUN:     /F 42 \
 // RUN:     /FA \
@@ -429,6 +449,7 @@
 // RUN:     /FAs \
 // RUN:     /FAu \
 // RUN:     /favor:blend \
+// RUN:     /fno-sanitize-address-vcasan-lib \
 // RUN:     /Fifoo \
 // RUN:     /Fmfoo \
 // RUN:     /FpDebug\main.pch \
@@ -456,8 +477,6 @@
 // RUN:     /GZ \
 // RUN:     /H \
 // RUN:     /homeparams \
-// RUN:     /hotpatch \
-// RUN:     /JMC \
 // RUN:     /kernel \
 // RUN:     /LN \
 // RUN:     /MP \
@@ -467,7 +486,6 @@
 // RUN:     /openmp:experimental \
 // RUN:     /Qfast_transcendentals \
 // RUN:     /QIfist \
-// RUN:     /QIntel-jcc-erratum \
 // RUN:     /Qimprecise_fwaits \
 // RUN:     /Qpar \
 // RUN:     /Qpar-report:1 \
@@ -476,6 +494,10 @@
 // RUN:     /Qspectre-load \
 // RUN:     /Qspectre-load-cf \
 // RUN:     /Qvec-report:2 \
+// RUN:     /reference foo=foo.ifc /reference foo.ifc \
+// RUN:     /sourceDependencies foo.json \
+// RUN:     /sourceDependencies:directives foo.json \
+// RUN:     /translateInclude \
 // RUN:     /u \
 // RUN:     /V \
 // RUN:     /volatile:ms \
@@ -509,7 +531,7 @@
 // for other flags too, but this is the one people run into.)
 // RUN: %clang_cl /c /Users/me/myfile.c -### 2>&1 | FileCheck -check-prefix=SlashU %s
 // SlashU: warning: '/Users/me/myfile.c' treated as the '/U' option
-// SlashU: note: Use '--' to treat subsequent arguments as filenames
+// SlashU: note: use '--' to treat subsequent arguments as filenames
 
 // RTTI is on by default. /GR- controls -fno-rtti-data.
 // RUN: %clang_cl /c /GR- -### -- %s 2>&1 | FileCheck -check-prefix=NoRTTI %s
@@ -519,26 +541,13 @@
 // RTTI-NOT: "-fno-rtti-data"
 // RTTI-NOT: "-fno-rtti"
 
-// thread safe statics are off for versions < 19.
-// RUN: %clang_cl /c -### -fms-compatibility-version=18 -- %s 2>&1 | FileCheck -check-prefix=NoThreadSafeStatics %s
-// RUN: %clang_cl /Zc:threadSafeInit /Zc:threadSafeInit- /c -### -- %s 2>&1 | FileCheck -check-prefix=NoThreadSafeStatics %s
-// NoThreadSafeStatics: "-fno-threadsafe-statics"
-
-// RUN: %clang_cl /Zc:threadSafeInit /c -### -- %s 2>&1 | FileCheck -check-prefix=ThreadSafeStatics %s
-// ThreadSafeStatics-NOT: "-fno-threadsafe-statics"
-
-// RUN: %clang_cl /Zc:dllexportInlines- /c -### -- %s 2>&1 | FileCheck -check-prefix=NoDllExportInlines %s
-// NoDllExportInlines: "-fno-dllexport-inlines"
-// RUN: %clang_cl /Zc:dllexportInlines /c -### -- %s 2>&1 | FileCheck -check-prefix=DllExportInlines %s
-// DllExportInlines-NOT: "-fno-dllexport-inlines"
-
 // RUN: %clang_cl /Zi /c -### -- %s 2>&1 | FileCheck -check-prefix=Zi %s
 // Zi: "-gcodeview"
-// Zi: "-debug-info-kind=limited"
+// Zi: "-debug-info-kind=constructor"
 
 // RUN: %clang_cl /Z7 /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7 %s
 // Z7: "-gcodeview"
-// Z7: "-debug-info-kind=limited"
+// Z7: "-debug-info-kind=constructor"
 
 // RUN: %clang_cl -gline-tables-only /c -### -- %s 2>&1 | FileCheck -check-prefix=ZGMLT %s
 // ZGMLT: "-gcodeview"
@@ -563,8 +572,19 @@
 // which made it "win". This test could not detect that bug.
 // RUN: %clang_cl /Z7 -gdwarf /c -### -- %s 2>&1 | FileCheck -check-prefix=Z7_gdwarf %s
 // Z7_gdwarf: "-gcodeview"
-// Z7_gdwarf: "-debug-info-kind=limited"
-// Z7_gdwarf: "-dwarf-version=4"
+// Z7_gdwarf: "-debug-info-kind=constructor"
+// Z7_gdwarf: "-dwarf-version=
+
+// RUN: %clang_cl /ZH:MD5 /c -### -- %s 2>&1 | FileCheck -check-prefix=ZH_MD5 %s
+// ZH_MD5: "-gsrc-hash=md5"
+
+// RUN: %clang_cl /ZH:SHA1 /c -### -- %s 2>&1 \
+// RUN:     | FileCheck -check-prefix=ZH_SHA1 %s
+// ZH_SHA1: "-gsrc-hash=sha1"
+
+// RUN: %clang_cl /ZH:SHA_256 /c -### -- %s 2>&1 \
+// RUN:     | FileCheck -check-prefix=ZH_SHA256 %s
+// ZH_SHA256: "-gsrc-hash=sha256"
 
 // RUN: %clang_cl -fmsc-version=1800 -TP -### -- %s 2>&1 | FileCheck -check-prefix=CXX11 %s
 // CXX11: -std=c++11
@@ -578,8 +598,11 @@
 // RUN: %clang_cl -fmsc-version=1900 -TP -std:c++17 -### -- %s 2>&1 | FileCheck -check-prefix=STDCXX17 %s
 // STDCXX17: -std=c++17
 
+// RUN: %clang_cl -fmsc-version=1900 -TP -std:c++20 -### -- %s 2>&1 | FileCheck -check-prefix=STDCXX20 %s
+// STDCXX20: -std=c++20
+
 // RUN: %clang_cl -fmsc-version=1900 -TP -std:c++latest -### -- %s 2>&1 | FileCheck -check-prefix=STDCXXLATEST %s
-// STDCXXLATEST: -std=c++20
+// STDCXXLATEST: -std=c++2b
 
 // RUN: env CL="/Gy" %clang_cl -### -- %s 2>&1 | FileCheck -check-prefix=ENV-CL %s
 // ENV-CL: "-ffunction-sections"
@@ -678,8 +701,24 @@
 // RUN:     -fcs-profile-generate \
 // RUN:     -fcs-profile-generate=dir \
 // RUN:     -ftime-trace \
+// RUN:     -fmodules \
+// RUN:     -fno-modules \
+// RUN:     -fimplicit-module-maps \
+// RUN:     -fmodule-maps \
+// RUN:     -fmodule-name=foo \
+// RUN:     -fmodule-implementation-of \
+// RUN:     -fsystem-module \
+// RUN:     -fmodule-map-file=foo \
+// RUN:     -fmodule-file=foo \
+// RUN:     -fmodules-ignore-macro=foo \
+// RUN:     -fmodules-strict-decluse \
+// RUN:     -fmodules-decluse \
+// RUN:     -fno-modules-decluse \
+// RUN:     -fmodules-search-all \
+// RUN:     -fno-modules-search-all \
+// RUN:     -fimplicit-modules \
+// RUN:     -fno-implicit-modules \
 // RUN:     -ftrivial-auto-var-init=zero \
-// RUN:     -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang \
 // RUN:     --version \
 // RUN:     -Werror /Zs -- %s 2>&1
 
@@ -705,7 +744,7 @@
 
 // Validate that the default triple is used when run an empty tools dir is specified
 // RUN: %clang_cl -vctoolsdir "" -### -- %s 2>&1 | FileCheck %s --check-prefix VCTOOLSDIR
-// VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.11.0"
+// VCTOOLSDIR: "-triple" "{{[a-zA-Z0-9_-]*}}-pc-windows-msvc19.20.0"
 
 // Validate that built-in include paths are based on the supplied path
 // RUN: %clang_cl --target=aarch64-pc-windows-msvc -vctoolsdir "/fake" -winsdkdir "/foo" -winsdkversion 10.0.12345.0 -### -- %s 2>&1 | FileCheck %s --check-prefix FAKEDIR
@@ -720,4 +759,31 @@
 // FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}ucrt
 // FAKEDIR: "-libpath:/foo{{/|\\\\}}Lib{{/|\\\\}}10.0.12345.0{{/|\\\\}}um
 
-void f() { }
+// Accept both the -target and --target= spellings.
+// RUN: %clang_cl --target=i686-pc-windows-msvc19.14.0 -### -- %s 2>&1 | FileCheck -check-prefix=TARGET %s
+// RUN: %clang_cl -target i686-pc-windows-msvc19.14.0  -### -- %s 2>&1 | FileCheck -check-prefix=TARGET %s
+// TARGET: "-triple" "i686-pc-windows-msvc19.14.0"
+
+// RUN: %clang_cl /JMC /c -### -- %s 2>&1 | FileCheck %s --check-prefix JMCWARN
+// JMCWARN: /JMC requires debug info. Use '/Zi', '/Z7' or debug options that enable debugger's stepping function; option ignored
+
+// RUN: %clang_cl /JMC /c -### -- %s 2>&1 | FileCheck %s --check-prefix NOJMC
+// RUN: %clang_cl /JMC /Z7 /JMC- /c -### -- %s 2>&1 | FileCheck %s --check-prefix NOJMC
+// NOJMC-NOT: -fjmc
+
+// RUN: %clang_cl /JMC /Z7 /c -### -- %s 2>&1 | FileCheck %s --check-prefix JMC
+// JMC: -fjmc
+
+// RUN: %clang_cl /external:W0 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_W0 %s
+// RUN: %clang_cl /external:W1 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// RUN: %clang_cl /external:W2 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// RUN: %clang_cl /external:W3 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// RUN: %clang_cl /external:W4 /c -### -- %s 2>&1 | FileCheck -check-prefix=EXTERNAL_Wn %s
+// EXTERNAL_W0: "-Wno-system-headers"
+// EXTERNAL_Wn: "-Wsystem-headers"
+
+// RUN: %clang_cl -vctoolsdir "" /arm64EC /c -### -- %s 2>&1 | FileCheck %s --check-prefix ARM64EC
+// ARM64EC: "-triple" "arm64ec-pc-windows-msvc19.20.0"
+// ARM64EC-NOT: /arm64EC has been overridden by specified target
+
+void f(void) { }

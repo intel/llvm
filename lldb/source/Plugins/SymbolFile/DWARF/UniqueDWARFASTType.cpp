@@ -8,7 +8,9 @@
 
 #include "UniqueDWARFASTType.h"
 
-#include "lldb/Symbol/Declaration.h"
+#include "lldb/Core/Declaration.h"
+
+using namespace lldb_private::dwarf;
 
 bool UniqueDWARFASTTypeList::Find(const DWARFDIE &die,
                                   const lldb_private::Declaration &decl,

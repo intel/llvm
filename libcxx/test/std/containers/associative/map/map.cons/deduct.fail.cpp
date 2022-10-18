@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// <map>
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: libcpp-no-deduction-guides
-// XFAIL: clang-6, apple-clang-9.0, apple-clang-9.1, apple-clang-10.0.0
-//  clang-6 gives different error messages.
+
+// <map>
 
 // template<class InputIterator,
 //          class Compare = less<iter-value-type<InputIterator>>,
@@ -65,7 +63,7 @@ int main(int, char**)
         // refuse to rebind the allocator if Allocator::value_type is not exactly what we expect
         const P arr[] = { {1,1L}, {2,2L}, {3,3L} };
         std::map m(arr, arr + 3, std::allocator<P>());
-            // expected-error-re@map:* {{static_assert failed{{( due to requirement '.*')?}} "Allocator::value_type must be same type as value_type"}}
+            // expected-error-re@map:* {{{{(static_assert|static assertion)}} failed{{( due to requirement '.*')?}}{{.*}}Allocator::value_type must be same type as value_type}}
     }
     {
         // cannot convert from some arbitrary unrelated type

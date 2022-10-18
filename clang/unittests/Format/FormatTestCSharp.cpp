@@ -247,6 +247,37 @@ TEST_F(FormatTestCSharp, Attributes) {
   verifyFormat("[TestMethod]\n"
                "public string Host { set; get; }");
 
+  // Adjacent properties should not cause line wrapping issues
+  verifyFormat("[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }\n"
+               "[JsonProperty(\"bar\")]\n"
+               "public string Bar { set; get; }\n"
+               "[JsonProperty(\"bar\")]\n"
+               "protected string Bar { set; get; }\n"
+               "[JsonProperty(\"bar\")]\n"
+               "internal string Bar { set; get; }");
+
+  // Multiple attributes should always be split (not just the first ones)
+  verifyFormat("[XmlIgnore]\n"
+               "[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }");
+
+  verifyFormat("[XmlIgnore]\n"
+               "[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }\n"
+               "[XmlIgnore]\n"
+               "[JsonProperty(\"bar\")]\n"
+               "public string Bar { set; get; }");
+
+  verifyFormat("[XmlIgnore]\n"
+               "[ScriptIgnore]\n"
+               "[JsonProperty(\"foo\")]\n"
+               "public string Foo { set; get; }\n"
+               "[XmlIgnore]\n"
+               "[ScriptIgnore]\n"
+               "[JsonProperty(\"bar\")]\n"
+               "public string Bar { set; get; }");
+
   verifyFormat("[TestMethod(\"start\", HelpText = \"Starts the server "
                "listening on provided host\")]\n"
                "public string Host { set; get; }");
@@ -268,6 +299,34 @@ TEST_F(FormatTestCSharp, Attributes) {
 
   // Attributes in a method declaration do not cause line wrapping.
   verifyFormat("void MethodA([In][Out] ref double x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA([In, Out] ref double x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA([In, Out] double[] x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA([In] double[] x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("void MethodA(int[] x)\n"
+               "{\n"
+               "}");
+  verifyFormat("void MethodA(int[][] x)\n"
+               "{\n"
+               "}");
+  verifyFormat("void MethodA([] x)\n"
+               "{\n"
+               "}");
+
+  verifyFormat("public void Log([CallerLineNumber] int line = -1, "
+               "[CallerFilePath] string path = null,\n"
+               "                [CallerMemberName] string name = null)\n"
                "{\n"
                "}");
 
@@ -343,6 +402,7 @@ TEST_F(FormatTestCSharp, CSharpRegions) {
 }
 
 TEST_F(FormatTestCSharp, CSharpKeyWordEscaping) {
+  // AfterEnum is true by default.
   verifyFormat("public enum var\n"
                "{\n"
                "    none,\n"
@@ -356,6 +416,39 @@ TEST_F(FormatTestCSharp, CSharpNullCoalescing) {
   verifyFormat("var test = ABC ?? DEF");
   verifyFormat("string myname = name ?? \"ABC\";");
   verifyFormat("return _name ?? \"DEF\";");
+}
+
+TEST_F(FormatTestCSharp, CSharpNullCoalescingAssignment) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.SpaceBeforeAssignmentOperators = true;
+
+  verifyFormat(R"(test ??= ABC;)", Style);
+  verifyFormat(R"(test ??= true;)", Style);
+
+  Style.SpaceBeforeAssignmentOperators = false;
+
+  verifyFormat(R"(test??= ABC;)", Style);
+  verifyFormat(R"(test??= true;)", Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpNullForgiving) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat("var test = null!;", Style);
+  verifyFormat("string test = someFunctionCall()! + \"ABC\"!", Style);
+  verifyFormat("int test = (1! + 2 + bar! + foo())!", Style);
+  verifyFormat(R"(test ??= !foo!;)", Style);
+  verifyFormat("test = !bar! ?? !foo!;", Style);
+  verifyFormat("bool test = !(!true && !true! || !null && !null! || !false && "
+               "!false! && !bar()! + (!foo()))!",
+               Style);
+
+  // Check that line break keeps identifier with the bang.
+  Style.ColumnLimit = 14;
+
+  verifyFormat("var test =\n"
+               "    foo!;",
+               Style);
 }
 
 TEST_F(FormatTestCSharp, AttributesIndentation) {
@@ -481,6 +574,7 @@ TEST_F(FormatTestCSharp, CSharpEscapedQuotesInVerbatimStrings) {
   verifyFormat(R"(string str = @"""";)", Style);
   verifyFormat(R"(string str = @"""Hello world""";)", Style);
   verifyFormat(R"(string str = $@"""Hello {friend}""";)", Style);
+  verifyFormat(R"(return $@"Foo ""/foo?f={Request.Query["f"]}""";)", Style);
 }
 
 TEST_F(FormatTestCSharp, CSharpQuotesInInterpolatedStrings) {
@@ -523,6 +617,24 @@ var x = foo(className, $@"some code:
   EXPECT_EQ(Code, format(Code, Style));
 }
 
+TEST_F(FormatTestCSharp, CSharpNewOperator) {
+  FormatStyle Style = getLLVMStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat("public void F() {\n"
+               "  var v = new C(() => { var t = 5; });\n"
+               "}",
+               Style);
+  verifyFormat("public void F() {\n"
+               "  var v = new C(() => {\n"
+               "    try {\n"
+               "    } catch {\n"
+               "      var t = 5;\n"
+               "    }\n"
+               "  });\n"
+               "}",
+               Style);
+}
+
 TEST_F(FormatTestCSharp, CSharpLambdas) {
   FormatStyle GoogleStyle = getGoogleStyle(FormatStyle::LK_CSharp);
   FormatStyle MicrosoftStyle = getMicrosoftStyle(FormatStyle::LK_CSharp);
@@ -548,6 +660,244 @@ class MyClass
     };
 })",
                MicrosoftStyle);
+
+  verifyFormat("void bar()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               lock (mylock)\n"
+               "                               {\n"
+               "                                   if (true)\n"
+               "                                   {\n"
+               "                                       A.Remove(item);\n"
+               "                                   }\n"
+               "                               }\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               using (var a = new Lock())\n"
+               "                               {\n"
+               "                                   if (true)\n"
+               "                                   {\n"
+               "                                       A.Remove(item);\n"
+               "                                   }\n"
+               "                               }\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               if (true)\n"
+               "                               {\n"
+               "                                   A.Remove(item);\n"
+               "                               }\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               do\n"
+               "                               {\n"
+               "                                   A.Remove(item);\n"
+               "                               } while (true)\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           { A.Remove(item); }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void bar()\n"
+               "{\n"
+               "    Function(Val, (() =>\n"
+               "                   {\n"
+               "                       lock (mylock)\n"
+               "                       {\n"
+               "                           if (true)\n"
+               "                           {\n"
+               "                               A.Remove(item);\n"
+               "                           }\n"
+               "                       }\n"
+               "                   }));\n"
+               "}",
+               MicrosoftStyle);
+  verifyFormat("void bar()\n"
+               "{\n"
+               "    Function((() =>\n"
+               "              {\n"
+               "                  lock (mylock)\n"
+               "                  {\n"
+               "                      if (true)\n"
+               "                      {\n"
+               "                          A.Remove(item);\n"
+               "                      }\n"
+               "                  }\n"
+               "              }));\n"
+               "}",
+               MicrosoftStyle);
+
+  MicrosoftStyle.IndentWidth = 2;
+  verifyFormat("void bar()\n"
+               "{\n"
+               "  Function((() =>\n"
+               "            {\n"
+               "              lock (mylock)\n"
+               "              {\n"
+               "                if (true)\n"
+               "                {\n"
+               "                  A.Remove(item);\n"
+               "                }\n"
+               "              }\n"
+               "            }));\n"
+               "}",
+               MicrosoftStyle);
+  verifyFormat("void bar() {\n"
+               "  Function((() => {\n"
+               "    lock (mylock) {\n"
+               "      if (true) {\n"
+               "        A.Remove(item);\n"
+               "      }\n"
+               "    }\n"
+               "  }));\n"
+               "}",
+               GoogleStyle);
+}
+
+TEST_F(FormatTestCSharp, CSharpLambdasDontBreakFollowingCodeAlignment) {
+  FormatStyle GoogleStyle = getGoogleStyle(FormatStyle::LK_CSharp);
+  FormatStyle MicrosoftStyle = getMicrosoftStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(R"(//
+public class Sample
+{
+    public void Test()
+    {
+        while (true)
+        {
+            preBindEnumerators.RemoveAll(enumerator => !enumerator.MoveNext());
+            CodeThatFollowsLambda();
+            IsWellAligned();
+        }
+    }
+})",
+               MicrosoftStyle);
+
+  verifyFormat(R"(//
+public class Sample {
+  public void Test() {
+    while (true) {
+      preBindEnumerators.RemoveAll(enumerator => !enumerator.MoveNext());
+      CodeThatFollowsLambda();
+      IsWellAligned();
+    }
+  }
+})",
+               GoogleStyle);
+}
+
+TEST_F(FormatTestCSharp, CSharpLambdasComplexLambdasDontBreakAlignment) {
+  FormatStyle GoogleStyle = getGoogleStyle(FormatStyle::LK_CSharp);
+  FormatStyle MicrosoftStyle = getMicrosoftStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(R"(//
+public class Test
+{
+    private static void ComplexLambda(BuildReport protoReport)
+    {
+        allSelectedScenes =
+            veryVeryLongCollectionNameThatPutsTheLineLenghtAboveTheThresholds.Where(scene => scene.enabled)
+                .Select(scene => scene.path)
+                .ToArray();
+        if (allSelectedScenes.Count == 0)
+        {
+            return;
+        }
+        Functions();
+        AreWell();
+        Aligned();
+        AfterLambdaBlock();
+    }
+})",
+               MicrosoftStyle);
+
+  verifyFormat(R"(//
+public class Test {
+  private static void ComplexLambda(BuildReport protoReport) {
+    allSelectedScenes = veryVeryLongCollectionNameThatPutsTheLineLenghtAboveTheThresholds
+                            .Where(scene => scene.enabled)
+                            .Select(scene => scene.path)
+                            .ToArray();
+    if (allSelectedScenes.Count == 0) {
+      return;
+    }
+    Functions();
+    AreWell();
+    Aligned();
+    AfterLambdaBlock();
+  }
+})",
+               GoogleStyle);
+}
+
+TEST_F(FormatTestCSharp, CSharpLambdasMulipleLambdasDontBreakAlignment) {
+  FormatStyle GoogleStyle = getGoogleStyle(FormatStyle::LK_CSharp);
+  FormatStyle MicrosoftStyle = getMicrosoftStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(R"(//
+public class Test
+{
+    private static void MultipleLambdas(BuildReport protoReport)
+    {
+        allSelectedScenes =
+            veryVeryLongCollectionNameThatPutsTheLineLenghtAboveTheThresholds.Where(scene => scene.enabled)
+                .Select(scene => scene.path)
+                .ToArray();
+        preBindEnumerators.RemoveAll(enumerator => !enumerator.MoveNext());
+        if (allSelectedScenes.Count == 0)
+        {
+            return;
+        }
+        Functions();
+        AreWell();
+        Aligned();
+        AfterLambdaBlock();
+    }
+})",
+               MicrosoftStyle);
+
+  verifyFormat(R"(//
+public class Test {
+  private static void MultipleLambdas(BuildReport protoReport) {
+    allSelectedScenes = veryVeryLongCollectionNameThatPutsTheLineLenghtAboveTheThresholds
+                            .Where(scene => scene.enabled)
+                            .Select(scene => scene.path)
+                            .ToArray();
+    preBindEnumerators.RemoveAll(enumerator => !enumerator.MoveNext());
+    if (allSelectedScenes.Count == 0) {
+      return;
+    }
+    Functions();
+    AreWell();
+    Aligned();
+    AfterLambdaBlock();
+  }
+})",
+               GoogleStyle);
 }
 
 TEST_F(FormatTestCSharp, CSharpObjectInitializers) {
@@ -629,9 +979,11 @@ TEST_F(FormatTestCSharp, CSharpPropertyAccessors) {
   verifyFormat("int Value { get; } = 0", Style);
   verifyFormat("int Value { set }", Style);
   verifyFormat("int Value { set; }", Style);
+  verifyFormat("int Value { init; }", Style);
   verifyFormat("int Value { internal set; }", Style);
   verifyFormat("int Value { set; } = 0", Style);
   verifyFormat("int Value { get; set }", Style);
+  verifyFormat("int Value { get; init; }", Style);
   verifyFormat("int Value { set; get }", Style);
   verifyFormat("int Value { get; private set; }", Style);
   verifyFormat("int Value { get; set; }", Style);
@@ -643,6 +995,18 @@ TEST_F(FormatTestCSharp, CSharpPropertyAccessors) {
 public string Name {
   get => _name;
   set => _name = value;
+})",
+               Style);
+  verifyFormat(R"(//
+public string Name {
+  init => _name = value;
+  get => _name;
+})",
+               Style);
+  verifyFormat(R"(//
+public string Name {
+  set => _name = value;
+  get => _name;
 })",
                Style);
 
@@ -733,6 +1097,26 @@ public class SaleItem
                MicrosoftStyle);
 }
 
+TEST_F(FormatTestCSharp, DefaultLiteral) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+
+  verifyFormat(
+      "T[] InitializeArray<T>(int length, T initialValue = default) {}", Style);
+  verifyFormat("System.Numerics.Complex fillValue = default;", Style);
+  verifyFormat("int Value { get } = default;", Style);
+  verifyFormat("int Value { get } = default!;", Style);
+  verifyFormat(R"(//
+public record Person {
+  public string GetInit { get; init; } = default!;
+};)",
+               Style);
+  verifyFormat(R"(//
+public record Person {
+  public string GetSet { get; set; } = default!;
+};)",
+               Style);
+}
+
 TEST_F(FormatTestCSharp, CSharpSpaces) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
   Style.SpaceBeforeSquareBrackets = false;
@@ -815,6 +1199,21 @@ public class A {
   verifyFormat(R"(var x = (int?)y;)", Style); // Cast to a nullable type.
 
   verifyFormat(R"(var x = new MyContainer<int?>();)", Style); // Generics.
+
+  verifyFormat(R"(//
+public interface I {
+  int? Function();
+})",
+               Style); // Interface methods.
+
+  Style.ColumnLimit = 10;
+  verifyFormat(R"(//
+public VeryLongType? Function(
+    int arg1,
+    int arg2) {
+  //
+})",
+               Style); // ? sticks with identifier.
 }
 
 TEST_F(FormatTestCSharp, CSharpArraySubscripts) {
@@ -875,6 +1274,328 @@ class A {
   int f(int where) {}
 };)",
                getGoogleStyle(FormatStyle::LK_Cpp));
+}
+
+TEST_F(FormatTestCSharp, CSharpAfterEnum) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.AfterEnum = false;
+  Style.AllowShortEnumsOnASingleLine = false;
+
+  verifyFormat("enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("internal enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("public enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("protected enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("private enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+
+  Style.BraceWrapping.AfterEnum = true;
+  Style.AllowShortEnumsOnASingleLine = false;
+
+  verifyFormat("enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("internal enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("public enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("protected enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("private enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ private enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ /* Bar */ private enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpAfterClass) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.AfterClass = false;
+
+  verifyFormat("class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+
+  verifyFormat("interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+
+  Style.BraceWrapping.AfterClass = true;
+
+  verifyFormat("class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+
+  verifyFormat("interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ private interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ /* Bar */ private interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, NamespaceIndentation) {
+  FormatStyle Style = getMicrosoftStyle(FormatStyle::LK_CSharp);
+  Style.NamespaceIndentation = FormatStyle::NI_None;
+
+  verifyFormat("namespace A\n"
+               "{\n"
+               "public interface Name1\n"
+               "{\n"
+               "}\n"
+               "}\n",
+               Style);
+
+  verifyFormat("namespace A.B\n"
+               "{\n"
+               "public interface Name1\n"
+               "{\n"
+               "}\n"
+               "}\n",
+               Style);
+
+  Style.NamespaceIndentation = FormatStyle::NI_Inner;
+
+  verifyFormat("namespace A\n"
+               "{\n"
+               "namespace B\n"
+               "{\n"
+               "    public interface Name1\n"
+               "    {\n"
+               "    }\n"
+               "}\n"
+               "}\n",
+               Style);
+
+  Style.NamespaceIndentation = FormatStyle::NI_All;
+
+  verifyFormat("namespace A.B\n"
+               "{\n"
+               "    public interface Name1\n"
+               "    {\n"
+               "    }\n"
+               "}\n",
+               Style);
+
+  verifyFormat("namespace A\n"
+               "{\n"
+               "    namespace B\n"
+               "    {\n"
+               "        public interface Name1\n"
+               "        {\n"
+               "        }\n"
+               "    }\n"
+               "}\n",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, SwitchExpression) {
+  FormatStyle Style = getMicrosoftStyle(FormatStyle::LK_CSharp);
+  verifyFormat("int x = a switch {\n"
+               "    1 => (0 + 0 + 0 + 0 + 0 + 0 + 0 + 0 + 0 + 0 + 0),\n"
+               "    2 => 1,\n"
+               "    _ => 2\n"
+               "};\n",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, EmptyShortBlock) {
+  auto Style = getLLVMStyle();
+  Style.AllowShortBlocksOnASingleLine = FormatStyle::SBS_Empty;
+
+  verifyFormat("try {\n"
+               "  doA();\n"
+               "} catch (Exception e) {\n"
+               "  e.printStackTrace();\n"
+               "}\n",
+               Style);
+
+  verifyFormat("try {\n"
+               "  doA();\n"
+               "} catch (Exception e) {}\n",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, ShortFunctions) {
+  FormatStyle Style = getLLVMStyle(FormatStyle::LK_CSharp);
+  Style.NamespaceIndentation = FormatStyle::NI_All;
+  Style.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_Inline;
+  verifyFormat("interface Interface {\n"
+               "  void f() { return; }\n"
+               "};",
+               Style);
+  verifyFormat("public interface Interface {\n"
+               "  void f() { return; }\n"
+               "};",
+               Style);
+  verifyFormat("namespace {\n"
+               "  void f() {\n"
+               "    return;\n"
+               "  }\n"
+               "};",
+               Style);
+  // "union" is not a keyword in C#.
+  verifyFormat("namespace union {\n"
+               "  void f() {\n"
+               "    return;\n"
+               "  }\n"
+               "};",
+               Style);
 }
 
 } // namespace format

@@ -15,15 +15,15 @@
 
 #include <string>
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 class StringExtractorGDBRemote : public StringExtractor {
 public:
   typedef bool (*ResponseValidatorCallback)(
       void *baton, const StringExtractorGDBRemote &response);
 
-  StringExtractorGDBRemote() : StringExtractor(), m_validator(nullptr) {}
+  StringExtractorGDBRemote() = default;
 
   StringExtractorGDBRemote(llvm::StringRef str)
       : StringExtractor(str), m_validator(nullptr) {}
@@ -88,6 +88,7 @@ public:
     eServerPacketType_vFile_mode,
     eServerPacketType_vFile_exists,
     eServerPacketType_vFile_md5,
+    eServerPacketType_vFile_fstat,
     eServerPacketType_vFile_stat,
     eServerPacketType_vFile_symlink,
     eServerPacketType_vFile_unlink,
@@ -135,6 +136,8 @@ public:
     eServerPacketType_vAttachName,
     eServerPacketType_vCont,
     eServerPacketType_vCont_actions, // vCont?
+    eServerPacketType_vKill,
+    eServerPacketType_vRun,
 
     eServerPacketType_stop_reason, // '?'
 
@@ -167,6 +170,16 @@ public:
     eServerPacketType_jLLDBTraceStop,
     eServerPacketType_jLLDBTraceGetState,
     eServerPacketType_jLLDBTraceGetBinaryData,
+
+    eServerPacketType_qMemTags, // read memory tags
+    eServerPacketType_QMemTags, // write memory tags
+
+    eServerPacketType_qLLDBSaveCore,
+    eServerPacketType_QSetIgnoredExceptions,
+    eServerPacketType_QNonStop,
+    eServerPacketType_vStopped,
+    eServerPacketType_vCtrlC,
+    eServerPacketType_vStdio,
   };
 
   ServerPacketType GetServerPacketType() const;
@@ -201,8 +214,8 @@ public:
   GetPidTid(lldb::pid_t default_pid);
 
 protected:
-  ResponseValidatorCallback m_validator;
-  void *m_validator_baton;
+  ResponseValidatorCallback m_validator = nullptr;
+  void *m_validator_baton = nullptr;
 };
 
 #endif // LLDB_UTILITY_STRINGEXTRACTORGDBREMOTE_H

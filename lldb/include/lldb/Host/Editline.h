@@ -40,9 +40,7 @@
 
 #include "lldb/lldb-private.h"
 
-#if defined(_WIN32)
-#include "lldb/Host/windows/editlinewin.h"
-#elif !defined(__ANDROID__)
+#if !defined(_WIN32) && !defined(__ANDROID__)
 #include <histedit.h>
 #endif
 
@@ -156,7 +154,8 @@ using namespace line_editor;
 class Editline {
 public:
   Editline(const char *editor_name, FILE *input_file, FILE *output_file,
-           FILE *error_file, bool color_prompts);
+           FILE *error_file, std::recursive_mutex &output_mutex,
+           bool color_prompts);
 
   ~Editline();
 
@@ -210,6 +209,14 @@ public:
                                  const char *indent_chars) {
     m_fix_indentation_callback = std::move(callback);
     m_fix_indentation_callback_chars = indent_chars;
+  }
+
+  void SetSuggestionAnsiPrefix(std::string prefix) {
+    m_suggestion_ansi_prefix = std::move(prefix);
+  }
+
+  void SetSuggestionAnsiSuffix(std::string suffix) {
+    m_suggestion_ansi_suffix = std::move(suffix);
   }
 
   /// Prompts for and reads a single line of user input.
@@ -346,6 +353,16 @@ private:
 
   void ApplyTerminalSizeChange();
 
+  // The following set various editline parameters.  It's not any less
+  // verbose to put the editline calls into a function, but it
+  // provides type safety, since the editline functions take varargs
+  // parameters.
+  void AddFunctionToEditLine(const EditLineCharType *command,
+                             const EditLineCharType *helptext,
+                             EditlineCommandCallbackType callbackFn);
+  void SetEditLinePromptCallback(EditlinePromptCallbackType callbackFn);
+  void SetGetCharacterFunction(EditlineGetCharCallbackType callbackFn);
+
 #if LLDB_EDITLINE_USE_WCHAR
   std::wstring_convert<std::codecvt_utf8<wchar_t>> m_utf8conv;
 #endif
@@ -380,11 +397,13 @@ private:
   const char *m_fix_indentation_callback_chars = nullptr;
 
   CompleteCallbackType m_completion_callback;
-
   SuggestionCallbackType m_suggestion_callback;
 
+  std::string m_suggestion_ansi_prefix;
+  std::string m_suggestion_ansi_suffix;
+
   std::size_t m_previous_autosuggestion_size = 0;
-  std::mutex m_output_mutex;
+  std::recursive_mutex &m_output_mutex;
 };
 }
 

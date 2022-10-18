@@ -31,10 +31,11 @@ bool isOverrideMethod(const FunctionDecl *Function) {
 } // namespace
 
 void UnusedParametersCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(
-      functionDecl(isDefinition(), hasBody(stmt()), hasAnyParameter(decl()))
-          .bind("function"),
-      this);
+  Finder->addMatcher(functionDecl(isDefinition(), hasBody(stmt()),
+                                  hasAnyParameter(decl()),
+                                  unless(hasAttr(attr::Kind::Naked)))
+                         .bind("function"),
+                     this);
 }
 
 template <typename T>
@@ -134,6 +135,9 @@ void UnusedParametersCheck::warnOnUnusedParameter(
     const MatchFinder::MatchResult &Result, const FunctionDecl *Function,
     unsigned ParamIndex) {
   const auto *Param = Function->getParamDecl(ParamIndex);
+  // Don't bother to diagnose invalid parameters as being unused.
+  if (Param->isInvalidDecl())
+    return;
   auto MyDiag = diag(Param->getLocation(), "parameter %0 is unused") << Param;
 
   if (!Indexer) {

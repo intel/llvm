@@ -1,12 +1,11 @@
-from __future__ import print_function
-
 import gdbremote_testcase
+import random
 import select
 import socket
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
+from lldbgdbserverutils import Server
 import lldbsuite.test.lldbplatformutil
-import random
 
 if lldbplatformutil.getHostPlatform() == "windows":
     import ctypes
@@ -125,14 +124,12 @@ else:
 
 class TestGdbRemoteConnection(gdbremote_testcase.GdbRemoteTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIfRemote  # reverse connect is not a supported use case for now
     def test_reverse_connect(self):
         # Reverse connect is the default connection method.
         self.connect_to_debug_monitor()
         # Verify we can do the handshake.  If that works, we'll call it good.
-        self.do_handshake(self.sock)
+        self.do_handshake()
 
     @skipIfRemote
     def test_named_pipe(self):
@@ -165,6 +162,7 @@ class TestGdbRemoteConnection(gdbremote_testcase.GdbRemoteTestCaseBase):
         # Trim null byte, convert to int
         addr = (addr[0], int(port[:-1]))
         self.sock.connect(addr)
+        self._server = Server(self.sock, server)
 
         # Verify we can do the handshake.  If that works, we'll call it good.
-        self.do_handshake(self.sock)
+        self.do_handshake()

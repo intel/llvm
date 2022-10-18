@@ -2,9 +2,6 @@
 Test lldb data formatter subsystem.
 """
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -13,14 +10,13 @@ from lldbsuite.test import lldbutil
 
 class DataFormatterSynthValueTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
         # Find the line number to break at.
         self.line = line_number('main.cpp', 'break here')
 
+    @expectedFailureAll(bugnumber="llvm.org/pr50814", compiler="gcc")
     def test_with_run_command(self):
         """Test using Python synthetic children provider to provide a value."""
         self.build()

@@ -615,7 +615,7 @@ static void initializeWorkList(std::vector<WorkListItem> &WorkList,
       auto Src = InstantiatedValue{Val, I};
       // If there's an assignment edge from X to Y, it means Y is reachable from
       // X at S3 and X is reachable from Y at S1
-      for (auto &Edge : ValueInfo.getNodeInfoAtLevel(I).Edges) {
+      for (const auto &Edge : ValueInfo.getNodeInfoAtLevel(I).Edges) {
         propagate(Edge.Other, Src, MatchState::FlowFromReadOnly, ReachSet,
                   WorkList);
         propagate(Src, Edge.Other, MatchState::FlowToWriteOnly, ReachSet,
@@ -831,14 +831,14 @@ CFLAndersAAResult::ensureCached(const Function &Fn) {
     scan(Fn);
     Iter = Cache.find(&Fn);
     assert(Iter != Cache.end());
-    assert(Iter->second.hasValue());
+    assert(Iter->second);
   }
   return Iter->second;
 }
 
 const AliasSummary *CFLAndersAAResult::getAliasSummary(const Function &Fn) {
   auto &FunInfo = ensureCached(Fn);
-  if (FunInfo.hasValue())
+  if (FunInfo)
     return &FunInfo->getAliasSummary();
   else
     return nullptr;
@@ -850,7 +850,7 @@ AliasResult CFLAndersAAResult::query(const MemoryLocation &LocA,
   auto *ValB = LocB.Ptr;
 
   if (!ValA->getType()->isPointerTy() || !ValB->getType()->isPointerTy())
-    return NoAlias;
+    return AliasResult::NoAlias;
 
   auto *Fn = parentFunctionOfValue(ValA);
   if (!Fn) {
@@ -861,7 +861,7 @@ AliasResult CFLAndersAAResult::query(const MemoryLocation &LocA,
       LLVM_DEBUG(
           dbgs()
           << "CFLAndersAA: could not extract parent function information.\n");
-      return MayAlias;
+      return AliasResult::MayAlias;
     }
   } else {
     assert(!parentFunctionOfValue(ValB) || parentFunctionOfValue(ValB) == Fn);
@@ -872,15 +872,15 @@ AliasResult CFLAndersAAResult::query(const MemoryLocation &LocA,
 
   // AliasMap lookup
   if (FunInfo->mayAlias(ValA, LocA.Size, ValB, LocB.Size))
-    return MayAlias;
-  return NoAlias;
+    return AliasResult::MayAlias;
+  return AliasResult::NoAlias;
 }
 
 AliasResult CFLAndersAAResult::alias(const MemoryLocation &LocA,
                                      const MemoryLocation &LocB,
                                      AAQueryInfo &AAQI) {
   if (LocA.Ptr == LocB.Ptr)
-    return MustAlias;
+    return AliasResult::MustAlias;
 
   // Comparisons between global variables and other constants should be
   // handled by BasicAA.
@@ -891,7 +891,7 @@ AliasResult CFLAndersAAResult::alias(const MemoryLocation &LocA,
     return AAResultBase::alias(LocA, LocB, AAQI);
 
   AliasResult QueryResult = query(LocA, LocB);
-  if (QueryResult == MayAlias)
+  if (QueryResult == AliasResult::MayAlias)
     return AAResultBase::alias(LocA, LocB, AAQI);
 
   return QueryResult;

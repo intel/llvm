@@ -22,7 +22,7 @@
 using namespace llvm;
 using namespace coverage;
 
-LLVM_NODISCARD static ::testing::AssertionResult
+[[nodiscard]] static ::testing::AssertionResult
 ErrorEquals(coveragemap_error Expected, Error E) {
   coveragemap_error Found;
   std::string FoundMsg;
@@ -62,6 +62,7 @@ struct OutputFunctionCoverageData {
   uint64_t Hash;
   std::vector<StringRef> Filenames;
   std::vector<CounterMappingRegion> Regions;
+  std::vector<CounterExpression> Expressions;
 
   OutputFunctionCoverageData() : Hash(0) {}
 
@@ -78,7 +79,7 @@ struct OutputFunctionCoverageData {
     Record.FunctionName = Name;
     Record.FunctionHash = Hash;
     Record.Filenames = Filenames;
-    Record.Expressions = {};
+    Record.Expressions = Expressions;
     Record.MappingRegions = Regions;
   }
 };
@@ -111,6 +112,7 @@ struct InputFunctionCoverageData {
   std::string Name;
   uint64_t Hash;
   std::vector<CounterMappingRegion> Regions;
+  std::vector<CounterExpression> Expressions;
 
   InputFunctionCoverageData(std::string Name, uint64_t Hash)
       : Name(std::move(Name)), Hash(Hash) {}
@@ -126,7 +128,7 @@ struct InputFunctionCoverageData {
   InputFunctionCoverageData &operator=(InputFunctionCoverageData &&) = delete;
 };
 
-struct CoverageMappingTest : ::testing::TestWithParam<std::pair<bool, bool>> {
+struct CoverageMappingTest : ::testing::TestWithParam<std::tuple<bool, bool>> {
   bool UseMultipleReaders;
   StringMap<unsigned> Files;
   std::vector<std::string> Filenames;
@@ -139,8 +141,8 @@ struct CoverageMappingTest : ::testing::TestWithParam<std::pair<bool, bool>> {
   std::unique_ptr<CoverageMapping> LoadedCoverage;
 
   void SetUp() override {
-    ProfileWriter.setOutputSparse(GetParam().first);
-    UseMultipleReaders = GetParam().second;
+    ProfileWriter.setOutputSparse(std::get<0>(GetParam()));
+    UseMultipleReaders = std::get<1>(GetParam());
   }
 
   unsigned getGlobalFileIndex(StringRef Name) {
@@ -189,13 +191,17 @@ struct CoverageMappingTest : ::testing::TestWithParam<std::pair<bool, bool>> {
         LS, CS, LE, CE));
   }
 
+  void addExpression(CounterExpression CE) {
+    InputFunctions.back().Expressions.push_back(CE);
+  }
+
   std::string writeCoverageRegions(InputFunctionCoverageData &Data) {
     SmallVector<unsigned, 8> FileIDs(Data.ReverseVirtualFileMapping.size());
     for (const auto &E : Data.ReverseVirtualFileMapping)
       FileIDs[E.second] = E.first;
     std::string Coverage;
     llvm::raw_string_ostream OS(Coverage);
-    CoverageMappingWriter(FileIDs, None, Data.Regions).write(OS);
+    CoverageMappingWriter(FileIDs, Data.Expressions, Data.Regions).write(OS);
     return OS.str();
   }
 
@@ -207,10 +213,9 @@ struct CoverageMappingTest : ::testing::TestWithParam<std::pair<bool, bool>> {
     Filenames.resize(Files.size() + 1);
     for (const auto &E : Files)
       Filenames[E.getValue()] = E.getKey().str();
-    std::vector<CounterExpression> Expressions;
     ArrayRef<std::string> FilenameRefs = llvm::makeArrayRef(Filenames);
     RawCoverageMappingReader Reader(Coverage, FilenameRefs, Data.Filenames,
-                                    Expressions, Data.Regions);
+                                    Data.Expressions, Data.Regions);
     EXPECT_THAT_ERROR(Reader.read(), Succeeded());
   }
 
@@ -287,7 +292,7 @@ TEST_P(CoverageMappingTest, basic_write_read) {
 
 TEST_P(CoverageMappingTest, correct_deserialize_for_more_than_two_files) {
   const char *FileNames[] = {"bar", "baz", "foo"};
-  static const unsigned N = array_lengthof(FileNames);
+  static const unsigned N = std::size(FileNames);
 
   startFunction("func", 0x1234);
   for (unsigned I = 0; I < N; ++I)
@@ -316,7 +321,7 @@ TEST_P(CoverageMappingTest, load_coverage_for_more_than_two_files) {
   ProfileWriter.addRecord({"func", 0x1234, {0}}, Err);
 
   const char *FileNames[] = {"bar", "baz", "foo"};
-  static const unsigned N = array_lengthof(FileNames);
+  static const unsigned N = std::size(FileNames);
 
   startFunction("func", 0x1234);
   for (unsigned I = 0; I < N; ++I)
@@ -688,6 +693,9 @@ TEST_P(CoverageMappingTest, test_line_coverage_iterator) {
     ++Line;
   }
   ASSERT_EQ(11U, Line);
+
+  // Check that operator->() works / compiles.
+  ASSERT_EQ(1U, LineCoverageIterator(Data)->getLine());
 }
 
 TEST_P(CoverageMappingTest, uncovered_function) {
@@ -796,6 +804,26 @@ TEST_P(CoverageMappingTest, combine_expansions) {
   EXPECT_EQ(CoverageSegment(5, 5, false), Segments[3]);
 }
 
+// Test that counters not associated with any code regions are allowed.
+TEST_P(CoverageMappingTest, non_code_region_counters) {
+  // No records in profdata
+
+  startFunction("func", 0x1234);
+  addCMR(Counter::getCounter(0), "file", 1, 1, 5, 5);
+  addCMR(Counter::getExpression(0), "file", 6, 1, 6, 5);
+  addExpression(CounterExpression(
+      CounterExpression::Add, Counter::getCounter(1), Counter::getCounter(2)));
+
+  EXPECT_THAT_ERROR(loadCoverageMapping(), Succeeded());
+
+  std::vector<std::string> Names;
+  for (const auto &Func : LoadedCoverage->getCoveredFunctions()) {
+    Names.push_back(Func.Name);
+    ASSERT_EQ(2U, Func.CountedRegions.size());
+  }
+  ASSERT_EQ(1U, Names.size());
+}
+
 TEST_P(CoverageMappingTest, strip_filename_prefix) {
   ProfileWriter.addRecord({"file1:func", 0x1234, {0}}, Err);
 
@@ -892,15 +920,12 @@ TEST_P(CoverageMappingTest, skip_duplicate_function_record) {
   ASSERT_EQ(3U, NumFuncs);
 }
 
-// FIXME: Use ::testing::Combine() when llvm updates its copy of googletest.
-INSTANTIATE_TEST_CASE_P(ParameterizedCovMapTest, CoverageMappingTest,
-                        ::testing::Values(std::pair<bool, bool>({false, false}),
-                                          std::pair<bool, bool>({false, true}),
-                                          std::pair<bool, bool>({true, false}),
-                                          std::pair<bool, bool>({true, true})),);
+INSTANTIATE_TEST_SUITE_P(ParameterizedCovMapTest, CoverageMappingTest,
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Bool()));
 
 TEST(CoverageMappingTest, filename_roundtrip) {
-  std::vector<std::string> Paths({"", "a", "b", "c", "d", "e"});
+  std::vector<std::string> Paths({"dir", "a", "b", "c", "d", "e"});
 
   for (bool Compress : {false, true}) {
     std::string EncodedFilenames;
@@ -915,8 +940,37 @@ TEST(CoverageMappingTest, filename_roundtrip) {
     EXPECT_THAT_ERROR(Reader.read(CovMapVersion::CurrentVersion), Succeeded());
 
     ASSERT_EQ(ReadFilenames.size(), Paths.size());
-    for (unsigned I = 1; I < Paths.size(); ++I)
-      ASSERT_TRUE(ReadFilenames[I] == Paths[I]);
+    for (unsigned I = 1; I < Paths.size(); ++I) {
+      SmallString<256> P(Paths[0]);
+      llvm::sys::path::append(P, Paths[I]);
+      ASSERT_EQ(ReadFilenames[I], P);
+    }
+  }
+}
+
+TEST(CoverageMappingTest, filename_compilation_dir) {
+  std::vector<std::string> Paths({"dir", "a", "b", "c", "d", "e"});
+
+  for (bool Compress : {false, true}) {
+    std::string EncodedFilenames;
+    {
+      raw_string_ostream OS(EncodedFilenames);
+      CoverageFilenamesSectionWriter Writer(Paths);
+      Writer.write(OS, Compress);
+    }
+
+    StringRef CompilationDir = "out";
+    std::vector<std::string> ReadFilenames;
+    RawCoverageFilenamesReader Reader(EncodedFilenames, ReadFilenames,
+                                      CompilationDir);
+    EXPECT_THAT_ERROR(Reader.read(CovMapVersion::CurrentVersion), Succeeded());
+
+    ASSERT_EQ(ReadFilenames.size(), Paths.size());
+    for (unsigned I = 1; I < Paths.size(); ++I) {
+      SmallString<256> P(CompilationDir);
+      llvm::sys::path::append(P, Paths[I]);
+      ASSERT_EQ(ReadFilenames[I], P);
+    }
   }
 }
 

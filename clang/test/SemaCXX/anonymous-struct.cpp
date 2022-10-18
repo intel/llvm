@@ -49,7 +49,7 @@ typedef struct // expected-warning {{anonymous non-C-compatible type given name 
 : B { // expected-note {{type is not C-compatible due to this base class}}
 } C; // expected-note {{type is given name 'C' for linkage purposes by this typedef declaration}}
 
-#if __cplusplus > 201703L
+#if __cplusplus > 201703L && __cplusplus < 202002L
 typedef struct { // expected-warning {{anonymous non-C-compatible type given name for linkage purposes by typedef declaration; add a tag name here}}
   static_assert([]{ return true; }()); // expected-note {{type is not C-compatible due to this lambda expression}}
 } Lambda1; // expected-note {{type is given name 'Lambda1' for linkage purposes by this typedef declaration}}
@@ -182,4 +182,10 @@ namespace BuiltinName {
   typedef struct { // expected-warning {{anonymous non-C-compatible type}}
     void memcpy(); // expected-note {{due to this member}}
   } A; // expected-note {{given name 'A' for linkage purposes by this typedef}}
+}
+namespace inline_defined_static_member {
+typedef struct { // expected-warning {{anonymous non-C-compatible type}}
+  static void f() { // expected-note {{due to this member}}
+  }
+} A; // expected-note {{given name 'A' for linkage purposes by this typedef}}
 }

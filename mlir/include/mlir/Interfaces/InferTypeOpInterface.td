@@ -34,7 +34,9 @@ def InferTypeOpInterface : OpInterface<"InferTypeOpInterface"> {
       The method takes an optional location which, if set, will be used to
       report errors on. The operands and attributes correspond to those with
       which an Operation would be created (e.g., as used in Operation::create)
-      and the regions of the op.
+      and the regions of the op. Be aware that this method is supposed to be
+      called with valid arguments, e.g., operands are verified, or it may result
+      in an undefined behavior.
       }],
       /*retTy=*/"::mlir::LogicalResult",
       /*methodName=*/"inferReturnTypes",
@@ -44,6 +46,54 @@ def InferTypeOpInterface : OpInterface<"InferTypeOpInterface"> {
                     "::mlir::DictionaryAttr":$attributes,
                     "::mlir::RegionRange":$regions,
                     "::llvm::SmallVectorImpl<::mlir::Type>&":$inferredReturnTypes)
+    >,
+    StaticInterfaceMethod<
+      /*desc=*/[{Refine the return types that an op would generate.
+
+      This method computes the return types as `inferReturnTypes` does but
+      additionally takes the existing result types as input. The existing
+      result types can be checked as part of inference to provide more
+      op-specific error messages as well as part of inference to merge
+      additional information, attributes, during inference. It is called during
+      verification for ops implementing this trait with default behavior
+      reporting mismatch with current and inferred types printed.
+
+      The operands and attributes correspond to those with which an Operation
+      would be created (e.g., as used in Operation::create) and the regions of
+      the op. The method takes an optional location which, if set, will be used
+      to report errors on.
+
+      The return types may be elided or specific elements be null for elements
+      that should just be returned but not verified.
+
+      Be aware that this method is supposed to be called with valid arguments,
+      e.g., operands are verified, or it may result in an undefined behavior.
+      }],
+      /*retTy=*/"::mlir::LogicalResult",
+      /*methodName=*/"refineReturnTypes",
+      /*args=*/(ins "::mlir::MLIRContext *":$context,
+                    "::llvm::Optional<::mlir::Location>":$location,
+                    "::mlir::ValueRange":$operands,
+                    "::mlir::DictionaryAttr":$attributes,
+                    "::mlir::RegionRange":$regions,
+                    "::llvm::SmallVectorImpl<::mlir::Type>&":$returnTypes),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+          llvm::SmallVector<Type, 4> inferredReturnTypes;
+          if (failed(ConcreteOp::inferReturnTypes(context, location, operands,
+                                                  attributes, regions,
+                                                  inferredReturnTypes)))
+            return failure();
+          if (!ConcreteOp::isCompatibleReturnTypes(inferredReturnTypes,
+                                                   returnTypes)) {
+            return emitOptionalError(
+                location, "'", ConcreteOp::getOperationName(),
+                "' op inferred type(s) ", inferredReturnTypes,
+                " are incompatible with return type(s) of operation ",
+                returnTypes);
+          }
+          return success();
+      }]
     >,
     StaticInterfaceMethod<
       /*desc=*/"Returns whether two array of types are compatible result types"
@@ -62,6 +112,8 @@ def InferTypeOpInterface : OpInterface<"InferTypeOpInterface"> {
     >,
   ];
 
+  // Inferring result types may need to access the region operations.
+  let verifyWithRegions = 1;
   let verify = [{
     return detail::verifyInferredResultTypes($_op);
   }];
@@ -92,11 +144,11 @@ def InferShapedTypeOpInterface : OpInterface<"InferShapedTypeOpInterface"> {
       /*retTy=*/"::mlir::LogicalResult",
       /*methodName=*/"inferReturnTypeComponents",
       /*args=*/(ins "::mlir::MLIRContext*":$context,
-                    "::mlir::Optional<::mlir::Location>":$location,
-                    "::mlir::ValueRange":$operands,
+                    "::llvm::Optional<::mlir::Location>":$location,
+                    "::mlir::ValueShapeRange":$operands,
                     "::mlir::DictionaryAttr":$attributes,
                     "::mlir::RegionRange":$regions,
-                    "::mlir::SmallVectorImpl<::mlir::ShapedTypeComponents>&":
+                    "::llvm::SmallVectorImpl<::mlir::ShapedTypeComponents>&":
                       $inferredReturnShapes),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{ return ::mlir::failure(); }]
@@ -105,42 +157,24 @@ def InferShapedTypeOpInterface : OpInterface<"InferShapedTypeOpInterface"> {
       /*desc=*/[{Reify the shape computation for the operation.
 
       Insert operations using the given OpBuilder that computes the
-      result shape. Only one of this method or
-      `reifyReturnTypeShapesPerResultDim` needs to be overriden by the
-      operation.
+      result shape. This interface is supposed to be workable during dialect
+      conversion (e.g. convert from tensor world to buffer world),
+      where `getOperand` may be invalid. For example, some ops (e.g.
+      dynamic_reshape(input, target_shape)) may depend on their operands
+      to calculate the result shape. When the `matchAndRewrite ` method
+      of a conversion pattern is called, the operands of the op to convert
+      may have been converted into other types, which makes it invalid to
+      call the `getOperand` method of such op directly inside the
+      conversion pattern.  To solve this problem, this interface follows
+      the design of the conversion pattern, that is, accepting passed in
+      operands to avoid calling `getOperand` directly inside the interface
+      implementation.
       }],
       /*retTy=*/"::mlir::LogicalResult",
       /*methodName=*/"reifyReturnTypeShapes",
       /*args=*/(ins "::mlir::OpBuilder&":$builder,
-          "::mlir::SmallVectorImpl<Value> &":$reifiedReturnShapes),
-      /*methodBody=*/[{}],
-      /*defaultImplementation=*/[{ return ::mlir::failure(); }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{Reify the shape computation for the operation.
-
-      Insert operations using the given OpBuilder that computes the
-      result shape. The `reifiedReturnShapes` is expected to be
-      populated with as many vectors as the number of results of the
-      op (empty if the shape of a result value cannot be computed). If
-      the returned shape for a result is not empty, its size must
-      match the rank of the shaped type returned. Consequently, this
-      interface can only be overridden if the return types are ranked.
-
-      If both this method and `reifyReturnTypeShapes` are overridden
-      by the operation, `reifyReturnTypeShapes` takes precedence. This
-      method is intended to be used when the shape of each result, dim
-      pair can be computed independently. Using this method avoids
-      adding additional instructions to aggregate individual dimension
-      of a result shape into an single `Value` (and consequently
-      avoids the need to extract the value from the shape on the
-      client side).
-      }],
-      /*retTy=*/"::mlir::LogicalResult",
-      /*methodName=*/"reifyReturnTypeShapesPerResultDim",
-      /*args=*/(ins "::mlir::OpBuilder&":$builder,
-          "::mlir::SmallVectorImpl<SmallVector<::mlir::Value>>&"
-          :$reifiedReturnShapes),
+          "::mlir::ValueRange":$operands,
+          "::llvm::SmallVectorImpl<::mlir::Value> &":$reifiedReturnShapes),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{ return ::mlir::failure(); }]
     >
@@ -149,8 +183,8 @@ def InferShapedTypeOpInterface : OpInterface<"InferShapedTypeOpInterface"> {
 
 // Convenience class grouping together type and shaped type op interfaces for
 // ops that have tensor return types.
-class InferTensorType<list<string> overridenMethods = []> {
-  list<OpTrait> traits = [
+class InferTensorTypeBase<list<string> overridenMethods = []> : TraitList<
+  [
     // Op implements infer type op interface.
     InferTypeOpInterface,
     // The op will have methods implementing the ShapedType type inference
@@ -159,9 +193,44 @@ class InferTensorType<list<string> overridenMethods = []> {
     // The op produces tensors and will use the ShapedType type infer interface
     // along with knowledge that it is producing Tensors to infer the type.
     NativeOpTrait<"InferTensorType">
+  ]>;
+
+def InferTensorType : InferTensorTypeBase<["inferReturnTypeComponents"]>;
+def InferTensorTypeWithReify: InferTensorTypeBase<[
+    "inferReturnTypeComponents", "reifyReturnTypeShapes"]>;
+
+def ReifyRankedShapedTypeOpInterface :
+    OpInterface<"ReifyRankedShapedTypeOpInterface"> {
+  let description = [{
+    Interface to compute the shape of the result of an operation when
+    the result is a ranked shape type, i.e. `RankedTensorType` or
+    `MemRefType`.
+  }];
+  let cppNamespace = "::mlir";
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/[{
+        Reify the shape of the result of an operation (typically in
+        terms of shape of its operands)
+
+        Insert operations using the given `OpBuilder` that computes
+        the result shape. The `reifiedReturnShapes` is expected to be
+        populated with as many vectors as the number of results of the
+        op. Each of these vectors is expected to be of size equal to
+        rank of the corresponding result. If the shape of a particular
+        result cannot be computed it must be empty.
+      }],
+      /*retTy=*/"::mlir::LogicalResult",
+      /*methodName=*/"reifyResultShapes",
+      /*args=*/(ins "::mlir::OpBuilder &":$builder,
+        "::mlir::ReifiedRankedShapedTypeDims &":$reifiedReturnShapes)
+    >
   ];
 }
-defvar InferTensorTypeWithReify = InferTensorType<[
-    "inferReturnTypeComponents", "reifyReturnTypeShapes"]>;
+
+// Op has the same operand and result type.
+// TODO: Change from hard coded to utilizing type inference trait.
+def SameOperandsAndResultType : NativeOpTrait<"SameOperandsAndResultType">;
 
 #endif // MLIR_INFERTYPEOPINTERFACE

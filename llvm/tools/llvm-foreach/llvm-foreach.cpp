@@ -18,7 +18,9 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SystemUtils.h"
+#include "llvm/Support/Threading.h"
 
+#include <list>
 #include <vector>
 
 using namespace llvm;
@@ -53,7 +55,7 @@ static cl::opt<std::string> OutDirectory{
 
 static cl::opt<std::string> OutFilesExt{
     "out-ext",
-    cl::desc("Specify extenstion for output files; If unspecified, assume "
+    cl::desc("Specify extension for output files; If unspecified, assume "
              ".out"),
     cl::init("out"), cl::value_desc("R")};
 
@@ -61,6 +63,24 @@ static cl::opt<std::string> OutFilesExt{
 static cl::opt<std::string> OutputFileList{
     "out-file-list", cl::desc("Specify filename for list of outputs."),
     cl::value_desc("filename"), cl::init("")};
+
+static cl::opt<std::string> OutIncrement{
+    "out-increment",
+    cl::desc(
+        "Specify output file which should be incrementally named with each "
+        "pass."),
+    cl::init(""), cl::value_desc("R")};
+
+static cl::opt<unsigned int> JobsInParallel{
+    "jobs",
+    cl::Optional,
+    cl::init(1),
+    cl::desc("Specify the number of threads for launching input commands in "
+             "parallel mode"),
+};
+
+static cl::alias JobsInParallelShort{"j", cl::desc("Alias for --jobs"),
+                                     cl::aliasopt(JobsInParallel)};
 
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
@@ -70,6 +90,32 @@ static void error(const Twine &Msg) {
 static void error(std::error_code EC, const Twine &Prefix) {
   if (EC)
     error(Prefix + ": " + EC.message());
+}
+
+// With BlockingWait=false this function just goes through the all
+// submitted jobs to check if some of them have finished.
+int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
+                           bool BlockingWait = true) {
+  std::string ErrMsg;
+  auto It = JobsSubmitted.begin();
+  while (It != JobsSubmitted.end()) {
+    sys::ProcessInfo WaitResult =
+        sys::Wait(*It, 0, /*WaitUntilTerminates*/ BlockingWait, &ErrMsg);
+
+    // Check if the job has finished (PID will be 0 if it's not).
+    if (!BlockingWait && !WaitResult.Pid) {
+      It++;
+      continue;
+    }
+    assert(BlockingWait || WaitResult.Pid);
+    It = JobsSubmitted.erase(It);
+
+    if (WaitResult.ReturnCode != 0) {
+      errs() << "llvm-foreach: " << ErrMsg << '\n';
+      return WaitResult.ReturnCode;
+    }
+  }
+  return 0;
 }
 
 int main(int argc, char **argv) {
@@ -112,6 +158,7 @@ int main(int argc, char **argv) {
   // Find args to replace with filenames from input list.
   std::vector<ArgumentReplace> InReplaceArgs;
   ArgumentReplace OutReplaceArg;
+  ArgumentReplace OutIncrementArg;
   for (size_t i = 1; i < Args.size(); ++i) {
     for (auto &Replace : Replaces) {
       size_t ReplaceStart = Args[i].find(Replace);
@@ -123,6 +170,12 @@ int main(int argc, char **argv) {
       size_t ReplaceStart = Args[i].find(OutReplace);
       if (ReplaceStart != StringRef::npos)
         OutReplaceArg = {i, ReplaceStart, OutReplace.size()};
+    }
+
+    if (!OutIncrement.empty() && Args[i].contains(OutIncrement)) {
+      size_t IncrementStart = Args[i].find(OutIncrement);
+      if (IncrementStart != StringRef::npos)
+        OutIncrementArg = {i, IncrementStart, OutIncrement.size()};
     }
   }
 
@@ -146,14 +199,27 @@ int main(int argc, char **argv) {
     PrevNumOfLines = FileLists[i].size();
   }
 
+  if (!JobsInParallel)
+    error("Number of parallel threads should be a positive integer");
+
+  size_t MaxSafeNumThreads = optimal_concurrency().compute_thread_count();
+  if (JobsInParallel > MaxSafeNumThreads) {
+    JobsInParallel = MaxSafeNumThreads;
+    outs() << "llvm-foreach: adjusted number of threads to "
+           << MaxSafeNumThreads << " (max safe available).\n";
+  }
+
   std::error_code EC;
   raw_fd_ostream OS{OutputFileList, EC, sys::fs::OpenFlags::OF_None};
   if (!OutputFileList.empty())
     error(EC, "error opening the file '" + OutputFileList + "'");
 
+  int Res = 0;
   std::string ResOutArg;
+  std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
+  std::list<sys::ProcessInfo> JobsSubmitted;
   for (size_t j = 0; j != FileLists[0].size(); ++j) {
     for (size_t i = 0; i < InReplaceArgs.size(); ++i) {
       ArgumentReplace CurReplace = InReplaceArgs[i];
@@ -197,18 +263,34 @@ int main(int argc, char **argv) {
         OS << Path << "\n";
     }
 
-    std::string ErrMsg;
-    // TODO: Add possibility to execute commands in parallel.
-    int Result =
-        sys::ExecuteAndWait(Prog, Args, /*Env=*/None, /*Redirects=*/None,
-                            /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
-    if (Result != 0)
-      error(ErrMsg);
+    if (!OutIncrement.empty()) {
+      // Name the file by adding the current file list index to the name.
+      IncOutArg = InputCommandArgs[OutIncrementArg.ArgNum];
+      if (j > 0)
+        IncOutArg += ("_" + Twine(j)).str();
+      Args[OutIncrementArg.ArgNum] = IncOutArg;
+    }
+
+    // Do not start execution of a new job until previous one(s) are finished,
+    // if the maximum number of parallel workers is reached.
+    while (JobsSubmitted.size() == JobsInParallel)
+      if (int Result =
+              checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false))
+        Res = Result;
+
+    JobsSubmitted.emplace_back(sys::ExecuteNoWait(
+        Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
   }
+
+  // Wait for all commands to be executed.
+  while (!JobsSubmitted.empty())
+    if (int Result =
+            checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true))
+      Res = Result;
 
   if (!OutputFileList.empty()) {
     OS.close();
   }
 
-  return 0;
+  return Res;
 }

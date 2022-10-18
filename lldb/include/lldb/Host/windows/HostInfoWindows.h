@@ -19,11 +19,6 @@ class UserIDResolver;
 class HostInfoWindows : public HostInfoBase {
   friend class HostInfoBase;
 
-private:
-  // Static class, unconstructable.
-  HostInfoWindows();
-  ~HostInfoWindows();
-
 public:
   static void Initialize(SharedLibraryDirectoryHelper *helper = nullptr);
   static void Terminate();
@@ -32,8 +27,8 @@ public:
   static UserIDResolver &GetUserIDResolver();
 
   static llvm::VersionTuple GetOSVersion();
-  static bool GetOSBuildString(std::string &s);
-  static bool GetOSKernelDescription(std::string &s);
+  static llvm::Optional<std::string> GetOSBuildString();
+  static llvm::Optional<std::string> GetOSKernelDescription();
   static bool GetHostname(std::string &s);
   static FileSpec GetProgramFileSpec();
   static FileSpec GetDefaultShell();

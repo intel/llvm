@@ -28,17 +28,17 @@ def VectorUnrollOpInterface : OpInterface<"VectorUnrollOpInterface"> {
         `targetShape`. Return `None` if the op cannot be unrolled to the target
         vector shape.
       }],
-      /*retTy=*/"Optional<SmallVector<int64_t, 4>>",
+      /*retTy=*/"::llvm::Optional<::llvm::SmallVector<int64_t, 4>>",
       /*methodName=*/"getShapeForUnroll",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert($_op->getNumResults() == 1);
         auto vt = $_op.getResult().getType().
-          template dyn_cast<VectorType>();
+          template dyn_cast<::mlir::VectorType>();
         if (!vt)
-          return None;
-        SmallVector<int64_t, 4> res(vt.getShape().begin(), vt.getShape().end());
+          return ::mlir::None;
+        ::llvm::SmallVector<int64_t, 4> res(vt.getShape().begin(), vt.getShape().end());
         return res;
       }]
     >,
@@ -54,92 +54,132 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
   let methods = [
     StaticInterfaceMethod<
       /*desc=*/"Return the `in_bounds` attribute name.",
-      /*retTy=*/"StringRef",
-      /*methodName=*/"getInBoundsAttrName",
+      /*retTy=*/"::mlir::StringRef",
+      /*methodName=*/"getInBoundsAttrStrName",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/ [{ return "in_bounds"; }]
     >,
     StaticInterfaceMethod<
       /*desc=*/"Return the `permutation_map` attribute name.",
-      /*retTy=*/"StringRef",
-      /*methodName=*/"getPermutationMapAttrName",
+      /*retTy=*/"::mlir::StringRef",
+      /*methodName=*/"getPermutationMapAttrStrName",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/ [{ return "permutation_map"; }]
     >,
     InterfaceMethod<
-      /*desc=*/[{
-      Return `true` when the `in_bounds` attribute at dimension
-      `dim` is set to `true`. Return `false` otherwise.}],
+      /*desc=*/[{ Return `true` if dimension `dim` is in-bounds. Return `false`
+                 otherwise. }],
       /*retTy=*/"bool",
       /*methodName=*/"isDimInBounds",
       /*args=*/(ins "unsigned":$dim),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.in_bounds() &&
-          $_op.in_bounds()->template cast<ArrayAttr>()[dim]
-                          .template cast<BoolAttr>().getValue();
+        return $_op.isBroadcastDim(dim)
+            || ($_op.getInBounds()
+                && $_op.getInBounds()->template cast<::mlir::ArrayAttr>()[dim]
+                                    .template cast<::mlir::BoolAttr>().getValue());
       }]
     >,
     InterfaceMethod<
       /*desc=*/"Return the memref or ranked tensor operand.",
-      /*retTy=*/"Value",
+      /*retTy=*/"::mlir::Value",
       /*methodName=*/"source",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.source();"
+      /*methodBody=*/"return $_op.getSource();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
       /*desc=*/"Return the vector operand or result.",
-      /*retTy=*/"Value",
+      /*retTy=*/"::mlir::Value",
       /*methodName=*/"vector",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.vector();"
+      /*methodBody=*/"return $_op.getVector();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
       /*desc=*/"Return the indices operands.",
-      /*retTy=*/"ValueRange",
+      /*retTy=*/"::mlir::ValueRange",
       /*methodName=*/"indices",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.indices();"
+      /*methodBody=*/"return $_op.getIndices();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
       /*desc=*/"Return the permutation map.",
-      /*retTy=*/"AffineMap",
+      /*retTy=*/"::mlir::AffineMap",
       /*methodName=*/"permutation_map",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.permutation_map();"
+      /*methodBody=*/"return $_op.getPermutationMap();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
+      /*desc=*/[{ Returns true if the specified dimension is a broadcast. }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isBroadcastDim",
+      /*args=*/(ins "unsigned":$idx),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        auto expr = $_op.getPermutationMap().getResult(idx);
+        return expr.template isa<::mlir::AffineConstantExpr>() &&
+               expr.template dyn_cast<::mlir::AffineConstantExpr>().getValue() == 0;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{ Returns true if at least one of the dimensions in the
+                  permutation map is a broadcast.}],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasBroadcastDim",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        for (unsigned i = 0, rank = getTransferRank(); i < rank; ++i) {
+          if ($_op.isBroadcastDim(i))
+            return true;
+        }
+        return false;
+      }]
+    >,
+    InterfaceMethod<
       /*desc=*/"Return the `in_bounds` boolean ArrayAttr.",
-      /*retTy=*/"Optional<ArrayAttr>",
+      /*retTy=*/"::llvm::Optional<::mlir::ArrayAttr>",
       /*methodName=*/"in_bounds",
       /*args=*/(ins),
-      /*methodBody=*/"return $_op.in_bounds();"
+      /*methodBody=*/"return $_op.getInBounds();"
       /*defaultImplementation=*/
     >,
     InterfaceMethod<
       /*desc=*/"Return the ShapedType.",
-      /*retTy=*/"ShapedType",
+      /*retTy=*/"::mlir::ShapedType",
       /*methodName=*/"getShapedType",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/
-        "return $_op.source().getType().template cast<ShapedType>();"
+        "return $_op.getSource().getType().template cast<::mlir::ShapedType>();"
     >,
     InterfaceMethod<
       /*desc=*/"Return the VectorType.",
-      /*retTy=*/"VectorType",
+      /*retTy=*/"::mlir::VectorType",
       /*methodName=*/"getVectorType",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.vector().getType().template dyn_cast<VectorType>();
+        return $_op.getVector().getType().template dyn_cast<::mlir::VectorType>();
         }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Return the mask type if the op has a mask.",
+      /*retTy=*/"::mlir::VectorType",
+      /*methodName=*/"getMaskType",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op.getMask()
+            ? ::mlir::vector::detail::transferMaskType(
+                $_op.getVectorType(), $_op.getPermutationMap())
+            : ::mlir::VectorType();
+      }]
     >,
     InterfaceMethod<
       /*desc=*/[{ Return the number of dimensions that participate in the
@@ -149,7 +189,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/
-        "return $_op.permutation_map().getNumResults();"
+        "return $_op.getPermutationMap().getNumResults();"
     >,
     InterfaceMethod<
       /*desc=*/[{ Return the number of leading shaped dimensions that do not
@@ -192,7 +232,7 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
       }],
       /*retTy=*/"void",
       /*methodName=*/"zipResultAndIndexing",
-      /*args=*/(ins "llvm::function_ref<void(int64_t, int64_t)>":$fun),
+      /*args=*/(ins "::llvm::function_ref<void(int64_t, int64_t)>":$fun),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         for (int64_t resultIdx = 0,
@@ -201,6 +241,36 @@ def VectorTransferOpInterface : OpInterface<"VectorTransferOpInterface"> {
            resultIdx < eResult;
            ++resultIdx, ++indicesIdx)
         fun(resultIdx, indicesIdx);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+      Return an upper-bound shape accessed by the transfer op within the
+      tensor/memref operand.
+      For example:
+      ```
+        vector.transfer %w0[%i, %j] {
+          permutation_map = affine_map<(d0, d1) -> (d1, d0, 0)>} :
+          tensor<?x?xf32>, vector<4x2x6xf32>
+      ```
+      returns a shape [2, 4].
+      }],
+      /*retTy=*/"SmallVector<int64_t>",
+      /*methodName=*/"getTransferChunkAccessed",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        SmallVector<int64_t> dimSizes($_op.getPermutationMap().getNumDims(), 0);
+        for (auto vecDims : llvm::zip($_op.getPermutationMap().getResults(),
+                                      $_op.getVectorType().getShape())) {
+          AffineExpr dim = std::get<0>(vecDims);
+          int64_t size = std::get<1>(vecDims);
+          // Skip broadcast.
+          if (dim.isa<AffineConstantExpr>())
+            continue;
+          dimSizes[dim.cast<AffineDimExpr>().getPosition()] = size;
+        }
+        return dimSizes;
       }]
     >,
   ];

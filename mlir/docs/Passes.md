@@ -8,6 +8,10 @@ This document describes the available MLIR passes and their contracts.
 
 [include "GeneralPasses.md"]
 
+## Bufferization Passes
+
+[include "BufferizationPasses.md"]
+
 ## Conversion Passes
 
 [include "ConversionPasses.md"]
@@ -20,6 +24,14 @@ This document describes the available MLIR passes and their contracts.
 
 [include "AffinePasses.md"]
 
+## `arith` Dialect Passes
+
+[include "ArithPasses.md"]
+
+## `func` Dialect Passes
+
+[include "FuncPasses.md"]
+
 ## `gpu` Dialect Passes
 
 [include "GPUPasses.md"]
@@ -31,6 +43,10 @@ This document describes the available MLIR passes and their contracts.
 ## `llvm` Dialect Passes
 
 [include "LLVMPasses.md"]
+
+## `memref` Dialect Passes
+
+[include "MemRefPasses.md"]
 
 ## `quant` Dialect Passes
 
@@ -48,17 +64,25 @@ This document describes the available MLIR passes and their contracts.
 
 [include "ShapePasses.md"]
 
+## `sparse_tensor` Dialect Passes
+
+[include "SparseTensorPasses.md"]
+
 ## `spv` Dialect Passes
 
 [include "SPIRVPasses.md"]
 
-## `standard` Dialect Passes
-
-[include "StandardPasses.md"]
-
 ## `tensor` Dialect Passes
 
 [include "TensorPasses.md"]
+
+## `transform` Dialect Passes
+
+[include "TransformPasses.md"]
+
+## `vector` Dialect Passes
+
+[include "VectorPasses.md"]
 
 ## TOSA Dialect Passes
 

@@ -6,29 +6,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw cl::sycl::invalid_parameter_error("No device of forced type.",
-                                            PI_INVALID_OPERATION);
+    throw sycl::invalid_parameter_error("No device of forced type.",
+                                        PI_ERROR_INVALID_OPERATION);
   }
 }
 } // namespace detail
 
-device::device() : impl(detail::device_impl::getHostDeviceImpl()) {}
+device::device() : device(default_selector_v) {}
 
 device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
@@ -40,42 +41,46 @@ device::device(cl_device_id DeviceId) {
   auto Platform =
       detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  clRetainDevice(DeviceId);
+  Plugin.call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();
 }
 
-vector_class<device> device::get_devices(info::device_type deviceType) {
-  vector_class<device> devices;
-  // Host device availability should not depend on the forced type
-  const bool includeHost =
-      detail::match_types(deviceType, info::device_type::host);
-  info::device_type forced_type = detail::get_forced_type();
+std::vector<device> device::get_devices(info::device_type deviceType) {
+  std::vector<device> devices;
+  detail::device_filter_list *FilterList =
+      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
+  detail::ods_target_list *OdsTargetList =
+      detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
+
+  info::device_type forced_type =
+      detail::get_forced_type(); // almost always ::all
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
     detail::force_type(deviceType, forced_type);
-    for (const auto &plt : platform::get_platforms()) {
+    auto thePlatforms = platform::get_platforms();
+    for (const auto &plt : thePlatforms) {
       // If SYCL_BE is set then skip platforms which doesn't have specified
       // backend.
       backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
       if (ForcedBackend)
-        if (!plt.is_host() &&
-            (detail::getSyclObjImpl(plt)->getPlugin().getBackend() !=
-             *ForcedBackend))
+        if (!detail::getSyclObjImpl(plt)->is_host() &&
+            plt.get_backend() != *ForcedBackend)
           continue;
-      if (includeHost && plt.is_host()) {
-        vector_class<device> host_device(
-            plt.get_devices(info::device_type::host));
-        if (!host_device.empty())
-          devices.insert(devices.end(), host_device.begin(), host_device.end());
-      } else {
-        vector_class<device> found_devices(plt.get_devices(deviceType));
-        if (!found_devices.empty())
-          devices.insert(devices.end(), found_devices.begin(),
-                         found_devices.end());
-      }
+      // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
+      // with the filter specification.
+      backend platformBackend = plt.get_backend();
+      if (FilterList && !FilterList->backendCompatible(platformBackend))
+        continue;
+      if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
+        continue;
+
+      std::vector<device> found_devices(plt.get_devices(deviceType));
+      if (!found_devices.empty())
+        devices.insert(devices.end(), found_devices.begin(),
+                       found_devices.end());
     }
   }
 
@@ -84,7 +89,11 @@ vector_class<device> device::get_devices(info::device_type deviceType) {
 
 cl_device_id device::get() const { return impl->get(); }
 
-bool device::is_host() const { return impl->is_host(); }
+bool device::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "device::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 
@@ -95,50 +104,56 @@ bool device::is_accelerator() const { return impl->is_accelerator(); }
 platform device::get_platform() const { return impl->get_platform(); }
 
 template <info::partition_property prop>
-vector_class<device> device::create_sub_devices(size_t ComputeUnits) const {
+std::vector<device> device::create_sub_devices(size_t ComputeUnits) const {
   return impl->create_sub_devices(ComputeUnits);
 }
 
-template __SYCL_EXPORT vector_class<device>
+template __SYCL_EXPORT std::vector<device>
 device::create_sub_devices<info::partition_property::partition_equally>(
     size_t ComputeUnits) const;
 
 template <info::partition_property prop>
-vector_class<device>
-device::create_sub_devices(const vector_class<size_t> &Counts) const {
+std::vector<device>
+device::create_sub_devices(const std::vector<size_t> &Counts) const {
   return impl->create_sub_devices(Counts);
 }
 
-template __SYCL_EXPORT vector_class<device>
+template __SYCL_EXPORT std::vector<device>
 device::create_sub_devices<info::partition_property::partition_by_counts>(
-    const vector_class<size_t> &Counts) const;
+    const std::vector<size_t> &Counts) const;
 
 template <info::partition_property prop>
-vector_class<device> device::create_sub_devices(
+std::vector<device> device::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
   return impl->create_sub_devices(AffinityDomain);
 }
 
-template __SYCL_EXPORT vector_class<device> device::create_sub_devices<
+template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::partition_by_affinity_domain>(
     info::partition_affinity_domain AffinityDomain) const;
 
-bool device::has_extension(const string_class &extension_name) const {
+bool device::has_extension(const std::string &extension_name) const {
   return impl->has_extension(extension_name);
 }
 
-template <info::device param>
-typename info::param_traits<info::device, param>::return_type
+template <typename Param>
+typename detail::is_device_info_desc<Param>::return_type
 device::get_info() const {
-  return impl->template get_info<param>();
+  return impl->template get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type device::get_info<info::param_type::param>()  \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
-#include <CL/sycl/info/device_traits.def>
+#include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_info<Namespace::info::DescType::Desc>() const;
+
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return getImplBackend(impl); }
@@ -147,5 +162,5 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

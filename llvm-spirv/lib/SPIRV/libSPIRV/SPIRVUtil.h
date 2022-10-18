@@ -43,6 +43,8 @@
 #include <ostream>
 #define spv_ostream std::ostream
 
+#include "llvm/Support/raw_ostream.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -86,7 +88,7 @@ public:
   void init();
 
   static Ty2 map(Ty1 Key) {
-    Ty2 Val;
+    Ty2 Val = {};
     bool Found = find(Key, &Val);
     (void)Found;
     assert(Found && "Invalid key");
@@ -94,7 +96,7 @@ public:
   }
 
   static Ty1 rmap(Ty2 Key) {
-    Ty1 Val;
+    Ty1 Val = {};
     bool Found = rfind(Key, &Val);
     (void)Found;
     assert(Found && "Invalid key");
@@ -420,6 +422,16 @@ getOrInsert(MapTy &Map, typename MapTy::key_type Key, FuncTy Func) {
   typename MapTy::mapped_type NF = Func();
   Map[Key] = NF;
   return NF;
+}
+
+template <typename T> std::string toString(const T *Object) {
+  if (Object == nullptr)
+    return "";
+  std::string S;
+  llvm::raw_string_ostream RSOS(S);
+  Object->print(RSOS);
+  RSOS.flush();
+  return S;
 }
 
 } // namespace SPIRV

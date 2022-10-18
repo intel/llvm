@@ -17,7 +17,7 @@
 #include "lldb/lldb-enumerations.h"
 #include "llvm/ADT/StringRef.h"
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <string>
 
@@ -33,8 +33,8 @@ struct SharedCacheImageInfo {
 class HostInfoBase {
 private:
   // Static class, unconstructable.
-  HostInfoBase() {}
-  ~HostInfoBase() {}
+  HostInfoBase() = default;
+  ~HostInfoBase() = default;
 
 public:
   /// A helper function for determining the liblldb location. It receives a

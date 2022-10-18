@@ -16,14 +16,16 @@
 // Test that the __convert_to_integral functions properly converts Tp to the
 // correct type and value for integral, enum and user defined types.
 
+#include "test_macros.h"
+
+TEST_CLANG_DIAGNOSTIC_IGNORED("-Wprivate-header")
+#include <__utility/convert_to_integral.h>
 #include <limits>
 #include <type_traits>
 #include <cstdint>
 #include <cassert>
 
 #include "user_defined_integral.h"
-
-#include "test_macros.h"
 
 template <class T>
 struct EnumType
@@ -87,7 +89,9 @@ int main(int, char**)
   check_integral_types<char, int>();
   check_integral_types<signed char, int>();
   check_integral_types<unsigned char, int>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   check_integral_types<wchar_t, decltype(((wchar_t)1) + 1)>();
+#endif
   check_integral_types<char16_t, int>();
   // On some platforms, unsigned int and long are the same size.  These
   // platforms have a choice of making uint32_t an int or a long.  However
@@ -105,7 +109,7 @@ int main(int, char**)
   check_integral_types<unsigned long, unsigned long>();
   check_integral_types<long long, long long>();
   check_integral_types<unsigned long long, unsigned long long>();
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
   check_integral_types<__int128_t, __int128_t>();
   check_integral_types<__uint128_t, __uint128_t>();
 #endif

@@ -11,8 +11,9 @@
 
 #include "DWARFDIE.h"
 #include "DWARFDebugInfoEntry.h"
-#include "lldb/lldb-enumerations.h"
 #include "lldb/Utility/XcodeSDK.h"
+#include "lldb/lldb-enumerations.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugRnglists.h"
 #include "llvm/Support/RWMutex.h"
 #include <atomic>
 
@@ -29,7 +30,8 @@ enum DWARFProducer {
   eProducerClang,
   eProducerGCC,
   eProducerLLVMGCC,
-  eProcucerOther
+  eProducerSwift,
+  eProducerOther
 };
 
 /// Base class describing the header of any kind of "unit."  Some information
@@ -49,7 +51,7 @@ class DWARFUnitHeader {
   uint64_t m_type_hash = 0;
   uint32_t m_type_offset = 0;
 
-  uint64_t m_dwo_id = 0;
+  llvm::Optional<uint64_t> m_dwo_id;
 
   DWARFUnitHeader() = default;
 
@@ -65,9 +67,10 @@ public:
   }
   uint64_t GetTypeHash() const { return m_type_hash; }
   dw_offset_t GetTypeOffset() const { return m_type_offset; }
-  uint64_t GetDWOId() const { return m_dwo_id; }
+  llvm::Optional<uint64_t> GetDWOId() const { return m_dwo_id; }
   bool IsTypeUnit() const {
-    return m_unit_type == DW_UT_type || m_unit_type == DW_UT_split_type;
+    return m_unit_type == llvm::dwarf::DW_UT_type ||
+           m_unit_type == llvm::dwarf::DW_UT_split_type;
   }
   uint32_t GetNextUnitOffset() const { return m_offset + m_length + 4; }
 
@@ -89,9 +92,10 @@ public:
   virtual ~DWARFUnit();
 
   bool IsDWOUnit() { return m_is_dwo; }
-  uint64_t GetDWOId();
+  llvm::Optional<uint64_t> GetDWOId();
 
   void ExtractUnitDIEIfNeeded();
+  void ExtractUnitDIENoDwoIfNeeded();
   void ExtractDIEsIfNeeded();
 
   class ScopedExtractDIEs {
@@ -151,7 +155,7 @@ public:
   const DWARFAbbreviationDeclarationSet *GetAbbreviations() const;
   dw_offset_t GetAbbrevOffset() const;
   uint8_t GetAddressByteSize() const { return m_header.GetAddressByteSize(); }
-  dw_addr_t GetAddrBase() const { return m_addr_base; }
+  dw_addr_t GetAddrBase() const { return m_addr_base.value_or(0); }
   dw_addr_t GetBaseAddress() const { return m_base_addr; }
   dw_offset_t GetLineTableOffset();
   dw_addr_t GetRangesBase() const { return m_ranges_base; }
@@ -161,6 +165,8 @@ public:
   void SetRangesBase(dw_addr_t ranges_base);
   void SetStrOffsetsBase(dw_offset_t str_offsets_base);
   virtual void BuildAddressRangeTable(DWARFDebugAranges *debug_aranges) = 0;
+
+  dw_addr_t ReadAddressFromDebugAddrSection(uint32_t index) const;
 
   lldb::ByteOrder GetByteOrder() const;
 
@@ -194,11 +200,7 @@ public:
 
   DWARFProducer GetProducer();
 
-  uint32_t GetProducerVersionMajor();
-
-  uint32_t GetProducerVersionMinor();
-
-  uint32_t GetProducerVersionUpdate();
+  llvm::VersionTuple GetProducerVersion();
 
   uint64_t GetDWARFLanguageType();
 
@@ -235,15 +237,7 @@ public:
   /// Return a rangelist's offset based on an index. The index designates
   /// an entry in the rangelist table's offset array and is supplied by
   /// DW_FORM_rnglistx.
-  llvm::Optional<uint64_t> GetRnglistOffset(uint32_t Index) const {
-    if (!m_rnglist_table)
-      return llvm::None;
-    if (llvm::Optional<uint64_t> off = m_rnglist_table->getOffsetEntry(
-            m_dwarf.GetDWARFContext().getOrLoadRngListsData().GetAsLLVM(),
-            Index))
-      return *off + m_ranges_base;
-    return llvm::None;
-  }
+  llvm::Expected<uint64_t> GetRnglistOffset(uint32_t Index);
 
   llvm::Optional<uint64_t> GetLoclistOffset(uint32_t Index) {
     if (!m_loclist_table_header)
@@ -263,6 +257,34 @@ public:
 
   lldb_private::DWARFDataExtractor GetLocationData() const;
 
+  /// Returns true if any DIEs in the unit match any DW_TAG values in \a tags.
+  ///
+  /// \param[in] tags
+  ///   An array of dw_tag_t values to check all abbrevitions for.
+  ///
+  /// \returns
+  ///   True if any DIEs match any tag in \a tags, false otherwise.
+  bool HasAny(llvm::ArrayRef<dw_tag_t> tags);
+
+
+  /// Get the fission .dwo file specific error for this compile unit.
+  ///
+  /// The skeleton compile unit only can have a DWO error. Any other type
+  /// of DWARFUnit will not have a valid DWO error.
+  ///
+  /// \returns
+  ///   A valid DWO error if there is a problem with anything in the
+  ///   locating or parsing inforamtion in the .dwo file
+  const lldb_private::Status &GetDwoError() const { return m_dwo_error; }
+
+  /// Set the fission .dwo file specific error for this compile unit.
+  ///
+  /// This helps tracks issues that arise when trying to locate or parse a
+  /// .dwo file. Things like a missing .dwo file, DWO ID mismatch, and other
+  /// .dwo errors can be stored in each compile unit so the issues can be
+  /// communicated to the user.
+  void SetDwoError(const lldb_private::Status &error) { m_dwo_error = error; }
+
 protected:
   DWARFUnit(SymbolFileDWARF &dwarf, lldb::user_id_t uid,
             const DWARFUnitHeader &header,
@@ -276,10 +298,10 @@ protected:
   // Get the DWARF unit DWARF debug information entry. Parse the single DIE
   // if needed.
   const DWARFDebugInfoEntry *GetUnitDIEPtrOnly() {
-    ExtractUnitDIEIfNeeded();
+    ExtractUnitDIENoDwoIfNeeded();
     // m_first_die_mutex is not required as m_first_die is never cleared.
     if (!m_first_die)
-      return NULL;
+      return nullptr;
     return &m_first_die;
   }
 
@@ -287,9 +309,13 @@ protected:
   const DWARFDebugInfoEntry *DIEPtr() {
     ExtractDIEsIfNeeded();
     if (m_die_array.empty())
-      return NULL;
+      return nullptr;
     return &m_die_array[0];
   }
+
+  const llvm::Optional<llvm::DWARFDebugRnglistTable> &GetRnglistTable();
+
+  lldb_private::DWARFDataExtractor GetRnglistData() const;
 
   SymbolFileDWARF &m_dwarf;
   std::shared_ptr<DWARFUnit> m_dwo;
@@ -314,16 +340,16 @@ protected:
   std::unique_ptr<DWARFDebugAranges> m_func_aranges_up;
   dw_addr_t m_base_addr = 0;
   DWARFProducer m_producer = eProducerInvalid;
-  uint32_t m_producer_version_major = 0;
-  uint32_t m_producer_version_minor = 0;
-  uint32_t m_producer_version_update = 0;
+  llvm::VersionTuple m_producer_version;
   llvm::Optional<uint64_t> m_language_type;
   lldb_private::LazyBool m_is_optimized = lldb_private::eLazyBoolCalculate;
   llvm::Optional<lldb_private::FileSpec> m_comp_dir;
   llvm::Optional<lldb_private::FileSpec> m_file_spec;
-  dw_addr_t m_addr_base = 0;     ///< Value of DW_AT_addr_base.
-  dw_addr_t m_loclists_base = 0; ///< Value of DW_AT_loclists_base.
-  dw_addr_t m_ranges_base = 0;   ///< Value of DW_AT_rnglists_base.
+  llvm::Optional<dw_addr_t> m_addr_base; ///< Value of DW_AT_addr_base.
+  dw_addr_t m_loclists_base = 0;         ///< Value of DW_AT_loclists_base.
+  dw_addr_t m_ranges_base = 0;           ///< Value of DW_AT_rnglists_base.
+  llvm::Optional<uint64_t> m_gnu_addr_base;
+  llvm::Optional<uint64_t> m_gnu_ranges_base;
 
   /// Value of DW_AT_stmt_list.
   dw_offset_t m_line_table_offset = DW_INVALID_OFFSET;
@@ -331,12 +357,18 @@ protected:
   dw_offset_t m_str_offsets_base = 0; // Value of DW_AT_str_offsets_base.
 
   llvm::Optional<llvm::DWARFDebugRnglistTable> m_rnglist_table;
+  bool m_rnglist_table_done = false;
   llvm::Optional<llvm::DWARFListTableHeader> m_loclist_table_header;
 
   const DIERef::Section m_section;
   bool m_is_dwo;
+  bool m_has_parsed_non_skeleton_unit;
   /// Value of DW_AT_GNU_dwo_id (v4) or dwo_id from CU header (v5).
-  uint64_t m_dwo_id;
+  llvm::Optional<uint64_t> m_dwo_id;
+  /// If we get an error when trying to load a .dwo file, save that error here.
+  /// Errors include .dwo/.dwp file not found, or the .dwp/.dwp file was found
+  /// but DWO ID doesn't match, etc.
+  lldb_private::Status m_dwo_error;
 
 private:
   void ParseProducerInfo();

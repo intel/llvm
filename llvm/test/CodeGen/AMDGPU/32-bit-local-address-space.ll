@@ -58,7 +58,7 @@ entry:
 
 ; FUNC-LABEL: {{^}}null_32bit_lds_ptr:
 ; GFX7 v_cmp_ne_u32
-; GFX7: v_cndmask_b32
+; GFX7: s_cselect_b32
 ; GFX8: s_cmp_lg_u32
 ; GFX8-NOT: v_cmp_ne_u32
 ; GFX8: s_cselect_b32
@@ -83,7 +83,7 @@ define amdgpu_kernel void @mul_32bit_ptr(float addrspace(1)* %out, [3 x float] a
 @g_lds = addrspace(3) global float undef, align 4
 
 ; FUNC-LABEL: {{^}}infer_ptr_alignment_global_offset:
-; SI: v_mov_b32_e32 [[PTR:v[0-9]+]], g_lds@abs32@lo
+; SI: v_mov_b32_e32 [[PTR:v[0-9]+]], 0{{$}}
 ; SI: ds_read_b32 v{{[0-9]+}}, [[PTR]]
 define amdgpu_kernel void @infer_ptr_alignment_global_offset(float addrspace(1)* %out, i32 %tid) {
   %val = load float, float addrspace(3)* @g_lds

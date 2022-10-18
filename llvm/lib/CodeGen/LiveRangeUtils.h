@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+/// \file
 /// This file contains helper functions to modify live ranges.
-//
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_LIB_CODEGEN_LIVERANGEUTILS_H
@@ -18,7 +18,7 @@
 namespace llvm {
 
 /// Helper function that distributes live range value numbers and the
-/// corresponding segments of a master live range \p LR to a list of newly
+/// corresponding segments of a primary live range \p LR to a list of newly
 /// created live ranges \p SplitLRs. \p VNIClasses maps each value number in \p
 /// LR to 0 meaning it should stay or to 1..N meaning it should go to a specific
 /// live range in the \p SplitLRs array.

@@ -1,27 +1,40 @@
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -no-opaque-pointers -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 // expected-no-diagnostics
 #ifndef HEADER
 #define HEADER
 
-void foo();
+void foo(int n);
 void bar();
 
-// CHECK: define{{.*}} void @{{.*}}baz{{.*}}(i32 %n)
+// CHECK: define{{.*}} void @{{.*}}baz{{.*}}(i32 noundef %n)
 void baz(int n) {
   static float a[10];
   static double b;
 
-  // CHECK: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(
-  // CHECK: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(
-
   // CHECK: call i8* @llvm.stacksave()
+  // CHECK: [[A_BUF_SIZE:%.+]] = mul nuw i64 10, [[NUM_ELEMS:%[^,]+]]
+
+  // float a_buffer[10][n];
+  // CHECK: [[A_BUF:%.+]] = alloca float, i64 [[A_BUF_SIZE]],
+  // double b_buffer[10];
+  // CHECK: [[B_BUF:%.+]] = alloca double, i64 10,
+
+  // CHECK: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(
+  // CHECK: [[LAST:%.+]] = mul nsw i64 9, %
+  // CHECK: [[LAST_REF:%.+]] = getelementptr inbounds float, float* [[A_BUF]], i64 [[LAST]]
+  // CHECK: [[BC:%.+]] = bitcast float* [[LAST_REF]] to i8*
+  // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 16 bitcast ([10 x float]* @_ZZ3baziE1a to i8*), i8* align 4 [[BC]], i64 %{{.+}}, i1 false)
+  // CHECK: [[LAST_REF_B:%.+]] = getelementptr inbounds double, double* [[B_BUF]], i64 9
+  // CHECK: [[LAST_VAL:%.+]] = load double, double* [[LAST_REF_B]],
+  // CHECK: store double [[LAST_VAL]], double* @_ZZ3baziE1b,
+
   // CHECK: [[A_BUF_SIZE:%.+]] = mul nuw i64 10, [[NUM_ELEMS:%[^,]+]]
 
   // float a_buffer[10][n];
@@ -29,6 +42,9 @@ void baz(int n) {
 
   // double b_buffer[10];
   // CHECK: [[B_BUF:%.+]] = alloca double, i64 10,
+  // CHECK: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(
+  // CHECK: call void @llvm.stackrestore(i8*
+
 #pragma omp parallel for reduction(inscan, +:a[:n], b)
   for (int i = 0; i < 10; ++i) {
     // CHECK: call void @__kmpc_for_static_init_4(
@@ -37,13 +53,13 @@ void baz(int n) {
     // CHECK: store double 0.000000e+00, double* [[B_PRIV_ADDR:%.+]],
     // CHECK: br label %[[DISPATCH:[^,]+]]
     // CHECK: [[INPUT_PHASE:.+]]:
-    // CHECK: call void @{{.+}}foo{{.+}}()
+    // CHECK: call void @{{.+}}foo{{.+}}(
 
     // a_buffer[i][0..n] = a_priv[[0..n];
     // CHECK: [[BASE_IDX_I:%.+]] = load i32, i32* [[IV_ADDR:%.+]],
     // CHECK: [[BASE_IDX:%.+]] = zext i32 [[BASE_IDX_I]] to i64
-    // CHECK: [[IDX:%.+]] = mul nsw i64 [[BASE_IDX]], [[NUM_ELEMS]]
-    // CHECK: [[A_BUF_IDX:%.+]] = getelementptr inbounds float, float* [[A_BUF]], i64 [[IDX]]
+    // CHECK: [[IDX:%.+]] = mul nsw i64 [[BASE_IDX]], [[NUM_ELEMS:%.+]]
+    // CHECK: [[A_BUF_IDX:%.+]] = getelementptr inbounds float, float* [[A_BUF:%.+]], i64 [[IDX]]
     // CHECK: [[A_PRIV:%.+]] = getelementptr inbounds [10 x float], [10 x float]* [[A_PRIV_ADDR:%.+]], i64 0, i64 0
     // CHECK: [[BYTES:%.+]] = mul nuw i64 [[NUM_ELEMS:%.+]], 4
     // CHECK: [[DEST:%.+]] = bitcast float* [[A_BUF_IDX]] to i8*
@@ -51,7 +67,7 @@ void baz(int n) {
     // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* {{.*}}[[DEST]], i8* {{.*}}[[SRC]], i64 [[BYTES]], i1 false)
 
     // b_buffer[i] = b_priv;
-    // CHECK: [[B_BUF_IDX:%.+]] = getelementptr inbounds double, double* [[B_BUF]], i64 [[BASE_IDX]]
+    // CHECK: [[B_BUF_IDX:%.+]] = getelementptr inbounds double, double* [[B_BUF:%.+]], i64 [[BASE_IDX]]
     // CHECK: [[B_PRIV:%.+]] = load double, double* [[B_PRIV_ADDR]],
     // CHECK: store double [[B_PRIV]], double* [[B_BUF_IDX]],
     // CHECK: br label %[[LOOP_CONTINUE:.+]]
@@ -62,7 +78,7 @@ void baz(int n) {
     // CHECK: call void @llvm.stackrestore(i8* %
     // CHECK: call void @__kmpc_for_static_fini(
     // CHECK: call void @__kmpc_barrier(
-    foo();
+    foo(n);
 #pragma omp scan inclusive(a[:n], b)
     // CHECK: [[LOG2_10:%.+]] = call double @llvm.log2.f64(double 1.000000e+01)
     // CHECK: [[CEIL_LOG2_10:%.+]] = call double @llvm.ceil.f64(double [[LOG2_10]])
@@ -128,7 +144,7 @@ void baz(int n) {
     // CHECK: br label %[[DISPATCH:[^,]+]]
 
     // Skip the before scan body.
-    // CHECK: call void @{{.+}}foo{{.+}}()
+    // CHECK: call void @{{.+}}foo{{.+}}(
 
     // CHECK: [[EXIT_INSCAN:[^,]+]]:
     // CHECK: br label %[[LOOP_CONTINUE:[^,]+]]
@@ -158,17 +174,8 @@ void baz(int n) {
     // CHECK: [[LOOP_CONTINUE]]:
     // CHECK: call void @llvm.stackrestore(i8* %
     // CHECK: call void @__kmpc_for_static_fini(
-    // CHECK: call void @llvm.stackrestore(i8*
   }
 
-  // CHECK: call i8* @llvm.stacksave()
-  // CHECK: [[A_BUF_SIZE:%.+]] = mul nuw i64 10, [[NUM_ELEMS:%[^,]+]]
-
-  // float a_buffer[10][n];
-  // CHECK: [[A_BUF:%.+]] = alloca float, i64 [[A_BUF_SIZE]],
-
-  // double b_buffer[10];
-  // CHECK: [[B_BUF:%.+]] = alloca double, i64 10,
 #pragma omp parallel for reduction(inscan, +:a[:n], b)
   for (int i = 0; i < 10; ++i) {
     // CHECK: call void @__kmpc_for_static_init_4(
@@ -178,15 +185,15 @@ void baz(int n) {
     // CHECK: br label %[[DISPATCH:[^,]+]]
 
     // Skip the before scan body.
-    // CHECK: call void @{{.+}}foo{{.+}}()
+    // CHECK: call void @{{.+}}foo{{.+}}(
 
     // CHECK: [[EXIT_INSCAN:[^,]+]]:
 
     // a_buffer[i][0..n] = a_priv[[0..n];
     // CHECK: [[BASE_IDX_I:%.+]] = load i32, i32* [[IV_ADDR:%.+]],
     // CHECK: [[BASE_IDX:%.+]] = zext i32 [[BASE_IDX_I]] to i64
-    // CHECK: [[IDX:%.+]] = mul nsw i64 [[BASE_IDX]], [[NUM_ELEMS]]
-    // CHECK: [[A_BUF_IDX:%.+]] = getelementptr inbounds float, float* [[A_BUF]], i64 [[IDX]]
+    // CHECK: [[IDX:%.+]] = mul nsw i64 [[BASE_IDX]], [[NUM_ELEMS:%.+]]
+    // CHECK: [[A_BUF_IDX:%.+]] = getelementptr inbounds float, float* [[A_BUF:%.+]], i64 [[IDX]]
     // CHECK: [[A_PRIV:%.+]] = getelementptr inbounds [10 x float], [10 x float]* [[A_PRIV_ADDR:%.+]], i64 0, i64 0
     // CHECK: [[BYTES:%.+]] = mul nuw i64 [[NUM_ELEMS:%.+]], 4
     // CHECK: [[DEST:%.+]] = bitcast float* [[A_BUF_IDX]] to i8*
@@ -194,7 +201,7 @@ void baz(int n) {
     // CHECK: call void @llvm.memcpy.p0i8.p0i8.i64(i8* {{.*}}[[DEST]], i8* {{.*}}[[SRC]], i64 [[BYTES]], i1 false)
 
     // b_buffer[i] = b_priv;
-    // CHECK: [[B_BUF_IDX:%.+]] = getelementptr inbounds double, double* [[B_BUF]], i64 [[BASE_IDX]]
+    // CHECK: [[B_BUF_IDX:%.+]] = getelementptr inbounds double, double* [[B_BUF:%.+]], i64 [[BASE_IDX]]
     // CHECK: [[B_PRIV:%.+]] = load double, double* [[B_PRIV_ADDR]],
     // CHECK: store double [[B_PRIV]], double* [[B_BUF_IDX]],
     // CHECK: br label %[[LOOP_CONTINUE:[^,]+]]
@@ -210,7 +217,7 @@ void baz(int n) {
     // CHECK: call void @llvm.stackrestore(i8* %
     // CHECK: call void @__kmpc_for_static_fini(
     // CHECK: call void @__kmpc_barrier(
-    foo();
+    foo(n);
 #pragma omp scan exclusive(a[:n], b)
     // CHECK: [[LOG2_10:%.+]] = call double @llvm.log2.f64(double 1.000000e+01)
     // CHECK: [[CEIL_LOG2_10:%.+]] = call double @llvm.ceil.f64(double [[LOG2_10]])
@@ -276,7 +283,7 @@ void baz(int n) {
     // CHECK: br label %[[DISPATCH:[^,]+]]
 
     // CHECK: [[SCAN_PHASE:.+]]:
-    // CHECK: call void @{{.+}}foo{{.+}}()
+    // CHECK: call void @{{.+}}foo{{.+}}(
     // CHECK: br label %[[LOOP_CONTINUE:.+]]
 
     // CHECK: [[DISPATCH]]:
@@ -305,7 +312,6 @@ void baz(int n) {
     // CHECK: [[LOOP_CONTINUE]]:
     // CHECK: call void @llvm.stackrestore(i8* %
     // CHECK: call void @__kmpc_for_static_fini(
-    // CHECK: call void @llvm.stackrestore(i8*
   }
 }
 

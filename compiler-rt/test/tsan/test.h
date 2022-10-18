@@ -14,10 +14,23 @@
 #include <mach/mach_time.h>
 #endif
 
+#ifndef TSAN_VECTORIZE
+#  define TSAN_VECTORIZE __SSE4_2__
+#endif
+
+#if TSAN_VECTORIZE
+#  include <emmintrin.h>
+#  include <smmintrin.h>
+#else
+struct __m128i {
+  unsigned long long x[2];
+};
+#endif
+
 // TSan-invisible barrier.
 // Tests use it to establish necessary execution order in a way that does not
 // interfere with tsan (does not establish synchronization between threads).
-typedef unsigned long long invisible_barrier_t;
+typedef unsigned invisible_barrier_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,18 +69,19 @@ unsigned long long monotonic_clock_ns() {
 #endif
 
 //The const kPCInc must be in sync with StackTrace::GetPreviousInstructionPc
-#if defined(__powerpc64__) || defined(__arm__) || defined(__aarch64__)
-// PCs are always 4 byte aligned.
-const int kPCInc = 4;
+#if defined(__s390__) || defined(__i386__) || defined(__x86_64__)
+const int kPCInc = 1;
 #elif defined(__sparc__) || defined(__mips__)
 const int kPCInc = 8;
 #else
-const int kPCInc = 1;
+const int kPCInc = 4;
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+void AnnotateThreadName(const char *f, int l, const char *name);
 
 void AnnotateRWLockCreate(const char *f, int l, void *m);
 void AnnotateRWLockCreateStatic(const char *f, int l, void *m);
@@ -79,6 +93,17 @@ void AnnotateIgnoreReadsBegin(const char *f, int l);
 void AnnotateIgnoreReadsEnd(const char *f, int l);
 void AnnotateIgnoreWritesBegin(const char *f, int l);
 void AnnotateIgnoreWritesEnd(const char *f, int l);
+
+void AnnotateIgnoreSyncBegin(const char *f, int l);
+void AnnotateIgnoreSyncEnd(const char *f, int l);
+
+void AnnotateHappensBefore(const char *f, int l, void *addr);
+void AnnotateHappensAfter(const char *f, int l, void *addr);
+
+void AnnotateBenignRaceSized(const char *f, int l, const volatile void *mem,
+                             unsigned int size, const char *desc);
+void WTFAnnotateBenignRaceSized(const char *f, int l, const volatile void *mem,
+                                unsigned int size, const char *desc);
 
 #ifdef __cplusplus
 }
@@ -94,6 +119,14 @@ void AnnotateIgnoreWritesEnd(const char *f, int l);
     AnnotateRWLockAcquired(__FILE__, __LINE__, m, is_w)
 #define ANNOTATE_RWLOCK_RELEASED(m, is_w) \
     AnnotateRWLockReleased(__FILE__, __LINE__, m, is_w)
+#define ANNOTATE_HAPPENS_BEFORE(addr) \
+  AnnotateHappensBefore(__FILE__, __LINE__, (void *)(addr))
+#define ANNOTATE_HAPPENS_AFTER(addr) \
+  AnnotateHappensAfter(__FILE__, __LINE__, (void *)(addr))
+#define ANNOTATE_BENIGN_RACE(var) \
+  AnnotateBenignRaceSized(__FILE__, __LINE__, &(var), sizeof(var), #var)
+#define WTF_ANNOTATE_BENIGN_RACE(var) \
+  WTFAnnotateBenignRaceSized(__FILE__, __LINE__, &(var), sizeof(var), #var)
 
 #ifdef __APPLE__
 #define ASM_SYMBOL(symbol) "_" #symbol

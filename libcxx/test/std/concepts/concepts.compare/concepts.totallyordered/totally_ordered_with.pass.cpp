@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class T>
 // concept totally_ordered_with;
@@ -26,7 +25,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../types.h"
+#include "compare_types.h"
 #include "test_macros.h"
 
 template <class T, class U>

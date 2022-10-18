@@ -1,4 +1,4 @@
-//===-- M68kISelLowering.cpp - M68k DAG Lowering Impl ------*- C++ -*--===//
+//===-- M68kISelLowering.cpp - M68k DAG Lowering Impl -----------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -101,6 +101,9 @@ M68kTargetLowering::M68kTargetLowering(const M68kTargetMachine &TM,
     setOperationAction(OP, MVT::i32, Expand);
   }
 
+  for (auto OP : {ISD::SHL_PARTS, ISD::SRA_PARTS, ISD::SRL_PARTS})
+    setOperationAction(OP, MVT::i32, Custom);
+
   // Add/Sub overflow ops with MVT::Glues are lowered to CCR dependences.
   for (auto VT : {MVT::i8, MVT::i16, MVT::i32}) {
     setOperationAction(ISD::ADDC, VT, Custom);
@@ -170,7 +173,7 @@ MVT M68kTargetLowering::getScalarShiftAmountTy(const DataLayout &DL,
   if (Ty.isSimple()) {
     return Ty.getSimpleVT();
   }
-  return MVT::getIntegerVT(8 * DL.getPointerSize(0));
+  return MVT::getIntegerVT(DL.getPointerSizeInBits(0));
 }
 
 #include "M68kGenCallingConv.inc"
@@ -268,7 +271,7 @@ static bool MatchingStackOffset(SDValue Arg, unsigned Offset,
 
   int FI = INT_MAX;
   if (Arg.getOpcode() == ISD::CopyFromReg) {
-    unsigned VR = cast<RegisterSDNode>(Arg.getOperand(1))->getReg();
+    Register VR = cast<RegisterSDNode>(Arg.getOperand(1))->getReg();
     if (!Register::isVirtualRegister(VR))
       return false;
     MachineInstr *Def = MRI->getVRegDef(VR);
@@ -487,7 +490,7 @@ SDValue M68kTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     report_fatal_error("M68k interrupts may not be called directly");
 
   auto Attr = MF.getFunction().getFnAttribute("disable-tail-calls");
-  if (Attr.getValueAsString() == "true")
+  if (Attr.getValueAsBool())
     IsTailCall = false;
 
   // FIXME Add tailcalls support
@@ -519,9 +522,10 @@ SDValue M68kTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   // Analyze operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
-  // It is empty for LibCall
-  const Function *CalleeFunc = CLI.CB ? CLI.CB->getCalledFunction() : nullptr;
-  M68kCCState CCInfo(*CalleeFunc, CallConv, IsVarArg, MF, ArgLocs,
+  SmallVector<Type *, 4> ArgTypes;
+  for (const auto &Arg : CLI.getArgs())
+    ArgTypes.emplace_back(Arg.Ty);
+  M68kCCState CCInfo(ArgTypes, CallConv, IsVarArg, MF, ArgLocs,
                      *DAG.getContext());
   CCInfo.AnalyzeCallOperands(Outs, CC_M68k);
 
@@ -761,9 +765,7 @@ SDValue M68kTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SmallVector<SDValue, 8> Ops;
 
   if (!IsSibcall && IsTailCall) {
-    Chain = DAG.getCALLSEQ_END(Chain,
-                               DAG.getIntPtrConstant(NumBytesToPop, DL, true),
-                               DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
+    Chain = DAG.getCALLSEQ_END(Chain, NumBytesToPop, 0, InFlag, DL);
     InFlag = Chain.getValue(1);
   }
 
@@ -817,9 +819,8 @@ SDValue M68kTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   // Returns a flag for retval copy to use.
   if (!IsSibcall) {
-    Chain = DAG.getCALLSEQ_END(
-        Chain, DAG.getIntPtrConstant(NumBytesToPop, DL, true),
-        DAG.getIntPtrConstant(NumBytesForCalleeToPop, DL, true), InFlag, DL);
+    Chain = DAG.getCALLSEQ_END(Chain, NumBytesToPop, NumBytesForCalleeToPop,
+                               InFlag, DL);
     InFlag = Chain.getValue(1);
   }
 
@@ -876,8 +877,10 @@ SDValue M68kTargetLowering::LowerFormalArguments(
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
-  M68kCCState CCInfo(MF.getFunction(), CCID, IsVarArg, MF, ArgLocs,
-                     *DAG.getContext());
+  SmallVector<Type *, 4> ArgTypes;
+  for (const Argument &Arg : MF.getFunction().args())
+    ArgTypes.emplace_back(Arg.getType());
+  M68kCCState CCInfo(ArgTypes, CCID, IsVarArg, MF, ArgLocs, *DAG.getContext());
 
   CCInfo.AnalyzeFormalArguments(Ins, CC_M68k);
 
@@ -897,7 +900,7 @@ SDValue M68kTargetLowering::LowerFormalArguments(
       else
         llvm_unreachable("Unknown argument type!");
 
-      unsigned Reg = MF.addLiveIn(VA.getLocReg(), RC);
+      Register Reg = MF.addLiveIn(VA.getLocReg(), RC);
       ArgValue = DAG.getCopyFromReg(Chain, DL, Reg, RegVT);
 
       // If this is an 8 or 16-bit value, it is really passed promoted to 32
@@ -1273,7 +1276,7 @@ bool M68kTargetLowering::IsEligibleForTailCallOptimization(
         CCValAssign &VA = ArgLocs[i];
         if (!VA.isRegLoc())
           continue;
-        unsigned Reg = VA.getLocReg();
+        Register Reg = VA.getLocReg();
         switch (Reg) {
         default:
           break;
@@ -1351,6 +1354,12 @@ SDValue M68kTargetLowering::LowerOperation(SDValue Op,
     return LowerVASTART(Op, DAG);
   case ISD::DYNAMIC_STACKALLOC:
     return LowerDYNAMIC_STACKALLOC(Op, DAG);
+  case ISD::SHL_PARTS:
+    return LowerShiftLeftParts(Op, DAG);
+  case ISD::SRA_PARTS:
+    return LowerShiftRightParts(Op, DAG, true);
+  case ISD::SRL_PARTS:
+    return LowerShiftRightParts(Op, DAG, false);
   }
 }
 
@@ -1406,32 +1415,32 @@ SDValue M68kTargetLowering::LowerXALUO(SDValue Op, SelectionDAG &DAG) const {
   return DAG.getNode(ISD::MERGE_VALUES, DL, N->getVTList(), Arith, SetCC);
 }
 
-/// Create a BT (Bit Test) node - Test bit \p BitNo in \p Src and set condition
-/// according to equal/not-equal condition code \p CC.
+/// Create a BTST (Bit Test) node - Test bit \p BitNo in \p Src and set
+/// condition according to equal/not-equal condition code \p CC.
 static SDValue getBitTestCondition(SDValue Src, SDValue BitNo, ISD::CondCode CC,
                                    const SDLoc &DL, SelectionDAG &DAG) {
-  // If Src is i8, promote it to i32 with any_extend.  There is no i8 BT
+  // If Src is i8, promote it to i32 with any_extend.  There is no i8 BTST
   // instruction.  Since the shift amount is in-range-or-undefined, we know
   // that doing a bittest on the i32 value is ok.
   if (Src.getValueType() == MVT::i8 || Src.getValueType() == MVT::i16)
     Src = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Src);
 
   // If the operand types disagree, extend the shift amount to match.  Since
-  // BT ignores high bits (like shifts) we can use anyextend.
+  // BTST ignores high bits (like shifts) we can use anyextend.
   if (Src.getValueType() != BitNo.getValueType())
     BitNo = DAG.getNode(ISD::ANY_EXTEND, DL, Src.getValueType(), BitNo);
 
-  SDValue BT = DAG.getNode(M68kISD::BT, DL, MVT::i32, Src, BitNo);
+  SDValue BTST = DAG.getNode(M68kISD::BTST, DL, MVT::i32, Src, BitNo);
 
   // NOTE BTST sets CCR.Z flag
   M68k::CondCode Cond = CC == ISD::SETEQ ? M68k::COND_NE : M68k::COND_EQ;
   return DAG.getNode(M68kISD::SETCC, DL, MVT::i8,
-                     DAG.getConstant(Cond, DL, MVT::i8), BT);
+                     DAG.getConstant(Cond, DL, MVT::i8), BTST);
 }
 
-/// Result of 'and' is compared against zero. Change to a BT node if possible.
-static SDValue LowerAndToBT(SDValue And, ISD::CondCode CC, const SDLoc &DL,
-                            SelectionDAG &DAG) {
+/// Result of 'and' is compared against zero. Change to a BTST node if possible.
+static SDValue LowerAndToBTST(SDValue And, ISD::CondCode CC, const SDLoc &DL,
+                              SelectionDAG &DAG) {
   SDValue Op0 = And.getOperand(0);
   SDValue Op1 = And.getOperand(1);
   if (Op0.getOpcode() == ISD::TRUNCATE)
@@ -1465,7 +1474,7 @@ static SDValue LowerAndToBT(SDValue And, ISD::CondCode CC, const SDLoc &DL,
       RHS = AndLHS.getOperand(1);
     }
 
-    // Use BT if the immediate can't be encoded in a TEST instruction.
+    // Use BTST if the immediate can't be encoded in a TEST instruction.
     if (!isUInt<32>(AndRHSVal) && isPowerOf2_64(AndRHSVal)) {
       LHS = AndLHS;
       RHS = DAG.getConstant(Log2_64_Ceil(AndRHSVal), DL, LHS.getValueType());
@@ -1589,8 +1598,8 @@ static unsigned TranslateM68kCC(ISD::CondCode SetCCOpcode, const SDLoc &DL,
 }
 
 // Convert (truncate (srl X, N) to i1) to (bt X, N)
-static SDValue LowerTruncateToBT(SDValue Op, ISD::CondCode CC, const SDLoc &DL,
-                                 SelectionDAG &DAG) {
+static SDValue LowerTruncateToBTST(SDValue Op, ISD::CondCode CC,
+                                   const SDLoc &DL, SelectionDAG &DAG) {
 
   assert(Op.getOpcode() == ISD::TRUNCATE && Op.getValueType() == MVT::i1 &&
          "Expected TRUNCATE to i1 node");
@@ -1654,7 +1663,7 @@ SDValue M68kTargetLowering::EmitTest(SDValue Op, unsigned M68kCC,
     case ISD::SHL: {
       if (Op.getNode()->getFlags().hasNoSignedWrap())
         break;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     default:
       NeedOF = true;
@@ -1743,7 +1752,7 @@ SDValue M68kTargetLowering::EmitTest(SDValue Op, unsigned M68kCC,
       if (/*!Subtarget.hasBMI() ||*/ !IsAndn || !IsLegalAndnType)
         break;
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::SUB:
   case ISD::OR:
   case ISD::XOR:
@@ -1886,14 +1895,14 @@ SDValue M68kTargetLowering::EmitCmp(SDValue Op0, SDValue Op1, unsigned M68kCC,
 }
 
 /// Result of 'and' or 'trunc to i1' is compared against zero.
-/// Change to a BT node if possible.
-SDValue M68kTargetLowering::LowerToBT(SDValue Op, ISD::CondCode CC,
-                                      const SDLoc &DL,
-                                      SelectionDAG &DAG) const {
+/// Change to a BTST node if possible.
+SDValue M68kTargetLowering::LowerToBTST(SDValue Op, ISD::CondCode CC,
+                                        const SDLoc &DL,
+                                        SelectionDAG &DAG) const {
   if (Op.getOpcode() == ISD::AND)
-    return LowerAndToBT(Op, CC, DL, DAG);
+    return LowerAndToBTST(Op, CC, DL, DAG);
   if (Op.getOpcode() == ISD::TRUNCATE && Op.getValueType() == MVT::i1)
-    return LowerTruncateToBT(Op, CC, DL, DAG);
+    return LowerTruncateToBTST(Op, CC, DL, DAG);
   return SDValue();
 }
 
@@ -1906,14 +1915,14 @@ SDValue M68kTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
 
-  // Optimize to BT if possible.
-  // Lower (X & (1 << N)) == 0 to BT(X, N).
-  // Lower ((X >>u N) & 1) != 0 to BT(X, N).
-  // Lower ((X >>s N) & 1) != 0 to BT(X, N).
-  // Lower (trunc (X >> N) to i1) to BT(X, N).
+  // Optimize to BTST if possible.
+  // Lower (X & (1 << N)) == 0 to BTST(X, N).
+  // Lower ((X >>u N) & 1) != 0 to BTST(X, N).
+  // Lower ((X >>s N) & 1) != 0 to BTST(X, N).
+  // Lower (trunc (X >> N) to i1) to BTST(X, N).
   if (Op0.hasOneUse() && isNullConstant(Op1) &&
       (CC == ISD::SETEQ || CC == ISD::SETNE)) {
-    if (SDValue NewSetCC = LowerToBT(Op0, CC, DL, DAG)) {
+    if (SDValue NewSetCC = LowerToBTST(Op0, CC, DL, DAG)) {
       if (VT == MVT::i1)
         return DAG.getNode(ISD::TRUNCATE, DL, MVT::i1, NewSetCC);
       return NewSetCC;
@@ -1975,7 +1984,7 @@ SDValue M68kTargetLowering::LowerSETCCCARRY(SDValue Op,
   M68k::CondCode CC = TranslateIntegerM68kCC(cast<CondCodeSDNode>(Cond)->get());
 
   EVT CarryVT = Carry.getValueType();
-  APInt NegOne = APInt::getAllOnesValue(CarryVT.getScalarSizeInBits());
+  APInt NegOne = APInt::getAllOnes(CarryVT.getScalarSizeInBits());
   Carry = DAG.getNode(M68kISD::ADD, DL, DAG.getVTList(CarryVT, MVT::i32), Carry,
                       DAG.getConstant(NegOne, DL, CarryVT));
 
@@ -2096,7 +2105,7 @@ SDValue M68kTargetLowering::LowerSELECT(SDValue Op, SelectionDAG &DAG) const {
 
     bool IllegalFPCMov = false;
 
-    if ((isM68kLogicalCmp(Cmp) && !IllegalFPCMov) || Opc == M68kISD::BT) {
+    if ((isM68kLogicalCmp(Cmp) && !IllegalFPCMov) || Opc == M68kISD::BTST) {
       Cond = Cmp;
       addTest = false;
     }
@@ -2160,7 +2169,7 @@ SDValue M68kTargetLowering::LowerSELECT(SDValue Op, SelectionDAG &DAG) const {
     // We know the result of AND is compared against zero. Try to match
     // it to BT.
     if (Cond.getOpcode() == ISD::AND && Cond.hasOneUse()) {
-      if (SDValue NewSetCC = LowerToBT(Cond, ISD::SETNE, DL, DAG)) {
+      if (SDValue NewSetCC = LowerToBTST(Cond, ISD::SETNE, DL, DAG)) {
         CC = NewSetCC.getOperand(0);
         Cond = NewSetCC.getOperand(1);
         addTest = false;
@@ -2199,7 +2208,7 @@ SDValue M68kTargetLowering::LowerSELECT(SDValue Op, SelectionDAG &DAG) const {
       Op2.getOpcode() == ISD::TRUNCATE) {
     SDValue T1 = Op1.getOperand(0), T2 = Op2.getOperand(0);
     if (T1.getValueType() == T2.getValueType() &&
-        // Blacklist CopyFromReg to avoid partial register stalls.
+        // Block CopyFromReg so partial register stalls are avoided.
         T1.getOpcode() != ISD::CopyFromReg &&
         T2.getOpcode() != ISD::CopyFromReg) {
       SDVTList VTs = DAG.getVTList(T1.getValueType(), MVT::Glue);
@@ -2279,7 +2288,7 @@ SDValue M68kTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
     SDValue Cmp = Cond.getOperand(1);
     unsigned Opc = Cmp.getOpcode();
 
-    if (isM68kLogicalCmp(Cmp) || Opc == M68kISD::BT) {
+    if (isM68kLogicalCmp(Cmp) || Opc == M68kISD::BTST) {
       Cond = Cmp;
       AddTest = false;
     } else {
@@ -2424,7 +2433,7 @@ SDValue M68kTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
 
     // We know the result is compared against zero. Try to match it to BT.
     if (Cond.hasOneUse()) {
-      if (SDValue NewSetCC = LowerToBT(Cond, ISD::SETNE, DL, DAG)) {
+      if (SDValue NewSetCC = LowerToBTST(Cond, ISD::SETNE, DL, DAG)) {
         CC = NewSetCC.getOperand(0);
         Cond = NewSetCC.getOperand(1);
         AddTest = false;
@@ -2689,6 +2698,193 @@ const MCExpr *M68kTargetLowering::getPICJumpTableRelocBaseExpr(
   return MCSymbolRefExpr::create(MF->getJTISymbol(JTI, Ctx), Ctx);
 }
 
+M68kTargetLowering::ConstraintType
+M68kTargetLowering::getConstraintType(StringRef Constraint) const {
+  if (Constraint.size() > 0) {
+    switch (Constraint[0]) {
+    case 'a':
+    case 'd':
+      return C_RegisterClass;
+    case 'I':
+    case 'J':
+    case 'K':
+    case 'L':
+    case 'M':
+    case 'N':
+    case 'O':
+    case 'P':
+      return C_Immediate;
+    case 'C':
+      if (Constraint.size() == 2)
+        switch (Constraint[1]) {
+        case '0':
+        case 'i':
+        case 'j':
+          return C_Immediate;
+        default:
+          break;
+        }
+      break;
+    default:
+      break;
+    }
+  }
+
+  return TargetLowering::getConstraintType(Constraint);
+}
+
+void M68kTargetLowering::LowerAsmOperandForConstraint(SDValue Op,
+                                                      std::string &Constraint,
+                                                      std::vector<SDValue> &Ops,
+                                                      SelectionDAG &DAG) const {
+  SDValue Result;
+
+  if (Constraint.size() == 1) {
+    // Constant constraints
+    switch (Constraint[0]) {
+    case 'I':
+    case 'J':
+    case 'K':
+    case 'L':
+    case 'M':
+    case 'N':
+    case 'O':
+    case 'P': {
+      auto *C = dyn_cast<ConstantSDNode>(Op);
+      if (!C)
+        return;
+
+      int64_t Val = C->getSExtValue();
+      switch (Constraint[0]) {
+      case 'I': // constant integer in the range [1,8]
+        if (Val > 0 && Val <= 8)
+          break;
+        return;
+      case 'J': // constant signed 16-bit integer
+        if (isInt<16>(Val))
+          break;
+        return;
+      case 'K': // constant that is NOT in the range of [-0x80, 0x80)
+        if (Val < -0x80 || Val >= 0x80)
+          break;
+        return;
+      case 'L': // constant integer in the range [-8,-1]
+        if (Val < 0 && Val >= -8)
+          break;
+        return;
+      case 'M': // constant that is NOT in the range of [-0x100, 0x100]
+        if (Val < -0x100 || Val >= 0x100)
+          break;
+        return;
+      case 'N': // constant integer in the range [24,31]
+        if (Val >= 24 && Val <= 31)
+          break;
+        return;
+      case 'O': // constant integer 16
+        if (Val == 16)
+          break;
+        return;
+      case 'P': // constant integer in the range [8,15]
+        if (Val >= 8 && Val <= 15)
+          break;
+        return;
+      default:
+        llvm_unreachable("Unhandled constant constraint");
+      }
+
+      Result = DAG.getTargetConstant(Val, SDLoc(Op), Op.getValueType());
+      break;
+    }
+    default:
+      break;
+    }
+  }
+
+  if (Constraint.size() == 2) {
+    switch (Constraint[0]) {
+    case 'C':
+      // Constant constraints start with 'C'
+      switch (Constraint[1]) {
+      case '0':
+      case 'i':
+      case 'j': {
+        auto *C = dyn_cast<ConstantSDNode>(Op);
+        if (!C)
+          break;
+
+        int64_t Val = C->getSExtValue();
+        switch (Constraint[1]) {
+        case '0': // constant integer 0
+          if (!Val)
+            break;
+          return;
+        case 'i': // constant integer
+          break;
+        case 'j': // integer constant that doesn't fit in 16 bits
+          if (!isInt<16>(C->getSExtValue()))
+            break;
+          return;
+        default:
+          llvm_unreachable("Unhandled constant constraint");
+        }
+
+        Result = DAG.getTargetConstant(Val, SDLoc(Op), Op.getValueType());
+        break;
+      }
+      default:
+        break;
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
+  if (Result.getNode()) {
+    Ops.push_back(Result);
+    return;
+  }
+
+  TargetLowering::LowerAsmOperandForConstraint(Op, Constraint, Ops, DAG);
+}
+
+std::pair<unsigned, const TargetRegisterClass *>
+M68kTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                                 StringRef Constraint,
+                                                 MVT VT) const {
+  if (Constraint.size() == 1) {
+    switch (Constraint[0]) {
+    case 'r':
+    case 'd':
+      switch (VT.SimpleTy) {
+      case MVT::i8:
+        return std::make_pair(0U, &M68k::DR8RegClass);
+      case MVT::i16:
+        return std::make_pair(0U, &M68k::DR16RegClass);
+      case MVT::i32:
+        return std::make_pair(0U, &M68k::DR32RegClass);
+      default:
+        break;
+      }
+      break;
+    case 'a':
+      switch (VT.SimpleTy) {
+      case MVT::i16:
+        return std::make_pair(0U, &M68k::AR16RegClass);
+      case MVT::i32:
+        return std::make_pair(0U, &M68k::AR32RegClass);
+      default:
+        break;
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
 /// Determines whether the callee is required to pop its own arguments.
 /// Callee pop is necessary to support tail calls.
 bool M68k::isCalleePop(CallingConv::ID CallingConv, bool IsVarArg,
@@ -2911,9 +3107,9 @@ M68kTargetLowering::EmitLoweredSelect(MachineInstr &MI,
   // destination registers, and the registers that went into the PHI.
 
   for (MachineBasicBlock::iterator MIIt = MIItBegin; MIIt != MIItEnd; ++MIIt) {
-    unsigned DestReg = MIIt->getOperand(0).getReg();
-    unsigned Op1Reg = MIIt->getOperand(1).getReg();
-    unsigned Op2Reg = MIIt->getOperand(2).getReg();
+    Register DestReg = MIIt->getOperand(0).getReg();
+    Register Op1Reg = MIIt->getOperand(1).getReg();
+    Register Op2Reg = MIIt->getOperand(2).getReg();
 
     // If this CMOV we are generating is the opposite condition from
     // the jump we generated, then we have to swap the operands for the
@@ -3021,13 +3217,13 @@ SDValue M68kTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
     auto &MRI = MF.getRegInfo();
     auto SPTy = getPointerTy(DAG.getDataLayout());
     auto *ARClass = getRegClassFor(SPTy);
-    unsigned Vreg = MRI.createVirtualRegister(ARClass);
+    Register Vreg = MRI.createVirtualRegister(ARClass);
     Chain = DAG.getCopyToReg(Chain, DL, Vreg, Size);
     Result = DAG.getNode(M68kISD::SEG_ALLOCA, DL, SPTy, Chain,
                          DAG.getRegister(Vreg, SPTy));
   } else {
     auto &TLI = DAG.getTargetLoweringInfo();
-    unsigned SPReg = TLI.getStackPointerRegisterToSaveRestore();
+    Register SPReg = TLI.getStackPointerRegisterToSaveRestore();
     assert(SPReg && "Target cannot require DYNAMIC_STACKALLOC expansion and"
                     " not tell us which reg is the stack pointer!");
 
@@ -3042,11 +3238,106 @@ SDValue M68kTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
     Chain = DAG.getCopyToReg(Chain, DL, SPReg, Result); // Output chain
   }
 
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(0, DL, true),
-                             DAG.getIntPtrConstant(0, DL, true), SDValue(), DL);
+  Chain = DAG.getCALLSEQ_END(Chain, 0, 0, SDValue(), DL);
 
   SDValue Ops[2] = {Result, Chain};
   return DAG.getMergeValues(Ops, DL);
+}
+
+SDValue M68kTargetLowering::LowerShiftLeftParts(SDValue Op,
+                                                SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  SDValue Lo = Op.getOperand(0);
+  SDValue Hi = Op.getOperand(1);
+  SDValue Shamt = Op.getOperand(2);
+  EVT VT = Lo.getValueType();
+
+  // if Shamt - register size < 0: // Shamt < register size
+  //   Lo = Lo << Shamt
+  //   Hi = (Hi << Shamt) | ((Lo >>u 1) >>u (register size - 1 ^ Shamt))
+  // else:
+  //   Lo = 0
+  //   Hi = Lo << (Shamt - register size)
+
+  SDValue Zero = DAG.getConstant(0, DL, VT);
+  SDValue One = DAG.getConstant(1, DL, VT);
+  SDValue MinusRegisterSize = DAG.getConstant(-32, DL, VT);
+  SDValue RegisterSizeMinus1 = DAG.getConstant(32 - 1, DL, VT);
+  SDValue ShamtMinusRegisterSize =
+      DAG.getNode(ISD::ADD, DL, VT, Shamt, MinusRegisterSize);
+  SDValue RegisterSizeMinus1Shamt =
+      DAG.getNode(ISD::XOR, DL, VT, RegisterSizeMinus1, Shamt);
+
+  SDValue LoTrue = DAG.getNode(ISD::SHL, DL, VT, Lo, Shamt);
+  SDValue ShiftRight1Lo = DAG.getNode(ISD::SRL, DL, VT, Lo, One);
+  SDValue ShiftRightLo =
+      DAG.getNode(ISD::SRL, DL, VT, ShiftRight1Lo, RegisterSizeMinus1Shamt);
+  SDValue ShiftLeftHi = DAG.getNode(ISD::SHL, DL, VT, Hi, Shamt);
+  SDValue HiTrue = DAG.getNode(ISD::OR, DL, VT, ShiftLeftHi, ShiftRightLo);
+  SDValue HiFalse = DAG.getNode(ISD::SHL, DL, VT, Lo, ShamtMinusRegisterSize);
+
+  SDValue CC =
+      DAG.getSetCC(DL, MVT::i8, ShamtMinusRegisterSize, Zero, ISD::SETLT);
+
+  Lo = DAG.getNode(ISD::SELECT, DL, VT, CC, LoTrue, Zero);
+  Hi = DAG.getNode(ISD::SELECT, DL, VT, CC, HiTrue, HiFalse);
+
+  return DAG.getMergeValues({Lo, Hi}, DL);
+}
+
+SDValue M68kTargetLowering::LowerShiftRightParts(SDValue Op, SelectionDAG &DAG,
+                                                 bool IsSRA) const {
+  SDLoc DL(Op);
+  SDValue Lo = Op.getOperand(0);
+  SDValue Hi = Op.getOperand(1);
+  SDValue Shamt = Op.getOperand(2);
+  EVT VT = Lo.getValueType();
+
+  // SRA expansion:
+  //   if Shamt - register size < 0: // Shamt < register size
+  //     Lo = (Lo >>u Shamt) | ((Hi << 1) << (register size - 1 ^ Shamt))
+  //     Hi = Hi >>s Shamt
+  //   else:
+  //     Lo = Hi >>s (Shamt - register size);
+  //     Hi = Hi >>s (register size - 1)
+  //
+  // SRL expansion:
+  //   if Shamt - register size < 0: // Shamt < register size
+  //     Lo = (Lo >>u Shamt) | ((Hi << 1) << (register size - 1 ^ Shamt))
+  //     Hi = Hi >>u Shamt
+  //   else:
+  //     Lo = Hi >>u (Shamt - register size);
+  //     Hi = 0;
+
+  unsigned ShiftRightOp = IsSRA ? ISD::SRA : ISD::SRL;
+
+  SDValue Zero = DAG.getConstant(0, DL, VT);
+  SDValue One = DAG.getConstant(1, DL, VT);
+  SDValue MinusRegisterSize = DAG.getConstant(-32, DL, VT);
+  SDValue RegisterSizeMinus1 = DAG.getConstant(32 - 1, DL, VT);
+  SDValue ShamtMinusRegisterSize =
+      DAG.getNode(ISD::ADD, DL, VT, Shamt, MinusRegisterSize);
+  SDValue RegisterSizeMinus1Shamt =
+      DAG.getNode(ISD::XOR, DL, VT, RegisterSizeMinus1, Shamt);
+
+  SDValue ShiftRightLo = DAG.getNode(ISD::SRL, DL, VT, Lo, Shamt);
+  SDValue ShiftLeftHi1 = DAG.getNode(ISD::SHL, DL, VT, Hi, One);
+  SDValue ShiftLeftHi =
+      DAG.getNode(ISD::SHL, DL, VT, ShiftLeftHi1, RegisterSizeMinus1Shamt);
+  SDValue LoTrue = DAG.getNode(ISD::OR, DL, VT, ShiftRightLo, ShiftLeftHi);
+  SDValue HiTrue = DAG.getNode(ShiftRightOp, DL, VT, Hi, Shamt);
+  SDValue LoFalse =
+      DAG.getNode(ShiftRightOp, DL, VT, Hi, ShamtMinusRegisterSize);
+  SDValue HiFalse =
+      IsSRA ? DAG.getNode(ISD::SRA, DL, VT, Hi, RegisterSizeMinus1) : Zero;
+
+  SDValue CC =
+      DAG.getSetCC(DL, MVT::i8, ShamtMinusRegisterSize, Zero, ISD::SETLT);
+
+  Lo = DAG.getNode(ISD::SELECT, DL, VT, CC, LoTrue, LoFalse);
+  Hi = DAG.getNode(ISD::SELECT, DL, VT, CC, HiTrue, HiFalse);
+
+  return DAG.getMergeValues({Lo, Hi}, DL);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3201,8 +3492,8 @@ const char *M68kTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "M68kISD::AND";
   case M68kISD::CMP:
     return "M68kISD::CMP";
-  case M68kISD::BT:
-    return "M68kISD::BT";
+  case M68kISD::BTST:
+    return "M68kISD::BTST";
   case M68kISD::SELECT:
     return "M68kISD::SELECT";
   case M68kISD::CMOV:
@@ -3224,4 +3515,12 @@ const char *M68kTargetLowering::getTargetNodeName(unsigned Opcode) const {
   default:
     return NULL;
   }
+}
+
+CCAssignFn *M68kTargetLowering::getCCAssignFn(CallingConv::ID CC, bool Return,
+                                              bool IsVarArg) const {
+  if (Return)
+    return RetCC_M68k_C;
+  else
+    return CC_M68k_C;
 }

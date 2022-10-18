@@ -99,18 +99,19 @@ TEST(VerifierTest, InvalidRetAttribute) {
   FunctionType *FTy = FunctionType::get(Type::getInt32Ty(C), /*isVarArg=*/false);
   Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", M);
   AttributeList AS = F->getAttributes();
-  F->setAttributes(
-      AS.addAttribute(C, AttributeList::ReturnIndex, Attribute::UWTable));
+  F->setAttributes(AS.addRetAttribute(
+      C, Attribute::getWithUWTableKind(C, UWTableKind::Default)));
 
   std::string Error;
   raw_string_ostream ErrorOS(Error);
   EXPECT_TRUE(verifyModule(M, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str()).startswith(
-      "Attribute 'uwtable' only applies to functions!"));
+      "Attribute 'uwtable' does not apply to function return values"));
 }
 
 TEST(VerifierTest, CrossModuleRef) {
   LLVMContext C;
+  C.setOpaquePointers(true);
   Module M1("M1", C);
   Module M2("M2", C);
   Module M3("M3", C);
@@ -137,17 +138,17 @@ TEST(VerifierTest, CrossModuleRef) {
   raw_string_ostream ErrorOS(Error);
   EXPECT_TRUE(verifyModule(M2, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str())
-                  .equals("Global is used by function in a different module\n"
-                          "i32 ()* @foo2\n"
-                          "; ModuleID = 'M2'\n"
-                          "i32 ()* @foo3\n"
-                          "; ModuleID = 'M3'\n"
-                          "Global is referenced in a different module!\n"
-                          "i32 ()* @foo2\n"
+                  .equals("Global is referenced in a different module!\n"
+                          "ptr @foo2\n"
                           "; ModuleID = 'M2'\n"
                           "  %call = call i32 @foo2()\n"
-                          "i32 ()* @foo1\n"
-                          "; ModuleID = 'M1'\n"));
+                          "ptr @foo1\n"
+                          "; ModuleID = 'M1'\n"
+                          "Global is used by function in a different module\n"
+                          "ptr @foo2\n"
+                          "; ModuleID = 'M2'\n"
+                          "ptr @foo3\n"
+                          "; ModuleID = 'M3'\n"));
 
   Error.clear();
   EXPECT_TRUE(verifyModule(M1, &ErrorOS));
@@ -155,7 +156,7 @@ TEST(VerifierTest, CrossModuleRef) {
       "Referencing function in another module!\n"
       "  %call = call i32 @foo2()\n"
       "; ModuleID = 'M1'\n"
-      "i32 ()* @foo2\n"
+      "ptr @foo2\n"
       "; ModuleID = 'M2'\n"));
 
   Error.clear();
@@ -251,6 +252,23 @@ TEST(VerifierTest, MDNodeWrongContext) {
   EXPECT_TRUE(verifyModule(M, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str())
                   .startswith("MDNode context does not match Module context!"));
+}
+
+TEST(VerifierTest, AttributesWrongContext) {
+  LLVMContext C1, C2;
+  Module M1("M", C1);
+  FunctionType *FTy1 =
+      FunctionType::get(Type::getVoidTy(C1), /*isVarArg=*/false);
+  Function *F1 = Function::Create(FTy1, Function::ExternalLinkage, "foo", M1);
+  F1->setDoesNotReturn();
+
+  Module M2("M", C2);
+  FunctionType *FTy2 =
+      FunctionType::get(Type::getVoidTy(C2), /*isVarArg=*/false);
+  Function *F2 = Function::Create(FTy2, Function::ExternalLinkage, "foo", M2);
+  F2->copyAttributesFrom(F1);
+
+  EXPECT_TRUE(verifyFunction(*F2));
 }
 
 } // end anonymous namespace

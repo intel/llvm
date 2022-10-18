@@ -14,17 +14,17 @@
 //
 //===---------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
-#define LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TESTTU_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TESTTU_H
 
 #include "../TidyProvider.h"
 #include "Compiler.h"
+#include "FeatureModule.h"
 #include "ParsedAST.h"
 #include "TestFS.h"
 #include "index/Index.h"
-#include "support/Path.h"
 #include "llvm/ADT/StringMap.h"
-#include "gtest/gtest.h"
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -59,12 +59,18 @@ struct TestTU {
   // Extra arguments for the compiler invocation.
   std::vector<std::string> ExtraArgs;
 
+  // Predefine macros such as __UINTPTR_TYPE__.
+  bool PredefineMacros = false;
+
   TidyProvider ClangTidyProvider = {};
   // Index to use when building AST.
   const SymbolIndex *ExternalIndex = nullptr;
 
   // Simulate a header guard of the header (using an #import directive).
   bool ImplicitHeaderGuard = true;
+
+  // Parse options pass on to the ParseInputs
+  ParseOptions ParseOpts = {};
 
   // Whether to use overlay the TestFS over the real filesystem. This is
   // required for use of implicit modules.where the module file is written to
@@ -75,6 +81,8 @@ struct TestTU {
   // Please avoid using this for things other than implicit modules. The plan is
   // to eliminate this option some day.
   bool OverlayRealFileSystemForModules = false;
+
+  FeatureModuleSet *FeatureModules = nullptr;
 
   // By default, build() will report Error diagnostics as GTest errors.
   // Suppress this behavior by adding an 'error-ok' comment to the code.
@@ -101,4 +109,4 @@ const NamedDecl &findUnqualifiedDecl(ParsedAST &AST, llvm::StringRef Name);
 } // namespace clangd
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TESTTU_H

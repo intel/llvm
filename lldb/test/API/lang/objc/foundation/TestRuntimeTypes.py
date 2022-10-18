@@ -12,18 +12,12 @@ from lldbsuite.test import lldbutil
 
 class RuntimeTypesTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @expectedFailureAll(
         oslist=["macosx"],
         debug_info="gmodules",
         bugnumber="llvm.org/pr27862")
-    @skipIfReproducer # FIXME: Unexpected packet during (active) replay
     def test_break(self):
         """Test setting objc breakpoints using '_regexp-break' and 'breakpoint set'."""
-        if self.getArchitecture() != 'x86_64':
-            self.skipTest("This only applies to the v2 runtime")
-
         self.build()
         exe = self.getBuildArtifact("a.out")
         self.runCmd("file " + exe, CURRENT_EXECUTABLE_SET)
@@ -36,6 +30,8 @@ class RuntimeTypesTestCase(TestBase):
             sym_exact=True)
 
         self.runCmd("run", RUN_SUCCEEDED)
+
+        self.runCmd("settings set target.prefer-dynamic-value no-dynamic-values")
 
         # The backtrace should show we stop at -[MyString description].
         self.expect("thread backtrace", "Stop at -[MyString description]",

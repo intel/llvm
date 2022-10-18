@@ -13,7 +13,6 @@
 #include "mlir/IR/Location.h"
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SourceMgr.h"
@@ -29,15 +28,14 @@ static IntegerType parseStorageType(DialectAsmParser &parser, bool &isSigned) {
   // Parse storage type (alpha_ident, integer_literal).
   StringRef identifier;
   unsigned storageTypeWidth = 0;
-  if (failed(parser.parseOptionalKeyword(&identifier))) {
-    // If we didn't parse a keyword, this must be a signed type.
-    if (parser.parseType(type))
+  OptionalParseResult result = parser.parseOptionalType(type);
+  if (result.has_value()) {
+    if (!succeeded(*result))
       return nullptr;
-    isSigned = true;
+    isSigned = !type.isUnsigned();
     storageTypeWidth = type.getWidth();
-
+  } else if (succeeded(parser.parseKeyword(&identifier))) {
     // Otherwise, this must be an unsigned integer (`u` integer-literal).
-  } else {
     if (!identifier.consume_front("u")) {
       parser.emitError(typeLoc, "illegal storage type prefix");
       return nullptr;
@@ -48,6 +46,8 @@ static IntegerType parseStorageType(DialectAsmParser &parser, bool &isSigned) {
     }
     isSigned = false;
     type = parser.getBuilder().getIntegerType(storageTypeWidth);
+  } else {
+    return nullptr;
   }
 
   if (storageTypeWidth == 0 ||
@@ -75,7 +75,7 @@ static ParseResult parseStorageRange(DialectAsmParser &parser,
   }
 
   // Explicit storage min and storage max.
-  llvm::SMLoc minLoc = parser.getCurrentLocation(), maxLoc;
+  SMLoc minLoc = parser.getCurrentLocation(), maxLoc;
   if (parser.parseInteger(storageTypeMin) || parser.parseColon() ||
       parser.getCurrentLocation(&maxLoc) ||
       parser.parseInteger(storageTypeMax) || parser.parseGreater())
@@ -249,7 +249,7 @@ static Type parseUniformType(DialectAsmParser &parser) {
   }
 
   // Parse scales/zeroPoints.
-  llvm::SMLoc scaleZPLoc = parser.getCurrentLocation();
+  SMLoc scaleZPLoc = parser.getCurrentLocation();
   do {
     scales.resize(scales.size() + 1);
     zeroPoints.resize(zeroPoints.size() + 1);

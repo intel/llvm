@@ -1,13 +1,3 @@
-# Set CLANG_TOOLS_DIR to buildtree/bin, or buildtree/%(build_mode)s/bin if the
-# location is dynamic. The latter must be interpolated by lit configs.
-# FIXME: this is duplicated in many places.
-if (CMAKE_CFG_INTDIR STREQUAL ".")
-  set(LLVM_BUILD_MODE ".")
-else ()
-  set(LLVM_BUILD_MODE "%(build_mode)s")
-endif ()
-string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} CLANG_TOOLS_DIR ${LLVM_RUNTIME_OUTPUT_INTDIR})
-
 set(CLANGD_TEST_DEPS
   clangd
   ClangdTests
@@ -22,7 +12,7 @@ if(CLANGD_BUILD_XPC)
 endif()
 
 if(CLANGD_ENABLE_REMOTE)
-  list(APPEND CLANGD_TEST_DEPS clangd-index-server)
+  list(APPEND CLANGD_TEST_DEPS clangd-index-server clangd-index-server-monitor)
 endif()
 
 foreach(dep FileCheck count not llvm-config)

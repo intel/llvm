@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenDAGPatterns.h"
+#include "CodeGenInstruction.h"
 #include "DAGISelMatcher.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/TableGen/Record.h"
@@ -163,9 +164,9 @@ void DAGISelEmitter::run(raw_ostream &OS) {
   // Convert each variant of each pattern into a Matcher.
   Records.startTimer("Convert to matchers");
   std::vector<Matcher*> PatternMatchers;
-  for (unsigned i = 0, e = Patterns.size(); i != e; ++i) {
+  for (const PatternToMatch *PTM : Patterns) {
     for (unsigned Variant = 0; ; ++Variant) {
-      if (Matcher *M = ConvertPatternToMatcher(*Patterns[i], Variant, CGP))
+      if (Matcher *M = ConvertPatternToMatcher(*PTM, Variant, CGP))
         PatternMatchers.push_back(M);
       else
         break;

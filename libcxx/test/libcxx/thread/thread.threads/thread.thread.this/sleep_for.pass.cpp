@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 
 // Until 58a0a70fb2f1, this_thread::sleep_for could sometimes get interrupted
 // by signals and this test would fail spuriously. Disable the test on the
 // corresponding system libraries.
-// UNSUPPORTED: with_system_cxx_lib=macosx10.11
-// UNSUPPORTED: with_system_cxx_lib=macosx10.10
-// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
+
+// ALLOW_RETRIES: 3
 
 // <thread>
 

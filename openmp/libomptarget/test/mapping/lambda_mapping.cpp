@@ -1,8 +1,9 @@
-// RUN: %libomptarget-compilexx-run-and-check-aarch64-unknown-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-powerpc64-ibm-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-powerpc64le-ibm-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-x86_64-pc-linux-gnu
-// RUN: %libomptarget-compilexx-run-and-check-nvptx64-nvidia-cuda
+// RUN: %libomptarget-compilexx-run-and-check-generic
+
+// Error on the gpu that crashes the host
+// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: amdgcn-amd-amdhsa-oldDriver
+// UNSUPPORTED: amdgcn-amd-amdhsa-LTO
 
 #include <iostream>
 

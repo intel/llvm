@@ -9,12 +9,14 @@
 #ifndef MLIR_DIALECT_LINALG_ANALYSIS_DEPENDENCEANALYSIS_H_
 #define MLIR_DIALECT_LINALG_ANALYSIS_DEPENDENCEANALYSIS_H_
 
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpDefinition.h"
 
 namespace mlir {
+namespace func {
 class FuncOp;
+} // namespace func
 
 namespace linalg {
 
@@ -80,9 +82,9 @@ public:
       if (!owner)
         return llvm::None;
       if (OpOperand *operand = opView.dyn_cast<OpOperand *>())
-        return owner.getIndexingMap(operand->getOperandNumber());
-      return owner.getOutputIndexingMap(
-          opView.get<Value>().cast<OpResult>().getResultNumber());
+        return owner.getMatchingIndexingMap(operand);
+      return owner.getMatchingIndexingMap(owner.getOutputOperand(
+          opView.get<Value>().cast<OpResult>().getResultNumber()));
     }
     // Return the operand number if the `opView` is an OpOperand *. Otherwise
     // return llvm::None.
@@ -155,7 +157,8 @@ public:
   static StringRef getDependenceTypeStr(DependenceType depType);
 
   // Builds a linalg dependence graph for the ops of type LinalgOp under `f`.
-  static LinalgDependenceGraph buildDependenceGraph(Aliases &aliases, FuncOp f);
+  static LinalgDependenceGraph buildDependenceGraph(Aliases &aliases,
+                                                    func::FuncOp f);
   LinalgDependenceGraph(Aliases &aliases, ArrayRef<LinalgOp> ops);
 
   /// Returns the X such that op -> X is a dependence of type dt.
@@ -228,6 +231,10 @@ public:
   getDependentOperations(LinalgOp linalgOp,
                          ArrayRef<DependenceType> depTypes = {
                              DependenceType::RAW, DependenceType::WAW}) const;
+
+  void print(raw_ostream &os) const;
+
+  void dump() const;
 
 private:
   // Keep dependences in both directions, this is not just a performance gain

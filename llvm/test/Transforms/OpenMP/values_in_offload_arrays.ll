@@ -1,4 +1,4 @@
-; RUN: opt -S -passes=openmpopt -aa-pipeline=basic-aa -openmp-hide-memory-transfer-latency -debug-only=openmp-opt < %s 2>&1 | FileCheck %s
+; RUN: opt -S -passes=openmp-opt-cgscc -aa-pipeline=basic-aa -openmp-hide-memory-transfer-latency -debug-only=openmp-opt < %s 2>&1 | FileCheck %s
 ; REQUIRES: asserts
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -70,3 +70,8 @@ declare void @__tgt_target_data_begin_mapper(%struct.ident_t*, i64, i32, i8**, i
 declare void @__tgt_target_data_end_mapper(%struct.ident_t*, i64, i32, i8**, i8**, i64*, i64*, i8**, i8**)
 
 declare dso_local i32 @rand(...)
+
+!llvm.module.flags = !{!0}
+
+!0 = !{i32 7, !"openmp", i32 50}
+

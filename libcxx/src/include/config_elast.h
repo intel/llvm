@@ -1,4 +1,4 @@
-//===----------------------- config_elast.h -------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,6 +29,8 @@
 // No _LIBCPP_ELAST needed on Fuchsia
 #elif defined(__wasi__)
 // No _LIBCPP_ELAST needed on WASI
+#elif defined(__EMSCRIPTEN__)
+// No _LIBCPP_ELAST needed on Emscripten
 #elif defined(__linux__) || defined(_LIBCPP_HAS_MUSL_LIBC)
 #define _LIBCPP_ELAST 4095
 #elif defined(__APPLE__)
@@ -39,6 +41,8 @@
 #define _LIBCPP_ELAST 1160
 #elif defined(_LIBCPP_MSVCRT_LIKE)
 #define _LIBCPP_ELAST (_sys_nerr - 1)
+#elif defined(_AIX)
+#define _LIBCPP_ELAST 127
 #else
 // Warn here so that the person doing the libcxx port has an easier time:
 #warning ELAST for this platform not yet implemented

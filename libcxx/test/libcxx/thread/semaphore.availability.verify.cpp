@@ -7,13 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11
-// REQUIRES: with_system_cxx_lib=macosx10.9 || \
-// REQUIRES: with_system_cxx_lib=macosx10.10 || \
-// REQUIRES: with_system_cxx_lib=macosx10.11 || \
-// REQUIRES: with_system_cxx_lib=macosx10.12 || \
-// REQUIRES: with_system_cxx_lib=macosx10.13 || \
-// REQUIRES: with_system_cxx_lib=macosx10.14 || \
-// REQUIRES: with_system_cxx_lib=macosx10.15
+// REQUIRES: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
+
 
 // Test the availability markup on std::counting_semaphore and std::binary_semaphore.
 

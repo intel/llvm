@@ -1,21 +1,21 @@
-// RUN: mlir-opt %s -linalg-tile="linalg-tile-sizes=2,3,4" -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -linalg-tile="tile-sizes=2,3,4" -split-input-file | FileCheck %s
 
 // CHECK-LABEL: func @matmul_tensors(
 // CHECK-SAME:    %[[TA:[0-9a-z]+]]: tensor<?x?xf32>
 // CHECK-SAME:    %[[TB:[0-9a-z]+]]: tensor<?x?xf32>
 // CHECK-SAME:    %[[TC:[0-9a-z]+]]: tensor<?x?xf32>) -> tensor<?x?xf32> {
-func @matmul_tensors(
+func.func @matmul_tensors(
   %arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>, %arg2: tensor<?x?xf32>)
     -> tensor<?x?xf32> {
 //      CHECK: %[[TD0:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC0:.*]] = %[[TC]]) -> (tensor<?x?xf32>) {
 //      CHECK:   %[[TD1:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC1:.*]] = %[[TC0]]) -> (tensor<?x?xf32>) {
 //      CHECK:     %[[TD2:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC2:.*]] = %[[TC1]]) -> (tensor<?x?xf32>) {
-//      CHECK:       %[[sTA:.*]] = subtensor %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTB:.*]] = subtensor %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTC:.*]] = subtensor %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTA:.*]] = tensor.extract_slice %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTB:.*]] = tensor.extract_slice %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTC:.*]] = tensor.extract_slice %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
 //      CHECK:       %[[sTD:.*]] = linalg.matmul ins(%[[sTA]], %[[sTB]] : tensor<?x?xf32>, tensor<?x?xf32>)
 // CHECK-SAME:                                  outs(%[[sTC]] : tensor<?x?xf32>)  -> tensor<?x?xf32>
-//      CHECK:       %[[TD:.*]] = subtensor_insert %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
+//      CHECK:       %[[TD:.*]] = tensor.insert_slice %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
 //      CHECK:       scf.yield %[[TD]] : tensor<?x?xf32>
 //      CHECK:     scf.yield %[[TD2]] : tensor<?x?xf32>
 //      CHECK:   scf.yield %[[TD1]] : tensor<?x?xf32>
@@ -29,15 +29,15 @@ func @matmul_tensors(
 
 // -----
 
-func @generic_op_tensors(
+func.func @generic_op_tensors(
   %arg0 : tensor<?x?x?xf32>, %arg1 : tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
-  %c0 = constant 0 : index
-  %c1 = constant 1 : index
-  %c2 = constant 2 : index
-  %0 = memref.dim %arg0, %c0 : tensor<?x?x?xf32>
-  %1 = memref.dim %arg0, %c1 : tensor<?x?x?xf32>
-  %2 = memref.dim %arg0, %c2 : tensor<?x?x?xf32>
-  %3 = linalg.init_tensor [%0, %1, %2] : tensor<?x?x?xf32>
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %0 = tensor.dim %arg0, %c0 : tensor<?x?x?xf32>
+  %1 = tensor.dim %arg0, %c1 : tensor<?x?x?xf32>
+  %2 = tensor.dim %arg0, %c2 : tensor<?x?x?xf32>
+  %3 = tensor.empty(%0, %1, %2) : tensor<?x?x?xf32>
   %4 = linalg.generic
     {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
                       affine_map<(d0, d1, d2) -> (d0, d2, d1)>,
@@ -46,7 +46,7 @@ func @generic_op_tensors(
     ins(%arg0, %arg1 : tensor<?x?x?xf32>, tensor<?x?x?xf32>)
     outs(%3 : tensor<?x?x?xf32>) {
     ^bb0(%arg2 : f32, %arg3: f32, %arg4: f32):
-      %5 = addf %arg2, %arg3 : f32
+      %5 = arith.addf %arg2, %arg3 : f32
       linalg.yield %5 : f32
     } -> tensor<?x?x?xf32>
   return %4 : tensor<?x?x?xf32>
@@ -55,17 +55,17 @@ func @generic_op_tensors(
 // CHECK-LABEL: func @generic_op_tensors
 //  CHECK-SAME:   %[[ARG0:[a-zA-Z0-9_]+]]: tensor<?x?x?xf32>
 //  CHECK-SAME:   %[[ARG1:[a-zA-Z0-9_]+]]: tensor<?x?x?xf32>
-//       CHECK:   %[[INIT:.+]] = linalg.init_tensor
+//       CHECK:   %[[INIT:.+]] = tensor.empty
 //       CHECK:   %[[TD0:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC0:.+]] = %[[INIT]]) -> (tensor<?x?x?xf32>) {
 //       CHECK:     %[[TD1:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC1:.+]] = %[[TC0]]) -> (tensor<?x?x?xf32>) {
 //       CHECK:       %[[TD2:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC2:.+]] = %[[TC1]]) -> (tensor<?x?x?xf32>) {
-//       CHECK:       %[[STARG0:.+]] = subtensor %[[ARG0]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG1:.+]] = subtensor %[[ARG1]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG2:.+]] = subtensor %[[TC2]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG0:.+]] = tensor.extract_slice %[[ARG0]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG1:.+]] = tensor.extract_slice %[[ARG1]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+//       CHECK:       %[[STARG2:.+]] = tensor.extract_slice %[[TC2]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
 //       CHECK:       %[[STRETURN:.+]] = linalg.generic
 //  CHECK-SAME:         ins(%[[STARG0]], %[[STARG1]] : tensor<?x?x?xf32>, tensor<?x?x?xf32>)
 //  CHECK-SAME:         outs(%[[STARG2]] : tensor<?x?x?xf32>)
-//       CHECK:       %[[TD:.+]] = subtensor_insert %[[STRETURN]] into %[[TC2]]
+//       CHECK:       %[[TD:.+]] = tensor.insert_slice %[[STRETURN]] into %[[TC2]]
 //       CHECK:       scf.yield %[[TD]]
 //       CHECK:     }
 //       CHECK:     scf.yield %[[TD2]]
@@ -76,70 +76,44 @@ func @generic_op_tensors(
 
 // -----
 
-func @indexed_generic_op_tensors(
-  %arg0 : tensor<?x?x?xf32>, %arg1 : tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
-  %c0 = constant 0 : index
-  %c1 = constant 1 : index
-  %c2 = constant 2 : index
-  %0 = memref.dim %arg0, %c0 : tensor<?x?x?xf32>
-  %1 = memref.dim %arg0, %c1 : tensor<?x?x?xf32>
-  %2 = memref.dim %arg0, %c2 : tensor<?x?x?xf32>
-  %3 = linalg.init_tensor [%0, %1, %2] : tensor<?x?x?xf32>
-  %4 = linalg.indexed_generic
-    {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
-                      affine_map<(d0, d1, d2) -> (d0, d2, d1)>,
-                      affine_map<(d0, d1, d2) -> (d2, d1, d0)>],
+//  CHECK-DAG:  #[[MAP0:.*]] = affine_map<(d0)[s0] -> (-d0 + s0, 2)>
+
+//      CHECK:  fold_extract_slice
+// CHECK-SAME:    %[[ARG0:[0-9a-zA-Z]*]]: tensor<?x128xf32>
+// CHECK-SAME:    %[[ARG1:[0-9a-zA-Z]*]]: tensor<?x42xf32>
+func.func @fold_extract_slice(
+  %arg0 : tensor<?x128xf32>, %arg1 : tensor<?x42xf32>, %arg2 : tensor<?x42x?xf32>) -> tensor<?x42xf32> {
+
+  //      CHECK:    %[[C0:.*]] = arith.constant 0
+  %c0 = arith.constant 0 : index
+
+  //      CHECK:    %[[DIM:.*]] = tensor.dim %[[ARG1]], %[[C0]]
+  %0 = tensor.dim %arg1, %c0 : tensor<?x42xf32>
+  %1 = tensor.extract_slice %arg0[3, 4] [%0, 42] [1, 1] : tensor<?x128xf32> to tensor<?x42xf32>
+
+  //      CHECK:   %[[E:.*]] = tensor.extract_slice %[[ARG0]][3, 4] [%[[DIM]], 42] [1, 1] : tensor<?x128xf32> to tensor<?x42xf32>
+
+  //      CHECK:    scf.for %[[IV0:[0-9a-zA-Z]*]] =
+  //      CHECK:      scf.for %[[IV1:[0-9a-zA-Z]*]] =
+
+  // Fold the existing extract slice op into the one created by the tiling.
+  //      CHECK:        %[[SIZE0:.*]] = affine.min #[[MAP0]](%[[IV0]])[%[[DIM]]
+  //      CHECK:        %[[T0:.*]] = tensor.extract_slice %[[E]]
+  // CHECK-SAME:                                          %[[IV0]], %[[IV1]]
+  // CHECK-SAME:                                          %[[SIZE0]], 3
+  // CHECK-SAME:                                          1, 1
+  //      CHECK:        {{.*}} = linalg.generic {{.*}} ins(%[[T0]]
+  %2 = linalg.generic
+    {indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d1)>,
+                      affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+                      affine_map<(d0, d1, d2) -> (d0, d1)>],
      iterator_types = ["parallel", "parallel", "parallel"]}
-    ins(%arg0, %arg1 : tensor<?x?x?xf32>, tensor<?x?x?xf32>)
-    outs(%3 : tensor<?x?x?xf32>) {
-    ^bb0(%arg2 : index, %arg3 : index, %arg4 : index, %arg5 : f32, %arg6: f32, %arg7: f32):
-      %5 = addf %arg5, %arg6 : f32
+    ins(%1, %arg2 : tensor<?x42xf32>, tensor<?x42x?xf32>)
+    outs(%arg1 : tensor<?x42xf32>) {
+    ^bb0(%arg3 : f32, %arg4: f32, %arg5: f32):
+      %5 = arith.addf %arg3, %arg5 : f32
       linalg.yield %5 : f32
-    } -> tensor<?x?x?xf32>
-  return %4 : tensor<?x?x?xf32>
+    } -> tensor<?x42xf32>
+  return %2 : tensor<?x42xf32>
 }
 
-// CHECK-LABEL: func @indexed_generic_op_tensors
-//  CHECK-SAME:   %[[ARG0:[a-zA-Z0-9_]+]]: tensor<?x?x?xf32>
-//  CHECK-SAME:   %[[ARG1:[a-zA-Z0-9_]+]]: tensor<?x?x?xf32>
-//       CHECK:   %[[INIT:.+]] = linalg.init_tensor
-//       CHECK:   %[[TD0:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC0:.+]] = %[[INIT]]) -> (tensor<?x?x?xf32>) {
-//       CHECK:     %[[TD1:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC1:.+]] = %[[TC0]]) -> (tensor<?x?x?xf32>) {
-//       CHECK:       %[[TD2:.+]] = scf.for %{{.+}} to %{{.+}} step %{{.+}} iter_args(%[[TC2:.+]] = %[[TC1]]) -> (tensor<?x?x?xf32>) {
-//       CHECK:       %[[STARG0:.+]] = subtensor %[[ARG0]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG1:.+]] = subtensor %[[ARG1]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STARG2:.+]] = subtensor %[[TC2]][{{.+}}] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-//       CHECK:       %[[STRETURN:.+]] = linalg.indexed_generic
-//  CHECK-SAME:         ins(%[[STARG0]], %[[STARG1]] : tensor<?x?x?xf32>, tensor<?x?x?xf32>)
-//  CHECK-SAME:         outs(%[[STARG2]] : tensor<?x?x?xf32>)
-//       CHECK:       %[[TD:.+]] = subtensor_insert %[[STRETURN]] into %[[TC2]]
-//       CHECK:       scf.yield %[[TD]]
-//       CHECK:     }
-//       CHECK:     scf.yield %[[TD2]]
-//       CHECK:   }
-//       CHECK:   scf.yield %[[TD1]]
-//       CHECK: }
-//       CHECK: return %[[TD0]]
-
-// -----
-
-func @fill_tensors(%arg0 : index, %arg1 : index, %arg2 : f32) -> tensor<?x?xf32> {
-  %0 = linalg.init_tensor [%arg0, %arg1] : tensor<?x?xf32>
-  %1 = linalg.fill(%0, %arg2) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
-  return %1 : tensor<?x?xf32>
-}
-//       CHECK: func @fill_tensors
-//       CHECK:   %[[INIT:.+]] = linalg.init_tensor
-//       CHECK:   %[[RESULT:.+]] = scf.for %[[IV0:[a-zA-z0-9_]+]]
-//  CHECK-SAME:     iter_args(%[[ARG4:.+]] = %[[INIT]]) -> (tensor<?x?xf32>) {
-//       CHECK:     %[[YIELD_1:.+]] = scf.for %[[IV1:[a-zA-Z0-9_]+]]
-//  CHECK-SAME:       iter_args(%[[ARG6:.+]] = %[[ARG4]]) -> (tensor<?x?xf32>) {
-//       CHECK:       %[[FILL_TILE:.+]] = subtensor %[[ARG6]][%[[IV0]], %[[IV1]]]
-//       CHECK:       %[[RESULT_TILE:.+]] = linalg.fill(%[[FILL_TILE]], %{{.+}})
-//       CHECK:       %[[YIELD_2:.+]] = subtensor_insert %[[RESULT_TILE]]
-//  CHECK-SAME:         into %[[ARG6]][%[[IV0]], %[[IV1]]]
-//       CHECK:       scf.yield %[[YIELD_2]]
-//       CHECK:     }
-//       CHECK:     scf.yield %[[YIELD_1]]
-//       CHECK:   }
-//       CHECK:   return %[[RESULT]]

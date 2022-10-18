@@ -18,10 +18,10 @@ int main() {
 }
 
 // CHECK: {{.*}}kernel_half{{.*}} 'void (sycl::half)'
-// CHECK: ParmVarDecl {{.*}} used _arg_ 'sycl::half':'sycl::detail::half_impl::half'
+// CHECK: ParmVarDecl {{.*}} used _arg_HostHalf 'sycl::half':'sycl::detail::half_impl::half'
 // // Check that lambda field of half type is initialized
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::detail::half_impl::half'{{.*}}
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const sycl::detail::half_impl::half'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::half':'sycl::detail::half_impl::half' lvalue ParmVar {{.*}} '_arg_' 'sycl::half':'sycl::detail::half_impl::half'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::half':'sycl::detail::half_impl::half' lvalue ParmVar {{.*}} '_arg_HostHalf' 'sycl::half':'sycl::detail::half_impl::half'

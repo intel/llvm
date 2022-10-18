@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 %s -fsyntax-only -verify
 // RUN: %clang_cc1 %s -fsyntax-only -triple=x86_64-windows-coff -verify
 // RUN: %clang_cc1 %s -fsyntax-only -triple=x86_64-scei-ps4 -verify
+// RUN: %clang_cc1 %s -fsyntax-only -triple=x86_64-sie-ps5 -verify
 
 // Packed structs.
 struct s {
@@ -59,7 +60,7 @@ extern int e2[__alignof(struct as1) == 8 ? 1 : -1];
 struct __attribute__((aligned)) as1_2 {
     char c;
 };
-#if ((defined(__s390x__) && !defined(__MVS__)) || (defined(__ARM_32BIT_STATE) && !defined(__ANDROID__)))
+#if ( defined(__s390x__) || ( defined (__ARM_32BIT_STATE) && ! defined(__ANDROID__) ) )
 extern int e1_2[sizeof(struct as1_2) == 8 ? 1 : -1];
 extern int e2_2[__alignof(struct as1_2) == 8 ? 1 : -1];
 #else
@@ -146,28 +147,31 @@ extern int n2[__alignof(struct nS) == 1 ? 1 : -1];
 // GCC 4.4 but the change can lead to differences in the structure layout.
 // See the documentation of -Wpacked-bitfield-compat for more information.
 struct packed_chars {
-  char a:4;
-#ifdef __ORBIS__
-  // Test for pre-r254596 clang behavior on the PS4 target. PS4 must maintain
-  // ABI backwards compatibility.
-  char b:8 __attribute__ ((packed));
+  char a : 8, b : 8, c : 8, d : 4;
+#ifdef __SCE__
+  // Test for pre-r254596 clang behavior on the PS4/PS5 targets, which must
+  // maintain ABI backwards compatibility.
+  char e : 8 __attribute__((packed));
   // expected-warning@-1 {{'packed' attribute ignored for field of type 'char'}}
-  char c:4;
 #else
-  char b:8 __attribute__ ((packed));
+  char e : 8 __attribute__((packed));
   // expected-warning@-1 {{'packed' attribute was ignored on bit-fields with single-byte alignment in older versions of GCC and Clang}}
-  char c:4;
 #endif
+  char f : 4, g : 8, h : 8, i : 8;
 };
 
-#if (defined(_WIN32) || defined(__ORBIS__)) && !defined(__declspec) // _MSC_VER is unavailable in cc1.
+#if (defined(_WIN32) || defined(__SCE__)) && !defined(__declspec) // _MSC_VER is unavailable in cc1.
 // On Windows clang uses MSVC compatible layout in this case.
 //
-// Additionally, test for pre-r254596 clang behavior on the PS4 target. PS4
-// must maintain ABI backwards compatibility.
-extern int o1[sizeof(struct packed_chars) == 3 ? 1 : -1];
+// Additionally, test for pre-r254596 clang behavior on the PS4/PS5 targets.
+// They must maintain ABI backwards compatibility.
+extern int o1[sizeof(struct packed_chars) == 9 ? 1 : -1];
 extern int o2[__alignof(struct packed_chars) == 1 ? 1 : -1];
+#elif defined(_AIX)
+// On AIX, char bitfields have the same alignment as unsigned int.
+extern int o1[sizeof(struct packed_chars) == 8 ? 1 : -1];
+extern int o2[__alignof(struct packed_chars) == 4 ? 1 : -1];
 #else
-extern int o1[sizeof(struct packed_chars) == 2 ? 1 : -1];
+extern int o1[sizeof(struct packed_chars) == 8 ? 1 : -1];
 extern int o2[__alignof(struct packed_chars) == 1 ? 1 : -1];
 #endif

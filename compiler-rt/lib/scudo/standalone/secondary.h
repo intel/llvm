@@ -9,9 +9,12 @@
 #ifndef SCUDO_SECONDARY_H_
 #define SCUDO_SECONDARY_H_
 
+#include "chunk.h"
 #include "common.h"
 #include "list.h"
+#include "memtag.h"
 #include "mutex.h"
+#include "options.h"
 #include "stats.h"
 #include "string_utils.h"
 
@@ -25,7 +28,10 @@ namespace scudo {
 
 namespace LargeBlock {
 
-struct Header {
+struct alignas(Max<uptr>(archSupportsMemoryTagging()
+                             ? archMemoryTagGranuleSize()
+                             : 1,
+                         1U << SCUDO_MIN_ALIGNMENT_LOG)) Header {
   LargeBlock::Header *Prev;
   LargeBlock::Header *Next;
   uptr CommitBase;
@@ -35,9 +41,12 @@ struct Header {
   [[no_unique_address]] MapPlatformData Data;
 };
 
-constexpr uptr getHeaderSize() {
-  return roundUpTo(sizeof(Header), 1U << SCUDO_MIN_ALIGNMENT_LOG);
-}
+static_assert(sizeof(Header) % (1U << SCUDO_MIN_ALIGNMENT_LOG) == 0, "");
+static_assert(!archSupportsMemoryTagging() ||
+                  sizeof(Header) % archMemoryTagGranuleSize() == 0,
+              "");
+
+constexpr uptr getHeaderSize() { return sizeof(Header); }
 
 template <typename Config> static uptr addHeaderTag(uptr Ptr) {
   if (allocatorSupportsMemoryTagging<Config>())
@@ -46,8 +55,7 @@ template <typename Config> static uptr addHeaderTag(uptr Ptr) {
 }
 
 template <typename Config> static Header *getHeader(uptr Ptr) {
-  return reinterpret_cast<Header *>(addHeaderTag<Config>(Ptr) -
-                                    getHeaderSize());
+  return reinterpret_cast<Header *>(addHeaderTag<Config>(Ptr)) - 1;
 }
 
 template <typename Config> static Header *getHeader(const void *Ptr) {
@@ -63,18 +71,18 @@ static void unmap(LargeBlock::Header *H) {
 
 class MapAllocatorNoCache {
 public:
-  void initLinkerInitialized(UNUSED s32 ReleaseToOsInterval) {}
   void init(UNUSED s32 ReleaseToOsInterval) {}
   bool retrieve(UNUSED Options Options, UNUSED uptr Size, UNUSED uptr Alignment,
                 UNUSED LargeBlock::Header **H, UNUSED bool *Zeroed) {
     return false;
   }
-  void store(UNUSED Options Options, UNUSED LargeBlock::Header *H) { unmap(H); }
+  void store(UNUSED Options Options, LargeBlock::Header *H) { unmap(H); }
   bool canCache(UNUSED uptr Size) { return false; }
   void disable() {}
   void enable() {}
   void releaseToOS() {}
   void disableMemoryTagging() {}
+  void unmapTestOnly() {}
   bool setOption(Option O, UNUSED sptr Value) {
     if (O == Option::ReleaseInterval || O == Option::MaxCacheEntriesCount ||
         O == Option::MaxCacheEntrySize)
@@ -105,6 +113,19 @@ void mapSecondary(Options Options, uptr CommitBase, uptr CommitSize,
   }
 }
 
+// Template specialization to avoid producing zero-length array
+template <typename T, size_t Size> class NonZeroLengthArray {
+public:
+  T &operator[](uptr Idx) { return values[Idx]; }
+
+private:
+  T values[Size];
+};
+template <typename T> class NonZeroLengthArray<T, 0> {
+public:
+  T &operator[](uptr UNUSED Idx) { UNREACHABLE("Unsupported!"); }
+};
+
 template <typename Config> class MapAllocatorCache {
 public:
   // Ensure the default maximum specified fits the array.
@@ -112,16 +133,13 @@ public:
                     Config::SecondaryCacheEntriesArraySize,
                 "");
 
-  void initLinkerInitialized(s32 ReleaseToOsInterval) {
+  void init(s32 ReleaseToOsInterval) {
+    DCHECK_EQ(EntriesCount, 0U);
     setOption(Option::MaxCacheEntriesCount,
               static_cast<sptr>(Config::SecondaryCacheDefaultMaxEntriesCount));
     setOption(Option::MaxCacheEntrySize,
               static_cast<sptr>(Config::SecondaryCacheDefaultMaxEntrySize));
     setOption(Option::ReleaseInterval, static_cast<sptr>(ReleaseToOsInterval));
-  }
-  void init(s32 ReleaseToOsInterval) {
-    memset(this, 0, sizeof(*this));
-    initLinkerInitialized(ReleaseToOsInterval);
   }
 
   void store(Options Options, LargeBlock::Header *H) {
@@ -170,7 +188,7 @@ public:
       if (Config::SecondaryCacheQuarantineSize &&
           useMemoryTagging<Config>(Options)) {
         QuarantinePos =
-            (QuarantinePos + 1) % Config::SecondaryCacheQuarantineSize;
+            (QuarantinePos + 1) % Max(Config::SecondaryCacheQuarantineSize, 1u);
         if (!Quarantine[QuarantinePos].CommitBase) {
           Quarantine[QuarantinePos] = Entry;
           return;
@@ -214,7 +232,7 @@ public:
     const u32 MaxCount = atomic_load_relaxed(&MaxEntriesCount);
     bool Found = false;
     CachedBlock Entry;
-    uptr HeaderPos;
+    uptr HeaderPos = 0;
     {
       ScopedLock L(Mutex);
       if (EntriesCount == 0)
@@ -279,13 +297,15 @@ public:
               Config::SecondaryCacheMinReleaseToOsIntervalMs);
       atomic_store_relaxed(&ReleaseToOsIntervalMs, Interval);
       return true;
-    } else if (O == Option::MaxCacheEntriesCount) {
+    }
+    if (O == Option::MaxCacheEntriesCount) {
       const u32 MaxCount = static_cast<u32>(Value);
       if (MaxCount > Config::SecondaryCacheEntriesArraySize)
         return false;
       atomic_store_relaxed(&MaxEntriesCount, MaxCount);
       return true;
-    } else if (O == Option::MaxCacheEntrySize) {
+    }
+    if (O == Option::MaxCacheEntrySize) {
       atomic_store_relaxed(&MaxEntrySize, static_cast<uptr>(Value));
       return true;
     }
@@ -315,6 +335,8 @@ public:
   void disable() { Mutex.lock(); }
 
   void enable() { Mutex.unlock(); }
+
+  void unmapTestOnly() { empty(); }
 
 private:
   void empty() {
@@ -377,29 +399,28 @@ private:
   }
 
   HybridMutex Mutex;
-  u32 EntriesCount;
-  u32 QuarantinePos;
-  atomic_u32 MaxEntriesCount;
-  atomic_uptr MaxEntrySize;
-  u64 OldestTime;
-  u32 IsFullEvents;
-  atomic_s32 ReleaseToOsIntervalMs;
+  u32 EntriesCount = 0;
+  u32 QuarantinePos = 0;
+  atomic_u32 MaxEntriesCount = {};
+  atomic_uptr MaxEntrySize = {};
+  u64 OldestTime = 0;
+  u32 IsFullEvents = 0;
+  atomic_s32 ReleaseToOsIntervalMs = {};
 
-  CachedBlock Entries[Config::SecondaryCacheEntriesArraySize];
-  CachedBlock Quarantine[Config::SecondaryCacheQuarantineSize];
+  CachedBlock Entries[Config::SecondaryCacheEntriesArraySize] = {};
+  NonZeroLengthArray<CachedBlock, Config::SecondaryCacheQuarantineSize>
+      Quarantine = {};
 };
 
 template <typename Config> class MapAllocator {
 public:
-  void initLinkerInitialized(GlobalStats *S, s32 ReleaseToOsInterval = -1) {
-    Cache.initLinkerInitialized(ReleaseToOsInterval);
-    Stats.initLinkerInitialized();
+  void init(GlobalStats *S, s32 ReleaseToOsInterval = -1) {
+    DCHECK_EQ(AllocatedBytes, 0U);
+    DCHECK_EQ(FreedBytes, 0U);
+    Cache.init(ReleaseToOsInterval);
+    Stats.init();
     if (LIKELY(S))
       S->link(&Stats);
-  }
-  void init(GlobalStats *S, s32 ReleaseToOsInterval = -1) {
-    memset(this, 0, sizeof(*this));
-    initLinkerInitialized(S, ReleaseToOsInterval);
   }
 
   void *allocate(Options Options, uptr Size, uptr AlignmentHint = 0,
@@ -438,7 +459,7 @@ public:
     }
   }
 
-  uptr canCache(uptr Size) { return Cache.canCache(Size); }
+  bool canCache(uptr Size) { return Cache.canCache(Size); }
 
   bool setOption(Option O, sptr Value) { return Cache.setOption(O, Value); }
 
@@ -446,16 +467,18 @@ public:
 
   void disableMemoryTagging() { Cache.disableMemoryTagging(); }
 
+  void unmapTestOnly() { Cache.unmapTestOnly(); }
+
 private:
   typename Config::SecondaryCache Cache;
 
   HybridMutex Mutex;
   DoublyLinkedList<LargeBlock::Header> InUseBlocks;
-  uptr AllocatedBytes;
-  uptr FreedBytes;
-  uptr LargestSize;
-  u32 NumberOfAllocs;
-  u32 NumberOfFrees;
+  uptr AllocatedBytes = 0;
+  uptr FreedBytes = 0;
+  uptr LargestSize = 0;
+  u32 NumberOfAllocs = 0;
+  u32 NumberOfFrees = 0;
   LocalStats Stats;
 };
 
@@ -476,7 +499,7 @@ void *MapAllocator<Config>::allocate(Options Options, uptr Size, uptr Alignment,
                                      FillContentsMode FillContents) {
   if (Options.get(OptionBit::AddLargeAllocationSlack))
     Size += 1UL << SCUDO_MIN_ALIGNMENT_LOG;
-  Alignment = Max(Alignment, 1UL << SCUDO_MIN_ALIGNMENT_LOG);
+  Alignment = Max(Alignment, uptr(1U) << SCUDO_MIN_ALIGNMENT_LOG);
   const uptr PageSize = getPageSizeCached();
   uptr RoundedSize =
       roundUpTo(roundUpTo(Size, Alignment) + LargeBlock::getHeaderSize() +
@@ -593,12 +616,11 @@ void MapAllocator<Config>::deallocate(Options Options, void *Ptr) {
 
 template <typename Config>
 void MapAllocator<Config>::getStats(ScopedString *Str) const {
-  Str->append(
-      "Stats: MapAllocator: allocated %zu times (%zuK), freed %zu times "
-      "(%zuK), remains %zu (%zuK) max %zuM\n",
-      NumberOfAllocs, AllocatedBytes >> 10, NumberOfFrees, FreedBytes >> 10,
-      NumberOfAllocs - NumberOfFrees, (AllocatedBytes - FreedBytes) >> 10,
-      LargestSize >> 20);
+  Str->append("Stats: MapAllocator: allocated %u times (%zuK), freed %u times "
+              "(%zuK), remains %u (%zuK) max %zuM\n",
+              NumberOfAllocs, AllocatedBytes >> 10, NumberOfFrees,
+              FreedBytes >> 10, NumberOfAllocs - NumberOfFrees,
+              (AllocatedBytes - FreedBytes) >> 10, LargestSize >> 20);
 }
 
 } // namespace scudo

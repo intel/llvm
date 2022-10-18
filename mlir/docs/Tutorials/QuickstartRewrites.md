@@ -6,10 +6,10 @@ patterns, as well as defining the rewrite using a graph walker (note: using
 patterns and the rewrite engine is preferred, showing the walker is for
 demonstration purposes).
 
-See [MLIR specification](LangRef.md) for more information about MLIR, the
+See [MLIR specification](../LangRef.md) for more information about MLIR, the
 structure of the IR, operations, etc. See
-[Table-driven Operation Definition](OpDefinitions.md) and
-[Declarative Rewrite Rule](DeclarativeRewrites.md) for the detailed explanation
+[Table-driven Operation Definition](../OpDefinitions.md) and
+[Declarative Rewrite Rule](../DeclarativeRewrites.md) for the detailed explanation
 of all available mechanisms for defining operations and rewrites in a
 table-driven manner.
 
@@ -275,7 +275,7 @@ the legalization pass test in TensorFlow Lite) such as:
 ```mlir
 // RUN: mlir-opt -tfl-legalize-tf %s | FileCheck %s
 
-func @LeakyRelu(%arg0: tensor<1xf32>) -> tensor<1xf32> {
+func.func @LeakyRelu(%arg0: tensor<1xf32>) -> tensor<1xf32> {
   %2 = "tf.LeakyRelu"(%arg0) {alpha: 0.1} : (tensor<1xf32>) -> tensor<1xf32>
   return %2: tensor<1xf32>
 

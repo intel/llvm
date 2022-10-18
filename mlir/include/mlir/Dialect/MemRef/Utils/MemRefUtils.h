@@ -16,14 +16,4 @@
 #ifndef MLIR_DIALECT_MEMREF_UTILS_MEMREFUTILS_H
 #define MLIR_DIALECT_MEMREF_UTILS_MEMREFUTILS_H
 
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-
-namespace mlir {
-
-/// Finds the associated dealloc that can be linked to our allocation nodes (if
-/// any).
-Operation *findDealloc(Value allocValue);
-
-} // end namespace mlir
-
 #endif // MLIR_DIALECT_MEMREF_UTILS_MEMREFUTILS_H

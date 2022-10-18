@@ -11,7 +11,7 @@ entry:
   ret i32 0
 }
 ;; CHECK-LABEL: f:
-;; CHECK: pacibsp
+;; CHECK: pacib x30, sp
 
 declare void @llvm_gcda_start_file(i8*, i32, i32) local_unnamed_addr
 
@@ -34,7 +34,7 @@ entry:
 }
 ;; CHECK-LABEL: __llvm_gcov_writeout:
 ;; CHECK:       .cfi_b_key_frame
-;; CHECK-NEXT:  pacibsp
+;; CHECK-NEXT:  pacib x30, sp
 ;; CHECK-NEXT: .cfi_negate_ra_state
 
 define internal void @__llvm_gcov_reset() unnamed_addr #2 {
@@ -43,7 +43,7 @@ entry:
   ret void
 }
 ;; CHECK-LABEL: __llvm_gcov_reset:
-;; CHECK:       pacibsp
+;; CHECK:       pacib x30, sp
 
 declare void @llvm_gcov_init(void ()*, void ()*) local_unnamed_addr
 
@@ -54,7 +54,7 @@ entry:
 }
 ;; CHECK-LABEL: __llvm_gcov_init:
 ;; CHECK:      .cfi_b_key_frame
-;; CHECK-NEXT:  pacibsp
+;; CHECK-NEXT:  pacib x30, sp
 ;; CHECK-NEXT: .cfi_negate_ra_state
 
 attributes #0 = { norecurse nounwind readnone "sign-return-address"="all" "sign-return-address-key"="b_key" }
@@ -65,7 +65,7 @@ attributes #2 = { nofree noinline norecurse nounwind writeonly }
 
 !0 = !{i32 2, !"Debug Info Version", i32 3}
 !1 = !{i32 1, !"wchar_size", i32 4}
-!2 = !{i32 1, !"branch-target-enforcement", i32 0}
-!3 = !{i32 1, !"sign-return-address", i32 1}
-!4 = !{i32 1, !"sign-return-address-all", i32 1}
-!5 = !{i32 1, !"sign-return-address-with-bkey", i32 1}
+!2 = !{i32 8, !"branch-target-enforcement", i32 0}
+!3 = !{i32 8, !"sign-return-address", i32 1}
+!4 = !{i32 8, !"sign-return-address-all", i32 1}
+!5 = !{i32 8, !"sign-return-address-with-bkey", i32 1}

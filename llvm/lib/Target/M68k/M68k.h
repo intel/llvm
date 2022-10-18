@@ -1,4 +1,4 @@
-//===- M68k.h - Top-level interface for M68k representation -*- C++ -*-===//
+//===-- M68k.h - Top-level interface for M68k representation ----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +18,9 @@
 namespace llvm {
 
 class FunctionPass;
+class InstructionSelector;
+class M68kRegisterBankInfo;
+class M68kSubtarget;
 class M68kTargetMachine;
 
 /// This pass converts a legalized DAG into a M68k-specific DAG, ready for
@@ -45,6 +48,10 @@ FunctionPass *createM68kCollapseMOVEMPass();
 /// so that all possible MOVEs are present.
 FunctionPass *createM68kConvertMOVToMOVMPass();
 
+InstructionSelector *
+createM68kInstructionSelector(const M68kTargetMachine &, const M68kSubtarget &,
+                              const M68kRegisterBankInfo &);
+
 } // namespace llvm
 
-#endif
+#endif // LLVM_LIB_TARGET_M68K_M68K_H

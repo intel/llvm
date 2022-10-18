@@ -43,8 +43,9 @@ unsigned getOffsetAfterTokenSequence(
         GetOffsetAfterSequence) {
   SourceManagerForFile VirtualSM(FileName, Code);
   SourceManager &SM = VirtualSM.get();
+  LangOptions LangOpts = createLangOpts();
   Lexer Lex(SM.getMainFileID(), SM.getBufferOrFake(SM.getMainFileID()), SM,
-            createLangOpts());
+            LangOpts);
   Token Tok;
   // Get the first token.
   Lex.LexFromRawLexer(Tok);
@@ -252,9 +253,9 @@ bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
   //  1) foo.h => bar.cc
   //  2) foo.proto.h => foo.cc
   StringRef Matching;
-  if (MatchingFileStem.startswith_lower(HeaderStem))
+  if (MatchingFileStem.startswith_insensitive(HeaderStem))
     Matching = MatchingFileStem; // example 1), 2)
-  else if (FileStem.equals_lower(HeaderStem))
+  else if (FileStem.equals_insensitive(HeaderStem))
     Matching = FileStem; // example 3)
   if (!Matching.empty()) {
     llvm::Regex MainIncludeRegex(HeaderStem.str() + Style.IncludeIsMainRegex,

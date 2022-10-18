@@ -1,4 +1,4 @@
-//===----- M68kAsmPrinter.cpp - M68k LLVM Assembly Printer -----*- C++ -*-===//
+//===-- M68kAsmPrinter.cpp - M68k LLVM Assembly Printer ---------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,9 +18,10 @@
 
 #include "M68k.h"
 #include "M68kMachineFunction.h"
+#include "MCTargetDesc/M68kInstPrinter.h"
 #include "TargetInfo/M68kTargetInfo.h"
 
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -33,7 +34,52 @@ bool M68kAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
   return true;
 }
 
+void M68kAsmPrinter::printOperand(const MachineInstr *MI, int OpNum,
+                                  raw_ostream &OS) {
+  const MachineOperand &MO = MI->getOperand(OpNum);
+  switch (MO.getType()) {
+  case MachineOperand::MO_Register:
+    OS << "%" << M68kInstPrinter::getRegisterName(MO.getReg());
+    break;
+  case MachineOperand::MO_Immediate:
+    OS << '#' << MO.getImm();
+    break;
+  case MachineOperand::MO_MachineBasicBlock:
+    MO.getMBB()->getSymbol()->print(OS, MAI);
+    break;
+  case MachineOperand::MO_GlobalAddress:
+    PrintSymbolOperand(MO, OS);
+    break;
+  case MachineOperand::MO_BlockAddress:
+    GetBlockAddressSymbol(MO.getBlockAddress())->print(OS, MAI);
+    break;
+  case MachineOperand::MO_ConstantPoolIndex: {
+    const DataLayout &DL = getDataLayout();
+    OS << DL.getPrivateGlobalPrefix() << "CPI" << getFunctionNumber() << '_'
+       << MO.getIndex();
+    break;
+  }
+  default:
+    llvm_unreachable("not implemented");
+  }
+}
+
+bool M68kAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
+                                     const char *ExtraCode, raw_ostream &OS) {
+  // Print the operand if there is no operand modifier.
+  if (!ExtraCode || !ExtraCode[0]) {
+    printOperand(MI, OpNo, OS);
+    return false;
+  }
+
+  // Fallback to the default implementation.
+  return AsmPrinter::PrintAsmOperand(MI, OpNo, ExtraCode, OS);
+}
+
 void M68kAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  M68k_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                       getSubtargetInfo().getFeatureBits());
+
   switch (MI->getOpcode()) {
   default: {
     if (MI->isPseudo()) {

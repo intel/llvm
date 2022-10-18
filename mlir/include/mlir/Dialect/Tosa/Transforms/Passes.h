@@ -13,13 +13,30 @@
 #ifndef MLIR_DIALECT_TOSA_TRANSFORMS_PASSES_H
 #define MLIR_DIALECT_TOSA_TRANSFORMS_PASSES_H
 
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
 namespace tosa {
 
+#define GEN_PASS_DECL
+#include "mlir/Dialect/Tosa/Transforms/Passes.h.inc"
+
+// Expose Rewrite Functions that decompose TOSA Ops into further TOSA Ops.
+// The rewrites can be selectively added to a conversion pass.
+void populateTosaDecomposeConv2D(MLIRContext *ctx, RewritePatternSet &patterns);
+void populateTosaDecomposeTransposeConv(MLIRContext *ctx,
+                                        RewritePatternSet &patterns);
+void populateTosaDecomposeDepthwise(MLIRContext *ctx,
+                                    RewritePatternSet &patterns);
+void populateTosaFoldConstantTransposePatterns(MLIRContext *ctx,
+                                               RewritePatternSet &patterns);
+
+std::unique_ptr<Pass> createTosaLayerwiseConstantFoldPass();
+std::unique_ptr<Pass> createTosaInferShapesPass();
 std::unique_ptr<Pass> createTosaMakeBroadcastablePass();
 std::unique_ptr<Pass> createTosaTestQuantUtilAPIPass();
+std::unique_ptr<Pass> createTosaOptionalDecompositions();
 
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/Tosa/Transforms/Passes.h.inc"

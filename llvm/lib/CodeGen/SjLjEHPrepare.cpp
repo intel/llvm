@@ -413,7 +413,7 @@ bool SjLjEHPrepare::setupEntryBlockAndCallSites(Function &F) {
   Val = Builder.CreateCall(StackAddrFn, {}, "sp");
   Builder.CreateStore(Val, StackPtr, /*isVolatile=*/true);
 
-  // Call the setup_dispatch instrinsic. It fills in the rest of the jmpbuf.
+  // Call the setup_dispatch intrinsic. It fills in the rest of the jmpbuf.
   Builder.CreateCall(BuiltinSetupDispatchFn, {});
 
   // Store a pointer to the function context so that the back-end will know
@@ -472,8 +472,12 @@ bool SjLjEHPrepare::setupEntryBlockAndCallSites(Function &F) {
 
   // Finally, for any returns from this function, if this function contains an
   // invoke, add a call to unregister the function context.
-  for (ReturnInst *Return : Returns)
-    CallInst::Create(UnregisterFn, FuncCtx, "", Return);
+  for (ReturnInst *Return : Returns) {
+    Instruction *InsertPoint = Return;
+    if (CallInst *CI = Return->getParent()->getTerminatingMustTailCall())
+      InsertPoint = CI;
+    CallInst::Create(UnregisterFn, FuncCtx, "", InsertPoint);
+  }
 
   return true;
 }

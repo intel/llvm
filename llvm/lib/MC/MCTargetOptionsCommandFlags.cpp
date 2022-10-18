@@ -1,5 +1,4 @@
-//===-- MCTargetOptionsCommandFlags.cpp --------------------------*- C++
-//-*-===//
+//===-- MCTargetOptionsCommandFlags.cpp -----------------------*- C++ //-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -39,10 +38,12 @@ MCOPT_EXP(bool, RelaxAll)
 MCOPT(bool, IncrementalLinkerCompatible)
 MCOPT(int, DwarfVersion)
 MCOPT(bool, Dwarf64)
+MCOPT(EmitDwarfUnwindType, EmitDwarfUnwind)
 MCOPT(bool, ShowMCInst)
 MCOPT(bool, FatalWarnings)
 MCOPT(bool, NoWarn)
 MCOPT(bool, NoDeprecatedWarn)
+MCOPT(bool, NoTypeCheck)
 MCOPT(std::string, ABIName)
 
 llvm::mc::RegisterMCTargetOptionsFlags::RegisterMCTargetOptionsFlags() {
@@ -72,6 +73,19 @@ llvm::mc::RegisterMCTargetOptionsFlags::RegisterMCTargetOptionsFlags() {
       cl::desc("Generate debugging info in the 64-bit DWARF format"));
   MCBINDOPT(Dwarf64);
 
+  static cl::opt<EmitDwarfUnwindType> EmitDwarfUnwind(
+      "emit-dwarf-unwind", cl::desc("Whether to emit DWARF EH frame entries."),
+      cl::init(EmitDwarfUnwindType::Default),
+      cl::values(clEnumValN(EmitDwarfUnwindType::Always, "always",
+                            "Always emit EH frame entries"),
+                 clEnumValN(EmitDwarfUnwindType::NoCompactUnwind,
+                            "no-compact-unwind",
+                            "Only emit EH frame entries when compact unwind is "
+                            "not available"),
+                 clEnumValN(EmitDwarfUnwindType::Default, "default",
+                            "Use target platform default")));
+  MCBINDOPT(EmitDwarfUnwind);
+
   static cl::opt<bool> ShowMCInst(
       "asm-show-inst",
       cl::desc("Emit internal instruction representation to assembly file"));
@@ -89,6 +103,10 @@ llvm::mc::RegisterMCTargetOptionsFlags::RegisterMCTargetOptionsFlags() {
   static cl::opt<bool> NoDeprecatedWarn(
       "no-deprecated-warn", cl::desc("Suppress all deprecated warnings"));
   MCBINDOPT(NoDeprecatedWarn);
+
+  static cl::opt<bool> NoTypeCheck(
+      "no-type-check", cl::desc("Suppress type errors (Wasm)"));
+  MCBINDOPT(NoTypeCheck);
 
   static cl::opt<std::string> ABIName(
       "target-abi", cl::Hidden,
@@ -110,5 +128,8 @@ MCTargetOptions llvm::mc::InitMCTargetOptionsFromFlags() {
   Options.MCFatalWarnings = getFatalWarnings();
   Options.MCNoWarn = getNoWarn();
   Options.MCNoDeprecatedWarn = getNoDeprecatedWarn();
+  Options.MCNoTypeCheck = getNoTypeCheck();
+  Options.EmitDwarfUnwind = getEmitDwarfUnwind();
+
   return Options;
 }

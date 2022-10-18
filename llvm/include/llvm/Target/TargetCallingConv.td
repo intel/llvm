@@ -51,6 +51,11 @@ class CCIfPreallocated<CCAction A> : CCIf<"ArgFlags.isPreallocated()", A> {
 class CCIfSwiftSelf<CCAction A> : CCIf<"ArgFlags.isSwiftSelf()", A> {
 }
 
+/// CCIfSwiftAsync - If the current argument has swiftasync parameter attribute,
+/// apply Action A.
+class CCIfSwiftAsync<CCAction A> : CCIf<"ArgFlags.isSwiftAsync()", A> {
+}
+
 /// CCIfSwiftError - If the current argument has swifterror parameter attribute,
 /// apply Action A.
 class CCIfSwiftError<CCAction A> : CCIf<"ArgFlags.isSwiftError()", A> {
@@ -134,6 +139,15 @@ class CCAssignToStackWithShadow<int size,
   int Size = size;
   int Align = align;
   list<Register> ShadowRegList = shadowList;
+}
+
+/// CCAssignToRegAndStack - Same as CCAssignToReg, but also allocates a stack
+/// slot, when some register is used. Basically, it works like:
+/// CCIf<CCAssignToReg<regList>, CCAssignToStack<size, align>>.
+class CCAssignToRegAndStack<list<Register> regList, int size, int align>
+    : CCAssignToReg<regList> {
+  int Size = size;
+  int Align = align;
 }
 
 /// CCPassByVal - This action always matches: it assigns the value to a stack

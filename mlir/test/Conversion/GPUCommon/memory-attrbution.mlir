@@ -41,7 +41,7 @@ gpu.module @kernel {
     // ROCDL: llvm.extractvalue %[[descr6:.*]]
     // ROCDL: llvm.getelementptr
     // ROCDL: llvm.store
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     memref.store %arg0, %arg1[%c0] : memref<4xf32, 5>
 
     "terminator"() : () -> ()
@@ -67,14 +67,12 @@ gpu.module @kernel {
   // ROCDL-SAME: {
   gpu.func @workgroup(%arg0: f32) workgroup(%arg1: memref<4xf32, 3>) {
     // Get the address of the first element in the global array.
-    // NVVM: %[[c0:.*]] = llvm.mlir.constant(0 : i32) : i32
     // NVVM: %[[addr:.*]] = llvm.mlir.addressof @[[$buffer]] : !llvm.ptr<array<4 x f32>, 3>
-    // NVVM: %[[raw:.*]] = llvm.getelementptr %[[addr]][%[[c0]], %[[c0]]]
+    // NVVM: %[[raw:.*]] = llvm.getelementptr %[[addr]][0, 0]
     // NVVM-SAME: !llvm.ptr<f32, 3>
 
-    // ROCDL: %[[c0:.*]] = llvm.mlir.constant(0 : i32) : i32
     // ROCDL: %[[addr:.*]] = llvm.mlir.addressof @[[$buffer]] : !llvm.ptr<array<4 x f32>, 3>
-    // ROCDL: %[[raw:.*]] = llvm.getelementptr %[[addr]][%[[c0]], %[[c0]]]
+    // ROCDL: %[[raw:.*]] = llvm.getelementptr %[[addr]][0, 0]
     // ROCDL-SAME: !llvm.ptr<f32, 3>
 
     // Populate the memref descriptor.
@@ -107,7 +105,7 @@ gpu.module @kernel {
     // ROCDL: llvm.extractvalue %[[descr6:.*]]
     // ROCDL: llvm.getelementptr
     // ROCDL: llvm.store
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     memref.store %arg0, %arg1[%c0] : memref<4xf32, 3>
 
     "terminator"() : () -> ()
@@ -130,14 +128,12 @@ gpu.module @kernel {
   // ROCDL-LABEL: llvm.func @workgroup3d
   gpu.func @workgroup3d(%arg0: f32) workgroup(%arg1: memref<4x2x6xf32, 3>) {
     // Get the address of the first element in the global array.
-    // NVVM: %[[c0:.*]] = llvm.mlir.constant(0 : i32) : i32
     // NVVM: %[[addr:.*]] = llvm.mlir.addressof @[[$buffer]] : !llvm.ptr<array<48 x f32>, 3>
-    // NVVM: %[[raw:.*]] = llvm.getelementptr %[[addr]][%[[c0]], %[[c0]]]
+    // NVVM: %[[raw:.*]] = llvm.getelementptr %[[addr]][0, 0]
     // NVVM-SAME: !llvm.ptr<f32, 3>
 
-    // ROCDL: %[[c0:.*]] = llvm.mlir.constant(0 : i32) : i32
     // ROCDL: %[[addr:.*]] = llvm.mlir.addressof @[[$buffer]] : !llvm.ptr<array<48 x f32>, 3>
-    // ROCDL: %[[raw:.*]] = llvm.getelementptr %[[addr]][%[[c0]], %[[c0]]]
+    // ROCDL: %[[raw:.*]] = llvm.getelementptr %[[addr]][0, 0]
     // ROCDL-SAME: !llvm.ptr<f32, 3>
 
     // Populate the memref descriptor.
@@ -177,7 +173,7 @@ gpu.module @kernel {
     // ROCDL: %[[c1:.*]] = llvm.mlir.constant(1 : index) : i64
     // ROCDL: %[[descr10:.*]] = llvm.insertvalue %[[c1]], %[[descr9]][4, 2]
 
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     memref.store %arg0, %arg1[%c0,%c0,%c0] : memref<4x2x6xf32, 3>
     "terminator"() : () -> ()
   }
@@ -221,7 +217,7 @@ gpu.module @kernel {
     // ROCDL: %[[c4:.*]] = llvm.mlir.constant(4 : i64)
     // ROCDL: llvm.alloca %[[c4]] x f32 : (i64) -> !llvm.ptr<f32, 5>
 
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     memref.store %arg0, %arg1[%c0] : memref<1xf32, 3>
     memref.store %arg0, %arg2[%c0] : memref<2xf32, 3>
     memref.store %arg0, %arg3[%c0] : memref<3xf32, 5>

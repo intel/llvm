@@ -19,16 +19,14 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SetOperations.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/MC/MCDwarf.h"
 using namespace llvm;
 
 static cl::opt<bool> VerifyCFI("verify-cfiinstrs",
@@ -219,6 +217,14 @@ void CFIInstrInserter::calculateOutgoingCFAInfo(MBBCFAInfo &MBBInfo) {
       case MCCFIInstruction::OpRestore:
         CSRRestored.set(CFI.getRegister());
         break;
+      case MCCFIInstruction::OpLLVMDefAspaceCfa:
+        // TODO: Add support for handling cfi_def_aspace_cfa.
+#ifndef NDEBUG
+        report_fatal_error(
+            "Support for cfi_llvm_def_aspace_cfa not implemented! Value of CFA "
+            "may be incorrect!\n");
+#endif
+        break;
       case MCCFIInstruction::OpRememberState:
         // TODO: Add support for handling cfi_remember_state.
 #ifndef NDEBUG
@@ -339,7 +345,7 @@ bool CFIInstrInserter::insertCFIInstrs(MachineFunction &MF) {
     }
 
     if (ForceFullCFA) {
-      MF.getSubtarget().getFrameLowering()->emitCalleeSavedFrameMoves(
+      MF.getSubtarget().getFrameLowering()->emitCalleeSavedFrameMovesFullCFA(
           *MBBInfo.MBB, MBBI);
       InsertedCFIInstr = true;
       PrevMBBInfo = &MBBInfo;

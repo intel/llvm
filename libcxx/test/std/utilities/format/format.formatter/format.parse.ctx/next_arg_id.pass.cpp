@@ -6,24 +6,20 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: no-exceptions
+// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // This test requires the dylib support introduced in D92214.
-// XFAIL: with_system_cxx_lib=macosx10.15
-// XFAIL: with_system_cxx_lib=macosx10.14
-// XFAIL: with_system_cxx_lib=macosx10.13
-// XFAIL: with_system_cxx_lib=macosx10.12
-// XFAIL: with_system_cxx_lib=macosx10.11
-// XFAIL: with_system_cxx_lib=macosx10.10
-// XFAIL: with_system_cxx_lib=macosx10.9
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
 
 // <format>
 
 // constexpr size_t next_arg_id();
 
 #include <format>
+
 #include <cassert>
+#include <string_view>
 
 #include "test_macros.h"
 
@@ -40,11 +36,11 @@ void test_exception() {
   context.check_arg_id(0);
 
   try {
-    context.next_arg_id();
+    TEST_IGNORE_NODISCARD context.next_arg_id();
     assert(false);
-  } catch (const std::format_error& e) {
-    assert(strcmp(e.what(), "Using automatic argument numbering in manual "
-                            "argument numbering mode") == 0);
+  } catch ([[maybe_unused]] const std::format_error& e) {
+    LIBCPP_ASSERT(strcmp(e.what(), "Using automatic argument numbering in manual "
+                                   "argument numbering mode") == 0);
     return;
   }
   assert(false);

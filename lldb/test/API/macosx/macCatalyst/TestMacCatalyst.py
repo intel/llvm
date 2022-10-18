@@ -3,17 +3,13 @@ from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
 import lldbsuite.test.lldbutil as lldbutil
 import os
-import unittest2
 
 
 class TestMacCatalyst(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIf(macos_version=["<", "10.15"])
     @skipUnlessDarwin
     @skipIfDarwinEmbedded
-    @skipIfReproducer # This is hitting https://bugs.python.org/issue22393
     def test_macabi(self):
         """Test the x86_64-apple-ios-macabi target linked against a macos dylib"""
         self.build()

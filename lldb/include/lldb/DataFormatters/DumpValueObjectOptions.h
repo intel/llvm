@@ -35,12 +35,11 @@ public:
   };
 
   struct PointerAsArraySettings {
-    size_t m_element_count;
-    size_t m_base_element;
-    size_t m_stride;
+    size_t m_element_count = 0;
+    size_t m_base_element = 0;
+    size_t m_stride = 0;
 
-    PointerAsArraySettings()
-        : m_element_count(0), m_base_element(0), m_stride() {}
+    PointerAsArraySettings() = default;
 
     PointerAsArraySettings(size_t elem_count, size_t base_elem = 0,
                            size_t stride = 1)
@@ -62,14 +61,12 @@ public:
 
   DumpValueObjectOptions();
 
-  DumpValueObjectOptions(const DumpValueObjectOptions &rhs) = default;
-
   DumpValueObjectOptions(ValueObject &valobj);
 
   DumpValueObjectOptions &
   SetMaximumPointerDepth(PointerDepth depth = {PointerDepth::Mode::Never, 0});
 
-  DumpValueObjectOptions &SetMaximumDepth(uint32_t depth = 0);
+  DumpValueObjectOptions &SetMaximumDepth(uint32_t depth, bool is_default);
 
   DumpValueObjectOptions &SetDeclPrintingHelper(DeclPrintingHelper helper);
 
@@ -128,6 +125,7 @@ public:
   SetPointerAsArray(const PointerAsArraySettings &ptr_array);
 
   uint32_t m_max_depth = UINT32_MAX;
+  bool m_max_depth_is_default = true;
   lldb::DynamicValueType m_use_dynamic = lldb::eNoDynamicValues;
   uint32_t m_omit_summary_depth = 0;
   lldb::Format m_format = lldb::eFormatDefault;

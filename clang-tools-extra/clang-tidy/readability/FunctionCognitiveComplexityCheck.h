@@ -26,9 +26,11 @@ namespace readability {
 ///     diagnostics on every piece of code (loop, `if` statement, etc.) which
 ///     contributes to that complexity.
 //      Default is `true`
+///   * `IgnoreMacros` - if set to `true`, the check will ignore code inside
+///     macros. Default is `false`.
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/readability-function-cognitive-complexity.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/readability/function-cognitive-complexity.html
 class FunctionCognitiveComplexityCheck : public ClangTidyCheck {
 public:
   FunctionCognitiveComplexityCheck(StringRef Name, ClangTidyContext *Context);
@@ -43,6 +45,7 @@ public:
 private:
   const unsigned Threshold;
   const bool DescribeBasicIncrements;
+  const bool IgnoreMacros;
 };
 
 } // namespace readability

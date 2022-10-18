@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_PROJECT_AWARE_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_PROJECT_AWARE_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_PROJECTAWARE_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_PROJECTAWARE_H
 
 #include "Config.h"
 #include "index/Index.h"
@@ -20,6 +20,7 @@ namespace clangd {
 /// A functor to create an index for an external index specification. Functor
 /// should perform any high latency operation in a separate thread through
 /// AsyncTaskRunner, if set.
+/// Spec is never `None`.
 using IndexFactory = std::function<std::unique_ptr<SymbolIndex>(
     const Config::ExternalIndexSpec &, AsyncTaskRunner *)>;
 

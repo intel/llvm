@@ -38,14 +38,14 @@ int main(int, char**)
             P(3, 2),
         };
         M m;
-        m.insert(input_iterator<P*>(ar), input_iterator<P*>(ar + sizeof(ar)/sizeof(ar[0])));
+        m.insert(cpp17_input_iterator<P*>(ar), cpp17_input_iterator<P*>(ar + sizeof(ar)/sizeof(ar[0])));
         assert(m.size() == 3);
         assert(m.begin()->first == 1);
         assert(m.begin()->second == 1);
-        assert(next(m.begin())->first == 2);
-        assert(next(m.begin())->second == 1);
-        assert(next(m.begin(), 2)->first == 3);
-        assert(next(m.begin(), 2)->second == 1);
+        assert(std::next(m.begin())->first == 2);
+        assert(std::next(m.begin())->second == 1);
+        assert(std::next(m.begin(), 2)->first == 3);
+        assert(std::next(m.begin(), 2)->second == 1);
     }
 #if TEST_STD_VER >= 11
     {
@@ -64,14 +64,14 @@ int main(int, char**)
             P(3, 2),
         };
         M m;
-        m.insert(input_iterator<P*>(ar), input_iterator<P*>(ar + sizeof(ar)/sizeof(ar[0])));
+        m.insert(cpp17_input_iterator<P*>(ar), cpp17_input_iterator<P*>(ar + sizeof(ar)/sizeof(ar[0])));
         assert(m.size() == 3);
         assert(m.begin()->first == 1);
         assert(m.begin()->second == 1);
-        assert(next(m.begin())->first == 2);
-        assert(next(m.begin())->second == 1);
-        assert(next(m.begin(), 2)->first == 3);
-        assert(next(m.begin(), 2)->second == 1);
+        assert(std::next(m.begin())->first == 2);
+        assert(std::next(m.begin())->second == 1);
+        assert(std::next(m.begin(), 2)->first == 3);
+        assert(std::next(m.begin(), 2)->second == 1);
     }
 #endif
 

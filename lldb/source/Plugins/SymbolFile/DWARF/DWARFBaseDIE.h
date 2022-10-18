@@ -24,7 +24,7 @@ class SymbolFileDWARF;
 
 class DWARFBaseDIE {
 public:
-  DWARFBaseDIE() : m_cu(nullptr), m_die(nullptr) {}
+  DWARFBaseDIE() = default;
 
   DWARFBaseDIE(DWARFUnit *cu, DWARFDebugInfoEntry *die)
       : m_cu(cu), m_die(die) {}
@@ -107,6 +107,9 @@ public:
   uint64_t GetAttributeValueAsUnsigned(const dw_attr_t attr,
                                        uint64_t fail_value) const;
 
+  llvm::Optional<uint64_t>
+  GetAttributeValueAsOptionalUnsigned(const dw_attr_t attr) const;
+
   uint64_t GetAttributeValueAsAddress(const dw_attr_t attr,
                                       uint64_t fail_value) const;
 
@@ -115,8 +118,8 @@ public:
                        Recurse recurse = Recurse::yes) const;
 
 protected:
-  DWARFUnit *m_cu;
-  DWARFDebugInfoEntry *m_die;
+  DWARFUnit *m_cu = nullptr;
+  DWARFDebugInfoEntry *m_die = nullptr;
 };
 
 bool operator==(const DWARFBaseDIE &lhs, const DWARFBaseDIE &rhs);

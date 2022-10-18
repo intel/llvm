@@ -11,11 +11,9 @@
 // Aligned allocations are not supported on macOS < 10.13
 // Note: use 'unsupported' instead of 'xfail' to ensure
 // we won't pass prior to c++17.
-// UNSUPPORTED: with_system_cxx_lib=macosx10.12
-// UNSUPPORTED: with_system_cxx_lib=macosx10.11
-// UNSUPPORTED: with_system_cxx_lib=macosx10.10
-// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}}
 
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 // <memory>
 
@@ -29,6 +27,7 @@
 
 #include <memory>
 #include <cassert>
+#include <utility>
 
 #include "test_macros.h"
 

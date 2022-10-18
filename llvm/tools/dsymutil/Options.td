@@ -24,6 +24,10 @@ def verbose: F<"verbose">,
   HelpText<"Enable verbose mode.">,
   Group<grp_general>;
 
+def keep_func_for_static: F<"keep-function-for-static">,
+  HelpText<"Make a static variable keep the enclosing function even if it would have been omitted otherwise.">,
+  Group<grp_general>;
+
 def statistics: F<"statistics">,
   HelpText<"Print statistics about the contribution of each object file to "
            "the linked debug info. This prints a table after linking with the "
@@ -34,8 +38,14 @@ def statistics: F<"statistics">,
   Group<grp_general>;
 
 def verify: F<"verify">,
-  HelpText<"Run the DWARF verifier on the linked DWARF debug info.">,
+  HelpText<"Alias for --verify-dwarf=output">,
   Group<grp_general>;
+
+def verify_dwarf: Separate<["--", "-"], "verify-dwarf">,
+  MetaVarName<"<verification mode>">,
+  HelpText<"Run the DWARF verifier on the input and/or output. Valid options are 'input', 'output', 'all' or 'none'.">,
+  Group<grp_general>;
+def: Joined<["--", "-"], "verify-dwarf=">, Alias<verify_dwarf>;
 
 def no_output: F<"no-output">,
   HelpText<"Do the link in memory, but do not emit the result file.">,
@@ -50,7 +60,7 @@ def no_odr: F<"no-odr">,
   Group<grp_general>;
 
 def dump_debug_map: F<"dump-debug-map">,
-  HelpText<"Parse and dump the debug map to standard output. Not DWARF link will take place.">,
+  HelpText<"Parse and dump the debug map to standard output. No DWARF link will take place.">,
   Group<grp_general>;
 
 def yaml_input: Flag<["-", "--"], "y">,
@@ -79,19 +89,6 @@ def flat: F<"flat">,
 def: Flag<["-"], "f">,
   Alias<flat>,
   HelpText<"Alias for --flat">,
-  Group<grp_general>;
-
-def minimize: F<"minimize">,
-  HelpText<"When used when creating a dSYM file with Apple accelerator tables, "
-           "this option will suppress the emission of the .debug_inlines, "
-           ".debug_pubnames, and .debug_pubtypes sections since dsymutil "
-           "has better equivalents: .apple_names and .apple_types. When used in "
-           "conjunction with --update option, this option will cause redundant "
-           "accelerator tables to be removed.">,
-  Group<grp_general>;
-def: Flag<["-"], "z">,
-  Alias<minimize>,
-  HelpText<"Alias for --minimize">,
   Group<grp_general>;
 
 def update: F<"update">,
@@ -146,7 +143,7 @@ def: Joined<["--", "-"], "arch=">, Alias<arch>;
 
 def accelerator: Separate<["--", "-"], "accelerator">,
   MetaVarName<"<accelerator type>">,
-  HelpText<"Specify the desired type of accelerator table. Valid options are 'Apple', 'Dwarf' and 'Default'">,
+  HelpText<"Specify the desired type of accelerator table. Valid options are 'Apple' (.apple_names, .apple_namespaces, .apple_types, .apple_objc), 'Dwarf' (.debug_names), 'Pub' (.debug_pubnames, .debug_pubtypes), 'Default' and 'None'">,
   Group<grp_general>;
 def: Joined<["--", "-"], "accelerator=">, Alias<accelerator>;
 
@@ -164,13 +161,19 @@ def: Separate<["-"], "j">,
   HelpText<"Alias for --num-threads">,
   Group<grp_general>;
 
+def reproducer: Separate<["--", "-"], "reproducer">,
+  MetaVarName<"<mode>">,
+  HelpText<"Specify the reproducer generation mode. Valid options are 'GenerateOnExit', 'GenerateOnCrash', 'Use', 'Off'.">,
+  Group<grp_general>;
+def: Joined<["--", "-"], "reproducer=">, Alias<reproducer>;
+
 def gen_reproducer: F<"gen-reproducer">,
-  HelpText<"Generate a reproducer consisting of the input object files.">,
+  HelpText<"Generate a reproducer consisting of the input object files. Alias for --reproducer=GenerateOnExit.">,
   Group<grp_general>;
 
 def use_reproducer: Separate<["--", "-"], "use-reproducer">,
   MetaVarName<"<path>">,
-  HelpText<"Use the object files from the given reproducer path.">,
+  HelpText<"Use the object files from the given reproducer path. Alias for --reproducer=Use.">,
   Group<grp_general>;
 def: Joined<["--", "-"], "use-reproducer=">, Alias<use_reproducer>;
 

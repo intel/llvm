@@ -31,23 +31,21 @@ using namespace clang;
 namespace {
 struct DepCollectorPPCallbacks : public PPCallbacks {
   DependencyCollector &DepCollector;
-  SourceManager &SM;
-  DiagnosticsEngine &Diags;
-  DepCollectorPPCallbacks(DependencyCollector &L, SourceManager &SM,
-                          DiagnosticsEngine &Diags)
-      : DepCollector(L), SM(SM), Diags(Diags) {}
+  Preprocessor &PP;
+  DepCollectorPPCallbacks(DependencyCollector &L, Preprocessor &PP)
+      : DepCollector(L), PP(PP) {}
 
-  void FileChanged(SourceLocation Loc, FileChangeReason Reason,
-                   SrcMgr::CharacteristicKind FileType,
-                   FileID PrevFID) override {
-    if (Reason != PPCallbacks::EnterFile)
+  void LexedFileChanged(FileID FID, LexedFileChangeReason Reason,
+                        SrcMgr::CharacteristicKind FileType, FileID PrevFID,
+                        SourceLocation Loc) override {
+    if (Reason != PPCallbacks::LexedFileChangeReason::EnterFile)
       return;
 
     // Dependency generation really does want to go all the way to the
     // file entry for a source location to find out what is depended on.
     // We do not want #line markers to affect dependency generation!
-    if (Optional<StringRef> Filename = SM.getNonBuiltinFilenameForID(
-            SM.getFileID(SM.getExpansionLoc(Loc))))
+    if (Optional<StringRef> Filename =
+            PP.getSourceManager().getNonBuiltinFilenameForID(FID))
       DepCollector.maybeAddDependency(
           llvm::sys::path::remove_leading_dotslash(*Filename),
           /*FromModule*/ false, isSystem(FileType), /*IsModuleFile*/ false,
@@ -66,9 +64,9 @@ struct DepCollectorPPCallbacks : public PPCallbacks {
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
-                          CharSourceRange FilenameRange, const FileEntry *File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          CharSourceRange FilenameRange,
+                          Optional<FileEntryRef> File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override {
     if (!File)
       DepCollector.maybeAddDependency(FileName, /*FromModule*/false,
@@ -90,7 +88,9 @@ struct DepCollectorPPCallbacks : public PPCallbacks {
                                     /*IsMissing=*/false);
   }
 
-  void EndOfMainFile() override { DepCollector.finishedMainFile(Diags); }
+  void EndOfMainFile() override {
+    DepCollector.finishedMainFile(PP.getDiagnostics());
+  }
 };
 
 struct DepCollectorMMCallbacks : public ModuleMapCallbacks {
@@ -141,7 +141,18 @@ void DependencyCollector::maybeAddDependency(StringRef Filename,
 }
 
 bool DependencyCollector::addDependency(StringRef Filename) {
-  if (Seen.insert(Filename).second) {
+  StringRef SearchPath;
+#ifdef _WIN32
+  // Make the search insensitive to case and separators.
+  llvm::SmallString<256> TmpPath = Filename;
+  llvm::sys::path::native(TmpPath);
+  std::transform(TmpPath.begin(), TmpPath.end(), TmpPath.begin(), ::tolower);
+  SearchPath = TmpPath.str();
+#else
+  SearchPath = Filename;
+#endif
+
+  if (Seen.insert(SearchPath).second) {
     Dependencies.push_back(std::string(Filename));
     return true;
   }
@@ -164,8 +175,7 @@ bool DependencyCollector::sawDependency(StringRef Filename, bool FromModule,
 
 DependencyCollector::~DependencyCollector() { }
 void DependencyCollector::attachToPreprocessor(Preprocessor &PP) {
-  PP.addPPCallbacks(std::make_unique<DepCollectorPPCallbacks>(
-      *this, PP.getSourceManager(), PP.getDiagnostics()));
+  PP.addPPCallbacks(std::make_unique<DepCollectorPPCallbacks>(*this, PP));
   PP.getHeaderSearchInfo().getModuleMap().addModuleMapCallbacks(
       std::make_unique<DepCollectorMMCallbacks>(*this));
 }
@@ -314,7 +324,7 @@ void DependencyFileGenerator::outputDependencyFile(DiagnosticsEngine &Diags) {
   }
 
   std::error_code EC;
-  llvm::raw_fd_ostream OS(OutputFile, EC, llvm::sys::fs::OF_Text);
+  llvm::raw_fd_ostream OS(OutputFile, EC, llvm::sys::fs::OF_TextWithCRLF);
   if (EC) {
     Diags.Report(diag::err_fe_error_opening) << OutputFile << EC.message();
     return;

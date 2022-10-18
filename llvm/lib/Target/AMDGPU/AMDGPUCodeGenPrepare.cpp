@@ -22,6 +22,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/KnownBits.h"
@@ -147,11 +148,15 @@ class AMDGPUCodeGenPrepare : public FunctionPass,
   /// \returns True.
   bool promoteUniformBitreverseToI32(IntrinsicInst &I) const;
 
+  /// \returns The minimum number of bits needed to store the value of \Op as an
+  /// unsigned integer. Truncating to this size and then zero-extending to
+  /// the original will not change the value.
+  unsigned numBitsUnsigned(Value *Op) const;
 
-  unsigned numBitsUnsigned(Value *Op, unsigned ScalarSize) const;
-  unsigned numBitsSigned(Value *Op, unsigned ScalarSize) const;
-  bool isI24(Value *V, unsigned ScalarSize) const;
-  bool isU24(Value *V, unsigned ScalarSize) const;
+  /// \returns The minimum number of bits needed to store the value of \Op as a
+  /// signed integer. Truncating to this size and then sign-extending to
+  /// the original size will not change the value.
+  unsigned numBitsSigned(Value *Op) const;
 
   /// Replace mul instructions with llvm.amdgcn.mul.u24 or llvm.amdgcn.mul.s24.
   /// SelectionDAG has an issue where an and asserting the bits are known
@@ -200,6 +205,7 @@ public:
   AMDGPUCodeGenPrepare() : FunctionPass(ID) {}
 
   bool visitFDiv(BinaryOperator &I);
+  bool visitXor(BinaryOperator &I);
 
   bool visitInstruction(Instruction &I) { return false; }
   bool visitBinaryOperator(BinaryOperator &I);
@@ -439,27 +445,12 @@ bool AMDGPUCodeGenPrepare::promoteUniformBitreverseToI32(
   return true;
 }
 
-unsigned AMDGPUCodeGenPrepare::numBitsUnsigned(Value *Op,
-                                               unsigned ScalarSize) const {
-  KnownBits Known = computeKnownBits(Op, *DL, 0, AC);
-  return ScalarSize - Known.countMinLeadingZeros();
+unsigned AMDGPUCodeGenPrepare::numBitsUnsigned(Value *Op) const {
+  return computeKnownBits(Op, *DL, 0, AC).countMaxActiveBits();
 }
 
-unsigned AMDGPUCodeGenPrepare::numBitsSigned(Value *Op,
-                                             unsigned ScalarSize) const {
-  // In order for this to be a signed 24-bit value, bit 23, must
-  // be a sign bit.
-  return ScalarSize - ComputeNumSignBits(Op, *DL, 0, AC);
-}
-
-bool AMDGPUCodeGenPrepare::isI24(Value *V, unsigned ScalarSize) const {
-  return ScalarSize >= 24 && // Types less than 24-bit should be treated
-                                     // as unsigned 24-bit values.
-    numBitsSigned(V, ScalarSize) < 24;
-}
-
-bool AMDGPUCodeGenPrepare::isU24(Value *V, unsigned ScalarSize) const {
-  return numBitsUnsigned(V, ScalarSize) <= 24;
+unsigned AMDGPUCodeGenPrepare::numBitsSigned(Value *Op) const {
+  return ComputeMaxSignificantBits(Op, *DL, 0, AC);
 }
 
 static void extractValues(IRBuilder<> &Builder,
@@ -487,6 +478,34 @@ static Value *insertValues(IRBuilder<> &Builder,
   return NewVal;
 }
 
+// Returns 24-bit or 48-bit (as per `NumBits` and `Size`) mul of `LHS` and
+// `RHS`. `NumBits` is the number of KnownBits of the result and `Size` is the
+// width of the original destination.
+static Value *getMul24(IRBuilder<> &Builder, Value *LHS, Value *RHS,
+                       unsigned Size, unsigned NumBits, bool IsSigned) {
+  if (Size <= 32 || NumBits <= 32) {
+    Intrinsic::ID ID =
+        IsSigned ? Intrinsic::amdgcn_mul_i24 : Intrinsic::amdgcn_mul_u24;
+    return Builder.CreateIntrinsic(ID, {}, {LHS, RHS});
+  }
+
+  assert(NumBits <= 48);
+
+  Intrinsic::ID LoID =
+      IsSigned ? Intrinsic::amdgcn_mul_i24 : Intrinsic::amdgcn_mul_u24;
+  Intrinsic::ID HiID =
+      IsSigned ? Intrinsic::amdgcn_mulhi_i24 : Intrinsic::amdgcn_mulhi_u24;
+
+  Value *Lo = Builder.CreateIntrinsic(LoID, {}, {LHS, RHS});
+  Value *Hi = Builder.CreateIntrinsic(HiID, {}, {LHS, RHS});
+
+  IntegerType *I64Ty = Builder.getInt64Ty();
+  Lo = Builder.CreateZExtOrTrunc(Lo, I64Ty);
+  Hi = Builder.CreateZExtOrTrunc(Hi, I64Ty);
+
+  return Builder.CreateOr(Lo, Builder.CreateShl(Hi, 32));
+}
+
 bool AMDGPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
   if (I.getOpcode() != Instruction::Mul)
     return false;
@@ -505,13 +524,17 @@ bool AMDGPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
   IRBuilder<> Builder(&I);
   Builder.SetCurrentDebugLocation(I.getDebugLoc());
 
-  Intrinsic::ID IntrID = Intrinsic::not_intrinsic;
+  unsigned LHSBits = 0, RHSBits = 0;
+  bool IsSigned = false;
 
-  // TODO: Should this try to match mulhi24?
-  if (ST->hasMulU24() && isU24(LHS, Size) && isU24(RHS, Size)) {
-    IntrID = Intrinsic::amdgcn_mul_u24;
-  } else if (ST->hasMulI24() && isI24(LHS, Size) && isI24(RHS, Size)) {
-    IntrID = Intrinsic::amdgcn_mul_i24;
+  if (ST->hasMulU24() && (LHSBits = numBitsUnsigned(LHS)) <= 24 &&
+      (RHSBits = numBitsUnsigned(RHS)) <= 24) {
+    IsSigned = false;
+
+  } else if (ST->hasMulI24() && (LHSBits = numBitsSigned(LHS)) <= 24 &&
+             (RHSBits = numBitsSigned(RHS)) <= 24) {
+    IsSigned = true;
+
   } else
     return false;
 
@@ -521,27 +544,26 @@ bool AMDGPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
   extractValues(Builder, LHSVals, LHS);
   extractValues(Builder, RHSVals, RHS);
 
-
   IntegerType *I32Ty = Builder.getInt32Ty();
-  FunctionCallee Intrin = Intrinsic::getDeclaration(Mod, IntrID);
   for (int I = 0, E = LHSVals.size(); I != E; ++I) {
     Value *LHS, *RHS;
-    if (IntrID == Intrinsic::amdgcn_mul_u24) {
-      LHS = Builder.CreateZExtOrTrunc(LHSVals[I], I32Ty);
-      RHS = Builder.CreateZExtOrTrunc(RHSVals[I], I32Ty);
-    } else {
+    if (IsSigned) {
       LHS = Builder.CreateSExtOrTrunc(LHSVals[I], I32Ty);
       RHS = Builder.CreateSExtOrTrunc(RHSVals[I], I32Ty);
+    } else {
+      LHS = Builder.CreateZExtOrTrunc(LHSVals[I], I32Ty);
+      RHS = Builder.CreateZExtOrTrunc(RHSVals[I], I32Ty);
     }
 
-    Value *Result = Builder.CreateCall(Intrin, {LHS, RHS});
+    Value *Result =
+        getMul24(Builder, LHS, RHS, Size, LHSBits + RHSBits, IsSigned);
 
-    if (IntrID == Intrinsic::amdgcn_mul_u24) {
-      ResultVals.push_back(Builder.CreateZExtOrTrunc(Result,
-                                                     LHSVals[I]->getType()));
+    if (IsSigned) {
+      ResultVals.push_back(
+          Builder.CreateSExtOrTrunc(Result, LHSVals[I]->getType()));
     } else {
-      ResultVals.push_back(Builder.CreateSExtOrTrunc(Result,
-                                                     LHSVals[I]->getType()));
+      ResultVals.push_back(
+          Builder.CreateZExtOrTrunc(Result, LHSVals[I]->getType()));
     }
   }
 
@@ -604,13 +626,13 @@ bool AMDGPUCodeGenPrepare::foldBinOpIntoSelect(BinaryOperator &BO) const {
   Constant *FoldedT = SelOpNo ?
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CBO, CT, *DL) :
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CT, CBO, *DL);
-  if (isa<ConstantExpr>(FoldedT))
+  if (!FoldedT || isa<ConstantExpr>(FoldedT))
     return false;
 
   Constant *FoldedF = SelOpNo ?
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CBO, CF, *DL) :
     ConstantFoldBinaryOpOperands(BO.getOpcode(), CF, CBO, *DL);
-  if (isa<ConstantExpr>(FoldedF))
+  if (!FoldedF || isa<ConstantExpr>(FoldedF))
     return false;
 
   IRBuilder<> Builder(&BO);
@@ -807,9 +829,34 @@ bool AMDGPUCodeGenPrepare::visitFDiv(BinaryOperator &FDiv) {
   return !!NewFDiv;
 }
 
+bool AMDGPUCodeGenPrepare::visitXor(BinaryOperator &I) {
+  // Match the Xor instruction, its type and its operands
+  IntrinsicInst *IntrinsicCall = dyn_cast<IntrinsicInst>(I.getOperand(0));
+  ConstantInt *RHS = dyn_cast<ConstantInt>(I.getOperand(1));
+  if (!RHS || !IntrinsicCall || RHS->getSExtValue() != -1)
+    return visitBinaryOperator(I);
+
+  // Check if the Call is an intrinsic instruction to amdgcn_class intrinsic
+  // has only one use
+  if (IntrinsicCall->getIntrinsicID() != Intrinsic::amdgcn_class ||
+      !IntrinsicCall->hasOneUse())
+    return visitBinaryOperator(I);
+
+  // "Not" the second argument of the intrinsic call
+  ConstantInt *Arg = dyn_cast<ConstantInt>(IntrinsicCall->getOperand(1));
+  if (!Arg)
+    return visitBinaryOperator(I);
+
+  IntrinsicCall->setOperand(
+      1, ConstantInt::get(Arg->getType(), Arg->getZExtValue() ^ 0x3ff));
+  I.replaceAllUsesWith(IntrinsicCall);
+  I.eraseFromParent();
+  return true;
+}
+
 static bool hasUnsafeFPMath(const Function &F) {
   Attribute Attr = F.getFnAttribute("unsafe-fp-math");
-  return Attr.getValueAsString() == "true";
+  return Attr.getValueAsBool();
 }
 
 static std::pair<Value*, Value*> getMul64(IRBuilder<> &Builder,
@@ -830,7 +877,7 @@ static Value* getMulHu(IRBuilder<> &Builder, Value *LHS, Value *RHS) {
   return getMul64(Builder, LHS, RHS).second;
 }
 
-/// Figure out how many bits are really needed for this ddivision. \p AtLeast is
+/// Figure out how many bits are really needed for this division. \p AtLeast is
 /// an optimization hint to bypass the second ComputeNumSignBits call if we the
 /// first one is insufficient. Returns -1 on failure.
 int AMDGPUCodeGenPrepare::getDivNumBits(BinaryOperator &I,
@@ -1287,7 +1334,7 @@ bool AMDGPUCodeGenPrepare::visitLoadInst(LoadInst &I) {
       ConstantInt *Lower =
         mdconst::extract<ConstantInt>(Range->getOperand(0));
 
-      if (Lower->getValue().isNullValue()) {
+      if (Lower->isNullValue()) {
         WidenLoad->setMetadata(LLVMContext::MD_range, nullptr);
       } else {
         Metadata *LowAndHigh[] = {

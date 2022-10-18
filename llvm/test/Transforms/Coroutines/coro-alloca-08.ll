@@ -1,5 +1,4 @@
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 %"struct.std::coroutine_handle" = type { i8* }
 %"struct.std::coroutine_handle.0" = type { %"struct.std::coroutine_handle" }
@@ -12,7 +11,7 @@ declare void @consume.i8.array(%i8.array*)
 
 ; The lifetime of testval starts and ends before coro.suspend. Even though consume.i8.array
 ; might capture it, we can safely say it won't live across suspension.
-define void @foo() "coroutine.presplit"="1" {
+define void @foo() presplitcoroutine {
 entry:
   %testval = alloca %i8.array
   %cast = getelementptr inbounds %i8.array, %i8.array* %testval, i64 0, i32 0, i64 0
@@ -40,7 +39,7 @@ exit:
 
 ; The lifetime of testval starts after coro.suspend. So it will never live across suspension
 ; points.
-define void @bar() "coroutine.presplit"="1" {
+define void @bar() presplitcoroutine {
 entry:
   %testval = alloca %i8.array
   %cast = getelementptr inbounds %i8.array, %i8.array* %testval, i64 0, i32 0, i64 0

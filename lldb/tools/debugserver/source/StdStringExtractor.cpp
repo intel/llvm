@@ -8,8 +8,7 @@
 
 #include "StdStringExtractor.h"
 
-#include <stdlib.h>
-
+#include <cstdlib>
 
 static inline int xdigit_to_sint(char ch) {
   if (ch >= 'a' && ch <= 'f')
@@ -31,7 +30,7 @@ StdStringExtractor::StdStringExtractor(const char *packet_cstr)
 }
 
 // Destructor
-StdStringExtractor::~StdStringExtractor() {}
+StdStringExtractor::~StdStringExtractor() = default;
 
 char StdStringExtractor::GetChar(char fail_value) {
   if (m_index < m_packet.size()) {

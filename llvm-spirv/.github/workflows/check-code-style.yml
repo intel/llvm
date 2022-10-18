@@ -11,25 +11,25 @@ name: Check code style
 on:
   pull_request:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check formatting for:
       - 'docs/**' # documentation
       - 'test/**' # tests
       - '**.md'   # README
       - '**.txt'  # CMakeLists.txt
-      - '**/check-**-build.xml' # Other workflows
+      - '**/check-**-build.yml' # Other workflows
 
 env:
   # We need compile command database in order to perform clang-tidy check. So,
   # in order to perform configure step we need to setup llvm-dev package. This
   # env variable used to specify desired version of it
-  LLVM_VERSION: 13
+  LLVM_VERSION: 16
 
 jobs:
   clang-format-and-tidy:
     name: clang-format & clang-tidy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
@@ -43,7 +43,12 @@ jobs:
     - name: Gather list of changes
       id: gather-list-of-changes
       run: |
-        git diff -U0 --no-color ${{ github.sha }}^ -- include lib > diff-to-inspect.txt
+        git diff -U0 --no-color ${{ github.sha }}^ -- include lib \
+            ':(exclude)include/LLVMSPIRVExtensions.inc' \
+            ':(exclude)lib/SPIRV/libSPIRV/SPIRVErrorEnum.h' \
+            ':(exclude)lib/SPIRV/libSPIRV/SPIRVOpCodeEnum.h' \
+            ':(exclude)lib/SPIRV/libSPIRV/SPIRVOpCodeEnumInternal.h' \
+            > diff-to-inspect.txt
         if [ -s diff-to-inspect.txt ]; then
           # Here we set an output of our step, which is used later to either
           # perform or skip further steps, i.e. there is no sense to install
@@ -59,9 +64,12 @@ jobs:
         # launched, so, we need to setup llvm package to perform cmake
         # configuration step to generate that database
         curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
-        echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
+        echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal main" | sudo tee -a /etc/apt/sources.list
         sudo apt-get update
-        sudo apt-get install -yqq clang-format-9 clang-tidy-9 llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev
+        sudo apt-get install -yqq \
+            clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \
+            llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev \
+            mlir-${{ env.LLVM_VERSION }}-tools \
 
     - name: Generate compile command database
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
@@ -73,7 +81,7 @@ jobs:
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
       id: run-clang-format
       run: |
-        cat diff-to-inspect.txt | /usr/share/clang/clang-format-9/clang-format-diff.py -p1 > clang-format.patch
+        cat diff-to-inspect.txt | /usr/share/clang/clang-format-${{ env.LLVM_VERSION }}/clang-format-diff.py -p1 > clang-format.patch
         if [ -s clang-format.patch ]; then
           echo "clang-format found incorrectly formatted code:"
           cat clang-format.patch;
@@ -91,8 +99,8 @@ jobs:
       if: ${{ always() && steps.gather-list-of-changes.outputs.HAS_CHANGES }}
       id: run-clang-tidy
       run: |
-        cat diff-to-inspect.txt | /usr/lib/llvm-9/share/clang/clang-tidy-diff.py \
-            -p1 -clang-tidy-binary clang-tidy-9 -quiet \
+        cat diff-to-inspect.txt | /usr/lib/llvm-${{ env.LLVM_VERSION }}/share/clang/clang-tidy-diff.py \
+            -p1 -clang-tidy-binary clang-tidy-${{ env.LLVM_VERSION }} -quiet \
             -path ${{ github.workspace}}/build > clang-tidy.log 2>/dev/null
         # By some reason, clang-tidy log contains tons of extra empty lines,
         # that confuse the check below

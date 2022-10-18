@@ -14,26 +14,31 @@
 
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/BinaryFormat/MachO.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <cstddef>
 #include <cstdint>
 
-namespace lld {
-namespace macho {
+namespace lld::macho {
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 class Symbol;
+class Defined;
 class DylibSymbol;
 class InputSection;
+class ObjFile;
 
 class TargetInfo {
 public:
   template <class LP> TargetInfo(LP) {
     // Having these values available in TargetInfo allows us to access them
     // without having to resort to templates.
+    magic = LP::magic;
     pageZeroSize = LP::pageZeroSize;
+    headerSize = sizeof(typename LP::mach_header);
     wordSize = LP::wordSize;
+    p2WordSize = llvm::CTLog2<LP::wordSize>();
   }
 
   virtual ~TargetInfo() = default;
@@ -47,10 +52,17 @@ public:
 
   // Write code for lazy binding. See the comments on StubsSection for more
   // details.
-  virtual void writeStub(uint8_t *buf, const Symbol &) const = 0;
+  virtual void writeStub(uint8_t *buf, const Symbol &,
+                         uint64_t pointerVA) const = 0;
   virtual void writeStubHelperHeader(uint8_t *buf) const = 0;
-  virtual void writeStubHelperEntry(uint8_t *buf, const DylibSymbol &,
+  virtual void writeStubHelperEntry(uint8_t *buf, const Symbol &,
                                     uint64_t entryAddr) const = 0;
+
+  virtual void writeObjCMsgSendStub(uint8_t *buf, Symbol *sym,
+                                    uint64_t stubsAddr, uint64_t stubOffset,
+                                    uint64_t selrefsVA, uint64_t selectorIndex,
+                                    uint64_t gotAddr,
+                                    uint64_t msgSendIndex) const = 0;
 
   // Symbols may be referenced via either the GOT or the stubs section,
   // depending on the relocation type. prepareSymbolRelocation() will set up the
@@ -59,35 +71,82 @@ public:
   // on a level of address indirection.
   virtual void relaxGotLoad(uint8_t *loc, uint8_t type) const = 0;
 
-  virtual const RelocAttrs &getRelocAttrs(uint8_t type) const = 0;
-
   virtual uint64_t getPageSize() const = 0;
+
+  virtual void populateThunk(InputSection *thunk, Symbol *funcSym) {
+    llvm_unreachable("target does not use thunks");
+  }
+
+  const RelocAttrs &getRelocAttrs(uint8_t type) const {
+    assert(type < relocAttrs.size() && "invalid relocation type");
+    if (type >= relocAttrs.size())
+      return invalidRelocAttrs;
+    return relocAttrs[type];
+  }
 
   bool hasAttr(uint8_t type, RelocAttrBits bit) const {
     return getRelocAttrs(type).hasAttr(bit);
   }
 
-  uint32_t cpuType;
+  bool usesThunks() const { return thunkSize > 0; }
+
+  // For now, handleDtraceReloc only implements -no_dtrace_dof, and ensures
+  // that the linking would not fail even when there are user-provided dtrace
+  // symbols. However, unlike ld64, lld currently does not emit __dof sections.
+  virtual void handleDtraceReloc(const Symbol *sym, const Reloc &r,
+                                 uint8_t *loc) const {
+    llvm_unreachable("Unsupported architecture for dtrace symbols");
+  }
+
+  virtual void applyOptimizationHints(uint8_t *, const ObjFile &) const {};
+
+  uint32_t magic;
+  llvm::MachO::CPUType cpuType;
   uint32_t cpuSubtype;
 
   uint64_t pageZeroSize;
+  size_t headerSize;
   size_t stubSize;
   size_t stubHelperHeaderSize;
   size_t stubHelperEntrySize;
+  size_t objcStubsFastSize;
+  size_t objcStubsAlignment;
+  uint8_t p2WordSize;
   size_t wordSize;
+
+  size_t thunkSize = 0;
+  uint64_t forwardBranchRange = 0;
+  uint64_t backwardBranchRange = 0;
+
+  uint32_t modeDwarfEncoding;
+  uint8_t subtractorRelocType;
+  uint8_t unsignedRelocType;
+
+  llvm::ArrayRef<RelocAttrs> relocAttrs;
+
+  // We contrive this value as sufficiently far from any valid address that it
+  // will always be out-of-range for any architecture. UINT64_MAX is not a
+  // good choice because it is (a) only 1 away from wrapping to 0, and (b) the
+  // tombstone value for DenseMap<> and caused weird assertions for me.
+  static constexpr uint64_t outOfRangeVA = 0xfull << 60;
 };
 
 TargetInfo *createX86_64TargetInfo();
 TargetInfo *createARM64TargetInfo();
+TargetInfo *createARM64_32TargetInfo();
+TargetInfo *createARMTargetInfo(uint32_t cpuSubtype);
 
 struct LP64 {
   using mach_header = llvm::MachO::mach_header_64;
   using nlist = structs::nlist_64;
   using segment_command = llvm::MachO::segment_command_64;
   using section = llvm::MachO::section_64;
+  using encryption_info_command = llvm::MachO::encryption_info_command_64;
 
   static constexpr uint32_t magic = llvm::MachO::MH_MAGIC_64;
   static constexpr uint32_t segmentLCType = llvm::MachO::LC_SEGMENT_64;
+  static constexpr uint32_t encryptionInfoLCType =
+      llvm::MachO::LC_ENCRYPTION_INFO_64;
 
   static constexpr uint64_t pageZeroSize = 1ull << 32;
   static constexpr size_t wordSize = 8;
@@ -98,9 +157,12 @@ struct ILP32 {
   using nlist = structs::nlist;
   using segment_command = llvm::MachO::segment_command;
   using section = llvm::MachO::section;
+  using encryption_info_command = llvm::MachO::encryption_info_command;
 
   static constexpr uint32_t magic = llvm::MachO::MH_MAGIC;
   static constexpr uint32_t segmentLCType = llvm::MachO::LC_SEGMENT;
+  static constexpr uint32_t encryptionInfoLCType =
+      llvm::MachO::LC_ENCRYPTION_INFO;
 
   static constexpr uint64_t pageZeroSize = 1ull << 12;
   static constexpr size_t wordSize = 4;
@@ -108,7 +170,6 @@ struct ILP32 {
 
 extern TargetInfo *target;
 
-} // namespace macho
-} // namespace lld
+} // namespace lld::macho
 
 #endif

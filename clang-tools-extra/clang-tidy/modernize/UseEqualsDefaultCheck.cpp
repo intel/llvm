@@ -8,6 +8,7 @@
 
 #include "UseEqualsDefaultCheck.h"
 #include "../utils/LexerUtils.h"
+#include "../utils/Matchers.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/Lexer.h"
@@ -153,22 +154,24 @@ static bool isCopyAssignmentAndCanBeDefaulted(ASTContext *Context,
     //   ((Base*)this)->operator=((Base)Other);
     //
     // So we are looking for a member call that fulfills:
-    if (match(traverse(TK_AsIs,
-                       compoundStmt(has(ignoringParenImpCasts(cxxMemberCallExpr(
-                           // - The object is an implicit cast of 'this' to a
-                           // pointer to
-                           //   a base class.
-                           onImplicitObjectArgument(implicitCastExpr(
-                               hasImplicitDestinationType(
-                                   pointsTo(type(equalsNode(Base)))),
-                               hasSourceExpression(cxxThisExpr()))),
-                           // - The called method is the operator=.
-                           callee(cxxMethodDecl(isCopyAssignmentOperator())),
-                           // - The argument is (an implicit cast to a Base of)
-                           // the argument taken by "Operator".
-                           argumentCountIs(1),
-                           hasArgument(0, declRefExpr(to(varDecl(
-                                              equalsNode(Param)))))))))),
+    if (match(traverse(
+                  TK_AsIs,
+                  compoundStmt(has(ignoringParenImpCasts(cxxMemberCallExpr(
+                      // - The object is an implicit cast of 'this' to a
+                      // pointer to
+                      //   a base class.
+                      onImplicitObjectArgument(implicitCastExpr(
+                          hasImplicitDestinationType(hasCanonicalType(pointsTo(
+                              type(equalsNode(Base->getCanonicalTypeInternal()
+                                                  .getTypePtr()))))),
+                          hasSourceExpression(cxxThisExpr()))),
+                      // - The called method is the operator=.
+                      callee(cxxMethodDecl(isCopyAssignmentOperator())),
+                      // - The argument is (an implicit cast to a Base of)
+                      // the argument taken by "Operator".
+                      argumentCountIs(1),
+                      hasArgument(
+                          0, declRefExpr(to(varDecl(equalsNode(Param)))))))))),
               *Compound, *Context)
             .empty())
       return false;
@@ -215,16 +218,24 @@ void UseEqualsDefaultCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
 }
 
 void UseEqualsDefaultCheck::registerMatchers(MatchFinder *Finder) {
+  // Skip unions/union-like classes since their constructors behave differently
+  // when defaulted vs. empty.
+  auto IsUnionLikeClass = recordDecl(
+      anyOf(isUnion(),
+            has(fieldDecl(isImplicit(), hasType(cxxRecordDecl(isUnion()))))));
+
   // Destructor.
-  Finder->addMatcher(cxxDestructorDecl(isDefinition()).bind(SpecialFunction),
-                     this);
+  Finder->addMatcher(
+      cxxDestructorDecl(unless(hasParent(IsUnionLikeClass)), isDefinition())
+          .bind(SpecialFunction),
+      this);
   Finder->addMatcher(
       cxxConstructorDecl(
-          isDefinition(),
+          unless(hasParent(IsUnionLikeClass)), isDefinition(),
           anyOf(
               // Default constructor.
               allOf(unless(hasAnyConstructorInitializer(isWritten())),
-                    parameterCountIs(0)),
+                    unless(isVariadic()), parameterCountIs(0)),
               // Copy constructor.
               allOf(isCopyConstructor(),
                     // Discard constructors that can be used as a copy
@@ -235,11 +246,17 @@ void UseEqualsDefaultCheck::registerMatchers(MatchFinder *Finder) {
       this);
   // Copy-assignment operator.
   Finder->addMatcher(
-      cxxMethodDecl(isDefinition(), isCopyAssignmentOperator(),
+      cxxMethodDecl(unless(hasParent(IsUnionLikeClass)), isDefinition(),
+                    isCopyAssignmentOperator(),
                     // isCopyAssignmentOperator() allows the parameter to be
                     // passed by value, and in this case it cannot be
                     // defaulted.
-                    hasParameter(0, hasType(lValueReferenceType())))
+                    hasParameter(0, hasType(lValueReferenceType())),
+                    // isCopyAssignmentOperator() allows non lvalue reference
+                    // return types, and in this case it cannot be defaulted.
+                    returns(qualType(hasCanonicalType(
+                        allOf(lValueReferenceType(pointee(type())),
+                              unless(matchers::isReferenceToConst()))))))
           .bind(SpecialFunction),
       this);
 }

@@ -21,9 +21,9 @@
 #include <array>
 #include <utility>
 
-#include <inttypes.h>
-#include <stdint.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstdint>
+#include <cstring>
 
 using namespace lldb_private;
 
@@ -159,16 +159,15 @@ public:
     return nullptr;
   }
 
-  // Return the size in bytes that this object and any items in its collection
-  // of uniqued strings + data count values takes in memory.
-  size_t MemorySize() const {
-    size_t mem_size = sizeof(Pool);
+  ConstString::MemoryStats GetMemoryStats() const {
+    ConstString::MemoryStats stats;
     for (const auto &pool : m_string_pools) {
       llvm::sys::SmartScopedReader<false> rlock(pool.m_mutex);
-      for (const auto &entry : pool.m_string_map)
-        mem_size += sizeof(StringPoolEntryType) + entry.getKey().size();
+      const Allocator &alloc = pool.m_string_map.getAllocator();
+      stats.bytes_total += alloc.getTotalMemory();
+      stats.bytes_used += alloc.getBytesAllocated();
     }
-    return mem_size;
+    return stats;
   }
 
 protected:
@@ -253,7 +252,7 @@ bool ConstString::Equals(ConstString lhs, ConstString rhs,
   // perform case insensitive equality test
   llvm::StringRef lhs_string_ref(lhs.GetStringRef());
   llvm::StringRef rhs_string_ref(rhs.GetStringRef());
-  return lhs_string_ref.equals_lower(rhs_string_ref);
+  return lhs_string_ref.equals_insensitive(rhs_string_ref);
 }
 
 int ConstString::Compare(ConstString lhs, ConstString rhs,
@@ -270,7 +269,7 @@ int ConstString::Compare(ConstString lhs, ConstString rhs,
     if (case_sensitive) {
       return lhs_string_ref.compare(rhs_string_ref);
     } else {
-      return lhs_string_ref.compare_lower(rhs_string_ref);
+      return lhs_string_ref.compare_insensitive(rhs_string_ref);
     }
   }
 
@@ -327,25 +326,12 @@ void ConstString::SetTrimmedCStringWithLength(const char *cstr,
   m_string = StringPool().GetConstTrimmedCStringWithLength(cstr, cstr_len);
 }
 
-size_t ConstString::StaticMemorySize() {
-  // Get the size of the static string pool
-  return StringPool().MemorySize();
+ConstString::MemoryStats ConstString::GetMemoryStats() {
+  return StringPool().GetMemoryStats();
 }
 
 void llvm::format_provider<ConstString>::format(const ConstString &CS,
                                                 llvm::raw_ostream &OS,
                                                 llvm::StringRef Options) {
   format_provider<StringRef>::format(CS.GetStringRef(), OS, Options);
-}
-
-void llvm::yaml::ScalarTraits<ConstString>::output(const ConstString &Val,
-                                                   void *, raw_ostream &Out) {
-  Out << Val.GetStringRef();
-}
-
-llvm::StringRef
-llvm::yaml::ScalarTraits<ConstString>::input(llvm::StringRef Scalar, void *,
-                                             ConstString &Val) {
-  Val = ConstString(Scalar);
-  return {};
 }

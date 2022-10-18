@@ -49,10 +49,11 @@ public:
   /// This enum is just used to hold constants we need for IntegerType.
   enum {
     MIN_INT_BITS = 1,        ///< Minimum number of bits that can be specified
-    MAX_INT_BITS = (1<<24)-1 ///< Maximum number of bits that can be specified
+    MAX_INT_BITS = (1<<23)   ///< Maximum number of bits that can be specified
       ///< Note that bit width is stored in the Type classes SubclassData field
-      ///< which has 24 bits. This yields a maximum bit width of 16,777,215
-      ///< bits.
+      ///< which has 24 bits. SelectionDAG type legalization can require a
+      ///< power of 2 IntegerType, so limit to the largest representable power
+      ///< of 2, 8388608.
   };
 
   /// This static method is the primary way of constructing an IntegerType.
@@ -244,8 +245,7 @@ public:
   static std::enable_if_t<are_base_of<Type, Tys...>::value, StructType *>
   create(StringRef Name, Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
-    SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
-    return create(StructFields, Name);
+    return create(ArrayRef<Type *>({elt1, elts...}), Name);
   }
 
   /// This static method is the primary way to create a literal StructType.
@@ -263,8 +263,7 @@ public:
   get(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     LLVMContext &Ctx = elt1->getContext();
-    SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
-    return llvm::StructType::get(Ctx, StructFields);
+    return StructType::get(Ctx, ArrayRef<Type *>({elt1, elts...}));
   }
 
   /// Return the type with the specified name, or null if there is none by that
@@ -306,8 +305,7 @@ public:
   std::enable_if_t<are_base_of<Type, Tys...>::value, void>
   setBody(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
-    SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
-    setBody(StructFields);
+    setBody(ArrayRef<Type *>({elt1, elts...}));
   }
 
   /// Return true if the specified type is valid as a element type.
@@ -633,6 +631,7 @@ inline ElementCount VectorType::getElementCount() const {
 /// Class to represent pointers.
 class PointerType : public Type {
   explicit PointerType(Type *ElType, unsigned AddrSpace);
+  explicit PointerType(LLVMContext &C, unsigned AddrSpace);
 
   Type *PointeeTy;
 
@@ -643,14 +642,42 @@ public:
   /// This constructs a pointer to an object of the specified type in a numbered
   /// address space.
   static PointerType *get(Type *ElementType, unsigned AddressSpace);
+  /// This constructs an opaque pointer to an object in a numbered address
+  /// space.
+  static PointerType *get(LLVMContext &C, unsigned AddressSpace);
 
   /// This constructs a pointer to an object of the specified type in the
-  /// generic address space (address space zero).
+  /// default address space (address space zero).
   static PointerType *getUnqual(Type *ElementType) {
     return PointerType::get(ElementType, 0);
   }
 
-  Type *getElementType() const { return PointeeTy; }
+  /// This constructs an opaque pointer to an object in the
+  /// default address space (address space zero).
+  static PointerType *getUnqual(LLVMContext &C) {
+    return PointerType::get(C, 0);
+  }
+
+  /// This constructs a pointer type with the same pointee type as input
+  /// PointerType (or opaque pointer if the input PointerType is opaque) and the
+  /// given address space. This is only useful during the opaque pointer
+  /// transition.
+  /// TODO: remove after opaque pointer transition is complete.
+  static PointerType *getWithSamePointeeType(PointerType *PT,
+                                             unsigned AddressSpace) {
+    if (PT->isOpaque())
+      return get(PT->getContext(), AddressSpace);
+    return get(PT->PointeeTy, AddressSpace);
+  }
+
+  [[deprecated("Pointer element types are deprecated. You can *temporarily* "
+               "use Type::getPointerElementType() instead")]]
+  Type *getElementType() const {
+    assert(!isOpaque() && "Attempting to get element type of opaque pointer");
+    return PointeeTy;
+  }
+
+  bool isOpaque() const { return !PointeeTy; }
 
   /// Return true if the specified type is valid as a element type.
   static bool isValidElementType(Type *ElemTy);
@@ -660,6 +687,22 @@ public:
 
   /// Return the address space of the Pointer type.
   inline unsigned getAddressSpace() const { return getSubclassData(); }
+
+  /// Return true if either this is an opaque pointer type or if this pointee
+  /// type matches Ty. Primarily used for checking if an instruction's pointer
+  /// operands are valid types. Will be useless after non-opaque pointers are
+  /// removed.
+  bool isOpaqueOrPointeeTypeMatches(Type *Ty) {
+    return isOpaque() || PointeeTy == Ty;
+  }
+
+  /// Return true if both pointer types have the same element type. Two opaque
+  /// pointers are considered to have the same element type, while an opaque
+  /// and a non-opaque pointer have different element types.
+  /// TODO: Remove after opaque pointer transition is complete.
+  bool hasSameElementTypeAs(PointerType *Other) {
+    return PointeeTy == Other->PointeeTy;
+  }
 
   /// Implement support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const Type *T) {

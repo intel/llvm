@@ -10,15 +10,16 @@
 #define LLVM_SUPPORT_ELFATTRIBUTEPARSER_H
 
 #include "ELFAttributes.h"
-#include "ScopedPrinter.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/DataExtractor.h"
+#include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 
 #include <unordered_map>
 
 namespace llvm {
 class StringRef;
+class ScopedPrinter;
 
 class ELFAttributeParser {
   StringRef vendor;
@@ -40,6 +41,10 @@ protected:
   Error parseAttributeList(uint32_t length);
   void parseIndexList(SmallVectorImpl<uint8_t> &indexList);
   Error parseSubsection(uint32_t length);
+
+  void setAttributeString(unsigned tag, StringRef value) {
+    attributesStr.emplace(tag, value);
+  }
 
 public:
   virtual ~ELFAttributeParser() { static_cast<void>(!cursor.takeError()); }

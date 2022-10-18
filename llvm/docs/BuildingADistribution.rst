@@ -87,6 +87,51 @@ generates a ``distribution`` target which builds all the components specified in
 the list. This is a convenience build target to allow building just the
 distributed pieces without needing to build all configured targets.
 
+.. _Multi-distribution configurations:
+
+Multi-distribution configurations
+---------------------------------
+
+The ``install-distribution`` target described above is for building a single
+distribution. LLVM's build system also supports building multiple distributions,
+which can be used to e.g. have one distribution containing just tools and
+another for libraries (to enable development). These are configured by setting
+the *LLVM_DISTRIBUTIONS* variable to hold a list of all distribution names
+(which conventionally start with an uppercase letter, e.g. "Development"), and
+then setting the *LLVM_<distribution>_DISTRIBUTION_COMPONENTS* variable to the
+list of targets for that distribution. For each distribution, the build system
+generates an ``install-${distribution}-distribution`` target, where
+``${distribution}`` is the name of the distribution in lowercase, to install
+that distribution.
+
+Each distribution creates its own set of CMake exports, and the target to
+install the CMake exports for a particular distribution for a project is named
+``${project}-${distribution}-cmake-exports``, where ``${project}`` is the name
+of the project in lowercase and ``${distribution}`` is the name of the
+distribution in lowercase, unless the project is LLVM, in which case the target
+is just named ``${distribution}-cmake-exports``. These targets need to be
+explicitly included in the *LLVM_<distribution>_DISTRIBUTION_COMPONENTS*
+variable in order to be included as part of the distribution.
+
+Unlike with the single distribution setup, when building multiple distributions,
+any components specified in *LLVM_RUNTIME_DISTRIBUTION_COMPONENTS* are not
+automatically added to any distribution. Instead, you must include the targets
+explicitly in some *LLVM_<distribution>_DISTRIBUTION_COMPONENTS* list.
+
+By default, each target can appear in multiple distributions; a target will be
+installed as part of all distributions it appears in, and it'll be exported by
+the last distribution it appears in (the order of distributions is the order
+they appear in *LLVM_DISTRIBUTIONS*). We also define some umbrella targets (e.g.
+``llvm-libraries`` to install all LLVM libraries); a target can appear in a
+different distribution than its umbrella, in which case the target will be
+exported by the distribution it appears in (and not the distribution its
+umbrella appears in). Set *LLVM_STRICT_DISTRIBUTIONS* to ``On`` if you want to
+enforce a target appearing in only one distribution and umbrella distributions
+being consistent with target distributions.
+
+We strongly encourage looking at ``clang/cmake/caches/MultiDistributionExample.cmake``
+as an example of configuring multiple distributions.
+
 Special Notes for Library-only Distributions
 --------------------------------------------
 
@@ -165,8 +210,8 @@ Relevant CMake Options
 This section provides documentation of the CMake options that are intended to
 help construct distributions. This is not an exhaustive list, and many
 additional options are documented in the :doc:`CMake` page. Some key options
-that are already documented include: *LLVM_TARGETS_TO_BUILD*,
-*LLVM_ENABLE_PROJECTS*, *LLVM_BUILD_LLVM_DYLIB*, and *LLVM_LINK_LLVM_DYLIB*.
+that are already documented include: *LLVM_TARGETS_TO_BUILD*, *LLVM_ENABLE_PROJECTS*,
+*LLVM_ENABLE_RUNTIMES*, *LLVM_BUILD_LLVM_DYLIB*, and *LLVM_LINK_LLVM_DYLIB*.
 
 **LLVM_ENABLE_RUNTIMES**:STRING
   When building a distribution that includes LLVM runtime projects (i.e. libcxx,
@@ -178,6 +223,11 @@ that are already documented include: *LLVM_TARGETS_TO_BUILD*,
   components to install. All LLVM-based tools are components, as well as most
   of the libraries and runtimes. Component names match the names of the build
   system targets.
+
+**LLVM_DISTRIBUTIONS**:STRING
+  This variable can be set to a semi-colon separated list of distributions. See
+  the :ref:`Multi-distribution configurations` section above for details on this
+  and other CMake variables to configure multiple distributions.
 
 **LLVM_RUNTIME_DISTRIBUTION_COMPONENTS**:STRING
   This variable can be set to a semi-colon separated list of runtime library
@@ -191,7 +241,7 @@ that are already documented include: *LLVM_TARGETS_TO_BUILD*,
   components. LLVM library components are either library names with the LLVM
   prefix removed (i.e. Support, Demangle...), LLVM target names, or special
   purpose component names. The special purpose component names are:
-  
+
   #. ``all`` - All LLVM available component libraries
   #. ``Native`` - The LLVM target for the Native system
   #. ``AllTargetsAsmParsers`` - All the included target ASM parsers libraries

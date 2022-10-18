@@ -10,7 +10,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
@@ -18,12 +18,12 @@
 ; CHECK-SPIRV: TypeFunction [[#DEST_TY:]] [[#]] [[#]]
 ; CHECK-SPIRV: TypePointer [[#DEST_TY_PTR:]] [[#]] [[#DEST_TY]]
 ; CHECK-SPIRV: TypePointer [[#FOO_TY_PTR:]] [[#]] [[#FOO_TY]]
-; CHECK-SPIRV: ConstFunctionPointerINTEL [[#FOO_TY_PTR]] [[#FOO_PTR:]] [[#FOO:]]
+; CHECK-SPIRV: ConstantFunctionPointerINTEL [[#FOO_TY_PTR]] [[#FOO_PTR:]] [[#FOO:]]
 ; CHECK-SPIRV: Function [[#]] [[#FOO]] [[#]] [[#FOO_TY]]
 
 ; CHECK-SPIRV: Bitcast [[#DEST_TY_PTR]] [[#]] [[#FOO_PTR]]
 
-; CHECK-LLVM: bitcast i8 (i8)* @foo to i32 (i32)*
+; CHECK-LLVM: bitcast ptr @foo to ptr
 
 ; ModuleID = './example.c'
 source_filename = "./example.c"

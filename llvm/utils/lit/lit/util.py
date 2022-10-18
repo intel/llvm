@@ -120,10 +120,10 @@ def usable_core_count():
     except AttributeError:
         n = os.cpu_count() or 1
 
-    # On Windows, with more than 32 processes, process creation often fails with
-    # "Too many open files".  FIXME: Check if there's a better fix.
+    # On Windows with more than 60 processes, multiprocessing's call to
+    # _winapi.WaitForMultipleObjects() prints an error and lit hangs.
     if platform.system() == 'Windows':
-        return min(n, 32)
+        return min(n, 60)
 
     return n
 
@@ -232,7 +232,7 @@ def which(command, paths=None):
         for ext in pathext:
             p = os.path.join(path, command + ext)
             if os.path.exists(p) and not os.path.isdir(p):
-                return os.path.normcase(os.path.normpath(p))
+                return os.path.normcase(os.path.abspath(p))
 
     return None
 
@@ -314,7 +314,8 @@ class ExecuteCommandTimeoutException(Exception):
 kUseCloseFDs = not (platform.system() == 'Windows')
 
 
-def executeCommand(command, cwd=None, env=None, input=None, timeout=0):
+def executeCommand(command, cwd=None, env=None, input=None, timeout=0,
+                   redirect_stderr=False):
     """Execute command ``command`` (list of arguments or string) with.
 
     * working directory ``cwd`` (str), use None to use the current
@@ -323,6 +324,7 @@ def executeCommand(command, cwd=None, env=None, input=None, timeout=0):
     * Input to the command ``input`` (str), use string to pass
       no input.
     * Max execution time ``timeout`` (int) seconds. Use 0 for no timeout.
+    * ``redirect_stderr`` (bool), use True if redirect stderr to stdout
 
     Returns a tuple (out, err, exitCode) where
     * ``out`` (str) is the standard output of running the command
@@ -335,10 +337,11 @@ def executeCommand(command, cwd=None, env=None, input=None, timeout=0):
     """
     if input is not None:
         input = to_bytes(input)
+    err_out = subprocess.STDOUT if redirect_stderr else subprocess.PIPE
     p = subprocess.Popen(command, cwd=cwd,
                          stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE,
+                         stderr=err_out,
                          env=env, close_fds=kUseCloseFDs)
     timerObject = None
     # FIXME: Because of the way nested function scopes work in Python 2.x we
@@ -365,7 +368,7 @@ def executeCommand(command, cwd=None, env=None, input=None, timeout=0):
 
     # Ensure the resulting output is always of string type.
     out = to_string(out)
-    err = to_string(err)
+    err = '' if redirect_stderr else to_string(err)
 
     if hitTimeOut[0]:
         raise ExecuteCommandTimeoutException(
@@ -382,10 +385,17 @@ def executeCommand(command, cwd=None, env=None, input=None, timeout=0):
     return out, err, exitCode
 
 
+def isMacOSTriple(target_triple):
+    """Whether the given target triple is for macOS,
+       e.g. x86_64-apple-darwin, arm64-apple-macos
+    """
+    return 'darwin' in target_triple or 'macos' in target_triple
+
+
 def usePlatformSdkOnDarwin(config, lit_config):
     # On Darwin, support relocatable SDKs by providing Clang with a
     # default system root path.
-    if 'darwin' in config.target_triple:
+    if isMacOSTriple(config.target_triple):
         try:
             cmd = subprocess.Popen(['xcrun', '--show-sdk-path', '--sdk', 'macosx'],
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -401,7 +411,7 @@ def usePlatformSdkOnDarwin(config, lit_config):
 
 
 def findPlatformSdkVersionOnMacOS(config, lit_config):
-    if 'darwin' in config.target_triple:
+    if isMacOSTriple(config.target_triple):
         try:
             cmd = subprocess.Popen(['xcrun', '--show-sdk-version', '--sdk', 'macosx'],
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)

@@ -13,21 +13,19 @@
 #ifndef LLVM_TRANSFORMS_UTILS_SIZEOPTS_H
 #define LLVM_TRANSFORMS_UTILS_SIZEOPTS_H
 
-#include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Support/CommandLine.h"
 
-extern llvm::cl::opt<bool> EnablePGSO;
-extern llvm::cl::opt<bool> PGSOLargeWorkingSetSizeOnly;
-extern llvm::cl::opt<bool> PGSOColdCodeOnly;
-extern llvm::cl::opt<bool> PGSOColdCodeOnlyForInstrPGO;
-extern llvm::cl::opt<bool> PGSOColdCodeOnlyForSamplePGO;
-extern llvm::cl::opt<bool> PGSOColdCodeOnlyForPartialSamplePGO;
-extern llvm::cl::opt<bool> ForcePGSO;
-extern llvm::cl::opt<int> PgsoCutoffInstrProf;
-extern llvm::cl::opt<int> PgsoCutoffSampleProf;
-
 namespace llvm {
+extern cl::opt<bool> EnablePGSO;
+extern cl::opt<bool> PGSOLargeWorkingSetSizeOnly;
+extern cl::opt<bool> PGSOColdCodeOnly;
+extern cl::opt<bool> PGSOColdCodeOnlyForInstrPGO;
+extern cl::opt<bool> PGSOColdCodeOnlyForSamplePGO;
+extern cl::opt<bool> PGSOColdCodeOnlyForPartialSamplePGO;
+extern cl::opt<bool> ForcePGSO;
+extern cl::opt<int> PgsoCutoffInstrProf;
+extern cl::opt<int> PgsoCutoffSampleProf;
 
 class BasicBlock;
 class BlockFrequencyInfo;

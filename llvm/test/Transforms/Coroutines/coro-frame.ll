@@ -1,8 +1,7 @@
 ; Check that we can handle spills of the result of the invoke instruction
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
-define i8* @f(i64 %this) "coroutine.presplit"="1" personality i32 0 {
+define i8* @f(i64 %this) presplitcoroutine personality i32 0 {
 entry:
   %this.addr = alloca i64
   store i64 %this, i64* %this.addr

@@ -4,14 +4,16 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //===----------------------------------------------------------------------===/
-//
-//  This file implements the StringSwitch template, which mimics a switch()
-//  statement whose cases are string literals.
-//
+///
+/// \file
+///  This file implements the StringSwitch template, which mimics a switch()
+///  statement whose cases are string literals.
+///
 //===----------------------------------------------------------------------===/
 #ifndef LLVM_ADT_STRINGSWITCH_H
 #define LLVM_ADT_STRINGSWITCH_H
 
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
 #include <cassert>
@@ -138,21 +140,21 @@ public:
 
   // Case-insensitive case matchers.
   StringSwitch &CaseLower(StringLiteral S, T Value) {
-    if (!Result && Str.equals_lower(S))
+    if (!Result && Str.equals_insensitive(S))
       Result = std::move(Value);
 
     return *this;
   }
 
   StringSwitch &EndsWithLower(StringLiteral S, T Value) {
-    if (!Result && Str.endswith_lower(S))
+    if (!Result && Str.endswith_insensitive(S))
       Result = Value;
 
     return *this;
   }
 
   StringSwitch &StartsWithLower(StringLiteral S, T Value) {
-    if (!Result && Str.startswith_lower(S))
+    if (!Result && Str.startswith_insensitive(S))
       Result = std::move(Value);
 
     return *this;
@@ -177,15 +179,13 @@ public:
     return CaseLower(S0, Value).CasesLower(S1, S2, S3, S4, Value);
   }
 
-  LLVM_NODISCARD
-  R Default(T Value) {
+  [[nodiscard]] R Default(T Value) {
     if (Result)
       return std::move(*Result);
     return Value;
   }
 
-  LLVM_NODISCARD
-  operator R() {
+  [[nodiscard]] operator R() {
     assert(Result && "Fell off the end of a string-switch");
     return std::move(*Result);
   }

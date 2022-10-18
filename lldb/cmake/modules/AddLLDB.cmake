@@ -1,3 +1,5 @@
+include(GNUInstallDirs)
+
 function(lldb_tablegen)
   # Syntax:
   # lldb_tablegen output-file [tablegen-arg ...] SOURCE source-file
@@ -113,7 +115,7 @@ function(add_lldb_library name)
     endif()
     # RUNTIME is relevant for DLL platforms, FRAMEWORK for macOS
     install(TARGETS ${name} COMPONENT ${name}
-      RUNTIME DESTINATION bin
+      RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
       LIBRARY DESTINATION ${install_dest}
       ARCHIVE DESTINATION ${install_dest}
       FRAMEWORK DESTINATION ${install_dest})
@@ -276,19 +278,21 @@ function(lldb_add_post_install_steps_darwin name install_prefix)
   endif()
 
   # Generate dSYM
-  set(dsym_name ${output_name}.dSYM)
-  if(is_framework)
-    set(dsym_name ${output_name}.framework.dSYM)
-  endif()
-  if(LLDB_DEBUGINFO_INSTALL_PREFIX)
-    # This makes the path absolute, so we must respect DESTDIR.
-    set(dsym_name "\$ENV\{DESTDIR\}${LLDB_DEBUGINFO_INSTALL_PREFIX}/${dsym_name}")
-  endif()
+  if(NOT LLDB_SKIP_DSYM)
+    set(dsym_name ${output_name}.dSYM)
+    if(is_framework)
+      set(dsym_name ${output_name}.framework.dSYM)
+    endif()
+    if(LLDB_DEBUGINFO_INSTALL_PREFIX)
+      # This makes the path absolute, so we must respect DESTDIR.
+      set(dsym_name "\$ENV\{DESTDIR\}${LLDB_DEBUGINFO_INSTALL_PREFIX}/${dsym_name}")
+    endif()
 
-  set(buildtree_name ${buildtree_dir}/${bundle_subdir}${output_name})
-  install(CODE "message(STATUS \"Externalize debuginfo: ${dsym_name}\")" COMPONENT ${name})
-  install(CODE "execute_process(COMMAND xcrun dsymutil -o=${dsym_name} ${buildtree_name})"
-          COMPONENT ${name})
+    set(buildtree_name ${buildtree_dir}/${bundle_subdir}${output_name})
+    install(CODE "message(STATUS \"Externalize debuginfo: ${dsym_name}\")" COMPONENT ${name})
+    install(CODE "execute_process(COMMAND xcrun dsymutil -o=${dsym_name} ${buildtree_name})"
+            COMPONENT ${name})
+  endif()
 
   if(NOT LLDB_SKIP_STRIP)
     # Strip distribution binary with -ST (removing debug symbol table entries and

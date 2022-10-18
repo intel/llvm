@@ -14,7 +14,7 @@
 namespace mlir {
 namespace detail {
 class PDLByteCode;
-} // end namespace detail
+} // namespace detail
 
 /// This class represents a frozen set of patterns that can be processed by a
 /// pattern applicator. This class is designed to enable caching pattern lists
@@ -29,9 +29,7 @@ public:
   using OpSpecificNativePatternListT =
       DenseMap<OperationName, std::vector<RewritePattern *>>;
 
-  /// Freeze the patterns held in `patterns`, and take ownership.
   FrozenRewritePatternSet();
-  FrozenRewritePatternSet(RewritePatternSet &&patterns);
   FrozenRewritePatternSet(FrozenRewritePatternSet &&patterns) = default;
   FrozenRewritePatternSet(const FrozenRewritePatternSet &patterns) = default;
   FrozenRewritePatternSet &
@@ -39,6 +37,20 @@ public:
   FrozenRewritePatternSet &
   operator=(FrozenRewritePatternSet &&patterns) = default;
   ~FrozenRewritePatternSet();
+
+  /// Freeze the patterns held in `patterns`, and take ownership.
+  /// `disabledPatternLabels` is a set of labels used to filter out input
+  /// patterns with a debug label or debug name in this set.
+  /// `enabledPatternLabels` is a set of labels used to filter out input
+  /// patterns that do not have one of the labels in this set. Debug labels must
+  /// be set explicitly on patterns or when adding them with
+  /// `RewritePatternSet::addWithLabel`. Debug names may be empty, but patterns
+  /// created with `RewritePattern::create` have their default debug name set to
+  /// their type name.
+  FrozenRewritePatternSet(
+      RewritePatternSet &&patterns,
+      ArrayRef<std::string> disabledPatternLabels = llvm::None,
+      ArrayRef<std::string> enabledPatternLabels = llvm::None);
 
   /// Return the op specific native patterns held by this list.
   const OpSpecificNativePatternListT &getOpSpecificNativePatterns() const {
@@ -84,10 +96,6 @@ private:
   std::shared_ptr<Impl> impl;
 };
 
-// TODO: FrozenRewritePatternList is soft-deprecated and will be removed in the
-// future.
-using FrozenRewritePatternList = FrozenRewritePatternSet;
-
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_REWRITE_FROZENREWRITEPATTERNSET_H

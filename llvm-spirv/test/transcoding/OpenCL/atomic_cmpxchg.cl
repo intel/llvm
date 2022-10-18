@@ -26,19 +26,19 @@ __kernel void test_atomic_cmpxchg(__global int *p, int cmp, int val) {
 // translator applies some default memory order for it and therefore, constants
 // below include a bit more information than original source
 //
-// 0x1 Device
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[DEVICE_SCOPE:[0-9]+]] 1
+// 0x2 Workgroup
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[WORKGROUP_SCOPE:[0-9]+]] 2
 //
-// 0x10 SequentiallyConsistent
+// 0x0 Relaxed
 // TODO: do we need CrossWorkgroupMemory here as well?
-// CHECK-SPIRV-DAG: Constant [[UINT]] [[SEQ_CST:[0-9]+]] 16
+// CHECK-SPIRV-DAG: Constant [[UINT]] [[RELAXED:[0-9]+]] 0
 //
 // CHECK-SPIRV: Function {{[0-9]+}} [[TEST]]
 // CHECK-SPIRV: FunctionParameter [[UINT_PTR]] [[PTR:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter [[UINT]] [[CMP:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter [[UINT]] [[VAL:[0-9]+]]
-// CHECK-SPIRV: AtomicCompareExchange [[UINT]] {{[0-9]+}} [[PTR]] [[DEVICE_SCOPE]] [[SEQ_CST]] [[SEQ_CST]] [[VAL]] [[CMP]]
-// CHECK-SPIRV: AtomicCompareExchange [[UINT]] {{[0-9]+}} [[PTR]] [[DEVICE_SCOPE]] [[SEQ_CST]] [[SEQ_CST]] [[VAL]] [[CMP]]
+// CHECK-SPIRV: AtomicCompareExchange [[UINT]] {{[0-9]+}} [[PTR]] [[WORKGROUP_SCOPE]] [[RELAXED]] [[RELAXED]] [[VAL]] [[CMP]]
+// CHECK-SPIRV: AtomicCompareExchange [[UINT]] {{[0-9]+}} [[PTR]] [[WORKGROUP_SCOPE]] [[RELAXED]] [[RELAXED]] [[VAL]] [[CMP]]
 //
 //
 // CHECK-LLVM-LABEL: define spir_kernel void @test_atomic_cmpxchg

@@ -1,5 +1,5 @@
 # REQUIRES: x86
-# RUN: split-file %s %t
+# RUN: rm -rf %t; split-file %s %t
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/libfoo.s -o %t/libfoo.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/nonweakdef.s -o %t/nonweakdef.o
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/weakdef.s -o %t/weakdef.o
@@ -32,7 +32,7 @@
 # NO-WEAK-OVERRIDE-EMPTY:
 
 ## Check that common symbols take precedence over weak dylib symbols, but do not
-## generate an overridding weak binding.
+## generate an overriding weak binding.
 # RUN: %lld -L%t -lfoo %t/common.o -o %t/common -lSystem
 # RUN: llvm-objdump --macho --weak-bind %t/common | FileCheck %s --check-prefix=NO-WEAK-OVERRIDE
 # RUN: llvm-objdump --syms %t/common | FileCheck %s --check-prefix=COMMON

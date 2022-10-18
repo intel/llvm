@@ -13,8 +13,6 @@ from lldbsuite.test import lldbutil
 
 class AsanTestReportDataCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIfFreeBSD  # llvm.org/pr21136 runtimes not yet available by default
     @expectedFailureNetBSD
     @skipUnlessAddressSanitizer
@@ -34,9 +32,7 @@ class AsanTestReportDataCase(TestBase):
         self.col_crash = 16
 
     def asan_tests(self):
-        exe = self.getBuildArtifact("a.out")
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         self.registerSanitizerLibrariesWithTarget(target)
 

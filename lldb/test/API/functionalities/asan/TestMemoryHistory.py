@@ -13,8 +13,6 @@ from lldbsuite.test import lldbutil
 
 class AsanTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @skipIfFreeBSD  # llvm.org/pr21136 runtimes not yet available by default
     @expectedFailureNetBSD
     @skipUnlessAddressSanitizer
@@ -31,9 +29,7 @@ class AsanTestCase(TestBase):
         self.line_breakpoint = line_number('main.c', '// break line')
 
     def asan_tests(self):
-        exe = self.getBuildArtifact("a.out")
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         self.registerSanitizerLibrariesWithTarget(target)
 
@@ -42,7 +38,7 @@ class AsanTestCase(TestBase):
         # "memory history" command should not work without a process
         self.expect("memory history 0",
                     error=True,
-                    substrs=["invalid process"])
+                    substrs=["Command requires a current process"])
 
         self.runCmd("run")
 

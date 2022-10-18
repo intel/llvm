@@ -13,6 +13,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendAction.h"
+#include "clang/Frontend/Utils.h"
 #include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Index/USRGeneration.h"
@@ -62,6 +63,9 @@ DumpModuleImports("dump-imported-module-files",
 
 static cl::opt<bool>
 IncludeLocals("include-locals", cl::desc("Print local symbols"));
+
+static cl::opt<bool> IgnoreMacros("ignore-macros",
+                                  cl::desc("Skip indexing macros"));
 
 static cl::opt<std::string>
 ModuleFilePath("module-file",
@@ -210,13 +214,17 @@ static void dumpModuleFileInputs(serialization::ModuleFile &Mod,
 
 static bool printSourceSymbols(const char *Executable,
                                ArrayRef<const char *> Args,
-                               bool dumpModuleImports, bool indexLocals) {
+                               bool dumpModuleImports, bool indexLocals,
+                               bool ignoreMacros) {
   SmallVector<const char *, 4> ArgsWithProgName;
   ArgsWithProgName.push_back(Executable);
   ArgsWithProgName.append(Args.begin(), Args.end());
   IntrusiveRefCntPtr<DiagnosticsEngine>
     Diags(CompilerInstance::createDiagnostics(new DiagnosticOptions));
-  auto CInvok = createInvocationFromCommandLine(ArgsWithProgName, Diags);
+  CreateInvocationOptions CIOpts;
+  CIOpts.Diags = Diags;
+  CIOpts.ProbePrecompiled = true; // FIXME: historical default. Needed?
+  auto CInvok = createInvocation(ArgsWithProgName, std::move(CIOpts));
   if (!CInvok)
     return true;
 
@@ -224,6 +232,8 @@ static bool printSourceSymbols(const char *Executable,
   auto DataConsumer = std::make_shared<PrintIndexDataConsumer>(OS);
   IndexingOptions IndexOpts;
   IndexOpts.IndexFunctionLocals = indexLocals;
+  IndexOpts.IndexMacros = !ignoreMacros;
+  IndexOpts.IndexMacrosInPreprocessor = !ignoreMacros;
   std::unique_ptr<FrontendAction> IndexAction =
       createIndexingAction(DataConsumer, IndexOpts);
 
@@ -357,7 +367,7 @@ int indextest_core_main(int argc, const char **argv) {
     }
     return printSourceSymbols(Executable.c_str(), CompArgs,
                               options::DumpModuleImports,
-                              options::IncludeLocals);
+                              options::IncludeLocals, options::IgnoreMacros);
   }
 
   return 0;

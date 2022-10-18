@@ -1,4 +1,5 @@
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=2 -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,CI %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=5 -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN-V5 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=2 -mcpu=fiji -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,VI,VI-NOBUG %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=2 -mcpu=iceland -enable-ipra=0 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,VI,VI-BUG %s
 
@@ -17,9 +18,10 @@ define void @use_vcc() #1 {
 ; GCN: v_writelane_b32 v40, s30, 0
 ; GCN: v_writelane_b32 v40, s31, 1
 ; GCN: s_swappc_b64
-; GCN: v_readlane_b32 s4, v40, 0
-; GCN: v_readlane_b32 s5, v40, 1
+; GCN: v_readlane_b32 s31, v40, 1
+; GCN: v_readlane_b32 s30, v40, 0
 ; GCN: v_readlane_b32 s33, v40, 2
+; GCN: s_setpc_b64 s[30:31]
 ; GCN: ; NumSgprs: 36
 ; GCN: ; NumVgprs: 41
 define void @indirect_use_vcc() #1 {
@@ -181,6 +183,9 @@ declare void @external() #0
 ; NumSgprs: 48
 ; NumVgprs: 24
 ; GCN: ScratchSize: 16384
+;
+; GCN-V5-LABEL: {{^}}usage_external:
+; GCN-V5: ScratchSize: 0
 define amdgpu_kernel void @usage_external() #0 {
   call void @external()
   ret void
@@ -193,13 +198,19 @@ declare void @external_recurse() #2
 ; NumSgprs: 48
 ; NumVgprs: 24
 ; GCN: ScratchSize: 16384
+;
+; GCN-V5-LABEL: {{^}}usage_external_recurse:
+; GCN-V5: ScratchSize: 0
 define amdgpu_kernel void @usage_external_recurse() #0 {
   call void @external_recurse()
   ret void
 }
 
 ; GCN-LABEL: {{^}}direct_recursion_use_stack:
-; GCN: ScratchSize: 2064
+; GCN: ScratchSize: 18448{{$}}
+;
+; GCN-V5-LABEL: {{^}}direct_recursion_use_stack:
+; GCN-V5: ScratchSize: 2064{{$}}
 define void @direct_recursion_use_stack(i32 %val) #2 {
   %alloca = alloca [512 x i32], align 4, addrspace(5)
   call void asm sideeffect "; use $0", "v"([512 x i32] addrspace(5)* %alloca) #0
@@ -218,7 +229,10 @@ ret:
 ; GCN-LABEL: {{^}}usage_direct_recursion:
 ; GCN: is_ptr64 = 1
 ; GCN: is_dynamic_callstack = 1
-; GCN: workitem_private_segment_byte_size = 2064
+; GCN: workitem_private_segment_byte_size = 18448{{$}}
+;
+; GCN-V5-LABEL: {{^}}usage_direct_recursion:
+; GCN-V5: .amdhsa_private_segment_fixed_size 2064{{$}}
 define amdgpu_kernel void @usage_direct_recursion(i32 %n) #0 {
   call void @direct_recursion_use_stack(i32 %n)
   ret void
@@ -227,10 +241,10 @@ define amdgpu_kernel void @usage_direct_recursion(i32 %n) #0 {
 ; Make sure there's no assert when a sgpr96 is used.
 ; GCN-LABEL: {{^}}count_use_sgpr96_external_call
 ; GCN: ; sgpr96 s[{{[0-9]+}}:{{[0-9]+}}]
-; CI: NumSgprs: 48
-; VI-NOBUG: NumSgprs: 48
+; CI: NumSgprs: 84
+; VI-NOBUG: NumSgprs: 86
 ; VI-BUG: NumSgprs: 96
-; GCN: NumVgprs: 32
+; GCN: NumVgprs: 50
 define amdgpu_kernel void @count_use_sgpr96_external_call()  {
 entry:
   tail call void asm sideeffect "; sgpr96 $0", "s"(<3 x i32> <i32 10, i32 11, i32 12>) #1
@@ -241,10 +255,10 @@ entry:
 ; Make sure there's no assert when a sgpr160 is used.
 ; GCN-LABEL: {{^}}count_use_sgpr160_external_call
 ; GCN: ; sgpr160 s[{{[0-9]+}}:{{[0-9]+}}]
-; CI: NumSgprs: 48
-; VI-NOBUG: NumSgprs: 48
+; CI: NumSgprs: 84
+; VI-NOBUG: NumSgprs: 86
 ; VI-BUG: NumSgprs: 96
-; GCN: NumVgprs: 32
+; GCN: NumVgprs: 50
 define amdgpu_kernel void @count_use_sgpr160_external_call()  {
 entry:
   tail call void asm sideeffect "; sgpr160 $0", "s"(<5 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14>) #1
@@ -255,10 +269,10 @@ entry:
 ; Make sure there's no assert when a vgpr160 is used.
 ; GCN-LABEL: {{^}}count_use_vgpr160_external_call
 ; GCN: ; vgpr160 v[{{[0-9]+}}:{{[0-9]+}}]
-; CI: NumSgprs: 48
-; VI-NOBUG: NumSgprs: 48
+; CI: NumSgprs: 84
+; VI-NOBUG: NumSgprs: 86
 ; VI-BUG: NumSgprs: 96
-; GCN: NumVgprs: 32
+; GCN: NumVgprs: 50
 define amdgpu_kernel void @count_use_vgpr160_external_call()  {
 entry:
   tail call void asm sideeffect "; vgpr160 $0", "v"(<5 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14>) #1

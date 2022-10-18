@@ -1,5 +1,8 @@
 // RUN: %clangxx_tsan -O1 %s -o %t && %deflake %run %t | FileCheck %s
-extern "C" void AnnotateIgnoreWritesBegin(const char *f, int l);
+
+// ReportIgnoresEnabled is disabled on Darwin, see comment in tsan_rtl_thread.cpp.
+// UNSUPPORTED: darwin
+#include "test.h"
 
 int main() {
   AnnotateIgnoreWritesBegin("", 0);

@@ -12,8 +12,8 @@
 #include "StdStringExtractor.h"
 
 // C includes
-#include <inttypes.h>
-#include <stdint.h>
+#include <cinttypes>
+#include <cstdint>
 
 // C++ includes
 #include <map>
@@ -71,7 +71,7 @@ class JSONNumber : public JSONValue {
 public:
   typedef std::shared_ptr<JSONNumber> SP;
 
-  // We cretae a constructor for all integer and floating point type with using
+  // We create a constructor for all integer and floating point type with using
   // templates and
   // SFINAE to avoid having ambiguous overloads because of the implicit type
   // promotion. If we

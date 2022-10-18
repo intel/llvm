@@ -348,6 +348,7 @@ struct ScalarEnumerationTraits<TargetStackID::Value> {
     IO.enumCase(ID, "default", TargetStackID::Default);
     IO.enumCase(ID, "sgpr-spill", TargetStackID::SGPRSpill);
     IO.enumCase(ID, "scalable-vector", TargetStackID::ScalableVector);
+    IO.enumCase(ID, "wasm-local", TargetStackID::WasmLocal);
     IO.enumCase(ID, "noalloc", TargetStackID::NoAlloc);
   }
 };
@@ -381,6 +382,50 @@ template <> struct MappingTraits<FixedMachineStackObject> {
   static const bool flow = true;
 };
 
+/// A serializaable representation of a reference to a stack object or fixed
+/// stack object.
+struct FrameIndex {
+  // The frame index as printed. This is always a positive number, even for
+  // fixed objects. To obtain the real index,
+  // MachineFrameInfo::getObjectIndexBegin has to be added.
+  int FI;
+  bool IsFixed;
+  SMRange SourceRange;
+
+  FrameIndex() = default;
+  FrameIndex(int FI, const llvm::MachineFrameInfo &MFI);
+
+  Expected<int> getFI(const llvm::MachineFrameInfo &MFI) const;
+};
+
+template <> struct ScalarTraits<FrameIndex> {
+  static void output(const FrameIndex &FI, void *, raw_ostream &OS) {
+    MachineOperand::printStackObjectReference(OS, FI.FI, FI.IsFixed, "");
+  }
+
+  static StringRef input(StringRef Scalar, void *Ctx, FrameIndex &FI) {
+    FI.IsFixed = false;
+    StringRef Num;
+    if (Scalar.startswith("%stack.")) {
+      Num = Scalar.substr(7);
+    } else if (Scalar.startswith("%fixed-stack.")) {
+      Num = Scalar.substr(13);
+      FI.IsFixed = true;
+    } else {
+      return "Invalid frame index, needs to start with %stack. or "
+             "%fixed-stack.";
+    }
+    if (Num.consumeInteger(10, FI.FI))
+      return "Invalid frame index, not a valid number";
+
+    if (const auto *Node =
+            reinterpret_cast<yaml::Input *>(Ctx)->getCurrentNode())
+      FI.SourceRange = Node->getSourceRange();
+    return StringRef();
+  }
+
+  static QuotingType mustQuote(StringRef S) { return needsQuotes(S); }
+};
 
 /// Serializable representation of CallSiteInfo.
 struct CallSiteInfo {
@@ -447,6 +492,7 @@ struct DebugValueSubstitution {
   unsigned SrcOp;
   unsigned DstInst;
   unsigned DstOp;
+  unsigned Subreg;
 
   bool operator==(const DebugValueSubstitution &Other) const {
     return std::tie(SrcInst, SrcOp, DstInst, DstOp) ==
@@ -460,6 +506,7 @@ template <> struct MappingTraits<DebugValueSubstitution> {
     YamlIO.mapRequired("srcop", Sub.SrcOp);
     YamlIO.mapRequired("dstinst", Sub.DstInst);
     YamlIO.mapRequired("dstop", Sub.DstOp);
+    YamlIO.mapRequired("subreg", Sub.Subreg);
   }
 
   static const bool flow = true;
@@ -558,7 +605,7 @@ struct MachineFrameInfo {
   bool AdjustsStack = false;
   bool HasCalls = false;
   StringValue StackProtector;
-  // TODO: Serialize FunctionContextIdx
+  StringValue FunctionContext;
   unsigned MaxCallFrameSize = ~0u; ///< ~0u means: not computed yet.
   unsigned CVBytesOfCalleeSavedRegisters = 0;
   bool HasOpaqueSPAdjustment = false;
@@ -579,6 +626,7 @@ struct MachineFrameInfo {
            MaxAlignment == Other.MaxAlignment &&
            AdjustsStack == Other.AdjustsStack && HasCalls == Other.HasCalls &&
            StackProtector == Other.StackProtector &&
+           FunctionContext == Other.FunctionContext &&
            MaxCallFrameSize == Other.MaxCallFrameSize &&
            CVBytesOfCalleeSavedRegisters ==
                Other.CVBytesOfCalleeSavedRegisters &&
@@ -604,6 +652,8 @@ template <> struct MappingTraits<MachineFrameInfo> {
     YamlIO.mapOptional("hasCalls", MFI.HasCalls, false);
     YamlIO.mapOptional("stackProtector", MFI.StackProtector,
                        StringValue()); // Don't print it out when it's empty.
+    YamlIO.mapOptional("functionContext", MFI.FunctionContext,
+                       StringValue()); // Don't print it out when it's empty.
     YamlIO.mapOptional("maxCallFrameSize", MFI.MaxCallFrameSize, (unsigned)~0);
     YamlIO.mapOptional("cvBytesOfCalleeSavedRegisters",
                        MFI.CVBytesOfCalleeSavedRegisters, 0U);
@@ -624,7 +674,7 @@ template <> struct MappingTraits<MachineFrameInfo> {
 /// Targets should override this in a way that mirrors the implementation of
 /// llvm::MachineFunctionInfo.
 struct MachineFunctionInfo {
-  virtual ~MachineFunctionInfo() {}
+  virtual ~MachineFunctionInfo() = default;
   virtual void mappingImpl(IO &YamlIO) {}
 };
 
@@ -647,6 +697,15 @@ struct MachineFunction {
   // Register information
   bool TracksRegLiveness = false;
   bool HasWinCFI = false;
+
+  bool CallsEHReturn = false;
+  bool CallsUnwindInit = false;
+  bool HasEHCatchret = false;
+  bool HasEHScopes = false;
+  bool HasEHFunclets = false;
+
+  bool FailsVerification = false;
+  bool TracksDebugUserValues = false;
   std::vector<VirtualRegisterDefinition> VirtualRegisters;
   std::vector<MachineFunctionLiveIn> LiveIns;
   Optional<std::vector<FlowStringValue>> CalleeSavedRegisters;
@@ -660,6 +719,7 @@ struct MachineFunction {
   std::vector<CallSiteInfo> CallSitesInfo;
   std::vector<DebugValueSubstitution> DebugValueSubstitutions;
   MachineJumpTable JumpTableInfo;
+  std::vector<StringValue> MachineMetadataNodes;
   BlockStringValue Body;
 };
 
@@ -674,6 +734,16 @@ template <> struct MappingTraits<MachineFunction> {
     YamlIO.mapOptional("failedISel", MF.FailedISel, false);
     YamlIO.mapOptional("tracksRegLiveness", MF.TracksRegLiveness, false);
     YamlIO.mapOptional("hasWinCFI", MF.HasWinCFI, false);
+
+    YamlIO.mapOptional("callsEHReturn", MF.CallsEHReturn, false);
+    YamlIO.mapOptional("callsUnwindInit", MF.CallsUnwindInit, false);
+    YamlIO.mapOptional("hasEHCatchret", MF.HasEHCatchret, false);
+    YamlIO.mapOptional("hasEHScopes", MF.HasEHScopes, false);
+    YamlIO.mapOptional("hasEHFunclets", MF.HasEHFunclets, false);
+
+    YamlIO.mapOptional("failsVerification", MF.FailsVerification, false);
+    YamlIO.mapOptional("tracksDebugUserValues", MF.TracksDebugUserValues,
+                       false);
     YamlIO.mapOptional("registers", MF.VirtualRegisters,
                        std::vector<VirtualRegisterDefinition>());
     YamlIO.mapOptional("liveins", MF.LiveIns,
@@ -694,6 +764,9 @@ template <> struct MappingTraits<MachineFunction> {
     YamlIO.mapOptional("machineFunctionInfo", MF.MachineFuncInfo);
     if (!YamlIO.outputting() || !MF.JumpTableInfo.Entries.empty())
       YamlIO.mapOptional("jumpTable", MF.JumpTableInfo, MachineJumpTable());
+    if (!YamlIO.outputting() || !MF.MachineMetadataNodes.empty())
+      YamlIO.mapOptional("machineMetadataNodes", MF.MachineMetadataNodes,
+                         std::vector<StringValue>());
     YamlIO.mapOptional("body", MF.Body, BlockStringValue());
   }
 };

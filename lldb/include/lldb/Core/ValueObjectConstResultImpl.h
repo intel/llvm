@@ -15,8 +15,8 @@
 #include "lldb/lldb-private-enumerations.h"
 #include "lldb/lldb-types.h"
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 namespace lldb_private {
 class CompilerType;
 class DataExtractor;
@@ -68,7 +68,6 @@ private:
   ValueObject *m_impl_backend;
   lldb::addr_t m_live_address;
   AddressType m_live_address_type;
-  lldb::ValueObjectSP m_load_addr_backend;
   lldb::ValueObjectSP m_address_of_backend;
 
   ValueObjectConstResultImpl(const ValueObjectConstResultImpl &) = delete;

@@ -71,7 +71,7 @@ define float @test5(float %p) #0 {
 ; ALL-NEXT:  LBB3_1: ## %if.end
 ; ALL-NEXT:    vcmpltss %xmm0, %xmm1, %k1
 ; ALL-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; ALL-NEXT:    vmovss {{.*}}(%rip), %xmm0 {%k1}
+; ALL-NEXT:    vmovss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0 {%k1}
 ; ALL-NEXT:    retq
 entry:
   %cmp = fcmp oeq float %p, 0.000000e+00
@@ -116,7 +116,7 @@ define i32 @test8(i32 %a1, i32 %a2, i32 %a3) {
 ; ALL-LABEL: test8:
 ; ALL:       ## %bb.0:
 ; ALL-NEXT:    notl %edi
-; ALL-NEXT:    xorl $-2147483648, %esi ## imm = 0x80000000
+; ALL-NEXT:    addl $-2147483648, %esi ## imm = 0x80000000
 ; ALL-NEXT:    testl %edx, %edx
 ; ALL-NEXT:    movl $1, %eax
 ; ALL-NEXT:    cmovel %eax, %edx
@@ -155,13 +155,10 @@ B:
 define i32 @test10(i64 %b, i64 %c, i1 %d) {
 ; ALL-LABEL: test10:
 ; ALL:       ## %bb.0:
-; ALL-NEXT:    movl %edx, %eax
-; ALL-NEXT:    andb $1, %al
 ; ALL-NEXT:    cmpq %rsi, %rdi
-; ALL-NEXT:    sete %cl
-; ALL-NEXT:    orb %dl, %cl
-; ALL-NEXT:    andb $1, %cl
-; ALL-NEXT:    cmpb %cl, %al
+; ALL-NEXT:    sete %al
+; ALL-NEXT:    notb %dl
+; ALL-NEXT:    testb %al, %dl
 ; ALL-NEXT:    je LBB8_1
 ; ALL-NEXT:  ## %bb.2: ## %if.end.i
 ; ALL-NEXT:    movl $6, %eax

@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -polly-opt-isl -analyze < %s | FileCheck %s --match-full-lines
+; RUN: opt %loadPolly -polly-print-opt-isl -disable-output < %s | FileCheck %s --match-full-lines
 ;
 ; Full unroll of a loop with 5 iterations.
 ;
@@ -27,8 +27,7 @@ return:
 }
 
 
-!2 = distinct !{!2, !4, !5}
-!4 = !{!"llvm.loop.unroll.enable", i1 true}
+!2 = distinct !{!2, !5}
 !5 = !{!"llvm.loop.unroll.full"}
 
 

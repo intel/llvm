@@ -14,9 +14,10 @@
 #endif
 
 #include <cassert>
+#include <chrono>
 #include <cstdio> // for printf
 #include <string>
-#include <chrono>
+#include <system_error>
 #include <vector>
 
 #include "make_string.h"
@@ -139,11 +140,23 @@ struct scoped_test_env
         int ret = std::system(cmd.c_str());
         assert(ret == 0);
 #else
+#if defined(__MVS__)
+        // The behaviour of chmod -R on z/OS prevents recursive
+        // permission change for directories that do not have read permission.
+        std::string cmd = "find  " + test_root.string() + " -exec chmod 777 {} \\;";
+#else
         std::string cmd = "chmod -R 777 " + test_root.string();
+#endif // defined(__MVS__)
         int ret = std::system(cmd.c_str());
+#if !defined(_AIX)
+        // On AIX the chmod command will return non-zero when trying to set
+        // the permissions on a directory that contains a bad symlink. This triggers
+        // the assert, despite being able to delete everything with the following
+        // `rm -r` command.
         assert(ret == 0);
+#endif
 
-        cmd = "rm -r " + test_root.string();
+        cmd = "rm -rf " + test_root.string();
         ret = std::system(cmd.c_str());
         assert(ret == 0);
 #endif
@@ -173,7 +186,7 @@ struct scoped_test_env
     // 2GB.
     std::string create_file(fs::path filename_path, uintmax_t size = 0) {
         std::string filename = filename_path.string();
-#if defined(__LP64__) || defined(_WIN32)
+#if defined(__LP64__) || defined(_WIN32) || defined(__MVS__)
         auto large_file_fopen = fopen;
         auto large_file_ftruncate = utils::ftruncate;
         using large_file_offset_t = off_t;
@@ -193,10 +206,10 @@ struct scoped_test_env
             abort();
         }
 
-#ifndef _WIN32
-#define FOPEN_CLOEXEC_FLAG "e"
+#if defined(_WIN32) || defined(__MVS__)
+#  define FOPEN_CLOEXEC_FLAG ""
 #else
-#define FOPEN_CLOEXEC_FLAG ""
+#  define FOPEN_CLOEXEC_FLAG "e"
 #endif
         FILE* file = large_file_fopen(filename.c_str(), "w" FOPEN_CLOEXEC_FLAG);
         if (file == nullptr) {
@@ -315,20 +328,20 @@ private:
 /// This class generates the following tree:
 ///
 ///     static_test_env
-///     ├── bad_symlink -> dne
-///     ├── dir1
-///     │   ├── dir2
-///     │   │   ├── afile3
-///     │   │   ├── dir3
-///     │   │   │   └── file5
-///     │   │   ├── file4
-///     │   │   └── symlink_to_dir3 -> dir3
-///     │   ├── file1
-///     │   └── file2
-///     ├── empty_file
-///     ├── non_empty_file
-///     ├── symlink_to_dir -> dir1
-///     └── symlink_to_empty_file -> empty_file
+///     |-- bad_symlink -> dne
+///     |-- dir1
+///     |   |-- dir2
+///     |   |   |-- afile3
+///     |   |   |-- dir3
+///     |   |   |   `-- file5
+///     |   |   |-- file4
+///     |   |   `-- symlink_to_dir3 -> dir3
+///     |   `-- file1
+///     |   `-- file2
+///     |-- empty_file
+///     |-- non_empty_file
+///     |-- symlink_to_dir -> dir1
+///     `-- symlink_to_empty_file -> empty_file
 ///
 class static_test_env {
     scoped_test_env env_;
@@ -578,7 +591,7 @@ inline bool ErrorIs(const std::error_code& ec, std::errc First, ErrcT... Rest) {
 
 // Provide our own Sleep routine since std::this_thread::sleep_for is not
 // available in single-threaded mode.
-void SleepFor(std::chrono::seconds dur) {
+template <class Dur> void SleepFor(Dur dur) {
     using namespace std::chrono;
 #if defined(_LIBCPP_HAS_NO_MONOTONIC_CLOCK)
     using Clock = system_clock;
@@ -598,6 +611,23 @@ inline bool PathEqIgnoreSep(fs::path LHS, fs::path RHS) {
   LHS.make_preferred();
   RHS.make_preferred();
   return LHS.native() == RHS.native();
+}
+
+inline fs::perms NormalizeExpectedPerms(fs::perms P) {
+#ifdef _WIN32
+  // On Windows, fs::perms only maps down to one bit stored in the filesystem,
+  // a boolean readonly flag.
+  // Normalize permissions to the format it gets returned; all fs entries are
+  // read+exec for all users; writable ones also have the write bit set for
+  // all users.
+  P |= fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read;
+  P |= fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec;
+  fs::perms Write =
+      fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write;
+  if ((P & Write) != fs::perms::none)
+    P |= Write;
+#endif
+  return P;
 }
 
 struct ExceptionChecker {
@@ -678,23 +708,29 @@ inline fs::path GetWindowsInaccessibleDir() {
   const fs::path dir("C:\\System Volume Information");
   std::error_code ec;
   const fs::path root("C:\\");
-  fs::directory_iterator it(root, ec);
-  if (ec)
-    return fs::path();
-  const fs::directory_iterator endIt{};
-  while (it != endIt) {
-    const fs::directory_entry &ent = *it;
-    if (ent == dir) {
-      // Basic sanity checks on the directory_entry
-      if (!ent.exists())
-        return fs::path();
-      if (!ent.is_directory())
-        return fs::path();
-      return ent;
+  for (const auto &ent : fs::directory_iterator(root, ec)) {
+    if (ent != dir)
+      continue;
+    // Basic sanity checks on the directory_entry
+    if (!ent.exists() || !ent.is_directory()) {
+      fprintf(stderr, "The expected inaccessible directory \"%s\" was found "
+                      "but doesn't behave as expected, skipping tests "
+                      "regarding it\n", dir.string().c_str());
+      return fs::path();
     }
-    ++it;
+    // Check that it indeed is inaccessible as expected
+    (void)fs::exists(ent, ec);
+    if (!ec) {
+      fprintf(stderr, "The expected inaccessible directory \"%s\" was found "
+                      "but seems to be accessible, skipping tests "
+                      "regarding it\n", dir.string().c_str());
+      return fs::path();
+    }
+    return ent;
   }
+  fprintf(stderr, "No inaccessible directory \"%s\" found, skipping tests "
+                  "regarding it\n", dir.string().c_str());
   return fs::path();
 }
 
-#endif /* FILESYSTEM_TEST_HELPER_HPP */
+#endif /* FILESYSTEM_TEST_HELPER_H */

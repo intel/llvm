@@ -16,6 +16,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
@@ -25,10 +26,10 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SMLoc.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -53,6 +54,8 @@ class SparcOperand;
 
 class SparcAsmParser : public MCTargetAsmParser {
   MCAsmParser &Parser;
+
+  enum class TailRelocKind { Load_GOT, Add_TLS, Load_TLS, Call_TLS };
 
   /// @name Auto-generated Match Functions
   /// {
@@ -81,6 +84,9 @@ class SparcAsmParser : public MCTargetAsmParser {
   OperandMatchResultTy parseMEMOperand(OperandVector &Operands);
 
   OperandMatchResultTy parseMembarTag(OperandVector &Operands);
+
+  template <TailRelocKind Kind>
+  OperandMatchResultTy parseTailRelocSym(OperandVector &Operands);
 
   template <unsigned N>
   OperandMatchResultTy parseShiftAmtImm(OperandVector &Operands);
@@ -111,6 +117,8 @@ class SparcAsmParser : public MCTargetAsmParser {
 
   bool expandSET(MCInst &Inst, SMLoc IDLoc,
                  SmallVectorImpl<MCInst> &Instructions);
+
+  SMLoc getLoc() const { return getParser().getTok().getLoc(); }
 
 public:
   SparcAsmParser(const MCSubtargetInfo &sti, MCAsmParser &parser,
@@ -257,7 +265,7 @@ private:
   };
 
 public:
-  SparcOperand(KindTy K) : MCParsedAsmOperand(), Kind(K) {}
+  SparcOperand(KindTy K) : Kind(K) {}
 
   bool isToken() const override { return Kind == k_Token; }
   bool isReg() const override { return Kind == k_Register; }
@@ -266,6 +274,7 @@ public:
   bool isMEMrr() const { return Kind == k_MemoryReg; }
   bool isMEMri() const { return Kind == k_MemoryImm; }
   bool isMembarTag() const { return Kind == k_Immediate; }
+  bool isTailRelocSym() const { return Kind == k_Immediate; }
 
   bool isCallTarget() const {
     if (!isImm())
@@ -422,6 +431,11 @@ public:
   }
 
   void addCallTargetOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    addExpr(Inst, getImm());
+  }
+
+  void addTailRelocSymOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     addExpr(Inst, getImm());
   }
@@ -849,6 +863,97 @@ OperandMatchResultTy SparcAsmParser::parseShiftAmtImm(OperandVector &Operands) {
   return MatchOperand_Success;
 }
 
+template <SparcAsmParser::TailRelocKind Kind>
+OperandMatchResultTy
+SparcAsmParser::parseTailRelocSym(OperandVector &Operands) {
+  SMLoc S = getLoc();
+  SMLoc E = SMLoc::getFromPointer(S.getPointer() - 1);
+
+  auto MatchesKind = [](SparcMCExpr::VariantKind VK) -> bool {
+    switch (Kind) {
+    case TailRelocKind::Load_GOT:
+      // Non-TLS relocations on ld (or ldx).
+      // ld [%rr + %rr], %rr, %rel(sym)
+      return VK == SparcMCExpr::VK_Sparc_GOTDATA_OP;
+    case TailRelocKind::Add_TLS:
+      // TLS relocations on add.
+      // add %rr, %rr, %rr, %rel(sym)
+      switch (VK) {
+      case SparcMCExpr::VK_Sparc_TLS_GD_ADD:
+      case SparcMCExpr::VK_Sparc_TLS_IE_ADD:
+      case SparcMCExpr::VK_Sparc_TLS_LDM_ADD:
+      case SparcMCExpr::VK_Sparc_TLS_LDO_ADD:
+        return true;
+      default:
+        return false;
+      }
+    case TailRelocKind::Load_TLS:
+      // TLS relocations on ld (or ldx).
+      // ld[x] %addr, %rr, %rel(sym)
+      switch (VK) {
+      case SparcMCExpr::VK_Sparc_TLS_IE_LD:
+      case SparcMCExpr::VK_Sparc_TLS_IE_LDX:
+        return true;
+      default:
+        return false;
+      }
+    case TailRelocKind::Call_TLS:
+      // TLS relocations on call.
+      // call sym, %rel(sym)
+      switch (VK) {
+      case SparcMCExpr::VK_Sparc_TLS_GD_CALL:
+      case SparcMCExpr::VK_Sparc_TLS_LDM_CALL:
+        return true;
+      default:
+        return false;
+      }
+    }
+    llvm_unreachable("Unhandled SparcAsmParser::TailRelocKind enum");
+  };
+
+  if (getLexer().getKind() != AsmToken::Percent) {
+    Error(getLoc(), "expected '%' for operand modifier");
+    return MatchOperand_ParseFail;
+  }
+
+  const AsmToken Tok = Parser.getTok();
+  getParser().Lex(); // Eat '%'
+
+  if (getLexer().getKind() != AsmToken::Identifier) {
+    Error(getLoc(), "expected valid identifier for operand modifier");
+    return MatchOperand_ParseFail;
+  }
+
+  StringRef Name = getParser().getTok().getIdentifier();
+  SparcMCExpr::VariantKind VK = SparcMCExpr::parseVariantKind(Name);
+  if (VK == SparcMCExpr::VK_Sparc_None) {
+    Error(getLoc(), "invalid operand modifier");
+    return MatchOperand_ParseFail;
+  }
+
+  if (!MatchesKind(VK)) {
+    // Did not match the specified set of relocation types, put '%' back.
+    getLexer().UnLex(Tok);
+    return MatchOperand_NoMatch;
+  }
+
+  Parser.Lex(); // Eat the identifier.
+  if (getLexer().getKind() != AsmToken::LParen) {
+    Error(getLoc(), "expected '('");
+    return MatchOperand_ParseFail;
+  }
+
+  getParser().Lex(); // Eat '('
+  const MCExpr *SubExpr;
+  if (getParser().parseParenExpression(SubExpr, E)) {
+    return MatchOperand_ParseFail;
+  }
+
+  const MCExpr *Val = adjustPICRelocation(VK, SubExpr);
+  Operands.push_back(SparcOperand::CreateImm(Val, S, E));
+  return MatchOperand_Success;
+}
+
 OperandMatchResultTy SparcAsmParser::parseMembarTag(OperandVector &Operands) {
   SMLoc S = Parser.getTok().getLoc();
   const MCExpr *EVal;
@@ -1034,6 +1139,9 @@ SparcAsmParser::parseSparcAsmOperand(std::unique_ptr<SparcOperand> &Op,
       case Sparc::TBR:
         Op = SparcOperand::CreateToken("%tbr", S);
         break;
+      case Sparc::PC:
+        Op = SparcOperand::CreateToken("%pc", S);
+        break;
       case Sparc::ICC:
         if (name == "xcc")
           Op = SparcOperand::CreateToken("%xcc", S);
@@ -1122,9 +1230,8 @@ bool SparcAsmParser::matchRegisterName(const AsmToken &Tok, unsigned &RegNo,
       return true;
     }
 
-    if (name.substr(0, 3).equals_lower("asr")
-        && !name.substr(3).getAsInteger(10, intVal)
-        && intVal > 0 && intVal < 32) {
+    if (name.substr(0, 3).equals_insensitive("asr") &&
+        !name.substr(3).getAsInteger(10, intVal) && intVal > 0 && intVal < 32) {
       RegNo = ASRRegs[intVal];
       RegKind = SparcOperand::rk_Special;
       return true;
@@ -1193,9 +1300,8 @@ bool SparcAsmParser::matchRegisterName(const AsmToken &Tok, unsigned &RegNo,
     }
 
     // %fcc0 - %fcc3
-    if (name.substr(0, 3).equals_lower("fcc")
-        && !name.substr(3).getAsInteger(10, intVal)
-        && intVal < 4) {
+    if (name.substr(0, 3).equals_insensitive("fcc") &&
+        !name.substr(3).getAsInteger(10, intVal) && intVal < 4) {
       // FIXME: check 64bit and  handle %fcc1 - %fcc3
       RegNo = Sparc::FCC0 + intVal;
       RegKind = SparcOperand::rk_Special;
@@ -1203,46 +1309,42 @@ bool SparcAsmParser::matchRegisterName(const AsmToken &Tok, unsigned &RegNo,
     }
 
     // %g0 - %g7
-    if (name.substr(0, 1).equals_lower("g")
-        && !name.substr(1).getAsInteger(10, intVal)
-        && intVal < 8) {
+    if (name.substr(0, 1).equals_insensitive("g") &&
+        !name.substr(1).getAsInteger(10, intVal) && intVal < 8) {
       RegNo = IntRegs[intVal];
       RegKind = SparcOperand::rk_IntReg;
       return true;
     }
     // %o0 - %o7
-    if (name.substr(0, 1).equals_lower("o")
-        && !name.substr(1).getAsInteger(10, intVal)
-        && intVal < 8) {
+    if (name.substr(0, 1).equals_insensitive("o") &&
+        !name.substr(1).getAsInteger(10, intVal) && intVal < 8) {
       RegNo = IntRegs[8 + intVal];
       RegKind = SparcOperand::rk_IntReg;
       return true;
     }
-    if (name.substr(0, 1).equals_lower("l")
-        && !name.substr(1).getAsInteger(10, intVal)
-        && intVal < 8) {
+    if (name.substr(0, 1).equals_insensitive("l") &&
+        !name.substr(1).getAsInteger(10, intVal) && intVal < 8) {
       RegNo = IntRegs[16 + intVal];
       RegKind = SparcOperand::rk_IntReg;
       return true;
     }
-    if (name.substr(0, 1).equals_lower("i")
-        && !name.substr(1).getAsInteger(10, intVal)
-        && intVal < 8) {
+    if (name.substr(0, 1).equals_insensitive("i") &&
+        !name.substr(1).getAsInteger(10, intVal) && intVal < 8) {
       RegNo = IntRegs[24 + intVal];
       RegKind = SparcOperand::rk_IntReg;
       return true;
     }
     // %f0 - %f31
-    if (name.substr(0, 1).equals_lower("f")
-        && !name.substr(1, 2).getAsInteger(10, intVal) && intVal < 32) {
+    if (name.substr(0, 1).equals_insensitive("f") &&
+        !name.substr(1, 2).getAsInteger(10, intVal) && intVal < 32) {
       RegNo = FloatRegs[intVal];
       RegKind = SparcOperand::rk_FloatReg;
       return true;
     }
     // %f32 - %f62
-    if (name.substr(0, 1).equals_lower("f")
-        && !name.substr(1, 2).getAsInteger(10, intVal)
-        && intVal >= 32 && intVal <= 62 && (intVal % 2 == 0)) {
+    if (name.substr(0, 1).equals_insensitive("f") &&
+        !name.substr(1, 2).getAsInteger(10, intVal) && intVal >= 32 &&
+        intVal <= 62 && (intVal % 2 == 0)) {
       // FIXME: Check V9
       RegNo = DoubleRegs[intVal/2];
       RegKind = SparcOperand::rk_DoubleReg;
@@ -1250,17 +1352,16 @@ bool SparcAsmParser::matchRegisterName(const AsmToken &Tok, unsigned &RegNo,
     }
 
     // %r0 - %r31
-    if (name.substr(0, 1).equals_lower("r")
-        && !name.substr(1, 2).getAsInteger(10, intVal) && intVal < 31) {
+    if (name.substr(0, 1).equals_insensitive("r") &&
+        !name.substr(1, 2).getAsInteger(10, intVal) && intVal < 31) {
       RegNo = IntRegs[intVal];
       RegKind = SparcOperand::rk_IntReg;
       return true;
     }
 
     // %c0 - %c31
-    if (name.substr(0, 1).equals_lower("c")
-        && !name.substr(1).getAsInteger(10, intVal)
-        && intVal < 32) {
+    if (name.substr(0, 1).equals_insensitive("c") &&
+        !name.substr(1).getAsInteger(10, intVal) && intVal < 32) {
       RegNo = CoprocRegs[intVal];
       RegKind = SparcOperand::rk_CoprocReg;
       return true;
@@ -1341,6 +1442,11 @@ bool SparcAsmParser::matchRegisterName(const AsmToken &Tok, unsigned &RegNo,
       RegKind = SparcOperand::rk_Special;
       return true;
     }
+    if (name.equals("pc")) {
+      RegNo = Sparc::PC;
+      RegKind = SparcOperand::rk_Special;
+      return true;
+    }
   }
   return false;
 }
@@ -1407,9 +1513,26 @@ bool SparcAsmParser::matchSparcAsmModifiers(const MCExpr *&EVal,
   StringRef name = Tok.getString();
 
   SparcMCExpr::VariantKind VK = SparcMCExpr::parseVariantKind(name);
-
-  if (VK == SparcMCExpr::VK_Sparc_None)
+  switch (VK) {
+  case SparcMCExpr::VK_Sparc_None:
+    Error(getLoc(), "invalid operand modifier");
     return false;
+
+  case SparcMCExpr::VK_Sparc_GOTDATA_OP:
+  case SparcMCExpr::VK_Sparc_TLS_GD_ADD:
+  case SparcMCExpr::VK_Sparc_TLS_GD_CALL:
+  case SparcMCExpr::VK_Sparc_TLS_IE_ADD:
+  case SparcMCExpr::VK_Sparc_TLS_IE_LD:
+  case SparcMCExpr::VK_Sparc_TLS_IE_LDX:
+  case SparcMCExpr::VK_Sparc_TLS_LDM_ADD:
+  case SparcMCExpr::VK_Sparc_TLS_LDM_CALL:
+  case SparcMCExpr::VK_Sparc_TLS_LDO_ADD:
+    // These are special-cased at tablegen level.
+    return false;
+
+  default:
+    break;
+  }
 
   Parser.Lex(); // Eat the identifier.
   if (Parser.getTok().getKind() != AsmToken::LParen)

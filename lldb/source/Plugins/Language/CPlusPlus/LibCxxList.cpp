@@ -27,8 +27,7 @@ namespace {
 class ListEntry {
 public:
   ListEntry() = default;
-  ListEntry(ValueObjectSP entry_sp) : m_entry_sp(entry_sp) {}
-  ListEntry(const ListEntry &rhs) = default;
+  ListEntry(ValueObjectSP entry_sp) : m_entry_sp(std::move(entry_sp)) {}
   ListEntry(ValueObject *entry)
       : m_entry_sp(entry ? entry->GetSP() : ValueObjectSP()) {}
 
@@ -73,9 +72,8 @@ private:
 class ListIterator {
 public:
   ListIterator() = default;
-  ListIterator(ListEntry entry) : m_entry(entry) {}
-  ListIterator(ValueObjectSP entry) : m_entry(entry) {}
-  ListIterator(const ListIterator &rhs) = default;
+  ListIterator(ListEntry entry) : m_entry(std::move(entry)) {}
+  ListIterator(ValueObjectSP entry) : m_entry(std::move(entry)) {}
   ListIterator(ValueObject *entry) : m_entry(entry) {}
 
   ValueObjectSP value() { return m_entry.GetEntry(); }
@@ -121,16 +119,16 @@ protected:
   AbstractListFrontEnd(ValueObject &valobj)
       : SyntheticChildrenFrontEnd(valobj) {}
 
-  size_t m_count;
-  ValueObject *m_head;
+  size_t m_count = 0;
+  ValueObject *m_head = nullptr;
 
   static constexpr bool g_use_loop_detect = true;
-  size_t m_loop_detected; // The number of elements that have had loop detection
-                          // run over them.
+  size_t m_loop_detected = 0; // The number of elements that have had loop
+                              // detection run over them.
   ListEntry m_slow_runner; // Used for loop detection
   ListEntry m_fast_runner; // Used for loop detection
 
-  size_t m_list_capping_size;
+  size_t m_list_capping_size = 0;
   CompilerType m_element_type;
   std::map<size_t, ListIterator> m_iterators;
 
@@ -160,8 +158,8 @@ public:
   bool Update() override;
 
 private:
-  lldb::addr_t m_node_address;
-  ValueObject *m_tail;
+  lldb::addr_t m_node_address = 0;
+  ValueObject *m_tail = nullptr;
 };
 
 } // end anonymous namespace
@@ -310,7 +308,7 @@ bool ForwardListFrontEnd::Update() {
 }
 
 ListFrontEnd::ListFrontEnd(lldb::ValueObjectSP valobj_sp)
-    : AbstractListFrontEnd(*valobj_sp), m_node_address(), m_tail(nullptr) {
+    : AbstractListFrontEnd(*valobj_sp) {
   if (valobj_sp)
     Update();
 }

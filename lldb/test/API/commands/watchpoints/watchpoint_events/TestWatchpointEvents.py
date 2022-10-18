@@ -1,8 +1,5 @@
 """Test that adding, deleting and modifying watchpoints sends the appropriate events."""
 
-from __future__ import print_function
-
-
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -10,8 +7,6 @@ from lldbsuite.test import lldbutil
 
 
 class TestWatchpointEvents (TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -24,11 +19,7 @@ class TestWatchpointEvents (TestBase):
     def test_with_python_api(self):
         """Test that adding, deleting and modifying watchpoints sends the appropriate events."""
         self.build()
-
-        exe = self.getBuildArtifact("a.out")
-
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         self.main_source_spec = lldb.SBFileSpec(self.main_source)
 

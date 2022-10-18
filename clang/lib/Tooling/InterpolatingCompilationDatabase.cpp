@@ -43,13 +43,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/LangStandard.h"
+#include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/Types.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Debug.h"
@@ -134,8 +135,7 @@ struct TransferableCommand {
   bool ClangCLMode;
 
   TransferableCommand(CompileCommand C)
-      : Cmd(std::move(C)), Type(guessType(Cmd.Filename)),
-        ClangCLMode(checkIsCLMode(Cmd.CommandLine)) {
+      : Cmd(std::move(C)), Type(guessType(Cmd.Filename)) {
     std::vector<std::string> OldArgs = std::move(Cmd.CommandLine);
     Cmd.CommandLine.clear();
 
@@ -145,6 +145,9 @@ struct TransferableCommand {
       SmallVector<const char *, 16> TmpArgv;
       for (const std::string &S : OldArgs)
         TmpArgv.push_back(S.c_str());
+      ClangCLMode = !TmpArgv.empty() &&
+                    driver::IsClangCL(driver::getDriverMode(
+                        TmpArgv.front(), llvm::makeArrayRef(TmpArgv).slice(1)));
       ArgList = {TmpArgv.begin(), TmpArgv.end()};
     }
 
@@ -161,8 +164,8 @@ struct TransferableCommand {
       const unsigned OldPos = Pos;
       std::unique_ptr<llvm::opt::Arg> Arg(OptTable.ParseOneArg(
           ArgList, Pos,
-          /* Include */ ClangCLMode ? CoreOption | CLOption : 0,
-          /* Exclude */ ClangCLMode ? 0 : CLOption));
+          /* Include */ ClangCLMode ? CoreOption | CLOption | CLDXCOption : 0,
+          /* Exclude */ ClangCLMode ? 0 : CLOption | CLDXCOption));
 
       if (!Arg)
         continue;
@@ -239,26 +242,12 @@ struct TransferableCommand {
           llvm::Twine(ClangCLMode ? "/std:" : "-std=") +
           LangStandard::getLangStandardForKind(Std).getName()).str());
     }
-    if (Filename.startswith("-") || (ClangCLMode && Filename.startswith("/")))
-      Result.CommandLine.push_back("--");
+    Result.CommandLine.push_back("--");
     Result.CommandLine.push_back(std::string(Filename));
     return Result;
   }
 
 private:
-  // Determine whether the given command line is intended for the CL driver.
-  static bool checkIsCLMode(ArrayRef<std::string> CmdLine) {
-    // First look for --driver-mode.
-    for (StringRef S : llvm::reverse(CmdLine)) {
-      if (S.consume_front("--driver-mode="))
-        return S == "cl";
-    }
-
-    // Otherwise just check the clang executable file name.
-    return !CmdLine.empty() &&
-           llvm::sys::path::stem(CmdLine.front()).endswith_lower("cl");
-  }
-
   // Map the language from the --std flag to that of the -x flag.
   static types::ID toType(Language Lang) {
     switch (Lang) {
@@ -338,7 +327,7 @@ public:
       StringRef Path = Strings.save(StringRef(OriginalPaths[I]).lower());
 
       Paths.emplace_back(Path, I);
-      Types.push_back(foldType(guessType(Path)));
+      Types.push_back(foldType(guessType(OriginalPaths[I])));
       Stems.emplace_back(sys::path::stem(Path), I);
       auto Dir = ++sys::path::rbegin(Path), DirEnd = sys::path::rend(Path);
       for (int J = 0; J < DirectorySegmentsIndexed && Dir != DirEnd; ++J, ++Dir)

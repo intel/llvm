@@ -1,15 +1,15 @@
 ; RUN: llvm-as %s -o %t1.o
 ; RUN: llvm-as %p/Inputs/alias-alias-1.ll -o %t2.o
-; RUN: llvm-lto2 run -o %t3.o %t1.o %t2.o -r %t2.o,a, -r %t2.o,d,px -r %t1.o,a,p -r %t1.o,c,p -r %t1.o,b -save-temps
+; RUN: llvm-lto2 run -o %t3.o %t1.o %t2.o -r %t2.o,a, -r %t2.o,d,px -r %t1.o,a,p -r %t1.o,c,p -r %t1.o,b -save-temps -opaque-pointers
 ; RUN: llvm-dis < %t3.o.0.0.preopt.bc -o - | FileCheck %s
 ; RUN: FileCheck --check-prefix=RES %s < %t3.o.resolution.txt
 
 ; CHECK-NOT: alias
 ; CHECK: @c = global i32 1
-; CHECK-NEXT: @d = global i32* @a
+; CHECK-NEXT: @d = global ptr @a
 ; CHECK-EMPTY:
-; CHECK-NEXT: @a = weak alias i32, i32* @b
-; CHECK-NEXT: @b = internal alias i32, i32* @c
+; CHECK-NEXT: @a = weak alias i32, ptr @b
+; CHECK-NEXT: @b = internal alias i32, ptr @c
 
 ; RES: 1.o{{$}}
 ; RES-NEXT: {{^}}-r={{.*}}1.o,c,p{{$}}

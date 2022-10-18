@@ -95,10 +95,8 @@ bool AMDGPULateCodeGenPrepare::runOnFunction(Function &F) {
 
   bool Changed = false;
   for (auto &BB : F)
-    for (auto BI = BB.begin(), BE = BB.end(); BI != BE; /*EMPTY*/) {
-      Instruction *I = &*BI++;
-      Changed |= visit(*I);
-    }
+    for (Instruction &I : llvm::make_early_inc_range(BB))
+      Changed |= visit(I);
 
   return Changed;
 }
@@ -165,8 +163,10 @@ bool AMDGPULateCodeGenPrepare::visitLoadInst(LoadInst &LI) {
   PointerType *Int32PtrTy = Type::getInt32PtrTy(LI.getContext(), AS);
   PointerType *Int8PtrTy = Type::getInt8PtrTy(LI.getContext(), AS);
   auto *NewPtr = IRB.CreateBitCast(
-      IRB.CreateConstGEP1_64(IRB.CreateBitCast(Base, Int8PtrTy),
-                             Offset - Adjust),
+      IRB.CreateConstGEP1_64(
+          IRB.getInt8Ty(),
+          IRB.CreatePointerBitCastOrAddrSpaceCast(Base, Int8PtrTy),
+          Offset - Adjust),
       Int32PtrTy);
   LoadInst *NewLd = IRB.CreateAlignedLoad(IRB.getInt32Ty(), NewPtr, Align(4));
   NewLd->copyMetadata(LI);

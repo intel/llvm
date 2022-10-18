@@ -6,14 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 
 // LWG 2056 changed the values of future_errc, so if we're using new headers
 // with an old library we'll get incorrect messages.
 //
-// XFAIL: with_system_cxx_lib=macosx10.11
-// XFAIL: with_system_cxx_lib=macosx10.10
-// XFAIL: with_system_cxx_lib=macosx10.9
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
 
 // <future>
 

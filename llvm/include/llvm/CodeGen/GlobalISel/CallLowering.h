@@ -17,25 +17,26 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/CallingConvLower.h"
-#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetCallingConv.h"
-#include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/LowLevelTypeImpl.h"
 #include "llvm/Support/MachineValueType.h"
 #include <cstdint>
 #include <functional>
 
 namespace llvm {
 
+class AttributeList;
 class CallBase;
 class DataLayout;
 class Function;
 class FunctionLoweringInfo;
 class MachineIRBuilder;
+class MachineFunction;
 struct MachinePointerInfo;
 class MachineRegisterInfo;
 class TargetLowering;
@@ -71,11 +72,17 @@ public:
     /// arguments.
     const Value *OrigValue = nullptr;
 
-    ArgInfo(ArrayRef<Register> Regs, Type *Ty,
+    /// Index original Function's argument.
+    unsigned OrigArgIndex;
+
+    /// Sentinel value for implicit machine-level input arguments.
+    static const unsigned NoArgIndex = UINT_MAX;
+
+    ArgInfo(ArrayRef<Register> Regs, Type *Ty, unsigned OrigIndex,
             ArrayRef<ISD::ArgFlagsTy> Flags = ArrayRef<ISD::ArgFlagsTy>(),
             bool IsFixed = true, const Value *OrigValue = nullptr)
         : BaseArgInfo(Ty, Flags, IsFixed), Regs(Regs.begin(), Regs.end()),
-          OrigValue(OrigValue) {
+          OrigValue(OrigValue), OrigArgIndex(OrigIndex) {
       if (!Regs.empty() && Flags.empty())
         this->Flags.push_back(ISD::ArgFlagsTy());
       // FIXME: We should have just one way of saying "no register".
@@ -84,12 +91,12 @@ public:
              "only void types should have no register");
     }
 
-    ArgInfo(ArrayRef<Register> Regs, const Value &OrigValue,
+    ArgInfo(ArrayRef<Register> Regs, const Value &OrigValue, unsigned OrigIndex,
             ArrayRef<ISD::ArgFlagsTy> Flags = ArrayRef<ISD::ArgFlagsTy>(),
             bool IsFixed = true)
-        : ArgInfo(Regs, OrigValue.getType(), Flags, IsFixed, &OrigValue) {}
+      : ArgInfo(Regs, OrigValue.getType(), OrigIndex, Flags, IsFixed, &OrigValue) {}
 
-    ArgInfo() : BaseArgInfo() {}
+    ArgInfo() = default;
   };
 
   struct CallLoweringInfo {
@@ -104,11 +111,14 @@ public:
     ArgInfo OrigRet;
 
     /// List of descriptors of the arguments passed to the function.
-    SmallVector<ArgInfo, 8> OrigArgs;
+    SmallVector<ArgInfo, 32> OrigArgs;
 
     /// Valid if the call has a swifterror inout parameter, and contains the
     /// vreg that the swifterror should be copied into after the call.
     Register SwiftErrorVReg;
+
+    /// Original IR callsite corresponding to this call, if available.
+    const CallBase *CB = nullptr;
 
     MDNode *KnownCallees = nullptr;
 
@@ -134,6 +144,9 @@ public:
 
     /// The stack index for sret demotion.
     int DemoteStackIndex;
+
+    /// Expected type identifier for indirect calls with a CFI check.
+    const ConstantInt *CFIType = nullptr;
   };
 
   /// Argument handling is mostly uniform between the four places that
@@ -142,10 +155,85 @@ public:
   /// returns. However, once a decision has been made on where an
   /// argument should go, exactly what happens can vary slightly. This
   /// class abstracts the differences.
+  ///
+  /// ValueAssigner should not depend on any specific function state, and
+  /// only determine the types and locations for arguments.
+  struct ValueAssigner {
+    ValueAssigner(bool IsIncoming, CCAssignFn *AssignFn_,
+                  CCAssignFn *AssignFnVarArg_ = nullptr)
+        : AssignFn(AssignFn_), AssignFnVarArg(AssignFnVarArg_),
+          IsIncomingArgumentHandler(IsIncoming) {
+
+      // Some targets change the handler depending on whether the call is
+      // varargs or not. If
+      if (!AssignFnVarArg)
+        AssignFnVarArg = AssignFn;
+    }
+
+    virtual ~ValueAssigner() = default;
+
+    /// Returns true if the handler is dealing with incoming arguments,
+    /// i.e. those that move values from some physical location to vregs.
+    bool isIncomingArgumentHandler() const {
+      return IsIncomingArgumentHandler;
+    }
+
+    /// Wrap call to (typically tablegenerated CCAssignFn). This may be
+    /// overridden to track additional state information as arguments are
+    /// assigned or apply target specific hacks around the legacy
+    /// infrastructure.
+    virtual bool assignArg(unsigned ValNo, EVT OrigVT, MVT ValVT, MVT LocVT,
+                           CCValAssign::LocInfo LocInfo, const ArgInfo &Info,
+                           ISD::ArgFlagsTy Flags, CCState &State) {
+      if (getAssignFn(State.isVarArg())(ValNo, ValVT, LocVT, LocInfo, Flags,
+                                        State))
+        return true;
+      StackOffset = State.getNextStackOffset();
+      return false;
+    }
+
+    /// Assignment function to use for a general call.
+    CCAssignFn *AssignFn;
+
+    /// Assignment function to use for a variadic call. This is usually the same
+    /// as AssignFn on most targets.
+    CCAssignFn *AssignFnVarArg;
+
+    /// Stack offset for next argument. At the end of argument evaluation, this
+    /// is typically the total stack size.
+    uint64_t StackOffset = 0;
+
+    /// Select the appropriate assignment function depending on whether this is
+    /// a variadic call.
+    CCAssignFn *getAssignFn(bool IsVarArg) const {
+      return IsVarArg ? AssignFnVarArg : AssignFn;
+    }
+
+  private:
+    const bool IsIncomingArgumentHandler;
+    virtual void anchor();
+  };
+
+  struct IncomingValueAssigner : public ValueAssigner {
+    IncomingValueAssigner(CCAssignFn *AssignFn_,
+                          CCAssignFn *AssignFnVarArg_ = nullptr)
+        : ValueAssigner(true, AssignFn_, AssignFnVarArg_) {}
+  };
+
+  struct OutgoingValueAssigner : public ValueAssigner {
+    OutgoingValueAssigner(CCAssignFn *AssignFn_,
+                          CCAssignFn *AssignFnVarArg_ = nullptr)
+        : ValueAssigner(false, AssignFn_, AssignFnVarArg_) {}
+  };
+
   struct ValueHandler {
+    MachineIRBuilder &MIRBuilder;
+    MachineRegisterInfo &MRI;
+    const bool IsIncomingArgumentHandler;
+
     ValueHandler(bool IsIncoming, MachineIRBuilder &MIRBuilder,
-                 MachineRegisterInfo &MRI, CCAssignFn *AssignFn)
-        : MIRBuilder(MIRBuilder), MRI(MRI), AssignFn(AssignFn),
+                 MachineRegisterInfo &MRI)
+        : MIRBuilder(MIRBuilder), MRI(MRI),
           IsIncomingArgumentHandler(IsIncoming) {}
 
     virtual ~ValueHandler() = default;
@@ -161,39 +249,51 @@ public:
     /// direct SP manipulation, depending on the context. \p MPO
     /// should be initialized to an appropriate description of the
     /// address created.
-    virtual Register getStackAddress(uint64_t Size, int64_t Offset,
+    virtual Register getStackAddress(uint64_t MemSize, int64_t Offset,
                                      MachinePointerInfo &MPO,
                                      ISD::ArgFlagsTy Flags) = 0;
+
+    /// Return the in-memory size to write for the argument at \p VA. This may
+    /// be smaller than the allocated stack slot size.
+    ///
+    /// This is overridable primarily for targets to maintain compatibility with
+    /// hacks around the existing DAG call lowering infrastructure.
+    virtual LLT getStackValueStoreType(const DataLayout &DL,
+                                       const CCValAssign &VA,
+                                       ISD::ArgFlagsTy Flags) const;
 
     /// The specified value has been assigned to a physical register,
     /// handle the appropriate COPY (either to or from) and mark any
     /// relevant uses/defines as needed.
     virtual void assignValueToReg(Register ValVReg, Register PhysReg,
-                                  CCValAssign &VA) = 0;
+                                  CCValAssign VA) = 0;
 
     /// The specified value has been assigned to a stack
     /// location. Load or store it there, with appropriate extension
     /// if necessary.
     virtual void assignValueToAddress(Register ValVReg, Register Addr,
-                                      uint64_t Size, MachinePointerInfo &MPO,
+                                      LLT MemTy, MachinePointerInfo &MPO,
                                       CCValAssign &VA) = 0;
 
     /// An overload which takes an ArgInfo if additional information about the
     /// arg is needed. \p ValRegIndex is the index in \p Arg.Regs for the value
     /// to store.
     virtual void assignValueToAddress(const ArgInfo &Arg, unsigned ValRegIndex,
-                                      Register Addr, uint64_t Size,
+                                      Register Addr, LLT MemTy,
                                       MachinePointerInfo &MPO,
                                       CCValAssign &VA) {
-      assignValueToAddress(Arg.Regs[ValRegIndex], Addr, Size, MPO, VA);
+      assignValueToAddress(Arg.Regs[ValRegIndex], Addr, MemTy, MPO, VA);
     }
 
     /// Handle custom values, which may be passed into one or more of \p VAs.
+    /// \p If the handler wants the assignments to be delayed until after
+    /// mem loc assignments, then it sets \p Thunk to the thunk to do the
+    /// assignment.
     /// \return The number of \p VAs that have been assigned after the first
     ///         one, and which should therefore be skipped from further
     ///         processing.
-    virtual unsigned assignCustomValue(const ArgInfo &Arg,
-                                       ArrayRef<CCValAssign> VAs) {
+    virtual unsigned assignCustomValue(ArgInfo &Arg, ArrayRef<CCValAssign> VAs,
+                                       std::function<void()> *Thunk = nullptr) {
       // This is not a pure virtual method because not all targets need to worry
       // about custom values.
       llvm_unreachable("Custom values not supported");
@@ -211,26 +311,13 @@ public:
     /// to at most MaxSize bits. If MaxSizeBits is 0 then no maximum is set.
     Register extendRegister(Register ValReg, CCValAssign &VA,
                             unsigned MaxSizeBits = 0);
-
-    virtual bool assignArg(unsigned ValNo, MVT ValVT, MVT LocVT,
-                           CCValAssign::LocInfo LocInfo, const ArgInfo &Info,
-                           ISD::ArgFlagsTy Flags, CCState &State) {
-      return AssignFn(ValNo, ValVT, LocVT, LocInfo, Flags, State);
-    }
-
-    MachineIRBuilder &MIRBuilder;
-    MachineRegisterInfo &MRI;
-    CCAssignFn *AssignFn;
-
-  private:
-    bool IsIncomingArgumentHandler;
-    virtual void anchor();
   };
 
+  /// Base class for ValueHandlers used for arguments coming into the current
+  /// function, or for return values received from a call.
   struct IncomingValueHandler : public ValueHandler {
-    IncomingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
-                         CCAssignFn *AssignFn)
-        : ValueHandler(true, MIRBuilder, MRI, AssignFn) {}
+    IncomingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI)
+        : ValueHandler(/*IsIncoming*/ true, MIRBuilder, MRI) {}
 
     /// Insert G_ASSERT_ZEXT/G_ASSERT_SEXT or other hint instruction based on \p
     /// VA, returning the new register if a hint was inserted.
@@ -238,13 +325,14 @@ public:
 
     /// Provides a default implementation for argument handling.
     void assignValueToReg(Register ValVReg, Register PhysReg,
-                          CCValAssign &VA) override;
+                          CCValAssign VA) override;
   };
 
+  /// Base class for ValueHandlers used for arguments passed to a function call,
+  /// or for return values.
   struct OutgoingValueHandler : public ValueHandler {
-    OutgoingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
-                         CCAssignFn *AssignFn)
-        : ValueHandler(false, MIRBuilder, MRI, AssignFn) {}
+    OutgoingValueHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI)
+        : ValueHandler(/*IsIncoming*/ false, MIRBuilder, MRI) {}
   };
 
 protected:
@@ -264,6 +352,9 @@ protected:
   ISD::ArgFlagsTy getAttributesForArgIdx(const CallBase &Call,
                                          unsigned ArgIdx) const;
 
+  /// \returns Flags corresponding to the attributes on the return from \p Call.
+  ISD::ArgFlagsTy getAttributesForReturn(const CallBase &Call) const;
+
   /// Adds flags to \p Flags based off of the attributes in \p Attrs.
   /// \p OpIdx is the index in \p Attrs to add flags from.
   void addArgFlagsFromAttributes(ISD::ArgFlagsTy &Flags,
@@ -277,39 +368,48 @@ protected:
   /// Break \p OrigArgInfo into one or more pieces the calling convention can
   /// process, returned in \p SplitArgs. For example, this should break structs
   /// down into individual fields.
+  ///
+  /// If \p Offsets is non-null, it points to a vector to be filled in
+  /// with the in-memory offsets of each of the individual values.
   void splitToValueTypes(const ArgInfo &OrigArgInfo,
                          SmallVectorImpl<ArgInfo> &SplitArgs,
-                         const DataLayout &DL, CallingConv::ID CallConv) const;
+                         const DataLayout &DL, CallingConv::ID CallConv,
+                         SmallVectorImpl<uint64_t> *Offsets = nullptr) const;
 
-  /// Generate instructions for unpacking \p SrcReg into the \p DstRegs
-  /// corresponding to the aggregate type \p PackedTy.
+  /// Analyze the argument list in \p Args, using \p Assigner to populate \p
+  /// CCInfo. This will determine the types and locations to use for passed or
+  /// returned values. This may resize fields in \p Args if the value is split
+  /// across multiple registers or stack slots.
   ///
-  /// \param DstRegs should contain one virtual register for each base type in
-  ///        \p PackedTy, as returned by computeValueLLTs.
-  void unpackRegs(ArrayRef<Register> DstRegs, Register SrcReg, Type *PackedTy,
-                  MachineIRBuilder &MIRBuilder) const;
+  /// This is independent of the function state and can be used
+  /// to determine how a call would pass arguments without needing to change the
+  /// function. This can be used to check if arguments are suitable for tail
+  /// call lowering.
+  ///
+  /// \return True if everything has succeeded, false otherwise.
+  bool determineAssignments(ValueAssigner &Assigner,
+                            SmallVectorImpl<ArgInfo> &Args,
+                            CCState &CCInfo) const;
 
-  /// Invoke Handler::assignArg on each of the given \p Args and then use
+  /// Invoke ValueAssigner::assignArg on each of the given \p Args and then use
   /// \p Handler to move them to the assigned locations.
   ///
   /// \return True if everything has succeeded, false otherwise.
-  bool handleAssignments(MachineIRBuilder &MIRBuilder,
-                         SmallVectorImpl<ArgInfo> &Args, ValueHandler &Handler,
-                         CallingConv::ID CallConv, bool IsVarArg,
-                         Register ThisReturnReg = Register()) const;
-  bool handleAssignments(CCState &CCState,
+  bool
+  determineAndHandleAssignments(ValueHandler &Handler, ValueAssigner &Assigner,
+                                SmallVectorImpl<ArgInfo> &Args,
+                                MachineIRBuilder &MIRBuilder,
+                                CallingConv::ID CallConv, bool IsVarArg,
+                                ArrayRef<Register> ThisReturnRegs = None) const;
+
+  /// Use \p Handler to insert code to handle the argument/return values
+  /// represented by \p Args. It's expected determineAssignments previously
+  /// processed these arguments to populate \p CCState and \p ArgLocs.
+  bool handleAssignments(ValueHandler &Handler, SmallVectorImpl<ArgInfo> &Args,
+                         CCState &CCState,
                          SmallVectorImpl<CCValAssign> &ArgLocs,
                          MachineIRBuilder &MIRBuilder,
-                         SmallVectorImpl<ArgInfo> &Args, ValueHandler &Handler,
-                         Register ThisReturnReg = Register()) const;
-
-  /// Analyze passed or returned values from a call, supplied in \p ArgInfo,
-  /// incorporating info about the passed values into \p CCState.
-  ///
-  /// Used to check if arguments are suitable for tail call lowering.
-  bool analyzeArgInfo(CCState &CCState, SmallVectorImpl<ArgInfo> &Args,
-                      CCAssignFn &AssignFnFixed,
-                      CCAssignFn &AssignFnVarArg) const;
+                         ArrayRef<Register> ThisReturnRegs = None) const;
 
   /// Check whether parameters to a call that are passed in callee saved
   /// registers are the same as from the calling function.  This needs to be
@@ -325,18 +425,14 @@ protected:
   /// \p Info is the CallLoweringInfo for the call.
   /// \p MF is the MachineFunction for the caller.
   /// \p InArgs contains the results of the call.
-  /// \p CalleeAssignFnFixed is the CCAssignFn to be used for the callee for
-  /// fixed arguments.
-  /// \p CalleeAssignFnVarArg is similar, but for varargs.
-  /// \p CallerAssignFnFixed is the CCAssignFn to be used for the caller for
-  /// fixed arguments.
-  /// \p CallerAssignFnVarArg is similar, but for varargs.
+  /// \p CalleeAssigner specifies the target's handling of the argument types
+  /// for the callee.
+  /// \p CallerAssigner specifies the target's handling of the
+  /// argument types for the caller.
   bool resultsCompatible(CallLoweringInfo &Info, MachineFunction &MF,
                          SmallVectorImpl<ArgInfo> &InArgs,
-                         CCAssignFn &CalleeAssignFnFixed,
-                         CCAssignFn &CalleeAssignFnVarArg,
-                         CCAssignFn &CallerAssignFnFixed,
-                         CCAssignFn &CallerAssignFnVarArg) const;
+                         ValueAssigner &CalleeAssigner,
+                         ValueAssigner &CallerAssigner) const;
 
 public:
   CallLowering(const TargetLowering *TLI) : TLI(TLI) {}
@@ -487,6 +583,10 @@ public:
                  ArrayRef<Register> ResRegs,
                  ArrayRef<ArrayRef<Register>> ArgRegs, Register SwiftErrorVReg,
                  std::function<unsigned()> GetCalleeReg) const;
+
+  /// For targets which want to use big-endian can enable it with
+  /// enableBigEndian() hook
+  virtual bool enableBigEndian() const { return false; }
 
   /// For targets which support the "returned" parameter attribute, returns
   /// true if the given type is a valid one to use with "returned".

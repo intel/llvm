@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TEXTAPI_MACHO_ARCHITECTURESET_H
-#define LLVM_TEXTAPI_MACHO_ARCHITECTURESET_H
+#ifndef LLVM_TEXTAPI_ARCHITECTURESET_H
+#define LLVM_TEXTAPI_ARCHITECTURESET_H
 
 #include "llvm/TextAPI/Architecture.h"
 #include <cstddef>
@@ -66,9 +66,14 @@ public:
     return has(AK_i386) || has(AK_x86_64) || has(AK_x86_64h);
   }
 
-  template <typename Ty>
-  class arch_iterator
-      : public std::iterator<std::forward_iterator_tag, Architecture, size_t> {
+  template <typename Ty> class arch_iterator {
+  public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = Architecture;
+    using difference_type = std::size_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
   private:
     ArchSetType Index;
     Ty *ArchSet;
@@ -163,4 +168,4 @@ raw_ostream &operator<<(raw_ostream &OS, ArchitectureSet Set);
 } // end namespace MachO.
 } // end namespace llvm.
 
-#endif // LLVM_TEXTAPI_MACHO_ARCHITECTURESET_H
+#endif // LLVM_TEXTAPI_ARCHITECTURESET_H

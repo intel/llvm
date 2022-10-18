@@ -23,7 +23,6 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
@@ -130,7 +129,7 @@ bool LiveRangeShrink::runOnMachineFunction(MachineFunction &MF) {
     for (MachineBasicBlock::iterator Next = MBB.begin(); Next != MBB.end();) {
       MachineInstr &MI = *Next;
       ++Next;
-      if (MI.isPHI() || MI.isDebugInstr())
+      if (MI.isPHI() || MI.isDebugOrPseudoInstr())
         continue;
       if (MI.mayStore())
         SawStore = true;
@@ -219,7 +218,7 @@ bool LiveRangeShrink::runOnMachineFunction(MachineFunction &MF) {
       if (DefMO && Insert && NumEligibleUse > 1 && Barrier <= IOM[Insert]) {
         MachineBasicBlock::iterator I = std::next(Insert->getIterator());
         // Skip all the PHI and debug instructions.
-        while (I != MBB.end() && (I->isPHI() || I->isDebugInstr()))
+        while (I != MBB.end() && (I->isPHI() || I->isDebugOrPseudoInstr()))
           I = std::next(I);
         if (I == MI.getIterator())
           continue;

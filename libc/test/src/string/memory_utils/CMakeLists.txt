@@ -3,15 +3,15 @@ add_libc_unittest(
   SUITE
     libc_string_unittests
   SRCS
+    elements_test.cpp
+    memory_access_test.cpp
     utils_test.cpp
-    memcpy_utils_test.cpp
+  COMPILE_OPTIONS
+    ${LIBC_COMPILE_OPTIONS_NATIVE}
+    -ffreestanding
+    -pthread
   DEPENDS
     libc.src.string.memory_utils.memory_utils
-    libc.utils.CPP.standalone_cpp
-)
-
-target_compile_definitions(
-  libc.test.src.string.memory_utils.utils_test
-  PRIVATE
-  LLVM_LIBC_MEMCPY_MONITOR=memcpy_monitor
+    libc.src.__support.CPP.array
+    libc.src.__support.CPP.span
 )

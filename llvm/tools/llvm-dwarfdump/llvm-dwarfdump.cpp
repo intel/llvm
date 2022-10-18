@@ -15,6 +15,8 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/DebugInfo/DIContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFAcceleratorTable.h"
+#include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/MachOUniversal.h"
@@ -120,7 +122,7 @@ using namespace cl;
 OptionCategory DwarfDumpCategory("Specific Options");
 static list<std::string>
     InputFilenames(Positional, desc("<input object files or .dSYM bundles>"),
-                   ZeroOrMore, cat(DwarfDumpCategory));
+                   cat(DwarfDumpCategory));
 
 cl::OptionCategory SectionCategory("Section-specific Dump Options",
                                    "These control which sections are dumped. "
@@ -130,7 +132,8 @@ cl::OptionCategory SectionCategory("Section-specific Dump Options",
 
 static opt<bool> DumpAll("all", desc("Dump all debug info sections"),
                          cat(SectionCategory));
-static alias DumpAllAlias("a", desc("Alias for -all"), aliasopt(DumpAll));
+static alias DumpAllAlias("a", desc("Alias for --all"), aliasopt(DumpAll),
+                          cl::NotHidden);
 
 // Options for dumping specific sections.
 static unsigned DumpType = DIDT_Null;
@@ -143,7 +146,8 @@ static std::array<llvm::Optional<uint64_t>, (unsigned)DIDT_ID_Count>
 #include "llvm/BinaryFormat/Dwarf.def"
 #undef HANDLE_DWARF_SECTION
 
-static alias DumpDebugFrameAlias("eh-frame", desc("Alias for -debug-frame"),
+// The aliased DumpDebugFrame is created by the Dwarf.def x-macro just above.
+static alias DumpDebugFrameAlias("eh-frame", desc("Alias for --debug-frame"),
                                  NotHidden, cat(SectionCategory),
                                  aliasopt(DumpDebugFrame));
 static list<std::string>
@@ -164,19 +168,21 @@ static list<std::string>
               "accelerator tables are available, the slower but more complete "
               "-name option can be used instead."),
          value_desc("name"), cat(DwarfDumpCategory));
-static alias FindAlias("f", desc("Alias for -find."), aliasopt(Find));
+static alias FindAlias("f", desc("Alias for --find."), aliasopt(Find),
+                       cl::NotHidden);
 static opt<bool> IgnoreCase("ignore-case",
-                            desc("Ignore case distinctions when searching."),
+                            desc("Ignore case distinctions when using --name."),
                             value_desc("i"), cat(DwarfDumpCategory));
-static alias IgnoreCaseAlias("i", desc("Alias for -ignore-case."),
-                             aliasopt(IgnoreCase));
+static alias IgnoreCaseAlias("i", desc("Alias for --ignore-case."),
+                             aliasopt(IgnoreCase), cl::NotHidden);
 static list<std::string> Name(
     "name",
     desc("Find and print all debug info entries whose name (DW_AT_name "
          "attribute) matches the exact text in <pattern>.  When used with the "
          "the -regex option <pattern> is interpreted as a regular expression."),
     value_desc("pattern"), cat(DwarfDumpCategory));
-static alias NameAlias("n", desc("Alias for -name"), aliasopt(Name));
+static alias NameAlias("n", desc("Alias for --name"), aliasopt(Name),
+                       cl::NotHidden);
 static opt<uint64_t>
     Lookup("lookup",
            desc("Lookup <address> in the debug information and print out any "
@@ -188,39 +194,42 @@ static opt<std::string>
                    cl::value_desc("filename"), cat(DwarfDumpCategory));
 static alias OutputFilenameAlias("out-file", desc("Alias for -o."),
                                  aliasopt(OutputFilename));
-static opt<bool>
-    UseRegex("regex",
-             desc("Treat any <pattern> strings as regular expressions when "
-                  "searching instead of just as an exact string match."),
-             cat(DwarfDumpCategory));
-static alias RegexAlias("x", desc("Alias for -regex"), aliasopt(UseRegex));
+static opt<bool> UseRegex(
+    "regex",
+    desc("Treat any <pattern> strings as regular "
+         "expressions when searching with --name. If --ignore-case is also "
+         "specified, the regular expression becomes case-insensitive."),
+    cat(DwarfDumpCategory));
+static alias RegexAlias("x", desc("Alias for --regex"), aliasopt(UseRegex),
+                        cl::NotHidden);
 static opt<bool>
     ShowChildren("show-children",
                  desc("Show a debug info entry's children when selectively "
                       "printing entries."),
                  cat(DwarfDumpCategory));
-static alias ShowChildrenAlias("c", desc("Alias for -show-children."),
-                               aliasopt(ShowChildren));
+static alias ShowChildrenAlias("c", desc("Alias for --show-children."),
+                               aliasopt(ShowChildren), cl::NotHidden);
 static opt<bool>
     ShowParents("show-parents",
                 desc("Show a debug info entry's parents when selectively "
                      "printing entries."),
                 cat(DwarfDumpCategory));
-static alias ShowParentsAlias("p", desc("Alias for -show-parents."),
-                              aliasopt(ShowParents));
+static alias ShowParentsAlias("p", desc("Alias for --show-parents."),
+                              aliasopt(ShowParents), cl::NotHidden);
 static opt<bool>
     ShowForm("show-form",
              desc("Show DWARF form types after the DWARF attribute types."),
              cat(DwarfDumpCategory));
-static alias ShowFormAlias("F", desc("Alias for -show-form."),
-                           aliasopt(ShowForm), cat(DwarfDumpCategory));
+static alias ShowFormAlias("F", desc("Alias for --show-form."),
+                           aliasopt(ShowForm), cat(DwarfDumpCategory),
+                           cl::NotHidden);
 static opt<unsigned>
     ChildRecurseDepth("recurse-depth",
                       desc("Only recurse to a depth of N when displaying "
                            "children of debug info entries."),
                       cat(DwarfDumpCategory), init(-1U), value_desc("N"));
-static alias ChildRecurseDepthAlias("r", desc("Alias for -recurse-depth."),
-                                    aliasopt(ChildRecurseDepth));
+static alias ChildRecurseDepthAlias("r", desc("Alias for --recurse-depth."),
+                                    aliasopt(ChildRecurseDepth), cl::NotHidden);
 static opt<unsigned>
     ParentRecurseDepth("parent-recurse-depth",
                        desc("Only recurse to a depth of N when displaying "
@@ -239,29 +248,45 @@ static cl::opt<bool>
                      cl::desc("Show the sizes of all debug sections, "
                               "expressed in bytes."),
                      cat(DwarfDumpCategory));
+static cl::opt<bool>
+    ShowSources("show-sources",
+                cl::desc("Show the sources across all compilation units."),
+                cat(DwarfDumpCategory));
 static opt<bool> Verify("verify", desc("Verify the DWARF debug info."),
                         cat(DwarfDumpCategory));
 static opt<bool> Quiet("quiet", desc("Use with -verify to not emit to STDOUT."),
                        cat(DwarfDumpCategory));
 static opt<bool> DumpUUID("uuid", desc("Show the UUID for each architecture."),
                           cat(DwarfDumpCategory));
-static alias DumpUUIDAlias("u", desc("Alias for -uuid."), aliasopt(DumpUUID));
+static alias DumpUUIDAlias("u", desc("Alias for --uuid."), aliasopt(DumpUUID),
+                           cl::NotHidden);
 static opt<bool> Verbose("verbose",
                          desc("Print more low-level encoding details."),
                          cat(DwarfDumpCategory));
-static alias VerboseAlias("v", desc("Alias for -verbose."), aliasopt(Verbose),
-                          cat(DwarfDumpCategory));
+static alias VerboseAlias("v", desc("Alias for --verbose."), aliasopt(Verbose),
+                          cat(DwarfDumpCategory), cl::NotHidden);
 static cl::extrahelp
     HelpResponse("\nPass @FILE as argument to read options from FILE.\n");
 } // namespace
 /// @}
 //===----------------------------------------------------------------------===//
 
-static void error(StringRef Prefix, std::error_code EC) {
-  if (!EC)
+static void error(Error Err) {
+  if (!Err)
     return;
-  WithColor::error() << Prefix << ": " << EC.message() << "\n";
+  WithColor::error() << toString(std::move(Err)) << "\n";
   exit(1);
+}
+
+static void error(StringRef Prefix, Error Err) {
+  if (!Err)
+    return;
+  WithColor::error() << Prefix << ": " << toString(std::move(Err)) << "\n";
+  exit(1);
+}
+
+static void error(StringRef Prefix, std::error_code EC) {
+  error(Prefix, errorCodeToError(EC));
 }
 
 static DIDumpOptions getDumpOpts(DWARFContext &C) {
@@ -277,8 +302,10 @@ static DIDumpOptions getDumpOpts(DWARFContext &C) {
   DumpOpts.Verbose = Verbose;
   DumpOpts.RecoverableErrorHandler = C.getRecoverableErrorHandler();
   // In -verify mode, print DIEs without children in error messages.
-  if (Verify)
+  if (Verify) {
+    DumpOpts.Verbose = true;
     return DumpOpts.noImplicitRecursion();
+  }
   return DumpOpts;
 }
 
@@ -444,6 +471,87 @@ static bool lookup(ObjectFile &Obj, DWARFContext &DICtx, uint64_t Address,
   return true;
 }
 
+// Collect all sources referenced from the given line table, scoped to the given
+// CU compilation directory.
+static bool collectLineTableSources(const DWARFDebugLine::LineTable &LT,
+                                    StringRef CompDir,
+                                    std::vector<std::string> &Sources) {
+  bool Result = true;
+  llvm::Optional<uint64_t> LastIndex = LT.getLastValidFileIndex();
+  for (uint64_t I = LT.hasFileAtIndex(0) ? 0 : 1,
+                E = LastIndex ? *LastIndex + 1 : 0;
+       I < E; ++I) {
+    std::string Path;
+    Result &= LT.getFileNameByIndex(
+        I, CompDir, DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath,
+        Path);
+    Sources.push_back(std::move(Path));
+  }
+  return Result;
+}
+
+static bool collectObjectSources(ObjectFile &Obj, DWARFContext &DICtx,
+                                 const Twine &Filename, raw_ostream &OS) {
+  bool Result = true;
+  std::vector<std::string> Sources;
+
+  bool HasCompileUnits = false;
+  for (const auto &CU : DICtx.compile_units()) {
+    HasCompileUnits = true;
+    // Extract paths from the line table for this CU. This allows combining the
+    // compilation directory with the line information, in case both the include
+    // directory and file names in the line table are relative.
+    const DWARFDebugLine::LineTable *LT = DICtx.getLineTableForUnit(CU.get());
+    StringRef CompDir = CU->getCompilationDir();
+    if (LT) {
+      Result &= collectLineTableSources(*LT, CompDir, Sources);
+    } else {
+      // Since there's no line table for this CU, collect the name from the CU
+      // itself.
+      const char *Name = CU->getUnitDIE().getShortName();
+      if (!Name) {
+        WithColor::warning()
+            << Filename << ": missing name for compilation unit\n";
+        continue;
+      }
+      SmallString<64> AbsName;
+      if (sys::path::is_relative(Name, sys::path::Style::posix) &&
+          sys::path::is_relative(Name, sys::path::Style::windows))
+        AbsName = CompDir;
+      sys::path::append(AbsName, Name);
+      Sources.push_back(std::string(AbsName));
+    }
+  }
+
+  if (!HasCompileUnits) {
+    // Since there's no compile units available, walk the line tables and
+    // extract out any referenced paths.
+    DWARFDataExtractor LineData(DICtx.getDWARFObj(),
+                                DICtx.getDWARFObj().getLineSection(),
+                                DICtx.isLittleEndian(), 0);
+    DWARFDebugLine::SectionParser Parser(LineData, DICtx, DICtx.normal_units());
+    while (!Parser.done()) {
+      const auto RecoverableErrorHandler = [&](Error Err) {
+        Result = false;
+        WithColor::defaultErrorHandler(std::move(Err));
+      };
+      void (*UnrecoverableErrorHandler)(Error Err) = error;
+
+      DWARFDebugLine::LineTable LT =
+          Parser.parseNext(RecoverableErrorHandler, UnrecoverableErrorHandler);
+      Result &= collectLineTableSources(LT, /*CompDir=*/"", Sources);
+    }
+  }
+
+  // Dedup and order the sources.
+  llvm::sort(Sources);
+  Sources.erase(std::unique(Sources.begin(), Sources.end()), Sources.end());
+
+  for (StringRef Name : Sources)
+    OS << Name << "\n";
+  return Result;
+}
+
 static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
                            const Twine &Filename, raw_ostream &OS) {
   logAllUnhandledErrors(DICtx.loadRegisterInfo(Obj), errs(),
@@ -484,7 +592,7 @@ static bool verifyObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   // fails.
   raw_ostream &stream = Quiet ? nulls() : OS;
   stream << "Verifying " << Filename.str() << ":\tfile format "
-  << Obj.getFileFormatName() << "\n";
+         << Obj.getFileFormatName() << "\n";
   bool Result = DICtx.verify(stream, getDumpOpts(DICtx));
   if (Result)
     stream << "No errors.\n";
@@ -502,13 +610,13 @@ static bool handleArchive(StringRef Filename, Archive &Arch,
   Error Err = Error::success();
   for (auto Child : Arch.children(Err)) {
     auto BuffOrErr = Child.getMemoryBufferRef();
-    error(Filename, errorToErrorCode(BuffOrErr.takeError()));
+    error(Filename, BuffOrErr.takeError());
     auto NameOrErr = Child.getName();
-    error(Filename, errorToErrorCode(NameOrErr.takeError()));
+    error(Filename, NameOrErr.takeError());
     std::string Name = (Filename + "(" + NameOrErr.get() + ")").str();
     Result &= handleBuffer(Name, BuffOrErr.get(), HandleObj, OS);
   }
-  error(Filename, errorToErrorCode(std::move(Err)));
+  error(Filename, std::move(Err));
 
   return Result;
 }
@@ -516,7 +624,7 @@ static bool handleArchive(StringRef Filename, Archive &Arch,
 static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
                          HandlerFn HandleObj, raw_ostream &OS) {
   Expected<std::unique_ptr<Binary>> BinOrErr = object::createBinary(Buffer);
-  error(Filename, errorToErrorCode(BinOrErr.takeError()));
+  error(Filename, BinOrErr.takeError());
 
   bool Result = true;
   auto RecoverableErrorHandler = [&](Error E) {
@@ -525,21 +633,22 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
   };
   if (auto *Obj = dyn_cast<ObjectFile>(BinOrErr->get())) {
     if (filterArch(*Obj)) {
-      std::unique_ptr<DWARFContext> DICtx =
-          DWARFContext::create(*Obj, nullptr, "", RecoverableErrorHandler);
+      std::unique_ptr<DWARFContext> DICtx = DWARFContext::create(
+          *Obj, DWARFContext::ProcessDebugRelocations::Process, nullptr, "",
+          RecoverableErrorHandler);
       if (!HandleObj(*Obj, *DICtx, Filename, OS))
         Result = false;
     }
-  }
-  else if (auto *Fat = dyn_cast<MachOUniversalBinary>(BinOrErr->get()))
+  } else if (auto *Fat = dyn_cast<MachOUniversalBinary>(BinOrErr->get()))
     for (auto &ObjForArch : Fat->objects()) {
       std::string ObjName =
           (Filename + "(" + ObjForArch.getArchFlagName() + ")").str();
       if (auto MachOOrErr = ObjForArch.getAsObjectFile()) {
         auto &Obj = **MachOOrErr;
         if (filterArch(Obj)) {
-          std::unique_ptr<DWARFContext> DICtx =
-              DWARFContext::create(Obj, nullptr, "", RecoverableErrorHandler);
+          std::unique_ptr<DWARFContext> DICtx = DWARFContext::create(
+              Obj, DWARFContext::ProcessDebugRelocations::Process, nullptr, "",
+              RecoverableErrorHandler);
           if (!HandleObj(Obj, *DICtx, ObjName, OS))
             Result = false;
         }
@@ -547,7 +656,7 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
       } else
         consumeError(MachOOrErr.takeError());
       if (auto ArchiveOrErr = ObjForArch.getAsArchive()) {
-        error(ObjName, errorToErrorCode(ArchiveOrErr.takeError()));
+        error(ObjName, ArchiveOrErr.takeError());
         if (!handleArchive(ObjName, *ArchiveOrErr.get(), HandleObj, OS))
           Result = false;
         continue;
@@ -562,45 +671,10 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
 static bool handleFile(StringRef Filename, HandlerFn HandleObj,
                        raw_ostream &OS) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> BuffOrErr =
-  MemoryBuffer::getFileOrSTDIN(Filename);
+      MemoryBuffer::getFileOrSTDIN(Filename);
   error(Filename, BuffOrErr.getError());
   std::unique_ptr<MemoryBuffer> Buffer = std::move(BuffOrErr.get());
   return handleBuffer(Filename, *Buffer, HandleObj, OS);
-}
-
-/// If the input path is a .dSYM bundle (as created by the dsymutil tool),
-/// replace it with individual entries for each of the object files inside the
-/// bundle otherwise return the input path.
-static std::vector<std::string> expandBundle(const std::string &InputPath) {
-  std::vector<std::string> BundlePaths;
-  SmallString<256> BundlePath(InputPath);
-  // Normalize input path. This is necessary to accept `bundle.dSYM/`.
-  sys::path::remove_dots(BundlePath);
-  // Manually open up the bundle to avoid introducing additional dependencies.
-  if (sys::fs::is_directory(BundlePath) &&
-      sys::path::extension(BundlePath) == ".dSYM") {
-    std::error_code EC;
-    sys::path::append(BundlePath, "Contents", "Resources", "DWARF");
-    for (sys::fs::directory_iterator Dir(BundlePath, EC), DirEnd;
-         Dir != DirEnd && !EC; Dir.increment(EC)) {
-      const std::string &Path = Dir->path();
-      sys::fs::file_status Status;
-      EC = sys::fs::status(Path, Status);
-      error(Path, EC);
-      switch (Status.type()) {
-      case sys::fs::file_type::regular_file:
-      case sys::fs::file_type::symlink_file:
-      case sys::fs::file_type::type_unknown:
-        BundlePaths.push_back(Path);
-        break;
-      default: /*ignore*/;
-      }
-    }
-    error(BundlePath, EC);
-  }
-  if (!BundlePaths.size())
-    BundlePaths.push_back(InputPath);
-  return BundlePaths;
 }
 
 int main(int argc, char **argv) {
@@ -613,7 +687,8 @@ int main(int argc, char **argv) {
   llvm::InitializeAllTargetInfos();
   llvm::InitializeAllTargetMCs();
 
-  HideUnrelatedOptions({&DwarfDumpCategory, &SectionCategory, &ColorCategory});
+  HideUnrelatedOptions(
+      {&DwarfDumpCategory, &SectionCategory, &getColorCategory()});
   cl::ParseCommandLineOptions(
       argc, argv,
       "pretty-print DWARF debug information in object files"
@@ -628,8 +703,8 @@ int main(int argc, char **argv) {
   }
 
   std::error_code EC;
-  ToolOutputFile OutputFile(OutputFilename, EC, sys::fs::OF_Text);
-  error("Unable to open output file" + OutputFilename, EC);
+  ToolOutputFile OutputFile(OutputFilename, EC, sys::fs::OF_TextWithCRLF);
+  error("unable to open output file " + OutputFilename, EC);
   // Don't remove output file if we exit with an error.
   OutputFile.keep();
 
@@ -659,7 +734,8 @@ int main(int argc, char **argv) {
   }
 
   // Unless dumping a specific DIE, default to --show-children.
-  if (!ShowChildren && !Verify && !OffsetRequested && Name.empty() && Find.empty())
+  if (!ShowChildren && !Verify && !OffsetRequested && Name.empty() &&
+      Find.empty())
     ShowChildren = true;
 
   // Defaults to a.out if no filenames specified.
@@ -669,8 +745,14 @@ int main(int argc, char **argv) {
   // Expand any .dSYM bundles to the individual object files contained therein.
   std::vector<std::string> Objects;
   for (const auto &F : InputFilenames) {
-    auto Objs = expandBundle(F);
-    llvm::append_range(Objects, Objs);
+    if (auto DsymObjectsOrErr = MachOObjectFile::findDsymObjectMembers(F)) {
+      if (DsymObjectsOrErr->empty())
+        Objects.push_back(F);
+      else
+        llvm::append_range(Objects, *DsymObjectsOrErr);
+    } else {
+      error(DsymObjectsOrErr.takeError());
+    }
   }
 
   bool Success = true;
@@ -683,6 +765,9 @@ int main(int argc, char **argv) {
   } else if (ShowSectionSizes) {
     for (auto Object : Objects)
       Success &= handleFile(Object, collectObjectSectionSizes, OutputFile.os());
+  } else if (ShowSources) {
+    for (auto Object : Objects)
+      Success &= handleFile(Object, collectObjectSources, OutputFile.os());
   } else {
     for (auto Object : Objects)
       Success &= handleFile(Object, dumpObjectFile, OutputFile.os());

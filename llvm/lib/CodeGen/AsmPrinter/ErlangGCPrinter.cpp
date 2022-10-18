@@ -14,17 +14,15 @@
 
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
-#include "llvm/CodeGen/BuiltinGCs.h"
 #include "llvm/CodeGen/GCMetadata.h"
 #include "llvm/CodeGen/GCMetadataPrinter.h"
-#include "llvm/CodeGen/GCStrategy.h"
+#include "llvm/IR/BuiltinGCs.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 
 using namespace llvm;
@@ -47,9 +45,8 @@ void ErlangGCPrinter::finishAssembly(Module &M, GCModuleInfo &Info,
   unsigned IntPtrSize = M.getDataLayout().getPointerSize();
 
   // Put this in a custom .note section.
-  OS.SwitchSection(
-      AP.getObjFileLowering().getContext().getELFSection(".note.gc",
-                                                         ELF::SHT_PROGBITS, 0));
+  OS.switchSection(AP.getObjFileLowering().getContext().getELFSection(
+      ".note.gc", ELF::SHT_PROGBITS, 0));
 
   // For each function...
   for (GCModuleInfo::FuncInfoVec::iterator FI = Info.funcinfo_begin(),

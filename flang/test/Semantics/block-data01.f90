@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Test BLOCK DATA subprogram (14.3)
 block data foo
   !ERROR: IMPORT is not allowed in a BLOCK DATA subprogram
@@ -11,7 +11,7 @@ block data foo
   procedure(sin), pointer :: q => cos
   !ERROR: 'p' may not be a procedure as it is in a COMMON block
   procedure(sin), pointer :: p => cos
-  common /block/ pi, p
+  common /block/ p, pi
   !ERROR: An initialized variable in BLOCK DATA must be in a COMMON block
   integer :: inDataButNotCommon
   data inDataButNotCommon /1/

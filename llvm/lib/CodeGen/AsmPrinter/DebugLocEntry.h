@@ -121,11 +121,6 @@ public:
     // Currently, DBG_VALUE_VAR expressions must use stack_value.
     assert(Expr && Expr->isValid() &&
            is_contained(Locs, dwarf::DW_OP_stack_value));
-    for (DbgValueLocEntry &Entry : ValueLocEntries) {
-      assert(!Entry.isConstantFP() && !Entry.isConstantInt() &&
-             "Constant values should only be present in non-variadic "
-             "DBG_VALUEs.");
-    }
 #endif
   }
 
@@ -142,11 +137,6 @@ public:
       // Currently, DBG_VALUE_VAR expressions must use stack_value.
       assert(Expr && Expr->isValid() &&
              is_contained(Expr->getElements(), dwarf::DW_OP_stack_value));
-      for (DbgValueLocEntry &Entry : ValueLocEntries) {
-        assert(!Entry.isConstantFP() && !Entry.isConstantInt() &&
-               "Constant values should only be present in non-variadic "
-               "DBG_VALUEs.");
-      }
     }
 #endif
   }
@@ -161,14 +151,12 @@ public:
   bool isEntryVal() const { return getExpression()->isEntryValue(); }
   bool isVariadic() const { return IsVariadic; }
   const DIExpression *getExpression() const { return Expression; }
-  const ArrayRef<DbgValueLocEntry> getLocEntries() const {
-    return ValueLocEntries;
-  }
+  ArrayRef<DbgValueLocEntry> getLocEntries() const { return ValueLocEntries; }
   friend bool operator==(const DbgValueLoc &, const DbgValueLoc &);
   friend bool operator<(const DbgValueLoc &, const DbgValueLoc &);
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   LLVM_DUMP_METHOD void dump() const {
-    for (DbgValueLocEntry DV : ValueLocEntries)
+    for (const DbgValueLocEntry &DV : ValueLocEntries)
       DV.dump();
     if (Expression)
       Expression->dump();
@@ -224,6 +212,11 @@ public:
   // Sort the pieces by offset.
   // Remove any duplicate entries by dropping all but the first.
   void sortUniqueValues() {
+    // Values is either 1 item that does not have a fragment, or many items
+    // that all do. No need to sort if the former and also prevents operator<
+    // being called on a non fragment item when _GLIBCXX_DEBUG is defined.
+    if (Values.size() == 1)
+      return;
     llvm::sort(Values);
     Values.erase(std::unique(Values.begin(), Values.end(),
                              [](const DbgValueLoc &A, const DbgValueLoc &B) {

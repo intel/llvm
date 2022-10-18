@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux-sycldevice -std=c++11 -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-linux -std=c++11 -S -emit-llvm -x c++ %s -o - | FileCheck %s
 
 inline namespace cl {
   namespace sycl {
@@ -6,7 +6,7 @@ inline namespace cl {
   }
 }
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {

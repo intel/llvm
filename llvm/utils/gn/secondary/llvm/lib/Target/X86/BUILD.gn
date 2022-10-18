@@ -70,6 +70,7 @@ static_library("LLVMX86CodeGen") {
     "//llvm/lib/Support",
     "//llvm/lib/Target",
     "//llvm/lib/Transforms/CFGuard",
+    "//llvm/lib/Transforms/Instrumentation",
   ]
   if (x86_gen_fold_tables) {
     deps += [ ":X86GenFoldTables" ]
@@ -84,9 +85,12 @@ static_library("LLVMX86CodeGen") {
     "X86CmovConversion.cpp",
     "X86DiscriminateMemOps.cpp",
     "X86DomainReassignment.cpp",
+    "X86DynAllocaExpander.cpp",
     "X86EvexToVex.cpp",
     "X86ExpandPseudo.cpp",
     "X86FastISel.cpp",
+    "X86FastPreTileConfig.cpp",
+    "X86FastTileConfig.cpp",
     "X86FixupBWInsts.cpp",
     "X86FixupLEAs.cpp",
     "X86FixupSetCC.cpp",
@@ -105,6 +109,7 @@ static_library("LLVMX86CodeGen") {
     "X86InstrInfo.cpp",
     "X86InstructionSelector.cpp",
     "X86InterleavedAccess.cpp",
+    "X86KCFI.cpp",
     "X86LegalizerInfo.cpp",
     "X86LoadValueInjectionLoadHardening.cpp",
     "X86LoadValueInjectionRetHardening.cpp",
@@ -117,9 +122,11 @@ static_library("LLVMX86CodeGen") {
     "X86OptimizeLEAs.cpp",
     "X86PadShortFunction.cpp",
     "X86PartialReduction.cpp",
+    "X86PreAMXConfig.cpp",
     "X86PreTileConfig.cpp",
     "X86RegisterBankInfo.cpp",
     "X86RegisterInfo.cpp",
+    "X86ReturnThunks.cpp",
     "X86SelectionDAGInfo.cpp",
     "X86ShuffleDecodeConstantPool.cpp",
     "X86SpeculativeExecutionSideEffectSuppression.cpp",
@@ -130,7 +137,6 @@ static_library("LLVMX86CodeGen") {
     "X86TargetTransformInfo.cpp",
     "X86TileConfig.cpp",
     "X86VZeroUpper.cpp",
-    "X86WinAllocaExpander.cpp",
     "X86WinEHState.cpp",
   ]
 }
@@ -146,6 +152,7 @@ group("X86") {
     ":LLVMX86CodeGen",
     "AsmParser",
     "Disassembler",
+    "MCA",
     "MCTargetDesc",
     "TargetInfo",
   ]

@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_clang_library(clangTidyCppCoreGuidelinesModule
+  AvoidConstOrRefDataMembersCheck.cpp
   AvoidGotoCheck.cpp
   AvoidNonConstGlobalVariablesCheck.cpp
   CppCoreGuidelinesTidyModule.cpp
@@ -26,6 +27,7 @@ add_clang_library(clangTidyCppCoreGuidelinesModule
   ProTypeVarargCheck.cpp
   SlicingCheck.cpp
   SpecialMemberFunctionsCheck.cpp
+  VirtualClassDestructorCheck.cpp
 
   LINK_LIBS
   clangTidy

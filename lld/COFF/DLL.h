@@ -12,8 +12,7 @@
 #include "Chunks.h"
 #include "Symbols.h"
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 // Windows-specific.
 // IdataContents creates all chunks for the DLL import table.
@@ -40,7 +39,7 @@ class DelayLoadContents {
 public:
   void add(DefinedImportData *sym) { imports.push_back(sym); }
   bool empty() { return imports.empty(); }
-  void create(Defined *helper);
+  void create(COFFLinkerContext &ctx, Defined *helper);
   std::vector<Chunk *> getChunks();
   std::vector<Chunk *> getDataChunks();
   ArrayRef<Chunk *> getCodeChunks() { return thunks; }
@@ -76,7 +75,6 @@ public:
   }
 };
 
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff
 
 #endif

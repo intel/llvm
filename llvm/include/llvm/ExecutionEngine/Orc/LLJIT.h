@@ -29,7 +29,7 @@ namespace orc {
 class LLJITBuilderState;
 class LLLazyJITBuilderState;
 class ObjectTransformLayer;
-class TargetProcessControl;
+class ExecutorProcessControl;
 
 /// A pre-fabricated ORC JIT stack that can serve as an alternative to MCJIT.
 ///
@@ -56,7 +56,7 @@ public:
 
   /// Destruct this instance. If a multi-threaded instance, waits for all
   /// compile threads to complete.
-  ~LLJIT();
+  virtual ~LLJIT();
 
   /// Returns the ExecutionSession for this instance.
   ExecutionSession &getExecutionSession() { return *ES; }
@@ -110,30 +110,30 @@ public:
 
   /// Look up a symbol in JITDylib JD by the symbol's linker-mangled name (to
   /// look up symbols based on their IR name use the lookup function instead).
-  Expected<JITEvaluatedSymbol> lookupLinkerMangled(JITDylib &JD,
-                                                   SymbolStringPtr Name);
+  Expected<ExecutorAddr> lookupLinkerMangled(JITDylib &JD,
+                                             SymbolStringPtr Name);
 
   /// Look up a symbol in JITDylib JD by the symbol's linker-mangled name (to
   /// look up symbols based on their IR name use the lookup function instead).
-  Expected<JITEvaluatedSymbol> lookupLinkerMangled(JITDylib &JD,
-                                                   StringRef Name) {
+  Expected<ExecutorAddr> lookupLinkerMangled(JITDylib &JD,
+                                             StringRef Name) {
     return lookupLinkerMangled(JD, ES->intern(Name));
   }
 
   /// Look up a symbol in the main JITDylib by the symbol's linker-mangled name
   /// (to look up symbols based on their IR name use the lookup function
   /// instead).
-  Expected<JITEvaluatedSymbol> lookupLinkerMangled(StringRef Name) {
+  Expected<ExecutorAddr> lookupLinkerMangled(StringRef Name) {
     return lookupLinkerMangled(*Main, Name);
   }
 
   /// Look up a symbol in JITDylib JD based on its IR symbol name.
-  Expected<JITEvaluatedSymbol> lookup(JITDylib &JD, StringRef UnmangledName) {
+  Expected<ExecutorAddr> lookup(JITDylib &JD, StringRef UnmangledName) {
     return lookupLinkerMangled(JD, mangle(UnmangledName));
   }
 
   /// Look up a symbol in the main JITDylib based on its IR symbol name.
-  Expected<JITEvaluatedSymbol> lookup(StringRef UnmangledName) {
+  Expected<ExecutorAddr> lookup(StringRef UnmangledName) {
     return lookup(*Main, UnmangledName);
   }
 
@@ -260,6 +260,7 @@ public:
 
   using PlatformSetupFunction = std::function<Error(LLJIT &J)>;
 
+  std::unique_ptr<ExecutorProcessControl> EPC;
   std::unique_ptr<ExecutionSession> ES;
   Optional<JITTargetMachineBuilder> JTMB;
   Optional<DataLayout> DL;
@@ -267,7 +268,6 @@ public:
   CompileFunctionCreator CreateCompileFunction;
   PlatformSetupFunction SetUpPlatform;
   unsigned NumCompileThreads = 0;
-  TargetProcessControl *TPC = nullptr;
 
   /// Called prior to JIT class construcion to fix up defaults.
   Error prepareForConstruction();
@@ -276,6 +276,17 @@ public:
 template <typename JITType, typename SetterImpl, typename State>
 class LLJITBuilderSetters {
 public:
+  /// Set a ExecutorProcessControl for this instance.
+  /// This should not be called if ExecutionSession has already been set.
+  SetterImpl &
+  setExecutorProcessControl(std::unique_ptr<ExecutorProcessControl> EPC) {
+    assert(
+        !impl().ES &&
+        "setExecutorProcessControl should not be called if an ExecutionSession "
+        "has already been set");
+    impl().EPC = std::move(EPC);
+    return impl();
+  }
 
   /// Set an ExecutionSession for this instance.
   SetterImpl &setExecutionSession(std::unique_ptr<ExecutionSession> ES) {
@@ -350,14 +361,14 @@ public:
     return impl();
   }
 
-  /// Set a TargetProcessControl object.
+  /// Set an ExecutorProcessControl object.
   ///
   /// If the platform uses ObjectLinkingLayer by default and no
-  /// ObjectLinkingLayerCreator has been set then the TargetProcessControl
+  /// ObjectLinkingLayerCreator has been set then the ExecutorProcessControl
   /// object will be used to supply the memory manager for the
   /// ObjectLinkingLayer.
-  SetterImpl &setTargetProcessControl(TargetProcessControl &TPC) {
-    impl().TPC = &TPC;
+  SetterImpl &setExecutorProcessControl(ExecutorProcessControl &EPC) {
+    impl().EPC = &EPC;
     return impl();
   }
 
@@ -390,7 +401,7 @@ public:
       std::function<std::unique_ptr<IndirectStubsManager>()>;
 
   Triple TT;
-  JITTargetAddress LazyCompileFailureAddr = 0;
+  ExecutorAddr LazyCompileFailureAddr;
   std::unique_ptr<LazyCallThroughManager> LCTMgr;
   IndirectStubsManagerBuilderFunction ISMBuilder;
 
@@ -404,7 +415,7 @@ public:
   /// Set the address in the target address to call if a lazy compile fails.
   ///
   /// If this method is not called then the value will default to 0.
-  SetterImpl &setLazyCompileFailureAddr(JITTargetAddress Addr) {
+  SetterImpl &setLazyCompileFailureAddr(ExecutorAddr Addr) {
     this->impl().LazyCompileFailureAddr = Addr;
     return this->impl();
   }
@@ -436,25 +447,14 @@ class LLLazyJITBuilder
       public LLLazyJITBuilderSetters<LLLazyJIT, LLLazyJITBuilder,
                                      LLLazyJITBuilderState> {};
 
+/// Configure the LLJIT instance to use orc runtime support. 
+Error setUpOrcPlatform(LLJIT& J);
+
 /// Configure the LLJIT instance to scrape modules for llvm.global_ctors and
 /// llvm.global_dtors variables and (if present) build initialization and
 /// deinitialization functions. Platform specific initialization configurations
 /// should be preferred where available.
 void setUpGenericLLVMIRPlatform(LLJIT &J);
-
-/// Configure the LLJIT instance to use MachOPlatform support.
-///
-/// Warning: MachOPlatform *requires* that LLJIT be configured to use
-/// ObjectLinkingLayer (default on platforms supported by JITLink). If
-/// MachOPlatform is used with RTDyldObjectLinkingLayer it will result in
-/// undefined behavior).
-///
-/// MachOPlatform installs an ObjectLinkingLayer plugin to scrape initializers
-/// from the __mod_inits section. It also provides interposes for the dlfcn
-/// functions (dlopen, dlclose, dlsym, dlerror) that work for JITDylibs as
-/// well as regular libraries (JITDylibs will be preferenced, so make sure
-/// your JITDylib names do not shadow any real library paths).
-Error setUpMachOPlatform(LLJIT &J);
 
 /// Configure the LLJIT instance to disable platform support explicitly. This is
 /// useful in two cases: for platforms that don't have such requirements and for

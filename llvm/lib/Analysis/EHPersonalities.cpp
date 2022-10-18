@@ -8,6 +8,7 @@
 
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -19,9 +20,9 @@ using namespace llvm;
 /// See if the given exception handling personality function is one that we
 /// understand.  If so, return a description of it; otherwise return Unknown.
 EHPersonality llvm::classifyEHPersonality(const Value *Pers) {
-  const Function *F =
-      Pers ? dyn_cast<Function>(Pers->stripPointerCasts()) : nullptr;
-  if (!F)
+  const GlobalValue *F =
+      Pers ? dyn_cast<GlobalValue>(Pers->stripPointerCasts()) : nullptr;
+  if (!F || !F->getValueType() || !F->getValueType()->isFunctionTy())
     return EHPersonality::Unknown;
   return StringSwitch<EHPersonality>(F->getName())
       .Case("__gnat_eh_personality", EHPersonality::GNU_Ada)
@@ -67,7 +68,10 @@ StringRef llvm::getEHPersonalityName(EHPersonality Pers) {
 }
 
 EHPersonality llvm::getDefaultEHPersonality(const Triple &T) {
-  return EHPersonality::GNU_C;
+  if (T.isPS5())
+    return EHPersonality::GNU_CXX;
+  else
+    return EHPersonality::GNU_C;
 }
 
 bool llvm::canSimplifyInvokeNoUnwind(const Function *F) {

@@ -43,16 +43,16 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "foobarbaz"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
-; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 2
-; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "foobarbaz"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"

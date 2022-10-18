@@ -30,19 +30,26 @@
 // CHECK-NO-SYCL-EARLY-OPTS: "-fno-sycl-early-optimizations"
 
 /// Check that Dead Parameter Elimination Optimization is enabled
-// RUN:   %clang -### -fsycl -fsycl-dead-args-optimization %s 2>&1 \
+// RUN:   %clang -### -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DAE %s
-// RUN:   %clang_cl -### -fsycl -fsycl-dead-args-optimization %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DAE %s
 // CHECK-DAE: clang{{.*}} "-fenable-sycl-dae"
 // CHECK-DAE: sycl-post-link{{.*}} "-emit-param-info"
 
-/// Check that vectorizers are disabled by default:
+/// Check that Dead Parameter Elimination Optimization is disabled
+// RUN:   %clang -### -fsycl -fno-sycl-dead-args-optimization %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-NO-DAE %s
+// RUN:   %clang_cl -### -fsycl -fno-sycl-dead-args-optimization %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-NO-DAE %s
+// CHECK-NO-DAE-NOT: clang{{.*}} "-fenable-sycl-dae"
+// CHECK-NO-DAE: sycl-post-link{{.*}} "-emit-param-info"
+
+// Check "-fgpu-inline-threshold" is passed to the front-end:
+// RUN:   %clang -### -fsycl -fgpu-inline-threshold=100000 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-THRESH %s
+// CHECK-THRESH: "-mllvm" "-inline-threshold=100000"
+
 // RUN:   %clang -### -fsycl %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-VEC-DEFAULT %s
-// CHECK-VEC-DEFAULT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-vectorize-loops"
-// CHECK-VEC-DEFAULT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-vectorize-slp"
-/// Check that vectorizers can still be enabled manually:
-// RUN:   %clang -### -fsycl -fvectorize -fslp-vectorize %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-VEC-ENABLE %s
-// CHECK-VEC-ENABLE: clang{{.*}} "-fsycl-is-device"{{.*}}"-vectorize-loops"{{.*}}"-vectorize-slp"
+// RUN:   | FileCheck -check-prefix=CHECK-NO-THRESH %s
+// CHECK-NO-THRESH-NOT: "-mllvm" "-inline-threshold

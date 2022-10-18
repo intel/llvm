@@ -18,7 +18,7 @@
 namespace lld {
 namespace wasm {
 
-// Represents a single element (Global, Event, Table, etc) within an input
+// Represents a single element (Global, Tag, Table, etc) within an input
 // file.
 class InputElement {
 protected:
@@ -27,8 +27,8 @@ protected:
 
 public:
   StringRef getName() const { return name; }
-  uint32_t getAssignedIndex() const { return assignedIndex.getValue(); }
-  bool hasAssignedIndex() const { return assignedIndex.hasValue(); }
+  uint32_t getAssignedIndex() const { return assignedIndex.value(); }
+  bool hasAssignedIndex() const { return assignedIndex.has_value(); }
   void assignIndex(uint32_t index) {
     assert(!hasAssignedIndex());
     assignedIndex = index;
@@ -42,6 +42,19 @@ protected:
   llvm::Optional<uint32_t> assignedIndex;
 };
 
+inline WasmInitExpr intConst(uint64_t value, bool is64) {
+  WasmInitExpr ie;
+  ie.Extended = false;
+  if (is64) {
+    ie.Inst.Opcode = llvm::wasm::WASM_OPCODE_I64_CONST;
+    ie.Inst.Value.Int64 = static_cast<int64_t>(value);
+  } else {
+    ie.Inst.Opcode = llvm::wasm::WASM_OPCODE_I32_CONST;
+    ie.Inst.Value.Int32 = static_cast<int32_t>(value);
+  }
+  return ie;
+}
+
 class InputGlobal : public InputElement {
 public:
   InputGlobal(const WasmGlobal &g, ObjFile *f)
@@ -51,13 +64,7 @@ public:
   const WasmInitExpr &getInitExpr() const { return initExpr; }
 
   void setPointerValue(uint64_t value) {
-    if (config->is64.getValueOr(false)) {
-      assert(initExpr.Opcode == llvm::wasm::WASM_OPCODE_I64_CONST);
-      initExpr.Value.Int64 = value;
-    } else {
-      assert(initExpr.Opcode == llvm::wasm::WASM_OPCODE_I32_CONST);
-      initExpr.Value.Int32 = value;
-    }
+    initExpr = intConst(value, config->is64.value_or(false));
   }
 
 private:
@@ -65,17 +72,12 @@ private:
   WasmInitExpr initExpr;
 };
 
-class InputEvent : public InputElement {
+class InputTag : public InputElement {
 public:
-  InputEvent(const WasmSignature &s, const WasmEvent &e, ObjFile *f)
-      : InputElement(e.SymbolName, f), signature(s), type(e.Type) {}
-
-  const WasmEventType &getType() const { return type; }
+  InputTag(const WasmSignature &s, const WasmTag &t, ObjFile *f)
+      : InputElement(t.SymbolName, f), signature(s) {}
 
   const WasmSignature &signature;
-
-private:
-  WasmEventType type;
 };
 
 class InputTable : public InputElement {

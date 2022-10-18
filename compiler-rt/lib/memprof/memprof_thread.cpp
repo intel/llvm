@@ -40,11 +40,11 @@ void MemprofThreadContext::OnFinished() {
 static ALIGNED(16) char thread_registry_placeholder[sizeof(ThreadRegistry)];
 static ThreadRegistry *memprof_thread_registry;
 
-static BlockingMutex mu_for_thread_context(LINKER_INITIALIZED);
+static Mutex mu_for_thread_context;
 static LowLevelAllocator allocator_for_thread_context;
 
 static ThreadContextBase *GetMemprofThreadContext(u32 tid) {
-  BlockingMutexLock lock(&mu_for_thread_context);
+  Lock lock(&mu_for_thread_context);
   return new (allocator_for_thread_context) MemprofThreadContext(tid);
 }
 
@@ -57,8 +57,8 @@ ThreadRegistry &memprofThreadRegistry() {
     // in TSD and can't reliably tell when no more TSD destructors will
     // be called. It would be wrong to reuse MemprofThreadContext for another
     // thread before all TSD destructors will be called for it.
-    memprof_thread_registry = new (thread_registry_placeholder) ThreadRegistry(
-        GetMemprofThreadContext, kMaxNumberOfThreads, kMaxNumberOfThreads);
+    memprof_thread_registry = new (thread_registry_placeholder)
+        ThreadRegistry(GetMemprofThreadContext);
     initialized = true;
   }
   return *memprof_thread_registry;
@@ -80,8 +80,7 @@ MemprofThread *MemprofThread::Create(thread_callback_t start_routine, void *arg,
   thread->start_routine_ = start_routine;
   thread->arg_ = arg;
   MemprofThreadContext::CreateThreadContextArgs args = {thread, stack};
-  memprofThreadRegistry().CreateThread(*reinterpret_cast<uptr *>(thread),
-                                       detached, parent_tid, &args);
+  memprofThreadRegistry().CreateThread(0, detached, parent_tid, &args);
 
   return thread;
 }
@@ -131,7 +130,7 @@ void MemprofThread::Init(const InitOptions *options) {
   int local = 0;
   VReport(1, "T%d: stack [%p,%p) size 0x%zx; local=%p\n", tid(),
           (void *)stack_bottom_, (void *)stack_top_, stack_top_ - stack_bottom_,
-          &local);
+          (void *)&local);
 }
 
 thread_return_t
@@ -156,7 +155,7 @@ MemprofThread::ThreadStart(tid_t os_id,
 
 MemprofThread *CreateMainThread() {
   MemprofThread *main_thread = MemprofThread::Create(
-      /* start_routine */ nullptr, /* arg */ nullptr, /* parent_tid */ 0,
+      /* start_routine */ nullptr, /* arg */ nullptr, /* parent_tid */ kMainTid,
       /* stack */ nullptr, /* detached */ true);
   SetCurrentThread(main_thread);
   main_thread->ThreadStart(internal_getpid(),
@@ -171,8 +170,8 @@ void MemprofThread::SetThreadStackAndTls(const InitOptions *options) {
   DCHECK_EQ(options, nullptr);
   uptr tls_size = 0;
   uptr stack_size = 0;
-  GetThreadStackAndTls(tid() == 0, &stack_bottom_, &stack_size, &tls_begin_,
-                       &tls_size);
+  GetThreadStackAndTls(tid() == kMainTid, &stack_bottom_, &stack_size,
+                       &tls_begin_, &tls_size);
   stack_top_ = stack_bottom_ + stack_size;
   tls_end_ = tls_begin_ + tls_size;
   dtls_ = DTLS_Get();
@@ -198,7 +197,7 @@ MemprofThread *GetCurrentThread() {
 
 void SetCurrentThread(MemprofThread *t) {
   CHECK(t->context());
-  VReport(2, "SetCurrentThread: %p for thread %p\n", t->context(),
+  VReport(2, "SetCurrentThread: %p for thread %p\n", (void *)t->context(),
           (void *)GetThreadSelf());
   // Make sure we do not reset the current MemprofThread.
   CHECK_EQ(0, TSDGet());
@@ -214,7 +213,7 @@ u32 GetCurrentTidOrInvalid() {
 void EnsureMainThreadIDIsCorrect() {
   MemprofThreadContext *context =
       reinterpret_cast<MemprofThreadContext *>(TSDGet());
-  if (context && (context->tid == 0))
+  if (context && (context->tid == kMainTid))
     context->os_id = GetTid();
 }
 } // namespace __memprof

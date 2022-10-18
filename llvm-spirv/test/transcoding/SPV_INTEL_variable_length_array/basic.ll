@@ -1,7 +1,7 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_variable_length_array
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; The IR was generated for the following C code:
@@ -45,7 +45,7 @@ entry:
   %0 = bitcast [42 x i32]* %qqq to i8*
   call void @llvm.lifetime.start.p0i8(i64 168, i8* nonnull %0) #2
 
-; CHECK-LLVM: %[[#SavedMem:]] = call i8* @llvm.stacksave()
+; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave()
   %1 = call i8* @llvm.stacksave()
 
 ; CHECK-LLVM: alloca i32, i64 %a, align 16
@@ -54,10 +54,10 @@ entry:
   %arrayidx = getelementptr inbounds i32, i32* %vla, i64 %b
   %2 = load i32, i32* %arrayidx, align 4
 
-; CHECK-LLVM: call void @llvm.stackrestore(i8* %[[#SavedMem]])
+; CHECK-LLVM: call void @llvm.stackrestore(ptr %[[#SavedMem]])
   call void @llvm.stackrestore(i8* %1)
 
-; CHECK-LLVM: %[[#SavedMem:]] = call i8* @llvm.stacksave()
+; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave()
   %3 = call i8* @llvm.stacksave()
 
 ; CHECK-LLVM: alloca i32, i64 %a, align 16
@@ -70,7 +70,7 @@ entry:
   %5 = load i32, i32* %arrayidx4, align 4
   %add5 = add nsw i32 %add, %5
 
-; CHECK-LLVM: call void @llvm.stackrestore(i8* %[[#SavedMem]])
+; CHECK-LLVM: call void @llvm.stackrestore(ptr %[[#SavedMem]])
   call void @llvm.stackrestore(i8* %3)
 
   call void @llvm.lifetime.end.p0i8(i64 168, i8* nonnull %0) #2

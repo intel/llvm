@@ -50,7 +50,7 @@ ExprResult Sema::ParseObjCStringLiteral(SourceLocation *AtLocs,
       S = cast<StringLiteral>(E);
 
       // ObjC strings can't be wide or UTF.
-      if (!S->isAscii()) {
+      if (!S->isOrdinary()) {
         Diag(S->getBeginLoc(), diag::err_cfstring_literal_not_string_constant)
             << S->getSourceRange();
         return true;
@@ -70,7 +70,7 @@ ExprResult Sema::ParseObjCStringLiteral(SourceLocation *AtLocs,
     QualType StrTy = Context.getConstantArrayType(
         CAT->getElementType(), llvm::APInt(32, StrBuf.size() + 1), nullptr,
         CAT->getSizeModifier(), CAT->getIndexTypeCVRQualifiers());
-    S = StringLiteral::Create(Context, StrBuf, StringLiteral::Ascii,
+    S = StringLiteral::Create(Context, StrBuf, StringLiteral::Ordinary,
                               /*Pascal=*/false, StrTy, &StrLocs[0],
                               StrLocs.size());
   }
@@ -448,7 +448,7 @@ static ExprResult CheckObjCCollectionLiteralElement(Sema &S, Expr *Element,
     }
     // If this is potentially an Objective-C string literal, add the '@'.
     else if (StringLiteral *String = dyn_cast<StringLiteral>(OrigElement)) {
-      if (String->isAscii()) {
+      if (String->isOrdinary()) {
         S.Diag(OrigElement->getBeginLoc(), diag::err_box_literal_collection)
             << 0 << OrigElement->getSourceRange()
             << FixItHint::CreateInsertion(OrigElement->getBeginLoc(), "@");
@@ -533,7 +533,7 @@ ExprResult Sema::BuildObjCBoxedExpr(SourceRange SR, Expr *ValueExpr) {
         if (CE->getCastKind() == CK_ArrayToPointerDecay)
           if (auto *SL =
                   dyn_cast<StringLiteral>(CE->getSubExpr()->IgnoreParens())) {
-            assert((SL->isAscii() || SL->isUTF8()) &&
+            assert((SL->isOrdinary() || SL->isUTF8()) &&
                    "unexpected character encoding");
             StringRef Str = SL->getString();
             const llvm::UTF8 *StrBegin = Str.bytes_begin();
@@ -1280,11 +1280,11 @@ static ObjCMethodDecl *findMethodInCurrentClass(Sema &S, Selector Sel) {
   // whether Sel is potentially direct in this context.
   if (ObjCMethodDecl *MD = IFace->lookupMethod(Sel, /*isInstance=*/true))
     return MD;
-  if (ObjCMethodDecl *MD = IFace->lookupPrivateMethod(Sel, /*isInstance=*/true))
+  if (ObjCMethodDecl *MD = IFace->lookupPrivateMethod(Sel, /*Instance=*/true))
     return MD;
   if (ObjCMethodDecl *MD = IFace->lookupMethod(Sel, /*isInstance=*/false))
     return MD;
-  if (ObjCMethodDecl *MD = IFace->lookupPrivateMethod(Sel, /*isInstance=*/false))
+  if (ObjCMethodDecl *MD = IFace->lookupPrivateMethod(Sel, /*Instance=*/false))
     return MD;
 
   return nullptr;
@@ -1786,7 +1786,7 @@ bool Sema::CheckMessageArgumentTypes(
     } else {
       ReturnType = Context.getObjCIdType();
     }
-    VK = VK_RValue;
+    VK = VK_PRValue;
     return false;
   }
 
@@ -1821,7 +1821,8 @@ bool Sema::CheckMessageArgumentTypes(
     ParmVarDecl *param = Method->parameters()[i];
     assert(argExpr && "CheckMessageArgumentTypes(): missing expression");
 
-    if (param->hasAttr<NoEscapeAttr>())
+    if (param->hasAttr<NoEscapeAttr>() &&
+        param->getType()->isBlockPointerType())
       if (auto *BE = dyn_cast<BlockExpr>(
               argExpr->IgnoreParenNoopCasts(Context)))
         BE->getBlockDecl()->setDoesNotEscape();
@@ -1872,7 +1873,7 @@ bool Sema::CheckMessageArgumentTypes(
       // If we are type-erasing a block to a block-compatible
       // Objective-C pointer type, we may need to extend the lifetime
       // of the block object.
-      if (typeArgs && Args[i]->isRValue() && paramType->isBlockPointerType() &&
+      if (typeArgs && Args[i]->isPRValue() && paramType->isBlockPointerType() &&
           Args[i]->getType()->isBlockPointerType() &&
           origParamType->isObjCObjectPointerType()) {
         ExprResult arg = Args[i];
@@ -2633,7 +2634,7 @@ ExprResult Sema::BuildClassMessage(TypeSourceInfo *ReceiverTypeInfo,
     Expr **Args = ArgsIn.data();
     assert(SuperLoc.isInvalid() && "Message to super with dependent type");
     return ObjCMessageExpr::Create(
-        Context, ReceiverType, VK_RValue, LBracLoc, ReceiverTypeInfo, Sel,
+        Context, ReceiverType, VK_PRValue, LBracLoc, ReceiverTypeInfo, Sel,
         SelectorLocs, /*Method=*/nullptr, makeArrayRef(Args, NumArgs), RBracLoc,
         isImplicit);
   }
@@ -2681,7 +2682,7 @@ ExprResult Sema::BuildClassMessage(TypeSourceInfo *ReceiverTypeInfo,
 
   // Check the argument types and determine the result type.
   QualType ReturnType;
-  ExprValueKind VK = VK_RValue;
+  ExprValueKind VK = VK_PRValue;
 
   unsigned NumArgs = ArgsIn.size();
   Expr **Args = ArgsIn.data();
@@ -2886,7 +2887,7 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
       Expr **Args = ArgsIn.data();
       assert(SuperLoc.isInvalid() && "Message to super with dependent type");
       return ObjCMessageExpr::Create(
-          Context, Context.DependentTy, VK_RValue, LBracLoc, Receiver, Sel,
+          Context, Context.DependentTy, VK_PRValue, LBracLoc, Receiver, Sel,
           SelectorLocs, /*Method=*/nullptr, makeArrayRef(Args, NumArgs),
           RBracLoc, isImplicit);
     }
@@ -3225,7 +3226,7 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
   unsigned NumArgs = ArgsIn.size();
   Expr **Args = ArgsIn.data();
   QualType ReturnType;
-  ExprValueKind VK = VK_RValue;
+  ExprValueKind VK = VK_PRValue;
   bool ClassMessage = (ReceiverType->isObjCClassType() ||
                        ReceiverType->isObjCQualifiedClassType());
   if (CheckMessageArgumentTypes(Receiver, ReceiverType,
@@ -3771,7 +3772,7 @@ static void addFixitForObjCARCConversion(
 
         SourceManager &SM = S.getSourceManager();
         char PrevChar = *SM.getCharacterData(range.getBegin().getLocWithOffset(-1));
-        if (Lexer::isIdentifierBodyChar(PrevChar, S.getLangOpts()))
+        if (Lexer::isAsciiIdentifierContinueChar(PrevChar, S.getLangOpts()))
           BridgeCall += ' ';
 
         BridgeCall += CFBridgeName;
@@ -3789,7 +3790,7 @@ static void addFixitForObjCARCConversion(
 
     SourceManager &SM = S.getSourceManager();
     char PrevChar = *SM.getCharacterData(range.getBegin().getLocWithOffset(-1));
-    if (Lexer::isIdentifierBodyChar(PrevChar, S.getLangOpts()))
+    if (Lexer::isAsciiIdentifierContinueChar(PrevChar, S.getLangOpts()))
       BridgeCall += ' ';
 
     BridgeCall += CFBridgeName;
@@ -3859,7 +3860,7 @@ static inline T *getObjCBridgeAttr(const TypedefType *TD) {
 
 static ObjCBridgeRelatedAttr *ObjCBridgeRelatedAttrFromType(QualType T,
                                                             TypedefNameDecl *&TDNDecl) {
-  while (const TypedefType *TD = dyn_cast<TypedefType>(T.getTypePtr())) {
+  while (const auto *TD = T->getAs<TypedefType>()) {
     TDNDecl = TD->getDecl();
     if (ObjCBridgeRelatedAttr *ObjCBAttr =
         getObjCBridgeAttr<ObjCBridgeRelatedAttr>(TD))
@@ -4006,7 +4007,7 @@ static bool CheckObjCBridgeNSCast(Sema &S, QualType castType, Expr *castExpr,
                                   bool &HadTheAttribute, bool warn) {
   QualType T = castExpr->getType();
   HadTheAttribute = false;
-  while (const TypedefType *TD = dyn_cast<TypedefType>(T.getTypePtr())) {
+  while (const auto *TD = T->getAs<TypedefType>()) {
     TypedefNameDecl *TDNDecl = TD->getDecl();
     if (TB *ObjCBAttr = getObjCBridgeAttr<TB>(TD)) {
       if (IdentifierInfo *Parm = ObjCBAttr->getBridgedType()) {
@@ -4014,12 +4015,11 @@ static bool CheckObjCBridgeNSCast(Sema &S, QualType castType, Expr *castExpr,
         if (Parm->isStr("id"))
           return true;
 
-        NamedDecl *Target = nullptr;
         // Check for an existing type with this name.
         LookupResult R(S, DeclarationName(Parm), SourceLocation(),
                        Sema::LookupOrdinaryName);
         if (S.LookupName(R, S.TUScope)) {
-          Target = R.getFoundDecl();
+          NamedDecl *Target = R.getFoundDecl();
           if (Target && isa<ObjCInterfaceDecl>(Target)) {
             ObjCInterfaceDecl *ExprClass = cast<ObjCInterfaceDecl>(Target);
             if (const ObjCObjectPointerType *InterfacePointerType =
@@ -4055,8 +4055,6 @@ static bool CheckObjCBridgeNSCast(Sema &S, QualType castType, Expr *castExpr,
                  diag::err_objc_cf_bridged_not_interface)
               << castExpr->getType() << Parm;
           S.Diag(TDNDecl->getBeginLoc(), diag::note_declared_at);
-          if (Target)
-            S.Diag(Target->getBeginLoc(), diag::note_declared_at);
         }
         return true;
       }
@@ -4072,7 +4070,7 @@ static bool CheckObjCBridgeCFCast(Sema &S, QualType castType, Expr *castExpr,
                                   bool &HadTheAttribute, bool warn) {
   QualType T = castType;
   HadTheAttribute = false;
-  while (const TypedefType *TD = dyn_cast<TypedefType>(T.getTypePtr())) {
+  while (const auto *TD = T->getAs<TypedefType>()) {
     TypedefNameDecl *TDNDecl = TD->getDecl();
     if (TB *ObjCBAttr = getObjCBridgeAttr<TB>(TD)) {
       if (IdentifierInfo *Parm = ObjCBAttr->getBridgedType()) {
@@ -4452,9 +4450,14 @@ Sema::CheckObjCConversion(SourceRange castRange, QualType castType,
   // Allow casts between pointers to lifetime types (e.g., __strong id*)
   // and pointers to void (e.g., cv void *). Casting from void* to lifetime*
   // must be explicit.
-  if (exprACTC == ACTC_indirectRetainable && castACTC == ACTC_voidPtr)
+  // Allow conversions between pointers to lifetime types and coreFoundation
+  // pointers too, but only when the conversions are explicit.
+  if (exprACTC == ACTC_indirectRetainable &&
+      (castACTC == ACTC_voidPtr ||
+       (castACTC == ACTC_coreFoundation && isCast(CCK))))
     return ACR_okay;
-  if (castACTC == ACTC_indirectRetainable && exprACTC == ACTC_voidPtr &&
+  if (castACTC == ACTC_indirectRetainable &&
+      (exprACTC == ACTC_voidPtr || exprACTC == ACTC_coreFoundation) &&
       isCast(CCK))
     return ACR_okay;
 
@@ -4472,7 +4475,7 @@ Sema::CheckObjCConversion(SourceRange castRange, QualType castType,
   case ACC_plusOne:
     castExpr = ImplicitCastExpr::Create(Context, castExpr->getType(),
                                         CK_ARCConsumeObject, castExpr, nullptr,
-                                        VK_RValue, FPOptionsOverride());
+                                        VK_PRValue, FPOptionsOverride());
     Cleanup.setExprNeedsCleanups(true);
     return ACR_okay;
   }
@@ -4699,7 +4702,7 @@ ExprResult Sema::BuildObjCBridgedCast(SourceLocation LParenLoc,
     case OBC_BridgeRetained:
       // Produce the object before casting it.
       SubExpr = ImplicitCastExpr::Create(Context, FromType, CK_ARCProduceObject,
-                                         SubExpr, nullptr, VK_RValue,
+                                         SubExpr, nullptr, VK_PRValue,
                                          FPOptionsOverride());
       break;
 
@@ -4739,7 +4742,7 @@ ExprResult Sema::BuildObjCBridgedCast(SourceLocation LParenLoc,
   if (MustConsume) {
     Cleanup.setExprNeedsCleanups(true);
     Result = ImplicitCastExpr::Create(Context, T, CK_ARCConsumeObject, Result,
-                                      nullptr, VK_RValue, FPOptionsOverride());
+                                      nullptr, VK_PRValue, FPOptionsOverride());
   }
 
   return Result;

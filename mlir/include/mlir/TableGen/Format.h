@@ -50,8 +50,11 @@ public:
 
   FmtContext() = default;
 
+  // Create a format context with a list of substitutions.
+  FmtContext(ArrayRef<std::pair<StringRef, StringRef>> subs);
+
   // Setter for custom placeholders
-  FmtContext &addSubst(StringRef placeholder, Twine subst);
+  FmtContext &addSubst(StringRef placeholder, const Twine &subst);
 
   // Setters for builtin placeholders
   FmtContext &withBuilder(Twine subst);
@@ -88,22 +91,33 @@ private:
 
 /// Struct representing a replacement segment for the formatted string. It can
 /// be a segment of the formatting template (for `Literal`) or a replacement
-/// parameter (for `PositionalPH` and `SpecialPH`).
+/// parameter (for `PositionalPH`, `PositionalRangePH` and `SpecialPH`).
 struct FmtReplacement {
-  enum class Type { Empty, Literal, PositionalPH, SpecialPH };
+  enum class Type {
+    Empty,
+    Literal,
+    PositionalPH,
+    PositionalRangePH,
+    SpecialPH
+  };
 
   FmtReplacement() = default;
   explicit FmtReplacement(StringRef literal)
       : type(Type::Literal), spec(literal) {}
   FmtReplacement(StringRef spec, size_t index)
       : type(Type::PositionalPH), spec(spec), index(index) {}
+  FmtReplacement(StringRef spec, size_t index, size_t end)
+      : type(Type::PositionalRangePH), spec(spec), index(index), end(end) {}
   FmtReplacement(StringRef spec, FmtContext::PHKind placeholder)
       : type(Type::SpecialPH), spec(spec), placeholder(placeholder) {}
 
   Type type = Type::Empty;
   StringRef spec;
   size_t index = 0;
+  size_t end = kUnset;
   FmtContext::PHKind placeholder = FmtContext::PHKind::None;
+
+  static constexpr size_t kUnset = -1;
 };
 
 class FmtObjectBase {
@@ -121,7 +135,7 @@ protected:
   // std::vector<Base*>.
   struct CreateAdapters {
     template <typename... Ts>
-    std::vector<llvm::detail::format_adapter *> operator()(Ts &... items) {
+    std::vector<llvm::detail::format_adapter *> operator()(Ts &...items) {
       return std::vector<llvm::detail::format_adapter *>{&items...};
     }
   };
@@ -138,7 +152,7 @@ public:
   FmtObjectBase(const FmtObjectBase &that) = delete;
 
   FmtObjectBase(FmtObjectBase &&that)
-      : fmt(std::move(that.fmt)), context(that.context),
+      : fmt(that.fmt), context(that.context),
         adapters(), // adapters are initialized by FmtObject
         replacements(std::move(that.replacements)) {}
 
@@ -151,19 +165,24 @@ public:
     return s.str();
   }
 
-  template <unsigned N> SmallString<N> sstr() const {
+  template <unsigned N>
+  SmallString<N> sstr() const {
     SmallString<N> result;
     llvm::raw_svector_ostream s(result);
     format(s);
     return result;
   }
 
-  template <unsigned N> operator SmallString<N>() const { return sstr<N>(); }
+  template <unsigned N>
+  operator SmallString<N>() const {
+    return sstr<N>();
+  }
 
   operator std::string() const { return str(); }
 };
 
-template <typename Tuple> class FmtObject : public FmtObjectBase {
+template <typename Tuple>
+class FmtObject : public FmtObjectBase {
   // Storage for the parameter adapters.  Since the base class erases the type
   // of the parameters, we have to own the storage for the parameters here, and
   // have the base class store type-erased pointers into this tuple.
@@ -174,7 +193,7 @@ public:
       : FmtObjectBase(fmt, ctx, std::tuple_size<Tuple>::value),
         parameters(std::move(params)) {
     adapters.reserve(std::tuple_size<Tuple>::value);
-    adapters = llvm::apply_tuple(CreateAdapters(), parameters);
+    adapters = std::apply(CreateAdapters(), parameters);
   }
 
   FmtObject(FmtObject const &that) = delete;
@@ -182,7 +201,7 @@ public:
   FmtObject(FmtObject &&that)
       : FmtObjectBase(std::move(that)), parameters(std::move(that.parameters)) {
     adapters.reserve(that.adapters.size());
-    adapters = llvm::apply_tuple(CreateAdapters(), parameters);
+    adapters = std::apply(CreateAdapters(), parameters);
   }
 };
 
@@ -205,7 +224,8 @@ private:
 ///
 /// There are two categories of placeholders accepted, both led by a '$' sign:
 ///
-/// 1. Positional placeholder: $[0-9]+
+/// 1.a Positional placeholder: $[0-9]+
+/// 1.b Positional range placeholder: $[0-9]+...
 /// 2. Special placeholder:    $[a-zA-Z_][a-zA-Z0-9_]*
 ///
 /// Replacement parameters for positional placeholders are supplied as the
@@ -213,6 +233,9 @@ private:
 /// first parameter in `vals`, $1 by the second one, and so on. Note that you
 /// can use the positional placeholders in any order and repeat any times, for
 /// example, "$2 $1 $1 $0" is accepted.
+///
+/// Replace parameters for positional range placeholders are supplied as if
+/// positional placeholders were specified with commas separating them.
 ///
 /// Replacement parameters for special placeholders are supplied using the `ctx`
 /// format context.
@@ -237,7 +260,7 @@ private:
 /// 2. This utility does not support format layout because it is rarely needed
 ///    in C++ code generation.
 template <typename... Ts>
-inline auto tgfmt(StringRef fmt, const FmtContext *ctx, Ts &&... vals)
+inline auto tgfmt(StringRef fmt, const FmtContext *ctx, Ts &&...vals)
     -> FmtObject<decltype(std::make_tuple(
         llvm::detail::build_format_adapter(std::forward<Ts>(vals))...))> {
   using ParamTuple = decltype(std::make_tuple(
@@ -253,7 +276,7 @@ inline FmtStrVecObject tgfmt(StringRef fmt, const FmtContext *ctx,
   return FmtStrVecObject(fmt, ctx, params);
 }
 
-} // end namespace tblgen
-} // end namespace mlir
+} // namespace tblgen
+} // namespace mlir
 
 #endif // MLIR_TABLEGEN_FORMAT_H_

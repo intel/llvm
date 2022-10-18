@@ -1,4 +1,4 @@
-//==-- filter_selector_impl.hpp - ONEAPI filter selector impl--*- C++ --*---==//
+//==-- filter_selector_impl.hpp - oneapi filter selector impl--*- C++ --*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,18 +8,19 @@
 
 #pragma once
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/device_selector.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class device;
 
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace detail {
 
 typedef struct sycl::detail::device_filter filter;
@@ -39,6 +40,11 @@ private:
   mutable bool mMatchFound;
 };
 } // namespace detail
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+using namespace ext::oneapi;
+}
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

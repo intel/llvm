@@ -8,13 +8,12 @@
 
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Analysis/AssumptionCache.h"
-#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
-#include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/MemorySSA.h"
-#include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
+#include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Support/TimeProfiler.h"
 
 using namespace llvm;
@@ -27,10 +26,6 @@ PreservedAnalyses
 PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
             LPMUpdater &>::run(Loop &L, LoopAnalysisManager &AM,
                                LoopStandardAnalysisResults &AR, LPMUpdater &U) {
-
-  if (DebugLogging)
-    dbgs() << "Starting Loop pass manager run.\n";
-
   // Runs loop-nest passes only when the current loop is a top-level one.
   PreservedAnalyses PA = (L.isOutermost() && !LoopNestPasses.empty())
                              ? runWithLoopNestPasses(L, AM, AR, U)
@@ -45,10 +40,27 @@ PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
   // be preserved, but unrolling should invalidate the parent loop's analyses.
   PA.preserveSet<AllAnalysesOn<Loop>>();
 
-  if (DebugLogging)
-    dbgs() << "Finished Loop pass manager run.\n";
-
   return PA;
+}
+
+void PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
+                 LPMUpdater &>::printPipeline(raw_ostream &OS,
+                                              function_ref<StringRef(StringRef)>
+                                                  MapClassName2PassName) {
+  assert(LoopPasses.size() + LoopNestPasses.size() == IsLoopNestPass.size());
+
+  unsigned IdxLP = 0, IdxLNP = 0;
+  for (unsigned Idx = 0, Size = IsLoopNestPass.size(); Idx != Size; ++Idx) {
+    if (IsLoopNestPass[Idx]) {
+      auto *P = LoopNestPasses[IdxLNP++].get();
+      P->printPipeline(OS, MapClassName2PassName);
+    } else {
+      auto *P = LoopPasses[IdxLP++].get();
+      P->printPipeline(OS, MapClassName2PassName);
+    }
+    if (Idx + 1 < Size)
+      OS << ",";
+  }
 }
 
 // Run both loop passes and loop-nest passes on top-level loop \p L.
@@ -72,6 +84,7 @@ LoopPassManager::runWithLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
   // invalid when encountering a loop-nest pass.
   std::unique_ptr<LoopNest> LoopNestPtr;
   bool IsLoopNestPtrValid = false;
+  Loop *OuterMostLoop = &L;
 
   for (size_t I = 0, E = IsLoopNestPass.size(); I != E; ++I) {
     Optional<PreservedAnalyses> PassPA;
@@ -85,10 +98,18 @@ LoopPassManager::runWithLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
 
       // If the loop-nest object calculated before is no longer valid,
       // re-calculate it here before running the loop-nest pass.
-      if (!IsLoopNestPtrValid) {
-        LoopNestPtr = LoopNest::getLoopNest(L, AR.SE);
+      //
+      // FIXME: PreservedAnalysis should not be abused to tell if the
+      // status of loopnest has been changed. We should use and only
+      // use LPMUpdater for this purpose.
+      if (!IsLoopNestPtrValid || U.isLoopNestChanged()) {
+        while (auto *ParentLoop = OuterMostLoop->getParentLoop())
+          OuterMostLoop = ParentLoop;
+        LoopNestPtr = LoopNest::getLoopNest(*OuterMostLoop, AR.SE);
         IsLoopNestPtrValid = true;
+        U.markLoopNestChanged(false);
       }
+
       PassPA = runSinglePass(*LoopNestPtr, Pass, AM, AR, U, PI);
     }
 
@@ -106,7 +127,7 @@ LoopPassManager::runWithLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
 
     // Update the analysis manager as each pass runs and potentially
     // invalidates analyses.
-    AM.invalidate(L, *PassPA);
+    AM.invalidate(IsLoopNestPass[I] ? *OuterMostLoop : L, *PassPA);
 
     // Finally, we intersect the final preserved analyses to compute the
     // aggregate preserved set for this pass manager.
@@ -118,13 +139,7 @@ LoopPassManager::runWithLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
     // After running the loop pass, the parent loop might change and we need to
     // notify the updater, otherwise U.ParentL might gets outdated and triggers
     // assertion failures in addSiblingLoops and addChildLoops.
-    U.setParentLoop(L.getParentLoop());
-
-    // FIXME: Historically, the pass managers all called the LLVM context's
-    // yield function here. We don't have a generic way to acquire the
-    // context and it isn't yet clear what the right pattern is for yielding
-    // in the new pass manager so it is currently omitted.
-    // ...getContext().yield();
+    U.setParentLoop((IsLoopNestPass[I] ? *OuterMostLoop : L).getParentLoop());
   }
   return PA;
 }
@@ -168,17 +183,17 @@ LoopPassManager::runWithoutLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
     // notify the updater, otherwise U.ParentL might gets outdated and triggers
     // assertion failures in addSiblingLoops and addChildLoops.
     U.setParentLoop(L.getParentLoop());
-
-    // FIXME: Historically, the pass managers all called the LLVM context's
-    // yield function here. We don't have a generic way to acquire the
-    // context and it isn't yet clear what the right pattern is for yielding
-    // in the new pass manager so it is currently omitted.
-    // ...getContext().yield();
   }
   return PA;
 }
 } // namespace llvm
 
+void FunctionToLoopPassAdaptor::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  OS << (UseMemorySSA ? "loop-mssa(" : "loop(");
+  Pass->printPipeline(OS, MapClassName2PassName);
+  OS << ")";
+}
 PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
                                                  FunctionAnalysisManager &AM) {
   // Before we even compute any loop analyses, first run a miniature function
@@ -208,6 +223,10 @@ PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
   BlockFrequencyInfo *BFI = UseBlockFrequencyInfo && F.hasProfileData()
                                 ? (&AM.getResult<BlockFrequencyAnalysis>(F))
                                 : nullptr;
+  BranchProbabilityInfo *BPI =
+      UseBranchProbabilityInfo && F.hasProfileData()
+          ? (&AM.getResult<BranchProbabilityAnalysis>(F))
+          : nullptr;
   LoopStandardAnalysisResults LAR = {AM.getResult<AAManager>(F),
                                      AM.getResult<AssumptionAnalysis>(F),
                                      AM.getResult<DominatorTreeAnalysis>(F),
@@ -216,6 +235,7 @@ PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
                                      AM.getResult<TargetLibraryAnalysis>(F),
                                      AM.getResult<TargetIRAnalysis>(F),
                                      BFI,
+                                     BPI,
                                      MSSA};
 
   // Setup the loop analysis manager from its proxy. It is important that
@@ -280,11 +300,7 @@ PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
     if (!PI.runBeforePass<Loop>(*Pass, *L))
       continue;
 
-    PreservedAnalyses PassPA;
-    {
-      TimeTraceScope TimeScope(Pass->name());
-      PassPA = Pass->run(*L, LAM, LAR, Updater);
-    }
+    PreservedAnalyses PassPA = Pass->run(*L, LAM, LAR, Updater);
 
     // Do not pass deleted Loop into the instrumentation.
     if (Updater.skipCurrentLoop())
@@ -292,14 +308,18 @@ PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
     else
       PI.runAfterPass<Loop>(*Pass, *L, PassPA);
 
+    if (LAR.MSSA && !PassPA.getChecker<MemorySSAAnalysis>().preserved())
+      report_fatal_error("Loop pass manager using MemorySSA contains a pass "
+                         "that does not preserve MemorySSA");
+
 #ifndef NDEBUG
     // LoopAnalysisResults should always be valid.
-    // Note that we don't LAR.SE.verify() because that can change observed SE
-    // queries. See PR44815.
     if (VerifyDomInfo)
       LAR.DT.verify();
     if (VerifyLoopInfo)
       LAR.LI.verify(LAR.DT);
+    if (VerifySCEV)
+      LAR.SE.verify();
     if (LAR.MSSA && VerifyMemorySSA)
       LAR.MSSA->verifyMemorySSA();
 #endif
@@ -332,14 +352,10 @@ PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
   PA.preserve<ScalarEvolutionAnalysis>();
   if (UseBlockFrequencyInfo && F.hasProfileData())
     PA.preserve<BlockFrequencyAnalysis>();
+  if (UseBranchProbabilityInfo && F.hasProfileData())
+    PA.preserve<BranchProbabilityAnalysis>();
   if (UseMemorySSA)
     PA.preserve<MemorySSAAnalysis>();
-  // FIXME: What we really want to do here is preserve an AA category, but
-  // that concept doesn't exist yet.
-  PA.preserve<AAManager>();
-  PA.preserve<BasicAA>();
-  PA.preserve<GlobalsAA>();
-  PA.preserve<SCEVAA>();
   return PA;
 }
 

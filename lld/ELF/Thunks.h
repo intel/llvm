@@ -9,10 +9,10 @@
 #ifndef LLD_ELF_THUNKS_H
 #define LLD_ELF_THUNKS_H
 
+#include "llvm/ADT/SmallVector.h"
 #include "Relocations.h"
 
-namespace lld {
-namespace elf {
+namespace lld::elf {
 class Defined;
 class InputFile;
 class Symbol;
@@ -77,7 +77,6 @@ static inline uint16_t computeHiBits(uint32_t toCompute) {
   return (toCompute + 0x8000) >> 16;
 }
 
-} // namespace elf
-} // namespace lld
+} // namespace lld::elf
 
 #endif

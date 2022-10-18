@@ -10,7 +10,7 @@ Public dialects are typically separated into at least 3 directories:
 * mlir/test/Dialect/Foo           (for tests)
 
 Along with other public headers, the 'include' directory contains a
-TableGen file in the [ODS format](OpDefinitions.md), describing the
+TableGen file in the [ODS format](../OpDefinitions.md), describing the
 operations in the dialect.  This is used to generate operation
 declarations (FooOps.h.inc) and definitions (FooOps.cpp.inc) and
 operation interface declarations (FooOpsInterfaces.h.inc) and
@@ -23,7 +23,7 @@ FooOpsInterfaces.h.inc.
 
 The 'Transforms' directory contains rewrite rules for the dialect,
 typically described in TableGen file using the [DDR
-format](DeclarativeRewrites.md).
+format](../DeclarativeRewrites.md).
 
 Note that dialect names should not generally be suffixed with “Ops”,
 although some files pertaining only to the operations of a dialect (e.g.
@@ -39,7 +39,7 @@ is declared using add_mlir_dialect().
 
 ```cmake
 add_mlir_dialect(FooOps foo)
-add_mlir_doc(FooOps -gen-dialect-doc FooDialect Dialects/)
+add_mlir_doc(FooOps FooDialect Dialects/ -gen-dialect-doc)
 ```
 
 This generates the correct rules to run mlir-tblgen, along with a
@@ -130,7 +130,7 @@ mlir/lib/Conversion/GPUCommon.
 Each conversion typically exists in a separate library, declared with
 add_mlir_conversion_library().  Conversion libraries typically depend
 on their source and target dialects, but may also depend on other
-dialects (e.g. MLIRStandard).  Typically this dependence is specified
+dialects (e.g. MLIRFunc).  Typically this dependence is specified
 using target_link_libraries() and the PUBLIC keyword.  For instance:
 
 ```cmake

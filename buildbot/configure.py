@@ -13,7 +13,18 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = 'sycl;llvm-spirv;opencl-aot;libdevice;xpti;xptifw'
+    llvm_external_projects = 'sycl;llvm-spirv;opencl;xpti;xptifw'
+
+    # libdevice build requires a working SYCL toolchain, which is not the case
+    # with macOS target right now.
+    if sys.platform != "darwin":
+        llvm_external_projects += ';libdevice'
+
+    libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
+    libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
+
+    if args.llvm_external_projects:
+        llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
 
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
@@ -21,33 +32,63 @@ def do_configure(args):
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
-    ocl_header_dir = os.path.join(abs_obj_dir, "OpenCL-Headers")
-    icd_loader_lib = os.path.join(abs_obj_dir, "OpenCL-ICD-Loader", "build")
-    llvm_targets_to_build = 'X86'
+    llvm_targets_to_build = args.host_target
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
-    sycl_build_pi_cuda = 'OFF'
-    sycl_werror = 'ON'
+    libclc_gen_remangled_variants = 'OFF'
+    sycl_build_pi_hip_platform = 'AMD'
+    sycl_clang_extra_flags = ''
+    sycl_werror = 'OFF'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
+    llvm_enable_lld = 'OFF'
+    sycl_enabled_plugins = ["opencl"]
 
     sycl_enable_xpti_tracing = 'ON'
-    icd_loader_lib = os.path.join(icd_loader_lib, "libOpenCL.so" if platform.system() == 'Linux' else "OpenCL.lib")
+    xpti_enable_werror = 'OFF'
 
-    # replace not append, so ARM ^ X86
-    if args.arm:
-        llvm_targets_to_build = 'ARM;AArch64'
+    if sys.platform != "darwin":
+        sycl_enabled_plugins.append("level_zero")
+
+    # lld is needed on Windows or for the HIP plugin on AMD
+    if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
+        llvm_enable_projects += ';lld'
+
+    if args.enable_esimd_emulator:
+        sycl_enabled_plugins.append("esimd_emulator")
+
+    if args.cuda or args.hip:
+        llvm_enable_projects += ';libclc'
 
     if args.cuda:
         llvm_targets_to_build += ';NVPTX'
-        llvm_enable_projects += ';libclc'
-        libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
-        sycl_build_pi_cuda = 'ON'
+        libclc_targets_to_build = libclc_nvidia_target_names
+        libclc_gen_remangled_variants = 'ON'
+        sycl_enabled_plugins.append("cuda")
 
-    if args.no_werror:
-        sycl_werror = 'OFF'
+    if args.hip:
+        if args.hip_platform == 'AMD':
+            llvm_targets_to_build += ';AMDGPU'
+            libclc_targets_to_build += libclc_amd_target_names
+
+        elif args.hip_platform == 'NVIDIA' and not args.cuda:
+            llvm_targets_to_build += ';NVPTX'
+            libclc_targets_to_build += libclc_nvidia_target_names
+        libclc_gen_remangled_variants = 'ON'
+
+        sycl_build_pi_hip_platform = args.hip_platform
+        sycl_enabled_plugins.append("hip")
+
+    # all llvm compiler targets don't require 3rd party dependencies, so can be
+    # built/tested even if specific runtimes are not available
+    if args.enable_all_llvm_targets:
+        llvm_targets_to_build += ';NVPTX;AMDGPU'
+
+    if args.werror or args.ci_defaults:
+        sycl_werror = 'ON'
+        xpti_enable_werror = 'ON'
 
     if args.no_assertions:
         llvm_enable_assertions = 'OFF'
@@ -58,6 +99,35 @@ def do_configure(args):
 
     if args.shared_libs:
         llvm_build_shared_libs = 'ON'
+
+    if args.use_lld:
+        llvm_enable_lld = 'ON'
+
+    # CI Default conditionally appends to options, keep it at the bottom of
+    # args handling
+    if args.ci_defaults:
+        print("#############################################")
+        print("# Default CI configuration will be applied. #")
+        print("#############################################")
+
+        # For clang-format, clang-tidy and code coverage
+        llvm_enable_projects += ";clang-tools-extra;compiler-rt"
+        if sys.platform != "darwin":
+            # libclc is required for CI validation
+            if 'libclc' not in llvm_enable_projects:
+                llvm_enable_projects += ';libclc'
+            # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
+            if 'NVPTX' not in llvm_targets_to_build:
+                llvm_targets_to_build += ';NVPTX'
+            # Add both NVIDIA and AMD libclc targets
+            if libclc_amd_target_names not in libclc_targets_to_build:
+                libclc_targets_to_build += libclc_amd_target_names
+            if libclc_nvidia_target_names not in libclc_targets_to_build:
+                libclc_targets_to_build += libclc_nvidia_target_names
+            libclc_gen_remangled_variants = 'ON'
+
+    if args.enable_plugin:
+        sycl_enabled_plugins += args.enable_plugin
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -76,7 +146,8 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-        "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
+        "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
+        "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
@@ -84,18 +155,17 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing)
+        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
+        "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
+        "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
+        "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
+        "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins)))
     ]
-
-    if args.system_ocl:
-      cmake_cmd.extend([
-            "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
-            "-DOpenCL_LIBRARY={}".format(icd_loader_lib)])
 
     if args.l0_headers and args.l0_loader:
       cmake_cmd.extend([
-            "-DL0_INCLUDE_DIR={}".format(args.l0_headers),
-            "-DL0_LIBRARY={}".format(args.l0_loader)])
+            "-DLEVEL_ZERO_INCLUDE_DIR={}".format(args.l0_headers),
+            "-DLEVEL_ZERO_LIBRARY={}".format(args.l0_loader)])
     elif args.l0_headers or args.l0_loader:
       sys.exit("Please specify both Level Zero headers and loader or don't specify "
                "none of them to let download from github.com")
@@ -123,8 +193,10 @@ def do_configure(args):
     except subprocess.CalledProcessError:
         cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
         if os.path.isfile(cmake_cache):
-            os.remove(cmake_cache)
-        subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
+           print("There is CMakeCache.txt at " + cmake_cache +
+             " ... you can try to remove it and rerun.")
+           print("Configure failed!")
+        return False
 
     return True
 
@@ -147,17 +219,25 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
-    parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
+    parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
+    parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
+    parser.add_argument("--host-target", default='X86',
+                        help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
+    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
+    parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
-    parser.add_argument("--system-ocl", action='store_true', help="use OpenCL deps from system (no download)")
-    parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
+    parser.add_argument("--werror", action='store_true', help="Treat warnings as errors")
     parser.add_argument("--shared-libs", action='store_true', help="Build shared libraries")
     parser.add_argument("--cmake-opt", action='append', help="Additional CMake option not configured via script parameters")
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
     parser.add_argument("--use-libcxx", action="store_true", help="build sycl runtime with libcxx")
     parser.add_argument("--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path")
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
+    parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
+    parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
+    parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
+    parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
     args = parser.parse_args()
 
     print("args:{}".format(args))

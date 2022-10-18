@@ -1,6 +1,6 @@
 # REQUIRES: x86
 
-# RUN: split-file %s %t
+# RUN: rm -rf %t; split-file %s %t
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-macos -o %t/main.o %t/main.s
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-macos -o %t/lib.o \
@@ -25,8 +25,8 @@
 
 # CHECK: __Z1fv
 # CHECK: _main
-# NOOBJ: error: {{.*}}lib_thin.a: could not get the buffer for the member defining symbol f(): '{{.*}}lib.o':
-# NOOBJNODEMANGLE: error: {{.*}}lib_thin.a: could not get the buffer for the member defining symbol __Z1fv: '{{.*}}lib.o':
+# NOOBJ: error: {{.*}}lib_thin.a: could not get the member defining symbol f(): '{{.*}}lib.o': {{[N|n]}}o such file or directory
+# NOOBJNODEMANGLE: error: {{.*}}lib_thin.a: could not get the member defining symbol __Z1fv: '{{.*}}lib.o': {{[N|n]}}o such file or directory
 
 #--- mangled-symbol.s
 .globl  __Z1fv

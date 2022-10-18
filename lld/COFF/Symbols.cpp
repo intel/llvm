@@ -36,9 +36,9 @@ static std::string maybeDemangleSymbol(StringRef symName) {
     StringRef demangleInput = prefixless;
     if (config->machine == I386)
       demangleInput.consume_front("_");
-    std::string demangled = demangle(std::string(demangleInput));
+    std::string demangled = demangle(demangleInput, true);
     if (demangled != demangleInput)
-      return prefix + demangle(std::string(demangleInput));
+      return prefix + demangle(demangleInput, true);
     return (prefix + prefixless).str();
   }
   return std::string(symName);
@@ -69,6 +69,8 @@ InputFile *Symbol::getFile() {
   if (auto *sym = dyn_cast<LazyArchive>(this))
     return sym->file;
   if (auto *sym = dyn_cast<LazyObject>(this))
+    return sym->file;
+  if (auto *sym = dyn_cast<LazyDLLSymbol>(this))
     return sym->file;
   return nullptr;
 }

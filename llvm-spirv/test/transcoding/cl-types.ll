@@ -3,7 +3,7 @@
 ;; // cl-types.cl
 ;; // CL source code for generating LLVM IR.
 ;; // Command for compilation:
-;; //  clang -cc1 -x cl -cl-std=CL2.0 -triple spir-unknonw-unknown -emit-llvm cl-types.cl
+;; //  clang -cc1 -x cl -cl-std=CL2.0 -triple spir-unknown-unknown -emit-llvm cl-types.cl
 ;; void kernel foo(
 ;;  read_only pipe int a,
 ;;  write_only pipe int b,
@@ -94,7 +94,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM-SAME:   !kernel_arg_access_qual [[AQ:![0-9]+]]
 ; CHECK-LLVM-SAME:   !kernel_arg_type [[TYPE:![0-9]+]]
 ; CHECK-LLVM-SAME:   !kernel_arg_type_qual [[TQ:![0-9]+]]
-; CHECK-LLVM-SAME:   !kernel_arg_base_type [[BT:![0-9]+]]
+; CHECK-LLVM-SAME:   !kernel_arg_base_type [[TYPE]]
 
 ; Function Attrs: nounwind readnone
 define spir_kernel void @foo(
@@ -138,8 +138,7 @@ attributes #0 = { nounwind readnone "less-precise-fpmad"="false" "no-frame-point
 
 ; CHECK-LLVM-DAG: [[AS]] = !{i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 0}
 ; CHECK-LLVM-DAG: [[AQ]] = !{!"read_only", !"write_only", !"read_only", !"read_only", !"read_only", !"read_only", !"read_only", !"write_only", !"read_write", !"none"}
-; CHECK-LLVM-DAG: [[TYPE]] = !{!"int", !"int", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t", !"sampler_t"}
-; CHECK-LLVM-DAG: [[BT]] = !{!"pipe", !"pipe", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t", !"sampler_t"}
+; CHECK-LLVM-DAG: [[TYPE]] = !{!"pipe", !"pipe", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t", !"sampler_t"}
 ; CHECK-LLVM-DAG: [[TQ]] = !{!"pipe", !"pipe", !"", !"", !"", !"", !"", !"", !"", !""}
 
 !1 = !{i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 0}

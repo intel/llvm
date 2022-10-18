@@ -17,7 +17,7 @@
 #include "llvm/ADT/SetVector.h"
 
 namespace mlir {
-
+class BlockArgument;
 class Operation;
 class Value;
 
@@ -33,7 +33,7 @@ using TransitiveFilter = llvm::function_ref<bool(Operation *)>;
 /// This additionally takes a TransitiveFilter which acts as a frontier:
 /// when looking at uses transitively, an operation that does not pass the
 /// filter is never propagated through. This allows in particular to carve out
-/// the scope within a ForInst or the scope within an IfInst.
+/// the scope within a ForOp or the scope within an IfOp.
 ///
 /// The implementation traverses the use chains in postorder traversal for
 /// efficiency reasons: if an operation is already in `forwardSlice`, no
@@ -68,12 +68,12 @@ using TransitiveFilter = llvm::function_ref<bool(Operation *)>;
 /// 2. reversing the result of 1. gives:
 ///      {4, 3, 6, 2, 1, 5, 8, 7, 9}
 ///
-void getForwardSlice(Operation *op, llvm::SetVector<Operation *> *forwardSlice,
+void getForwardSlice(Operation *op, SetVector<Operation *> *forwardSlice,
                      TransitiveFilter filter = nullptr /* pass-through*/);
 
 /// Value-rooted version of `getForwardSlice`. Return the union of all forward
 /// slices for the uses of the value `root`.
-void getForwardSlice(Value root, llvm::SetVector<Operation *> *forwardSlice,
+void getForwardSlice(Value root, SetVector<Operation *> *forwardSlice,
                      TransitiveFilter filter = nullptr /* pass-through*/);
 
 /// Fills `backwardSlice` with the computed backward slice (i.e.
@@ -82,7 +82,7 @@ void getForwardSlice(Value root, llvm::SetVector<Operation *> *forwardSlice,
 /// This additionally takes a TransitiveFilter which acts as a frontier:
 /// when looking at defs transitively, an operation that does not pass the
 /// filter is never propagated through. This allows in particular to carve out
-/// the scope within a ForInst or the scope within an IfInst.
+/// the scope within a ForOp or the scope within an IfOp.
 ///
 /// The implementation traverses the def chains in postorder traversal for
 /// efficiency reasons: if an operation is already in `backwardSlice`, no
@@ -110,17 +110,16 @@ void getForwardSlice(Value root, llvm::SetVector<Operation *> *forwardSlice,
 /// Assuming all local orders match the numbering order:
 ///    {1, 2, 5, 3, 4, 6}
 ///
-void getBackwardSlice(Operation *op,
-                      llvm::SetVector<Operation *> *backwardSlice,
+void getBackwardSlice(Operation *op, SetVector<Operation *> *backwardSlice,
                       TransitiveFilter filter = nullptr /* pass-through*/);
 
 /// Value-rooted version of `getBackwardSlice`. Return the union of all backward
 /// slices for the op defining or owning the value `root`.
-void getBackwardSlice(Value root, llvm::SetVector<Operation *> *backwardSlice,
+void getBackwardSlice(Value root, SetVector<Operation *> *backwardSlice,
                       TransitiveFilter filter = nullptr /* pass-through*/);
 
 /// Iteratively computes backward slices and forward slices until
-/// a fixed point is reached. Returns an `llvm::SetVector<Operation *>` which
+/// a fixed point is reached. Returns an `SetVector<Operation *>` which
 /// **includes** the original operation.
 ///
 /// This allows building a slice (i.e. multi-root DAG where everything
@@ -196,7 +195,7 @@ void getBackwardSlice(Value root, llvm::SetVector<Operation *> *backwardSlice,
 /// and keep things ordered but this is still hand-wavy and not worth the
 /// trouble for now: punt to a simple worklist-based solution.
 ///
-llvm::SetVector<Operation *>
+SetVector<Operation *>
 getSlice(Operation *op,
          TransitiveFilter backwardFilter = nullptr /* pass-through*/,
          TransitiveFilter forwardFilter = nullptr /* pass-through*/);
@@ -204,9 +203,39 @@ getSlice(Operation *op,
 /// Multi-root DAG topological sort.
 /// Performs a topological sort of the Operation in the `toSort` SetVector.
 /// Returns a topologically sorted SetVector.
-llvm::SetVector<Operation *>
-topologicalSort(const llvm::SetVector<Operation *> &toSort);
+SetVector<Operation *> topologicalSort(const SetVector<Operation *> &toSort);
 
-} // end namespace mlir
+/// Utility to match a generic reduction given a list of iteration-carried
+/// arguments, `iterCarriedArgs` and the position of the potential reduction
+/// argument within the list, `redPos`. If a reduction is matched, returns the
+/// reduced value and the topologically-sorted list of combiner operations
+/// involved in the reduction. Otherwise, returns a null value.
+///
+/// The matching algorithm relies on the following invariants, which are subject
+/// to change:
+///  1. The first combiner operation must be a binary operation with the
+///     iteration-carried value and the reduced value as operands.
+///  2. The iteration-carried value and combiner operations must be side
+///     effect-free, have single result and a single use.
+///  3. Combiner operations must be immediately nested in the region op
+///     performing the reduction.
+///  4. Reduction def-use chain must end in a terminator op that yields the
+///     next iteration/output values in the same order as the iteration-carried
+///     values in `iterCarriedArgs`.
+///  5. `iterCarriedArgs` must contain all the iteration-carried/output values
+///     of the region op performing the reduction.
+///
+/// This utility is generic enough to detect reductions involving multiple
+/// combiner operations (disabled for now) across multiple dialects, including
+/// Linalg, Affine and SCF. For the sake of genericity, it does not return
+/// specific enum values for the combiner operations since its goal is also
+/// matching reductions without pre-defined semantics in core MLIR. It's up to
+/// each client to make sense out of the list of combiner operations. It's also
+/// up to each client to check for additional invariants on the expected
+/// reductions not covered by this generic matching.
+Value matchReduction(ArrayRef<BlockArgument> iterCarriedArgs, unsigned redPos,
+                     SmallVectorImpl<Operation *> &combinerOps);
+
+} // namespace mlir
 
 #endif // MLIR_ANALYSIS_SLICEANALYSIS_H_

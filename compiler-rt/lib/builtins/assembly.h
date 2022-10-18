@@ -14,6 +14,12 @@
 #ifndef COMPILERRT_ASSEMBLY_H
 #define COMPILERRT_ASSEMBLY_H
 
+#if defined(__linux__) && defined(__CET__)
+#if __has_include(<cet.h>)
+#include <cet.h>
+#endif
+#endif
+
 #if defined(__APPLE__) && defined(__aarch64__)
 #define SEPARATOR %%
 #else
@@ -105,9 +111,11 @@
   .popsection
 
 #if BTI_FLAG != 0
-#define BTI_C bti c
+#define BTI_C hint #34
+#define BTI_J hint #36
 #else
 #define BTI_C
+#define BTI_J
 #endif
 
 #if (BTI_FLAG | PAC_FLAG) != 0

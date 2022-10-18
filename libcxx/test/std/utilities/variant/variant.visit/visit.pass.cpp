@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,10 +9,7 @@
 // UNSUPPORTED: c++03, c++11, c++14
 
 // Throwing bad_variant_access is supported starting in macosx10.13
-// XFAIL: with_system_cxx_lib=macosx10.12 && !no-exceptions
-// XFAIL: with_system_cxx_lib=macosx10.11 && !no-exceptions
-// XFAIL: with_system_cxx_lib=macosx10.10 && !no-exceptions
-// XFAIL: with_system_cxx_lib=macosx10.9 && !no-exceptions
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12}} && !no-exceptions
 
 // <variant>
 // template <class Visitor, class... Variants>
@@ -384,7 +380,7 @@ void test_derived_from_variant() {
   // Check that visit unambiguously picks the variant, even if the other base has __impl member.
   struct ImplVariantBase {
     struct Callable {
-      bool operator()();
+      bool operator()() const { assert(false); return false; }
     };
 
     Callable __impl;

@@ -12,7 +12,7 @@ define <4 x i32> @vextsb2wLE(<16 x i8> %a) {
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    addis 3, 2, .LCPI0_0@toc@ha
 ; CHECK-BE-NEXT:    addi 3, 3, .LCPI0_0@toc@l
-; CHECK-BE-NEXT:    lxvx 35, 0, 3
+; CHECK-BE-NEXT:    lxv 35, 0(3)
 ; CHECK-BE-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-BE-NEXT:    vextsb2w 2, 2
 ; CHECK-BE-NEXT:    blr
@@ -43,7 +43,7 @@ define <2 x i64> @vextsb2dLE(<16 x i8> %a) {
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    addis 3, 2, .LCPI1_0@toc@ha
 ; CHECK-BE-NEXT:    addi 3, 3, .LCPI1_0@toc@l
-; CHECK-BE-NEXT:    lxvx 35, 0, 3
+; CHECK-BE-NEXT:    lxv 35, 0(3)
 ; CHECK-BE-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-BE-NEXT:    vextsb2d 2, 2
 ; CHECK-BE-NEXT:    blr
@@ -68,7 +68,7 @@ define <4 x i32> @vextsh2wLE(<8 x i16> %a) {
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    addis 3, 2, .LCPI2_0@toc@ha
 ; CHECK-BE-NEXT:    addi 3, 3, .LCPI2_0@toc@l
-; CHECK-BE-NEXT:    lxvx 35, 0, 3
+; CHECK-BE-NEXT:    lxv 35, 0(3)
 ; CHECK-BE-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-BE-NEXT:    vextsh2w 2, 2
 ; CHECK-BE-NEXT:    blr
@@ -99,7 +99,7 @@ define <2 x i64> @vextsh2dLE(<8 x i16> %a) {
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-NEXT:    addis 3, 2, .LCPI3_0@toc@ha
 ; CHECK-BE-NEXT:    addi 3, 3, .LCPI3_0@toc@l
-; CHECK-BE-NEXT:    lxvx 35, 0, 3
+; CHECK-BE-NEXT:    lxv 35, 0(3)
 ; CHECK-BE-NEXT:    vperm 2, 2, 2, 3
 ; CHECK-BE-NEXT:    vextsh2d 2, 2
 ; CHECK-BE-NEXT:    blr
@@ -315,18 +315,18 @@ define <8 x i16> @testInvalidExtend(<16 x i8> %a) {
 ; CHECK-LE-NEXT:    mtvsrd 36, 6
 ; CHECK-LE-NEXT:    extsb 9, 9
 ; CHECK-LE-NEXT:    extsb 10, 10
-; CHECK-LE-NEXT:    mtvsrd 37, 10
 ; CHECK-LE-NEXT:    vmrghh 2, 3, 2
 ; CHECK-LE-NEXT:    mtvsrd 35, 5
 ; CHECK-LE-NEXT:    vmrghh 3, 4, 3
-; CHECK-LE-NEXT:    mtvsrd 36, 8
-; CHECK-LE-NEXT:    vmrglw 2, 3, 2
-; CHECK-LE-NEXT:    mtvsrd 35, 7
+; CHECK-LE-NEXT:    mtvsrd 36, 10
+; CHECK-LE-NEXT:    xxmrglw 0, 35, 34
+; CHECK-LE-NEXT:    mtvsrd 34, 7
+; CHECK-LE-NEXT:    mtvsrd 35, 8
+; CHECK-LE-NEXT:    vmrghh 2, 3, 2
+; CHECK-LE-NEXT:    mtvsrd 35, 9
 ; CHECK-LE-NEXT:    vmrghh 3, 4, 3
-; CHECK-LE-NEXT:    mtvsrd 36, 9
-; CHECK-LE-NEXT:    vmrghh 4, 5, 4
-; CHECK-LE-NEXT:    vmrglw 3, 4, 3
-; CHECK-LE-NEXT:    xxmrgld 34, 35, 34
+; CHECK-LE-NEXT:    xxmrglw 1, 35, 34
+; CHECK-LE-NEXT:    xxmrgld 34, 1, 0
 ; CHECK-LE-NEXT:    blr
 ;
 ; CHECK-BE-LABEL: testInvalidExtend:
@@ -345,39 +345,34 @@ define <8 x i16> @testInvalidExtend(<16 x i8> %a) {
 ; CHECK-BE-NEXT:    li 6, 6
 ; CHECK-BE-NEXT:    extsb 9, 9
 ; CHECK-BE-NEXT:    extsb 10, 10
-; CHECK-BE-NEXT:    extsb 7, 7
-; CHECK-BE-NEXT:    extsb 8, 8
 ; CHECK-BE-NEXT:    vextublx 3, 3, 2
 ; CHECK-BE-NEXT:    vextublx 4, 4, 2
+; CHECK-BE-NEXT:    vextublx 5, 5, 2
+; CHECK-BE-NEXT:    extsb 7, 7
+; CHECK-BE-NEXT:    extsb 8, 8
+; CHECK-BE-NEXT:    extsb 5, 5
 ; CHECK-BE-NEXT:    extsb 3, 3
 ; CHECK-BE-NEXT:    extsb 4, 4
-; CHECK-BE-NEXT:    sldi 10, 10, 48
-; CHECK-BE-NEXT:    sldi 9, 9, 48
-; CHECK-BE-NEXT:    vextublx 5, 5, 2
+; CHECK-BE-NEXT:    mtvsrwz 35, 9
+; CHECK-BE-NEXT:    addis 9, 2, .LCPI11_0@toc@ha
 ; CHECK-BE-NEXT:    vextublx 6, 6, 2
-; CHECK-BE-NEXT:    sldi 8, 8, 48
-; CHECK-BE-NEXT:    sldi 7, 7, 48
-; CHECK-BE-NEXT:    extsb 5, 5
+; CHECK-BE-NEXT:    mtvsrwz 34, 10
+; CHECK-BE-NEXT:    mtvsrwz 37, 7
 ; CHECK-BE-NEXT:    extsb 6, 6
-; CHECK-BE-NEXT:    sldi 6, 6, 48
-; CHECK-BE-NEXT:    sldi 5, 5, 48
-; CHECK-BE-NEXT:    sldi 4, 4, 48
-; CHECK-BE-NEXT:    sldi 3, 3, 48
-; CHECK-BE-NEXT:    mtvsrd 34, 10
-; CHECK-BE-NEXT:    mtvsrd 35, 9
-; CHECK-BE-NEXT:    mtvsrd 36, 7
-; CHECK-BE-NEXT:    mtvsrd 37, 3
-; CHECK-BE-NEXT:    vmrghh 2, 3, 2
-; CHECK-BE-NEXT:    mtvsrd 35, 8
-; CHECK-BE-NEXT:    vmrghh 3, 4, 3
-; CHECK-BE-NEXT:    mtvsrd 36, 5
-; CHECK-BE-NEXT:    vmrghw 2, 3, 2
-; CHECK-BE-NEXT:    mtvsrd 35, 6
-; CHECK-BE-NEXT:    vmrghh 3, 4, 3
-; CHECK-BE-NEXT:    mtvsrd 36, 4
-; CHECK-BE-NEXT:    vmrghh 4, 5, 4
-; CHECK-BE-NEXT:    vmrghw 3, 4, 3
-; CHECK-BE-NEXT:    xxmrghd 34, 35, 34
+; CHECK-BE-NEXT:    addi 9, 9, .LCPI11_0@toc@l
+; CHECK-BE-NEXT:    lxv 36, 0(9)
+; CHECK-BE-NEXT:    vperm 2, 3, 2, 4
+; CHECK-BE-NEXT:    mtvsrwz 35, 8
+; CHECK-BE-NEXT:    vperm 3, 5, 3, 4
+; CHECK-BE-NEXT:    mtvsrwz 37, 3
+; CHECK-BE-NEXT:    xxmrghw 0, 35, 34
+; CHECK-BE-NEXT:    mtvsrwz 34, 6
+; CHECK-BE-NEXT:    mtvsrwz 35, 5
+; CHECK-BE-NEXT:    vperm 2, 3, 2, 4
+; CHECK-BE-NEXT:    mtvsrwz 35, 4
+; CHECK-BE-NEXT:    vperm 3, 5, 3, 4
+; CHECK-BE-NEXT:    xxmrghw 1, 35, 34
+; CHECK-BE-NEXT:    xxmrghd 34, 1, 0
 ; CHECK-BE-NEXT:    blr
 entry:
 

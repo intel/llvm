@@ -43,6 +43,9 @@ TEST_F(HostInfoTest, GetAugmentedArchSpec) {
   // Test LLDB_ARCH_DEFAULT
   EXPECT_EQ(HostInfo::GetAugmentedArchSpec(LLDB_ARCH_DEFAULT).GetTriple(),
             HostInfo::GetArchitecture(HostInfo::eArchKindDefault).GetTriple());
+  EXPECT_NE(
+      HostInfo::GetAugmentedArchSpec("armv7k").GetTriple().getEnvironmentName(),
+      "unknown");
 }
 
 TEST_F(HostInfoTest, GetHostname) {
@@ -60,3 +63,16 @@ TEST_F(HostInfoTest, GetXcodeSDK) {
   EXPECT_TRUE(HostInfo::GetXcodeSDKPath(XcodeSDK("CeciNestPasUnOS.sdk")).empty());
 }
 #endif
+
+TEST(HostInfoTestInitialization, InitTwice) {
+  llvm::VersionTuple Version;
+  {
+    SubsystemRAII<FileSystem, HostInfo> subsystems;
+    Version = HostInfo::GetOSVersion();
+  }
+
+  {
+    SubsystemRAII<FileSystem, HostInfo> subsystems;
+    EXPECT_EQ(Version, HostInfo::GetOSVersion());
+  }
+}

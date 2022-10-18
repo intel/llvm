@@ -2,11 +2,12 @@
 ;; are being added by SPIRITTAnnotations pass
 
 ; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
 
 ; ModuleID = 'synthetic.bc'
 source_filename = "synthetic.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() local_unnamed_addr #0 !kernel_arg_buffer_location !4 {

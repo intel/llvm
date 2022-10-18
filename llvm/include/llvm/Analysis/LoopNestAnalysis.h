@@ -21,16 +21,18 @@
 namespace llvm {
 
 using LoopVectorTy = SmallVector<Loop *, 8>;
+
 class LPMUpdater;
 
 /// This class represents a loop nest and can be used to query its properties.
-class LoopNest {
+class LLVM_EXTERNAL_VISIBILITY LoopNest {
 public:
+  using InstrVectorTy = SmallVector<const Instruction *>;
+
   /// Construct a loop nest rooted by loop \p Root.
   LoopNest(Loop &Root, ScalarEvolution &SE);
 
   LoopNest() = delete;
-  LoopNest &operator=(const LoopNest &) = delete;
 
   /// Construct a LoopNest object.
   static std::unique_ptr<LoopNest> getLoopNest(Loop &Root, ScalarEvolution &SE);
@@ -49,6 +51,12 @@ public:
   static bool arePerfectlyNested(const Loop &OuterLoop, const Loop &InnerLoop,
                                  ScalarEvolution &SE);
 
+  /// Return a vector of instructions that prevent the LoopNest given
+  /// by loops \p OuterLoop and \p InnerLoop from being perfect.
+  static InstrVectorTy getInterveningInstructions(const Loop &OuterLoop,
+                                                  const Loop &InnerLoop,
+                                                  ScalarEvolution &SE);
+
   /// Return the maximum nesting depth of the loop nest rooted by loop \p Root.
   /// For example given the loop nest:
   /// \code
@@ -61,10 +69,12 @@ public:
   static unsigned getMaxPerfectDepth(const Loop &Root, ScalarEvolution &SE);
 
   /// Recursivelly traverse all empty 'single successor' basic blocks of \p From
-  /// (if there are any). Return the last basic block found or \p End if it was
-  /// reached during the search.
+  /// (if there are any). When \p CheckUniquePred is set to true, check if
+  /// each of the empty single successors has a unique predecessor. Return
+  /// the last basic block found or \p End if it was reached during the search.
   static const BasicBlock &skipEmptyBlockUntil(const BasicBlock *From,
-                                               const BasicBlock *End);
+                                               const BasicBlock *End,
+                                               bool CheckUniquePred = false);
 
   /// Return the outermost loop in the loop nest.
   Loop &getOutermostLoop() const { return *Loops.front(); }
@@ -92,11 +102,34 @@ public:
     return Loops[Index];
   }
 
+  /// Get the loop index of the given loop \p L.
+  unsigned getLoopIndex(const Loop &L) const {
+    for (unsigned I = 0; I < getNumLoops(); ++I)
+      if (getLoop(I) == &L)
+        return I;
+    llvm_unreachable("Loop not in the loop nest");
+  }
+
   /// Return the number of loops in the nest.
   size_t getNumLoops() const { return Loops.size(); }
 
   /// Get the loops in the nest.
   ArrayRef<Loop *> getLoops() const { return Loops; }
+
+  /// Get the loops in the nest at the given \p Depth.
+  LoopVectorTy getLoopsAtDepth(unsigned Depth) const {
+    assert(Depth >= Loops.front()->getLoopDepth() &&
+           Depth <= Loops.back()->getLoopDepth() && "Invalid depth");
+    LoopVectorTy Result;
+    for (unsigned I = 0; I < getNumLoops(); ++I) {
+      Loop *L = getLoop(I);
+      if (L->getLoopDepth() == Depth)
+        Result.push_back(L);
+      else if (L->getLoopDepth() > Depth)
+        break;
+    }
+    return Result;
+  }
 
   /// Retrieve a vector of perfect loop nests contained in the current loop
   /// nest. For example, given the following  nest containing 4 loops, this
@@ -149,6 +182,17 @@ public:
 protected:
   const unsigned MaxPerfectDepth; // maximum perfect nesting depth level.
   LoopVectorTy Loops; // the loops in the nest (in breadth first order).
+
+private:
+  enum LoopNestEnum {
+    PerfectLoopNest,
+    ImperfectLoopNest,
+    InvalidLoopStructure,
+    OuterLoopLowerBoundUnknown
+  };
+  static LoopNestEnum analyzeLoopNestForPerfectNest(const Loop &OuterLoop,
+                                                    const Loop &InnerLoop,
+                                                    ScalarEvolution &SE);
 };
 
 raw_ostream &operator<<(raw_ostream &, const LoopNest &);

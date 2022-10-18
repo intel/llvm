@@ -1,4 +1,4 @@
-if (MLIR_CUDA_CONVERSIONS_ENABLED)
+if (MLIR_ENABLE_CUDA_CONVERSIONS)
   set(NVPTX_LIBS
     NVPTXCodeGen
     NVPTXDesc
@@ -6,7 +6,7 @@ if (MLIR_CUDA_CONVERSIONS_ENABLED)
   )
 endif()
 
-if (MLIR_ROCM_CONVERSIONS_ENABLED)
+if (MLIR_ENABLE_ROCM_CONVERSIONS)
   set(AMDGPU_LIBS
     AMDGPUCodeGen
     AMDGPUDesc
@@ -29,12 +29,16 @@ add_mlir_conversion_library(MLIRGPUToGPURuntimeTransforms
   ${NVPTX_LIBS}
 
   LINK_LIBS PUBLIC
+  MLIRArithToLLVM
   MLIRAsyncToLLVM
-  MLIRGPU
+  MLIRControlFlowToLLVM
+  MLIRFuncToLLVM
+  MLIRGPUTransforms
   MLIRIR
-  MLIRLLVMIR
+  MLIRLLVMCommonConversion
+  MLIRLLVMDialect
+  MLIRMemRefToLLVM
   MLIRPass
   MLIRSupport
-  MLIRStandardToLLVM
   MLIRVectorToLLVM
 )

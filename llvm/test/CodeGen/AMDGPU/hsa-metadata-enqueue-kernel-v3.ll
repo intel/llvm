@@ -47,16 +47,13 @@ define amdgpu_kernel void @test_non_enqueue_kernel_caller(i8 %a) #0
 ; CHECK-NEXT:       - .offset:         24
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_global_offset_z
-; CHECK-NEXT:       - .address_space:  global
-; CHECK-NEXT:         .offset:         32
+; CHECK-NEXT:       - .offset:         32
 ; CHECK-NEXT:         .size:           8
-; CHECK-NEXT:         .value_kind:     hidden_none
-; CHECK-NEXT:       - .address_space:  global
-; CHECK-NEXT:         .offset:         40
+; CHECK-NEXT:         .value_kind:     hidden_hostcall_buffer
+; CHECK-NEXT:       - .offset:         40
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_default_queue
-; CHECK-NEXT:       - .address_space:  global
-; CHECK-NEXT:         .offset:         48
+; CHECK-NEXT:       - .offset:         48
 ; CHECK-NEXT:         .size:           8
 ; CHECK-NEXT:         .value_kind:     hidden_completion_action
 ; CHECK:          .language:       OpenCL C
@@ -76,8 +73,8 @@ define amdgpu_kernel void @test_enqueue_kernel_caller(i8 %a) #1
 ; CHECK-NEXT: - 0
 ; CHECK-NOT:  amdhsa.printf:
 
-attributes #0 = { "amdgpu-implicitarg-num-bytes"="48" }
-attributes #1 = { "calls-enqueue-kernel" "amdgpu-implicitarg-num-bytes"="48" }
+attributes #0 = { optnone noinline "amdgpu-implicitarg-num-bytes"="48" }
+attributes #1 = { optnone noinline "calls-enqueue-kernel" "amdgpu-implicitarg-num-bytes"="48" }
 
 !1 = !{i32 0}
 !2 = !{!"none"}

@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <errno.h>
+#include <cerrno>
 #if defined(__APPLE__)
 #include <netinet/in.h>
 #endif
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <csignal>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #if !defined(_WIN32)
 #include <sys/wait.h>
 #endif
@@ -77,10 +77,9 @@ static void signal_handler(int signo) {
   case SIGHUP:
     // Use SIGINT first, if that does not work, use SIGHUP as a last resort.
     // And we should not call exit() here because it results in the global
-    // destructors
-    // to be invoked and wreaking havoc on the threads still running.
-    Host::SystemLog(Host::eSystemLogWarning,
-                    "SIGHUP received, exiting lldb-server...\n");
+    // destructors to be invoked and wreaking havoc on the threads still
+    // running.
+    llvm::errs() << "SIGHUP received, exiting lldb-server...\n";
     abort();
     break;
   }
@@ -101,7 +100,7 @@ static Status save_socket_id_to_file(const std::string &socket_id,
   Status error(llvm::sys::fs::create_directory(temp_file_spec.GetPath()));
   if (error.Fail())
     return Status("Failed to create directory %s: %s",
-                  temp_file_spec.GetCString(), error.AsCString());
+                  temp_file_spec.GetPath().c_str(), error.AsCString());
 
   llvm::SmallString<64> temp_file_path;
   temp_file_spec.AppendPathComponent("port-file.%%%%%%");
@@ -364,23 +363,17 @@ int main_platform(int argc, char *argv[]) {
           fprintf(stderr, "failed to start gdbserver: %s\n", error.AsCString());
       }
 
-      // After we connected, we need to get an initial ack from...
-      if (platform.HandshakeWithClient()) {
-        bool interrupt = false;
-        bool done = false;
-        while (!interrupt && !done) {
-          if (platform.GetPacketAndSendResponse(llvm::None, error, interrupt,
-                                                done) !=
-              GDBRemoteCommunication::PacketResult::Success)
-            break;
-        }
-
-        if (error.Fail()) {
-          WithColor::error() << error.AsCString() << '\n';
-        }
-      } else {
-        WithColor::error() << "handshake with client failed\n";
+      bool interrupt = false;
+      bool done = false;
+      while (!interrupt && !done) {
+        if (platform.GetPacketAndSendResponse(llvm::None, error, interrupt,
+                                              done) !=
+            GDBRemoteCommunication::PacketResult::Success)
+          break;
       }
+
+      if (error.Fail())
+        WithColor::error() << error.AsCString() << '\n';
     }
   } while (g_server);
 

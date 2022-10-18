@@ -14,14 +14,13 @@
 #define LLVM_LIB_CODEGEN_ASMPRINTER_DWARFDEBUG_H
 
 #include "AddressPool.h"
-#include "DebugLocStream.h"
 #include "DebugLocEntry.h"
+#include "DebugLocStream.h"
 #include "DwarfFile.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -31,7 +30,6 @@
 #include "llvm/CodeGen/AccelTable.h"
 #include "llvm/CodeGen/DbgEntityHistoryCalculator.h"
 #include "llvm/CodeGen/DebugHandlerBase.h"
-#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Metadata.h"
@@ -65,39 +63,40 @@ class Module;
 /// such that it could levarage polymorphism to extract common code for
 /// DbgVariable and DbgLabel.
 class DbgEntity {
-  const DINode *Entity;
-  const DILocation *InlinedAt;
-  DIE *TheDIE = nullptr;
-  unsigned SubclassID;
-
 public:
   enum DbgEntityKind {
     DbgVariableKind,
     DbgLabelKind
   };
 
-  DbgEntity(const DINode *N, const DILocation *IA, unsigned ID)
-    : Entity(N), InlinedAt(IA), SubclassID(ID) {}
-  virtual ~DbgEntity() {}
+private:
+  const DINode *Entity;
+  const DILocation *InlinedAt;
+  DIE *TheDIE = nullptr;
+  const DbgEntityKind SubclassID;
+
+public:
+  DbgEntity(const DINode *N, const DILocation *IA, DbgEntityKind ID)
+      : Entity(N), InlinedAt(IA), SubclassID(ID) {}
+  virtual ~DbgEntity() = default;
 
   /// Accessors.
   /// @{
   const DINode *getEntity() const { return Entity; }
   const DILocation *getInlinedAt() const { return InlinedAt; }
   DIE *getDIE() const { return TheDIE; }
-  unsigned getDbgEntityID() const { return SubclassID; }
+  DbgEntityKind getDbgEntityID() const { return SubclassID; }
   /// @}
 
   void setDIE(DIE &D) { TheDIE = &D; }
 
   static bool classof(const DbgEntity *N) {
     switch (N->getDbgEntityID()) {
-    default:
-      return false;
     case DbgVariableKind:
     case DbgLabelKind:
       return true;
     }
+    llvm_unreachable("Invalid DbgEntityKind");
   }
 };
 
@@ -440,7 +439,11 @@ private:
   AccelTable<AppleAccelTableOffsetData> AccelNamespace;
   AccelTable<AppleAccelTableTypeData> AccelTypes;
 
-  // Identify a debugger for "tuning" the debug info.
+  /// Identify a debugger for "tuning" the debug info.
+  ///
+  /// The "tuning" should be used to set defaults for individual feature flags
+  /// in DwarfDebug; if a given feature has a more specific command-line option,
+  /// that option should take precedence over the tuning.
   DebuggerKind DebuggerTuning = DebuggerKind::Default;
 
   MCDwarfDwoLineTable *getDwoLineTable(const DwarfCompileUnit &);
@@ -466,9 +469,6 @@ private:
 
   /// Construct a DIE for this abstract scope.
   void constructAbstractSubprogramScopeDIE(DwarfCompileUnit &SrcCU, LexicalScope *Scope);
-
-  /// Construct a DIE for the subprogram definition \p SP and return it.
-  DIE &constructSubprogramDefinitionDIE(const DISubprogram *SP);
 
   /// Construct DIEs for call site entries describing the calls in \p MF.
   void constructCallSiteEntryDIEs(const DISubprogram &SP, DwarfCompileUnit &CU,
@@ -611,7 +611,7 @@ private:
                          DenseSet<InlinedEntity> &ProcessedVars);
 
   /// Build the location list for all DBG_VALUEs in the
-  /// function that describe the same variable. If the resulting 
+  /// function that describe the same variable. If the resulting
   /// list has only one entry that is valid for entire variable's
   /// scope return true.
   bool buildLocationList(SmallVectorImpl<DebugLocEntry> &DebugLoc,
@@ -630,6 +630,9 @@ protected:
 
   /// Gather and emit post-function debug information.
   void endFunctionImpl(const MachineFunction *MF) override;
+
+  /// Get Dwarf compile unit ID for line table.
+  unsigned getDwarfCompileUnitIDForLineTable(const DwarfCompileUnit &CU);
 
   void skippedNonDebugFunction() override;
 
@@ -661,19 +664,6 @@ public:
   /// type units.
   void addDwarfTypeUnitType(DwarfCompileUnit &CU, StringRef Identifier,
                             DIE &Die, const DICompositeType *CTy);
-
-  class NonTypeUnitContext {
-    DwarfDebug *DD;
-    decltype(DwarfDebug::TypeUnitsUnderConstruction) TypeUnitsUnderConstruction;
-    bool AddrPoolUsed;
-    friend class DwarfDebug;
-    NonTypeUnitContext(DwarfDebug *DD);
-  public:
-    NonTypeUnitContext(NonTypeUnitContext&&) = default;
-    ~NonTypeUnitContext();
-  };
-
-  NonTypeUnitContext enterNonTypeUnitContext();
 
   /// Add a label so that arange data can be generated for it.
   void addArangeLabel(SymbolCU SCU) { ArangeLabels.push_back(SCU); }
@@ -777,6 +767,9 @@ public:
   const DwarfCompileUnit *getPrevCU() const { return PrevCU; }
   void setPrevCU(const DwarfCompileUnit *PrevCU) { this->PrevCU = PrevCU; }
 
+  /// Terminate the line table by adding the last range label.
+  void terminateLineTable(const DwarfCompileUnit *CU);
+
   /// Returns the entries for the .debug_loc section.
   const DebugLocStream &getDebugLocs() const { return DebugLocs; }
 
@@ -834,6 +827,7 @@ public:
   bool tuneForGDB() const { return DebuggerTuning == DebuggerKind::GDB; }
   bool tuneForLLDB() const { return DebuggerTuning == DebuggerKind::LLDB; }
   bool tuneForSCE() const { return DebuggerTuning == DebuggerKind::SCE; }
+  bool tuneForDBX() const { return DebuggerTuning == DebuggerKind::DBX; }
   /// @}
 
   const MCSymbol *getSectionLabel(const MCSection *S);

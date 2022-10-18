@@ -127,6 +127,9 @@ postscript or some other suitable format.
 This pass, only available in ``opt``, prints the control flow graph into a
 ``.dot`` graph.  This graph can then be processed with the :program:`dot` tool
 to convert it to postscript or some other suitable format.
+Additionally the ``-cfg-func-name=<substring>`` option can be used to filter the
+functions that are printed. All functions that contain the specified substring
+will be printed.
 
 ``-dot-cfg-only``: Print CFG of function to "dot" file (with no function bodies)
 --------------------------------------------------------------------------------
@@ -135,6 +138,9 @@ This pass, only available in ``opt``, prints the control flow graph into a
 ``.dot`` graph, omitting the function bodies.  This graph can then be processed
 with the :program:`dot` tool to convert it to postscript or some other suitable
 format.
+Additionally the ``-cfg-func-name=<substring>`` option can be used to filter the
+functions that are printed. All functions that contain the specified substring
+will be printed.
 
 ``-dot-dom``: Print dominance tree of function to "dot" file
 ------------------------------------------------------------
@@ -870,6 +876,14 @@ This pass expects :ref:`LICM <passes-licm>` to be run before it to hoist
 invariant conditions out of the loop, to make the unswitching opportunity
 obvious.
 
+``-lower-global-dtors``: Lower global destructors
+------------------------------------------------------------
+
+This pass lowers global module destructors (``llvm.global_dtors``) by creating
+wrapper functions that are registered as global constructors in
+``llvm.global_ctors`` and which contain a call to ``__cxa_atexit`` to register
+their destructor functions.
+
 ``-loweratomic``: Lower atomic intrinsics to non-atomic form
 ------------------------------------------------------------
 
@@ -918,7 +932,7 @@ calls, or transforming sets of stores into ``memset``\ s.
 ``-mergefunc``: Merge Functions
 -------------------------------
 
-This pass looks for equivalent functions that are mergable and folds them.
+This pass looks for equivalent functions that are mergeable and folds them.
 
 Total-ordering is introduced among the functions set: we define comparison
 that answers for every two functions which of them is greater. It allows to
@@ -972,6 +986,11 @@ function arguments are rank = 1, and other values are assigned ranks
 corresponding to the reverse post order traversal of current function (starting
 at 2), which effectively gives values in deep loops higher rank than values not
 in loops.
+
+``-rel-lookup-table-converter``: Relative lookup table converter
+----------------------------------------------------------------
+
+This pass converts lookup tables to PIC-friendly relative lookup tables.
 
 ``-reg2mem``: Demote all values to stack slots
 ----------------------------------------------
@@ -1187,12 +1206,18 @@ instead just tries to ensure that code is well-formed.
 -----------------------------------
 
 Displays the control flow graph using the GraphViz tool.
+Additionally the ``-cfg-func-name=<substring>`` option can be used to filter the
+functions that are displayed. All functions that contain the specified substring
+will be displayed.
 
 ``-view-cfg-only``: View CFG of function (with no function bodies)
 ------------------------------------------------------------------
 
 Displays the control flow graph using the GraphViz tool, but omitting function
 bodies.
+Additionally the ``-cfg-func-name=<substring>`` option can be used to filter the
+functions that are displayed. All functions that contain the specified substring
+will be displayed.
 
 ``-view-dom``: View dominance tree of function
 ----------------------------------------------

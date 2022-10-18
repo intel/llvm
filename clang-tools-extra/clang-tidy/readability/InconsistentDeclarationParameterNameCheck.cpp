@@ -9,8 +9,8 @@
 #include "InconsistentDeclarationParameterNameCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "llvm/ADT/STLExtras.h"
 
-#include <algorithm>
 #include <functional>
 
 using namespace clang::ast_matchers;
@@ -93,8 +93,8 @@ bool nameMatch(StringRef L, StringRef R, bool Strict) {
     return L.empty() || R.empty() || L == R;
   // We allow two names if one is a prefix/suffix of the other, ignoring case.
   // Important special case: this is true if either parameter has no name!
-  return L.startswith_lower(R) || R.startswith_lower(L) ||
-         L.endswith_lower(R) || R.endswith_lower(L);
+  return L.startswith_insensitive(R) || R.startswith_insensitive(L) ||
+         L.endswith_insensitive(R) || R.endswith_insensitive(L);
 }
 
 DifferingParamsContainer
@@ -104,8 +104,8 @@ findDifferingParamsInDeclaration(const FunctionDecl *ParameterSourceDeclaration,
                                  bool Strict) {
   DifferingParamsContainer DifferingParams;
 
-  auto SourceParamIt = ParameterSourceDeclaration->param_begin();
-  auto OtherParamIt = OtherDeclaration->param_begin();
+  const auto *SourceParamIt = ParameterSourceDeclaration->param_begin();
+  const auto *OtherParamIt = OtherDeclaration->param_begin();
 
   while (SourceParamIt != ParameterSourceDeclaration->param_end() &&
          OtherParamIt != OtherDeclaration->param_end()) {
@@ -158,12 +158,12 @@ findInconsistentDeclarations(const FunctionDecl *OriginalDeclaration,
 
   // Sort in order of appearance in translation unit to generate clear
   // diagnostics.
-  std::sort(InconsistentDeclarations.begin(), InconsistentDeclarations.end(),
-            [&SM](const InconsistentDeclarationInfo &Info1,
-                  const InconsistentDeclarationInfo &Info2) {
-              return SM.isBeforeInTranslationUnit(Info1.DeclarationLocation,
-                                                  Info2.DeclarationLocation);
-            });
+  llvm::sort(InconsistentDeclarations,
+             [&SM](const InconsistentDeclarationInfo &Info1,
+                   const InconsistentDeclarationInfo &Info2) {
+               return SM.isBeforeInTranslationUnit(Info1.DeclarationLocation,
+                                                   Info2.DeclarationLocation);
+             });
   return InconsistentDeclarations;
 }
 
@@ -303,7 +303,7 @@ void InconsistentDeclarationParameterNameCheck::check(
   const auto *OriginalDeclaration =
       Result.Nodes.getNodeAs<FunctionDecl>("functionDecl");
 
-  if (VisitedDeclarations.count(OriginalDeclaration) > 0)
+  if (VisitedDeclarations.contains(OriginalDeclaration))
     return; // Avoid multiple warnings.
 
   const FunctionDecl *ParameterSourceDeclaration =

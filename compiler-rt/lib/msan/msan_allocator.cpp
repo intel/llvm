@@ -108,7 +108,7 @@ struct AP64 {  // Allocator64 parameters. Deliberately using a short name.
 
 typedef SizeClassAllocator64<AP64> PrimaryAllocator;
 #elif defined(__aarch64__)
-static const uptr kMaxAllowedMallocSize = 2UL << 30;  // 2G
+static const uptr kMaxAllowedMallocSize = 8UL << 30;
 
 struct AP32 {
   static const uptr kSpaceBeg = 0;
@@ -160,6 +160,11 @@ static void *MsanAllocate(StackTrace *stack, uptr size, uptr alignment,
     }
     ReportAllocationSizeTooBig(size, max_malloc_size, stack);
   }
+  if (UNLIKELY(IsRssLimitExceeded())) {
+    if (AllocatorMayReturnNull())
+      return nullptr;
+    ReportRssLimitExceeded(stack);
+  }
   MsanThread *t = GetCurrentThread();
   void *allocated;
   if (t) {
@@ -189,13 +194,16 @@ static void *MsanAllocate(StackTrace *stack, uptr size, uptr alignment,
       __msan_set_origin(allocated, size, o.raw_id());
     }
   }
-  MSAN_MALLOC_HOOK(allocated, size);
+  UnpoisonParam(2);
+  RunMallocHooks(allocated, size);
   return allocated;
 }
 
 void MsanDeallocate(StackTrace *stack, void *p) {
   CHECK(p);
-  MSAN_FREE_HOOK(p);
+  UnpoisonParam(1);
+  RunFreeHooks(p);
+
   Metadata *meta = reinterpret_cast<Metadata *>(allocator.GetMetaData(p));
   uptr size = meta->requested_size;
   meta->requested_size = 0;
@@ -220,8 +228,8 @@ void MsanDeallocate(StackTrace *stack, void *p) {
   }
 }
 
-void *MsanReallocate(StackTrace *stack, void *old_p, uptr new_size,
-                     uptr alignment) {
+static void *MsanReallocate(StackTrace *stack, void *old_p, uptr new_size,
+                            uptr alignment) {
   Metadata *meta = reinterpret_cast<Metadata*>(allocator.GetMetaData(old_p));
   uptr old_size = meta->requested_size;
   uptr actually_allocated_size = allocator.GetActuallyAllocatedSize(old_p);
@@ -245,7 +253,7 @@ void *MsanReallocate(StackTrace *stack, void *old_p, uptr new_size,
   return new_p;
 }
 
-void *MsanCalloc(StackTrace *stack, uptr nmemb, uptr size) {
+static void *MsanCalloc(StackTrace *stack, uptr nmemb, uptr size) {
   if (UNLIKELY(CheckForCallocOverflow(size, nmemb))) {
     if (AllocatorMayReturnNull())
       return nullptr;

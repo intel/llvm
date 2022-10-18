@@ -27,12 +27,13 @@
 #include "lldb/Target/ThreadPlanRunToAddress.h"
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/DataBufferHeap.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
 
 //#define ENABLE_DEBUG_PRINTF // COMMENT THIS LINE OUT PRIOR TO CHECKIN
 #ifdef ENABLE_DEBUG_PRINTF
-#include <stdio.h>
+#include <cstdio>
 #define DEBUG_PRINTF(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #else
 #define DEBUG_PRINTF(fmt, ...)
@@ -242,7 +243,6 @@ void DynamicLoaderMacOSXDYLD::DoInitialImageFetch() {
       ReadDYLDInfoFromMemoryAndSetNotificationCallback(0x8fe00000);
     }
   }
-  return;
 }
 
 // Assume that dyld is in memory at ADDR and try to parse it's load commands
@@ -251,6 +251,7 @@ bool DynamicLoaderMacOSXDYLD::ReadDYLDInfoFromMemoryAndSetNotificationCallback(
   std::lock_guard<std::recursive_mutex> baseclass_guard(GetMutex());
   DataExtractor data; // Load command data
   static ConstString g_dyld_all_image_infos("dyld_all_image_infos");
+  static ConstString g_new_dyld_all_image_infos("dyld4::dyld_all_image_infos");
   if (ReadMachHeader(addr, &m_dyld.header, &data)) {
     if (m_dyld.header.filetype == llvm::MachO::MH_DYLINKER) {
       m_dyld.address = addr;
@@ -268,6 +269,10 @@ bool DynamicLoaderMacOSXDYLD::ReadDYLDInfoFromMemoryAndSetNotificationCallback(
           dyld_module_sp.get()) {
         const Symbol *symbol = dyld_module_sp->FindFirstSymbolWithNameAndType(
             g_dyld_all_image_infos, eSymbolTypeData);
+        if (!symbol) {
+          symbol = dyld_module_sp->FindFirstSymbolWithNameAndType(
+              g_new_dyld_all_image_infos, eSymbolTypeData);
+        }
         if (symbol)
           m_dyld_all_image_infos_addr = symbol->GetLoadAddress(&target);
       }
@@ -395,10 +400,12 @@ bool DynamicLoaderMacOSXDYLD::NotifyBreakpointHit(
       }
     }
   } else {
-    process->GetTarget().GetDebugger().GetAsyncErrorStream()->Printf(
-        "No ABI plugin located for triple %s -- shared libraries will not be "
-        "registered!\n",
-        process->GetTarget().GetArchitecture().GetTriple().getTriple().c_str());
+    Target &target = process->GetTarget();
+    Debugger::ReportWarning(
+        "no ABI plugin located for triple " +
+            target.GetArchitecture().GetTriple().getTriple() +
+            ": shared libraries will not be registered",
+        target.GetDebugger().GetID());
   }
 
   // Return true to stop the target, false to just let the target run
@@ -529,7 +536,7 @@ bool DynamicLoaderMacOSXDYLD::ReadAllImageInfosStructure() {
 bool DynamicLoaderMacOSXDYLD::AddModulesUsingImageInfosAddress(
     lldb::addr_t image_infos_addr, uint32_t image_infos_count) {
   ImageInfo::collection image_infos;
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+  Log *log = GetLog(LLDBLog::DynamicLoader);
   LLDB_LOGF(log, "Adding %d modules.\n", image_infos_count);
 
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
@@ -570,7 +577,7 @@ bool DynamicLoaderMacOSXDYLD::AddModulesUsingImageInfosAddress(
 bool DynamicLoaderMacOSXDYLD::RemoveModulesUsingImageInfosAddress(
     lldb::addr_t image_infos_addr, uint32_t image_infos_count) {
   ImageInfo::collection image_infos;
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+  Log *log = GetLog(LLDBLog::DynamicLoader);
 
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
   std::lock_guard<std::recursive_mutex> baseclass_guard(GetMutex());
@@ -603,8 +610,10 @@ bool DynamicLoaderMacOSXDYLD::RemoveModulesUsingImageInfosAddress(
     // Also copy over the uuid from the old entry to the removed entry so we
     // can use it to lookup the module in the module list.
 
-    ImageInfo::collection::iterator pos, end = m_dyld_image_infos.end();
-    for (pos = m_dyld_image_infos.begin(); pos != end; pos++) {
+    bool found = false;
+
+    for (ImageInfo::collection::iterator pos = m_dyld_image_infos.begin();
+         pos != m_dyld_image_infos.end(); pos++) {
       if (image_infos[idx].address == (*pos).address) {
         image_infos[idx].uuid = (*pos).uuid;
 
@@ -628,11 +637,12 @@ bool DynamicLoaderMacOSXDYLD::RemoveModulesUsingImageInfosAddress(
         // Then remove it from the m_dyld_image_infos:
 
         m_dyld_image_infos.erase(pos);
+        found = true;
         break;
       }
     }
 
-    if (pos == end) {
+    if (!found) {
       if (log) {
         LLDB_LOGF(log, "Could not find image_info entry for unloading image:");
         image_infos[idx].PutToLog(log);
@@ -694,7 +704,7 @@ bool DynamicLoaderMacOSXDYLD::ReadImageInfos(
 // thereof).  Only do this if this is the first time we're reading the dyld
 // infos.  Return true if we actually read anything, and false otherwise.
 bool DynamicLoaderMacOSXDYLD::InitializeFromAllImageInfos() {
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+  Log *log = GetLog(LLDBLog::DynamicLoader);
 
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
   std::lock_guard<std::recursive_mutex> baseclass_guard(GetMutex());
@@ -797,7 +807,8 @@ bool DynamicLoaderMacOSXDYLD::ReadMachHeader(lldb::addr_t addr,
         return true; // We were able to read the mach_header and weren't asked
                      // to read the load command bytes
 
-      DataBufferSP load_cmd_data_sp(new DataBufferHeap(header->sizeofcmds, 0));
+      WritableDataBufferSP load_cmd_data_sp(
+          new DataBufferHeap(header->sizeofcmds, 0));
 
       size_t load_cmd_bytes_read =
           m_process->ReadMemory(load_cmd_addr, load_cmd_data_sp->GetBytes(),
@@ -874,7 +885,7 @@ uint32_t DynamicLoaderMacOSXDYLD::ParseLoadCommands(const DataExtractor &data,
         break;
 
       case llvm::MachO::LC_UUID:
-        dylib_info.uuid = UUID::fromOptionalData(data.GetData(&offset, 16), 16);
+        dylib_info.uuid = UUID(data.GetData(&offset, 16), 16);
         break;
 
       default:
@@ -1082,7 +1093,7 @@ bool DynamicLoaderMacOSXDYLD::GetSharedCacheInformation(
         uuid_t shared_cache_uuid;
         if (m_process->ReadMemory(sharedCacheUUID_address, shared_cache_uuid,
                                   sizeof(uuid_t), err) == sizeof(uuid_t)) {
-          uuid = UUID::fromOptionalData(shared_cache_uuid, 16);
+          uuid = UUID(shared_cache_uuid, 16);
           if (uuid.IsValid()) {
             using_shared_cache = eLazyBoolYes;
           }
@@ -1131,22 +1142,10 @@ void DynamicLoaderMacOSXDYLD::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString DynamicLoaderMacOSXDYLD::GetPluginNameStatic() {
-  static ConstString g_name("macosx-dyld");
-  return g_name;
-}
-
-const char *DynamicLoaderMacOSXDYLD::GetPluginDescriptionStatic() {
+llvm::StringRef DynamicLoaderMacOSXDYLD::GetPluginDescriptionStatic() {
   return "Dynamic loader plug-in that watches for shared library loads/unloads "
          "in MacOSX user processes.";
 }
-
-// PluginInterface protocol
-lldb_private::ConstString DynamicLoaderMacOSXDYLD::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t DynamicLoaderMacOSXDYLD::GetPluginVersion() { return 1; }
 
 uint32_t DynamicLoaderMacOSXDYLD::AddrByteSize() {
   std::lock_guard<std::recursive_mutex> baseclass_guard(GetMutex());

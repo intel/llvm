@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
 #include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
@@ -20,6 +20,7 @@
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/ScopedPrinter.h"
 
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/Status.h"
@@ -27,6 +28,7 @@
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/linux/Host.h"
 #include "lldb/Host/linux/Support.h"
 #include "lldb/Utility/DataExtractor.h"
 
@@ -53,8 +55,9 @@ class ProcessLaunchInfo;
 }
 
 static bool GetStatusInfo(::pid_t Pid, ProcessInstanceInfo &ProcessInfo,
-                          ProcessState &State, ::pid_t &TracerPid) {
-  Log *log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
+                          ProcessState &State, ::pid_t &TracerPid,
+                          ::pid_t &Tgid) {
+  Log *log = GetLog(LLDBLog::Host);
 
   auto BufferOrError = getProcFile(Pid, "status");
   if (!BufferOrError)
@@ -107,6 +110,9 @@ static bool GetStatusInfo(::pid_t Pid, ProcessInstanceInfo &ProcessInfo,
     } else if (Line.consume_front("TracerPid:")) {
       Line = Line.ltrim();
       Line.consumeInteger(10, TracerPid);
+    } else if (Line.consume_front("Tgid:")) {
+      Line = Line.ltrim();
+      Line.consumeInteger(10, Tgid);
     }
   }
   return true;
@@ -121,7 +127,7 @@ static bool IsDirNumeric(const char *dname) {
 }
 
 static ArchSpec GetELFProcessCPUType(llvm::StringRef exe_path) {
-  Log *log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
+  Log *log = GetLog(LLDBLog::Host);
 
   auto buffer_sp = FileSystem::Instance().CreateDataBuffer(exe_path, 0x20, 0);
   if (!buffer_sp)
@@ -129,7 +135,8 @@ static ArchSpec GetELFProcessCPUType(llvm::StringRef exe_path) {
 
   uint8_t exe_class =
       llvm::object::getElfArchType(
-          {buffer_sp->GetChars(), size_t(buffer_sp->GetByteSize())})
+          {reinterpret_cast<const char *>(buffer_sp->GetBytes()),
+           size_t(buffer_sp->GetByteSize())})
           .first;
 
   switch (exe_class) {
@@ -160,7 +167,7 @@ static void GetProcessArgs(::pid_t pid, ProcessInstanceInfo &process_info) {
 }
 
 static void GetExePathAndArch(::pid_t pid, ProcessInstanceInfo &process_info) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   std::string ExePath(PATH_MAX, '\0');
 
   // We can't use getProcFile here because proc/[pid]/exe is a symbolic link.
@@ -204,6 +211,7 @@ static void GetProcessEnviron(::pid_t pid, ProcessInstanceInfo &process_info) {
 static bool GetProcessAndStatInfo(::pid_t pid,
                                   ProcessInstanceInfo &process_info,
                                   ProcessState &State, ::pid_t &tracerpid) {
+  ::pid_t tgid;
   tracerpid = 0;
   process_info.Clear();
 
@@ -214,7 +222,7 @@ static bool GetProcessAndStatInfo(::pid_t pid,
   GetProcessEnviron(pid, process_info);
 
   // Get User and Group IDs and get tracer pid.
-  if (!GetStatusInfo(pid, process_info, State, tracerpid))
+  if (!GetStatusInfo(pid, process_info, State, tracerpid, tgid))
     return false;
 
   return true;
@@ -307,4 +315,15 @@ Environment Host::GetEnvironment() { return Environment(environ); }
 
 Status Host::ShellExpandArguments(ProcessLaunchInfo &launch_info) {
   return Status("unimplemented");
+}
+
+llvm::Optional<lldb::pid_t> lldb_private::getPIDForTID(lldb::pid_t tid) {
+  ::pid_t tracerpid, tgid = LLDB_INVALID_PROCESS_ID;
+  ProcessInstanceInfo process_info;
+  ProcessState state;
+
+  if (!GetStatusInfo(tid, process_info, state, tracerpid, tgid) ||
+      tgid == LLDB_INVALID_PROCESS_ID)
+    return llvm::None;
+  return tgid;
 }

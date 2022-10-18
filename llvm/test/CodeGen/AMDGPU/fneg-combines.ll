@@ -1,8 +1,8 @@
-; RUN: llc -march=amdgcn -mcpu=hawaii -start-after=sink -mattr=+flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-SAFE,SI %s
-; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=hawaii -mattr=+flat-for-global -start-after=sink -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-NSZ,SI %s
+; RUN: llc -march=amdgcn -mcpu=hawaii -start-before=amdgpu-unify-divergent-exit-nodes -mattr=+flat-for-global -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-SAFE,SI %s
+; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=hawaii -mattr=+flat-for-global -start-before=amdgpu-unify-divergent-exit-nodes -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-NSZ,SI %s
 
-; RUN: llc -march=amdgcn -mcpu=fiji -start-after=sink --verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-SAFE,VI %s
-; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=fiji -start-after=sink -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-NSZ,VI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -start-before=amdgpu-unify-divergent-exit-nodes --verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-SAFE,VI %s
+; RUN: llc -enable-no-signed-zeros-fp-math -march=amdgcn -mcpu=fiji -start-before=amdgpu-unify-divergent-exit-nodes -verify-machineinstrs < %s | FileCheck -enable-var-scope --check-prefixes=GCN,GCN-NSZ,VI %s
 
 ; --------------------------------------------------------------------------------
 ; fadd tests
@@ -161,13 +161,12 @@ define amdgpu_kernel void @v_fneg_add_fneg_fneg_f32(float addrspace(1)* %out, fl
 }
 
 ; GCN-LABEL: {{^}}v_fneg_add_store_use_fneg_x_f32:
-; GCN-SAFE-DAG: s_brev_b32 [[SIGNBIT:s[0-9]+]], 1{{$}}
 ; GCN-DAG: {{buffer|flat}}_load_dword [[A:v[0-9]+]]
 ; GCN-DAG: {{buffer|flat}}_load_dword [[B:v[0-9]+]]
 
-; GCN-SAFE: v_xor_b32_e32 [[NEG_A:v[0-9]+]], [[SIGNBIT]], [[A]]
+; GCN-SAFE: v_xor_b32_e32 [[NEG_A:v[0-9]+]], 0x80000000, [[A]]
 ; GCN-SAFE: v_sub_f32_e32 [[ADD:v[0-9]+]], [[B]], [[A]]
-; GCN-SAFE: v_xor_b32_e32 [[NEG_ADD:v[0-9]+]], [[SIGNBIT]], [[ADD]]
+; GCN-SAFE: v_xor_b32_e32 [[NEG_ADD:v[0-9]+]], 0x80000000, [[ADD]]
 
 ; GCN-NSZ-DAG: v_xor_b32_e32 [[NEG_A:v[0-9]+]], 0x80000000, [[A]]
 ; GCN-NSZ-DAG: v_sub_f32_e32 [[NEG_ADD:v[0-9]+]], [[A]], [[B]]
@@ -563,7 +562,9 @@ define amdgpu_ps float @v_fneg_negk_minnum_f32_no_ieee(float %a) #0 {
 
 ; GCN-LABEL: {{^}}v_fneg_0_minnum_f32:
 ; GCN: {{buffer|flat}}_load_dword [[A:v[0-9]+]]
-; GCN: v_min_f32_e32 [[RESULT:v[0-9]+]], 0, [[A]]
+; GCN-NOT [[A]]
+; GCN: v_min_f32_e32 [[MIN:v[0-9]+]], 0, [[A]]
+; GCN: v_xor_b32_e32 [[RESULT:v[0-9]+]], 0x80000000, [[MIN]]
 ; GCN: flat_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
 define amdgpu_kernel void @v_fneg_0_minnum_f32(float addrspace(1)* %out, float addrspace(1)* %a.ptr) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -571,7 +572,7 @@ define amdgpu_kernel void @v_fneg_0_minnum_f32(float addrspace(1)* %out, float a
   %a.gep = getelementptr inbounds float, float addrspace(1)* %a.ptr, i64 %tid.ext
   %out.gep = getelementptr inbounds float, float addrspace(1)* %out, i64 %tid.ext
   %a = load volatile float, float addrspace(1)* %a.gep
-  %min = call float @llvm.minnum.f32(float 0.0, float %a)
+  %min = call nnan float @llvm.minnum.f32(float 0.0, float %a)
   %fneg = fneg float %min
   store float %fneg, float addrspace(1)* %out.gep
   ret void
@@ -692,12 +693,12 @@ define amdgpu_kernel void @v_fneg_neg_inv2pi_minnum_f16(half addrspace(1)* %out,
 ; SI-DAG: s_mov_b32 s[[K_HI:[0-9]+]], 0xbfc45f30
 ; SI-DAG: s_mov_b32 s[[K_LO:[0-9]+]], 0x6dc9c882
 ; SI-DAG: v_max_f64 [[NEG_QUIET:v\[[0-9]+:[0-9]+\]]], -[[A]], -[[A]]
-; SI: v_max_f64 v{{\[}}[[RESULT_LO:[0-9]+]]:[[RESULT_HI:[0-9]+]]{{\]}}, [[NEG_QUIET]], s{{\[}}[[K_LO]]:[[K_HI]]{{\]}}
+; SI: v_max_f64 v[[[RESULT_LO:[0-9]+]]:[[RESULT_HI:[0-9]+]]], [[NEG_QUIET]], s[[[K_LO]]:[[K_HI]]]
 
-; VI: v_min_f64 v{{\[}}[[RESULT_LO:[0-9]+]]:[[RESULT_HI:[0-9]+]]{{\]}}, [[A]], 0.15915494
+; VI: v_min_f64 v[[[RESULT_LO:[0-9]+]]:[[RESULT_HI:[0-9]+]]], [[A]], 0.15915494
 ; VI: v_xor_b32_e32 v[[RESULT_HI]], 0x80000000, v[[RESULT_HI]]
 
-; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[}}[[RESULT_LO]]:[[RESULT_HI]]{{\]}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v[[[RESULT_LO]]:[[RESULT_HI]]]
 define amdgpu_kernel void @v_fneg_inv2pi_minnum_f64(double addrspace(1)* %out, double addrspace(1)* %a.ptr) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %tid.ext = sext i32 %tid to i64
@@ -716,7 +717,7 @@ define amdgpu_kernel void @v_fneg_inv2pi_minnum_f64(double addrspace(1)* %out, d
 ; SI-DAG: s_mov_b32 s[[K_HI:[0-9]+]], 0x3fc45f30
 ; SI-DAG: s_mov_b32 s[[K_LO:[0-9]+]], 0x6dc9c882
 ; SI-DAG: v_max_f64 [[NEG_QUIET:v\[[0-9]+:[0-9]+\]]], -[[A]], -[[A]]
-; SI: v_max_f64 [[RESULT:v\[[0-9]+:[0-9]+\]]], [[NEG_QUIET]], s{{\[}}[[K_LO]]:[[K_HI]]{{\]}}
+; SI: v_max_f64 [[RESULT:v\[[0-9]+:[0-9]+\]]], [[NEG_QUIET]], s[[[K_LO]]:[[K_HI]]]
 
 ; VI: v_max_f64 [[NEG_QUIET:v\[[0-9]+:[0-9]+\]]], -[[A]], -[[A]]
 ; VI: v_max_f64 [[RESULT:v\[[0-9]+:[0-9]+\]]], [[NEG_QUIET]], 0.15915494
@@ -970,7 +971,9 @@ define amdgpu_ps float @v_fneg_negk_maxnum_f32_no_ieee(float %a) #0 {
 
 ; GCN-LABEL: {{^}}v_fneg_0_maxnum_f32:
 ; GCN: {{buffer|flat}}_load_dword [[A:v[0-9]+]]
-; GCN: v_max_f32_e32 [[RESULT:v[0-9]+]], 0, [[A]]
+; GCN-NOT: [[A]]
+; GCN: v_max_f32_e32 [[MAX:v[0-9]+]], 0, [[A]]
+; GCN: v_xor_b32_e32 [[RESULT:v[0-9]+]], 0x80000000, [[MAX]]
 ; GCN: flat_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
 define amdgpu_kernel void @v_fneg_0_maxnum_f32(float addrspace(1)* %out, float addrspace(1)* %a.ptr) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -978,7 +981,7 @@ define amdgpu_kernel void @v_fneg_0_maxnum_f32(float addrspace(1)* %out, float a
   %a.gep = getelementptr inbounds float, float addrspace(1)* %a.ptr, i64 %tid.ext
   %out.gep = getelementptr inbounds float, float addrspace(1)* %out, i64 %tid.ext
   %a = load volatile float, float addrspace(1)* %a.gep
-  %max = call float @llvm.maxnum.f32(float 0.0, float %a)
+  %max = call nnan float @llvm.maxnum.f32(float 0.0, float %a)
   %fneg = fneg float %max
   store float %fneg, float addrspace(1)* %out.gep
   ret void
@@ -1241,7 +1244,7 @@ define amdgpu_kernel void @v_fneg_fma_x_fneg_y_f32(float addrspace(1)* %out, flo
 ; GCN: {{buffer|flat}}_load_dword [[C:v[0-9]+]]
 
 ; GCN-SAFE: v_fma_f32 [[FMA:v[0-9]+]], [[A]], [[B]], [[C]]
-; GCN-SAFE: v_xor_b32_e32 v{{[[0-9]+}}, 0x80000000, [[FMA]]
+; GCN-SAFE: v_xor_b32_e32 v{{[0-9]+}}, 0x80000000, [[FMA]]
 
 ; GCN-NSZ: v_fma_f32 [[FMA:v[0-9]+]], [[A]], -[[B]], -[[C]]
 ; GCN-NSZ-NOT: [[FMA]]
@@ -1270,7 +1273,7 @@ define amdgpu_kernel void @v_fneg_fma_fneg_fneg_y_f32(float addrspace(1)* %out, 
 ; GCN: {{buffer|flat}}_load_dword [[C:v[0-9]+]]
 
 ; GCN-SAFE: v_fma_f32 [[FMA:v[0-9]+]], -[[A]], [[B]], -[[C]]
-; GCN-SAFE: v_xor_b32_e32 v{{[[0-9]+}}, 0x80000000, [[FMA]]
+; GCN-SAFE: v_xor_b32_e32 v{{[0-9]+}}, 0x80000000, [[FMA]]
 
 ; GCN-NSZ: v_fma_f32 [[FMA:v[0-9]+]], [[A]], [[B]], [[C]]
 ; GCN-NSZ-NOT: [[FMA]]
@@ -1534,10 +1537,10 @@ define amdgpu_kernel void @v_fneg_fp_extend_store_use_fneg_f32_to_f64(double add
 
 ; GCN-LABEL: {{^}}v_fneg_multi_use_fp_extend_fneg_f32_to_f64:
 ; GCN: {{buffer|flat}}_load_dword [[A:v[0-9]+]]
-; GCN-DAG: v_cvt_f64_f32_e32 v{{\[}}[[CVT_LO:[0-9]+]]:[[CVT_HI:[0-9]+]]{{\]}}, [[A]]
+; GCN-DAG: v_cvt_f64_f32_e32 v[[[CVT_LO:[0-9]+]]:[[CVT_HI:[0-9]+]]], [[A]]
 ; GCN-DAG: v_xor_b32_e32 v[[FNEG_A:[0-9]+]], 0x80000000, v[[CVT_HI]]
-; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[[0-9]+}}:[[FNEG_A]]{{\]}}
-; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[}}[[CVT_LO]]:[[CVT_HI]]{{\]}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[[0-9]+}}:[[FNEG_A]]]
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v[[[CVT_LO]]:[[CVT_HI]]]
 define amdgpu_kernel void @v_fneg_multi_use_fp_extend_fneg_f32_to_f64(double addrspace(1)* %out, float addrspace(1)* %a.ptr) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %tid.ext = sext i32 %tid to i64
@@ -1553,10 +1556,10 @@ define amdgpu_kernel void @v_fneg_multi_use_fp_extend_fneg_f32_to_f64(double add
 
 ; GCN-LABEL: {{^}}v_fneg_multi_foldable_use_fp_extend_fneg_f32_to_f64:
 ; GCN: {{buffer|flat}}_load_dword [[A:v[0-9]+]]
-; GCN-DAG: v_cvt_f64_f32_e32 v{{\[}}[[CVT_LO:[0-9]+]]:[[CVT_HI:[0-9]+]]{{\]}}, [[A]]
+; GCN-DAG: v_cvt_f64_f32_e32 v[[[CVT_LO:[0-9]+]]:[[CVT_HI:[0-9]+]]], [[A]]
 ; GCN-DAG: v_xor_b32_e32 v[[FNEG_A:[0-9]+]], 0x80000000, v[[CVT_HI]]
-; GCN-DAG: v_mul_f64 [[MUL:v\[[0-9]+:[0-9]+\]]], v{{\[}}[[CVT_LO]]:[[CVT_HI]]{{\]}}, 4.0
-; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[[0-9]+}}:[[FNEG_A]]{{\]}}
+; GCN-DAG: v_mul_f64 [[MUL:v\[[0-9]+:[0-9]+\]]], v[[[CVT_LO]]:[[CVT_HI]]], 4.0
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[[0-9]+}}:[[FNEG_A]]]
 ; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[MUL]]
 define amdgpu_kernel void @v_fneg_multi_foldable_use_fp_extend_fneg_f32_to_f64(double addrspace(1)* %out, float addrspace(1)* %a.ptr) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
@@ -1640,11 +1643,11 @@ define amdgpu_kernel void @v_fneg_fp_round_fneg_f64_to_f32(float addrspace(1)* %
 }
 
 ; GCN-LABEL: {{^}}v_fneg_fp_round_store_use_fneg_f64_to_f32:
-; GCN: {{buffer|flat}}_load_dwordx2 v{{\[}}[[A_LO:[0-9]+]]:[[A_HI:[0-9]+]]{{\]}}
-; GCN-DAG: v_cvt_f32_f64_e32 [[RESULT:v[0-9]+]], v{{\[}}[[A_LO]]:[[A_HI]]{{\]}}
+; GCN: {{buffer|flat}}_load_dwordx2 v[[[A_LO:[0-9]+]]:[[A_HI:[0-9]+]]]
+; GCN-DAG: v_cvt_f32_f64_e32 [[RESULT:v[0-9]+]], v[[[A_LO]]:[[A_HI]]]
 ; GCN-DAG: v_xor_b32_e32 v[[NEG_A_HI:[0-9]+]], 0x80000000, v[[A_HI]]
 ; GCN: flat_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
-; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v{{\[}}[[A_LO]]:[[NEG_A_HI]]{{\]}}
+; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, v[[[A_LO]]:[[NEG_A_HI]]]
 define amdgpu_kernel void @v_fneg_fp_round_store_use_fneg_f64_to_f32(float addrspace(1)* %out, double addrspace(1)* %a.ptr) #0 {
   %tid = call i32 @llvm.amdgcn.workitem.id.x()
   %tid.ext = sext i32 %tid to i64
@@ -1662,7 +1665,7 @@ define amdgpu_kernel void @v_fneg_fp_round_store_use_fneg_f64_to_f32(float addrs
 ; GCN-LABEL: {{^}}v_fneg_fp_round_multi_use_fneg_f64_to_f32:
 ; GCN: {{buffer|flat}}_load_dwordx2 [[A:v\[[0-9]+:[0-9]+\]]]
 ; GCN-DAG: v_cvt_f32_f64_e32 [[RESULT:v[0-9]+]], [[A]]
-; GCN-DAG: v_mul_f64 [[USE1:v\[[0-9]+:[0-9]+\]]], -[[A]], s{{\[}}
+; GCN-DAG: v_mul_f64 [[USE1:v\[[0-9]+:[0-9]+\]]], -[[A]], s[
 
 ; GCN: flat_store_dword v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
 ; GCN: flat_store_dwordx2 v{{\[[0-9]+:[0-9]+\]}}, [[USE1]]
@@ -2575,8 +2578,76 @@ define amdgpu_kernel void @multi_use_cost_to_fold_into_src(float addrspace(1)* %
   ret void
 }
 
+; The AMDGPU combine to pull fneg into the FMA operands was being
+; undone by the generic combine to pull the fneg out of the fma if
+; !isFNegFree. We were reporting false for v2f32 even though it will
+; be split into f32 where it will be free.
+; GCN-LABEL: {{^}}fneg_fma_fneg_dagcombine_loop:
+; GCN: s_brev_b32 [[NEGZERO:s[0-9]+]], 1{{$}}
+; GCN-DAG: v_fma_f32 [[FMA0:v[0-9]+]], v2, -v4, [[NEGZERO]]
+; GCN-DAG: v_fma_f32 [[FMA1:v[0-9]+]], v3, -v5, [[NEGZERO]]
+; GCN-DAG: v_sub_f32_e32 [[SUB0:v[0-9]+]], [[FMA0]], v0
+; GCN-DAG: v_sub_f32_e32 [[SUB1:v[0-9]+]], [[FMA1]], v1
+; GCN-DAG: v_mul_f32_e32 v0, [[SUB0]], v4
+; GCN-DAG: v_mul_f32_e32 v1, [[SUB1]], v5
+; GCN: s_setpc_b64
+define <2 x float> @fneg_fma_fneg_dagcombine_loop(<2 x float> %arg, <2 x float> %arg1, <2 x float> %arg2) #0 {
+bb:
+  %i3 = call fast <2 x float> @llvm.fma.v2f32(<2 x float> %arg1, <2 x float> %arg2, <2 x float> zeroinitializer)
+  %i4 = fadd fast <2 x float> %i3, %arg
+  %i5 = fneg <2 x float> %i4
+  %i6 = fmul fast <2 x float> %i5, %arg2
+  ret <2 x float> %i6
+}
+
+; This expects denormal flushing, so can't turn this fmul into fneg
+; TODO: Keeping this as fmul saves encoding size
+; GCN-LABEL: {{^}}nnan_fmul_neg1_to_fneg:
+; GCN: v_sub_f32_e32 [[TMP:v[0-9]+]], 0x80000000, v0
+; GCN-NEXT: v_mul_f32_e32 v0, [[TMP]], v1
+define float @nnan_fmul_neg1_to_fneg(float %x, float %y) #0 {
+  %mul = fmul float %x, -1.0
+  %add = fmul nnan float %mul, %y
+  ret float %add
+}
+
+; It's legal to turn this fmul into an fneg since denormals are
+; preserved and we know an snan can't happen from the flag.
+; GCN-LABEL: {{^}}denormal_fmul_neg1_to_fneg:
+; GCN: v_mul_f32_e64 v0, -v0, v1
+; GCN-NEXT: s_setpc_b64
+define float @denormal_fmul_neg1_to_fneg(float %x, float %y) {
+  %mul = fmul nnan float %x, -1.0
+  %add = fmul float %mul, %y
+  ret float %add
+}
+
+; know the source can't be an snan
+; GCN-LABEL: {{^}}denorm_snan_fmul_neg1_to_fneg:
+; GCN: v_mul_f32_e64 [[TMP:v[0-9]+]], v0, -v0
+; GCN: v_mul_f32_e32 v0, [[TMP]], v1
+; GCN-NEXT: s_setpc_b64
+define float @denorm_snan_fmul_neg1_to_fneg(float %x, float %y) {
+  %canonical = fmul float %x, %x
+  %mul = fmul float %canonical, -1.0
+  %add = fmul float %mul, %y
+  ret float %add
+}
+
+; GCN-LABEL: {{^}}flush_snan_fmul_neg1_to_fneg:
+; GCN: v_mul_f32_e32 [[TMP0:v[0-9]+]], 1.0, v0
+; GCN: v_sub_f32_e32 [[TMP1:v[0-9]+]], 0x80000000, [[TMP0]]
+; GCN-NEXT: v_mul_f32_e32 v0, [[TMP1]], v1
+define float @flush_snan_fmul_neg1_to_fneg(float %x, float %y) #0 {
+  %quiet = call float @llvm.canonicalize.f32(float %x)
+  %mul = fmul float %quiet, -1.0
+  %add = fmul float %mul, %y
+  ret float %add
+}
+
 declare i32 @llvm.amdgcn.workitem.id.x() #1
 declare float @llvm.fma.f32(float, float, float) #1
+declare <2 x float> @llvm.fma.v2f32(<2 x float>, <2 x float>, <2 x float>)
 declare float @llvm.fmuladd.f32(float, float, float) #1
 declare <4 x float> @llvm.fmuladd.v4f32(<4 x float>, <4 x float>, <4 x float>) #1
 declare float @llvm.sin.f32(float) #1
@@ -2601,3 +2672,4 @@ declare float @llvm.amdgcn.interp.p2(float, float, i32, i32, i32) #0
 attributes #0 = { nounwind "denormal-fp-math-f32"="preserve-sign,preserve-sign" }
 attributes #1 = { nounwind readnone }
 attributes #2 = { nounwind "unsafe-fp-math"="true" }
+attributes #3 = { nounwind "no-signed-zeros-fp-math"="true" }

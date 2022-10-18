@@ -1,8 +1,10 @@
 
-; RUN: llc -mtriple powerpc-ibm-aix-xcoff < %s | \
+; RUN: llc -debugger-tune=gdb -mtriple powerpc-ibm-aix-xcoff < %s | \
 ; RUN:   FileCheck %s --check-prefix=ASM32
-; RUN: llc -mtriple powerpc64-ibm-aix-xcoff < %s | \
+; RUN: llc -debugger-tune=gdb -mtriple powerpc64-ibm-aix-xcoff < %s | \
 ; RUN:   FileCheck %s --check-prefix=ASM64
+; RUN: llc -mtriple powerpc-ibm-aix-xcoff -filetype=obj < %s | \
+; RUN:   llvm-dwarfdump --all - | FileCheck %s --check-prefix=DWARF32
 
 source_filename = "1.c"
 target datalayout = "E-m:a-p:32:32-i64:64-n32"
@@ -33,7 +35,7 @@ entry:
 !11 = !DIBasicType(name: "int", size: 32, encoding: DW_ATE_signed)
 !12 = !DILocation(line: 3, column: 3, scope: !8)
 
-; ASM32:               .csect .text[PR],2
+; ASM32:               .csect .text[PR],5
 ; ASM32-NEXT:          .file   "1.c"
 ; ASM32-NEXT:          .globl  main[DS]                        # -- Begin function main
 ; ASM32-NEXT:          .globl  .main
@@ -42,7 +44,7 @@ entry:
 ; ASM32-NEXT:          .vbyte  4, .main                        # @main
 ; ASM32-NEXT:          .vbyte  4, TOC[TC0]
 ; ASM32-NEXT:          .vbyte  4, 0
-; ASM32-NEXT:          .csect .text[PR],2
+; ASM32-NEXT:          .csect .text[PR],5
 ; ASM32-NEXT:  .main:
 ; ASM32-NEXT:  L..func_begin0:
 ; ASM32-NEXT:  # %bb.0:                                # %entry
@@ -66,12 +68,12 @@ entry:
 ; ASM32-NEXT:          .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; ASM32-NEXT:                                          # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
 ; ASM32-NEXT:          .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
-; ASM32-NEXT:          .byte   0x00                            # -HasVectorInfo, -HasExtensionTable, NumOfGPRsSaved = 0
+; ASM32-NEXT:          .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; ASM32-NEXT:          .byte   0x00                            # NumberOfFixedParms = 0
 ; ASM32-NEXT:          .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack
 ; ASM32-NEXT:          .vbyte  4, L..main0-.main               # Function size
 ; ASM32-NEXT:          .vbyte  2, 0x0004                       # Function name len = 4
-; ASM32-NEXT:          .byte   'm,'a,'i,'n                     # Function Name
+; ASM32-NEXT:          .byte   "main"                          # Function Name
 ; ASM32-NEXT:  L..func_end0:
 ; ASM32-NEXT:                                          # -- End function
 ; ASM32-NEXT:  L..sec_end0:
@@ -165,15 +167,15 @@ entry:
 ; ASM32:               .dwsect 0x70000
 ; ASM32-NEXT:  L...dwstr:
 ; ASM32-NEXT:  L..info_string0:
-; ASM32-NEXT:          .byte   'c,'l,'a,'n,'g,' ,'v,'e,'r,'s,'i,'o,'n,' ,'1,'2,'.,'0,'.,'0,0000 # string offset=0
+; ASM32-NEXT:          .string "clang version 12.0.0"          # string offset=0
 ; ASM32-NEXT:  L..info_string1:
-; ASM32-NEXT:          .byte   '1,'.,'c,0000                   # string offset=21
+; ASM32-NEXT:          .string "1.c"                           # string offset=21
 ; ASM32-NEXT:  L..info_string2:
-; ASM32-NEXT:          .byte   'd,'e,'b,'u,'g,0000             # string offset=25
+; ASM32-NEXT:          .string "debug"                         # string offset=25
 ; ASM32-NEXT:  L..info_string3:
-; ASM32-NEXT:          .byte   'm,'a,'i,'n,0000                # string offset=31
+; ASM32-NEXT:          .string "main"                          # string offset=31
 ; ASM32-NEXT:  L..info_string4:
-; ASM32-NEXT:          .byte   'i,'n,'t,0000                   # string offset=36
+; ASM32-NEXT:          .string "int"                           # string offset=36
 ; ASM32-NEXT:          .toc
 ; ASM32:               .dwsect 0x20000
 ; ASM32-NEXT:  L...dwline:
@@ -200,10 +202,10 @@ entry:
 ; ASM32-NEXT:          .byte   0
 ; ASM32-NEXT:          .byte   0
 ; ASM32-NEXT:          .byte   1
-; ASM32-NEXT:          .byte   'd,'e,'b,'u,'g
+; ASM32-NEXT:          .byte   "debug"
 ; ASM32-NEXT:          .byte   0
 ; ASM32-NEXT:          .byte   0
-; ASM32-NEXT:          .byte   '1,'.,'c
+; ASM32-NEXT:          .byte   "1.c"
 ; ASM32-NEXT:          .byte   0
 ; ASM32-NEXT:          .byte   1
 ; ASM32-NEXT:          .byte   0
@@ -225,16 +227,16 @@ entry:
 ; ASM32-NEXT:          .byte   3                               # Advance line 1
 ; ASM32-NEXT:          .byte   1
 ; ASM32-NEXT:          .byte   1
-; ASM32-NEXT:          .byte   0                               # Set address to L..sec_end0
+; ASM32-NEXT:          .byte   0                               # Set address to L..func_end0
 ; ASM32-NEXT:          .byte   5
 ; ASM32-NEXT:          .byte   2
-; ASM32-NEXT:          .vbyte  4, L..sec_end0
+; ASM32-NEXT:          .vbyte  4, L..func_end0
 ; ASM32-NEXT:          .byte   0                               # End sequence
 ; ASM32-NEXT:          .byte   1
 ; ASM32-NEXT:          .byte   1
 ; ASM32-NEXT:  L..debug_line_end0:
 
-; ASM64:               .csect .text[PR],2
+; ASM64:               .csect .text[PR],5
 ; ASM64-NEXT:          .file   "1.c"
 ; ASM64-NEXT:          .globl  main[DS]                        # -- Begin function main
 ; ASM64-NEXT:          .globl  .main
@@ -243,7 +245,7 @@ entry:
 ; ASM64-NEXT:          .vbyte  8, .main                        # @main
 ; ASM64-NEXT:          .vbyte  8, TOC[TC0]
 ; ASM64-NEXT:          .vbyte  8, 0
-; ASM64-NEXT:          .csect .text[PR],2
+; ASM64-NEXT:          .csect .text[PR],5
 ; ASM64-NEXT:  .main:
 ; ASM64-NEXT:  L..func_begin0:
 ; ASM64-NEXT:  # %bb.0:                                # %entry
@@ -267,12 +269,12 @@ entry:
 ; ASM64-NEXT:          .byte   0x40                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; ASM64-NEXT:                                          # OnConditionDirective = 0, -IsCRSaved, -IsLRSaved
 ; ASM64-NEXT:          .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
-; ASM64-NEXT:          .byte   0x00                            # -HasVectorInfo, -HasExtensionTable, NumOfGPRsSaved = 0
+; ASM64-NEXT:          .byte   0x00                            # -HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; ASM64-NEXT:          .byte   0x00                            # NumberOfFixedParms = 0
 ; ASM64-NEXT:          .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack
 ; ASM64-NEXT:          .vbyte  4, L..main0-.main               # Function size
 ; ASM64-NEXT:          .vbyte  2, 0x0004                       # Function name len = 4
-; ASM64-NEXT:          .byte   'm,'a,'i,'n                     # Function Name
+; ASM64-NEXT:          .byte   "main"                          # Function Name
 ; ASM64-NEXT:  L..func_end0:
 ; ASM64-NEXT:                                          # -- End function
 ; ASM64-NEXT:  L..sec_end0:
@@ -366,16 +368,16 @@ entry:
 ; ASM64:               .dwsect 0x70000
 ; ASM64-NEXT:  L...dwstr:
 ; ASM64-NEXT:  L..info_string0:
-; ASM64-NEXT:          .byte   'c,'l,'a,'n,'g,' ,'v,'e,'r,'s,'i,'o,'n,' ,'1,'2,'.,'0,'.,'0,0000 # string offset=0
+; ASM64-NEXT:          .string "clang version 12.0.0"          # string offset=0
 ; ASM64-NEXT:  L..info_string1:
-; ASM64-NEXT:          .byte   '1,'.,'c,0000                   # string offset=21
+; ASM64-NEXT:          .string "1.c"                           # string offset=21
 ; ASM64-NEXT:  L..info_string2:
-; ASM64-NEXT:          .byte   'd,'e,'b,'u,'g,0000             # string offset=25
+; ASM64-NEXT:          .string "debug"                         # string offset=25
 ; ASM64-NEXT:  L..info_string3:
-; ASM64-NEXT:          .byte   'm,'a,'i,'n,0000                # string offset=31
+; ASM64-NEXT:          .string "main"                          # string offset=31
 ; ASM64-NEXT:  L..info_string4:
-; ASM64-NEXT:          .byte   'i,'n,'t,0000                   # string offset=36
-; ASM64-NEXT:          .toc
+; ASM64-NEXT:          .string "int"                           # string offset=36
+; ASM64-NEXT:         .toc
 ; ASM64:               .dwsect 0x20000
 ; ASM64-NEXT:  L...dwline:
 ; ASM64-NEXT:  L..debug_line_0:
@@ -401,10 +403,10 @@ entry:
 ; ASM64-NEXT:          .byte   0
 ; ASM64-NEXT:          .byte   0
 ; ASM64-NEXT:          .byte   1
-; ASM64-NEXT:          .byte   'd,'e,'b,'u,'g
+; ASM64-NEXT:          .byte   "debug"
 ; ASM64-NEXT:          .byte   0
 ; ASM64-NEXT:          .byte   0
-; ASM64-NEXT:          .byte   '1,'.,'c
+; ASM64-NEXT:          .byte   "1.c"
 ; ASM64-NEXT:          .byte   0
 ; ASM64-NEXT:          .byte   1
 ; ASM64-NEXT:          .byte   0
@@ -426,11 +428,97 @@ entry:
 ; ASM64-NEXT:          .byte   3                               # Advance line 1
 ; ASM64-NEXT:          .byte   1
 ; ASM64-NEXT:          .byte   1
-; ASM64-NEXT:          .byte   0                               # Set address to L..sec_end0
+; ASM64-NEXT:          .byte   0                               # Set address to L..func_end0
 ; ASM64-NEXT:          .byte   9
 ; ASM64-NEXT:          .byte   2
-; ASM64-NEXT:          .vbyte  8, L..sec_end0
+; ASM64-NEXT:          .vbyte  8, L..func_end0
 ; ASM64-NEXT:          .byte   0                               # End sequence
 ; ASM64-NEXT:          .byte   1
 ; ASM64-NEXT:          .byte   1
 ; ASM64-NEXT:  L..debug_line_end0:
+
+; DWARF32:       :        file format aixcoff-rs6000
+; DWARF32:       .debug_abbrev contents:
+; DWARF32-NEXT:  Abbrev table for offset: 0x00000000
+; DWARF32-NEXT:  [1] DW_TAG_compile_unit DW_CHILDREN_yes
+; DWARF32-NEXT:          DW_AT_producer  DW_FORM_string
+; DWARF32-NEXT:          DW_AT_language  DW_FORM_data2
+; DWARF32-NEXT:          DW_AT_name      DW_FORM_string
+; DWARF32-NEXT:          DW_AT_stmt_list DW_FORM_sec_offset
+; DWARF32-NEXT:          DW_AT_comp_dir  DW_FORM_string
+; DWARF32-NEXT:          DW_AT_low_pc    DW_FORM_addr
+; DWARF32-NEXT:          DW_AT_high_pc   DW_FORM_data4
+; DWARF32:       [2] DW_TAG_subprogram   DW_CHILDREN_no
+; DWARF32-NEXT:          DW_AT_low_pc    DW_FORM_addr
+; DWARF32-NEXT:          DW_AT_high_pc   DW_FORM_data4
+; DWARF32-NEXT:          DW_AT_frame_base        DW_FORM_exprloc
+; DWARF32-NEXT:          DW_AT_name      DW_FORM_string
+; DWARF32-NEXT:          DW_AT_decl_file DW_FORM_data1
+; DWARF32-NEXT:          DW_AT_decl_line DW_FORM_data1
+; DWARF32-NEXT:          DW_AT_prototyped        DW_FORM_flag_present
+; DWARF32-NEXT:          DW_AT_type      DW_FORM_ref4
+; DWARF32-NEXT:          DW_AT_external  DW_FORM_flag_present
+; DWARF32:       [3] DW_TAG_base_type    DW_CHILDREN_no
+; DWARF32-NEXT:          DW_AT_name      DW_FORM_string
+; DWARF32-NEXT:          DW_AT_encoding  DW_FORM_data1
+; DWARF32-NEXT:          DW_AT_byte_size DW_FORM_data1
+; DWARF32:       .debug_info contents:
+; DWARF32-NEXT:  0x00000000: Compile Unit: length = 0x00000053, format = DWARF32, version = 0x0004, abbr_offset = 0x0000, addr_size = 0x04 (next unit at 0x00000057)
+; DWARF32:       0x0000000b: DW_TAG_compile_unit
+; DWARF32-NEXT:                DW_AT_producer    ("clang version 12.0.0")
+; DWARF32-NEXT:                DW_AT_language    (DW_LANG_C99)
+; DWARF32-NEXT:                DW_AT_name        ("1.c")
+; DWARF32-NEXT:                DW_AT_stmt_list   (0x00000000)
+; DWARF32-NEXT:                DW_AT_comp_dir    ("debug")
+; DWARF32-NEXT:                DW_AT_low_pc      (0x00000000)
+; DWARF32-NEXT:                DW_AT_high_pc     (0x00000026)
+; DWARF32:       0x00000039:   DW_TAG_subprogram
+; DWARF32-NEXT:                  DW_AT_low_pc    (0x00000000)
+; DWARF32-NEXT:                  DW_AT_high_pc   (0x00000026)
+; DWARF32-NEXT:                  DW_AT_frame_base        (DW_OP_reg1 R1)
+; DWARF32-NEXT:                  DW_AT_name      ("main")
+; DWARF32-NEXT:                  DW_AT_decl_file ("debug{{[/\\]}}1.c")
+; DWARF32-NEXT:                  DW_AT_decl_line (1)
+; DWARF32-NEXT:                  DW_AT_prototyped        (true)
+; DWARF32-NEXT:                  DW_AT_type      (0x0000004f "int")
+; DWARF32-NEXT:                  DW_AT_external  (true)
+; DWARF32:       0x0000004f:   DW_TAG_base_type
+; DWARF32-NEXT:                  DW_AT_name      ("int")
+; DWARF32-NEXT:                  DW_AT_encoding  (DW_ATE_signed)
+; DWARF32-NEXT:                  DW_AT_byte_size (0x04)
+; DWARF32:       0x00000056:   NULL
+; DWARF32:       .debug_line contents:
+; DWARF32-NEXT:  debug_line[0x00000000]
+; DWARF32-NEXT:  Line table prologue:
+; DWARF32-NEXT:      total_length: 0x00000032
+; DWARF32-NEXT:            format: DWARF32
+; DWARF32-NEXT:           version: 4
+; DWARF32-NEXT:   prologue_length: 0x0000001b
+; DWARF32-NEXT:   min_inst_length: 4
+; DWARF32-NEXT:  max_ops_per_inst: 1
+; DWARF32-NEXT:   default_is_stmt: 1
+; DWARF32-NEXT:         line_base: -5
+; DWARF32-NEXT:        line_range: 14
+; DWARF32-NEXT:       opcode_base: 13
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_copy] = 0
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_advance_pc] = 1
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_advance_line] = 1
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_set_file] = 1
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_set_column] = 1
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_negate_stmt] = 0
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_set_basic_block] = 0
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_const_add_pc] = 0
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_fixed_advance_pc] = 1
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_set_prologue_end] = 0
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_set_epilogue_begin] = 0
+; DWARF32-NEXT:  standard_opcode_lengths[DW_LNS_set_isa] = 1
+; DWARF32-NEXT:  file_names[  1]:
+; DWARF32-NEXT:             name: "1.c"
+; DWARF32-NEXT:        dir_index: 0
+; DWARF32-NEXT:         mod_time: 0x00000000
+; DWARF32-NEXT:           length: 0x00000000
+; DWARF32:       Address            Line   Column File   ISA Discriminator Flags
+; DWARF32-NEXT:  ------------------ ------ ------ ------ --- ------------- -------------
+; DWARF32-NEXT:  0x0000000000000000      2      0      1   0             0  is_stmt
+; DWARF32-NEXT:  0x0000000000000004      3      3      1   0             0  is_stmt prologue_end
+; DWARF32-NEXT:  0x0000000000000024      3      3      1   0             0  is_stmt end_sequence

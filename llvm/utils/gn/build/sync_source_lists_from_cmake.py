@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """Helps to keep BUILD.gn files in sync with the corresponding CMakeLists.txt.
 
@@ -11,10 +11,8 @@ binaries have corresponding BUILD.gn files.
 
 If --write is passed, tries to write modified .gn files and adds one git
 commit for each cmake commit this merges. If an error is reported, the state
-of HEAD is unspecified; run `git reset --hard origin/master` if this happens.
+of HEAD is unspecified; run `git reset --hard origin/main` if this happens.
 """
-
-from __future__ import print_function
 
 from collections import defaultdict
 import os
@@ -54,7 +52,8 @@ def sync_source_lists(write):
     # Use shell=True on Windows in case git is a bat file.
     def git(args): subprocess.check_call(['git'] + args, shell=os.name == 'nt')
     def git_out(args):
-        return subprocess.check_output(['git'] + args, shell=os.name == 'nt')
+        return subprocess.check_output(['git'] + args, shell=os.name == 'nt',
+                                       universal_newlines=True)
     gn_files = git_out(['ls-files', '*BUILD.gn']).splitlines()
 
     # Matches e.g. |   "foo.cpp",|, captures |foo| in group 1.

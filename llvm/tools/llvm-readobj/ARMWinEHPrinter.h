@@ -133,7 +133,8 @@ class Decoder {
   void decodeOpcodes(ArrayRef<uint8_t> Opcodes, unsigned Offset,
                      bool Prologue);
 
-  void printRegisters(const std::pair<uint16_t, uint32_t> &RegisterMask);
+  void printGPRMask(uint16_t Mask);
+  void printVFPMask(uint32_t Mask);
 
   ErrorOr<object::SectionRef>
   getSectionContaining(const object::COFFObjectFile &COFF, uint64_t Address);
@@ -145,6 +146,17 @@ class Decoder {
   ErrorOr<object::SymbolRef>
   getRelocatedSymbol(const object::COFFObjectFile &COFF,
                      const object::SectionRef &Section, uint64_t Offset);
+
+  ErrorOr<object::SymbolRef>
+  getSymbolForLocation(const object::COFFObjectFile &COFF,
+                       const object::SectionRef &Section,
+                       uint64_t OffsetInSection, uint64_t ImmediateOffset,
+                       uint64_t &SymbolAddress, uint64_t &SymbolOffset,
+                       bool FunctionOnly = false);
+
+  object::SymbolRef getPreferredSymbol(const object::COFFObjectFile &COFF,
+                                       object::SymbolRef Sym,
+                                       uint64_t &SymbolOffset);
 
   bool dumpXDataRecord(const object::COFFObjectFile &COFF,
                        const object::SectionRef &Section,

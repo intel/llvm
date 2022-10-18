@@ -13,40 +13,43 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
+                         KernelBundleImplPtr KernelBundleImpl)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true) {
-  // This constructor is only called in the interoperability kernel constructor.
-  // Let the runtime caller handle native kernel retaining in other cases if
-  // it's needed.
-  getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
+                  /*IsCreatedFromSource*/ true, KernelBundleImpl) {
   // Enable USM indirect access for interoperability kernels.
   // Some PI Plugins (like OpenCL) require this call to enable USM
   // For others, PI will turn this into a NOP.
   getPlugin().call<PiApiKind::piKernelSetExecInfo>(
       MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+
+  // This constructor is only called in the interoperability kernel constructor.
+  MIsInterop = true;
 }
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
-                         ProgramImplPtr ProgramImpl,
-                         bool IsCreatedFromSource)
+                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
+                         KernelBundleImplPtr KernelBundleImpl)
     : MKernel(Kernel), MContext(ContextImpl),
       MProgramImpl(std::move(ProgramImpl)),
-      MCreatedFromSource(IsCreatedFromSource) {
+      MCreatedFromSource(IsCreatedFromSource),
+      MKernelBundleImpl(std::move(KernelBundleImpl)) {
 
   RT::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
   getPlugin().call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
+
+  MIsInterop = MProgramImpl->isInterop();
 }
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
@@ -60,10 +63,11 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   if (!is_host()) {
     getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
   }
+
+  MIsInterop = MKernelBundleImpl->isInterop();
 }
 
-kernel_impl::kernel_impl(ContextImplPtr Context,
-                         ProgramImplPtr ProgramImpl)
+kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
     : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
 
 kernel_impl::~kernel_impl() {
@@ -72,7 +76,6 @@ kernel_impl::~kernel_impl() {
     getPlugin().call<PiApiKind::piKernelRelease>(MKernel);
   }
 }
-
 
 bool kernel_impl::isCreatedFromSource() const {
   // TODO it is not clear how to understand whether the SYCL kernel is created
@@ -91,5 +94,5 @@ bool kernel_impl::isCreatedFromSource() const {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

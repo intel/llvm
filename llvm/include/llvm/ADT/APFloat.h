@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief
 /// This file declares a class to represent arbitrary precision floating point
 /// values and provide a variety of arithmetic operations on them.
 ///
@@ -156,7 +155,8 @@ struct APFloatBase {
     S_IEEEdouble,
     S_x87DoubleExtended,
     S_IEEEquad,
-    S_PPCDoubleDouble
+    S_PPCDoubleDouble,
+    S_MaxSemantics = S_PPCDoubleDouble
   };
 
   static const llvm::fltSemantics &EnumToSemantics(Semantics S);
@@ -702,7 +702,7 @@ class APFloat : public APFloatBase {
   typedef detail::IEEEFloat IEEEFloat;
   typedef detail::DoubleAPFloat DoubleAPFloat;
 
-  static_assert(std::is_standard_layout<IEEEFloat>::value, "");
+  static_assert(std::is_standard_layout<IEEEFloat>::value);
 
   union Storage {
     const fltSemantics *semantics;
@@ -795,7 +795,7 @@ class APFloat : public APFloatBase {
 
   template <typename T> static bool usesLayout(const fltSemantics &Semantics) {
     static_assert(std::is_same<T, IEEEFloat>::value ||
-                  std::is_same<T, DoubleAPFloat>::value, "");
+                  std::is_same<T, DoubleAPFloat>::value);
     if (std::is_same<T, DoubleAPFloat>::value) {
       return &Semantics == &PPCDoubleDouble();
     }
@@ -961,9 +961,7 @@ public:
   /// Returns a float which is bitcasted from an all one value int.
   ///
   /// \param Semantics - type float semantics
-  /// \param BitWidth - Select float type
-  static APFloat getAllOnesValue(const fltSemantics &Semantics,
-                                 unsigned BitWidth);
+  static APFloat getAllOnesValue(const fltSemantics &Semantics);
 
   /// Used to insert APFloat objects, or objects that contain APFloat objects,
   /// into FoldingSets.
@@ -1132,8 +1130,20 @@ public:
   APInt bitcastToAPInt() const {
     APFLOAT_DISPATCH_ON_SEMANTICS(bitcastToAPInt());
   }
-  double convertToDouble() const { return getIEEE().convertToDouble(); }
-  float convertToFloat() const { return getIEEE().convertToFloat(); }
+
+  /// Converts this APFloat to host double value.
+  ///
+  /// \pre The APFloat must be built using semantics, that can be represented by
+  /// the host double type without loss of precision. It can be IEEEdouble and
+  /// shorter semantics, like IEEEsingle and others.
+  double convertToDouble() const;
+
+  /// Converts this APFloat to host float value.
+  ///
+  /// \pre The APFloat must be built using semantics, that can be represented by
+  /// the host float type without loss of precision. It can be IEEEsingle and
+  /// shorter semantics, like IEEEhalf.
+  float convertToFloat() const;
 
   bool operator==(const APFloat &RHS) const { return compare(RHS) == cmpEqual; }
 

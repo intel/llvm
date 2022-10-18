@@ -6,10 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-
-
-using namespace cl;
+#include <sycl/sycl.hpp>
 
 template <class VecT, int EndIdx = VecT::get_count(), int StartIdx = 0>
 class VecPrinter {
@@ -58,19 +55,19 @@ class TestQueue : public sycl::queue {
 public:
   TestQueue(const sycl::device_selector &DevSelector,
             const sycl::property_list &PropList = {})
-      : sycl::queue(DevSelector,
-                    [](sycl::exception_list ExceptionList) {
-                      for (sycl::exception_ptr_class ExceptionPtr :
-                           ExceptionList) {
-                        try {
-                          std::rethrow_exception(ExceptionPtr);
-                        } catch (sycl::exception &E) {
-                          std::cerr << E.what() << std::endl;
-                        }
-                      }
-                      abort();
-                    },
-                    PropList) {}
+      : sycl::queue(
+            DevSelector,
+            [](sycl::exception_list ExceptionList) {
+              for (std::exception_ptr ExceptionPtr : ExceptionList) {
+                try {
+                  std::rethrow_exception(ExceptionPtr);
+                } catch (sycl::exception &E) {
+                  std::cerr << E.what() << std::endl;
+                }
+              }
+              abort();
+            },
+            PropList) {}
 
   ~TestQueue() { wait_and_throw(); }
 };

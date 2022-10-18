@@ -242,7 +242,7 @@ define void @test_fpowi(half* %p, i32 %b) {
 ; CHECK-NEXT:    vstr.16 s0, [r4]
 ; CHECK-NEXT:    pop {r4, pc}
   %a = load half, half* %p, align 2
-  %r = call half @llvm.powi.f16(half %a, i32 %b)
+  %r = call half @llvm.powi.f16.i32(half %a, i32 %b)
   store half %r, half* %p
   ret void
 }
@@ -482,11 +482,9 @@ define void @test_copysign(half* %p, half* %q) {
 ; CHECK-NEXT:    vstr.16 s0, [sp]
 ; CHECK-NEXT:    vldr.16 s0, [r0]
 ; CHECK-NEXT:    ldrb r1, [sp, #1]
-; CHECK-NEXT:    ands r1, r1, #128
 ; CHECK-NEXT:    vabs.f16 s0, s0
-; CHECK-NEXT:    movwne r1, #1
+; CHECK-NEXT:    tst r1, #128
 ; CHECK-NEXT:    vneg.f16 s2, s0
-; CHECK-NEXT:    cmp r1, #0
 ; CHECK-NEXT:    vseleq.f16 s0, s0, s2
 ; CHECK-NEXT:    vstr.16 s0, [r0]
 ; CHECK-NEXT:    add sp, sp, #4
@@ -587,7 +585,7 @@ define void @test_fmuladd(half* %p, half* %q, half* %r) {
 }
 
 declare half @llvm.sqrt.f16(half %a)
-declare half @llvm.powi.f16(half %a, i32 %b)
+declare half @llvm.powi.f16.i32(half %a, i32 %b)
 declare half @llvm.sin.f16(half %a)
 declare half @llvm.cos.f16(half %a)
 declare half @llvm.pow.f16(half %a, half %b)

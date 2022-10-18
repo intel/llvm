@@ -45,6 +45,7 @@
 #include "ARM.h"
 #include "ARMBaseInstrInfo.h"
 #include "ARMSubtarget.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
@@ -123,17 +124,20 @@ static bool isProfitableToInterleave(SmallSetVector<Instruction *, 4> &Exts,
   //  T=VLDRH.16; A=VMOVNB T; B=VMOVNT T
   // But those VMOVL may be folded into a VMULL.
 
-  // But expensive extends/truncs are always good to remove.
-  for (auto *E : Exts)
-    if (!isa<LoadInst>(E->getOperand(0))) {
+  // But expensive extends/truncs are always good to remove. FPExts always
+  // involve extra VCVT's so are always considered to be beneficial to convert.
+  for (auto *E : Exts) {
+    if (isa<FPExtInst>(E) || !isa<LoadInst>(E->getOperand(0))) {
       LLVM_DEBUG(dbgs() << "Beneficial due to " << *E << "\n");
       return true;
     }
-  for (auto *T : Truncs)
+  }
+  for (auto *T : Truncs) {
     if (T->hasOneUse() && !isa<StoreInst>(*T->user_begin())) {
       LLVM_DEBUG(dbgs() << "Beneficial due to " << *T << "\n");
       return true;
     }
+  }
 
   // Otherwise, we know we have a load(ext), see if any of the Extends are a
   // vmull. This is a simple heuristic and certainly not perfect.
@@ -172,15 +176,16 @@ static bool tryInterleave(Instruction *Start,
     switch (I->getOpcode()) {
     // Truncs
     case Instruction::Trunc:
-      if (Truncs.count(I))
+    case Instruction::FPTrunc:
+      if (!Truncs.insert(I))
         continue;
-      Truncs.insert(I);
       Visited.insert(I);
       break;
 
     // Extend leafs
     case Instruction::SExt:
     case Instruction::ZExt:
+    case Instruction::FPExt:
       if (Exts.count(I))
         continue;
       for (auto *Use : I->users())
@@ -188,6 +193,36 @@ static bool tryInterleave(Instruction *Start,
       Exts.insert(I);
       break;
 
+    case Instruction::Call: {
+      IntrinsicInst *II = dyn_cast<IntrinsicInst>(I);
+      if (!II)
+        return false;
+
+      switch (II->getIntrinsicID()) {
+      case Intrinsic::abs:
+      case Intrinsic::smin:
+      case Intrinsic::smax:
+      case Intrinsic::umin:
+      case Intrinsic::umax:
+      case Intrinsic::sadd_sat:
+      case Intrinsic::ssub_sat:
+      case Intrinsic::uadd_sat:
+      case Intrinsic::usub_sat:
+      case Intrinsic::minnum:
+      case Intrinsic::maxnum:
+      case Intrinsic::fabs:
+      case Intrinsic::fma:
+      case Intrinsic::ceil:
+      case Intrinsic::floor:
+      case Intrinsic::rint:
+      case Intrinsic::round:
+      case Intrinsic::trunc:
+        break;
+      default:
+        return false;
+      }
+      [[fallthrough]]; // Fall through to treating these like an operator below.
+    }
     // Binary/tertiary ops
     case Instruction::Add:
     case Instruction::Sub:
@@ -196,12 +231,16 @@ static bool tryInterleave(Instruction *Start,
     case Instruction::LShr:
     case Instruction::Shl:
     case Instruction::ICmp:
+    case Instruction::FCmp:
+    case Instruction::FAdd:
+    case Instruction::FMul:
     case Instruction::Select:
-      if (Ops.count(I))
+      if (!Ops.insert(I))
         continue;
-      Ops.insert(I);
 
       for (Use &Op : I->operands()) {
+        if (!isa<FixedVectorType>(Op->getType()))
+          continue;
         if (isa<Instruction>(Op))
           Worklist.push_back(cast<Instruction>(&Op));
         else
@@ -216,7 +255,7 @@ static bool tryInterleave(Instruction *Start,
       // A shuffle of a splat is a splat.
       if (cast<ShuffleVectorInst>(I)->isZeroEltSplat())
         continue;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
     default:
       LLVM_DEBUG(dbgs() << "  Unhandled instruction: " << *I << "\n");
@@ -236,7 +275,7 @@ static bool tryInterleave(Instruction *Start,
       dbgs() << "  " << *I << "\n";
     dbgs() << "  OtherLeafs:";
     for (auto *I : OtherLeafs)
-      dbgs() << "  " << *I << "\n";
+      dbgs() << "  " << *I->get() << " of " << *I->getUser() << "\n";
     dbgs() << "Truncs:";
     for (auto *I : Truncs)
       dbgs() << "  " << *I << "\n";
@@ -297,9 +336,11 @@ static bool tryInterleave(Instruction *Start,
     LLVM_DEBUG(dbgs() << "Replacing ext " << *I << "\n");
     Builder.SetInsertPoint(I);
     Value *Shuffle = Builder.CreateShuffleVector(I->getOperand(0), LeafMask);
+    bool FPext = isa<FPExtInst>(I);
     bool Sext = isa<SExtInst>(I);
-    Value *Ext = Sext ? Builder.CreateSExt(Shuffle, I->getType())
-                      : Builder.CreateZExt(Shuffle, I->getType());
+    Value *Ext = FPext ? Builder.CreateFPExt(Shuffle, I->getType())
+                       : Sext ? Builder.CreateSExt(Shuffle, I->getType())
+                              : Builder.CreateZExt(Shuffle, I->getType());
     I->replaceAllUsesWith(Ext);
     LLVM_DEBUG(dbgs() << "  with " << *Shuffle << "\n");
   }

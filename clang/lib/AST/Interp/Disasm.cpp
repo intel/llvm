@@ -21,16 +21,26 @@
 using namespace clang;
 using namespace clang::interp;
 
+template <typename T> inline T ReadArg(Program &P, CodePtr &OpPC) {
+  if constexpr (std::is_pointer<T>::value) {
+    uint32_t ID = OpPC.read<uint32_t>();
+    return reinterpret_cast<T>(P.getNativePointer(ID));
+  } else {
+    return OpPC.read<T>();
+  }
+}
+
 LLVM_DUMP_METHOD void Function::dump() const { dump(llvm::errs()); }
 
 LLVM_DUMP_METHOD void Function::dump(llvm::raw_ostream &OS) const {
   if (F) {
     if (auto *Cons = dyn_cast<CXXConstructorDecl>(F)) {
       DeclarationName Name = Cons->getParent()->getDeclName();
-      OS << Name << "::" << Name << ":\n";
+      OS << Name << "::" << Name;
     } else {
-      OS << F->getDeclName() << ":\n";
+      OS << F->getDeclName();
     }
+    OS << " " << (void*)this << ":\n";
   } else {
     OS << "<<expr>>\n";
   }

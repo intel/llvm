@@ -66,7 +66,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
   let cppNamespace = "::mlir";
 
   let methods = [
-    InterfaceMethod<
+    StaticInterfaceMethod<
       /*desc=*/[{
         Return the number of leading operands before the `offsets`, `sizes` and
         and `strides` operands.
@@ -93,7 +93,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.offsets();
+        return $_op.getOffsets();
       }]
     >,
     InterfaceMethod<
@@ -105,7 +105,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.sizes();
+        return $_op.getSizes();
       }]
     >,
     InterfaceMethod<
@@ -117,7 +117,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.strides();
+        return $_op.getStrides();
       }]
     >,
     InterfaceMethod<
@@ -129,7 +129,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.static_offsets();
+        return $_op.getStaticOffsets();
       }]
     >,
     InterfaceMethod<
@@ -141,7 +141,7 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.static_sizes();
+        return $_op.getStaticSizes();
       }]
     >,
     InterfaceMethod<
@@ -153,70 +153,45 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.static_strides();
+        return $_op.getStaticStrides();
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return a vector of all the static or dynamic sizes of the op.
       }],
-      /*retTy=*/"::mlir::SmallVector<::mlir::OpFoldResult, 4>",
+      /*retTy=*/"::llvm::SmallVector<::mlir::OpFoldResult, 4>",
       /*methodName=*/"getMixedOffsets",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        ::mlir::SmallVector<::mlir::OpFoldResult, 4> res;
-        unsigned numDynamic = 0;
-        unsigned count = $_op.static_offsets().size();
-        for (unsigned idx = 0; idx < count; ++idx) {
-          if (isDynamicOffset(idx))
-            res.push_back($_op.offsets()[numDynamic++]);
-          else
-            res.push_back($_op.static_offsets()[idx]);
-        }
-        return res;
+        return ::mlir::getMixedStridesOrOffsets($_op.getStaticOffsets(),
+                                                $_op.getOffsets());
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return a vector of all the static or dynamic sizes of the op.
       }],
-      /*retTy=*/"::mlir::SmallVector<::mlir::OpFoldResult, 4>",
+      /*retTy=*/"::llvm::SmallVector<::mlir::OpFoldResult, 4>",
       /*methodName=*/"getMixedSizes",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        ::mlir::SmallVector<::mlir::OpFoldResult, 4> res;
-        unsigned numDynamic = 0;
-        unsigned count = $_op.static_sizes().size();
-        for (unsigned idx = 0; idx < count; ++idx) {
-          if (isDynamicSize(idx))
-            res.push_back($_op.sizes()[numDynamic++]);
-          else
-            res.push_back($_op.static_sizes()[idx]);
-        }
-        return res;
+        return ::mlir::getMixedSizes($_op.getStaticSizes(), $_op.sizes());
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return a vector of all the static or dynamic strides of the op.
       }],
-      /*retTy=*/"::mlir::SmallVector<::mlir::OpFoldResult, 4>",
+      /*retTy=*/"::llvm::SmallVector<::mlir::OpFoldResult, 4>",
       /*methodName=*/"getMixedStrides",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        ::mlir::SmallVector<::mlir::OpFoldResult, 4> res;
-        unsigned numDynamic = 0;
-        unsigned count = $_op.static_strides().size();
-        for (unsigned idx = 0; idx < count; ++idx) {
-          if (isDynamicStride(idx))
-            res.push_back($_op.strides()[numDynamic++]);
-          else
-            res.push_back($_op.static_strides()[idx]);
-        }
-        return res;
+        return ::mlir::getMixedStridesOrOffsets($_op.getStaticStrides(),
+                                                $_op.getStrides());
       }]
     >,
 
@@ -262,7 +237,6 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
         return ::mlir::ShapedType::isDynamicStrideOrOffset(v.getSExtValue());
       }]
     >,
-
     InterfaceMethod<
       /*desc=*/[{
         Assert the offset `idx` is a static constant and return its value.
@@ -419,6 +393,47 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
         return $_op.getOperand(getIndexOfDynamicStride(idx));
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return true if all `other`'s offsets, sizes and strides are the same.
+        Takes a custom `cmp` comparison function on OpFoldResult to avoid taking
+        a dialect dependence.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isSameAs",
+      /*args=*/(ins "::mlir::OffsetSizeAndStrideOpInterface":$other,
+                   "::llvm::function_ref<bool(::mlir::OpFoldResult, ::mlir::OpFoldResult)>":$cmp),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return ::mlir::detail::sameOffsetsSizesAndStrides(
+          ::mlir::cast<::mlir::OffsetSizeAndStrideOpInterface>(
+            $_op.getOperation()), other, cmp);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{ Return true if all strides are guaranteed to be 1. }],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasUnitStride",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return ::llvm::all_of(getMixedStrides(), [](::mlir::OpFoldResult ofr) {
+          return ::mlir::getConstantIntValue(ofr) == static_cast<int64_t>(1);
+        });
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{ Return true if all offsets are guaranteed to be 0. }],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasZeroOffset",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return ::llvm::all_of(getMixedOffsets(), [](::mlir::OpFoldResult ofr) {
+          return ::mlir::getConstantIntValue(ofr) == static_cast<int64_t>(0);
+        });
+      }]
+    >,
   ];
 
   let extraClassDeclaration = [{
@@ -441,11 +456,12 @@ def OffsetSizeAndStrideOpInterface : OpInterface<"OffsetSizeAndStrideOpInterface
         ::mlir::OffsetSizeAndStrideOpInterface::getStaticStridesAttrName(),
         ::mlir::OpTrait::AttrSizedOperandSegments<void>::getOperandSegmentSizeAttr()};
       return names;
-   }
+    }
   }];
 
   let verify = [{
-    return ::mlir::verify(::mlir::cast<::mlir::OffsetSizeAndStrideOpInterface>($_op));
+    return ::mlir::detail::verifyOffsetSizeAndStrideOp(
+        ::mlir::cast<::mlir::OffsetSizeAndStrideOpInterface>($_op));
   }];
 }
 

@@ -1,14 +1,16 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s --check-prefix=X86-64
-// RUN: %clang_cc1 -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s --check-prefix=ARM64
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple x86_64-apple-darwin10 -target-cpu core2 -emit-llvm -o - %s | FileCheck %s --check-prefix=X86-64
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -no-enable-noundef-analysis -triple arm64-apple-ios9 -target-cpu cyclone -emit-llvm -o - %s | FileCheck %s --check-prefix=ARM64
 
 // REQUIRES: aarch64-registered-target,x86-registered-target
 
 #define SWIFTCALL __attribute__((swiftcall))
+#define SWIFTASYNCCALL __attribute__((swiftasynccall))
 #define OUT __attribute__((swift_indirect_result))
 #define ERROR __attribute__((swift_error_result))
 #define CONTEXT __attribute__((swift_context))
+#define ASYNC_CONTEXT __attribute__((swift_async_context))
 
 // CHECK-DAG: %struct.atomic_padded = type { { %struct.packed, [7 x i8] } }
 // CHECK-DAG: %struct.packed = type <{ i64, i8 }>
@@ -33,8 +35,14 @@ SWIFTCALL struct_reallybig indirect_result_3(OUT int *arg0, OUT float *arg1) { _
 SWIFTCALL void context_1(CONTEXT void *self) {}
 // CHECK-LABEL: define {{.*}} void @context_1(i8* swiftself
 
+SWIFTASYNCCALL void async_context_1(ASYNC_CONTEXT void *ctx) {}
+// CHECK-LABEL: define {{.*}} void @async_context_1(i8* swiftasync
+
 SWIFTCALL void context_2(void *arg0, CONTEXT void *self) {}
 // CHECK-LABEL: define {{.*}} void @context_2(i8*{{.*}}, i8* swiftself
+
+SWIFTASYNCCALL void async_context_2(void *arg0, ASYNC_CONTEXT void *ctx) {}
+// CHECK-LABEL: define {{.*}} void @async_context_2(i8*{{.*}}, i8* swiftasync
 
 SWIFTCALL void context_error_1(CONTEXT int *self, ERROR float **error) {}
 // CHECK-LABEL: define {{.*}} void @context_error_1(i32* swiftself{{.*}}, float** swifterror %0)
@@ -117,7 +125,7 @@ TEST(struct_1);
 // CHECK:   [[T0:%.*]] = load i64, i64* [[GEP0]], align 4
 // CHECK:   [[GEP1:%.*]] = getelementptr inbounds { i64, i64 }, { i64, i64 }* [[CAST]], i32 0, i32 1
 // CHECK:   [[T1:%.*]] = load i64, i64* [[GEP1]], align 4
-// CHECK:   [[R0:%.*]] = insertvalue { i64, i64 } undef, i64 [[T0]], 0
+// CHECK:   [[R0:%.*]] = insertvalue { i64, i64 } poison, i64 [[T0]], 0
 // CHECK:   [[R1:%.*]] = insertvalue { i64, i64 } [[R0]], i64 [[T1]], 1
 // CHECK:   ret { i64, i64 } [[R1]]
 // CHECK: }
@@ -166,7 +174,7 @@ TEST(struct_2);
 // CHECK:   [[T0:%.*]] = load i64, i64* [[GEP0]], align 4
 // CHECK:   [[GEP1:%.*]] = getelementptr inbounds { i64, i64 }, { i64, i64 }* [[CAST]], i32 0, i32 1
 // CHECK:   [[T1:%.*]] = load i64, i64* [[GEP1]], align 4
-// CHECK:   [[R0:%.*]] = insertvalue { i64, i64 } undef, i64 [[T0]], 0
+// CHECK:   [[R0:%.*]] = insertvalue { i64, i64 } poison, i64 [[T0]], 0
 // CHECK:   [[R1:%.*]] = insertvalue { i64, i64 } [[R0]], i64 [[T1]], 1
 // CHECK:   ret { i64, i64 } [[R1]]
 // CHECK: }
@@ -387,7 +395,7 @@ TEST(int8)
 // CHECK:   [[FIRST:%.*]] = load <4 x i32>, <4 x i32>* [[T0]], align
 // CHECK:   [[T0:%.*]] = getelementptr inbounds [[AGG]], [[AGG]]* [[CAST_TMP]], i32 0, i32 1
 // CHECK:   [[SECOND:%.*]] = load <4 x i32>, <4 x i32>* [[T0]], align
-// CHECK:   [[T0:%.*]] = insertvalue [[UAGG:{ <4 x i32>, <4 x i32> }]] undef, <4 x i32> [[FIRST]], 0
+// CHECK:   [[T0:%.*]] = insertvalue [[UAGG:{ <4 x i32>, <4 x i32> }]] poison, <4 x i32> [[FIRST]], 0
 // CHECK:   [[T1:%.*]] = insertvalue [[UAGG]] [[T0]], <4 x i32> [[SECOND]], 1
 // CHECK:   ret [[UAGG]] [[T1]]
 // CHECK-LABEL: define {{.*}} @take_int8(<4 x i32> %0, <4 x i32> %1)
@@ -431,7 +439,7 @@ TEST(int5)
 // CHECK:   [[FIRST:%.*]] = load <4 x i32>, <4 x i32>* [[T0]], align
 // CHECK:   [[T0:%.*]] = getelementptr inbounds [[AGG]], [[AGG]]* [[CAST_TMP]], i32 0, i32 1
 // CHECK:   [[SECOND:%.*]] = load i32, i32* [[T0]], align
-// CHECK:   [[T0:%.*]] = insertvalue [[UAGG:{ <4 x i32>, i32 }]] undef, <4 x i32> [[FIRST]], 0
+// CHECK:   [[T0:%.*]] = insertvalue [[UAGG:{ <4 x i32>, i32 }]] poison, <4 x i32> [[FIRST]], 0
 // CHECK:   [[T1:%.*]] = insertvalue [[UAGG]] [[T0]], i32 [[SECOND]], 1
 // CHECK:   ret [[UAGG]] [[T1]]
 // CHECK-LABEL: define {{.*}} @take_int5(<4 x i32> %0, i32 %1)

@@ -73,10 +73,10 @@ private:
   };
 
   ExecutionContextRef m_exe_ctx_ref;
-  uint8_t m_ptr_size;
-  DataDescriptor_32 *m_data_32;
-  DataDescriptor_64 *m_data_64;
-  lldb::addr_t m_data_ptr;
+  uint8_t m_ptr_size = 8;
+  DataDescriptor_32 *m_data_32 = nullptr;
+  DataDescriptor_64 *m_data_64 = nullptr;
+  lldb::addr_t m_data_ptr = LLDB_INVALID_ADDRESS;
   std::vector<SetItemDescriptor> m_children;
 };
 
@@ -101,8 +101,8 @@ private:
   };
 
   ExecutionContextRef m_exe_ctx_ref;
-  uint8_t m_ptr_size;
-  lldb::ByteOrder m_order;
+  uint8_t m_ptr_size = 8;
+  lldb::ByteOrder m_order = lldb::eByteOrderInvalid;
 
   CFBasicHash m_hashtable;
 
@@ -135,7 +135,7 @@ private:
   };
 
   ExecutionContextRef m_exe_ctx_ref;
-  uint8_t m_ptr_size;
+  uint8_t m_ptr_size = 8;
   D32 *m_data_32;
   D64 *m_data_64;
   std::vector<SetItemDescriptor> m_children;
@@ -401,8 +401,7 @@ lldb_private::formatters::NSSetSyntheticFrontEndCreator(
 
 lldb_private::formatters::NSSetISyntheticFrontEnd::NSSetISyntheticFrontEnd(
     lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_ptr_size(8),
-      m_data_32(nullptr), m_data_64(nullptr) {
+    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref() {
   if (valobj_sp)
     Update();
 }
@@ -444,18 +443,12 @@ bool lldb_private::formatters::NSSetISyntheticFrontEnd::Update() {
   if (!valobj_sp)
     return false;
   m_exe_ctx_ref = valobj_sp->GetExecutionContextRef();
-  Status error;
-  if (valobj_sp->IsPointerType()) {
-    valobj_sp = valobj_sp->Dereference(error);
-    if (error.Fail() || !valobj_sp)
-      return false;
-  }
-  error.Clear();
   lldb::ProcessSP process_sp(valobj_sp->GetProcessSP());
   if (!process_sp)
     return false;
   m_ptr_size = process_sp->GetAddressByteSize();
-  uint64_t data_location = valobj_sp->GetAddressOf() + m_ptr_size;
+  uint64_t data_location = valobj_sp->GetValueAsUnsigned(0) + m_ptr_size;
+  Status error;
   if (m_ptr_size == 4) {
     m_data_32 = new DataDescriptor_32();
     process_sp->ReadMemory(data_location, m_data_32, sizeof(DataDescriptor_32),
@@ -468,7 +461,7 @@ bool lldb_private::formatters::NSSetISyntheticFrontEnd::Update() {
   if (error.Fail())
     return false;
   m_data_ptr = data_location + m_ptr_size;
-  return false;
+  return true;
 }
 
 bool lldb_private::formatters::NSSetISyntheticFrontEnd::MightHaveChildren() {
@@ -552,8 +545,8 @@ lldb_private::formatters::NSSetISyntheticFrontEnd::GetChildAtIndex(size_t idx) {
 
 lldb_private::formatters::NSCFSetSyntheticFrontEnd::NSCFSetSyntheticFrontEnd(
     lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_ptr_size(8),
-      m_order(lldb::eByteOrderInvalid), m_hashtable(), m_pair_type() {}
+    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_hashtable(),
+      m_pair_type() {}
 
 size_t
 lldb_private::formatters::NSCFSetSyntheticFrontEnd::GetIndexOfChildWithName(
@@ -642,7 +635,7 @@ lldb_private::formatters::NSCFSetSyntheticFrontEnd::GetChildAtIndex(
   SetItemDescriptor &set_item = m_children[idx];
   if (!set_item.valobj_sp) {
 
-    DataBufferSP buffer_sp(new DataBufferHeap(m_ptr_size, 0));
+    WritableDataBufferSP buffer_sp(new DataBufferHeap(m_ptr_size, 0));
 
     switch (m_ptr_size) {
     case 0: // architecture has no clue - fail
@@ -673,10 +666,9 @@ lldb_private::formatters::NSCFSetSyntheticFrontEnd::GetChildAtIndex(
 }
 
 template <typename D32, typename D64>
-lldb_private::formatters::
-  GenericNSSetMSyntheticFrontEnd<D32, D64>::GenericNSSetMSyntheticFrontEnd(
-    lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_ptr_size(8),
+lldb_private::formatters::GenericNSSetMSyntheticFrontEnd<
+    D32, D64>::GenericNSSetMSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
+    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(),
       m_data_32(nullptr), m_data_64(nullptr) {
   if (valobj_sp)
     Update();
@@ -728,18 +720,12 @@ lldb_private::formatters::
   if (!valobj_sp)
     return false;
   m_exe_ctx_ref = valobj_sp->GetExecutionContextRef();
-  Status error;
-  if (valobj_sp->IsPointerType()) {
-    valobj_sp = valobj_sp->Dereference(error);
-    if (error.Fail() || !valobj_sp)
-      return false;
-  }
-  error.Clear();
   lldb::ProcessSP process_sp(valobj_sp->GetProcessSP());
   if (!process_sp)
     return false;
   m_ptr_size = process_sp->GetAddressByteSize();
-  uint64_t data_location = valobj_sp->GetAddressOf() + m_ptr_size;
+  uint64_t data_location = valobj_sp->GetValueAsUnsigned(0) + m_ptr_size;
+  Status error;
   if (m_ptr_size == 4) {
     m_data_32 = new D32();
     process_sp->ReadMemory(data_location, m_data_32, sizeof(D32),
@@ -749,9 +735,7 @@ lldb_private::formatters::
     process_sp->ReadMemory(data_location, m_data_64, sizeof(D64),
                            error);
   }
-  if (error.Fail())
-    return false;
-  return false;
+  return error.Success();
 }
 
 template <typename D32, typename D64>

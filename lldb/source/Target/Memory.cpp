@@ -9,6 +9,7 @@
 #include "lldb/Target/Memory.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/DataBufferHeap.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RangeMap.h"
 #include "lldb/Utility/State.h"
@@ -26,7 +27,7 @@ MemoryCache::MemoryCache(Process &process)
       m_L2_cache_line_byte_size(process.GetMemoryCacheLineSize()) {}
 
 // Destructor
-MemoryCache::~MemoryCache() {}
+MemoryCache::~MemoryCache() = default;
 
 void MemoryCache::Clear(bool clear_invalid_ranges) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
@@ -259,14 +260,14 @@ AllocatedBlock::AllocatedBlock(lldb::addr_t addr, uint32_t byte_size,
   assert(byte_size > chunk_size);
 }
 
-AllocatedBlock::~AllocatedBlock() {}
+AllocatedBlock::~AllocatedBlock() = default;
 
 lldb::addr_t AllocatedBlock::ReserveBlock(uint32_t size) {
   // We must return something valid for zero bytes.
   if (size == 0)
     size = 1;
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
-  
+  Log *log = GetLog(LLDBLog::Process);
+
   const size_t free_count = m_free_blocks.GetSize();
   for (size_t i=0; i<free_count; ++i)
   {
@@ -321,7 +322,7 @@ bool AllocatedBlock::FreeBlock(addr_t addr) {
     m_reserved_blocks.RemoveEntryAtIndex(entry_idx);
     success = true;
   }
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOGV(log, "({0}) (addr = {1:x}) => {2}", this, addr, success);
   return success;
 }
@@ -329,7 +330,7 @@ bool AllocatedBlock::FreeBlock(addr_t addr) {
 AllocatedMemoryCache::AllocatedMemoryCache(Process &process)
     : m_process(process), m_mutex(), m_memory_map() {}
 
-AllocatedMemoryCache::~AllocatedMemoryCache() {}
+AllocatedMemoryCache::~AllocatedMemoryCache() = default;
 
 void AllocatedMemoryCache::Clear() {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
@@ -351,7 +352,7 @@ AllocatedMemoryCache::AllocatePage(uint32_t byte_size, uint32_t permissions,
 
   addr_t addr = m_process.DoAllocateMemory(page_byte_size, permissions, error);
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   if (log) {
     LLDB_LOGF(log,
               "Process::DoAllocateMemory (byte_size = 0x%8.8" PRIx32
@@ -390,7 +391,7 @@ lldb::addr_t AllocatedMemoryCache::AllocateMemory(size_t byte_size,
     if (block_sp)
       addr = block_sp->ReserveBlock(byte_size);
   }
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOGF(log,
             "AllocatedMemoryCache::AllocateMemory (byte_size = 0x%8.8" PRIx32
             ", permissions = %s) => 0x%16.16" PRIx64,
@@ -410,7 +411,7 @@ bool AllocatedMemoryCache::DeallocateMemory(lldb::addr_t addr) {
       break;
     }
   }
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+  Log *log = GetLog(LLDBLog::Process);
   LLDB_LOGF(log,
             "AllocatedMemoryCache::DeallocateMemory (addr = 0x%16.16" PRIx64
             ") => %i",

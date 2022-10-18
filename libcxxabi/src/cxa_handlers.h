@@ -1,4 +1,4 @@
-//===------------------------- cxa_handlers.h -----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -52,4 +52,4 @@ _LIBCXXABI_DATA_VIS extern void (*__cxa_new_handler)();
 
 } // extern "C"
 
-#endif  // _CXA_HANDLERS_H
+#endif // _CXA_HANDLERS_H

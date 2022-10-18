@@ -1,9 +1,8 @@
 ; Tests that allocas after coro.begin are properly that do not need to
 ; live on the frame are properly moved to the .resume function.
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
-define i8* @f() "coroutine.presplit"="1" {
+define i8* @f() presplitcoroutine {
 entry:
   %id = call token @llvm.coro.id(i32 0, i8* null, i8* null, i8* null)
   %size = call i32 @llvm.coro.size.i32()
@@ -32,10 +31,10 @@ suspend:
 ; CHECK-NEXT:  entry.resume:
 ; CHECK-NEXT:    [[VFRAME:%.*]] = bitcast %f.Frame* [[FRAMEPTR:%.*]] to i8*
 ; CHECK-NEXT:    [[X:%.*]] = alloca i32, align 4
-; CHECK-NEXT:    [[X_VALUE:%.*]] = load i32, i32* [[X]], align 4
+; CHECK:         [[X_VALUE:%.*]] = load i32, i32* [[X]], align 4
 ; CHECK-NEXT:    call void @print(i32 [[X_VALUE]])
-; CHECK-NEXT:    call void @free(i8* [[VFRAME]])
-; CHECK-NEXT:    ret void
+; CHECK:         call void @free(i8* [[VFRAME]])
+; CHECK:         ret void
 
 declare i8* @llvm.coro.free(token, i8*)
 declare i32 @llvm.coro.size.i32()

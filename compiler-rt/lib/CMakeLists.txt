@@ -17,7 +17,7 @@ if(COMPILER_RT_BUILD_BUILTINS)
   add_subdirectory(builtins)
 endif()
 
-if(COMPILER_RT_BUILD_CRT AND COMPILER_RT_HAS_CRT)
+if(COMPILER_RT_BUILD_CRT)
   add_subdirectory(crt)
 endif()
 
@@ -64,6 +64,10 @@ endif()
 
 if(COMPILER_RT_BUILD_MEMPROF AND COMPILER_RT_HAS_SANITIZER_COMMON)
   compiler_rt_build_runtime(memprof)
+endif()
+
+if(COMPILER_RT_BUILD_ORC)
+  compiler_rt_build_runtime(orc)
 endif()
 
 # It doesn't normally make sense to build runtimes when a sanitizer is enabled,

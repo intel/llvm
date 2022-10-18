@@ -4,7 +4,6 @@
 
 ; This tests pointer features that may codegen differently in wasm64.
 
-target datalayout = "e-m:e-p:64:64-i64:64-n32:64-S128"
 target triple = "wasm64-unknown-unknown"
 
 define void @bar(i32 %n) {
@@ -31,6 +30,7 @@ entry:
 ; of pointers the same size, so function pointers (which are 32-bit indices
 ; in Wasm) are represented as 64-bit until called.
 
+; CHECK-LABEL: foo:
 ; CHECK:      .functype foo (i64) -> ()
 ; CHECK-NEXT: i32.const 1
 ; CHECK-NEXT: local.get 0

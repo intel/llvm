@@ -8,7 +8,7 @@
 
 #include "SystemInitializerLLGS.h"
 #include "lldb/Initialization/SystemLifetimeManager.h"
-#include "lldb/lldb-private.h"
+#include "lldb/Version/Version.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -17,8 +17,8 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 static llvm::ManagedStatic<lldb_private::SystemLifetimeManager>
     g_debugger_lifetime;

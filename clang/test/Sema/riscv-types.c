@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple riscv64 -target-feature +experimental-v -ast-print %s \
+// RUN: %clang_cc1 -triple riscv64 -target-feature +v -ast-print %s \
 // RUN:    | FileCheck %s
 
 void bar(void) {
@@ -133,4 +133,13 @@ void bar(void) {
 
   // CHECK: __rvv_int8mf2_t x43;
   __rvv_int8mf2_t x43;
+}
+
+typedef __rvv_bool4_t vbool4_t;
+__rvv_bool4_t get_rvv_bool4(void);
+vbool4_t get_vbool4_t(void);
+
+void func1(int sel) {
+  // CHECK: vbool4_t t0 = sel ? get_rvv_bool4() : get_vbool4_t();
+  vbool4_t t0 = sel ? get_rvv_bool4() : get_vbool4_t();
 }

@@ -6,15 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: c++03, c++11, c++14
 
 // ALLOW_RETRIES: 2
 
 // shared_mutex was introduced in macosx10.12
-// UNSUPPORTED: with_system_cxx_lib=macosx10.11
-// UNSUPPORTED: with_system_cxx_lib=macosx10.10
-// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
 
 // <shared_mutex>
 
@@ -39,6 +37,16 @@ typedef Clock::duration duration;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::nanoseconds ns;
 
+
+// Thread sanitizer causes more overhead and will sometimes cause this test
+// to fail. To prevent this we give Thread sanitizer more time to complete the
+// test.
+#if !defined(TEST_IS_EXECUTED_IN_A_SLOW_ENVIRONMENT)
+ms Tolerance = ms(200);
+#else
+ms Tolerance = ms(200 * 5);
+#endif
+
 void f()
 {
     time_point t0 = Clock::now();
@@ -46,11 +54,11 @@ void f()
     assert(!m.try_lock_shared());
     assert(!m.try_lock_shared());
     while(!m.try_lock_shared())
-        ;
+        std::this_thread::yield();
     time_point t1 = Clock::now();
     m.unlock_shared();
     ns d = t1 - t0 - ms(250);
-    assert(d < ms(200));  // within 200ms
+    assert(d < Tolerance);  // within tolerance
 }
 
 

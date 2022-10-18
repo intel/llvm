@@ -1,44 +1,79 @@
-set(LLVM_OPTIONAL_SOURCES
-  execution_engine.c
+function(_add_capi_test_executable name)
+  cmake_parse_arguments(ARG
+    ""
+    ""
+    "LINK_LIBS"
+    ${ARGN})
+  set(LLVM_LINK_COMPONENTS
+    )
+  add_llvm_executable(${name}
+    PARTIAL_SOURCES_INTENDED
+    ${ARG_UNPARSED_ARGUMENTS})
+  llvm_update_compile_flags(${name})
+  if(MLIR_BUILD_MLIR_C_DYLIB)
+    target_link_libraries(${name} PRIVATE
+      MLIR-C)
+  else()
+    target_link_libraries(${name} PRIVATE
+      ${ARG_LINK_LIBS})
+  endif()
+endfunction(_add_capi_test_executable)
+
+if(MLIR_ENABLE_EXECUTION_ENGINE)
+  _add_capi_test_executable(mlir-capi-execution-engine-test
+    execution_engine.c
+  LINK_LIBS PRIVATE
+    MLIRCAPIConversion
+    MLIRCAPIExecutionEngine
+    MLIRCAPIRegisterEverything
+)
+endif()
+
+_add_capi_test_executable(mlir-capi-ir-test
   ir.c
-  pass.c
+  LINK_LIBS PRIVATE
+    MLIRCAPIIR
+    MLIRCAPIFunc
+    MLIRCAPIRegisterEverything
 )
 
-set(LLVM_LINK_COMPONENTS
-  )
+_add_capi_test_executable(mlir-capi-llvm-test
+  llvm.c
+  LINK_LIBS PRIVATE
+    MLIRCAPIIR
+    MLIRCAPILLVM
+    MLIRCAPIRegisterEverything
+)
 
-add_llvm_executable(mlir-capi-ir-test
-  ir.c
-  )
-llvm_update_compile_flags(mlir-capi-ir-test)
-
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-target_link_libraries(mlir-capi-ir-test
-  PRIVATE
-  MLIRPublicAPI
-  )
-
-
-add_llvm_executable(mlir-capi-pass-test
+_add_capi_test_executable(mlir-capi-pass-test
   pass.c
-  )
-llvm_update_compile_flags(mlir-capi-pass-test)
+  LINK_LIBS PRIVATE
+    MLIRCAPIFunc
+    MLIRCAPIIR
+    MLIRCAPIRegisterEverything
+    MLIRCAPITransforms
+)
 
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-target_link_libraries(mlir-capi-pass-test
-  PRIVATE
-  MLIRPublicAPI
-  )
+_add_capi_test_executable(mlir-capi-sparse-tensor-test
+  sparse_tensor.c
+  LINK_LIBS PRIVATE
+    MLIRCAPIIR
+    MLIRCAPIRegisterEverything
+    MLIRCAPISparseTensor
+)
 
-add_llvm_executable(mlir-capi-execution-engine-test
-  execution_engine.c
-DEPENDS
-  MLIRConversionPassIncGen
-  )
-llvm_update_compile_flags(mlir-capi-execution-engine-test)
+_add_capi_test_executable(mlir-capi-quant-test
+  quant.c
+  LINK_LIBS PRIVATE
+    MLIRCAPIIR
+    MLIRCAPIRegisterEverything
+    MLIRCAPIQuant
+)
 
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-target_link_libraries(mlir-capi-execution-engine-test
-  PRIVATE
-  MLIRPublicAPI
-  )
+_add_capi_test_executable(mlir-capi-pdl-test
+  pdl.c
+  LINK_LIBS PRIVATE
+    MLIRCAPIIR
+    MLIRCAPIRegisterEverything
+    MLIRCAPIPDL
+)

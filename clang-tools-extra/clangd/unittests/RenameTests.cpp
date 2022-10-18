@@ -880,33 +880,12 @@ TEST(RenameTest, Renameable) {
         void f(X x) {x+^+;})cpp",
           "no symbol", HeaderFile},
 
-      {R"cpp(// disallow rename on excluded symbols (e.g. std symbols)
-         namespace std {
-         class str^ing {};
-         }
-       )cpp",
-       "not a supported kind", !HeaderFile},
-      {R"cpp(// disallow rename on excluded symbols (e.g. std symbols)
-         namespace std {
-         inline namespace __u {
-         class str^ing {};
-         }
-         }
-       )cpp",
-       "not a supported kind", !HeaderFile},
-
       {R"cpp(// disallow rename on non-normal identifiers.
          @interface Foo {}
          -(int) fo^o:(int)x; // Token is an identifier, but declaration name isn't a simple identifier.
          @end
        )cpp",
        "not a supported kind", HeaderFile},
-      {R"cpp(// FIXME: rename virtual/override methods is not supported yet.
-         struct A {
-          virtual void f^oo() {}
-         };
-      )cpp",
-       "not a supported kind", !HeaderFile},
       {R"cpp(
          void foo(int);
          void foo(char);
@@ -1060,6 +1039,11 @@ TEST(RenameTest, Renameable) {
       )cpp",
        "conflict", !HeaderFile, "Conflict"},
 
+      {R"cpp(
+        int V^ar;
+      )cpp",
+       "\"const\" is a keyword", !HeaderFile, "const"},
+
       {R"cpp(// Trying to rename into the same name, SameName == SameName.
         void func() {
           int S^ameName;
@@ -1071,6 +1055,13 @@ TEST(RenameTest, Renameable) {
         struct B : priv^ate A {};
       )cpp",
        "Cannot rename symbol: there is no symbol at the given location", false},
+      {R"cpp(// Ensure it doesn't associate base specifier with base name.
+        /*error-ok*/
+        struct A {
+          A() : inva^lid(0) {}
+        };
+      )cpp",
+       "no symbol", false},
   };
 
   for (const auto& Case : Cases) {
@@ -1184,6 +1175,40 @@ TEST(RenameTest, MainFileReferencesOnly) {
   ASSERT_EQ(1u, RenameResult->GlobalChanges.size());
   EXPECT_EQ(applyEdits(std::move(RenameResult->GlobalChanges)).front().second,
             expectedResult(Code, NewName));
+}
+
+TEST(RenameTest, NoRenameOnSymbolsFromSystemHeaders) {
+  llvm::StringRef Test =
+      R"cpp(
+        #include <cstdlib>
+        #include <system>
+
+        SystemSym^bol abc;
+
+        void foo() { at^oi("9000"); }
+        )cpp";
+
+  Annotations Code(Test);
+  auto TU = TestTU::withCode(Code.code());
+  TU.AdditionalFiles["system"] = R"cpp(
+    class SystemSymbol {};
+    )cpp";
+  TU.AdditionalFiles["cstdlib"] = R"cpp(
+    int atoi(const char *str);
+    )cpp";
+  TU.ExtraArgs = {"-isystem", testRoot()};
+  auto AST = TU.build();
+  llvm::StringRef NewName = "abcde";
+
+  // Clangd will not allow renaming symbols from the system headers for
+  // correctness.
+  for (auto &Point : Code.points()) {
+    auto Results = rename({Point, NewName, AST, testPath(TU.Filename)});
+    EXPECT_FALSE(Results) << "expected rename returned an error: "
+                          << Code.code();
+    auto ActualMessage = llvm::toString(Results.takeError());
+    EXPECT_THAT(ActualMessage, testing::HasSubstr("not a supported kind"));
+  }
 }
 
 TEST(RenameTest, ProtobufSymbolIsExcluded) {
@@ -1459,6 +1484,48 @@ TEST(CrossFileRenameTests, WithUpToDateIndex) {
         }
       )cpp",
       },
+      {
+          // virtual methods.
+          R"cpp(
+        class Base {
+          virtual void [[foo]]();
+        };
+        class Derived1 : public Base {
+          void [[f^oo]]() override;
+        };
+        class NotDerived {
+          void foo() {};
+        }
+      )cpp",
+          R"cpp(
+        #include "foo.h"
+        void Base::[[foo]]() {}
+        void Derived1::[[foo]]() {}
+
+        class Derived2 : public Derived1 {
+          void [[foo]]() override {};
+        };
+
+        void func(Base* b, Derived1* d1, 
+                  Derived2* d2, NotDerived* nd) {
+          b->[[foo]]();
+          d1->[[foo]]();
+          d2->[[foo]]();
+          nd->foo();
+        }
+      )cpp",
+      },
+      // FIXME: triggers an assertion failure due to a bug in canonicalization.
+      // See https://reviews.llvm.org/D132797
+#if 0
+      {
+          // virtual templated method
+          R"cpp(
+        template <typename> class Foo { virtual void [[m]](); };
+        class Bar : Foo<int> { void [[^m]]() override; };
+      )cpp", ""
+      },
+#endif
       {
           // rename on constructor and destructor.
           R"cpp(

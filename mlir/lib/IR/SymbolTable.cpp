@@ -22,17 +22,13 @@ static bool isPotentiallyUnknownSymbolTable(Operation *op) {
   return op->getNumRegions() == 1 && !op->getDialect();
 }
 
-/// Returns the string name of the given symbol, or None if this is not a
+/// Returns the string name of the given symbol, or null if this is not a
 /// symbol.
-static Optional<StringRef> getNameIfSymbol(Operation *symbol) {
-  auto nameAttr =
-      symbol->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName());
-  return nameAttr ? nameAttr.getValue() : Optional<StringRef>();
+static StringAttr getNameIfSymbol(Operation *op) {
+  return op->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName());
 }
-static Optional<StringRef> getNameIfSymbol(Operation *symbol,
-                                           Identifier symbolAttrNameId) {
-  auto nameAttr = symbol->getAttrOfType<StringAttr>(symbolAttrNameId);
-  return nameAttr ? nameAttr.getValue() : Optional<StringRef>();
+static StringAttr getNameIfSymbol(Operation *op, StringAttr symbolAttrNameId) {
+  return op->getAttrOfType<StringAttr>(symbolAttrNameId);
 }
 
 /// Computes the nested symbol reference attribute for the symbol 'symbolName'
@@ -40,13 +36,13 @@ static Optional<StringRef> getNameIfSymbol(Operation *symbol,
 /// to the given operation 'within', where 'within' is an ancestor of 'symbol'.
 /// Returns success if all references up to 'within' could be computed.
 static LogicalResult
-collectValidReferencesFor(Operation *symbol, StringRef symbolName,
+collectValidReferencesFor(Operation *symbol, StringAttr symbolName,
                           Operation *within,
                           SmallVectorImpl<SymbolRefAttr> &results) {
   assert(within->isAncestor(symbol) && "expected 'within' to be an ancestor");
   MLIRContext *ctx = symbol->getContext();
 
-  auto leafRef = FlatSymbolRefAttr::get(ctx, symbolName);
+  auto leafRef = FlatSymbolRefAttr::get(symbolName);
   results.push_back(leafRef);
 
   // Early exit for when 'within' is the parent of 'symbol'.
@@ -56,24 +52,23 @@ collectValidReferencesFor(Operation *symbol, StringRef symbolName,
 
   // Collect references until 'symbolTableOp' reaches 'within'.
   SmallVector<FlatSymbolRefAttr, 1> nestedRefs(1, leafRef);
-  Identifier symbolNameId =
-      Identifier::get(SymbolTable::getSymbolAttrName(), ctx);
+  StringAttr symbolNameId =
+      StringAttr::get(ctx, SymbolTable::getSymbolAttrName());
   do {
     // Each parent of 'symbol' should define a symbol table.
     if (!symbolTableOp->hasTrait<OpTrait::SymbolTable>())
       return failure();
     // Each parent of 'symbol' should also be a symbol.
-    Optional<StringRef> symbolTableName =
-        getNameIfSymbol(symbolTableOp, symbolNameId);
+    StringAttr symbolTableName = getNameIfSymbol(symbolTableOp, symbolNameId);
     if (!symbolTableName)
       return failure();
-    results.push_back(SymbolRefAttr::get(ctx, *symbolTableName, nestedRefs));
+    results.push_back(SymbolRefAttr::get(symbolTableName, nestedRefs));
 
     symbolTableOp = symbolTableOp->getParentOp();
     if (symbolTableOp == within)
       break;
     nestedRefs.insert(nestedRefs.begin(),
-                      FlatSymbolRefAttr::get(ctx, *symbolTableName));
+                      FlatSymbolRefAttr::get(symbolTableName));
   } while (true);
   return success();
 }
@@ -102,6 +97,18 @@ walkSymbolTable(MutableArrayRef<Region> regions,
   return WalkResult::advance();
 }
 
+/// Walk all of the operations nested under, and including, the given operation,
+/// without traversing into any nested symbol tables. Stops walking if the
+/// result of the callback is anything other than `WalkResult::advance`.
+static Optional<WalkResult>
+walkSymbolTable(Operation *op,
+                function_ref<Optional<WalkResult>(Operation *)> callback) {
+  Optional<WalkResult> result = callback(op);
+  if (result != WalkResult::advance() || op->hasTrait<OpTrait::SymbolTable>())
+    return result;
+  return walkSymbolTable(op->getRegions(), callback);
+}
+
 //===----------------------------------------------------------------------===//
 // SymbolTable
 //===----------------------------------------------------------------------===//
@@ -116,14 +123,14 @@ SymbolTable::SymbolTable(Operation *symbolTableOp)
   assert(llvm::hasSingleElement(symbolTableOp->getRegion(0)) &&
          "expected operation to have a single block");
 
-  Identifier symbolNameId = Identifier::get(SymbolTable::getSymbolAttrName(),
-                                            symbolTableOp->getContext());
+  StringAttr symbolNameId = StringAttr::get(symbolTableOp->getContext(),
+                                            SymbolTable::getSymbolAttrName());
   for (auto &op : symbolTableOp->getRegion(0).front()) {
-    Optional<StringRef> name = getNameIfSymbol(&op, symbolNameId);
+    StringAttr name = getNameIfSymbol(&op, symbolNameId);
     if (!name)
       continue;
 
-    auto inserted = symbolTable.insert({*name, &op});
+    auto inserted = symbolTable.insert({name, &op});
     (void)inserted;
     assert(inserted.second &&
            "expected region to contain uniquely named symbol operations");
@@ -133,28 +140,34 @@ SymbolTable::SymbolTable(Operation *symbolTableOp)
 /// Look up a symbol with the specified name, returning null if no such name
 /// exists. Names never include the @ on them.
 Operation *SymbolTable::lookup(StringRef name) const {
+  return lookup(StringAttr::get(symbolTableOp->getContext(), name));
+}
+Operation *SymbolTable::lookup(StringAttr name) const {
   return symbolTable.lookup(name);
 }
 
-/// Erase the given symbol from the table.
-void SymbolTable::erase(Operation *symbol) {
-  Optional<StringRef> name = getNameIfSymbol(symbol);
+void SymbolTable::remove(Operation *op) {
+  StringAttr name = getNameIfSymbol(op);
   assert(name && "expected valid 'name' attribute");
-  assert(symbol->getParentOp() == symbolTableOp &&
+  assert(op->getParentOp() == symbolTableOp &&
          "expected this operation to be inside of the operation with this "
          "SymbolTable");
 
-  auto it = symbolTable.find(*name);
-  if (it != symbolTable.end() && it->second == symbol) {
+  auto it = symbolTable.find(name);
+  if (it != symbolTable.end() && it->second == op)
     symbolTable.erase(it);
-    symbol->erase();
-  }
+}
+
+void SymbolTable::erase(Operation *symbol) {
+  remove(symbol);
+  symbol->erase();
 }
 
 // TODO: Consider if this should be renamed to something like insertOrUpdate
 /// Insert a new symbol into the table and associated operation if not already
-/// there and rename it as necessary to avoid collisions.
-void SymbolTable::insert(Operation *symbol, Block::iterator insertPt) {
+/// there and rename it as necessary to avoid collisions. Return the name of
+/// the symbol after insertion as attribute.
+StringAttr SymbolTable::insert(Operation *symbol, Block::iterator insertPt) {
   // The symbol cannot be the child of another op and must be the child of the
   // symbolTableOp after this.
   //
@@ -180,36 +193,40 @@ void SymbolTable::insert(Operation *symbol, Block::iterator insertPt) {
 
   // Add this symbol to the symbol table, uniquing the name if a conflict is
   // detected.
-  StringRef name = getSymbolName(symbol);
+  StringAttr name = getSymbolName(symbol);
   if (symbolTable.insert({name, symbol}).second)
-    return;
+    return name;
   // If the symbol was already in the table, also return.
   if (symbolTable.lookup(name) == symbol)
-    return;
+    return name;
   // If a conflict was detected, then the symbol will not have been added to
   // the symbol table. Try suffixes until we get to a unique name that works.
-  SmallString<128> nameBuffer(name);
+  SmallString<128> nameBuffer(name.getValue());
   unsigned originalLength = nameBuffer.size();
+
+  MLIRContext *context = symbol->getContext();
 
   // Iteratively try suffixes until we find one that isn't used.
   do {
     nameBuffer.resize(originalLength);
     nameBuffer += '_';
     nameBuffer += std::to_string(uniquingCounter++);
-  } while (!symbolTable.insert({nameBuffer, symbol}).second);
+  } while (!symbolTable.insert({StringAttr::get(context, nameBuffer), symbol})
+                .second);
   setSymbolName(symbol, nameBuffer);
+  return getSymbolName(symbol);
 }
 
 /// Returns the name of the given symbol operation.
-StringRef SymbolTable::getSymbolName(Operation *symbol) {
-  Optional<StringRef> name = getNameIfSymbol(symbol);
+StringAttr SymbolTable::getSymbolName(Operation *symbol) {
+  StringAttr name = getNameIfSymbol(symbol);
   assert(name && "expected valid symbol name");
-  return *name;
+  return name;
 }
+
 /// Sets the name of the given symbol operation.
-void SymbolTable::setSymbolName(Operation *symbol, StringRef name) {
-  symbol->setAttr(getSymbolAttrName(),
-                  StringAttr::get(symbol->getContext(), name));
+void SymbolTable::setSymbolName(Operation *symbol, StringAttr name) {
+  symbol->setAttr(getSymbolAttrName(), name);
 }
 
 /// Returns the visibility of the given symbol operation.
@@ -232,7 +249,7 @@ void SymbolTable::setSymbolVisibility(Operation *symbol, Visibility vis) {
   // If the visibility is public, just drop the attribute as this is the
   // default.
   if (vis == Visibility::Public) {
-    symbol->removeAttr(Identifier::get(getVisibilityAttrName(), ctx));
+    symbol->removeAttr(StringAttr::get(ctx, getVisibilityAttrName()));
     return;
   }
 
@@ -295,15 +312,15 @@ void SymbolTable::walkSymbolTables(
 /// with the 'OpTrait::SymbolTable' trait. Returns nullptr if no valid symbol
 /// was found.
 Operation *SymbolTable::lookupSymbolIn(Operation *symbolTableOp,
-                                       StringRef symbol) {
+                                       StringAttr symbol) {
   assert(symbolTableOp->hasTrait<OpTrait::SymbolTable>());
   Region &region = symbolTableOp->getRegion(0);
   if (region.empty())
     return nullptr;
 
   // Look for a symbol with the given name.
-  Identifier symbolNameId = Identifier::get(SymbolTable::getSymbolAttrName(),
-                                            symbolTableOp->getContext());
+  StringAttr symbolNameId = StringAttr::get(symbolTableOp->getContext(),
+                                            SymbolTable::getSymbolAttrName());
   for (auto &op : region.front())
     if (getNameIfSymbol(&op, symbolNameId) == symbol)
       return &op;
@@ -322,7 +339,7 @@ Operation *SymbolTable::lookupSymbolIn(Operation *symbolTableOp,
 static LogicalResult lookupSymbolInImpl(
     Operation *symbolTableOp, SymbolRefAttr symbol,
     SmallVectorImpl<Operation *> &symbols,
-    function_ref<Operation *(Operation *, StringRef)> lookupSymbolFn) {
+    function_ref<Operation *(Operation *, StringAttr)> lookupSymbolFn) {
   assert(symbolTableOp->hasTrait<OpTrait::SymbolTable>());
 
   // Lookup the root reference for this symbol.
@@ -343,7 +360,7 @@ static LogicalResult lookupSymbolInImpl(
   // Otherwise, lookup each of the nested non-leaf references and ensure that
   // each corresponds to a valid symbol table.
   for (FlatSymbolRefAttr ref : nestedRefs.drop_back()) {
-    symbolTableOp = lookupSymbolFn(symbolTableOp, ref.getValue());
+    symbolTableOp = lookupSymbolFn(symbolTableOp, ref.getAttr());
     if (!symbolTableOp || !symbolTableOp->hasTrait<OpTrait::SymbolTable>())
       return failure();
     symbols.push_back(symbolTableOp);
@@ -355,7 +372,7 @@ static LogicalResult lookupSymbolInImpl(
 LogicalResult
 SymbolTable::lookupSymbolIn(Operation *symbolTableOp, SymbolRefAttr symbol,
                             SmallVectorImpl<Operation *> &symbols) {
-  auto lookupFn = [](Operation *symbolTableOp, StringRef symbol) {
+  auto lookupFn = [](Operation *symbolTableOp, StringAttr symbol) {
     return lookupSymbolIn(symbolTableOp, symbol);
   };
   return lookupSymbolInImpl(symbolTableOp, symbol, symbols, lookupFn);
@@ -365,7 +382,7 @@ SymbolTable::lookupSymbolIn(Operation *symbolTableOp, SymbolRefAttr symbol,
 /// closes parent operation with the 'OpTrait::SymbolTable' trait. Returns
 /// nullptr if no valid symbol was found.
 Operation *SymbolTable::lookupNearestSymbolFrom(Operation *from,
-                                                StringRef symbol) {
+                                                StringAttr symbol) {
   Operation *symbolTableOp = getNearestSymbolTable(from);
   return symbolTableOp ? lookupSymbolIn(symbolTableOp, symbol) : nullptr;
 }
@@ -373,6 +390,19 @@ Operation *SymbolTable::lookupNearestSymbolFrom(Operation *from,
                                                 SymbolRefAttr symbol) {
   Operation *symbolTableOp = getNearestSymbolTable(from);
   return symbolTableOp ? lookupSymbolIn(symbolTableOp, symbol) : nullptr;
+}
+
+raw_ostream &mlir::operator<<(raw_ostream &os,
+                              SymbolTable::Visibility visibility) {
+  switch (visibility) {
+  case SymbolTable::Visibility::Public:
+    return os << "public";
+  case SymbolTable::Visibility::Private:
+    return os << "private";
+  case SymbolTable::Visibility::Nested:
+    return os << "nested";
+  }
+  llvm_unreachable("Unexpected visibility");
 }
 
 //===----------------------------------------------------------------------===//
@@ -449,21 +479,11 @@ LogicalResult detail::verifySymbol(Operation *op) {
 //===----------------------------------------------------------------------===//
 
 /// Walk all of the symbol references within the given operation, invoking the
-/// provided callback for each found use. The callbacks takes as arguments: the
-/// use of the symbol, and the nested access chain to the attribute within the
-/// operation dictionary. An access chain is a set of indices into nested
-/// container attributes. For example, a symbol use in an attribute dictionary
-/// that looks like the following:
-///
-///    {use = [{other_attr, @symbol}]}
-///
-/// May have the following access chain:
-///
-///     [0, 0, 1]
-///
-static WalkResult walkSymbolRefs(
-    Operation *op,
-    function_ref<WalkResult(SymbolTable::SymbolUse, ArrayRef<int>)> callback) {
+/// provided callback for each found use. The callbacks takes the use of the
+/// symbol.
+static WalkResult
+walkSymbolRefs(Operation *op,
+               function_ref<WalkResult(SymbolTable::SymbolUse)> callback) {
   // Check to see if the operation has any attributes.
   DictionaryAttr attrDict = op->getAttrDictionary();
   if (attrDict.empty())
@@ -471,26 +491,39 @@ static WalkResult walkSymbolRefs(
 
   // A worklist of a container attribute and the current index into the held
   // attribute list.
-  SmallVector<Attribute, 1> attrWorklist(1, attrDict);
+  struct WorklistItem {
+    SubElementAttrInterface container;
+    SmallVector<Attribute> immediateSubElements;
+
+    explicit WorklistItem(SubElementAttrInterface container) {
+      SmallVector<Attribute> subElements;
+      container.walkImmediateSubElements(
+          [&](Attribute attr) { subElements.push_back(attr); }, [](Type) {});
+      immediateSubElements = std::move(subElements);
+    }
+  };
+
+  SmallVector<WorklistItem, 1> attrWorklist(1, WorklistItem(attrDict));
   SmallVector<int, 1> curAccessChain(1, /*Value=*/-1);
 
   // Process the symbol references within the given nested attribute range.
-  auto processAttrs = [&](int &index, auto attrRange) -> WalkResult {
-    for (Attribute attr : llvm::drop_begin(attrRange, index)) {
-      /// Check for a nested container attribute, these will also need to be
-      /// walked.
-      if (attr.isa<ArrayAttr, DictionaryAttr>()) {
-        attrWorklist.push_back(attr);
+  auto processAttrs = [&](int &index,
+                          WorklistItem &worklistItem) -> WalkResult {
+    for (Attribute attr :
+         llvm::drop_begin(worklistItem.immediateSubElements, index)) {
+      // Invoke the provided callback if we find a symbol use and check for a
+      // requested interrupt.
+      if (auto symbolRef = attr.dyn_cast<SymbolRefAttr>()) {
+        if (callback({op, symbolRef}).wasInterrupted())
+          return WalkResult::interrupt();
+
+        /// Check for a nested container attribute, these will also need to be
+        /// walked.
+      } else if (auto interface = attr.dyn_cast<SubElementAttrInterface>()) {
+        attrWorklist.emplace_back(interface);
         curAccessChain.push_back(-1);
         return WalkResult::advance();
       }
-
-      // Invoke the provided callback if we find a symbol use and check for a
-      // requested interrupt.
-      if (auto symbolRef = attr.dyn_cast<SymbolRefAttr>())
-        if (callback({op, symbolRef}, curAccessChain).wasInterrupted())
-          return WalkResult::interrupt();
-
       // Make sure to keep the index counter in sync.
       ++index;
     }
@@ -503,15 +536,12 @@ static WalkResult walkSymbolRefs(
 
   WalkResult result = WalkResult::advance();
   do {
-    Attribute attr = attrWorklist.back();
+    WorklistItem &item = attrWorklist.back();
     int &index = curAccessChain.back();
     ++index;
 
     // Process the given attribute, which is guaranteed to be a container.
-    if (auto dict = attr.dyn_cast<DictionaryAttr>())
-      result = processAttrs(index, make_second_range(dict.getValue()));
-    else
-      result = processAttrs(index, attr.cast<ArrayAttr>().getValue());
+    result = processAttrs(index, item);
   } while (!attrWorklist.empty() && !result.wasInterrupted());
   return result;
 }
@@ -519,9 +549,9 @@ static WalkResult walkSymbolRefs(
 /// Walk all of the uses, for any symbol, that are nested within the given
 /// regions, invoking the provided callback for each. This does not traverse
 /// into any nested symbol tables.
-static Optional<WalkResult> walkSymbolUses(
-    MutableArrayRef<Region> regions,
-    function_ref<WalkResult(SymbolTable::SymbolUse, ArrayRef<int>)> callback) {
+static Optional<WalkResult>
+walkSymbolUses(MutableArrayRef<Region> regions,
+               function_ref<WalkResult(SymbolTable::SymbolUse)> callback) {
   return walkSymbolTable(regions, [&](Operation *op) -> Optional<WalkResult> {
     // Check that this isn't a potentially unknown symbol table.
     if (isPotentiallyUnknownSymbolTable(op))
@@ -533,9 +563,9 @@ static Optional<WalkResult> walkSymbolUses(
 /// Walk all of the uses, for any symbol, that are nested within the given
 /// operation 'from', invoking the provided callback for each. This does not
 /// traverse into any nested symbol tables.
-static Optional<WalkResult> walkSymbolUses(
-    Operation *from,
-    function_ref<WalkResult(SymbolTable::SymbolUse, ArrayRef<int>)> callback) {
+static Optional<WalkResult>
+walkSymbolUses(Operation *from,
+               function_ref<WalkResult(SymbolTable::SymbolUse)> callback) {
   // If this operation has regions, and it, as well as its dialect, isn't
   // registered then conservatively fail. The operation may define a
   // symbol table, so we can't opaquely know if we should traverse to find
@@ -581,9 +611,18 @@ struct SymbolScope {
                 typename llvm::function_traits<CallbackT>::result_t,
                 void>::value> * = nullptr>
   Optional<WalkResult> walk(CallbackT cback) {
-    return walk([=](SymbolTable::SymbolUse use, ArrayRef<int>) {
+    return walk([=](SymbolTable::SymbolUse use) {
       return cback(use), WalkResult::advance();
     });
+  }
+
+  /// Walk all of the operations nested under the current scope without
+  /// traversing into any nested symbol tables.
+  template <typename CallbackT>
+  Optional<WalkResult> walkSymbolTable(CallbackT &&cback) {
+    if (Region *region = limit.dyn_cast<Region *>())
+      return ::walkSymbolTable(*region, cback);
+    return ::walkSymbolTable(limit.get<Operation *>(), cback);
   }
 
   /// The representation of the symbol within this scope.
@@ -592,17 +631,17 @@ struct SymbolScope {
   /// The IR unit representing this scope.
   llvm::PointerUnion<Operation *, Region *> limit;
 };
-} // end anonymous namespace
+} // namespace
 
 /// Collect all of the symbol scopes from 'symbol' to (inclusive) 'limit'.
 static SmallVector<SymbolScope, 2> collectSymbolScopes(Operation *symbol,
                                                        Operation *limit) {
-  StringRef symName = SymbolTable::getSymbolName(symbol);
+  StringAttr symName = SymbolTable::getSymbolName(symbol);
   assert(!symbol->hasTrait<OpTrait::SymbolTable>() || symbol != limit);
 
   // Compute the ancestors of 'limit'.
-  llvm::SetVector<Operation *, SmallVector<Operation *, 4>,
-                  SmallPtrSet<Operation *, 4>>
+  SetVector<Operation *, SmallVector<Operation *, 4>,
+            SmallPtrSet<Operation *, 4>>
       limitAncestors;
   Operation *limitAncestor = limit;
   do {
@@ -612,7 +651,7 @@ static SmallVector<SymbolScope, 2> collectSymbolScopes(Operation *symbol,
       // doesn't support parent references.
       if (SymbolTable::getNearestSymbolTable(limit->getParentOp()) ==
           symbol->getParentOp())
-        return {{SymbolRefAttr::get(symbol->getContext(), symName), limit}};
+        return {{SymbolRefAttr::get(symName), limit}};
       return {};
     }
 
@@ -666,9 +705,9 @@ static SmallVector<SymbolScope, 2> collectSymbolScopes(Operation *symbol,
   return scopes;
 }
 template <typename IRUnit>
-static SmallVector<SymbolScope, 1> collectSymbolScopes(StringRef symbol,
+static SmallVector<SymbolScope, 1> collectSymbolScopes(StringAttr symbol,
                                                        IRUnit *limit) {
-  return {{SymbolRefAttr::get(limit->getContext(), symbol), limit}};
+  return {{SymbolRefAttr::get(symbol), limit}};
 }
 
 /// Returns true if the given reference 'SubRef' is a sub reference of the
@@ -696,7 +735,7 @@ static bool isReferencePrefixOf(SymbolRefAttr subRef, SymbolRefAttr ref) {
 template <typename FromT>
 static Optional<SymbolTable::UseRange> getSymbolUsesImpl(FromT from) {
   std::vector<SymbolTable::SymbolUse> uses;
-  auto walkFn = [&](SymbolTable::SymbolUse symbolUse, ArrayRef<int>) {
+  auto walkFn = [&](SymbolTable::SymbolUse symbolUse) {
     uses.push_back(symbolUse);
     return WalkResult::advance();
   };
@@ -740,7 +779,7 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(SymbolT symbol,
 /// operation 'from', invoking the provided callback for each. This does not
 /// traverse into any nested symbol tables. This function returns None if there
 /// are any unknown operations that may potentially be symbol tables.
-auto SymbolTable::getSymbolUses(StringRef symbol, Operation *from)
+auto SymbolTable::getSymbolUses(StringAttr symbol, Operation *from)
     -> Optional<UseRange> {
   return getSymbolUsesImpl(symbol, from);
 }
@@ -748,7 +787,7 @@ auto SymbolTable::getSymbolUses(Operation *symbol, Operation *from)
     -> Optional<UseRange> {
   return getSymbolUsesImpl(symbol, from);
 }
-auto SymbolTable::getSymbolUses(StringRef symbol, Region *from)
+auto SymbolTable::getSymbolUses(StringAttr symbol, Region *from)
     -> Optional<UseRange> {
   return getSymbolUsesImpl(symbol, from);
 }
@@ -765,7 +804,7 @@ template <typename SymbolT, typename IRUnitT>
 static bool symbolKnownUseEmptyImpl(SymbolT symbol, IRUnitT *limit) {
   for (SymbolScope &scope : collectSymbolScopes(symbol, limit)) {
     // Walk all of the symbol uses looking for a reference to 'symbol'.
-    if (scope.walk([&](SymbolTable::SymbolUse symbolUse, ArrayRef<int>) {
+    if (scope.walk([&](SymbolTable::SymbolUse symbolUse) {
           return isReferencePrefixOf(scope.symbol, symbolUse.getSymbolRef())
                      ? WalkResult::interrupt()
                      : WalkResult::advance();
@@ -779,13 +818,13 @@ static bool symbolKnownUseEmptyImpl(SymbolT symbol, IRUnitT *limit) {
 /// the given operation 'from'. This does not traverse into any nested symbol
 /// tables. This function will also return false if there are any unknown
 /// operations that may potentially be symbol tables.
-bool SymbolTable::symbolKnownUseEmpty(StringRef symbol, Operation *from) {
+bool SymbolTable::symbolKnownUseEmpty(StringAttr symbol, Operation *from) {
   return symbolKnownUseEmptyImpl(symbol, from);
 }
 bool SymbolTable::symbolKnownUseEmpty(Operation *symbol, Operation *from) {
   return symbolKnownUseEmptyImpl(symbol, from);
 }
-bool SymbolTable::symbolKnownUseEmpty(StringRef symbol, Region *from) {
+bool SymbolTable::symbolKnownUseEmpty(StringAttr symbol, Region *from) {
   return symbolKnownUseEmptyImpl(symbol, from);
 }
 bool SymbolTable::symbolKnownUseEmpty(Operation *symbol, Region *from) {
@@ -795,52 +834,6 @@ bool SymbolTable::symbolKnownUseEmpty(Operation *symbol, Region *from) {
 //===----------------------------------------------------------------------===//
 // SymbolTable::replaceAllSymbolUses
 
-/// Rebuild the given attribute container after replacing all references to a
-/// symbol with the updated attribute in 'accesses'.
-static Attribute rebuildAttrAfterRAUW(
-    Attribute container,
-    ArrayRef<std::pair<SmallVector<int, 1>, SymbolRefAttr>> accesses,
-    unsigned depth) {
-  // Given a range of Attributes, update the ones referred to by the given
-  // access chains to point to the new symbol attribute.
-  auto updateAttrs = [&](auto &&attrRange) {
-    auto attrBegin = std::begin(attrRange);
-    for (unsigned i = 0, e = accesses.size(); i != e;) {
-      ArrayRef<int> access = accesses[i].first;
-      Attribute &attr = *std::next(attrBegin, access[depth]);
-
-      // Check to see if this is a leaf access, i.e. a SymbolRef.
-      if (access.size() == depth + 1) {
-        attr = accesses[i].second;
-        ++i;
-        continue;
-      }
-
-      // Otherwise, this is a container. Collect all of the accesses for this
-      // index and recurse. The recursion here is bounded by the size of the
-      // largest access array.
-      auto nestedAccesses = accesses.drop_front(i).take_while([&](auto &it) {
-        ArrayRef<int> nextAccess = it.first;
-        return nextAccess.size() > depth + 1 &&
-               nextAccess[depth] == access[depth];
-      });
-      attr = rebuildAttrAfterRAUW(attr, nestedAccesses, depth + 1);
-
-      // Skip over all of the accesses that refer to the nested container.
-      i += nestedAccesses.size();
-    }
-  };
-
-  if (auto dictAttr = container.dyn_cast<DictionaryAttr>()) {
-    auto newAttrs = llvm::to_vector<4>(dictAttr.getValue());
-    updateAttrs(make_second_range(newAttrs));
-    return DictionaryAttr::get(dictAttr.getContext(), newAttrs);
-  }
-  auto newAttrs = llvm::to_vector<4>(container.cast<ArrayAttr>().getValue());
-  updateAttrs(newAttrs);
-  return ArrayAttr::get(container.getContext(), newAttrs);
-}
-
 /// Generates a new symbol reference attribute with a new leaf reference.
 static SymbolRefAttr generateNewRefAttr(SymbolRefAttr oldAttr,
                                         FlatSymbolRefAttr newLeafAttr) {
@@ -848,86 +841,57 @@ static SymbolRefAttr generateNewRefAttr(SymbolRefAttr oldAttr,
     return newLeafAttr;
   auto nestedRefs = llvm::to_vector<2>(oldAttr.getNestedReferences());
   nestedRefs.back() = newLeafAttr;
-  return SymbolRefAttr::get(oldAttr.getContext(), oldAttr.getRootReference(),
-                            nestedRefs);
+  return SymbolRefAttr::get(oldAttr.getRootReference(), nestedRefs);
 }
 
 /// The implementation of SymbolTable::replaceAllSymbolUses below.
 template <typename SymbolT, typename IRUnitT>
 static LogicalResult
-replaceAllSymbolUsesImpl(SymbolT symbol, StringRef newSymbol, IRUnitT *limit) {
-  // A collection of operations along with their new attribute dictionary.
-  std::vector<std::pair<Operation *, DictionaryAttr>> updatedAttrDicts;
-
-  // The current operation being processed.
-  Operation *curOp = nullptr;
-
-  // The set of access chains into the attribute dictionary of the current
-  // operation, as well as the replacement attribute to use.
-  SmallVector<std::pair<SmallVector<int, 1>, SymbolRefAttr>, 1> accessChains;
-
-  // Generate a new attribute dictionary for the current operation by replacing
-  // references to the old symbol.
-  auto generateNewAttrDict = [&] {
-    auto oldDict = curOp->getAttrDictionary();
-    auto newDict = rebuildAttrAfterRAUW(oldDict, accessChains, /*depth=*/0);
-    return newDict.cast<DictionaryAttr>();
-  };
-
+replaceAllSymbolUsesImpl(SymbolT symbol, StringAttr newSymbol, IRUnitT *limit) {
   // Generate a new attribute to replace the given attribute.
-  MLIRContext *ctx = limit->getContext();
-  FlatSymbolRefAttr newLeafAttr = FlatSymbolRefAttr::get(ctx, newSymbol);
+  FlatSymbolRefAttr newLeafAttr = FlatSymbolRefAttr::get(newSymbol);
   for (SymbolScope &scope : collectSymbolScopes(symbol, limit)) {
+    SymbolRefAttr oldAttr = scope.symbol;
     SymbolRefAttr newAttr = generateNewRefAttr(scope.symbol, newLeafAttr);
-    auto walkFn = [&](SymbolTable::SymbolUse symbolUse,
-                      ArrayRef<int> accessChain) {
-      SymbolRefAttr useRef = symbolUse.getSymbolRef();
-      if (!isReferencePrefixOf(scope.symbol, useRef))
-        return WalkResult::advance();
 
-      // If we have a valid match, check to see if this is a proper
-      // subreference. If it is, then we will need to generate a different new
-      // attribute specifically for this use.
-      SymbolRefAttr replacementRef = newAttr;
-      if (useRef != scope.symbol) {
-        if (scope.symbol.isa<FlatSymbolRefAttr>()) {
-          replacementRef =
-              SymbolRefAttr::get(ctx, newSymbol, useRef.getNestedReferences());
-        } else {
-          auto nestedRefs = llvm::to_vector<4>(useRef.getNestedReferences());
-          nestedRefs[scope.symbol.getNestedReferences().size() - 1] =
-              newLeafAttr;
-          replacementRef =
-              SymbolRefAttr::get(ctx, useRef.getRootReference(), nestedRefs);
+    auto walkFn = [&](Operation *op) -> Optional<WalkResult> {
+      auto remapAttrFn =
+          [&](Attribute attr) -> std::pair<Attribute, WalkResult> {
+        // Regardless of the match, don't walk nested SymbolRefAttrs, we don't
+        // want to accidentally replace an inner reference.
+        if (attr == oldAttr)
+          return {newAttr, WalkResult::skip()};
+        // Handle prefix matches.
+        if (SymbolRefAttr symRef = attr.dyn_cast<SymbolRefAttr>()) {
+          if (isReferencePrefixOf(oldAttr, symRef)) {
+            auto oldNestedRefs = oldAttr.getNestedReferences();
+            auto nestedRefs = symRef.getNestedReferences();
+            if (oldNestedRefs.empty())
+              return {SymbolRefAttr::get(newSymbol, nestedRefs),
+                      WalkResult::skip()};
+
+            auto newNestedRefs = llvm::to_vector<4>(nestedRefs);
+            newNestedRefs[oldNestedRefs.size() - 1] = newLeafAttr;
+            return {
+                SymbolRefAttr::get(symRef.getRootReference(), newNestedRefs),
+                WalkResult::skip()};
+          }
+          return {attr, WalkResult::skip()};
         }
-      }
+        return {attr, WalkResult::advance()};
+      };
+      // Generate a new attribute dictionary by replacing references to the old
+      // symbol.
+      auto newDict = op->getAttrDictionary().replaceSubElements(remapAttrFn);
+      if (!newDict)
+        return WalkResult::interrupt();
 
-      // If there was a previous operation, generate a new attribute dict
-      // for it. This means that we've finished processing the current
-      // operation, so generate a new dictionary for it.
-      if (curOp && symbolUse.getUser() != curOp) {
-        updatedAttrDicts.push_back({curOp, generateNewAttrDict()});
-        accessChains.clear();
-      }
-
-      // Record this access.
-      curOp = symbolUse.getUser();
-      accessChains.push_back({llvm::to_vector<1>(accessChain), replacementRef});
+      op->setAttrs(newDict.template cast<DictionaryAttr>());
       return WalkResult::advance();
     };
-    if (!scope.walk(walkFn))
+    if (!scope.walkSymbolTable(walkFn))
       return failure();
-
-    // Check to see if we have a dangling op that needs to be processed.
-    if (curOp) {
-      updatedAttrDicts.push_back({curOp, generateNewAttrDict()});
-      curOp = nullptr;
-    }
   }
-
-  // Update the attribute dictionaries as necessary.
-  for (auto &it : updatedAttrDicts)
-    it.first->setAttrs(it.second);
   return success();
 }
 
@@ -936,23 +900,23 @@ replaceAllSymbolUsesImpl(SymbolT symbol, StringRef newSymbol, IRUnitT *limit) {
 /// 'from'. This does not traverse into any nested symbol tables. If there are
 /// any unknown operations that may potentially be symbol tables, no uses are
 /// replaced and failure is returned.
-LogicalResult SymbolTable::replaceAllSymbolUses(StringRef oldSymbol,
-                                                StringRef newSymbol,
+LogicalResult SymbolTable::replaceAllSymbolUses(StringAttr oldSymbol,
+                                                StringAttr newSymbol,
                                                 Operation *from) {
   return replaceAllSymbolUsesImpl(oldSymbol, newSymbol, from);
 }
 LogicalResult SymbolTable::replaceAllSymbolUses(Operation *oldSymbol,
-                                                StringRef newSymbol,
+                                                StringAttr newSymbol,
                                                 Operation *from) {
   return replaceAllSymbolUsesImpl(oldSymbol, newSymbol, from);
 }
-LogicalResult SymbolTable::replaceAllSymbolUses(StringRef oldSymbol,
-                                                StringRef newSymbol,
+LogicalResult SymbolTable::replaceAllSymbolUses(StringAttr oldSymbol,
+                                                StringAttr newSymbol,
                                                 Region *from) {
   return replaceAllSymbolUsesImpl(oldSymbol, newSymbol, from);
 }
 LogicalResult SymbolTable::replaceAllSymbolUses(Operation *oldSymbol,
-                                                StringRef newSymbol,
+                                                StringAttr newSymbol,
                                                 Region *from) {
   return replaceAllSymbolUsesImpl(oldSymbol, newSymbol, from);
 }
@@ -962,7 +926,7 @@ LogicalResult SymbolTable::replaceAllSymbolUses(Operation *oldSymbol,
 //===----------------------------------------------------------------------===//
 
 Operation *SymbolTableCollection::lookupSymbolIn(Operation *symbolTableOp,
-                                                 StringRef symbol) {
+                                                 StringAttr symbol) {
   return getSymbolTable(symbolTableOp).lookup(symbol);
 }
 Operation *SymbolTableCollection::lookupSymbolIn(Operation *symbolTableOp,
@@ -979,7 +943,7 @@ LogicalResult
 SymbolTableCollection::lookupSymbolIn(Operation *symbolTableOp,
                                       SymbolRefAttr name,
                                       SmallVectorImpl<Operation *> &symbols) {
-  auto lookupFn = [this](Operation *symbolTableOp, StringRef symbol) {
+  auto lookupFn = [this](Operation *symbolTableOp, StringAttr symbol) {
     return lookupSymbolIn(symbolTableOp, symbol);
   };
   return lookupSymbolInImpl(symbolTableOp, name, symbols, lookupFn);
@@ -990,7 +954,7 @@ SymbolTableCollection::lookupSymbolIn(Operation *symbolTableOp,
 /// 'OpTrait::SymbolTable' trait. Returns nullptr if no valid symbol was
 /// found.
 Operation *SymbolTableCollection::lookupNearestSymbolFrom(Operation *from,
-                                                          StringRef symbol) {
+                                                          StringAttr symbol) {
   Operation *symbolTableOp = SymbolTable::getNearestSymbolTable(from);
   return symbolTableOp ? lookupSymbolIn(symbolTableOp, symbol) : nullptr;
 }
@@ -1039,14 +1003,13 @@ SymbolUserMap::SymbolUserMap(SymbolTableCollection &symbolTable,
 }
 
 void SymbolUserMap::replaceAllUsesWith(Operation *symbol,
-                                       StringRef newSymbolName) {
+                                       StringAttr newSymbolName) {
   auto it = symbolToUsers.find(symbol);
   if (it == symbolToUsers.end())
     return;
-  llvm::SetVector<Operation *> &users = it->second;
 
   // Replace the uses within the users of `symbol`.
-  for (Operation *user : users)
+  for (Operation *user : it->second)
     (void)SymbolTable::replaceAllSymbolUses(symbol, newSymbolName, user);
 
   // Move the current users of `symbol` to the new symbol if it is in the
@@ -1054,13 +1017,16 @@ void SymbolUserMap::replaceAllUsesWith(Operation *symbol,
   Operation *newSymbol =
       symbolTable.lookupSymbolIn(symbol->getParentOp(), newSymbolName);
   if (newSymbol != symbol) {
-    // Transfer over the users to the new symbol.
-    auto newIt = symbolToUsers.find(newSymbol);
-    if (newIt == symbolToUsers.end())
-      symbolToUsers.try_emplace(newSymbol, std::move(users));
+    // Transfer over the users to the new symbol.  The reference to the old one
+    // is fetched again as the iterator is invalidated during the insertion.
+    auto newIt = symbolToUsers.try_emplace(newSymbol, SetVector<Operation *>{});
+    auto oldIt = symbolToUsers.find(symbol);
+    assert(oldIt != symbolToUsers.end() && "missing old users list");
+    if (newIt.second)
+      newIt.first->second = std::move(oldIt->second);
     else
-      newIt->second.set_union(users);
-    symbolToUsers.erase(symbol);
+      newIt.first->second.set_union(oldIt->second);
+    symbolToUsers.erase(oldIt);
   }
 }
 

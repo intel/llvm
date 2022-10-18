@@ -9,12 +9,12 @@
 #include <grpc++/grpc++.h>
 
 #include "Client.h"
+#include "Feature.h"
 #include "Service.grpc.pb.h"
 #include "index/Index.h"
 #include "marshalling/Marshalling.h"
 #include "support/Logger.h"
 #include "support/Trace.h"
-#include "clang/Basic/Version.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -64,12 +64,17 @@ class IndexClient : public clangd::SymbolIndex {
                  StreamingCall<RequestT, ReplyT> RPCCall,
                  CallbackT Callback) const {
     updateConnectionStatus();
-    bool FinalResult = false;
+    // We initialize to true because stream might be broken before we see the
+    // final message. In such a case there are actually more results on the
+    // stream, but we couldn't get to them.
+    bool HasMore = true;
     trace::Span Tracer(RequestT::descriptor()->name());
     const auto RPCRequest = ProtobufMarshaller->toProtobuf(Request);
     SPAN_ATTACH(Tracer, "Request", RPCRequest.DebugString());
     grpc::ClientContext Context;
-    Context.AddMetadata("version", clang::getClangToolFullVersion("clangd"));
+    Context.AddMetadata("version", versionString());
+    Context.AddMetadata("features", featureString());
+    Context.AddMetadata("platform", platformString());
     std::chrono::system_clock::time_point StartTime =
         std::chrono::system_clock::now();
     auto Deadline = StartTime + DeadlineWaitingTime;
@@ -82,7 +87,7 @@ class IndexClient : public clangd::SymbolIndex {
     unsigned FailedToParse = 0;
     while (Reader->Read(&Reply)) {
       if (!Reply.has_stream_result()) {
-        FinalResult = Reply.final_result().has_more();
+        HasMore = Reply.final_result().has_more();
         continue;
       }
       auto Response = ProtobufMarshaller->fromProtobuf(Reply.stream_result());
@@ -105,7 +110,7 @@ class IndexClient : public clangd::SymbolIndex {
     SPAN_ATTACH(Tracer, "Successful", Successful);
     SPAN_ATTACH(Tracer, "Failed to parse", FailedToParse);
     updateConnectionStatus();
-    return FinalResult;
+    return HasMore;
   }
 
 public:

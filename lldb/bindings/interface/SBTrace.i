@@ -14,25 +14,23 @@ namespace lldb {
 class LLDB_API SBTrace {
 public:
   SBTrace();
-  size_t GetTraceData(SBError &error, void *buf,
-                      size_t size, size_t offset,
-                      lldb::tid_t thread_id);
 
-  size_t GetMetaData(SBError &error, void *buf,
-                     size_t size, size_t offset,
-                     lldb::tid_t thread_id);
+  SBTraceCursor CreateNewCursor(SBError &error, SBThread &thread);
 
-  void StopTrace(SBError &error,
-                 lldb::tid_t thread_id);
+  const char *GetStartConfigurationHelp();
 
-  void GetTraceConfig(SBTraceOptions &options,
-                      SBError &error);
+  SBFileSpec SaveToDisk(SBError &error, const SBFileSpec &bundle_dir, bool compact = false);
 
-  lldb::user_id_t GetTraceUID();
+  SBError Start(const SBStructuredData &configuration);
+
+  SBError Start(const SBThread &thread, const SBStructuredData &configuration);
+
+  SBError Stop();
+
+  SBError Stop(const SBThread &thread);
 
   explicit operator bool() const;
 
   bool IsValid();
-
 };
 } // namespace lldb

@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // This test checks usage of an ESIMD global in ESIMD(positive) and
 // SYCL(negative) contexts.
@@ -28,24 +28,21 @@ SYCL_EXTERNAL void init_vc_sycl(int x) {
   vc = x;
 }
 
-SYCL_EXTERNAL void foo() {}
-
 void kernel_call() {
   queue q;
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for<class Test>(nd_range<1>(1, 1),
                                  [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
                                    // ESIMD kernel is allowed to use ESIMD
                                    // global
                                    vc = 0;
-                                   foo();
                                    func_that_uses_esimd_glob();
                                  });
   });
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.parallel_for<class Test>(nd_range<1>(1, 1), [=](nd_item<1> ndi) {
-      //expected-note@CL/sycl/handler.hpp:* 2{{called by 'kernel_parallel_for}}
+      //expected-note@sycl/handler.hpp:* 2{{called by 'kernel_parallel_for}}
       //expected-error@+1{{ESIMD globals cannot be used in a SYCL context}}
       vc = 0;
       //expected-note@+1{{called by}}

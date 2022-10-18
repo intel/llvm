@@ -19,7 +19,7 @@
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-O0
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
@@ -50,7 +50,7 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 ; CHECK-NO-LOWERING: }
 
 ; With -O0, we only lower ESIMD code, but no other optimizations
-; CHECK-O0: define dso_local spir_kernel void @ESIMD_kernel() #1 !sycl_explicit_simd !3 !intel_reqd_sub_group_size !4 {
+; CHECK-O0: define dso_local spir_kernel void @ESIMD_kernel() #{{[0-9]}} !sycl_explicit_simd !3 !intel_reqd_sub_group_size !4 {
 ; CHECK-O0: entry:
 ; CHECK-O0:   call <3 x i32> @llvm.genx.local.id.v3i32()
 ; CHECK-O0:   call <3 x i32> @llvm.genx.local.size.v3i32()

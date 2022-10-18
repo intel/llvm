@@ -149,7 +149,7 @@ bool AArch64PostSelectOptimize::optimizeNZCVDefs(MachineBasicBlock &MBB) {
                                "op in fcmp range: "
                             << II);
           II.setDesc(TII->get(NewOpc));
-          II.RemoveOperand(DeadNZCVIdx);
+          II.removeOperand(DeadNZCVIdx);
           // Changing the opcode can result in differing regclass requirements,
           // e.g. SUBSWri uses gpr32 for the dest, whereas SUBWri uses gpr32sp.
           // Constrain the regclasses, possibly introducing a copy.
@@ -180,7 +180,7 @@ bool AArch64PostSelectOptimize::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
   for (auto &BB : MF)
     Changed |= optimizeNZCVDefs(BB);
-  return true;
+  return Changed;
 }
 
 char AArch64PostSelectOptimize::ID = 0;

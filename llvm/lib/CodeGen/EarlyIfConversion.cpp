@@ -17,10 +17,10 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SparseSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -30,7 +30,6 @@
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineTraceMetrics.h"
-#include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -111,12 +110,11 @@ public:
   /// Information about each phi in the Tail block.
   struct PHIInfo {
     MachineInstr *PHI;
-    unsigned TReg, FReg;
+    unsigned TReg = 0, FReg = 0;
     // Latencies from Cond+Branch, TReg, and FReg to DstReg.
-    int CondCycles, TCycles, FCycles;
+    int CondCycles = 0, TCycles = 0, FCycles = 0;
 
-    PHIInfo(MachineInstr *phi)
-      : PHI(phi), TReg(0), FReg(0), CondCycles(0), TCycles(0), FCycles(0) {}
+    PHIInfo(MachineInstr *phi) : PHI(phi) {}
   };
 
   SmallVector<PHIInfo, 8> PHIs;
@@ -210,9 +208,9 @@ bool SSAIfConv::canSpeculateInstrs(MachineBasicBlock *MBB) {
 
   // Check all instructions, except the terminators. It is assumed that
   // terminators never have side effects or define any used register values.
-  for (MachineBasicBlock::iterator I = MBB->begin(),
-       E = MBB->getFirstTerminator(); I != E; ++I) {
-    if (I->isDebugInstr())
+  for (MachineInstr &MI :
+       llvm::make_range(MBB->begin(), MBB->getFirstTerminator())) {
+    if (MI.isDebugInstr())
       continue;
 
     if (++InstrCount > BlockInstrLimit && !Stress) {
@@ -222,28 +220,28 @@ bool SSAIfConv::canSpeculateInstrs(MachineBasicBlock *MBB) {
     }
 
     // There shouldn't normally be any phis in a single-predecessor block.
-    if (I->isPHI()) {
-      LLVM_DEBUG(dbgs() << "Can't hoist: " << *I);
+    if (MI.isPHI()) {
+      LLVM_DEBUG(dbgs() << "Can't hoist: " << MI);
       return false;
     }
 
     // Don't speculate loads. Note that it may be possible and desirable to
     // speculate GOT or constant pool loads that are guaranteed not to trap,
     // but we don't support that for now.
-    if (I->mayLoad()) {
-      LLVM_DEBUG(dbgs() << "Won't speculate load: " << *I);
+    if (MI.mayLoad()) {
+      LLVM_DEBUG(dbgs() << "Won't speculate load: " << MI);
       return false;
     }
 
     // We never speculate stores, so an AA pointer isn't necessary.
     bool DontMoveAcrossStore = true;
-    if (!I->isSafeToMove(nullptr, DontMoveAcrossStore)) {
-      LLVM_DEBUG(dbgs() << "Can't speculate: " << *I);
+    if (!MI.isSafeToMove(nullptr, DontMoveAcrossStore)) {
+      LLVM_DEBUG(dbgs() << "Can't speculate: " << MI);
       return false;
     }
 
     // Check for any dependencies on Head instructions.
-    if (!InstrDependenciesAllowIfConv(&(*I)))
+    if (!InstrDependenciesAllowIfConv(&MI))
       return false;
   }
   return true;
@@ -557,6 +555,52 @@ bool SSAIfConv::canConvertIf(MachineBasicBlock *MBB, bool Predicate) {
   return true;
 }
 
+/// \return true iff the two registers are known to have the same value.
+static bool hasSameValue(const MachineRegisterInfo &MRI,
+                         const TargetInstrInfo *TII, Register TReg,
+                         Register FReg) {
+  if (TReg == FReg)
+    return true;
+
+  if (!TReg.isVirtual() || !FReg.isVirtual())
+    return false;
+
+  const MachineInstr *TDef = MRI.getUniqueVRegDef(TReg);
+  const MachineInstr *FDef = MRI.getUniqueVRegDef(FReg);
+  if (!TDef || !FDef)
+    return false;
+
+  // If there are side-effects, all bets are off.
+  if (TDef->hasUnmodeledSideEffects())
+    return false;
+
+  // If the instruction could modify memory, or there may be some intervening
+  // store between the two, we can't consider them to be equal.
+  if (TDef->mayLoadOrStore() && !TDef->isDereferenceableInvariantLoad())
+    return false;
+
+  // We also can't guarantee that they are the same if, for example, the
+  // instructions are both a copy from a physical reg, because some other
+  // instruction may have modified the value in that reg between the two
+  // defining insts.
+  if (any_of(TDef->uses(), [](const MachineOperand &MO) {
+        return MO.isReg() && MO.getReg().isPhysical();
+      }))
+    return false;
+
+  // Check whether the two defining instructions produce the same value(s).
+  if (!TII->produceSameValue(*TDef, *FDef, &MRI))
+    return false;
+
+  // Further, check that the two defs come from corresponding operands.
+  int TIdx = TDef->findRegisterDefOperandIdx(TReg);
+  int FIdx = FDef->findRegisterDefOperandIdx(FReg);
+  if (TIdx == -1 || FIdx == -1)
+    return false;
+
+  return TIdx == FIdx;
+}
+
 /// replacePHIInstrs - Completely replace PHI instructions with selects.
 /// This is possible when the only Tail predecessors are the if-converted
 /// blocks.
@@ -571,7 +615,15 @@ void SSAIfConv::replacePHIInstrs() {
     PHIInfo &PI = PHIs[i];
     LLVM_DEBUG(dbgs() << "If-converting " << *PI.PHI);
     Register DstReg = PI.PHI->getOperand(0).getReg();
-    TII->insertSelect(*Head, FirstTerm, HeadDL, DstReg, Cond, PI.TReg, PI.FReg);
+    if (hasSameValue(*MRI, TII, PI.TReg, PI.FReg)) {
+      // We do not need the select instruction if both incoming values are
+      // equal, but we do need a COPY.
+      BuildMI(*Head, FirstTerm, HeadDL, TII->get(TargetOpcode::COPY), DstReg)
+          .addReg(PI.TReg);
+    } else {
+      TII->insertSelect(*Head, FirstTerm, HeadDL, DstReg, Cond, PI.TReg,
+                        PI.FReg);
+    }
     LLVM_DEBUG(dbgs() << "          --> " << *std::prev(FirstTerm));
     PI.PHI->eraseFromParent();
     PI.PHI = nullptr;
@@ -592,7 +644,7 @@ void SSAIfConv::rewritePHIOperands() {
     unsigned DstReg = 0;
 
     LLVM_DEBUG(dbgs() << "If-converting " << *PI.PHI);
-    if (PI.TReg == PI.FReg) {
+    if (hasSameValue(*MRI, TII, PI.TReg, PI.FReg)) {
       // We do not need the select instruction if both incoming values are
       // equal.
       DstReg = PI.TReg;
@@ -611,8 +663,8 @@ void SSAIfConv::rewritePHIOperands() {
         PI.PHI->getOperand(i-1).setMBB(Head);
         PI.PHI->getOperand(i-2).setReg(DstReg);
       } else if (MBB == getFPred()) {
-        PI.PHI->RemoveOperand(i-1);
-        PI.PHI->RemoveOperand(i-2);
+        PI.PHI->removeOperand(i-1);
+        PI.PHI->removeOperand(i-2);
       }
     }
     LLVM_DEBUG(dbgs() << "          --> " << *PI.PHI);
@@ -756,7 +808,7 @@ void updateDomTree(MachineDominatorTree *DomTree, const SSAIfConv &IfConv,
   // TBB and FBB should not dominate any blocks.
   // Tail children should be transferred to Head.
   MachineDomTreeNode *HeadNode = DomTree->getNode(IfConv.Head);
-  for (auto B : Removed) {
+  for (auto *B : Removed) {
     MachineDomTreeNode *Node = DomTree->getNode(B);
     assert(Node != HeadNode && "Cannot erase the head node");
     while (Node->getNumChildren()) {
@@ -774,7 +826,7 @@ void updateLoops(MachineLoopInfo *Loops,
     return;
   // If-conversion doesn't change loop structure, and it doesn't mess with back
   // edges, so updating LoopInfo is simply removing the dead blocks.
-  for (auto B : Removed)
+  for (auto *B : Removed)
     Loops->removeBlock(B);
 }
 } // namespace
@@ -1013,7 +1065,7 @@ bool EarlyIfConverter::runOnMachineFunction(MachineFunction &MF) {
   // if-conversion in a single pass. The tryConvertIf() function may erase
   // blocks, but only blocks dominated by the head block. This makes it safe to
   // update the dominator tree while the post-order iterator is still active.
-  for (auto DomNode : post_order(DomTree))
+  for (auto *DomNode : post_order(DomTree))
     if (tryConvertIf(DomNode->getBlock()))
       Changed = true;
 
@@ -1146,7 +1198,7 @@ bool EarlyIfPredicator::runOnMachineFunction(MachineFunction &MF) {
   // if-conversion in a single pass. The tryConvertIf() function may erase
   // blocks, but only blocks dominated by the head block. This makes it safe to
   // update the dominator tree while the post-order iterator is still active.
-  for (auto DomNode : post_order(DomTree))
+  for (auto *DomNode : post_order(DomTree))
     if (tryConvertIf(DomNode->getBlock()))
       Changed = true;
 

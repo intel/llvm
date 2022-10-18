@@ -11,22 +11,27 @@ SYNOPSIS
 DESCRIPTION
 -----------
 
-:program:`llvm-symbolizer` reads object file names and addresses from the
-command-line and prints corresponding source code locations to standard output.
+:program:`llvm-symbolizer` reads input names and addresses from the command-line
+and prints corresponding source code locations to standard output. It can also
+symbolize logs containing :doc:`Symbolizer Markup </SymbolizerMarkupFormat>` via
+:option:`--filter-markup`.
 
 If no address is specified on the command-line, it reads the addresses from
-standard input. If no object file is specified on the command-line, but
-addresses are, or if at any time an input value is not recognized, the input is
-simply echoed to the output.
+standard input. If no input name is specified on the command-line, but addresses
+are, or if at any time an input value is not recognized, the input is simply
+echoed to the output.
+
+Input names can be specified together with the addresses either on standard
+input or as positional arguments on the command-line. By default, input names
+are interpreted as object file paths. However, prefixing a name with
+``BUILDID:`` states that it is a hex build ID rather than a path. This will look
+up the corresponding debug binary. For consistency, prefixing a name with
+``FILE:`` explicitly states that it is an object file path (the default).
 
 A positional argument or standard input value can be preceded by "DATA" or
 "CODE" to indicate that the address should be symbolized as data or executable
 code respectively. If neither is specified, "CODE" is assumed. DATA is
 symbolized as address and symbol size rather than line number.
-
-Object files can be specified together with the addresses either on standard
-input or as positional arguments on the command-line, following any "DATA" or
-"CODE" prefix.
 
 :program:`llvm-symbolizer` parses options from the environment variable
 ``LLVM_SYMBOLIZER_OPTS`` after parsing options from the command line.
@@ -107,7 +112,7 @@ Example 3 - object specified with address:
 
 .. code-block:: console
 
-  $ llvm-symbolizer "test.elf 0x400490" "inlined.elf 0x400480"
+  $ llvm-symbolizer "test.elf 0x400490" "FILE:inlined.elf 0x400480"
   baz()
   /tmp/test.cpp:11:0
 
@@ -115,7 +120,7 @@ Example 3 - object specified with address:
   /tmp/test.cpp:8:10
 
   $ cat addr2.txt
-  test.elf 0x4004a0
+  FILE:test.elf 0x4004a0
   inlined.elf 0x400480
 
   $ llvm-symbolizer < addr2.txt
@@ -125,7 +130,29 @@ Example 3 - object specified with address:
   foo()
   /tmp/test.cpp:8:10
 
-Example 4 - CODE and DATA prefixes:
+Example 4 - BUILDID and FILE prefixes:
+
+.. code-block:: console
+
+  $ llvm-symbolizer "FILE:test.elf 0x400490" "DATA BUILDID:123456789abcdef 0x601028"
+  baz()
+  /tmp/test.cpp:11:0
+
+  bar
+  6295592 4
+
+  $ cat addr3.txt
+  FILE:test.elf 0x400490
+  DATA BUILDID:123456789abcdef 0x601028
+
+  $ llvm-symbolizer < addr3.txt
+  baz()
+  /tmp/test.cpp:11:0
+
+  bar
+  6295592 4
+
+Example 5 - CODE and DATA prefixes:
 
 .. code-block:: console
 
@@ -136,18 +163,18 @@ Example 4 - CODE and DATA prefixes:
   bar
   6295592 4
 
-  $ cat addr3.txt
+  $ cat addr4.txt
   CODE test.elf 0x4004a0
   DATA inlined.elf 0x601028
 
-  $ llvm-symbolizer < addr3.txt
+  $ llvm-symbolizer < addr4.txt
   main
   /tmp/test.cpp:15:0
 
   bar
   6295592 4
 
-Example 5 - path-style options:
+Example 6 - path-style options:
 
 This example uses the same source file as above, but the source file's
 full path is /tmp/foo/test.cpp and is compiled as follows. The first case
@@ -182,7 +209,31 @@ OPTIONS
 
   Print just the file's name without any directories, instead of the
   absolute path.
-  
+
+.. option:: --build-id
+
+  Look up the object using the given build ID, specified as a hexadecimal
+  string. Mutually exclusive with :option:`--obj`.
+
+.. option:: --color [=<always|auto|never>]
+
+  Specify whether to use color in :option:`--filter-markup` mode. Defaults to
+  ``auto``, which detects whether standard output supports color. Specifying
+  ``--color`` alone is equivalent to ``--color=always``.
+
+.. option:: --debug-file-directory <path>
+
+  Provide a path to a directory with a `.build-id` subdirectory to search for
+  debug information for stripped binaries. Multiple instances of this argument
+  are searched in the order given.
+
+.. option:: --debuginfod, --no-debuginfod
+
+  Whether or not to try debuginfod lookups for debug binaries. Unless specified,
+  debuginfod is only enabled if libcurl was compiled in (``LLVM_ENABLE_CURL``)
+  and at least one server URL was provided by the environment variable
+  ``DEBUGINFOD_URLS``.
+
 .. _llvm-symbolizer-opt-C:
 
 .. option:: --demangle, -C
@@ -201,6 +252,29 @@ OPTIONS
   When a separate file contains debug data, and is referenced by a GNU debug
   link section, use the specified path as a basis for locating the debug data if
   it cannot be found relative to the object.
+
+.. option:: --filter-markup
+
+  Reads from standard input, converts contained
+  :doc:`Symbolizer Markup </SymbolizerMarkupFormat>` into human-readable form,
+  and prints the results to standard output. The following markup elements are
+  not yet supported:
+
+  * ``{{{hexdict}}}``
+  * ``{{{dumpfile}}}``
+
+  The ``{{{bt}}}`` backtrace element reports frames using the following syntax:
+
+  ``#<number>[.<inline>] <address> <function> <file>:<line>:<col> (<module>+<relative address>)``
+
+  ``<inline>`` provides frame numbers for calls inlined into the caller
+  coresponding to ``<number>``. The inlined call numbers start at 1 and increase
+  from callee to caller.
+
+  ``<address>`` is an address inside the call instruction to the function.  The
+  address may not be the start of the instruction.  ``<relative address>`` is
+  the corresponding virtual offset in the ``<module>`` loaded at that address.
+
 
 .. _llvm-symbolizer-opt-f:
 
@@ -232,26 +306,30 @@ OPTIONS
 .. option:: --obj <path>, --exe, -e
 
   Path to object file to be symbolized. If ``-`` is specified, read the object
-  directly from the standard input stream.
+  directly from the standard input stream. Mutually exclusive with
+  :option:`--build-id`.
 
 .. _llvm-symbolizer-opt-output-style:
 
-.. option:: --output-style <LLVM|GNU>
+.. option:: --output-style <LLVM|GNU|JSON>
 
   Specify the preferred output style. Defaults to ``LLVM``. When the output
   style is set to ``GNU``, the tool follows the style of GNU's **addr2line**.
   The differences from the ``LLVM`` style are:
-  
+
   * Does not print the column of a source code location.
 
   * Does not add an empty line after the report for an address.
 
   * Does not replace the name of an inlined function with the name of the
-    topmost caller when inlined frames are not shown and :option:`--use-symbol-table`
-    is on.
+    topmost caller when inlined frames are not shown.
 
   * Prints an address's debug-data discriminator when it is non-zero. One way to
     produce discriminators is to compile with clang's -fdebug-info-for-profiling.
+
+  ``JSON`` style provides a machine readable output in JSON. If addresses are
+    supplied via stdin, the output JSON will be a series of individual objects.
+    Otherwise, all results will be contained in a single array.
 
   .. code-block:: console
 
@@ -274,10 +352,58 @@ OPTIONS
     $ llvm-symbolizer --output-style=GNU --obj=profiling.elf 0x401167 -p --no-inlines
     main at /tmp/test.cpp:15 (discriminator 2)
 
+    $ llvm-symbolizer --output-style=JSON --obj=inlined.elf 0x4004be 0x400486 -p
+    [
+      {
+        "Address": "0x4004be",
+        "ModuleName": "inlined.elf",
+        "Symbol": [
+          {
+            "Column": 18,
+            "Discriminator": 0,
+            "FileName": "/tmp/test.cpp",
+            "FunctionName": "baz()",
+            "Line": 11,
+            "StartAddress": "0x4004be",
+            "StartFileName": "/tmp/test.cpp",
+            "StartLine": 9
+          },
+          {
+            "Column": 0,
+            "Discriminator": 0,
+            "FileName": "/tmp/test.cpp",
+            "FunctionName": "main",
+            "Line": 15,
+            "StartAddress": "0x4004be",
+            "StartFileName": "/tmp/test.cpp",
+            "StartLine": 14
+          }
+        ]
+      },
+      {
+        "Address": "0x400486",
+        "ModuleName": "inlined.elf",
+        "Symbol": [
+          {
+            "Column": 3,
+            "Discriminator": 0,
+            "FileName": "/tmp/test.cpp",
+            "FunctionName": "foo()",
+            "Line": 6,
+            "StartAddress": "0x400486",
+            "StartFileName": "/tmp/test.cpp",
+            "StartLine": 5
+          }
+        ]
+      }
+    ]
+
 .. option:: --pretty-print, -p
 
   Print human readable output. If :option:`--inlining` is specified, the
   enclosing scope is prefixed by (inlined by).
+  For JSON output, the option will cause JSON to be indented and split over
+  new lines. Otherwise, the JSON output will be printed in a compact form.
 
   .. code-block:: console
 
@@ -308,7 +434,7 @@ OPTIONS
 
   .. code-block:: console
 
-    $ llvm-symbolizer --obj=test.elf 0x400490 --print-source-context-lines=2
+    $ llvm-symbolizer --obj=test.elf 0x400490 --print-source-context-lines=3
     baz()
     /tmp/test.cpp:11:0
     10  :   volatile int k = 42;
@@ -321,30 +447,27 @@ OPTIONS
   of the absolute path. If the command-line to the compiler included
   the full path, this will be the same as the default.
 
-.. _llvm-symbolizer-opt-use-symbol-table:
-
-.. option:: --use-symbol-table
-
-  Prefer function names stored in symbol table to function names in debug info
-  sections. Defaults to true.
-
 .. option:: --verbose
 
-  Print verbose line and column information.
+  Print verbose address, line and column information.
 
   .. code-block:: console
 
     $ llvm-symbolizer --obj=inlined.elf --verbose 0x4004be
     baz()
       Filename: /tmp/test.cpp
-    Function start line: 9
+      Function start filename: /tmp/test.cpp
+      Function start line: 9
+      Function start address: 0x4004b6
       Line: 11
       Column: 18
     main
       Filename: /tmp/test.cpp
-    Function start line: 14
+      Function start filename: /tmp/test.cpp
+      Function start line: 14
+      Function start address: 0x4004b0
       Line: 15
-      Column: 0
+      Column: 18
 
 .. option:: --version, -v
 

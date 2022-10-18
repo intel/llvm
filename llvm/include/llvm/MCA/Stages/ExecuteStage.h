@@ -49,7 +49,7 @@ class ExecuteStage final : public Stage {
 public:
   ExecuteStage(Scheduler &S) : ExecuteStage(S, false) {}
   ExecuteStage(Scheduler &S, bool ShouldPerformBottleneckAnalysis)
-      : Stage(), HWS(S), NumDispatchedOpcodes(0), NumIssuedOpcodes(0),
+      : HWS(S), NumDispatchedOpcodes(0), NumIssuedOpcodes(0),
         EnablePressureEvents(ShouldPerformBottleneckAnalysis) {}
 
   // This stage works under the assumption that the Pipeline will eventually
@@ -72,9 +72,8 @@ public:
   Error cycleEnd() override;
   Error execute(InstRef &IR) override;
 
-  void notifyInstructionIssued(
-      const InstRef &IR,
-      MutableArrayRef<std::pair<ResourceRef, ResourceCycles>> Used) const;
+  void notifyInstructionIssued(const InstRef &IR,
+                               MutableArrayRef<ResourceUse> Used) const;
   void notifyInstructionExecuted(const InstRef &IR) const;
   void notifyInstructionPending(const InstRef &IR) const;
   void notifyInstructionReady(const InstRef &IR) const;

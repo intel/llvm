@@ -15,12 +15,10 @@
 #define LLVM_SUPPORT_THREADING_H
 
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Config/llvm-config.h" // for LLVM_ON_UNIX
 #include "llvm/Support/Compiler.h"
 #include <ciso646> // So we can check the C++ standard lib macros.
-#include <functional>
 
 #if defined(_MSC_VER)
 // MSVC's call_once implementation worked since VS 2015, which is the minimum
@@ -52,37 +50,7 @@ class Twine;
 
 /// Returns true if LLVM is compiled with support for multi-threading, and
 /// false otherwise.
-bool llvm_is_multithreaded();
-
-/// Execute the given \p UserFn on a separate thread, passing it the provided \p
-/// UserData and waits for thread completion.
-///
-/// This function does not guarantee that the code will actually be executed
-/// on a separate thread or honoring the requested stack size, but tries to do
-/// so where system support is available.
-///
-/// \param UserFn - The callback to execute.
-/// \param UserData - An argument to pass to the callback function.
-/// \param StackSizeInBytes - A requested size (in bytes) for the thread stack
-/// (or None for default)
-void llvm_execute_on_thread(
-    void (*UserFn)(void *), void *UserData,
-    llvm::Optional<unsigned> StackSizeInBytes = llvm::None);
-
-/// Schedule the given \p Func for execution on a separate thread, then return
-/// to the caller immediately. Roughly equivalent to
-/// `std::thread(Func).detach()`, except it allows requesting a specific stack
-/// size, if supported for the platform.
-///
-/// This function would report a fatal error if it can't execute the code
-/// on a separate thread.
-///
-/// \param Func - The callback to execute.
-/// \param StackSizeInBytes - A requested size (in bytes) for the thread stack
-/// (or None for default)
-void llvm_execute_on_thread_async(
-    llvm::unique_function<void()> Func,
-    llvm::Optional<unsigned> StackSizeInBytes = llvm::None);
+constexpr bool llvm_is_multithreaded() { return LLVM_ENABLE_THREADS; }
 
 #if LLVM_THREADING_USE_STD_CALL_ONCE
 
@@ -265,15 +233,20 @@ void llvm_execute_on_thread_async(
   unsigned get_cpus();
 
   enum class ThreadPriority {
+    /// Lower the current thread's priority as much as possible. Can be used
+    /// for long-running tasks that are not time critical; more energy-
+    /// efficient than Low.
     Background = 0,
-    Default = 1,
+
+    /// Lower the current thread's priority such that it does not affect
+    /// foreground tasks significantly. This is a good default for long-
+    /// running, latency-insensitive tasks to make sure cpu is not hogged
+    /// by this task.
+    Low = 1,
+
+    /// Restore the current thread's priority to default scheduling priority.
+    Default = 2,
   };
-  /// If priority is Background tries to lower current threads priority such
-  /// that it does not affect foreground tasks significantly. Can be used for
-  /// long-running, latency-insensitive tasks to make sure cpu is not hogged by
-  /// this task.
-  /// If the priority is default tries to restore current threads priority to
-  /// default scheduling priority.
   enum class SetThreadPriorityResult { FAILURE, SUCCESS };
   SetThreadPriorityResult set_thread_priority(ThreadPriority Priority);
 }

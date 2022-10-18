@@ -103,6 +103,7 @@ public:
   void VisitTemplateTemplateParmDecl(const TemplateTemplateParmDecl *D);
   void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
   void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
+  void VisitConceptDecl(const ConceptDecl *D);
 
   void VisitLinkageSpecDecl(const LinkageSpecDecl *D) {
     IgnoreResults = true; // No USRs for linkage specs themselves.
@@ -257,7 +258,7 @@ void USRGenerator::VisitFunctionDecl(const FunctionDecl *D) {
   }
 
   // Mangle in type information for the arguments.
-  for (auto PD : D->parameters()) {
+  for (auto *PD : D->parameters()) {
     Out << '#';
     VisitType(PD->getType());
   }
@@ -549,21 +550,21 @@ void USRGenerator::VisitTagDecl(const TagDecl *D) {
     if (const TypedefNameDecl *TD = D->getTypedefNameForAnonDecl()) {
       Buf[off] = 'A';
       Out << '@' << *TD;
-    }
-  else {
-    if (D->isEmbeddedInDeclarator() && !D->isFreeStanding()) {
-      printLoc(Out, D->getLocation(), Context->getSourceManager(), true);
     } else {
-      Buf[off] = 'a';
-      if (auto *ED = dyn_cast<EnumDecl>(D)) {
-        // Distinguish USRs of anonymous enums by using their first enumerator.
-        auto enum_range = ED->enumerators();
-        if (enum_range.begin() != enum_range.end()) {
-          Out << '@' << **enum_range.begin();
+      if (D->isEmbeddedInDeclarator() && !D->isFreeStanding()) {
+        printLoc(Out, D->getLocation(), Context->getSourceManager(), true);
+      } else {
+        Buf[off] = 'a';
+        if (auto *ED = dyn_cast<EnumDecl>(D)) {
+          // Distinguish USRs of anonymous enums by using their first
+          // enumerator.
+          auto enum_range = ED->enumerators();
+          if (enum_range.begin() != enum_range.end()) {
+            Out << '@' << **enum_range.begin();
+          }
         }
       }
     }
-  }
   }
 
   // For a class template specialization, mangle the template arguments.
@@ -705,6 +706,7 @@ void USRGenerator::VisitType(QualType T) {
           c = 'f'; break;
         case BuiltinType::Double:
           c = 'd'; break;
+        case BuiltinType::Ibm128: // FIXME: Need separate tag
         case BuiltinType::LongDouble:
           c = 'D'; break;
         case BuiltinType::Float128:
@@ -966,7 +968,7 @@ void USRGenerator::VisitTemplateArgument(const TemplateArgument &Arg) {
 
   case TemplateArgument::TemplateExpansion:
     Out << 'P'; // pack expansion of...
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case TemplateArgument::Template:
     VisitTemplateName(Arg.getAsTemplateOrTemplatePattern());
     break;
@@ -1011,7 +1013,13 @@ void USRGenerator::VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenam
   Out << D->getName(); // Simple name.
 }
 
-
+void USRGenerator::VisitConceptDecl(const ConceptDecl *D) {
+  if (ShouldGenerateLocation(D) && GenLoc(D, /*IncludeOffset=*/isLocal(D)))
+    return;
+  VisitDeclContext(D->getDeclContext());
+  Out << "@CT@";
+  EmitDeclName(D);
+}
 
 //===----------------------------------------------------------------------===//
 // USR generation functions.
@@ -1108,15 +1116,14 @@ bool clang::index::generateUSRForMacro(const MacroDefinitionRecord *MD,
 bool clang::index::generateUSRForMacro(StringRef MacroName, SourceLocation Loc,
                                        const SourceManager &SM,
                                        SmallVectorImpl<char> &Buf) {
-  // Don't generate USRs for things with invalid locations.
-  if (MacroName.empty() || Loc.isInvalid())
+  if (MacroName.empty())
     return true;
 
   llvm::raw_svector_ostream Out(Buf);
 
   // Assume that system headers are sane.  Don't put source location
   // information into the USR if the macro comes from a system header.
-  bool ShouldGenerateLocation = !SM.isInSystemHeader(Loc);
+  bool ShouldGenerateLocation = Loc.isValid() && !SM.isInSystemHeader(Loc);
 
   Out << getUSRSpacePrefix();
   if (ShouldGenerateLocation)

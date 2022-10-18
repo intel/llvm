@@ -3,7 +3,6 @@ Test lldb-vscode setBreakpoints request
 """
 
 
-import unittest2
 import vscode
 import shutil
 from lldbsuite.test.decorators import *
@@ -15,8 +14,6 @@ import os
 
 class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         lldbvscode_testcase.VSCodeTestCaseBase.setUp(self)
 
@@ -26,6 +23,12 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
     @skipIfWindows
     @skipIfRemote
     def test_source_map(self):
+        """
+        This test simulates building two files in a folder, and then moving
+        each source to a different folder. Then, the debug session is started
+        with the corresponding source maps to have breakpoints and frames
+        working.
+        """
         self.build_and_create_debug_adaptor()
 
         other_basename = 'other-copy.c'
@@ -86,6 +89,16 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
         self.assertTrue(breakpoint['verified'])
         self.assertEqual(other_basename, breakpoint['source']['name'])
         self.assertEqual(new_other_path, breakpoint['source']['path'])
+
+        # now we check the stack trace making sure that we got mapped source paths
+        frames = self.vscode.request_stackTrace()['body']['stackFrames']
+
+        self.assertEqual(frames[0]['source']['name'], other_basename)
+        self.assertEqual(frames[0]['source']['path'], new_other_path)
+
+        self.assertEqual(frames[1]['source']['name'], self.main_basename)
+        self.assertEqual(frames[1]['source']['path'], new_main_path)
+
 
     @skipIfWindows
     @skipIfRemote
@@ -286,7 +299,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
         # Update the condition on our breakpoint
         new_breakpoint_ids = self.set_source_breakpoints(self.main_path,
                                                          [loop_line],
-                                                         condition="i==4")
+                                                         [{'condition': "i==4"}])
         self.assertEquals(breakpoint_ids, new_breakpoint_ids,
                         "existing breakpoint should have its condition "
                         "updated")
@@ -298,7 +311,7 @@ class TestVSCode_setBreakpoints(lldbvscode_testcase.VSCodeTestCaseBase):
 
         new_breakpoint_ids = self.set_source_breakpoints(self.main_path,
                                                          [loop_line],
-                                                         hitCondition="2")
+                                                         [{'hitCondition':"2"}])
 
         self.assertEquals(breakpoint_ids, new_breakpoint_ids,
                         "existing breakpoint should have its condition "

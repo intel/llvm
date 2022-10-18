@@ -13,48 +13,42 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 static Command *getCommand(const EventImplPtr &Event) {
   return (Command *)Event->getCommand();
 }
 
-std::vector<EventImplPtr>
-Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
+void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
+                                             ReadLockT &GraphReadLock,
+                                             std::vector<Command *> &ToCleanUp,
+                                             bool LockTheLock) {
   Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly,
-  // as such event is not mapped to any SYCL task.
-  if (!Cmd)
-    return {};
-  std::vector<EventImplPtr> Result;
-  for (const DepDesc &Dep : Cmd->MDeps) {
-    if (Dep.MDepCommand)
-      Result.push_back(Dep.MDepCommand->getEvent());
-  }
-  return Result;
-}
-
-void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
-  Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly or the
+  // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
     return;
 
   EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, BLOCKING);
+  bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
-    throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
 
-  Cmd->getEvent()->waitInternal();
+  assert(Cmd->getEvent() == Event);
+
+  GraphReadLock.unlock();
+  Event->waitInternal();
+
+  if (LockTheLock)
+    GraphReadLock.lock();
 }
 
-bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
-                                               EnqueueResultT &EnqueueResult,
-                                               BlockingT Blocking) {
+bool Scheduler::GraphProcessor::enqueueCommand(
+    Command *Cmd, EnqueueResultT &EnqueueResult,
+    std::vector<Command *> &ToCleanUp, BlockingT Blocking) {
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
@@ -64,32 +58,42 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
     return false;
   }
 
-  // Recursively enqueue all the dependencies first and
-  // exit immediately if any of the commands cannot be enqueued.
-  for (DepDesc &Dep : Cmd->MDeps) {
-    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, Blocking))
-      return false;
-  }
-
-  // Asynchronous host operations (amongst dependencies of an arbitrary command)
-  // are not supported (see Command::processDepEvent method). This impacts
-  // operation of host-task feature a lot with hangs and long-runs. Hence we
-  // have this workaround here.
-  // This workaround is safe as long as the only asynchronous host operation we
-  // have is a host task.
-  // This may iterate over some of dependencies in Cmd->MDeps. Though, the
-  // enqueue operation is idempotent and the second call will result in no-op.
-  // TODO remove the workaround when proper fix for host-task dispatching is
-  // implemented.
-  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
+  // Recursively enqueue all the implicit + explicit backend level dependencies
+  // first and exit immediately if any of the commands cannot be enqueued.
+  for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, Blocking))
+      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
         return false;
   }
 
-  return Cmd->enqueue(EnqueueResult, Blocking);
+  // Recursively enqueue all the implicit + explicit host dependencies and
+  // exit immediately if any of the commands cannot be enqueued.
+  // Host task execution is asynchronous. In current implementation enqueue for
+  // this command will wait till host task completion by waitInternal call on
+  // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
+  // completion stage and eliminate this event waiting in enqueue.
+  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
+    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
+        return false;
+  }
+
+  // Only graph read lock is to be held here.
+  // Enqueue process of a command may last quite a time. Having graph locked can
+  // introduce some thread starving (i.e. when the other thread attempts to
+  // acquire write lock and add a command to graph). Releasing read lock without
+  // other safety measures isn't an option here as the other thread could go
+  // into graph cleanup process (due to some event complete) and remove some
+  // dependencies from dependencies of the user of this command.
+  // An example: command A depends on commands B and C. This thread wants to
+  // enqueue A. Hence, it needs to enqueue B and C. So this thread gets into
+  // dependency list and starts enqueueing B right away. The other thread waits
+  // on completion of C and starts cleanup process. This thread is still in the
+  // middle of enqueue of B. The other thread modifies dependency list of A by
+  // removing C out of it. Iterators become invalid.
+  return Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

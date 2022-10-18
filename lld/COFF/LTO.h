@@ -27,17 +27,15 @@
 #include <memory>
 #include <vector>
 
-namespace llvm {
-namespace lto {
+namespace llvm::lto {
 class LTO;
 }
-}
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 class BitcodeFile;
 class InputFile;
+class COFFLinkerContext;
 
 class BitcodeCompiler {
 public:
@@ -45,7 +43,7 @@ public:
   ~BitcodeCompiler();
 
   void add(BitcodeFile &f);
-  std::vector<InputFile *> compile();
+  std::vector<InputFile *> compile(COFFLinkerContext &ctx);
 
 private:
   std::unique_ptr<llvm::lto::LTO> ltoObj;
@@ -54,7 +52,6 @@ private:
   std::unique_ptr<llvm::raw_fd_ostream> indexFile;
   llvm::DenseSet<StringRef> thinIndices;
 };
-}
 }
 
 #endif

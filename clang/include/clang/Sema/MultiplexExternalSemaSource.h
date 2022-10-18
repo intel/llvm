@@ -40,25 +40,24 @@ class MultiplexExternalSemaSource : public ExternalSemaSource {
   static char ID;
 
 private:
-  SmallVector<ExternalSemaSource *, 2> Sources; // doesn't own them.
+  SmallVector<ExternalSemaSource *, 2> Sources;
 
 public:
-
-  ///Constructs a new multiplexing external sema source and appends the
+  /// Constructs a new multiplexing external sema source and appends the
   /// given element to it.
   ///
-  ///\param[in] s1 - A non-null (old) ExternalSemaSource.
-  ///\param[in] s2 - A non-null (new) ExternalSemaSource.
+  ///\param[in] S1 - A non-null (old) ExternalSemaSource.
+  ///\param[in] S2 - A non-null (new) ExternalSemaSource.
   ///
-  MultiplexExternalSemaSource(ExternalSemaSource& s1, ExternalSemaSource& s2);
+  MultiplexExternalSemaSource(ExternalSemaSource *S1, ExternalSemaSource *S2);
 
   ~MultiplexExternalSemaSource() override;
 
-  ///Appends new source to the source list.
+  /// Appends new source to the source list.
   ///
   ///\param[in] source - An ExternalSemaSource.
   ///
-  void addSource(ExternalSemaSource &source);
+  void AddSource(ExternalSemaSource *Source);
 
   //===--------------------------------------------------------------------===//
   // ExternalASTSource.
@@ -337,7 +336,7 @@ public:
   /// may be invoked multiple times; the external source should take care not to
   /// introduce the same declarations repeatedly.
   void ReadDeclsToCheckForDeferredDiags(
-      llvm::SmallVector<Decl *, 4> &Decls) override;
+      llvm::SmallSetVector<Decl *, 4> &Decls) override;
 
   /// \copydoc ExternalSemaSource::CorrectTypo
   /// \note Returns the first nonempty correction.

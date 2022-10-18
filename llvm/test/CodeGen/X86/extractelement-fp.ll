@@ -311,7 +311,7 @@ define void @extsetcc(<4 x float> %x) {
   %cmp = fcmp ult <4 x float> %x, zeroinitializer
   %sext = sext <4 x i1> %cmp to <4 x i32>
   %e = extractelement <4 x i1> %cmp, i1 0
-  store i1 %e, i1* undef
+  store i1 %e, ptr undef
   ret void
 }
 
@@ -319,7 +319,7 @@ define void @extsetcc(<4 x float> %x) {
 define <3 x double> @extvselectsetcc_crash(<2 x double> %x) {
 ; X64-LABEL: extvselectsetcc_crash:
 ; X64:       # %bb.0:
-; X64-NEXT:    vcmpeqpd {{.*}}(%rip), %xmm0, %xmm1
+; X64-NEXT:    vcmpeqpd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm1
 ; X64-NEXT:    vmovsd {{.*#+}} xmm2 = mem[0],zero
 ; X64-NEXT:    vandpd %xmm2, %xmm1, %xmm1
 ; X64-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
@@ -328,7 +328,7 @@ define <3 x double> @extvselectsetcc_crash(<2 x double> %x) {
 ;
 ; X86-LABEL: extvselectsetcc_crash:
 ; X86:       # %bb.0:
-; X86-NEXT:    vcmpeqpd {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm1
+; X86-NEXT:    vcmpeqpd {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm1
 ; X86-NEXT:    vmovsd {{.*#+}} xmm2 = mem[0],zero
 ; X86-NEXT:    vandpd %xmm2, %xmm1, %xmm1
 ; X86-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
@@ -546,7 +546,7 @@ define float @fabs_v4f32(<4 x float> %x) nounwind {
 define double @fabs_v4f64(<4 x double> %x) nounwind {
 ; X64-LABEL: fabs_v4f64:
 ; X64:       # %bb.0:
-; X64-NEXT:    vandps {{.*}}(%rip), %xmm0, %xmm0
+; X64-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 ;
@@ -556,7 +556,7 @@ define double @fabs_v4f64(<4 x double> %x) nounwind {
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $8, %esp
-; X86-NEXT:    vandps {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
+; X86-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
 ; X86-NEXT:    vmovlps %xmm0, (%esp)
 ; X86-NEXT:    fldl (%esp)
 ; X86-NEXT:    movl %ebp, %esp
@@ -818,8 +818,8 @@ define float @copysign_v4f32(<4 x float> %x, <4 x float> %y) nounwind {
 define double @copysign_v4f64(<4 x double> %x, <4 x double> %y) nounwind {
 ; X64-LABEL: copysign_v4f64:
 ; X64:       # %bb.0:
-; X64-NEXT:    vandps {{.*}}(%rip), %xmm1, %xmm1
-; X64-NEXT:    vandps {{.*}}(%rip), %xmm0, %xmm0
+; X64-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1, %xmm1
+; X64-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; X64-NEXT:    vorps %xmm1, %xmm0, %xmm0
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
@@ -830,8 +830,8 @@ define double @copysign_v4f64(<4 x double> %x, <4 x double> %y) nounwind {
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $8, %esp
-; X86-NEXT:    vandps {{\.LCPI[0-9]+_[0-9]+}}, %xmm1, %xmm1
-; X86-NEXT:    vandps {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
+; X86-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm1, %xmm1
+; X86-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
 ; X86-NEXT:    vorps %xmm1, %xmm0, %xmm0
 ; X86-NEXT:    vmovlps %xmm0, (%esp)
 ; X86-NEXT:    fldl (%esp)
@@ -1070,7 +1070,7 @@ define float @round_v4f32(<4 x float> %x) nounwind {
 ; X64-NEXT:    vbroadcastss {{.*#+}} xmm1 = [-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0]
 ; X64-NEXT:    vandps %xmm1, %xmm0, %xmm1
 ; X64-NEXT:    vbroadcastss {{.*#+}} xmm2 = [4.9999997E-1,4.9999997E-1,4.9999997E-1,4.9999997E-1]
-; X64-NEXT:    vorps %xmm1, %xmm2, %xmm1
+; X64-NEXT:    vorps %xmm2, %xmm1, %xmm1
 ; X64-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; X64-NEXT:    vroundss $11, %xmm0, %xmm0, %xmm0
 ; X64-NEXT:    retq
@@ -1081,7 +1081,7 @@ define float @round_v4f32(<4 x float> %x) nounwind {
 ; X86-NEXT:    vbroadcastss {{.*#+}} xmm1 = [-0.0E+0,-0.0E+0,-0.0E+0,-0.0E+0]
 ; X86-NEXT:    vandps %xmm1, %xmm0, %xmm1
 ; X86-NEXT:    vbroadcastss {{.*#+}} xmm2 = [4.9999997E-1,4.9999997E-1,4.9999997E-1,4.9999997E-1]
-; X86-NEXT:    vorps %xmm1, %xmm2, %xmm1
+; X86-NEXT:    vorps %xmm2, %xmm1, %xmm1
 ; X86-NEXT:    vaddss %xmm1, %xmm0, %xmm0
 ; X86-NEXT:    vroundss $11, %xmm0, %xmm0, %xmm0
 ; X86-NEXT:    vmovss %xmm0, (%esp)
@@ -1096,10 +1096,10 @@ define float @round_v4f32(<4 x float> %x) nounwind {
 define double @round_v4f64(<4 x double> %x) nounwind {
 ; X64-LABEL: round_v4f64:
 ; X64:       # %bb.0:
-; X64-NEXT:    vandpd {{.*}}(%rip), %xmm0, %xmm1
+; X64-NEXT:    vandpd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm1
 ; X64-NEXT:    vmovddup {{.*#+}} xmm2 = [4.9999999999999994E-1,4.9999999999999994E-1]
 ; X64-NEXT:    # xmm2 = mem[0,0]
-; X64-NEXT:    vorpd %xmm1, %xmm2, %xmm1
+; X64-NEXT:    vorpd %xmm2, %xmm1, %xmm1
 ; X64-NEXT:    vaddsd %xmm1, %xmm0, %xmm0
 ; X64-NEXT:    vroundsd $11, %xmm0, %xmm0, %xmm0
 ; X64-NEXT:    vzeroupper
@@ -1111,10 +1111,10 @@ define double @round_v4f64(<4 x double> %x) nounwind {
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-8, %esp
 ; X86-NEXT:    subl $8, %esp
-; X86-NEXT:    vandpd {{\.LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm1
+; X86-NEXT:    vandpd {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm1
 ; X86-NEXT:    vmovddup {{.*#+}} xmm2 = [4.9999999999999994E-1,4.9999999999999994E-1]
 ; X86-NEXT:    # xmm2 = mem[0,0]
-; X86-NEXT:    vorpd %xmm1, %xmm2, %xmm1
+; X86-NEXT:    vorpd %xmm2, %xmm1, %xmm1
 ; X86-NEXT:    vaddsd %xmm1, %xmm0, %xmm0
 ; X86-NEXT:    vroundsd $11, %xmm0, %xmm0, %xmm0
 ; X86-NEXT:    vmovsd %xmm0, (%esp)

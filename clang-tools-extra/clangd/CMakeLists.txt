@@ -1,3 +1,7 @@
+# This is a no-op for building files in this dir, but is inherited by subdirs.
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
 add_subdirectory(support)
 
 # Configure the Features.inc file.
@@ -15,12 +19,15 @@ if (NOT DEFINED CLANGD_BUILD_XPC)
 endif ()
 
 option(CLANGD_MALLOC_TRIM "Call malloc_trim(3) periodically in Clangd. (only takes effect when using glibc)" ON)
+# -DCLANG_TIDY_CHECKS=Off avoids a dependency on clang-tidy, reducing rebuilds.
+option(CLANGD_TIDY_CHECKS "Link all clang-tidy checks into clangd" ON)
 
 llvm_canonicalize_cmake_booleans(
   CLANGD_BUILD_XPC
   CLANGD_ENABLE_REMOTE
   ENABLE_GRPC_REFLECTION
   CLANGD_MALLOC_TRIM
+  CLANGD_TIDY_CHECKS
   LLVM_ENABLE_ZLIB
 )
 
@@ -64,6 +71,7 @@ add_clang_library(clangDaemon
   DumpAST.cpp
   ExpectedTypes.cpp
   FeatureModule.cpp
+  Feature.cpp
   FindSymbols.cpp
   FindTarget.cpp
   FileDistance.cpp
@@ -75,7 +83,9 @@ add_clang_library(clangDaemon
   HeaderSourceSwitch.cpp
   HeuristicResolver.cpp
   Hover.cpp
+  IncludeCleaner.cpp
   IncludeFixer.cpp
+  InlayHints.cpp
   JSONTransport.cpp
   PathMapping.cpp
   Protocol.cpp
@@ -109,6 +119,7 @@ add_clang_library(clangDaemon
   index/Ref.cpp
   index/Relation.cpp
   index/Serialization.cpp
+  index/StdLib.cpp
   index/Symbol.cpp
   index/SymbolCollector.cpp
   index/SymbolID.cpp
@@ -121,6 +132,7 @@ add_clang_library(clangDaemon
   index/dex/PostingList.cpp
   index/dex/Trigram.cpp
 
+  refactor/InsertionPoint.cpp
   refactor/Rename.cpp
   refactor/Tweak.cpp
 
@@ -156,10 +168,14 @@ target_link_libraries(clangDaemon
   ${LLVM_PTHREAD_LIB}
 
   clangTidy
-  ${ALL_CLANG_TIDY_CHECKS}
 
   clangdSupport
+
+  clangPseudo
   )
+if(CLANGD_TIDY_CHECKS)
+  target_link_libraries(clangDaemon PRIVATE ${ALL_CLANG_TIDY_CHECKS})
+endif()
 
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")

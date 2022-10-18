@@ -13,7 +13,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/LoopUnrollAnalyzer.h"
+#include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/IR/Operator.h"
 
 using namespace llvm;
 
@@ -34,6 +37,11 @@ bool UnrolledInstAnalyzer::simplifyInstWithSCEV(Instruction *I) {
     SimplifiedValues[I] = SC->getValue();
     return true;
   }
+
+  // If we have a loop invariant computation, we only need to compute it once.
+  // Given that, all but the first occurance are free.
+  if (!IterationNumber->isZero() && SE.isLoopInvariant(S, L))
+    return true;
 
   auto *AR = dyn_cast<SCEVAddRecExpr>(S);
   if (!AR || AR->getLoop() != L)
@@ -69,25 +77,24 @@ bool UnrolledInstAnalyzer::simplifyInstWithSCEV(Instruction *I) {
 bool UnrolledInstAnalyzer::visitBinaryOperator(BinaryOperator &I) {
   Value *LHS = I.getOperand(0), *RHS = I.getOperand(1);
   if (!isa<Constant>(LHS))
-    if (Constant *SimpleLHS = SimplifiedValues.lookup(LHS))
+    if (Value *SimpleLHS = SimplifiedValues.lookup(LHS))
       LHS = SimpleLHS;
   if (!isa<Constant>(RHS))
-    if (Constant *SimpleRHS = SimplifiedValues.lookup(RHS))
+    if (Value *SimpleRHS = SimplifiedValues.lookup(RHS))
       RHS = SimpleRHS;
 
   Value *SimpleV = nullptr;
   const DataLayout &DL = I.getModule()->getDataLayout();
   if (auto FI = dyn_cast<FPMathOperator>(&I))
     SimpleV =
-        SimplifyBinOp(I.getOpcode(), LHS, RHS, FI->getFastMathFlags(), DL);
+        simplifyBinOp(I.getOpcode(), LHS, RHS, FI->getFastMathFlags(), DL);
   else
-    SimpleV = SimplifyBinOp(I.getOpcode(), LHS, RHS, DL);
+    SimpleV = simplifyBinOp(I.getOpcode(), LHS, RHS, DL);
 
-  if (Constant *C = dyn_cast_or_null<Constant>(SimpleV))
-    SimplifiedValues[&I] = C;
-
-  if (SimpleV)
+  if (SimpleV) {
+    SimplifiedValues[&I] = SimpleV;
     return true;
+  }
   return Base::visitBinaryOperator(I);
 }
 
@@ -142,20 +149,17 @@ bool UnrolledInstAnalyzer::visitLoad(LoadInst &I) {
 
 /// Try to simplify cast instruction.
 bool UnrolledInstAnalyzer::visitCastInst(CastInst &I) {
-  // Propagate constants through casts.
-  Constant *COp = dyn_cast<Constant>(I.getOperand(0));
-  if (!COp)
-    COp = SimplifiedValues.lookup(I.getOperand(0));
+  Value *Op = I.getOperand(0);
+  if (Value *Simplified = SimplifiedValues.lookup(Op))
+    Op = Simplified;
 
-  // If we know a simplified value for this operand and cast is valid, save the
-  // result to SimplifiedValues.
   // The cast can be invalid, because SimplifiedValues contains results of SCEV
   // analysis, which operates on integers (and, e.g., might convert i8* null to
   // i32 0).
-  if (COp && CastInst::castIsValid(I.getOpcode(), COp, I.getType())) {
-    if (Constant *C =
-            ConstantExpr::getCast(I.getOpcode(), COp, I.getType())) {
-      SimplifiedValues[&I] = C;
+  if (CastInst::castIsValid(I.getOpcode(), Op, I.getType())) {
+    const DataLayout &DL = I.getModule()->getDataLayout();
+    if (Value *V = simplifyCastInst(I.getOpcode(), Op, I.getType(), DL)) {
+      SimplifiedValues[&I] = V;
       return true;
     }
   }
@@ -169,10 +173,10 @@ bool UnrolledInstAnalyzer::visitCmpInst(CmpInst &I) {
 
   // First try to handle simplified comparisons.
   if (!isa<Constant>(LHS))
-    if (Constant *SimpleLHS = SimplifiedValues.lookup(LHS))
+    if (Value *SimpleLHS = SimplifiedValues.lookup(LHS))
       LHS = SimpleLHS;
   if (!isa<Constant>(RHS))
-    if (Constant *SimpleRHS = SimplifiedValues.lookup(RHS))
+    if (Value *SimpleRHS = SimplifiedValues.lookup(RHS))
       RHS = SimpleRHS;
 
   if (!isa<Constant>(LHS) && !isa<Constant>(RHS)) {
@@ -190,15 +194,10 @@ bool UnrolledInstAnalyzer::visitCmpInst(CmpInst &I) {
     }
   }
 
-  if (Constant *CLHS = dyn_cast<Constant>(LHS)) {
-    if (Constant *CRHS = dyn_cast<Constant>(RHS)) {
-      if (CLHS->getType() == CRHS->getType()) {
-        if (Constant *C = ConstantExpr::getCompare(I.getPredicate(), CLHS, CRHS)) {
-          SimplifiedValues[&I] = C;
-          return true;
-        }
-      }
-    }
+  const DataLayout &DL = I.getModule()->getDataLayout();
+  if (Value *V = simplifyCmpInst(I.getPredicate(), LHS, RHS, DL)) {
+    SimplifiedValues[&I] = V;
+    return true;
   }
 
   return Base::visitCmpInst(I);
@@ -212,4 +211,8 @@ bool UnrolledInstAnalyzer::visitPHINode(PHINode &PN) {
 
   // The loop induction PHI nodes are definitionally free.
   return PN.getParent() == L->getHeader();
+}
+
+bool UnrolledInstAnalyzer::visitInstruction(Instruction &I) {
+  return simplifyInstWithSCEV(&I);
 }

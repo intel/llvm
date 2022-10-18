@@ -62,7 +62,7 @@ representation.
 
 #### Defining the Type Class
 
-As mentioned in [chapter 2](Ch-2.md), [`Type`](../../LangRef.md#type-system)
+As mentioned in [chapter 2](Ch-2.md), [`Type`](../../LangRef.md/#type-system)
 objects in MLIR are value-typed and rely on having an internal storage object
 that holds the actual data for the type. The `Type` class in itself acts as a
 simple wrapper around an internal `TypeStorage` object that is uniqued within an
@@ -72,7 +72,7 @@ constructing and uniquing an instance of a storage class.
 When defining a new `Type` that contains parametric data (e.g. the `struct`
 type, which requires additional information to hold the element types), we will
 need to provide a derived storage class. The `singleton` types that don't have
-any additional data (e.g. the [`index` type](../../LangRef.md#index-type)) don't
+any additional data (e.g. the [`index` type](../../Dialects/Builtin.md/#indextype)) don't
 require a storage class and use the default `TypeStorage`.
 
 ##### Defining the Storage Class
@@ -235,7 +235,7 @@ These methods take an instance of a high-level parser or printer that allows for
 easily implementing the necessary functionality. Before going into the
 implementation, let's think about the syntax that we want for the `struct` type
 in the printed IR. As described in the
-[MLIR language reference](../../LangRef.md#dialect-types), dialect types are
+[MLIR language reference](../../LangRef.md/#dialect-types), dialect types are
 generally represented as: `! dialect-namespace < type-data >`, with a pretty
 form available under certain circumstances. The responsibility of our `Toy`
 parser and printer is to provide the `type-data` bits. We will define our
@@ -268,7 +268,7 @@ mlir::Type ToyDialect::parseType(mlir::DialectAsmParser &parser) const {
   SmallVector<mlir::Type, 1> elementTypes;
   do {
     // Parse the current element type.
-    llvm::SMLoc typeLoc = parser.getCurrentLocation();
+    SMLoc typeLoc = parser.getCurrentLocation();
     mlir::Type elementType;
     if (parser.parseType(elementType))
       return nullptr;
@@ -327,7 +327,7 @@ Which generates the following:
 
 ```mlir
 module {
-  func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) {
+  toy.func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) {
     toy.return
   }
 }
@@ -359,7 +359,7 @@ that will provide more specific handling of `structs`.
 ##### `toy.struct_constant`
 
 This new operation materializes a constant value for a struct. In our current
-modeling, we just use an [array attribute](../../LangRef.md#array-attribute)
+modeling, we just use an [array attribute](../../Dialects/Builtin.md/#arrayattr)
 that contains a set of constant values for each of the `struct` elements.
 
 ```mlir
@@ -405,7 +405,7 @@ and finally get a full MLIR module:
 
 ```mlir
 module {
-  func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) -> tensor<*xf64> {
+  toy.func @multiply_transpose(%arg0: !toy.struct<tensor<*xf64>, tensor<*xf64>>) -> tensor<*xf64> {
     %0 = toy.struct_access %arg0[0] : !toy.struct<tensor<*xf64>, tensor<*xf64>> -> tensor<*xf64>
     %1 = toy.transpose(%0 : tensor<*xf64>) to tensor<*xf64>
     %2 = toy.struct_access %arg0[1] : !toy.struct<tensor<*xf64>, tensor<*xf64>> -> tensor<*xf64>
@@ -413,7 +413,7 @@ module {
     %4 = toy.mul %1, %3 : tensor<*xf64>
     toy.return %4 : tensor<*xf64>
   }
-  func @main() {
+  toy.func @main() {
     %0 = toy.struct_constant [
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>,
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
@@ -434,7 +434,7 @@ After inlining, the MLIR module in the previous section looks something like:
 
 ```mlir
 module {
-  func @main() {
+  toy.func @main() {
     %0 = toy.struct_constant [
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>,
       dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
@@ -500,7 +500,7 @@ changes to our pipeline.
 
 ```mlir
 module {
-  func @main() {
+  toy.func @main() {
     %0 = toy.constant dense<[[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : tensor<2x3xf64>
     %1 = toy.transpose(%0 : tensor<2x3xf64>) to tensor<3x2xf64>
     %2 = toy.mul %1, %1 : tensor<3x2xf64>

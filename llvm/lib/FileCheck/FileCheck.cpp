@@ -531,7 +531,7 @@ Expected<std::unique_ptr<NumericVariableUse>> Pattern::parseNumericVariableUse(
   // we get below is null, it means no such variable was defined before. When
   // that happens, we create a dummy variable so that parsing can continue. All
   // uses of undefined variables, whether string or numeric, are then diagnosed
-  // in printSubstitutions() after failing to match.
+  // in printNoMatch() after failing to match.
   auto VarTableIter = Context->GlobalNumericVariableTable.find(Name);
   NumericVariable *NumericVariable;
   if (VarTableIter != Context->GlobalNumericVariableTable.end())
@@ -954,8 +954,8 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
 
   // Check to see if this is a fixed string, or if it has regex pieces.
   if (!MatchFullLinesHere &&
-      (PatternStr.size() < 2 || (PatternStr.find("{{") == StringRef::npos &&
-                                 PatternStr.find("[[") == StringRef::npos))) {
+      (PatternStr.size() < 2 ||
+       (!PatternStr.contains("{{") && !PatternStr.contains("[[")))) {
     FixedStr = PatternStr;
     return false;
   }
@@ -1007,8 +1007,9 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
     // brackets. They also accept a combined form which sets a numeric variable
     // to the evaluation of an expression. Both string and numeric variable
     // names must satisfy the regular expression "[a-zA-Z_][0-9a-zA-Z_]*" to be
-    // valid, as this helps catch some common errors.
-    if (PatternStr.startswith("[[")) {
+    // valid, as this helps catch some common errors. If there are extra '['s
+    // before the "[[", treat them literally.
+    if (PatternStr.startswith("[[") && !PatternStr.startswith("[[[")) {
       StringRef UnparsedPatternStr = PatternStr.substr(2);
       // Find the closing bracket pair ending the match.  End is going to be an
       // offset relative to the beginning of the match string.
@@ -1034,7 +1035,8 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
       bool IsLegacyLineExpr = false;
       StringRef DefName;
       StringRef SubstStr;
-      std::string MatchRegexp;
+      StringRef MatchRegexp;
+      std::string WildcardRegexp;
       size_t SubstInsertIdx = RegExStr.size();
 
       // Parse string variable or legacy @LINE expression.
@@ -1078,7 +1080,7 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
             return true;
           }
           DefName = Name;
-          MatchRegexp = MatchStr.str();
+          MatchRegexp = MatchStr;
         } else {
           if (IsPseudo) {
             MatchStr = OrigMatchStr;
@@ -1117,7 +1119,8 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
           SubstStr = MatchStr;
         else {
           ExpressionFormat Format = ExpressionPointer->getFormat();
-          MatchRegexp = cantFail(Format.getWildcardRegex());
+          WildcardRegexp = cantFail(Format.getWildcardRegex());
+          MatchRegexp = WildcardRegexp;
         }
       }
 
@@ -1181,12 +1184,14 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
           Substitutions.push_back(Substitution);
         }
       }
+
+      continue;
     }
 
     // Handle fixed string matches.
     // Find the end, which is the start of the next regex.
-    size_t FixedMatchEnd = PatternStr.find("{{");
-    FixedMatchEnd = std::min(FixedMatchEnd, PatternStr.find("[["));
+    size_t FixedMatchEnd =
+        std::min(PatternStr.find("{{", 1), PatternStr.find("[[", 1));
     RegExStr += Regex::escape(PatternStr.substr(0, FixedMatchEnd));
     PatternStr = PatternStr.substr(FixedMatchEnd);
   }
@@ -1229,7 +1234,7 @@ Pattern::MatchResult Pattern::match(StringRef Buffer,
   // If this is a fixed string pattern, just match it now.
   if (!FixedStr.empty()) {
     size_t Pos =
-        IgnoreCase ? Buffer.find_lower(FixedStr) : Buffer.find(FixedStr);
+        IgnoreCase ? Buffer.find_insensitive(FixedStr) : Buffer.find(FixedStr);
     if (Pos == StringRef::npos)
       return make_error<NotFoundError>();
     return MatchResult(Pos, /*MatchLen=*/FixedStr.size(), Error::success());
@@ -1250,6 +1255,7 @@ Pattern::MatchResult Pattern::match(StringRef Buffer,
     // Substitute all string variables and expressions whose values are only
     // now known. Use of string variables defined on the same line are handled
     // by back-references.
+    Error Errs = Error::success();
     for (const auto &Substitution : Substitutions) {
       // Substitute and check for failure (e.g. use of undefined variable).
       Expected<std::string> Value = Substitution->getResult();
@@ -1257,13 +1263,20 @@ Pattern::MatchResult Pattern::match(StringRef Buffer,
         // Convert to an ErrorDiagnostic to get location information. This is
         // done here rather than printMatch/printNoMatch since now we know which
         // substitution block caused the overflow.
-        Error Err =
-            handleErrors(Value.takeError(), [&](const OverflowError &E) {
-              return ErrorDiagnostic::get(SM, Substitution->getFromString(),
-                                          "unable to substitute variable or "
-                                          "numeric expression: overflow error");
-            });
-        return std::move(Err);
+        Errs = joinErrors(std::move(Errs),
+                          handleErrors(
+                              Value.takeError(),
+                              [&](const OverflowError &E) {
+                                return ErrorDiagnostic::get(
+                                    SM, Substitution->getFromString(),
+                                    "unable to substitute variable or "
+                                    "numeric expression: overflow error");
+                              },
+                              [&SM](const UndefVarError &E) {
+                                return ErrorDiagnostic::get(SM, E.getVarName(),
+                                                            E.message());
+                              }));
+        continue;
       }
 
       // Plop it into the regex at the adjusted offset.
@@ -1271,6 +1284,8 @@ Pattern::MatchResult Pattern::match(StringRef Buffer,
                     Value->begin(), Value->end());
       InsertOffset += Value->size();
     }
+    if (Errs)
+      return std::move(Errs);
 
     // Match the newly constructed regex.
     RegExToMatch = TmpStr;
@@ -1349,34 +1364,17 @@ void Pattern::printSubstitutions(const SourceMgr &SM, StringRef Buffer,
     for (const auto &Substitution : Substitutions) {
       SmallString<256> Msg;
       raw_svector_ostream OS(Msg);
-      Expected<std::string> MatchedValue = Substitution->getResult();
 
-      // Substitution failed or is not known at match time, print the undefined
-      // variables it uses.
+      Expected<std::string> MatchedValue = Substitution->getResult();
+      // Substitution failures are handled in printNoMatch().
       if (!MatchedValue) {
-        bool UndefSeen = false;
-        handleAllErrors(
-            MatchedValue.takeError(), [](const NotFoundError &E) {},
-            // Handled in printMatch and printNoMatch().
-            [](const ErrorDiagnostic &E) {},
-            // Handled in match().
-            [](const OverflowError &E) {},
-            [&](const UndefVarError &E) {
-              if (!UndefSeen) {
-                OS << "uses undefined variable(s):";
-                UndefSeen = true;
-              }
-              OS << " ";
-              E.log(OS);
-            });
-        if (!OS.tell())
-          continue;
-      } else {
-        // Substitution succeeded. Print substituted value.
-        OS << "with \"";
-        OS.write_escaped(Substitution->getFromString()) << "\" equal to \"";
-        OS.write_escaped(*MatchedValue) << "\"";
+        consumeError(MatchedValue.takeError());
+        continue;
       }
+
+      OS << "with \"";
+      OS.write_escaped(Substitution->getFromString()) << "\" equal to \"";
+      OS.write_escaped(*MatchedValue) << "\"";
 
       // We report only the start of the match/search range to suggest we are
       // reporting the substitutions as set at the start of the match/search.
@@ -1426,6 +1424,8 @@ void Pattern::printVariableDefs(const SourceMgr &SM,
   // Sort variable captures by the order in which they matched the input.
   // Ranges shouldn't be overlapping, so we can just compare the start.
   llvm::sort(VarCaptures, [](const VarCapture &A, const VarCapture &B) {
+    if (&A == &B)
+      return false;
     assert(A.Range.Start != B.Range.Start &&
            "unexpected overlapping variable captures");
     return A.Range.Start.getPointer() < B.Range.Start.getPointer();
@@ -1653,6 +1653,8 @@ std::string Check::FileCheckType::getDescription(StringRef Prefix) const {
   switch (Kind) {
   case Check::CheckNone:
     return "invalid";
+  case Check::CheckMisspelled:
+    return "misspelled";
   case Check::CheckPlain:
     if (Count > 1)
       return WithModifiers("-COUNT");
@@ -1682,7 +1684,8 @@ std::string Check::FileCheckType::getDescription(StringRef Prefix) const {
 }
 
 static std::pair<Check::FileCheckType, StringRef>
-FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
+FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix,
+              bool &Misspelled) {
   if (Buffer.size() <= Prefix.size())
     return {Check::CheckNone, StringRef()};
 
@@ -1724,7 +1727,9 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
   if (Rest.front() == '{')
     return ConsumeModifiers(Check::CheckPlain);
 
-  if (!Rest.consume_front("-"))
+  if (Rest.consume_front("_"))
+    Misspelled = true;
+  else if (!Rest.consume_front("-"))
     return {Check::CheckNone, StringRef()};
 
   if (Rest.consume_front("COUNT-")) {
@@ -1766,6 +1771,15 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
     return ConsumeModifiers(Check::CheckEmpty);
 
   return {Check::CheckNone, Rest};
+}
+
+static std::pair<Check::FileCheckType, StringRef>
+FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
+  bool Misspelled = false;
+  auto Res = FindCheckType(Req, Buffer, Prefix, Misspelled);
+  if (Res.first != Check::CheckNone && Misspelled)
+    return {Check::CheckMisspelled, Res.second};
+  return Res;
 }
 
 // From the given position, find the next character after the word.
@@ -1940,6 +1954,16 @@ bool FileCheck::readCheckFile(
     // suffix was processed).
     Buffer = AfterSuffix.empty() ? Buffer.drop_front(UsedPrefix.size())
                                  : AfterSuffix;
+
+    // Complain about misspelled directives.
+    if (CheckTy == Check::CheckMisspelled) {
+      StringRef UsedDirective(UsedPrefix.data(),
+                              AfterSuffix.data() - UsedPrefix.data());
+      SM.PrintMessage(SMLoc::getFromPointer(UsedDirective.data()),
+                      SourceMgr::DK_Error,
+                      "misspelled directive '" + UsedDirective + "'");
+      return true;
+    }
 
     // Complain about useful-looking but unsupported suffixes.
     if (CheckTy == Check::CheckBadNot) {
@@ -2140,12 +2164,6 @@ static Error printNoMatch(bool ExpectedMatch, const SourceMgr &SM,
         if (Diags)
           ErrorMsgs.push_back(E.getMessage().str());
       },
-      // UndefVarError is reported in printSubstitutions below.
-      // FIXME: It probably should be handled as a pattern error and actually
-      // change the exit status to 1, even if !ExpectedMatch.  To do so, we
-      // could stop calling printSubstitutions and actually report the error
-      // here as we do ErrorDiagnostic above.
-      [](const UndefVarError &E) {},
       // NotFoundError is why printNoMatch was invoked.
       [](const NotFoundError &E) {});
 
@@ -2226,7 +2244,7 @@ static Error reportMatchResult(bool ExpectedMatch, const SourceMgr &SM,
 static unsigned CountNumNewlinesBetween(StringRef Range,
                                         const char *&FirstNewLine) {
   unsigned NumNewLines = 0;
-  while (1) {
+  while (true) {
     // Scan for newline.
     Range = Range.substr(Range.find_first_of("\n\r"));
     if (Range.empty())

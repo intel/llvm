@@ -111,7 +111,7 @@ COMMANDS
 
 .. option:: --source-quietly
 
- Tells the debugger to execute this one-line lldb command before any file has been loaded.
+ Tells the debugger not to echo commands while sourcing files or one-line commands provided on the command line.
 
 .. option:: --source <file>
 
@@ -234,6 +234,10 @@ SCRIPTING
 
  Alias for --script-language
 
+.. option:: --print-script-interpreter-info
+
+  Prints out a json dictionary with information about the scripting language interpreter.
+
 .. option:: --python-path
 
  Prints out the path to the lldb.py file for this version of lldb.
@@ -256,11 +260,11 @@ executable. To disambiguate between arguments passed to lldb and arguments
 passed to the debugged executable, arguments starting with a - must be passed
 after --.
 
-  lldb --arch x86_64 /path/to/program program argument -- --arch arvm7
+  lldb --arch x86_64 /path/to/program program argument -- --arch armv7
 
 For convenience, passing the executable after -- is also supported.
 
-  lldb --arch x86_64 -- /path/to/program program argument --arch arvm7
+  lldb --arch x86_64 -- /path/to/program program argument --arch armv7
 
 Passing one of the attach options causes :program:`lldb` to immediately attach
 to the given process.

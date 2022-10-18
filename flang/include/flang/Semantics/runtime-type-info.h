@@ -33,6 +33,9 @@ struct RuntimeDerivedTypeTables {
 
 RuntimeDerivedTypeTables BuildRuntimeDerivedTypeTables(SemanticsContext &);
 
-void Dump(llvm::raw_ostream &, const RuntimeDerivedTypeTables &);
+/// Name of the builtin module that defines builtin derived types meant
+/// to describe other derived types at runtime in flang descriptor.
+constexpr char typeInfoBuiltinModule[]{"__fortran_type_info"};
+
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_RUNTIME_TYPE_INFO_H_

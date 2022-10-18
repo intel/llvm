@@ -46,6 +46,9 @@ public:
   // with the given GlobalAddress is legal.
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
 
+  BPFTargetLowering::ConstraintType
+  getConstraintType(StringRef Constraint) const override;
+
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
@@ -126,6 +129,10 @@ private:
                              EVT NewVT) const override {
     return false;
   }
+
+  bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM,
+                             Type *Ty, unsigned AS,
+                             Instruction *I = nullptr) const override;
 
   // isTruncateFree - Return true if it's free to truncate a value of
   // type Ty1 to type Ty2. e.g. On BPF at alu32 mode, it's free to truncate

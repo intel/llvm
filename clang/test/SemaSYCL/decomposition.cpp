@@ -10,6 +10,7 @@ sycl::queue myQueue;
 
 struct StructWithAccessor {
   sycl::accessor<char, 1, sycl::access::mode::read> acc;
+  int *ptr;
 };
 
 struct StructInheritedAccessor : sycl::accessor<char, 1, sycl::access::mode::read> {
@@ -21,7 +22,7 @@ struct StructWithSampler {
 };
 
 struct StructWithSpecConst {
-  sycl::ONEAPI::experimental::spec_constant<int, class f1> SC;
+  sycl::ext::oneapi::experimental::spec_constant<int, class f1> SC;
 };
 
 sycl::handler H;
@@ -46,6 +47,28 @@ struct StructWithNonDecomposedStruct : StructNonDecomposed {
   double d;
 };
 
+struct StructWithPtr {
+  StructNonDecomposed member;
+  int *ptr;
+  int *ptrArr[2];
+  int i;
+};
+
+struct Nested {
+typedef StructWithPtr TDStrWithPTR;
+};
+
+struct NonTrivialType {
+  int *Ptr;
+  int i;
+  NonTrivialType(int i){}
+};
+
+struct NonTrivialDerived : NonTrivialType {
+  int a;
+  NonTrivialDerived(int i) : NonTrivialType(i) {}
+};
+
 template <typename T>
 struct StructWithArray {
   T a;
@@ -66,6 +89,7 @@ int main() {
   StructNonDecomposed ArrayOfSimpleStruct[5];
   StructWithNonDecomposedStruct NonDecompStruct;
   StructWithNonDecomposedStruct ArrayOfNonDecompStruct[5];
+
   // Check to ensure that these are not decomposed.
   myQueue.submit([&](sycl::handler &h) {
     h.single_task<class NonDecomposed>([=]() { return SimpleStruct.i + ArrayOfSimpleStruct[0].i + NonDecompStruct.i + ArrayOfNonDecompStruct[0].i; });
@@ -77,13 +101,13 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Acc1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Acc1{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Acc1{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, StructNonDecomposed, int)'
 
     DerivedStruct<StructWithAccessor> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Acc2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Acc2{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Acc2{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __wrapper_class, StructNonDecomposed, int)'
 
     StructWithArray<StructInheritedAccessor> t3;
     myQueue.submit([&](sycl::handler &h) {
@@ -131,13 +155,12 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Stream1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Stream1{{.*}} 'void (sycl::stream, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, sycl::stream, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, sycl::stream, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, StructNonDecomposed, int)'
-
+    // CHECK: FunctionDecl {{.*}}Stream1{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, StructNonDecomposed, int)'
     DerivedStruct<StructWithStream> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Stream2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Stream2{{.*}} 'void (sycl::stream, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Stream2{{.*}} 'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int, StructNonDecomposed, int)'
   }
 
   {
@@ -145,12 +168,58 @@ int main() {
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Half1>([=]() { return t1.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Half1{{.*}} 'void (sycl::half, sycl::half, sycl::half, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Half1{{.*}} 'void (StructWithArray<StructWithHalf>)'
 
     DerivedStruct<StructWithHalf> t2;
     myQueue.submit([&](sycl::handler &h) {
       h.single_task<class Half2>([=]() { return t2.i; });
     });
-    // CHECK: FunctionDecl {{.*}}Half2{{.*}} 'void (sycl::half, StructNonDecomposed, int)'
+    // CHECK: FunctionDecl {{.*}}Half2{{.*}} 'void (DerivedStruct<StructWithHalf>)'
+  }
+
+  {
+    StructWithPtr SimpleStructWithPtr;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class Pointer>([=]() { return SimpleStructWithPtr.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}Pointer{{.*}} 'void (__generated_StructWithPtr)'
+
+    Nested::TDStrWithPTR TDStructWithPtr;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class TDStr>([=]() { return TDStructWithPtr.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}TDStr{{.*}} 'void (__generated_StructWithPtr)'
+
+    StructWithArray<StructWithPtr> t1;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class NestedArrayOfStructWithPointer>([=]() { return t1.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}NestedArrayOfStructWithPointer{{.*}} 'void (__generated_StructWithArray)'
+
+    DerivedStruct<StructWithPtr> t2;
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class PointerInBase>([=]() { return t2.i; });
+    });
+    // CHECK: FunctionDecl {{.*}}PointerInBase{{.*}} 'void (__generated_DerivedStruct)'
+  }
+
+  {
+    NonTrivialType NonTrivialStructWithPtr(10);
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class NonTrivial>([=]() { return NonTrivialStructWithPtr.i;});
+    });
+    // CHECK: FunctionDecl {{.*}}NonTrivial{{.*}} 'void (__generated_NonTrivialType)'
+
+    NonTrivialType NonTrivialTypeArray[2]{0,0};
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class ArrayOfNonTrivialStruct>([=]() { return NonTrivialTypeArray[0].i;});
+    });
+    // CHECK: FunctionDecl {{.*}}ArrayOfNonTrivialStruct{{.*}} 'void (__wrapper_class)'
+
+    NonTrivialDerived NonTrivialDerivedStructWithPtr(10);
+    myQueue.submit([&](sycl::handler &h) {
+      h.single_task<class NonTrivialStructInBase>([=]() { return NonTrivialDerivedStructWithPtr.i;});
+    });
+    // CHECK: FunctionDecl {{.*}}NonTrivialStructInBase{{.*}} 'void (__generated_NonTrivialDerived)'
   }
 }

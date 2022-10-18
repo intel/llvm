@@ -14,6 +14,7 @@
 #define MLIR_SUPPORT_INTERFACESUPPORT_H
 
 #include "mlir/Support/TypeID.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/TypeName.h"
 
@@ -70,11 +71,15 @@ template <typename ConcreteType, typename ValueT, typename Traits,
 class Interface : public BaseType {
 public:
   using Concept = typename Traits::Concept;
-  template <typename T> using Model = typename Traits::template Model<T>;
+  template <typename T>
+  using Model = typename Traits::template Model<T>;
   template <typename T>
   using FallbackModel = typename Traits::template FallbackModel<T>;
   using InterfaceBase =
       Interface<ConcreteType, ValueT, Traits, BaseType, BaseTrait>;
+  template <typename T, typename U>
+  using ExternalModel = typename Traits::template ExternalModel<T, U>;
+  using ValueType = ValueT;
 
   /// This is a special trait that registers a given interface with an object.
   template <typename ConcreteT>
@@ -90,6 +95,7 @@ public:
       : BaseType(t), impl(t ? ConcreteType::getInterfaceFor(t) : nullptr) {
     assert((!t || impl) && "expected value to provide interface instance");
   }
+  Interface(std::nullptr_t) : BaseType(ValueT()), impl(nullptr) {}
 
   /// Construct an interface instance from a type that implements this
   /// interface's trait.
@@ -99,6 +105,9 @@ public:
       : BaseType(t), impl(t ? ConcreteType::getInterfaceFor(t) : nullptr) {
     assert((!t || impl) && "expected value to provide interface instance");
   }
+
+  /// Constructor for DenseMapInfo's empty key and tombstone key.
+  Interface(ValueT t, std::nullptr_t) : BaseType(t), impl(nullptr) {}
 
   /// Support 'classof' by checking if the given object defines the concrete
   /// interface.
@@ -121,23 +130,36 @@ private:
 // InterfaceMap
 //===----------------------------------------------------------------------===//
 
-/// Utility to filter a given sequence of types base upon a predicate.
-template <bool>
-struct FilterTypeT {
-  template <class E>
-  using type = std::tuple<E>;
+/// Template utility that computes the number of elements within `T` that
+/// satisfy the given predicate.
+template <template <class> class Pred, size_t N, typename... Ts>
+struct count_if_t_impl : public std::integral_constant<size_t, N> {};
+template <template <class> class Pred, size_t N, typename T, typename... Us>
+struct count_if_t_impl<Pred, N, T, Us...>
+    : public std::integral_constant<
+          size_t,
+          count_if_t_impl<Pred, N + (Pred<T>::value ? 1 : 0), Us...>::value> {};
+template <template <class> class Pred, typename... Ts>
+using count_if_t = count_if_t_impl<Pred, 0, Ts...>;
+
+namespace {
+/// Type trait indicating whether all template arguments are
+/// trivially-destructible.
+template <typename... Args>
+struct all_trivially_destructible;
+
+template <typename Arg, typename... Args>
+struct all_trivially_destructible<Arg, Args...> {
+  static constexpr const bool value =
+      std::is_trivially_destructible<Arg>::value &&
+      all_trivially_destructible<Args...>::value;
 };
+
 template <>
-struct FilterTypeT<false> {
-  template <class E>
-  using type = std::tuple<>;
+struct all_trivially_destructible<> {
+  static constexpr const bool value = true;
 };
-template <template <class> class Pred, class... Es>
-struct FilterTypes {
-  using type = decltype(std::tuple_cat(
-      std::declval<
-          typename FilterTypeT<Pred<Es>::value>::template type<Es>>()...));
-};
+} // namespace
 
 /// This class provides an efficient mapping between a given `Interface` type,
 /// and a particular implementation of its concept.
@@ -148,11 +170,16 @@ class InterfaceMap {
   template <typename T>
   using detect_get_interface_id = llvm::is_detected<has_get_interface_id, T>;
   template <typename... Types>
-  using num_interface_types = typename std::tuple_size<
-      typename FilterTypes<detect_get_interface_id, Types...>::type>;
+  using num_interface_types_t = count_if_t<detect_get_interface_id, Types...>;
 
 public:
   InterfaceMap(InterfaceMap &&) = default;
+  InterfaceMap &operator=(InterfaceMap &&rhs) {
+    for (auto &it : interfaces)
+      free(it.second);
+    interfaces = std::move(rhs.interfaces);
+    return *this;
+  }
   ~InterfaceMap() {
     for (auto &it : interfaces)
       free(it.second);
@@ -163,59 +190,77 @@ public:
   /// types, not all of the types need to be interfaces. The provided types that
   /// do not represent interfaces are not added to the interface map.
   template <typename... Types>
-  static std::enable_if_t<num_interface_types<Types...>::value != 0,
-                          InterfaceMap>
-  get() {
-    // Filter the provided types for those that are interfaces.
-    using FilteredTupleType =
-        typename FilterTypes<detect_get_interface_id, Types...>::type;
-    return getImpl((FilteredTupleType *)nullptr);
-  }
+  static InterfaceMap get() {
+    constexpr size_t numInterfaces = num_interface_types_t<Types...>::value;
+    if constexpr (numInterfaces == 0)
+      return InterfaceMap();
 
-  template <typename... Types>
-  static std::enable_if_t<num_interface_types<Types...>::value == 0,
-                          InterfaceMap>
-  get() {
-    return InterfaceMap();
+    std::array<std::pair<TypeID, void *>, numInterfaces> elements;
+    std::pair<TypeID, void *> *elementIt = elements.data();
+    (void)elementIt;
+    (addModelAndUpdateIterator<Types>(elementIt), ...);
+    return InterfaceMap(elements);
   }
 
   /// Returns an instance of the concept object for the given interface if it
   /// was registered to this map, null otherwise.
-  template <typename T> typename T::Concept *lookup() const {
+  template <typename T>
+  typename T::Concept *lookup() const {
     return reinterpret_cast<typename T::Concept *>(lookup(T::getInterfaceID()));
   }
 
   /// Returns true if the interface map contains an interface for the given id.
   bool contains(TypeID interfaceID) const { return lookup(interfaceID); }
 
+  /// Create an InterfaceMap given with the implementation of the interfaces.
+  /// The use of this constructor is in general discouraged in favor of
+  /// 'InterfaceMap::get<InterfaceA, ...>()'.
+  InterfaceMap(MutableArrayRef<std::pair<TypeID, void *>> elements);
+
+  /// Insert the given models as implementations of the corresponding interfaces
+  /// for the concrete attribute class.
+  template <typename... IfaceModels>
+  void insert() {
+    static_assert(all_trivially_destructible<IfaceModels...>::value,
+                  "interface models must be trivially destructible");
+    std::pair<TypeID, void *> elements[] = {
+        std::make_pair(IfaceModels::Interface::getInterfaceID(),
+                       new (malloc(sizeof(IfaceModels))) IfaceModels())...};
+    insert(elements);
+  }
+
 private:
+  InterfaceMap() = default;
+
+  /// Assign the interface model of the type to the given opaque element
+  /// iterator and increment it.
+  template <typename T>
+  static inline std::enable_if_t<detect_get_interface_id<T>::value>
+  addModelAndUpdateIterator(std::pair<TypeID, void *> *&elementIt) {
+    *elementIt = {T::getInterfaceID(), new (malloc(sizeof(typename T::ModelT)))
+                                           typename T::ModelT()};
+    ++elementIt;
+  }
+  /// Overload when `T` isn't an interface.
+  template <typename T>
+  static inline std::enable_if_t<!detect_get_interface_id<T>::value>
+  addModelAndUpdateIterator(std::pair<TypeID, void *> *&) {}
+
+  /// Insert the given set of interface models into the interface map.
+  void insert(ArrayRef<std::pair<TypeID, void *>> elements);
+
   /// Compare two TypeID instances by comparing the underlying pointer.
   static bool compare(TypeID lhs, TypeID rhs) {
     return lhs.getAsOpaquePointer() < rhs.getAsOpaquePointer();
   }
 
-  InterfaceMap() = default;
-  InterfaceMap(MutableArrayRef<std::pair<TypeID, void *>> elements)
-      : interfaces(elements.begin(), elements.end()) {
-    llvm::sort(interfaces, [](const auto &lhs, const auto &rhs) {
-      return compare(lhs.first, rhs.first);
-    });
-  }
-
-  template <typename... Ts>
-  static InterfaceMap getImpl(std::tuple<Ts...> *) {
-    std::pair<TypeID, void *> elements[] = {std::make_pair(
-        Ts::getInterfaceID(),
-        new (malloc(sizeof(typename Ts::ModelT))) typename Ts::ModelT())...};
-    return InterfaceMap(elements);
-  }
-
   /// Returns an instance of the concept object for the given interface id if it
   /// was registered to this map, null otherwise.
   void *lookup(TypeID id) const {
-    auto it = llvm::lower_bound(interfaces, id, [](const auto &it, TypeID id) {
-      return compare(it.first, id);
-    });
+    const auto *it =
+        llvm::lower_bound(interfaces, id, [](const auto &it, TypeID id) {
+          return compare(it.first, id);
+        });
     return (it != interfaces.end() && it->first == id) ? it->second : nullptr;
   }
 
@@ -223,7 +268,40 @@ private:
   SmallVector<std::pair<TypeID, void *>> interfaces;
 };
 
-} // end namespace detail
-} // end namespace mlir
+template <typename ConcreteType, typename ValueT, typename Traits,
+          typename BaseType,
+          template <typename, template <typename> class> class BaseTrait>
+void isInterfaceImpl(
+    Interface<ConcreteType, ValueT, Traits, BaseType, BaseTrait> &);
+
+template <typename T>
+using is_interface_t = decltype(isInterfaceImpl(std::declval<T &>()));
+
+template <typename T>
+using IsInterface = llvm::is_detected<is_interface_t, T>;
+
+} // namespace detail
+} // namespace mlir
+
+namespace llvm {
+
+template <typename T>
+struct DenseMapInfo<T, std::enable_if_t<mlir::detail::IsInterface<T>::value>> {
+  using ValueTypeInfo = llvm::DenseMapInfo<typename T::ValueType>;
+
+  static T getEmptyKey() { return T(ValueTypeInfo::getEmptyKey(), nullptr); }
+
+  static T getTombstoneKey() {
+    return T(ValueTypeInfo::getTombstoneKey(), nullptr);
+  }
+
+  static unsigned getHashValue(T val) {
+    return ValueTypeInfo::getHashValue(val);
+  }
+
+  static bool isEqual(T lhs, T rhs) { return ValueTypeInfo::isEqual(lhs, rhs); }
+};
+
+} // namespace llvm
 
 #endif

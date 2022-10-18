@@ -47,6 +47,7 @@
 
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
@@ -58,6 +59,10 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
+
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+#include "spirv-tools/libspirv.hpp"
+#endif
 
 #ifndef _SPIRV_SUPPORT_TEXT_FMT
 #define _SPIRV_SUPPORT_TEXT_FMT
@@ -104,7 +109,8 @@ static cl::opt<VersionNumber> MaxSPIRVVersion(
     cl::values(clEnumValN(VersionNumber::SPIRV_1_0, "1.0", "SPIR-V 1.0"),
                clEnumValN(VersionNumber::SPIRV_1_1, "1.1", "SPIR-V 1.1"),
                clEnumValN(VersionNumber::SPIRV_1_2, "1.2", "SPIR-V 1.2"),
-               clEnumValN(VersionNumber::SPIRV_1_3, "1.3", "SPIR-V 1.3")),
+               clEnumValN(VersionNumber::SPIRV_1_3, "1.3", "SPIR-V 1.3"),
+               clEnumValN(VersionNumber::SPIRV_1_4, "1.4", "SPIR-V 1.4")),
     cl::init(VersionNumber::MaximumVersion));
 
 static cl::list<std::string>
@@ -136,6 +142,29 @@ static cl::opt<SPIRV::BIsRepresentation> BIsRepresentation(
         clEnumValN(SPIRV::BIsRepresentation::SPIRVFriendlyIR, "SPV-IR",
                    "SPIR-V Friendly IR")),
     cl::init(SPIRV::BIsRepresentation::OpenCL12));
+
+static cl::opt<bool>
+    PreserveOCLKernelArgTypeMetadataThroughString(
+        "preserve-ocl-kernel-arg-type-metadata-through-string", cl::init(false),
+        cl::desc("Preserve OpenCL kernel_arg_type and kernel_arg_type_qual "
+                 "metadata through OpString"));
+
+static cl::opt<bool>
+    SPIRVToolsDis("spirv-tools-dis", cl::init(false),
+                  cl::desc("Emit textual assembly using SPIRV-Tools"));
+
+#if ENABLE_OPAQUE_POINTERS
+constexpr static bool SPIRVOpaquePointersDefault = true;
+#else
+constexpr static bool SPIRVOpaquePointersDefault = false;
+#endif
+
+static cl::opt<bool>
+    EmitOpaquePointers("emit-opaque-pointers",
+                       cl::init(SPIRVOpaquePointersDefault),
+                       cl::desc("Emit opaque instead of typed LLVM pointers "
+                                "for the translation from SPIR-V."),
+                       cl::Hidden);
 
 using SPIRV::ExtensionID;
 
@@ -220,6 +249,30 @@ static std::string removeExt(const std::string &FileName) {
 
 static ExitOnError ExitOnErr;
 
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+/// Stream buffer that captures written data into a vector and allows reading
+/// the data back as an array of uint32_t's.
+class StreambufToArray : public std::streambuf {
+public:
+  const uint32_t *data() const {
+    return reinterpret_cast<const uint32_t *>(Buffer.data());
+  }
+
+  size_t size() const { return Buffer.size() / sizeof(uint32_t); }
+
+protected:
+  std::streamsize xsputn(const char *s, std::streamsize count) override {
+    for (std::streamsize I = 0; I < count; I++) {
+      Buffer.push_back(s[I]);
+    }
+    return count;
+  }
+
+private:
+  std::vector<char> Buffer;
+};
+#endif // LLVM_SPIRV_HAVE_SPIRV_TOOLS
+
 static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
 
@@ -237,6 +290,48 @@ static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
       OutputFile =
           removeExt(InputFile) +
           (SPIRV::SPIRVUseTextFormat ? kExt::SpirvText : kExt::SpirvBinary);
+  }
+
+  if (SPIRVToolsDis) {
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+    auto DisMessagePrinter = [](spv_message_level_t Level, const char *source,
+                                const spv_position_t &position,
+                                const char *message) -> void {
+      errs() << source << ": " << message << "\n";
+    };
+    spvtools::SpirvTools SpvTool(SPV_ENV_OPENCL_2_0);
+    SpvTool.SetMessageConsumer(DisMessagePrinter);
+    std::string DisOutput;
+
+    // Serialize the SPIR-V module to a uint32_t array and then invoke the
+    // SPIR-V tools disassembler to obtain textual assembly.
+    std::string Err;
+    StreambufToArray OutStreamBuf;
+    std::ostream OutStream(&OutStreamBuf);
+    bool Success = writeSpirv(M.get(), Opts, OutStream, Err);
+    if (!Success) {
+      errs() << "Failed to translate SPIR-V: " << Err << '\n';
+      return -1;
+    }
+
+    if (!SpvTool.Disassemble(OutStreamBuf.data(), OutStreamBuf.size(),
+                             &DisOutput)) {
+      errs() << "Failed to generate textual assembly\n";
+      return -1;
+    }
+
+    if (OutputFile != "-") {
+      std::ofstream OutFile(OutputFile, std::ios::binary);
+      OutFile << DisOutput;
+    } else {
+      std::cout << DisOutput;
+    }
+
+    return 0;
+#else
+    errs() << "llvm-spirv was built without --spirv-tools-dis support\n";
+    return -1;
+#endif // LLVM_SPIRV_HAVE_SPIRV_TOOLS
   }
 
   std::string Err;
@@ -262,6 +357,8 @@ static bool isFileEmpty(const std::string &FileName) {
 
 static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
+  Context.setOpaquePointers(EmitOpaquePointers);
+
   std::ifstream IFS(InputFile, std::ios::binary);
   Module *M;
   std::string Err;
@@ -287,7 +384,7 @@ static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   }
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
   if (EC) {
     errs() << "Fails to open output file: " << EC.message();
     return -1;
@@ -364,7 +461,7 @@ static int regularizeLLVM(SPIRV::TranslatorOpts &Opts) {
   }
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
   if (EC) {
     errs() << "Fails to open output file: " << EC.message();
     return -1;
@@ -400,7 +497,8 @@ static int parseSPVExtOption(
 
   for (unsigned i = 0; i < SPVExt.size(); ++i) {
     const std::string &ExtString = SPVExt[i];
-    if ('+' != ExtString.front() && '-' != ExtString.front()) {
+    if (ExtString.empty() ||
+        ('+' != ExtString.front() && '-' != ExtString.front())) {
       errs() << "Invalid value of --spirv-ext, expected format is:\n"
              << "\t--spirv-ext=+EXT_NAME,-EXT_NAME\n";
       return -1;
@@ -490,7 +588,7 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
       }
       APInt Value;
       bool Err = Params[2].getAsInteger(10, Value);
-      if (Err || Value.getNumWords() > 1 ||
+      if (Err || Value.getActiveWords() > 1 ||
           (Width < 64 && Value.getZExtValue() >> Width)) {
         errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
                << "' option! In \"" << Option << "\": can't convert \""
@@ -626,6 +724,9 @@ int main(int Ac, char **Av) {
       Opts.setDebugInfoEIS(DebugEIS);
     }
   }
+
+  if (PreserveOCLKernelArgTypeMetadataThroughString.getNumOccurrences() != 0)
+    Opts.setPreserveOCLKernelArgTypeMetadataThroughString(true);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (ToText && (ToBinary || IsReverse || IsRegularization)) {

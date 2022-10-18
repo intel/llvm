@@ -25,9 +25,25 @@
 # RUN: ld.lld -shared --allow-shlib-undefined %t1.o -o /dev/null
 # RUN: ld.lld -shared --no-allow-shlib-undefined %t1.o -o /dev/null
 
+## Check that the error is reported if an unresolved symbol is first seen in a
+## regular object file.
+# RUN: echo 'callq _unresolved@PLT' | \
+# RUN:   llvm-mc -filetype=obj -triple=x86_64-unknown-linux - -o %tref.o
+# RUN: not ld.lld --gc-sections %t.o %tref.o %t.so -o /dev/null 2>&1 | FileCheck %s
+
+## Check that the error is reported for each shared library where the symbol
+## is referenced.
+# RUN: cp %t.so %t2.so
+# RUN: not ld.lld %t.o %t.so %t2.so -o /dev/null 2>&1 | \
+# RUN:   FileCheck %s --check-prefixes=CHECK,CHECK2
+
 .globl _start
 _start:
   callq _shared@PLT
 
-# CHECK: error: {{.*}}.so: undefined reference to _unresolved [--no-allow-shlib-undefined]
-# WARN: warning: {{.*}}.so: undefined reference to _unresolved [--no-allow-shlib-undefined]
+# CHECK:       error: undefined reference due to --no-allow-shlib-undefined: _unresolved
+# CHECK-NEXT:  >>> referenced by {{.*}}.so
+# CHECK2:      error: undefined reference due to --no-allow-shlib-undefined: _unresolved
+# CHECK2-NEXT: >>> referenced by {{.*}}2.so
+# WARN:        warning: undefined reference due to --no-allow-shlib-undefined: _unresolved
+# WARN-NEXT:   >>> referenced by {{.*}}.so

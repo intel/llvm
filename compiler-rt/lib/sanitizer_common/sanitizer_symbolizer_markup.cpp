@@ -16,14 +16,13 @@
 
 #if SANITIZER_FUCHSIA
 #include "sanitizer_symbolizer_fuchsia.h"
-#elif SANITIZER_RTEMS
-#include "sanitizer_symbolizer_rtems.h"
-#endif
-#include "sanitizer_stacktrace.h"
-#include "sanitizer_symbolizer.h"
+#  endif
 
-#include <limits.h>
-#include <unwind.h>
+#  include <limits.h>
+#  include <unwind.h>
+
+#  include "sanitizer_stacktrace.h"
+#  include "sanitizer_symbolizer.h"
 
 namespace __sanitizer {
 
@@ -53,6 +52,10 @@ bool Symbolizer::GetModuleNameAndOffsetForPC(uptr pc, const char **module_name,
                                              uptr *module_address) {
   return false;
 }
+
+// This is mainly used by hwasan for online symbolization. This isn't needed
+// since hwasan can always just dump stack frames for offline symbolization.
+bool Symbolizer::SymbolizeFrame(uptr addr, FrameInfo *info) { return false; }
 
 // This is used in some places for suppression checking, which we
 // don't really support for Fuchsia.  It's also used in UBSan to
@@ -97,9 +100,7 @@ Symbolizer *Symbolizer::PlatformInit() {
   return new (symbolizer_allocator_) Symbolizer({});
 }
 
-void Symbolizer::LateInitialize() {
-  Symbolizer::GetOrInit()->LateInitializeTools();
-}
+void Symbolizer::LateInitialize() { Symbolizer::GetOrInit(); }
 
 void StartReportDeadlySignal() {}
 void ReportDeadlySignal(const SignalContext &sig, u32 tid,

@@ -39,6 +39,9 @@
 #include <mach-o/dyld.h>
 #include <sys/attr.h>
 #include <copyfile.h>
+#if __has_include(<sys/clonefile.h>)
+#include <sys/clonefile.h>
+#endif
 #elif defined(__FreeBSD__)
 #include <osreldate.h>
 #if __FreeBSD_version >= 1300057
@@ -50,6 +53,7 @@ extern char **environ;
 #elif defined(__DragonFly__)
 #include <sys/mount.h>
 #elif defined(__MVS__)
+#include "llvm/Support/AutoConvert.h"
 #include <sys/ps.h>
 #endif
 
@@ -124,7 +128,8 @@ const file_t kInvalidFile = -1;
 
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||     \
     defined(__minix) || defined(__FreeBSD_kernel__) || defined(__linux__) ||   \
-    defined(__CYGWIN__) || defined(__DragonFly__) || defined(_AIX) || defined(__GNU__)
+    defined(__CYGWIN__) || defined(__DragonFly__) || defined(_AIX) || defined(__GNU__) || \
+    (defined(__sun__) && defined(__svr4__))
 static int
 test_dir(char ret[PATH_MAX], const char *dir, const char *bin)
 {
@@ -189,7 +194,7 @@ getprogpath(char ret[PATH_MAX], const char *bin)
 
 /// GetMainExecutable - Return the path to the main executable, given the
 /// value of argv[0] from program startup.
-std::string getMainExecutable(const char *argv0, void *MainAddr) {
+std::string getMainExecutableImpl(const char *argv0, void *MainAddr) {
 #if defined(__APPLE__)
   // On OS X the executable path is saved to the stack by dyld. Reading it
   // from there is much faster than calling dladdr, especially for large
@@ -208,8 +213,11 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   // to the file.
   char exe_path[PATH_MAX];
 #if __FreeBSD_version >= 1300057
-  if (elf_aux_info(AT_EXECPATH, exe_path, sizeof(exe_path)) == 0)
-    return exe_path;
+  if (elf_aux_info(AT_EXECPATH, exe_path, sizeof(exe_path)) == 0) {
+    char link_path[PATH_MAX];
+    if (realpath(exe_path, link_path))
+      return link_path;
+  }
 #else
   // elf_aux_info(AT_EXECPATH, ... is not available in all supported versions,
   // fall back to finding the ELF auxiliary vectors after the process's
@@ -218,9 +226,12 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   while (*p++ != 0)
     ;
   // Iterate through auxiliary vectors for AT_EXECPATH.
-  for (; *(uintptr_t *)p != AT_NULL; p++) {
-    if (*(uintptr_t *)p++ == AT_EXECPATH)
-      return *p;
+  for (Elf_Auxinfo *aux = (Elf_Auxinfo *)p; aux->a_type != AT_NULL; aux++) {
+    if (aux->a_type == AT_EXECPATH) {
+      char link_path[PATH_MAX];
+      if (realpath((char *)aux->a_un.a_ptr, link_path))
+        return link_path;
+    }
   }
 #endif
   // Fall back to argv[0] if auxiliary vectors are not available.
@@ -262,7 +273,7 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
     // the program, and not the eventual binary file. Therefore, call realpath
     // so this behaves the same on all platforms.
 #if _POSIX_VERSION >= 200112 || defined(__GLIBC__)
-    if (char *real_path = realpath(exe_path, NULL)) {
+    if (char *real_path = realpath(exe_path, nullptr)) {
       std::string ret = std::string(real_path);
       free(real_path);
       return ret;
@@ -275,6 +286,20 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   }
   // Fall back to the classical detection.
   if (getprogpath(exe_path, argv0))
+    return exe_path;
+#elif defined(__sun__) && defined(__svr4__)
+  char exe_path[PATH_MAX];
+  const char *aPath = "/proc/self/execname";
+  if (sys::fs::exists(aPath)) {
+    int fd = open(aPath, O_RDONLY);
+    if (fd == -1)
+      return "";
+    if (read(fd, exe_path, sizeof(exe_path)) < 0)
+      return "";
+    return exe_path;
+  }
+  // Fall back to the classical detection.
+  if (getprogpath(exe_path, argv0) != NULL)
     return exe_path;
 #elif defined(__MVS__)
   int token = 0;
@@ -355,20 +380,22 @@ std::error_code current_path(SmallVectorImpl<char> &result) {
     return std::error_code();
   }
 
-  result.reserve(PATH_MAX);
+  result.resize_for_overwrite(PATH_MAX);
 
   while (true) {
-    if (::getcwd(result.data(), result.capacity()) == nullptr) {
+    if (::getcwd(result.data(), result.size()) == nullptr) {
       // See if there was a real error.
-      if (errno != ENOMEM)
+      if (errno != ENOMEM) {
+        result.clear();
         return std::error_code(errno, std::generic_category());
+      }
       // Otherwise there just wasn't enough space.
-      result.reserve(result.capacity() * 2);
+      result.resize_for_overwrite(result.capacity() * 2);
     } else
       break;
   }
 
-  result.set_size(strlen(result.data()));
+  result.truncate(strlen(result.data()));
   return std::error_code();
 }
 
@@ -565,19 +592,6 @@ std::error_code rename(const Twine &from, const Twine &to) {
 }
 
 std::error_code resize_file(int FD, uint64_t Size) {
-#if defined(HAVE_POSIX_FALLOCATE)
-  // If we have posix_fallocate use it. Unlike ftruncate it always allocates
-  // space, so we get an error if the disk is full.
-  if (int Err = ::posix_fallocate(FD, 0, Size)) {
-#ifdef _AIX
-    constexpr int NotSupportedError = ENOTSUP;
-#else
-    constexpr int NotSupportedError = EOPNOTSUPP;
-#endif
-    if (Err != EINVAL && Err != NotSupportedError)
-      return std::error_code(Err, std::generic_category());
-  }
-#endif
   // Use ftruncate as a fallback. It may or may not allocate space. At least on
   // OS X with HFS+ it does.
   if (::ftruncate(FD, Size) == -1)
@@ -815,6 +829,9 @@ std::error_code mapped_file_region::init(int FD, uint64_t Offset,
 
   int flags = (Mode == readwrite) ? MAP_SHARED : MAP_PRIVATE;
   int prot = (Mode == readonly) ? PROT_READ : (PROT_READ | PROT_WRITE);
+#if defined(MAP_NORESERVE)
+  flags |= MAP_NORESERVE;
+#endif
 #if defined(__APPLE__)
   //----------------------------------------------------------------------
   // Newer versions of MacOSX have a flag that will allow us to read from
@@ -843,31 +860,29 @@ std::error_code mapped_file_region::init(int FD, uint64_t Offset,
 
 mapped_file_region::mapped_file_region(int fd, mapmode mode, size_t length,
                                        uint64_t offset, std::error_code &ec)
-    : Size(length), Mapping(), Mode(mode) {
+    : Size(length), Mode(mode) {
   (void)Mode;
   ec = init(fd, offset, mode);
   if (ec)
-    Mapping = nullptr;
+    copyFrom(mapped_file_region());
 }
 
-mapped_file_region::~mapped_file_region() {
+void mapped_file_region::unmapImpl() {
   if (Mapping)
     ::munmap(Mapping, Size);
 }
 
-size_t mapped_file_region::size() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return Size;
-}
-
-char *mapped_file_region::data() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return reinterpret_cast<char*>(Mapping);
-}
-
-const char *mapped_file_region::const_data() const {
-  assert(Mapping && "Mapping failed but used anyway!");
-  return reinterpret_cast<const char*>(Mapping);
+void mapped_file_region::dontNeedImpl() {
+  assert(Mode == mapped_file_region::readonly);
+  if (!Mapping)
+      return;
+#if defined(__MVS__) || defined(_AIX)
+  // If we don't have madvise, or it isn't beneficial, treat this as a no-op.
+#elif defined(POSIX_MADV_DONTNEED)
+  ::posix_madvise(Mapping, Size, POSIX_MADV_DONTNEED);
+#else
+  ::madvise(Mapping, Size, MADV_DONTNEED);
+#endif
 }
 
 int mapped_file_region::alignment() {
@@ -935,7 +950,15 @@ ErrorOr<basic_file_status> directory_entry::status() const {
   return s;
 }
 
-#if !defined(F_GETPATH)
+//
+// FreeBSD optionally provides /proc/self/fd, but it is incompatible with
+// Linux. The thing to use is realpath.
+//
+#if !defined(__FreeBSD__)
+#define TRY_PROC_SELF_FD
+#endif
+
+#if !defined(F_GETPATH) && defined(TRY_PROC_SELF_FD)
 static bool hasProcSelfFD() {
   // If we have a /proc filesystem mounted, we can quickly establish the
   // real name of the file with readlink
@@ -971,8 +994,13 @@ static int nativeOpenFlags(CreationDisposition Disp, OpenFlags Flags,
     // Nothing special, just don't add O_CREAT and we get these semantics.
   }
 
+// Using append mode with z/OS UTF-8 auto-conversion results in EINVAL when
+// calling write(). Instead we need to use lseek() to set offset to EOF after
+// open().
+#ifndef __MVS__
   if (Flags & OF_Append)
     Result |= O_APPEND;
+#endif
 
 #ifdef O_CLOEXEC
   if (!(Flags & OF_ChildInherit))
@@ -1001,6 +1029,88 @@ std::error_code openFile(const Twine &Name, int &ResultFD,
     assert(r == 0 && "fcntl(F_SETFD, FD_CLOEXEC) failed");
   }
 #endif
+
+#ifdef __MVS__
+  /* Reason about auto-conversion and file tags. Setting the file tag only
+   * applies if file is opened in write mode:
+   *
+   * Text file:
+   *                  File exists       File created
+   * CD_CreateNew     n/a               conv: on
+   *                                    tag: set 1047
+   * CD_CreateAlways  conv: auto        conv: on
+   *                  tag: auto 1047    tag: set 1047
+   * CD_OpenAlways    conv: auto        conv: on
+   *                  tag: auto 1047    tag: set 1047
+   * CD_OpenExisting  conv: auto        n/a
+   *                  tag: unchanged
+   *
+   * Binary file:
+   *                  File exists       File created
+   * CD_CreateNew     n/a               conv: off
+   *                                    tag: set binary
+   * CD_CreateAlways  conv: off         conv: off
+   *                  tag: auto binary  tag: set binary
+   * CD_OpenAlways    conv: off         conv: off
+   *                  tag: auto binary  tag: set binary
+   * CD_OpenExisting  conv: off         n/a
+   *                  tag: unchanged
+   *
+   * Actions:
+   *   conv: off        -> auto-conversion is turned off
+   *   conv: on         -> auto-conversion is turned on
+   *   conv: auto       -> auto-conversion is turned on if the file is untagged
+   *   tag: set 1047    -> set the file tag to text encoded in 1047
+   *   tag: set binary  -> set the file tag to binary
+   *   tag: auto 1047   -> set file tag to 1047 if not set
+   *   tag: auto binary -> set file tag to binary if not set
+   *   tag: unchanged   -> do not care about the file tag
+   *
+   * It is not possible to distinguish between the cases "file exists" and
+   * "file created". In the latter case, the file tag is not set and the file
+   * size is zero. The decision table boils down to:
+   *
+   * the file tag is set if
+   *   - the file is opened for writing
+   *   - the create disposition is not equal to CD_OpenExisting
+   *   - the file tag is not set
+   *   - the file size is zero
+   *
+   * This only applies if the file is a regular file. E.g. enabling
+   * auto-conversion for reading from /dev/null results in error EINVAL when
+   * calling read().
+   *
+   * Using append mode with z/OS UTF-8 auto-conversion results in EINVAL when
+   * calling write(). Instead we need to use lseek() to set offset to EOF after
+   * open().
+   */
+  if ((Flags & OF_Append) && lseek(ResultFD, 0, SEEK_END) == -1)
+    return std::error_code(errno, std::generic_category());
+  struct stat Stat;
+  if (fstat(ResultFD, &Stat) == -1)
+    return std::error_code(errno, std::generic_category());
+  if (S_ISREG(Stat.st_mode)) {
+    bool DoSetTag = (Access & FA_Write) && (Disp != CD_OpenExisting) &&
+                    !Stat.st_tag.ft_txtflag && !Stat.st_tag.ft_ccsid &&
+                    Stat.st_size == 0;
+    if (Flags & OF_Text) {
+      if (auto EC = llvm::enableAutoConversion(ResultFD))
+        return EC;
+      if (DoSetTag) {
+        if (auto EC = llvm::setFileTag(ResultFD, CCSID_IBM_1047, true))
+          return EC;
+      }
+    } else {
+      if (auto EC = llvm::disableAutoConversion(ResultFD))
+        return EC;
+      if (DoSetTag) {
+        if (auto EC = llvm::setFileTag(ResultFD, FT_BINARY, false))
+          return EC;
+      }
+    }
+  }
+#endif
+
   return std::error_code();
 }
 
@@ -1035,6 +1145,7 @@ std::error_code openFileForRead(const Twine &Name, int &ResultFD,
     RealPath->append(Buffer, Buffer + strlen(Buffer));
 #else
   char Buffer[PATH_MAX];
+#if defined(TRY_PROC_SELF_FD)
   if (hasProcSelfFD()) {
     char ProcPath[64];
     snprintf(ProcPath, sizeof(ProcPath), "/proc/self/fd/%d", ResultFD);
@@ -1042,13 +1153,16 @@ std::error_code openFileForRead(const Twine &Name, int &ResultFD,
     if (CharCount > 0)
       RealPath->append(Buffer, Buffer + CharCount);
   } else {
+#endif
     SmallString<128> Storage;
     StringRef P = Name.toNullTerminatedStringRef(Storage);
 
     // Use ::realpath to get the real path name
     if (::realpath(P.begin(), Buffer) != nullptr)
       RealPath->append(Buffer, Buffer + strlen(Buffer));
+#if defined(TRY_PROC_SELF_FD)
   }
+#endif
 #endif
   return std::error_code();
 }
@@ -1159,18 +1273,19 @@ static std::error_code remove_directories_impl(const T &Entry,
   while (Begin != End) {
     auto &Item = *Begin;
     ErrorOr<basic_file_status> st = Item.status();
-    if (!st && !IgnoreErrors)
-      return st.getError();
+    if (st) {
+      if (is_directory(*st)) {
+        EC = remove_directories_impl(Item, IgnoreErrors);
+        if (EC && !IgnoreErrors)
+          return EC;
+      }
 
-    if (is_directory(*st)) {
-      EC = remove_directories_impl(Item, IgnoreErrors);
+      EC = fs::remove(Item.path(), true);
       if (EC && !IgnoreErrors)
         return EC;
+    } else if (!IgnoreErrors) {
+      return st.getError();
     }
-
-    EC = fs::remove(Item.path(), true);
-    if (EC && !IgnoreErrors)
-      return EC;
 
     Begin.increment(EC);
     if (EC && !IgnoreErrors)
@@ -1360,22 +1475,37 @@ namespace fs {
 /// file descriptor variant of this function still uses the default
 /// implementation.
 std::error_code copy_file(const Twine &From, const Twine &To) {
-  uint32_t Flag = COPYFILE_DATA;
-#if __has_builtin(__builtin_available) && defined(COPYFILE_CLONE)
+  std::string FromS = From.str();
+  std::string ToS = To.str();
+#if __has_builtin(__builtin_available)
   if (__builtin_available(macos 10.12, *)) {
-    bool IsSymlink;
-    if (std::error_code Error = is_symlink_file(From, IsSymlink))
-      return Error;
-    // COPYFILE_CLONE clones the symlink instead of following it
-    // and returns EEXISTS if the target file already exists.
-    if (!IsSymlink && !exists(To))
-      Flag = COPYFILE_CLONE;
+    // Optimistically try to use clonefile() and handle errors, rather than
+    // calling stat() to see if it'll work.
+    //
+    // Note: It's okay if From is a symlink. In contrast to the behaviour of
+    // copyfile() with COPYFILE_CLONE, clonefile() clones targets (not the
+    // symlink itself) unless the flag CLONE_NOFOLLOW is passed.
+    if (!clonefile(FromS.c_str(), ToS.c_str(), 0))
+      return std::error_code();
+
+    auto Errno = errno;
+    switch (Errno) {
+      case EEXIST:  // To already exists.
+      case ENOTSUP: // Device does not support cloning.
+      case EXDEV:   // From and To are on different devices.
+        break;
+      default:
+        // Anything else will also break copyfile().
+        return std::error_code(Errno, std::generic_category());
+    }
+
+    // TODO: For EEXIST, profile calling fs::generateUniqueName() and
+    // clonefile() in a retry loop (then rename() on success) before falling
+    // back to copyfile(). Depending on the size of the file this could be
+    // cheaper.
   }
 #endif
-  int Status =
-      copyfile(From.str().c_str(), To.str().c_str(), /* State */ NULL, Flag);
-
-  if (Status == 0)
+  if (!copyfile(FromS.c_str(), ToS.c_str(), /*State=*/NULL, COPYFILE_DATA))
     return std::error_code();
   return std::error_code(errno, std::generic_category());
 }

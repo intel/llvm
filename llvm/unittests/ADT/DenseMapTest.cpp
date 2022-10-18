@@ -7,9 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseMapInfo.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <map>
 #include <set>
+#include <utility>
+#include <variant>
 
 using namespace llvm;
 
@@ -105,7 +109,7 @@ typedef ::testing::Types<DenseMap<uint32_t, uint32_t>,
                          SmallDenseMap<CtorTester, CtorTester, 4,
                                        CtorTesterMapInfo>
                          > DenseMapTestTypes;
-TYPED_TEST_CASE(DenseMapTest, DenseMapTestTypes);
+TYPED_TEST_SUITE(DenseMapTest, DenseMapTestTypes, );
 
 // Empty map tests
 TYPED_TEST(DenseMapTest, EmptyIntMapTest) {
@@ -547,6 +551,15 @@ TEST(DenseMapCustomTest, FindAsTest) {
   EXPECT_TRUE(map.find_as("d") == map.end());
 }
 
+TEST(DenseMapCustomTest, SmallDenseMapInitializerList) {
+  SmallDenseMap<int, int> M = {{0, 0}, {0, 1}, {1, 2}};
+  EXPECT_EQ(2u, M.size());
+  EXPECT_EQ(1u, M.count(0));
+  EXPECT_EQ(0, M[0]);
+  EXPECT_EQ(1u, M.count(1));
+  EXPECT_EQ(2, M[1]);
+}
+
 struct ContiguousDenseMapInfo {
   static inline unsigned getEmptyKey() { return ~0; }
   static inline unsigned getTombstoneKey() { return ~0U - 1; }
@@ -598,6 +611,15 @@ TEST(DenseMapCustomTest, LargeSmallDenseMapCompaction) {
   EXPECT_TRUE(map.find(0) == map.end());
 }
 
+TEST(DenseMapCustomTest, SmallDenseMapWithNumBucketsNonPowerOf2) {
+  // Is not power of 2.
+  const unsigned NumInitBuckets = 33;
+  // Power of 2 less then NumInitBuckets.
+  constexpr unsigned InlineBuckets = 4;
+  // Constructor should not trigger assert.
+  SmallDenseMap<int, int, InlineBuckets> map(NumInitBuckets);
+}
+
 TEST(DenseMapCustomTest, TryEmplaceTest) {
   DenseMap<int, std::unique_ptr<int>> Map;
   std::unique_ptr<int> P(new int(2));
@@ -646,4 +668,61 @@ TEST(DenseMapCustomTest, OpaquePointerKey) {
   EXPECT_EQ(Map.find(K2), Map.end());
   EXPECT_EQ(Map.find(K3), Map.end());
 }
+} // namespace
+
+namespace {
+struct A {
+  A(int value) : value(value) {}
+  int value;
+};
+struct B : public A {
+  using A::A;
+};
+} // namespace
+
+namespace llvm {
+template <typename T>
+struct DenseMapInfo<T, std::enable_if_t<std::is_base_of<A, T>::value>> {
+  static inline T getEmptyKey() { return {static_cast<int>(~0)}; }
+  static inline T getTombstoneKey() { return {static_cast<int>(~0U - 1)}; }
+  static unsigned getHashValue(const T &Val) { return Val.value; }
+  static bool isEqual(const T &LHS, const T &RHS) {
+    return LHS.value == RHS.value;
+  }
+};
+} // namespace llvm
+
+namespace {
+TEST(DenseMapCustomTest, SFINAEMapInfo) {
+  // Test that we can use a pointer to an incomplete type as a DenseMap key.
+  // This is an important build time optimization, since many classes have
+  // DenseMap members.
+  DenseMap<B, int> Map;
+  B Keys[3] = {{0}, {1}, {2}};
+  Map.insert({Keys[0], 1});
+  Map.insert({Keys[1], 2});
+  Map.insert({Keys[2], 3});
+  EXPECT_EQ(Map.count(Keys[0]), 1u);
+  EXPECT_EQ(Map[Keys[0]], 1);
+  EXPECT_EQ(Map[Keys[1]], 2);
+  EXPECT_EQ(Map[Keys[2]], 3);
+  Map.clear();
+  EXPECT_EQ(Map.find(Keys[0]), Map.end());
+  EXPECT_EQ(Map.find(Keys[1]), Map.end());
+  EXPECT_EQ(Map.find(Keys[2]), Map.end());
 }
+
+TEST(DenseMapCustomTest, VariantSupport) {
+  using variant = std::variant<int, int>;
+  DenseMap<variant, int> Map;
+  variant Keys[] = {
+      variant(std::in_place_index<0>, 1),
+      variant(std::in_place_index<1>, 1),
+  };
+  Map.try_emplace(Keys[0], 0);
+  Map.try_emplace(Keys[1], 1);
+  EXPECT_THAT(Map, testing::SizeIs(2));
+  EXPECT_NE(DenseMapInfo<variant>::getHashValue(Keys[0]),
+            DenseMapInfo<variant>::getHashValue(Keys[1]));
+}
+} // namespace

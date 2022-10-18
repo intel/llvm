@@ -28,7 +28,7 @@
 #include "ConfigFragment.h"
 #include "ConfigProvider.h"
 #include "Diagnostics.h"
-#include "Features.inc"
+#include "Feature.h"
 #include "TidyProvider.h"
 #include "support/Logger.h"
 #include "support/Path.h"
@@ -38,16 +38,16 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
+#include <algorithm>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -101,6 +101,7 @@ struct FragmentCompiler {
   llvm::SourceMgr *SourceMgr;
   // Normalized Fragment::SourceInfo::Directory.
   std::string FragmentDirectory;
+  bool Trusted = false;
 
   llvm::Optional<llvm::Regex>
   compileRegex(const Located<std::string> &Text,
@@ -183,6 +184,7 @@ struct FragmentCompiler {
   }
 
   void compile(Fragment &&F) {
+    Trusted = F.Source.Trusted;
     if (!F.Source.Directory.empty()) {
       FragmentDirectory = llvm::sys::path::convert_to_slash(F.Source.Directory);
       if (FragmentDirectory.back() != '/')
@@ -193,6 +195,9 @@ struct FragmentCompiler {
     compile(std::move(F.Index));
     compile(std::move(F.Diagnostics));
     compile(std::move(F.Completion));
+    compile(std::move(F.Hover));
+    compile(std::move(F.InlayHints));
+    compile(std::move(F.Style));
   }
 
   void compile(Fragment::IfBlock &&F) {
@@ -249,6 +254,16 @@ struct FragmentCompiler {
   }
 
   void compile(Fragment::CompileFlagsBlock &&F) {
+    if (F.Compiler)
+      Out.Apply.push_back(
+          [Compiler(std::move(**F.Compiler))](const Params &, Config &C) {
+            C.CompileFlags.Edits.push_back(
+                [Compiler](std::vector<std::string> &Args) {
+                  if (!Args.empty())
+                    Args.front() = Compiler;
+                });
+          });
+
     if (!F.Remove.empty()) {
       auto Remove = std::make_shared<ArgStripper>();
       for (auto &A : F.Remove)
@@ -268,7 +283,9 @@ struct FragmentCompiler {
         Add.push_back(std::move(*A));
       Out.Apply.push_back([Add(std::move(Add))](const Params &, Config &C) {
         C.CompileFlags.Edits.push_back([Add](std::vector<std::string> &Args) {
-          Args.insert(Args.end(), Add.begin(), Add.end());
+          // The point to insert at. Just append when `--` isn't present.
+          auto It = llvm::find(Args, "--");
+          Args.insert(It, Add.begin(), Add.end());
         });
       });
     }
@@ -316,22 +333,36 @@ struct FragmentCompiler {
     }
     if (F.External)
       compile(std::move(**F.External), F.External->Range);
+    if (F.StandardLibrary)
+      Out.Apply.push_back(
+          [Val(**F.StandardLibrary)](const Params &, Config &C) {
+            C.Index.StandardLibrary = Val;
+          });
   }
 
   void compile(Fragment::IndexBlock::ExternalBlock &&External,
                llvm::SMRange BlockRange) {
+    if (External.Server && !Trusted) {
+      diag(Error,
+           "Remote index may not be specified by untrusted configuration. "
+           "Copy this into user config to use it.",
+           External.Server->Range);
+      return;
+    }
 #ifndef CLANGD_ENABLE_REMOTE
     if (External.Server) {
-      diag(Error, "Clangd isn't compiled with remote index support, ignoring "
-                  "Server." External.Server->Range);
+      elog("Clangd isn't compiled with remote index support, ignoring Server: "
+           "{0}",
+           *External.Server);
       External.Server.reset();
     }
 #endif
     // Make sure exactly one of the Sources is set.
-    unsigned SourceCount =
-        External.File.hasValue() + External.Server.hasValue();
+    unsigned SourceCount = External.File.has_value() +
+                           External.Server.has_value() + *External.IsNone;
     if (SourceCount != 1) {
-      diag(Error, "Exactly one of File or Server must be set.", BlockRange);
+      diag(Error, "Exactly one of File, Server or None must be set.",
+           BlockRange);
       return;
     }
     Config::ExternalIndexSpec Spec;
@@ -345,20 +376,29 @@ struct FragmentCompiler {
       if (!AbsPath)
         return;
       Spec.Location = std::move(*AbsPath);
+    } else {
+      assert(*External.IsNone);
+      Spec.Kind = Config::ExternalIndexSpec::None;
     }
-    // Make sure MountPoint is an absolute path with forward slashes.
-    if (!External.MountPoint)
-      External.MountPoint.emplace(FragmentDirectory);
-    if ((**External.MountPoint).empty()) {
-      diag(Error, "A mountpoint is required.", BlockRange);
-      return;
+    if (Spec.Kind != Config::ExternalIndexSpec::None) {
+      // Make sure MountPoint is an absolute path with forward slashes.
+      if (!External.MountPoint)
+        External.MountPoint.emplace(FragmentDirectory);
+      if ((**External.MountPoint).empty()) {
+        diag(Error, "A mountpoint is required.", BlockRange);
+        return;
+      }
+      auto AbsPath = makeAbsolute(std::move(*External.MountPoint), "MountPoint",
+                                  llvm::sys::path::Style::posix);
+      if (!AbsPath)
+        return;
+      Spec.MountPoint = std::move(*AbsPath);
     }
-    auto AbsPath = makeAbsolute(std::move(*External.MountPoint), "MountPoint",
-                                llvm::sys::path::Style::posix);
-    if (!AbsPath)
-      return;
-    Spec.MountPoint = std::move(*AbsPath);
     Out.Apply.push_back([Spec(std::move(Spec))](const Params &P, Config &C) {
+      if (Spec.Kind == Config::ExternalIndexSpec::None) {
+        C.Index.External = Spec;
+        return;
+      }
       if (P.Path.empty() || !pathStartsWith(Spec.MountPoint, P.Path,
                                             llvm::sys::path::Style::posix))
         return;
@@ -390,6 +430,17 @@ struct FragmentCompiler {
             for (llvm::StringRef N : Normalized)
               C.Diagnostics.Suppress.insert(N);
           });
+
+    if (F.UnusedIncludes)
+      if (auto Val = compileEnum<Config::UnusedIncludesPolicy>(
+                         "UnusedIncludes", **F.UnusedIncludes)
+                         .map("Strict", Config::UnusedIncludesPolicy::Strict)
+                         .map("None", Config::UnusedIncludesPolicy::None)
+                         .value())
+        Out.Apply.push_back([Val](const Params &, Config &C) {
+          C.Diagnostics.UnusedIncludes = *Val;
+        });
+    compile(std::move(F.Includes));
 
     compile(std::move(F.ClangTidy));
   }
@@ -465,6 +516,41 @@ struct FragmentCompiler {
     }
   }
 
+  void compile(Fragment::DiagnosticsBlock::IncludesBlock &&F) {
+#ifdef CLANGD_PATH_CASE_INSENSITIVE
+    static llvm::Regex::RegexFlags Flags = llvm::Regex::IgnoreCase;
+#else
+    static llvm::Regex::RegexFlags Flags = llvm::Regex::NoFlags;
+#endif
+    auto Filters = std::make_shared<std::vector<llvm::Regex>>();
+    for (auto &HeaderPattern : F.IgnoreHeader) {
+      // Anchor on the right.
+      std::string AnchoredPattern = "(" + *HeaderPattern + ")$";
+      llvm::Regex CompiledRegex(AnchoredPattern, Flags);
+      std::string RegexError;
+      if (!CompiledRegex.isValid(RegexError)) {
+        diag(Warning,
+             llvm::formatv("Invalid regular expression '{0}': {1}",
+                           *HeaderPattern, RegexError)
+                 .str(),
+             HeaderPattern.Range);
+        continue;
+      }
+      Filters->push_back(std::move(CompiledRegex));
+    }
+    if (Filters->empty())
+      return;
+    auto Filter = [Filters](llvm::StringRef Path) {
+      for (auto &Regex : *Filters)
+        if (Regex.match(Path))
+          return true;
+      return false;
+    };
+    Out.Apply.push_back([Filter](const Params &, Config &C) {
+      C.Diagnostics.Includes.IgnoreHeader.emplace_back(Filter);
+    });
+  }
+
   void compile(Fragment::CompletionBlock &&F) {
     if (F.AllScopes) {
       Out.Apply.push_back(
@@ -472,6 +558,34 @@ struct FragmentCompiler {
             C.Completion.AllScopes = AllScopes;
           });
     }
+  }
+
+  void compile(Fragment::HoverBlock &&F) {
+    if (F.ShowAKA) {
+      Out.Apply.push_back([ShowAKA(**F.ShowAKA)](const Params &, Config &C) {
+        C.Hover.ShowAKA = ShowAKA;
+      });
+    }
+  }
+
+  void compile(Fragment::InlayHintsBlock &&F) {
+    if (F.Enabled)
+      Out.Apply.push_back([Value(**F.Enabled)](const Params &, Config &C) {
+        C.InlayHints.Enabled = Value;
+      });
+    if (F.ParameterNames)
+      Out.Apply.push_back(
+          [Value(**F.ParameterNames)](const Params &, Config &C) {
+            C.InlayHints.Parameters = Value;
+          });
+    if (F.DeducedTypes)
+      Out.Apply.push_back([Value(**F.DeducedTypes)](const Params &, Config &C) {
+        C.InlayHints.DeducedTypes = Value;
+      });
+    if (F.Designators)
+      Out.Apply.push_back([Value(**F.Designators)](const Params &, Config &C) {
+        C.InlayHints.Designators = Value;
+      });
   }
 
   constexpr static llvm::SourceMgr::DiagKind Error = llvm::SourceMgr::DK_Error;
@@ -499,8 +613,8 @@ CompiledFragment Fragment::compile(DiagnosticCallback D) && {
   trace::Span Tracer("ConfigCompile");
   SPAN_ATTACH(Tracer, "ConfigFile", ConfigFile);
   auto Result = std::make_shared<CompiledFragmentImpl>();
-  vlog("Config fragment: compiling {0}:{1} -> {2}", ConfigFile, LineCol.first,
-       Result.get());
+  vlog("Config fragment: compiling {0}:{1} -> {2} (trusted={3})", ConfigFile,
+       LineCol.first, Result.get(), Source.Trusted);
 
   FragmentCompiler{*Result, D, Source.Manager.get()}.compile(std::move(*this));
   // Return as cheaply-copyable wrapper.

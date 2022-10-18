@@ -27,17 +27,12 @@ using namespace polly;
 
 #define DEBUG_TYPE "polly-scop-helper"
 
-static cl::opt<bool> PollyAllowErrorBlocks(
-    "polly-allow-error-blocks",
-    cl::desc("Allow to speculate on the execution of 'error blocks'."),
-    cl::Hidden, cl::init(true), cl::ZeroOrMore, cl::cat(PollyCategory));
-
 static cl::list<std::string> DebugFunctions(
     "polly-debug-func",
     cl::desc("Allow calls to the specified functions in SCoPs even if their "
              "side-effects are unknown. This can be used to do debug output in "
              "Polly-transformed code."),
-    cl::Hidden, cl::ZeroOrMore, cl::CommaSeparated, cl::cat(PollyCategory));
+    cl::Hidden, cl::CommaSeparated, cl::cat(PollyCategory));
 
 // Ensures that there is just one predecessor to the entry node from outside the
 // region.
@@ -238,7 +233,7 @@ void polly::recordAssumption(polly::RecordedAssumptionsTy *RecordedAssumptions,
 /// and we generate code outside/in front of that region. Hence, we generate the
 /// code for the SDiv/SRem operands in front of the analyzed region and then
 /// create a new SDiv/SRem operation there too.
-struct ScopExpander : SCEVVisitor<ScopExpander, const SCEV *> {
+struct ScopExpander final : SCEVVisitor<ScopExpander, const SCEV *> {
   friend struct SCEVVisitor<ScopExpander, const SCEV *>;
 
   explicit ScopExpander(const Region &R, ScalarEvolution &SE,
@@ -396,6 +391,12 @@ private:
       NewOps.push_back(visit(Op));
     return SE.getSMinExpr(NewOps);
   }
+  const SCEV *visitSequentialUMinExpr(const SCEVSequentialUMinExpr *E) {
+    SmallVector<const SCEV *, 4> NewOps;
+    for (const SCEV *Op : E->operands())
+      NewOps.push_back(visit(Op));
+    return SE.getUMinExpr(NewOps, /*Sequential=*/true);
+  }
   const SCEV *visitAddRecExpr(const SCEVAddRecExpr *E) {
     SmallVector<const SCEV *, 4> NewOps;
     for (const SCEV *Op : E->operands())
@@ -411,54 +412,6 @@ Value *polly::expandCodeFor(Scop &S, ScalarEvolution &SE, const DataLayout &DL,
                             BasicBlock *RTCBB) {
   ScopExpander Expander(S.getRegion(), SE, DL, Name, VMap, RTCBB);
   return Expander.expandCodeFor(E, Ty, IP);
-}
-
-bool polly::isErrorBlock(BasicBlock &BB, const Region &R, LoopInfo &LI,
-                         const DominatorTree &DT) {
-  if (!PollyAllowErrorBlocks)
-    return false;
-
-  if (isa<UnreachableInst>(BB.getTerminator()))
-    return true;
-
-  if (LI.isLoopHeader(&BB))
-    return false;
-
-  // Basic blocks that are always executed are not considered error blocks,
-  // as their execution can not be a rare event.
-  bool DominatesAllPredecessors = true;
-  if (R.isTopLevelRegion()) {
-    for (BasicBlock &I : *R.getEntry()->getParent())
-      if (isa<ReturnInst>(I.getTerminator()) && !DT.dominates(&BB, &I))
-        DominatesAllPredecessors = false;
-  } else {
-    for (auto Pred : predecessors(R.getExit()))
-      if (R.contains(Pred) && !DT.dominates(&BB, Pred))
-        DominatesAllPredecessors = false;
-  }
-
-  if (DominatesAllPredecessors)
-    return false;
-
-  for (Instruction &Inst : BB)
-    if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
-      if (isDebugCall(CI))
-        continue;
-
-      if (isIgnoredIntrinsic(CI))
-        continue;
-
-      // memset, memcpy and memmove are modeled intrinsics.
-      if (isa<MemSetInst>(CI) || isa<MemTransferInst>(CI))
-        continue;
-
-      if (!CI->doesNotAccessMemory())
-        return true;
-      if (CI->doesNotReturn())
-        return true;
-    }
-
-  return false;
 }
 
 Value *polly::getConditionFromTerminator(Instruction *TI) {
@@ -746,6 +699,21 @@ static MDNode *findNamedMetadataNode(MDNode *LoopMD, StringRef Name) {
   return nullptr;
 }
 
+static Optional<const MDOperand *> findNamedMetadataArg(MDNode *LoopID,
+                                                        StringRef Name) {
+  MDNode *MD = findNamedMetadataNode(LoopID, Name);
+  if (!MD)
+    return None;
+  switch (MD->getNumOperands()) {
+  case 1:
+    return nullptr;
+  case 2:
+    return &MD->getOperand(1);
+  default:
+    llvm_unreachable("loop metadata has 0 or 1 operand");
+  }
+}
+
 Optional<Metadata *> polly::findMetadataOperand(MDNode *LoopMD,
                                                 StringRef Name) {
   MDNode *MD = findNamedMetadataNode(LoopMD, Name);
@@ -761,8 +729,47 @@ Optional<Metadata *> polly::findMetadataOperand(MDNode *LoopMD,
   }
 }
 
+static Optional<bool> getOptionalBoolLoopAttribute(MDNode *LoopID,
+                                                   StringRef Name) {
+  MDNode *MD = findNamedMetadataNode(LoopID, Name);
+  if (!MD)
+    return None;
+  switch (MD->getNumOperands()) {
+  case 1:
+    return true;
+  case 2:
+    if (ConstantInt *IntMD =
+            mdconst::extract_or_null<ConstantInt>(MD->getOperand(1).get()))
+      return IntMD->getZExtValue();
+    return true;
+  }
+  llvm_unreachable("unexpected number of options");
+}
+
+bool polly::getBooleanLoopAttribute(MDNode *LoopID, StringRef Name) {
+  return getOptionalBoolLoopAttribute(LoopID, Name).value_or(false);
+}
+
+llvm::Optional<int> polly::getOptionalIntLoopAttribute(MDNode *LoopID,
+                                                       StringRef Name) {
+  const MDOperand *AttrMD =
+      findNamedMetadataArg(LoopID, Name).value_or(nullptr);
+  if (!AttrMD)
+    return None;
+
+  ConstantInt *IntMD = mdconst::extract_or_null<ConstantInt>(AttrMD->get());
+  if (!IntMD)
+    return None;
+
+  return IntMD->getSExtValue();
+}
+
 bool polly::hasDisableAllTransformsHint(Loop *L) {
   return llvm::hasDisableAllTransformsHint(L);
+}
+
+bool polly::hasDisableAllTransformsHint(llvm::MDNode *LoopID) {
+  return getBooleanLoopAttribute(LoopID, "llvm.loop.disable_nonforced");
 }
 
 isl::id polly::getIslLoopAttr(isl::ctx Ctx, BandAttr *Attr) {

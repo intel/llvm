@@ -1,7 +1,7 @@
-; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,ALIGNED %s
-; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1011 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,ALIGNED %s
-; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1012 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,ALIGNED %s
-; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs -mattr=+cumode < %s | FileCheck -check-prefixes=GCN,ALIGNED %s
+; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,ALIGNED,ALIGNED-WGP %s
+; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1011 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,ALIGNED,ALIGNED-WGP %s
+; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1012 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,ALIGNED,ALIGNED-WGP %s
+; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs -mattr=+cumode < %s | FileCheck -check-prefixes=GCN,ALIGNED,ALIGNED-CU %s
 ; RUN: llc -global-isel -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs -mattr=+cumode,+unaligned-access-mode < %s | FileCheck -check-prefixes=GCN,UNALIGNED %s
 
 ; GCN-LABEL: test_local_misaligned_v2:
@@ -26,8 +26,8 @@ bb:
 ; ALIGNED-DAG: ds_read2_b32
 ; ALIGNED-DAG: ds_write2_b32
 ; ALIGNED-DAG: ds_write2_b32
-; UNALIGNED-DAG: ds_read_b128
-; UNALIGNED-DAG: ds_write_b128
+; UNALIGNED-DAG: ds_read2_b64
+; UNALIGNED-DAG: ds_write2_b64
 define amdgpu_kernel void @test_local_misaligned_v4(i32 addrspace(3)* %arg) {
 bb:
   %lid = tail call i32 @llvm.amdgcn.workitem.id.x()
@@ -106,10 +106,14 @@ bb:
 }
 
 ; GCN-LABEL: test_local_v4_aligned8:
-; ALIGNED-DAG: ds_read2_b64
-; ALIGNED-DAG: ds_write2_b64
-; UNALIGNED-DAG: ds_read_b128
-; UNALIGNED-DAG: ds_write_b128
+; ALIGNED-WGP-DAG: ds_read2_b32
+; ALIGNED-WGP-DAG: ds_read2_b32
+; ALIGNED-WGP-DAG: ds_write2_b32
+; ALIGNED-WGP-DAG: ds_write2_b32
+; ALIGNED-CU-DAG: ds_read2_b64
+; ALIGNED-CU-DAG: ds_write2_b64
+; UNALIGNED-DAG: ds_read2_b64
+; UNALIGNED-DAG: ds_write2_b64
 define amdgpu_kernel void @test_local_v4_aligned8(i32 addrspace(3)* %arg) {
 bb:
   %lid = tail call i32 @llvm.amdgcn.workitem.id.x()

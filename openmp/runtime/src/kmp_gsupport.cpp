@@ -23,18 +23,24 @@ enum {
   KMP_GOMP_TASK_DEPENDS_FLAG = 8
 };
 
+enum {
+  KMP_GOMP_DEPOBJ_IN = 1,
+  KMP_GOMP_DEPOBJ_OUT = 2,
+  KMP_GOMP_DEPOBJ_INOUT = 3,
+  KMP_GOMP_DEPOBJ_MTXINOUTSET = 4
+};
+
 // This class helps convert gomp dependency info into
 // kmp_depend_info_t structures
 class kmp_gomp_depends_info_t {
   void **depend;
   kmp_int32 num_deps;
-  size_t num_out, num_mutexinout, num_in;
+  size_t num_out, num_mutexinout, num_in, num_depobj;
   size_t offset;
 
 public:
   kmp_gomp_depends_info_t(void **depend) : depend(depend) {
     size_t ndeps = (kmp_intptr_t)depend[0];
-    size_t num_doable;
     // GOMP taskdep structure:
     // if depend[0] != 0:
     // depend =  [ ndeps | nout | &out | ... | &out | &in | ... | &in ]
@@ -45,20 +51,16 @@ public:
     if (ndeps) {
       num_out = (kmp_intptr_t)depend[1];
       num_in = ndeps - num_out;
-      num_mutexinout = 0;
-      num_doable = ndeps;
+      num_mutexinout = num_depobj = 0;
       offset = 2;
     } else {
       ndeps = (kmp_intptr_t)depend[1];
       num_out = (kmp_intptr_t)depend[2];
       num_mutexinout = (kmp_intptr_t)depend[3];
       num_in = (kmp_intptr_t)depend[4];
-      num_doable = num_out + num_mutexinout + num_in;
+      num_depobj = ndeps - num_out - num_mutexinout - num_in;
+      KMP_ASSERT(num_depobj <= ndeps);
       offset = 5;
-    }
-    // TODO: Support gomp depobj
-    if (ndeps != num_doable) {
-      KMP_FATAL(GompFeatureNotSupported, "depobj");
     }
     num_deps = static_cast<kmp_int32>(ndeps);
   }
@@ -67,7 +69,6 @@ public:
     kmp_depend_info_t retval;
     memset(&retval, '\0', sizeof(retval));
     KMP_ASSERT(index < (size_t)num_deps);
-    retval.base_addr = (kmp_intptr_t)depend[offset + index];
     retval.len = 0;
     // Because inout and out are logically equivalent,
     // use inout and in dependency flags. GOMP does not provide a
@@ -75,10 +76,37 @@ public:
     if (index < num_out) {
       retval.flags.in = 1;
       retval.flags.out = 1;
+      retval.base_addr = (kmp_intptr_t)depend[offset + index];
     } else if (index >= num_out && index < (num_out + num_mutexinout)) {
       retval.flags.mtx = 1;
-    } else {
+      retval.base_addr = (kmp_intptr_t)depend[offset + index];
+    } else if (index >= (num_out + num_mutexinout) &&
+               index < (num_out + num_mutexinout + num_in)) {
       retval.flags.in = 1;
+      retval.base_addr = (kmp_intptr_t)depend[offset + index];
+    } else {
+      // depobj is a two element array (size of elements are size of pointer)
+      // depobj[0] = base_addr
+      // depobj[1] = type (in, out, inout, mutexinoutset, etc.)
+      kmp_intptr_t *depobj = (kmp_intptr_t *)depend[offset + index];
+      retval.base_addr = depobj[0];
+      switch (depobj[1]) {
+      case KMP_GOMP_DEPOBJ_IN:
+        retval.flags.in = 1;
+        break;
+      case KMP_GOMP_DEPOBJ_OUT:
+        retval.flags.out = 1;
+        break;
+      case KMP_GOMP_DEPOBJ_INOUT:
+        retval.flags.in = 1;
+        retval.flags.out = 1;
+        break;
+      case KMP_GOMP_DEPOBJ_MTXINOUTSET:
+        retval.flags.mtx = 1;
+        break;
+      default:
+        KMP_FATAL(GompFeatureNotSupported, "Unknown depobj type");
+      }
     }
     return retval;
   }
@@ -498,6 +526,10 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_START)(void (*task)(void *),
     frame->exit_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
   }
 #endif
+#if OMPD_SUPPORT
+  if (ompd_state & OMPD_ENABLE_BP)
+    ompd_bp_parallel_begin();
+#endif
 }
 
 void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_END)(void) {
@@ -528,6 +560,10 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_END)(void) {
                   fork_context_gnu
 #endif
   );
+#if OMPD_SUPPORT
+  if (ompd_state & OMPD_ENABLE_BP)
+    ompd_bp_parallel_end();
+#endif
 }
 
 // Loop worksharing constructs
@@ -1198,7 +1234,7 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASK)(void (*func)(void *), void *data,
 
   // The low-order bit is the "untied" flag
   if (!(gomp_flags & KMP_GOMP_TASK_UNTIED_FLAG)) {
-    input_flags->tiedness = 1;
+    input_flags->tiedness = TASK_TIED;
   }
   // The second low-order bit is the "final" flag
   if (gomp_flags & KMP_GOMP_TASK_FINAL_FLAG) {
@@ -1486,6 +1522,13 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_SECTIONS)(void (*task)(void *),
   KA_TRACE(20, ("GOMP_parallel_sections: T#%d\n", gtid));
 
 #if OMPT_SUPPORT
+  ompt_frame_t *task_frame;
+  kmp_info_t *thr;
+  if (ompt_enabled.enabled) {
+    thr = __kmp_threads[gtid];
+    task_frame = &(thr->th.th_current_task->ompt_task_info.frame);
+    task_frame->enter_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+  }
   OMPT_STORE_RETURN_ADDRESS(gtid);
 #endif
 
@@ -1501,9 +1544,31 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_SECTIONS)(void (*task)(void *),
 
     KMP_DISPATCH_INIT(&loc, gtid, kmp_nm_dynamic_chunked, 1, count, 1, 1, TRUE);
   }
+
+#if OMPT_SUPPORT
+  ompt_frame_t *child_frame;
+  if (ompt_enabled.enabled) {
+    child_frame = &(thr->th.th_current_task->ompt_task_info.frame);
+    child_frame->exit_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+  }
+#endif
+
   task(data);
+
+#if OMPT_SUPPORT
+  if (ompt_enabled.enabled) {
+    child_frame->exit_frame = ompt_data_none;
+  }
+#endif
+
   KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_END)();
   KA_TRACE(20, ("GOMP_parallel_sections exit: T#%d\n", gtid));
+
+#if OMPT_SUPPORT
+  if (ompt_enabled.enabled) {
+    task_frame->enter_frame = ompt_data_none;
+  }
+#endif
 }
 
 #define PARALLEL_LOOP(func, schedule, ompt_pre, ompt_post)                     \
@@ -1688,6 +1753,9 @@ static void __kmp_gomp_task_dup(kmp_task_t *dest, kmp_task_t *src,
   }
 }
 
+void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_REGISTER)(
+    uintptr_t *);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
@@ -1707,6 +1775,7 @@ void __GOMP_taskloop(void (*func)(void *), void *data,
   int if_val = gomp_flags & (1u << 10);
   int nogroup = gomp_flags & (1u << 11);
   int up = gomp_flags & (1u << 8);
+  int reductions = gomp_flags & (1u << 12);
   p_task_dup_t task_dup = NULL;
   kmp_tasking_flags_t *input_flags = (kmp_tasking_flags_t *)&flags;
 #ifdef KMP_DEBUG
@@ -1726,7 +1795,7 @@ void __GOMP_taskloop(void (*func)(void *), void *data,
   KMP_ASSERT(arg_align > 0);
   // The low-order bit is the "untied" flag
   if (!(gomp_flags & 1)) {
-    input_flags->tiedness = 1;
+    input_flags->tiedness = TASK_TIED;
   }
   // The second low-order bit is the "final" flag
   if (gomp_flags & 2) {
@@ -1778,9 +1847,31 @@ void __GOMP_taskloop(void (*func)(void *), void *data,
   loop_bounds = (T *)task->shareds;
   loop_bounds[0] = start;
   loop_bounds[1] = end + (up ? -1 : 1);
+
+  if (!nogroup) {
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+    OMPT_STORE_RETURN_ADDRESS(gtid);
+#endif
+    __kmpc_taskgroup(&loc, gtid);
+    if (reductions) {
+      // The data pointer points to lb, ub, then reduction data
+      struct data_t {
+        T a, b;
+        uintptr_t *d;
+      };
+      uintptr_t *d = ((data_t *)data)->d;
+      KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_REGISTER)(d);
+    }
+  }
   __kmpc_taskloop(&loc, gtid, task, if_val, (kmp_uint64 *)&(loop_bounds[0]),
-                  (kmp_uint64 *)&(loop_bounds[1]), (kmp_int64)step, nogroup,
-                  sched, (kmp_uint64)num_tasks, (void *)task_dup);
+                  (kmp_uint64 *)&(loop_bounds[1]), (kmp_int64)step, 1, sched,
+                  (kmp_uint64)num_tasks, (void *)task_dup);
+  if (!nogroup) {
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+    OMPT_STORE_RETURN_ADDRESS(gtid);
+#endif
+    __kmpc_end_taskgroup(&loc, gtid);
+  }
 }
 
 // 4 byte version of GOMP_doacross_post
@@ -1910,6 +2001,508 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASKWAIT_DEPEND)(void **depend) {
 #endif
   __kmpc_omp_wait_deps(&loc, gtid, ndeps, dep_list, 0, NULL);
   KA_TRACE(20, ("GOMP_taskwait_depend exit: T#%d\n", gtid));
+}
+
+static inline void
+__kmp_GOMP_taskgroup_reduction_register(uintptr_t *data, kmp_taskgroup_t *tg,
+                                        int nthreads,
+                                        uintptr_t *allocated = nullptr) {
+  KMP_ASSERT(data);
+  KMP_ASSERT(nthreads > 0);
+  // Have private copy pointers point to previously allocated
+  // reduction data or allocate new data here
+  if (allocated) {
+    data[2] = allocated[2];
+    data[6] = allocated[6];
+  } else {
+    data[2] = (uintptr_t)__kmp_allocate(nthreads * data[1]);
+    data[6] = data[2] + (nthreads * data[1]);
+  }
+  if (tg)
+    tg->gomp_data = data;
+}
+
+void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_REGISTER)(
+    uintptr_t *data) {
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_taskgroup_reduction_register: T#%d\n", gtid));
+  kmp_info_t *thread = __kmp_threads[gtid];
+  kmp_taskgroup_t *tg = thread->th.th_current_task->td_taskgroup;
+  int nthreads = thread->th.th_team_nproc;
+  __kmp_GOMP_taskgroup_reduction_register(data, tg, nthreads);
+}
+
+void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_UNREGISTER)(
+    uintptr_t *data) {
+  KA_TRACE(20,
+           ("GOMP_taskgroup_reduction_unregister: T#%d\n", __kmp_get_gtid()));
+  KMP_ASSERT(data && data[2]);
+  __kmp_free((void *)data[2]);
+}
+
+// Search through reduction data and set ptrs[] elements
+// to proper privatized copy address
+void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASK_REDUCTION_REMAP)(size_t cnt,
+                                                             size_t cntorig,
+                                                             void **ptrs) {
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_task_reduction_remap: T#%d\n", gtid));
+  kmp_info_t *thread = __kmp_threads[gtid];
+  kmp_int32 tid = __kmp_get_tid();
+  for (size_t i = 0; i < cnt; ++i) {
+    uintptr_t address = (uintptr_t)ptrs[i];
+    void *propagated_address = NULL;
+    void *mapped_address = NULL;
+    // Check taskgroups reduce data
+    kmp_taskgroup_t *tg = thread->th.th_current_task->td_taskgroup;
+    while (tg) {
+      uintptr_t *gomp_data = tg->gomp_data;
+      if (!gomp_data) {
+        tg = tg->parent;
+        continue;
+      }
+      // Check the shared addresses list
+      size_t num_vars = (size_t)gomp_data[0];
+      uintptr_t per_thread_size = gomp_data[1];
+      uintptr_t reduce_data = gomp_data[2];
+      uintptr_t end_reduce_data = gomp_data[6];
+      for (size_t j = 0; j < num_vars; ++j) {
+        uintptr_t *entry = gomp_data + 7 + 3 * j;
+        if (entry[0] == address) {
+          uintptr_t offset = entry[1];
+          mapped_address =
+              (void *)(reduce_data + tid * per_thread_size + offset);
+          if (i < cntorig)
+            propagated_address = (void *)entry[0];
+          break;
+        }
+      }
+      if (mapped_address)
+        break;
+      // Check if address is within privatized copies range
+      if (!mapped_address && address >= reduce_data &&
+          address < end_reduce_data) {
+        uintptr_t offset = (address - reduce_data) % per_thread_size;
+        mapped_address = (void *)(reduce_data + tid * per_thread_size + offset);
+        if (i < cntorig) {
+          for (size_t j = 0; j < num_vars; ++j) {
+            uintptr_t *entry = gomp_data + 7 + 3 * j;
+            if (entry[1] == offset) {
+              propagated_address = (void *)entry[0];
+              break;
+            }
+          }
+        }
+      }
+      if (mapped_address)
+        break;
+      tg = tg->parent;
+    }
+    KMP_ASSERT(mapped_address);
+    ptrs[i] = mapped_address;
+    if (i < cntorig) {
+      KMP_ASSERT(propagated_address);
+      ptrs[cnt + i] = propagated_address;
+    }
+  }
+}
+
+static void __kmp_GOMP_init_reductions(int gtid, uintptr_t *data, int is_ws) {
+  kmp_info_t *thr = __kmp_threads[gtid];
+  kmp_team_t *team = thr->th.th_team;
+  // First start a taskgroup
+  __kmpc_taskgroup(NULL, gtid);
+  // Then setup reduction data
+  void *reduce_data = KMP_ATOMIC_LD_RLX(&team->t.t_tg_reduce_data[is_ws]);
+  if (reduce_data == NULL &&
+      __kmp_atomic_compare_store(&team->t.t_tg_reduce_data[is_ws], reduce_data,
+                                 (void *)1)) {
+    // Single thread enters this block to initialize common reduction data
+    KMP_DEBUG_ASSERT(reduce_data == NULL);
+    __kmp_GOMP_taskgroup_reduction_register(data, NULL, thr->th.th_team_nproc);
+    KMP_ATOMIC_ST_REL(&team->t.t_tg_fini_counter[is_ws], 0);
+    KMP_ATOMIC_ST_REL(&team->t.t_tg_reduce_data[is_ws], (void *)data);
+  } else {
+    // Wait for task reduction initialization
+    while ((reduce_data = KMP_ATOMIC_LD_ACQ(
+                &team->t.t_tg_reduce_data[is_ws])) == (void *)1) {
+      KMP_CPU_PAUSE();
+    }
+    KMP_DEBUG_ASSERT(reduce_data > (void *)1); // should be valid pointer here
+  }
+  // For worksharing constructs, each thread has its own reduction structure.
+  // Have each reduction structure point to same privatized copies of vars.
+  // For parallel, each thread points to same reduction structure and privatized
+  // copies of vars
+  if (is_ws) {
+    __kmp_GOMP_taskgroup_reduction_register(
+        data, NULL, thr->th.th_team_nproc,
+        (uintptr_t *)KMP_ATOMIC_LD_ACQ(&team->t.t_tg_reduce_data[is_ws]));
+  }
+  kmp_taskgroup_t *tg = thr->th.th_current_task->td_taskgroup;
+  tg->gomp_data = data;
+}
+
+static unsigned
+__kmp_GOMP_par_reductions_microtask_wrapper(int *gtid, int *npr,
+                                            void (*task)(void *), void *data) {
+  kmp_info_t *thr = __kmp_threads[*gtid];
+  kmp_team_t *team = thr->th.th_team;
+  uintptr_t *reduce_data = *(uintptr_t **)data;
+  __kmp_GOMP_init_reductions(*gtid, reduce_data, 0);
+
+#if OMPT_SUPPORT
+  ompt_frame_t *ompt_frame;
+  ompt_state_t enclosing_state;
+
+  if (ompt_enabled.enabled) {
+    // save enclosing task state; set current state for task
+    enclosing_state = thr->th.ompt_thread_info.state;
+    thr->th.ompt_thread_info.state = ompt_state_work_parallel;
+
+    // set task frame
+    __ompt_get_task_info_internal(0, NULL, NULL, &ompt_frame, NULL, NULL);
+    ompt_frame->exit_frame.ptr = OMPT_GET_FRAME_ADDRESS(0);
+  }
+#endif
+
+  task(data);
+
+#if OMPT_SUPPORT
+  if (ompt_enabled.enabled) {
+    // clear task frame
+    ompt_frame->exit_frame = ompt_data_none;
+
+    // restore enclosing state
+    thr->th.ompt_thread_info.state = enclosing_state;
+  }
+#endif
+  __kmpc_end_taskgroup(NULL, *gtid);
+  // if last thread out, then reset the team's reduce data
+  // the GOMP_taskgroup_reduction_unregister() function will deallocate
+  // private copies after reduction calculations take place.
+  int count = KMP_ATOMIC_INC(&team->t.t_tg_fini_counter[0]);
+  if (count == thr->th.th_team_nproc - 1) {
+    KMP_ATOMIC_ST_REL(&team->t.t_tg_reduce_data[0], NULL);
+    KMP_ATOMIC_ST_REL(&team->t.t_tg_fini_counter[0], 0);
+  }
+  return (unsigned)thr->th.th_team_nproc;
+}
+
+unsigned KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_REDUCTIONS)(
+    void (*task)(void *), void *data, unsigned num_threads,
+    unsigned int flags) {
+  MKLOC(loc, "GOMP_parallel_reductions");
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_parallel_reductions: T#%d\n", gtid));
+  __kmp_GOMP_fork_call(&loc, gtid, num_threads, flags, task,
+                       (microtask_t)__kmp_GOMP_par_reductions_microtask_wrapper,
+                       2, task, data);
+  unsigned retval =
+      __kmp_GOMP_par_reductions_microtask_wrapper(&gtid, NULL, task, data);
+  KMP_EXPAND_NAME(KMP_API_NAME_GOMP_PARALLEL_END)();
+  KA_TRACE(20, ("GOMP_parallel_reductions exit: T#%d\n", gtid));
+  return retval;
+}
+
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_START)(
+    long start, long end, long incr, long sched, long chunk_size, long *istart,
+    long *iend, uintptr_t *reductions, void **mem) {
+  int status = 0;
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_loop_start: T#%d, reductions: %p\n", gtid, reductions));
+  if (reductions)
+    __kmp_GOMP_init_reductions(gtid, reductions, 1);
+  if (mem)
+    KMP_FATAL(GompFeatureNotSupported, "scan");
+  if (istart == NULL)
+    return true;
+  const long MONOTONIC_FLAG = (long)(kmp_sched_monotonic);
+  long monotonic = sched & MONOTONIC_FLAG;
+  sched &= ~MONOTONIC_FLAG;
+  if (sched == 0) {
+    if (monotonic)
+      status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_RUNTIME_START)(
+          start, end, incr, istart, iend);
+    else
+      status = KMP_EXPAND_NAME(
+          KMP_API_NAME_GOMP_LOOP_MAYBE_NONMONOTONIC_RUNTIME_START)(
+          start, end, incr, istart, iend);
+  } else if (sched == 1) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_STATIC_START)(
+        start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 2) {
+    if (monotonic)
+      status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_DYNAMIC_START)(
+          start, end, incr, chunk_size, istart, iend);
+    else
+      status =
+          KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_NONMONOTONIC_DYNAMIC_START)(
+              start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 3) {
+    if (monotonic)
+      status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_GUIDED_START)(
+          start, end, incr, chunk_size, istart, iend);
+    else
+      status =
+          KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_NONMONOTONIC_GUIDED_START)(
+              start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 4) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_NONMONOTONIC_RUNTIME_START)(
+        start, end, incr, istart, iend);
+  } else {
+    KMP_ASSERT(0);
+  }
+  return status;
+}
+
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_START)(
+    bool up, unsigned long long start, unsigned long long end,
+    unsigned long long incr, long sched, unsigned long long chunk_size,
+    unsigned long long *istart, unsigned long long *iend, uintptr_t *reductions,
+    void **mem) {
+  int status = 0;
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20,
+           ("GOMP_loop_ull_start: T#%d, reductions: %p\n", gtid, reductions));
+  if (reductions)
+    __kmp_GOMP_init_reductions(gtid, reductions, 1);
+  if (mem)
+    KMP_FATAL(GompFeatureNotSupported, "scan");
+  if (istart == NULL)
+    return true;
+  const long MONOTONIC_FLAG = (long)(kmp_sched_monotonic);
+  long monotonic = sched & MONOTONIC_FLAG;
+  sched &= ~MONOTONIC_FLAG;
+  if (sched == 0) {
+    if (monotonic)
+      status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_RUNTIME_START)(
+          up, start, end, incr, istart, iend);
+    else
+      status = KMP_EXPAND_NAME(
+          KMP_API_NAME_GOMP_LOOP_ULL_MAYBE_NONMONOTONIC_RUNTIME_START)(
+          up, start, end, incr, istart, iend);
+  } else if (sched == 1) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_STATIC_START)(
+        up, start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 2) {
+    if (monotonic)
+      status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_DYNAMIC_START)(
+          up, start, end, incr, chunk_size, istart, iend);
+    else
+      status = KMP_EXPAND_NAME(
+          KMP_API_NAME_GOMP_LOOP_ULL_NONMONOTONIC_DYNAMIC_START)(
+          up, start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 3) {
+    if (monotonic)
+      status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_GUIDED_START)(
+          up, start, end, incr, chunk_size, istart, iend);
+    else
+      status =
+          KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_NONMONOTONIC_GUIDED_START)(
+              up, start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 4) {
+    status =
+        KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_NONMONOTONIC_RUNTIME_START)(
+            up, start, end, incr, istart, iend);
+  } else {
+    KMP_ASSERT(0);
+  }
+  return status;
+}
+
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_DOACROSS_START)(
+    unsigned ncounts, long *counts, long sched, long chunk_size, long *istart,
+    long *iend, uintptr_t *reductions, void **mem) {
+  int status = 0;
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_loop_doacross_start: T#%d, reductions: %p\n", gtid,
+                reductions));
+  if (reductions)
+    __kmp_GOMP_init_reductions(gtid, reductions, 1);
+  if (mem)
+    KMP_FATAL(GompFeatureNotSupported, "scan");
+  if (istart == NULL)
+    return true;
+  // Ignore any monotonic flag
+  const long MONOTONIC_FLAG = (long)(kmp_sched_monotonic);
+  sched &= ~MONOTONIC_FLAG;
+  if (sched == 0) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_DOACROSS_RUNTIME_START)(
+        ncounts, counts, istart, iend);
+  } else if (sched == 1) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_DOACROSS_STATIC_START)(
+        ncounts, counts, chunk_size, istart, iend);
+  } else if (sched == 2) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_DOACROSS_DYNAMIC_START)(
+        ncounts, counts, chunk_size, istart, iend);
+  } else if (sched == 3) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_DOACROSS_GUIDED_START)(
+        ncounts, counts, chunk_size, istart, iend);
+  } else {
+    KMP_ASSERT(0);
+  }
+  return status;
+}
+
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_DOACROSS_START)(
+    unsigned ncounts, unsigned long long *counts, long sched,
+    unsigned long long chunk_size, unsigned long long *istart,
+    unsigned long long *iend, uintptr_t *reductions, void **mem) {
+  int status = 0;
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_loop_ull_doacross_start: T#%d, reductions: %p\n", gtid,
+                reductions));
+  if (reductions)
+    __kmp_GOMP_init_reductions(gtid, reductions, 1);
+  if (mem)
+    KMP_FATAL(GompFeatureNotSupported, "scan");
+  if (istart == NULL)
+    return true;
+  // Ignore any monotonic flag
+  const long MONOTONIC_FLAG = (long)(kmp_sched_monotonic);
+  sched &= ~MONOTONIC_FLAG;
+  if (sched == 0) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_DOACROSS_RUNTIME_START)(
+        ncounts, counts, istart, iend);
+  } else if (sched == 1) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_DOACROSS_STATIC_START)(
+        ncounts, counts, chunk_size, istart, iend);
+  } else if (sched == 2) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_DOACROSS_DYNAMIC_START)(
+        ncounts, counts, chunk_size, istart, iend);
+  } else if (sched == 3) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_DOACROSS_GUIDED_START)(
+        ncounts, counts, chunk_size, istart, iend);
+  } else {
+    KMP_ASSERT(0);
+  }
+  return status;
+}
+
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ORDERED_START)(
+    long start, long end, long incr, long sched, long chunk_size, long *istart,
+    long *iend, uintptr_t *reductions, void **mem) {
+  int status = 0;
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_loop_ordered_start: T#%d, reductions: %p\n", gtid,
+                reductions));
+  if (reductions)
+    __kmp_GOMP_init_reductions(gtid, reductions, 1);
+  if (mem)
+    KMP_FATAL(GompFeatureNotSupported, "scan");
+  if (istart == NULL)
+    return true;
+  // Ignore any monotonic flag
+  const long MONOTONIC_FLAG = (long)(kmp_sched_monotonic);
+  sched &= ~MONOTONIC_FLAG;
+  if (sched == 0) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ORDERED_RUNTIME_START)(
+        start, end, incr, istart, iend);
+  } else if (sched == 1) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ORDERED_STATIC_START)(
+        start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 2) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ORDERED_DYNAMIC_START)(
+        start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 3) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ORDERED_GUIDED_START)(
+        start, end, incr, chunk_size, istart, iend);
+  } else {
+    KMP_ASSERT(0);
+  }
+  return status;
+}
+
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_ORDERED_START)(
+    bool up, unsigned long long start, unsigned long long end,
+    unsigned long long incr, long sched, unsigned long long chunk_size,
+    unsigned long long *istart, unsigned long long *iend, uintptr_t *reductions,
+    void **mem) {
+  int status = 0;
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_loop_ull_ordered_start: T#%d, reductions: %p\n", gtid,
+                reductions));
+  if (reductions)
+    __kmp_GOMP_init_reductions(gtid, reductions, 1);
+  if (mem)
+    KMP_FATAL(GompFeatureNotSupported, "scan");
+  if (istart == NULL)
+    return true;
+  // Ignore any monotonic flag
+  const long MONOTONIC_FLAG = (long)(kmp_sched_monotonic);
+  sched &= ~MONOTONIC_FLAG;
+  if (sched == 0) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_ORDERED_RUNTIME_START)(
+        up, start, end, incr, istart, iend);
+  } else if (sched == 1) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_ORDERED_STATIC_START)(
+        up, start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 2) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_ORDERED_DYNAMIC_START)(
+        up, start, end, incr, chunk_size, istart, iend);
+  } else if (sched == 3) {
+    status = KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_ULL_ORDERED_GUIDED_START)(
+        up, start, end, incr, chunk_size, istart, iend);
+  } else {
+    KMP_ASSERT(0);
+  }
+  return status;
+}
+
+unsigned KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SECTIONS2_START)(
+    unsigned count, uintptr_t *reductions, void **mem) {
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20,
+           ("GOMP_sections2_start: T#%d, reductions: %p\n", gtid, reductions));
+  if (reductions)
+    __kmp_GOMP_init_reductions(gtid, reductions, 1);
+  if (mem)
+    KMP_FATAL(GompFeatureNotSupported, "scan");
+  return KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SECTIONS_START)(count);
+}
+
+void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_WORKSHARE_TASK_REDUCTION_UNREGISTER)(
+    bool cancelled) {
+  int gtid = __kmp_get_gtid();
+  MKLOC(loc, "GOMP_workshare_task_reduction_unregister");
+  KA_TRACE(20, ("GOMP_workshare_task_reduction_unregister: T#%d\n", gtid));
+  kmp_info_t *thr = __kmp_threads[gtid];
+  kmp_team_t *team = thr->th.th_team;
+  __kmpc_end_taskgroup(NULL, gtid);
+  // If last thread out of workshare, then reset the team's reduce data
+  // the GOMP_taskgroup_reduction_unregister() function will deallocate
+  // private copies after reduction calculations take place.
+  int count = KMP_ATOMIC_INC(&team->t.t_tg_fini_counter[1]);
+  if (count == thr->th.th_team_nproc - 1) {
+    KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_UNREGISTER)
+    ((uintptr_t *)KMP_ATOMIC_LD_RLX(&team->t.t_tg_reduce_data[1]));
+    KMP_ATOMIC_ST_REL(&team->t.t_tg_reduce_data[1], NULL);
+    KMP_ATOMIC_ST_REL(&team->t.t_tg_fini_counter[1], 0);
+  }
+  if (!cancelled) {
+    __kmpc_barrier(&loc, gtid);
+  }
+}
+
+// allocator construct
+void *KMP_EXPAND_NAME(KMP_API_NAME_GOMP_ALLOC)(size_t alignment, size_t size,
+                                               uintptr_t allocator) {
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_alloc: T#%d\n", gtid));
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  OMPT_STORE_RETURN_ADDRESS(gtid);
+#endif
+  return __kmp_alloc(gtid, alignment, size, (omp_allocator_handle_t)allocator);
+}
+
+void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_FREE)(void *ptr, uintptr_t allocator) {
+  int gtid = __kmp_entry_gtid();
+  KA_TRACE(20, ("GOMP_free: T#%d\n", gtid));
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  OMPT_STORE_RETURN_ADDRESS(gtid);
+#endif
+  return ___kmpc_free(gtid, ptr, (omp_allocator_handle_t)allocator);
 }
 
 /* The following sections of code create aliases for the GOMP_* functions, then
@@ -2085,7 +2678,25 @@ KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_PARALLEL_LOOP_MAYBE_NONMONOTONIC_RUNTIME,
                    50, "GOMP_5.0");
 KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_TEAMS_REG, 50, "GOMP_5.0");
 KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_TASKWAIT_DEPEND, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_REGISTER, 50,
+                   "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_UNREGISTER, 50,
+                   "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_TASK_REDUCTION_REMAP, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_PARALLEL_REDUCTIONS, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_LOOP_START, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_LOOP_ULL_START, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_LOOP_DOACROSS_START, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_LOOP_ULL_DOACROSS_START, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_LOOP_ORDERED_START, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_LOOP_ULL_ORDERED_START, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_SECTIONS2_START, 50, "GOMP_5.0");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_WORKSHARE_TASK_REDUCTION_UNREGISTER, 50,
+                   "GOMP_5.0");
 
+// GOMP_5.0.1 versioned symbols
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_ALLOC, 501, "GOMP_5.0.1");
+KMP_VERSION_SYMBOL(KMP_API_NAME_GOMP_FREE, 501, "GOMP_5.0.1");
 #endif // KMP_USE_VERSION_SYMBOLS
 
 #ifdef __cplusplus

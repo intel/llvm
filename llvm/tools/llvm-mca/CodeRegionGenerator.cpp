@@ -16,6 +16,7 @@
 #include "CodeRegionGenerator.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCTargetOptions.h"
@@ -47,8 +48,8 @@ public:
       : MCStreamer(Context), Regions(R) {}
 
   // We only want to intercept the emission of new instructions.
-  virtual void emitInstruction(const MCInst &Inst,
-                               const MCSubtargetInfo & /* unused */) override {
+  void emitInstruction(const MCInst &Inst,
+                       const MCSubtargetInfo & /* unused */) override {
     Regions.addInstruction(Inst);
   }
 
@@ -62,10 +63,10 @@ public:
                     uint64_t Size = 0, unsigned ByteAlignment = 0,
                     SMLoc Loc = SMLoc()) override {}
   void emitGPRel32Value(const MCExpr *Value) override {}
-  void BeginCOFFSymbolDef(const MCSymbol *Symbol) override {}
-  void EmitCOFFSymbolStorageClass(int StorageClass) override {}
-  void EmitCOFFSymbolType(int Type) override {}
-  void EndCOFFSymbolDef() override {}
+  void beginCOFFSymbolDef(const MCSymbol *Symbol) override {}
+  void emitCOFFSymbolStorageClass(int StorageClass) override {}
+  void emitCOFFSymbolType(int Type) override {}
+  void endCOFFSymbolDef() override {}
 
   ArrayRef<MCInst> GetInstructionSequence(unsigned Index) const {
     return Regions.getInstructionSequence(Index);
@@ -106,10 +107,20 @@ void MCACommentConsumer::HandleComment(SMLoc Loc, StringRef CommentText) {
   Regions.beginRegion(Comment, Loc);
 }
 
-Expected<const CodeRegions &> AsmCodeRegionGenerator::parseCodeRegions() {
+Expected<const CodeRegions &> AsmCodeRegionGenerator::parseCodeRegions(
+    const std::unique_ptr<MCInstPrinter> &IP) {
   MCTargetOptions Opts;
   Opts.PreserveAsmComments = false;
   MCStreamerWrapper Str(Ctx, Regions);
+
+  // Need to initialize an MCTargetStreamer otherwise
+  // certain asm directives will cause a segfault.
+  // Using nulls() so that anything emitted by the MCTargetStreamer
+  // doesn't show up in the llvm-mca output.
+  raw_ostream &OSRef = nulls();
+  formatted_raw_ostream FOSRef(OSRef);
+  TheTarget.createAsmTargetStreamer(Str, FOSRef, IP.get(),
+                                    /*IsVerboseAsm=*/true);
 
   // Create a MCAsmParser and setup the lexer to recognize llvm-mca ASM
   // comments.

@@ -48,7 +48,7 @@ void ThreadStart(u32 tid, tid_t os_id, ThreadType thread_type) {
   OnStartedArgs args;
   uptr stack_size = 0;
   uptr tls_size = 0;
-  GetThreadStackAndTls(tid == 0, &args.stack_begin, &stack_size,
+  GetThreadStackAndTls(tid == kMainTid, &args.stack_begin, &stack_size,
                        &args.tls_begin, &tls_size);
   args.stack_end = args.stack_begin + stack_size;
   args.tls_end = args.tls_begin + tls_size;
@@ -75,8 +75,8 @@ bool GetThreadRangesLocked(tid_t os_id, uptr *stack_begin, uptr *stack_end,
 }
 
 void InitializeMainThread() {
-  u32 tid = ThreadCreate(0, 0, true);
-  CHECK_EQ(tid, 0);
+  u32 tid = ThreadCreate(kMainTid, true);
+  CHECK_EQ(tid, kMainTid);
   ThreadStart(tid, GetTid());
 }
 
@@ -89,6 +89,11 @@ static void OnStackUnwind(const SignalContext &sig, const void *,
 void LsanOnDeadlySignal(int signo, void *siginfo, void *context) {
   HandleDeadlySignal(siginfo, context, GetCurrentThread(), &OnStackUnwind,
                      nullptr);
+}
+
+void InstallAtExitCheckLeaks() {
+  if (common_flags()->detect_leaks && common_flags()->leak_check_at_exit)
+    Atexit(DoLeakCheck);
 }
 
 }  // namespace __lsan

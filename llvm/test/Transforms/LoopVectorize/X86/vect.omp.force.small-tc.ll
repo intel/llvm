@@ -36,7 +36,7 @@ define void @vectorized(float* noalias nocapture %A, float* noalias nocapture re
 ; CHECK-NEXT:    [[TMP7:%.*]] = fadd fast <8 x float> [[WIDE_LOAD]], [[WIDE_LOAD1]]
 ; CHECK-NEXT:    [[TMP8:%.*]] = bitcast float* [[TMP5]] to <8 x float>*
 ; CHECK-NEXT:    store <8 x float> [[TMP7]], <8 x float>* [[TMP8]], align 4, !llvm.access.group !0
-; CHECK-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 8
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 8
 ; CHECK-NEXT:    [[TMP9:%.*]] = icmp eq i64 [[INDEX_NEXT]], 16
 ; CHECK-NEXT:    br i1 [[TMP9]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], [[LOOP1:!llvm.loop !.*]]
 ; CHECK:       middle.block:
@@ -94,10 +94,10 @@ define void @vectorized1(float* noalias nocapture %A, float* noalias nocapture r
 ; CHECK-NEXT:    br label [[VECTOR_BODY:%.*]]
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[INDEX]], 0
 ; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <8 x i64> poison, i64 [[INDEX]], i32 0
 ; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <8 x i64> [[BROADCAST_SPLATINSERT]], <8 x i64> poison, <8 x i32> zeroinitializer
 ; CHECK-NEXT:    [[INDUCTION:%.*]] = add <8 x i64> [[BROADCAST_SPLAT]], <i64 0, i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 7>
-; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[INDEX]], 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp ule <8 x i64> [[INDUCTION]], <i64 19, i64 19, i64 19, i64 19, i64 19, i64 19, i64 19, i64 19>
 ; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds float, float* [[B:%.*]], i64 [[TMP0]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = getelementptr inbounds float, float* [[TMP2]], i32 0
@@ -166,9 +166,6 @@ define void @vectorized2(float* noalias nocapture %A, float* noalias nocapture r
 ; CHECK-NEXT:    br label [[VECTOR_BODY:%.*]]
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
-; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <8 x i64> poison, i64 [[INDEX]], i32 0
-; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <8 x i64> [[BROADCAST_SPLATINSERT]], <8 x i64> poison, <8 x i32> zeroinitializer
-; CHECK-NEXT:    [[INDUCTION:%.*]] = add <8 x i64> [[BROADCAST_SPLAT]], <i64 0, i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 7>
 ; CHECK-NEXT:    [[TMP0:%.*]] = add i64 [[INDEX]], 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds float, float* [[B:%.*]], i64 [[TMP0]]
 ; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds float, float* [[TMP1]], i32 0
@@ -181,7 +178,7 @@ define void @vectorized2(float* noalias nocapture %A, float* noalias nocapture r
 ; CHECK-NEXT:    [[TMP7:%.*]] = fadd fast <8 x float> [[WIDE_LOAD]], [[WIDE_LOAD1]]
 ; CHECK-NEXT:    [[TMP8:%.*]] = bitcast float* [[TMP5]] to <8 x float>*
 ; CHECK-NEXT:    store <8 x float> [[TMP7]], <8 x float>* [[TMP8]], align 4, !llvm.access.group !6
-; CHECK-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 8
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 8
 ; CHECK-NEXT:    [[TMP9:%.*]] = icmp eq i64 [[INDEX_NEXT]], 16
 ; CHECK-NEXT:    br i1 [[TMP9]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], [[LOOP10:!llvm.loop !.*]]
 ; CHECK:       middle.block:

@@ -69,7 +69,6 @@ using MemprofAllocator = MemprofAllocatorASVT<LocalAddressSpaceView>;
 using AllocatorCache = MemprofAllocator::AllocatorCache;
 
 struct MemprofThreadLocalMallocStorage {
-  uptr quarantine_cache[16];
   AllocatorCache allocator_cache;
   void CommitBack();
 
@@ -99,7 +98,6 @@ int memprof_posix_memalign(void **memptr, uptr alignment, uptr size,
 uptr memprof_malloc_usable_size(const void *ptr, uptr pc, uptr bp);
 
 void PrintInternalAllocatorStats();
-void MemprofSoftRssLimitExceededCallback(bool exceeded);
 
 } // namespace __memprof
 #endif // MEMPROF_ALLOCATOR_H

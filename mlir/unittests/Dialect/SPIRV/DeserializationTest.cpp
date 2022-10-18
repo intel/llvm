@@ -14,7 +14,6 @@
 
 #include "mlir/Target/SPIRV/Deserialization.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
-#include "mlir/Dialect/SPIRV/IR/SPIRVModule.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
@@ -40,12 +39,12 @@ protected:
     // Register a diagnostic handler to capture the diagnostic so that we can
     // check it later.
     context.getDiagEngine().registerHandler([&](Diagnostic &diag) {
-      diagnostic.reset(new Diagnostic(std::move(diag)));
+      diagnostic = std::make_unique<Diagnostic>(std::move(diag));
     });
   }
 
-  /// Performs deserialization and returns the constructed spv.module op.
-  spirv::OwningSPIRVModuleRef deserialize() {
+  /// Performs deserialization and returns the constructed spirv.module op.
+  OwningOpRef<spirv::ModuleOp> deserialize() {
     return spirv::deserialize(binary, &context);
   }
 

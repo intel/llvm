@@ -8,7 +8,7 @@
 
 // <string>
 
-// void resize(size_type n);
+// void resize(size_type n); // constexpr since C++20
 
 #include <string>
 #include <stdexcept>
@@ -18,7 +18,7 @@
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S s, typename S::size_type n, S expected)
 {
     if (n <= s.max_size())
@@ -28,7 +28,7 @@ test(S s, typename S::size_type n, S expected)
         assert(s == expected);
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -43,47 +43,40 @@ test(S s, typename S::size_type n, S expected)
 #endif
 }
 
+template <class S>
+TEST_CONSTEXPR_CXX20 void test_string() {
+  test(S(), 0, S());
+  test(S(), 1, S(1, '\0'));
+  test(S(), 10, S(10, '\0'));
+  test(S(), 100, S(100, '\0'));
+  test(S("12345"), 0, S());
+  test(S("12345"), 2, S("12"));
+  test(S("12345"), 5, S("12345"));
+  test(S("12345"), 15, S("12345\0\0\0\0\0\0\0\0\0\0", 15));
+  test(S("12345678901234567890123456789012345678901234567890"), 0, S());
+  test(S("12345678901234567890123456789012345678901234567890"), 10,
+        S("1234567890"));
+  test(S("12345678901234567890123456789012345678901234567890"), 50,
+        S("12345678901234567890123456789012345678901234567890"));
+  test(S("12345678901234567890123456789012345678901234567890"), 60,
+        S("12345678901234567890123456789012345678901234567890\0\0\0\0\0\0\0\0\0\0", 60));
+  test(S(), S::npos, S("not going to happen"));
+}
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  test_string<std::string>();
+#if TEST_STD_VER >= 11
+  test_string<std::basic_string<char, std::char_traits<char>, min_allocator<char>>>();
+#endif
+
+  return true;
+}
+
 int main(int, char**)
 {
-    {
-    typedef std::string S;
-    test(S(), 0, S());
-    test(S(), 1, S(1, '\0'));
-    test(S(), 10, S(10, '\0'));
-    test(S(), 100, S(100, '\0'));
-    test(S("12345"), 0, S());
-    test(S("12345"), 2, S("12"));
-    test(S("12345"), 5, S("12345"));
-    test(S("12345"), 15, S("12345\0\0\0\0\0\0\0\0\0\0", 15));
-    test(S("12345678901234567890123456789012345678901234567890"), 0, S());
-    test(S("12345678901234567890123456789012345678901234567890"), 10,
-         S("1234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 50,
-         S("12345678901234567890123456789012345678901234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 60,
-         S("12345678901234567890123456789012345678901234567890\0\0\0\0\0\0\0\0\0\0", 60));
-    test(S(), S::npos, S("not going to happen"));
-    }
-#if TEST_STD_VER >= 11
-    {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), 0, S());
-    test(S(), 1, S(1, '\0'));
-    test(S(), 10, S(10, '\0'));
-    test(S(), 100, S(100, '\0'));
-    test(S("12345"), 0, S());
-    test(S("12345"), 2, S("12"));
-    test(S("12345"), 5, S("12345"));
-    test(S("12345"), 15, S("12345\0\0\0\0\0\0\0\0\0\0", 15));
-    test(S("12345678901234567890123456789012345678901234567890"), 0, S());
-    test(S("12345678901234567890123456789012345678901234567890"), 10,
-         S("1234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 50,
-         S("12345678901234567890123456789012345678901234567890"));
-    test(S("12345678901234567890123456789012345678901234567890"), 60,
-         S("12345678901234567890123456789012345678901234567890\0\0\0\0\0\0\0\0\0\0", 60));
-    test(S(), S::npos, S("not going to happen"));
-    }
+  test();
+#if TEST_STD_VER > 17
+  static_assert(test());
 #endif
 
   return 0;

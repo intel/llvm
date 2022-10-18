@@ -59,13 +59,22 @@ public:
   AIX(const Driver &D, const llvm::Triple &Triple,
       const llvm::opt::ArgList &Args);
 
+  bool parseInlineAsmUsingAsmParser() const override {
+    return ParseInlineAsmUsingAsmParser;
+  }
   bool isPICDefault() const override { return true; }
-  bool isPIEDefault() const override { return false; }
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
+    return false;
+  }
   bool isPICDefaultForced() const override { return true; }
 
   void
   AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;
+
+  void AddClangCXXStdlibIncludeArgs(
+      const llvm::opt::ArgList &DriverArgs,
+      llvm::opt::ArgStringList &CC1Args) const override;
 
   void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs) const override;
@@ -87,6 +96,7 @@ protected:
 
 private:
   llvm::StringRef GetHeaderSysroot(const llvm::opt::ArgList &DriverArgs) const;
+  bool ParseInlineAsmUsingAsmParser;
 };
 
 } // end namespace toolchains

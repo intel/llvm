@@ -13,26 +13,23 @@
 #include "llvm/IR/Value.h"
 #include "LLVMContextImpl.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/DerivedUser.h"
-#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/IR/Statepoint.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 
@@ -42,16 +39,13 @@ static cl::opt<unsigned> UseDerefAtPointSemantics(
     "use-dereferenceable-at-point-semantics", cl::Hidden, cl::init(false),
     cl::desc("Deref attributes and metadata infer facts at definition only"));
 
-
-static cl::opt<unsigned> NonGlobalValueMaxNameSize(
-    "non-global-value-max-name-size", cl::Hidden, cl::init(1024),
-    cl::desc("Maximum size for the name of non-global values."));
-
 //===----------------------------------------------------------------------===//
 //                                Value Class
 //===----------------------------------------------------------------------===//
 static inline Type *checkType(Type *Ty) {
   assert(Ty && "Value defined with a null type: Error!");
+  assert(!isa<TypedPointerType>(Ty) &&
+         "Cannot have values with typed pointer types");
   return Ty;
 }
 
@@ -63,10 +57,13 @@ Value::Value(Type *ty, unsigned scid)
   // FIXME: Why isn't this in the subclass gunk??
   // Note, we cannot call isa<CallInst> before the CallInst has been
   // constructed.
-  if (SubclassID == Instruction::Call || SubclassID == Instruction::Invoke ||
-      SubclassID == Instruction::CallBr)
+  unsigned OpCode = 0;
+  if (SubclassID >= InstructionVal)
+    OpCode = SubclassID - InstructionVal;
+  if (OpCode == Instruction::Call || OpCode == Instruction::Invoke ||
+      OpCode == Instruction::CallBr)
     assert((VTy->isFirstClassType() || VTy->isVoidTy() || VTy->isStructTy()) &&
-           "invalid CallInst type!");
+           "invalid CallBase type!");
   else if (SubclassID != BasicBlockVal &&
            (/*SubclassID < ConstantFirstVal ||*/ SubclassID > ConstantLastVal))
     assert((VTy->isFirstClassType() || VTy->isVoidTy()) &&
@@ -178,6 +175,18 @@ Use *Value::getSingleUndroppableUse() {
   return Result;
 }
 
+User *Value::getUniqueUndroppableUser() {
+  User *Result = nullptr;
+  for (auto *U : users()) {
+    if (!U->isDroppable()) {
+      if (Result && Result != U)
+        return nullptr;
+      Result = U;
+    }
+  }
+  return Result;
+}
+
 bool Value::hasNUndroppableUses(unsigned int N) const {
   return hasNItems(user_begin(), user_end(), N, isUnDroppableUser);
 }
@@ -206,8 +215,7 @@ void Value::dropDroppableUsesIn(User &Usr) {
 
 void Value::dropDroppableUse(Use &U) {
   U.removeFromList();
-  if (auto *Assume = dyn_cast<IntrinsicInst>(U.getUser())) {
-    assert(Assume->getIntrinsicID() == Intrinsic::assume);
+  if (auto *Assume = dyn_cast<AssumeInst>(U.getUser())) {
     unsigned OpNo = U.getOperandNo();
     if (OpNo == 0)
       U.set(ConstantInt::getTrue(Assume->getContext()));
@@ -324,11 +332,6 @@ void Value::setNameImpl(const Twine &NewName) {
   if (getName() == NameRef)
     return;
 
-  // Cap the size of non-GlobalValue names.
-  if (NameRef.size() > NonGlobalValueMaxNameSize && !isa<GlobalValue>(this))
-    NameRef =
-        NameRef.substr(0, std::max(1u, (unsigned)NonGlobalValueMaxNameSize));
-
   assert(!getType()->isVoidTy() && "Cannot assign a name to void values!");
 
   // Get the symbol table to update for this object.
@@ -376,6 +379,7 @@ void Value::setName(const Twine &NewName) {
 }
 
 void Value::takeName(Value *V) {
+  assert(V != this && "Illegal call to this->takeName(this)!");
   ValueSymbolTable *ST = nullptr;
   // If this value has a name, drop it.
   if (hasName()) {
@@ -407,7 +411,7 @@ void Value::takeName(Value *V) {
     }
   }
 
-  // Get V's ST, this should always succed, because V has a name.
+  // Get V's ST, this should always succeed, because V has a name.
   ValueSymbolTable *VST;
   bool Failure = getSymTab(V, VST);
   assert(!Failure && "V has a name, so it should have a ST!"); (void)Failure;
@@ -533,6 +537,48 @@ void Value::replaceNonMetadataUsesWith(Value *New) {
   doRAUW(New, ReplaceMetadataUses::No);
 }
 
+void Value::replaceUsesWithIf(Value *New,
+                              llvm::function_ref<bool(Use &U)> ShouldReplace) {
+  assert(New && "Value::replaceUsesWithIf(<null>) is invalid!");
+  assert(New->getType() == getType() &&
+         "replaceUses of value with new value of different type!");
+
+  SmallVector<TrackingVH<Constant>, 8> Consts;
+  SmallPtrSet<Constant *, 8> Visited;
+
+  for (Use &U : llvm::make_early_inc_range(uses())) {
+    if (!ShouldReplace(U))
+      continue;
+    // Must handle Constants specially, we cannot call replaceUsesOfWith on a
+    // constant because they are uniqued.
+    if (auto *C = dyn_cast<Constant>(U.getUser())) {
+      if (!isa<GlobalValue>(C)) {
+        if (Visited.insert(C).second)
+          Consts.push_back(TrackingVH<Constant>(C));
+        continue;
+      }
+    }
+    U.set(New);
+  }
+
+  while (!Consts.empty()) {
+    // FIXME: handleOperandChange() updates all the uses in a given Constant,
+    //        not just the one passed to ShouldReplace
+    Consts.pop_back_val()->handleOperandChange(this, New);
+  }
+}
+
+/// Replace llvm.dbg.* uses of MetadataAsValue(ValueAsMetadata(V)) outside BB
+/// with New.
+static void replaceDbgUsesOutsideBlock(Value *V, Value *New, BasicBlock *BB) {
+  SmallVector<DbgVariableIntrinsic *> DbgUsers;
+  findDbgUsers(DbgUsers, V);
+  for (auto *DVI : DbgUsers) {
+    if (DVI->getParent() != BB)
+      DVI->replaceVariableLocationOp(V, New);
+  }
+}
+
 // Like replaceAllUsesWith except it does not handle constants or basic blocks.
 // This routine leaves uses within BB.
 void Value::replaceUsesOutsideBlock(Value *New, BasicBlock *BB) {
@@ -543,6 +589,7 @@ void Value::replaceUsesOutsideBlock(Value *New, BasicBlock *BB) {
          "replaceUses of value with new value of different type!");
   assert(BB && "Basic block that may contain a use of 'New' must be defined\n");
 
+  replaceDbgUsesOutsideBlock(this, New, BB);
   replaceUsesWithIf(New, [BB](Use &U) {
     auto *I = dyn_cast<Instruction>(U.getUser());
     // Don't replace if it's an instruction in the BB basic block.
@@ -589,7 +636,7 @@ static const Value *stripPointerCastsAndOffsets(
       case PSK_InBoundsConstantIndices:
         if (!GEP->hasAllConstantIndices())
           return V;
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       case PSK_InBounds:
         if (!GEP->isInBounds())
           return V;
@@ -657,6 +704,7 @@ const Value *Value::stripPointerCastsForAliasAnalysis() const {
 
 const Value *Value::stripAndAccumulateConstantOffsets(
     const DataLayout &DL, APInt &Offset, bool AllowNonInbounds,
+    bool AllowInvariantGroup,
     function_ref<bool(Value &, APInt &)> ExternalAnalysis) const {
   if (!getType()->isPtrOrPtrVectorTy())
     return this;
@@ -716,6 +764,8 @@ const Value *Value::stripAndAccumulateConstantOffsets(
     } else if (const auto *Call = dyn_cast<CallBase>(V)) {
         if (const Value *RV = Call->getReturnedArgOperand())
           V = RV;
+        if (AllowInvariantGroup && Call->isLaunderOrStripInvariantGroup())
+          V = Call->getArgOperand(0);
     }
     assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
   } while (Visited.insert(V).second);
@@ -738,9 +788,18 @@ bool Value::canBeFreed() const {
 
   // Handle byval/byref/sret/inalloca/preallocated arguments.  The storage
   // lifetime is guaranteed to be longer than the callee's lifetime.
-  if (auto *A = dyn_cast<Argument>(this))
+  if (auto *A = dyn_cast<Argument>(this)) {
     if (A->hasPointeeInMemoryValueAttr())
       return false;
+    // A pointer to an object in a function which neither frees, nor can arrange
+    // for another thread to free on its behalf, can not be freed in the scope
+    // of the function.  Note that this logic is restricted to memory
+    // allocations in existance before the call; a nofree function *is* allowed
+    // to free memory it allocated.
+    const Function *F = A->getParent();
+    if (F->doesNotFreeMemory() && F->hasNoSync())
+      return false;
+  }
 
   const Function *F = nullptr;
   if (auto *I = dyn_cast<Instruction>(this))
@@ -750,12 +809,6 @@ bool Value::canBeFreed() const {
 
   if (!F)
     return true;
-
-  // A pointer to an object in a function which neither frees, nor can arrange
-  // for another thread to free on its behalf, can not be freed in the scope
-  // of the function.
-  if (F->doesNotFreeMemory() && F->hasNoSync())
-    return false;
 
   // With garbage collection, deallocation typically occurs solely at or after
   // safepoints.  If we're compiling for a collector which uses the
@@ -767,25 +820,24 @@ bool Value::canBeFreed() const {
     return true;
   
   const auto &GCName = F->getGC();
-  const StringRef StatepointExampleName("statepoint-example");
-  if (GCName != StatepointExampleName)
-    return true;
-
-  auto *PT = cast<PointerType>(this->getType());
-  if (PT->getAddressSpace() != 1)
-    // For the sake of this example GC, we arbitrarily pick addrspace(1) as our
-    // GC managed heap.  This must match the same check in
-    // RewriteStatepointsForGC (and probably needs better factored.)
-    return true;
-
-  // It is cheaper to scan for a declaration than to scan for a use in this
-  // function.  Note that gc.statepoint is a type overloaded function so the
-  // usual trick of requesting declaration of the intrinsic from the module
-  // doesn't work.
-  for (auto &Fn : *F->getParent())
-    if (Fn.getIntrinsicID() == Intrinsic::experimental_gc_statepoint)
+  if (GCName == "statepoint-example") {
+    auto *PT = cast<PointerType>(this->getType());
+    if (PT->getAddressSpace() != 1)
+      // For the sake of this example GC, we arbitrarily pick addrspace(1) as
+      // our GC managed heap.  This must match the same check in
+      // RewriteStatepointsForGC (and probably needs better factored.)
       return true;
-  return false;
+
+    // It is cheaper to scan for a declaration than to scan for a use in this
+    // function.  Note that gc.statepoint is a type overloaded function so the
+    // usual trick of requesting declaration of the intrinsic from the module
+    // doesn't work.
+    for (auto &Fn : *F->getParent())
+      if (Fn.getIntrinsicID() == Intrinsic::experimental_gc_statepoint)
+        return true;
+    return false;
+  }
+  return true;
 }
 
 uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
@@ -813,10 +865,9 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       CanBeNull = true;
     }
   } else if (const auto *Call = dyn_cast<CallBase>(this)) {
-    DerefBytes = Call->getDereferenceableBytes(AttributeList::ReturnIndex);
+    DerefBytes = Call->getRetDereferenceableBytes();
     if (DerefBytes == 0) {
-      DerefBytes =
-          Call->getDereferenceableOrNullBytes(AttributeList::ReturnIndex);
+      DerefBytes = Call->getRetDereferenceableOrNullBytes();
       CanBeNull = true;
     }
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
@@ -858,6 +909,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       // CanBeNull flag.
       DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedSize();
       CanBeNull = false;
+      CanBeFreed = false;
     }
   }
   return DerefBytes;
@@ -876,7 +928,7 @@ Align Value::getPointerAlignment(const DataLayout &DL) const {
       }
       llvm_unreachable("Unhandled FunctionPtrAlignType");
     }
-    const MaybeAlign Alignment(GO->getAlignment());
+    const MaybeAlign Alignment(GO->getAlign());
     if (!Alignment) {
       if (auto *GVar = dyn_cast<GlobalVariable>(GO)) {
         Type *ObjectType = GVar->getValueType();
@@ -914,6 +966,9 @@ Align Value::getPointerAlignment(const DataLayout &DL) const {
       return Align(CI->getLimitedValue());
     }
   } else if (auto *CstPtr = dyn_cast<Constant>(this)) {
+    // Strip pointer casts to avoid creating unnecessary ptrtoint expression
+    // if the only "reduction" is combining a bitcast + ptrtoint.
+    CstPtr = CstPtr->stripPointerCasts();
     if (auto *CstInt = dyn_cast_or_null<ConstantInt>(ConstantExpr::getPtrToInt(
             const_cast<Constant *>(CstPtr), DL.getIntPtrType(getType()),
             /*OnlyIfReduced=*/true))) {
@@ -965,6 +1020,22 @@ bool Value::isSwiftError() const {
   if (!Alloca)
     return false;
   return Alloca->isSwiftError();
+}
+
+bool Value::isTransitiveUsedByMetadataOnly() const {
+  SmallVector<const User *, 32> WorkList(user_begin(), user_end());
+  SmallPtrSet<const User *, 32> Visited(user_begin(), user_end());
+  while (!WorkList.empty()) {
+    const User *U = WorkList.pop_back_val();
+    // If it is transitively used by a global value or a non-constant value,
+    // it's obviously not only used by metadata.
+    if (!isa<Constant>(U) || isa<GlobalValue>(U))
+      return false;
+    for (const User *UU : U->users())
+      if (Visited.insert(UU).second)
+        WorkList.push_back(UU);
+  }
+  return true;
 }
 
 //===----------------------------------------------------------------------===//

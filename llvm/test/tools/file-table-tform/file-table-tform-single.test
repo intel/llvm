@@ -1,0 +1,8 @@
+-- Insert %S/Inputs/gold.txt into column A at row index 0
+RUN: file-table-tform --replace_cell=A,0 %S/Inputs/s.txt %S/Inputs/gold.txt -o t.txt
+
+-- Copy file in column A from the only row
+RUN: file-table-tform --copy_single_file=A,0 t.txt -o u.txt
+
+-- Verify result
+RUN: diff u.txt %S/Inputs/gold.txt

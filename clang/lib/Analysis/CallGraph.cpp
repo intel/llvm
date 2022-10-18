@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/CallGraph.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclObjC.h"
@@ -134,6 +135,19 @@ public:
         NumObjCCallEdges++;
       }
     }
+  }
+
+  void VisitIfStmt(IfStmt *If) {
+    if (G->shouldSkipConstantExpressions()) {
+      if (llvm::Optional<Stmt *> ActiveStmt =
+              If->getNondiscardedCase(G->getASTContext())) {
+        if (*ActiveStmt)
+          this->Visit(*ActiveStmt);
+        return;
+      }
+    }
+
+    StmtVisitor::VisitIfStmt(If);
   }
 
   void VisitChildren(Stmt *S) {

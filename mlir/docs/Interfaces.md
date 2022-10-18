@@ -8,6 +8,8 @@ to account for the semantics of every operation, or be overly conservative.
 Without care, this can result in code with special-cases for each supported
 operation type. To combat this, MLIR provides a concept of `interfaces`.
 
+[TOC]
+
 ## Motivation
 
 Interfaces provide a generic way of interacting with the IR. The goal is to be
@@ -37,7 +39,7 @@ utilities for registering an interface with a dialect so that it can be
 referenced later. Once the interface has been defined, dialects can override it
 using dialect-specific information. The interfaces defined by a dialect are
 registered via `addInterfaces<>`, a similar mechanism to Attributes, Operations,
-Types, etc
+Types, etc.
 
 ```c++
 /// Define a base inlining interface class to allow for dialects to opt-in to
@@ -77,8 +79,7 @@ or transformation without the need to determine the specific dialect subclass:
 
 ```c++
 Dialect *dialect = ...;
-if (DialectInlinerInterface *interface
-      = dialect->getRegisteredInterface<DialectInlinerInterface>()) {
+if (DialectInlinerInterface *interface = dyn_cast<DialectInlinerInterface>(dialect)) {
   // The dialect has provided an implementation of this interface.
   ...
 }
@@ -87,7 +88,7 @@ if (DialectInlinerInterface *interface
 #### DialectInterfaceCollection
 
 An additional utility is provided via `DialectInterfaceCollection`. This class
-allows for collecting all of the dialects that have registered a given interface
+allows collecting all of the dialects that have registered a given interface
 within an instance of the `MLIRContext`. This can be useful to hide and optimize
 the lookup of a registered dialect interface.
 
@@ -207,6 +208,97 @@ if (ExampleOpInterface example = dyn_cast<ExampleOpInterface>(op))
   llvm::errs() << "hook returned = " << example.exampleInterfaceHook() << "\n";
 ```
 
+#### External Models for Attribute, Operation and Type Interfaces
+
+It may be desirable to provide an interface implementation for an IR object
+without modifying the definition of said object. Notably, this allows to
+implement interfaces for attributes, operations and types outside of the dialect
+that defines them, for example, to provide interfaces for built-in types.
+
+This is achieved by extending the concept-based polymorphism model with two more
+classes derived from `Concept` as follows.
+
+```c++
+struct ExampleTypeInterfaceTraits {
+  struct Concept {
+    virtual unsigned exampleInterfaceHook(Type type) const = 0;
+    virtual unsigned exampleStaticInterfaceHook() const = 0;
+  };
+
+  template <typename ConcreteType>
+  struct Model : public Concept { /*...*/ };
+
+  /// Unlike `Model`, `FallbackModel` passes the type object through to the
+  /// hook, making it accessible in the method body even if the method is not
+  /// defined in the class itself and thus has no `this` access. ODS
+  /// automatically generates this class for all interfaces.
+  template <typename ConcreteType>
+  struct FallbackModel : public Concept {
+    unsigned exampleInterfaceHook(Type type) const override {
+      getImpl()->exampleInterfaceHook(type);
+    }
+    unsigned exampleStaticInterfaceHook() const override {
+      ConcreteType::exampleStaticInterfaceHook();
+    }
+  };
+
+  /// `ExternalModel` provides a place for default implementations of interface
+  /// methods by explicitly separating the model class, which implements the
+  /// interface, from the type class, for which the interface is being
+  /// implemented. Default implementations can be then defined generically
+  /// making use of `cast<ConcreteType>`. If `ConcreteType` does not provide
+  /// the APIs required by the default implementation, custom implementations
+  /// may use `FallbackModel` directly to override the default implementation.
+  /// Being located in a class template, it never gets instantiated and does not
+  /// lead to compilation errors. ODS automatically generates this class and
+  /// places default method implementations in it.
+  template <typename ConcreteModel, typename ConcreteType>
+  struct ExternalModel : public FallbackModel<ConcreteModel> {
+    unsigned exampleInterfaceHook(Type type) const override {
+      // Default implementation can be provided here.
+      return type.cast<ConcreteType>().callSomeTypeSpecificMethod();
+    }
+  };
+};
+```
+
+External models can be provided for attribute, operation and type interfaces by
+deriving either `FallbackModel` or `ExternalModel` and by registering the model
+class with the relevant class in a given context. Other contexts will not see
+the interface unless registered.
+
+```c++
+/// External interface implementation for a concrete class. This does not
+/// require modifying the definition of the type class itself.
+struct ExternalModelExample
+    : public ExampleTypeInterface::ExternalModel<ExternalModelExample,
+                                                 IntegerType> {
+  static unsigned exampleStaticInterfaceHook() {
+    // Implementation is provided here.
+    return IntegerType::someStaticMethod();
+  }
+
+  // No need to define `exampleInterfaceHook` that has a default implementation
+  // in `ExternalModel`. But it can be overridden if desired.
+}
+
+int main() {
+  MLIRContext context;
+  /* ... */;
+
+  // Attach the interface model to the type in the given context before
+  // using it. The dialect containing the type is expected to have been loaded
+  // at this point.
+  IntegerType::attachInterface<ExternalModelExample>(context);
+}
+```
+
+Note: It is strongly encouraged to only use this mechanism if you "own" the
+interface being externally applied. This prevents a situation where neither the
+owner of the dialect containing the object nor the owner of the interface are
+aware of an interface implementation, which can lead to duplicate or
+diverging implementations.
+
 #### Dialect Fallback for OpInterface
 
 Some dialects have an open ecosystem and don't register all of the possible
@@ -215,9 +307,9 @@ implementing an `OpInterface` for these operation. When an operation isn't
 registered or does not provide an implementation for an interface, the query
 will fallback to the dialect itself.
 
-A second model is used for such cases and automatically generated when
-using ODS (see below) with the name `FallbackModel`. This model can be implemented
-for a particular dialect:
+A second model is used for such cases and automatically generated when using ODS
+(see below) with the name `FallbackModel`. This model can be implemented for a
+particular dialect:
 
 ```c++
 // This is the implementation of a dialect fallback for `ExampleOpInterface`.
@@ -236,7 +328,7 @@ operations by overriding the `getRegisteredInterfaceForOp` method :
 
 ```c++
 void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
-                                               Identifier opName) {
+                                               StringAttr opName) {
   if (typeID == TypeID::get<ExampleOpInterface>()) {
     if (isSupported(opName))
       return fallbackExampleOpInterface;
@@ -252,7 +344,7 @@ Note: Before reading this section, the reader should have some familiarity with
 the concepts described in the
 [`Operation Definition Specification`](OpDefinitions.md) documentation.
 
-As detailed above, [Interfaces](attribute-operation-type-interfaces) allow for
+As detailed above, [Interfaces](#attributeoperationtype-interfaces) allow for
 attributes, operations, and types to expose method calls without requiring that
 the caller know the specific derived type. The downside to this infrastructure,
 is that it requires a bit of boiler plate to connect all of the pieces together.
@@ -299,6 +391,21 @@ comprised of the following components:
     -   Additional C++ code that is generated in the declaration of the
         interface class. This allows for defining methods and more on the user
         facing interface class, that do not need to hook into the IR entity.
+        These declarations are _not_ implicitly visible in default
+        implementations of interface methods, but static declarations may be
+        accessed with full name qualification.
+*   Extra Shared Class Declarations (Optional: `extraSharedClassDeclaration`)
+    -   Additional C++ code that is injected into the declarations of both the
+        interface and the trait class. This allows for defining methods and more
+        that are exposed on both the interface and the trait class, e.g. to inject
+        utilties on both the interface and the derived entity implementing the
+        interface (e.g. attribute, operation, etc.).
+    -   In non-static methods, `$_attr`/`$_op`/`$_type`
+        (depending on the type of interface) may be used to refer to an
+        instance of the IR entity. In the interface declaration, the type of
+        the instance is the interface class. In the trait declaration, the
+        type of the instance is the concrete entity class
+        (e.g. `IntegerAttr`, `FuncOp`, etc.).
 
 `OpInterface` classes may additionally contain the following:
 
@@ -345,6 +452,8 @@ Interface methods are comprised of the following components:
     -   `ConcreteAttr`/`ConcreteOp`/`ConcreteType` is an implicitly defined
         `typename` that can be used to refer to the type of the derived IR
         entity currently being operated on.
+    -   This may refer to static fields of the interface class using the
+        qualified name, e.g., `TestOpInterface::staticMethod()`.
 
 ODS also allows for generating declarations for the `InterfaceMethod`s of an
 operation if the operation specifies the interface with
@@ -352,7 +461,7 @@ operation if the operation specifies the interface with
 
 Examples:
 
-~~~tablegen
+```tablegen
 def MyInterface : OpInterface<"MyInterface"> {
   let description = [{
     This is the description of the interface. It provides concrete information
@@ -510,7 +619,7 @@ def MyInterface : OpInterface<"MyInterface"> {
 }
 
 // Operation interfaces can optionally be wrapped inside
-// DeclareOpInterfaceMethods. This would result in autogenerating declarations
+// `DeclareOpInterfaceMethods`. This would result in autogenerating declarations
 // for members `foo`, `bar` and `fooStatic`. Methods with bodies are not
 // declared inside the op declaration but instead handled by the op interface
 // trait directly.
@@ -523,7 +632,7 @@ def OpWithInferTypeInterfaceOp : Op<...
 // the generation of a declaration for those methods.
 def OpWithOverrideInferTypeInterfaceOp : Op<...
     [DeclareOpInterfaceMethods<MyInterface, ["getNumWithDefault"]>]> { ... }
-~~~
+```
 
 Note: Existing operation interfaces defined in C++ can be accessed in the ODS
 framework via the `OpInterfaceTrait` class.
@@ -554,7 +663,7 @@ interface section goes as follows:
         -   RegionKind::Graph - represents a graph region without control flow
             semantics
         -   RegionKind::SSACFG - represents an
-            [SSA-style control flow](LangRef.md#modeling-control-flow) region
+            [SSA-style control flow](LangRef.md/#control-flow-and-ssacfg-regions) region
             with basic blocks and reachability
     -   `hasSSADominance(unsigned index)` - Return true if the region with the
         given index inside this operation requires dominance.
@@ -562,11 +671,11 @@ interface section goes as follows:
 ##### SymbolInterfaces
 
 *   `SymbolOpInterface` - Used to represent
-    [`Symbol`](SymbolsAndSymbolTables.md#symbol) operations which reside
+    [`Symbol`](SymbolsAndSymbolTables.md/#symbol) operations which reside
     immediately within a region that defines a
-    [`SymbolTable`](SymbolsAndSymbolTables.md#symbol-table).
+    [`SymbolTable`](SymbolsAndSymbolTables.md/#symbol-table).
 
 *   `SymbolUserOpInterface` - Used to represent operations that reference
-    [`Symbol`](SymbolsAndSymbolTables.md#symbol) operations. This provides the
+    [`Symbol`](SymbolsAndSymbolTables.md/#symbol) operations. This provides the
     ability to perform safe and efficient verification of symbol uses, as well
     as additional functionality.

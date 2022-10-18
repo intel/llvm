@@ -38,6 +38,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "clmdtospv"
 
+#include "PreprocessMetadata.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
@@ -48,7 +49,6 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -60,30 +60,19 @@ namespace SPIRV {
 cl::opt<bool> EraseOCLMD("spirv-erase-cl-md", cl::init(true),
                          cl::desc("Erase OpenCL metadata"));
 
-class PreprocessMetadata : public ModulePass {
-public:
-  PreprocessMetadata() : ModulePass(ID), M(nullptr), Ctx(nullptr) {
-    initializePreprocessMetadataPass(*PassRegistry::getPassRegistry());
-  }
+char PreprocessMetadataLegacy::ID = 0;
 
-  bool runOnModule(Module &M) override;
-  void visit(Module *M);
-  void preprocessCXXStructorList(SPIRVMDBuilder::NamedMDWrapper &EM,
-                                 GlobalVariable *V, ExecutionMode EMode);
-  void preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B, SPIRVMDWalker *W);
-  void preprocessVectorComputeMetadata(Module *M, SPIRVMDBuilder *B,
-                                       SPIRVMDWalker *W);
+bool PreprocessMetadataLegacy::runOnModule(Module &Module) {
+  return runPreprocessMetadata(Module);
+}
 
-  static char ID;
+llvm::PreservedAnalyses
+PreprocessMetadataPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
+  return runPreprocessMetadata(M) ? llvm::PreservedAnalyses::none()
+                                  : llvm::PreservedAnalyses::all();
+}
 
-private:
-  Module *M;
-  LLVMContext *Ctx;
-};
-
-char PreprocessMetadata::ID = 0;
-
-bool PreprocessMetadata::runOnModule(Module &Module) {
+bool PreprocessMetadataBase::runPreprocessMetadata(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
 
@@ -96,7 +85,7 @@ bool PreprocessMetadata::runOnModule(Module &Module) {
   return true;
 }
 
-void PreprocessMetadata::preprocessCXXStructorList(
+void PreprocessMetadataBase::preprocessCXXStructorList(
     SPIRVMDBuilder::NamedMDWrapper &EM, GlobalVariable *V,
     ExecutionMode EMode) {
   auto *List = dyn_cast_or_null<ConstantArray>(V->getInitializer());
@@ -114,7 +103,7 @@ void PreprocessMetadata::preprocessCXXStructorList(
   }
 }
 
-void PreprocessMetadata::visit(Module *M) {
+void PreprocessMetadataBase::visit(Module *M) {
   SPIRVMDBuilder B(*M);
   SPIRVMDWalker W(*M);
 
@@ -230,11 +219,39 @@ void PreprocessMetadata::visit(Module *M) {
           .add(getMDOperandAsInt(SchedulerTargetFmaxMhzINTEL, 0))
           .done();
     }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 ip_interface, i32 interface}
+    if (MDNode *Interface =
+            Kernel.getMetadata(kSPIR2MD::IntelFPGAIPInterface)) {
+      std::set<std::string> InterfaceStrSet;
+      // Default mode is 'csr' aka !ip_interface !N
+      //                           !N = !{!”csr”}
+      // don't emit any particular SPIR-V for it
+      // Streaming mode metadata be like:
+      // Not 'stall free' mode (to be mapped on '0' literal)
+      // !ip_interface !N
+      // !N = !{!"streaming"}
+      // 'stall free' mode (to be mapped on '1' literal)
+      // !ip_interface !N
+      // !N = !{!"streaming", !"stall_free_return"}
+      for (size_t I = 0; I != Interface->getNumOperands(); ++I)
+        InterfaceStrSet.insert(getMDOperandAsString(Interface, I).str());
+      if (InterfaceStrSet.find("streaming") != InterfaceStrSet.end()) {
+        int32_t InterfaceMode = 0;
+        if (InterfaceStrSet.find("stall_free_return") != InterfaceStrSet.end())
+          InterfaceMode = 1;
+        EM.addOp()
+            .add(&Kernel)
+            .add(spv::internal::ExecutionModeStreamingInterfaceINTEL)
+            .add(InterfaceMode)
+            .done();
+      }
+    }
   }
 }
 
-void PreprocessMetadata::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
-                                               SPIRVMDWalker *W) {
+void PreprocessMetadataBase::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
+                                                   SPIRVMDWalker *W) {
   unsigned CLVer = getOCLVersion(M, true);
   if (CLVer == 0)
     return;
@@ -278,9 +295,9 @@ void PreprocessMetadata::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
     B->eraseNamedMD(kSPIR2MD::FPContract);
 }
 
-void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
-                                                         SPIRVMDBuilder *B,
-                                                         SPIRVMDWalker *W) {
+void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
+                                                             SPIRVMDBuilder *B,
+                                                             SPIRVMDWalker *W) {
   using namespace VectorComputeUtil;
 
   auto EM = B->addNamedMD(kSPIRVMD::ExecutionMode);
@@ -293,11 +310,10 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
     // RoundMode and FloatMode are always same for all types in VC
     // While Denorm could be different for double, float and half
     auto Attrs = F.getAttributes();
-    if (Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCFloatControl)) {
       SPIRVWord Mode = 0;
       Attrs
-          .getAttribute(AttributeList::FunctionIndex,
-                        kVCMetadata::VCFloatControl)
+          .getFnAttr(kVCMetadata::VCFloatControl)
           .getValueAsString()
           .getAsInteger(0, Mode);
       spv::ExecutionMode ExecRoundMode =
@@ -316,9 +332,9 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
                 .done();
           });
     }
-    if (Attrs.hasFnAttribute(kVCMetadata::VCSLMSize)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCSLMSize)) {
       SPIRVWord SLMSize = 0;
-      Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSLMSize)
+      Attrs.getFnAttr(kVCMetadata::VCSLMSize)
           .getValueAsString()
           .getAsInteger(0, SLMSize);
       EM.addOp()
@@ -327,18 +343,33 @@ void PreprocessMetadata::preprocessVectorComputeMetadata(Module *M,
           .add(SLMSize)
           .done();
     }
-    if (Attrs.hasFnAttribute(kVCMetadata::VCFCEntry)) {
-      EM.addOp().add(&F).add(spv::ExecutionModeFastCompositeKernelINTEL).done();
+    if (Attrs.hasFnAttr(kVCMetadata::VCFCEntry)) {
+      EM.addOp()
+          .add(&F)
+          .add(spv::internal::ExecutionModeFastCompositeKernelINTEL)
+          .done();
+    }
+
+    if (Attrs.hasFnAttr(kVCMetadata::VCNamedBarrierCount)) {
+      SPIRVWord NBarrierCnt = 0;
+      Attrs.getFnAttr(kVCMetadata::VCNamedBarrierCount)
+          .getValueAsString()
+          .getAsInteger(0, NBarrierCnt);
+      EM.addOp()
+          .add(&F)
+          .add(spv::ExecutionModeNamedBarrierCountINTEL)
+          .add(NBarrierCnt)
+          .done();
     }
   }
 }
 
 } // namespace SPIRV
 
-INITIALIZE_PASS(PreprocessMetadata, "preprocess-metadata",
+INITIALIZE_PASS(PreprocessMetadataLegacy, "preprocess-metadata",
                 "Transform LLVM IR metadata to SPIR-V metadata format", false,
                 false)
 
-ModulePass *llvm::createPreprocessMetadata() {
-  return new PreprocessMetadata();
+ModulePass *llvm::createPreprocessMetadataLegacy() {
+  return new PreprocessMetadataLegacy();
 }

@@ -5,18 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++03, c++11, c++14, c++17, c++2a
+// UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
 
 // <string>
 
-//   constexpr bool contains(const CharT *x) const;
+// constexpr bool contains(const CharT *x) const;
 
 #include <string>
 #include <cassert>
 
 #include "test_macros.h"
 
-void test()
+constexpr bool test()
 {
     using S = std::string;
 
@@ -61,11 +61,14 @@ void test()
     assert(!sNot.contains("abcde"));
     assert( sNot.contains("xyz"));
     assert(!sNot.contains("zyx"));
+
+    return true;
 }
 
 int main(int, char**)
 {
-    test();
+  test();
+  static_assert(test());
 
-    return 0;
+  return 0;
 }

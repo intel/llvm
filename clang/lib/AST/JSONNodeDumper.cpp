@@ -1,8 +1,8 @@
 #include "clang/AST/JSONNodeDumper.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/StringSwitch.h"
 
 using namespace clang;
 
@@ -59,7 +59,9 @@ void JSONNodeDumper::Visit(const Stmt *S) {
     switch (E->getValueKind()) {
     case VK_LValue: Category = "lvalue"; break;
     case VK_XValue: Category = "xvalue"; break;
-    case VK_RValue: Category = "rvalue"; break;
+    case VK_PRValue:
+      Category = "prvalue";
+      break;
     }
     JOS.attribute("valueCategory", Category);
   }
@@ -181,6 +183,35 @@ void JSONNodeDumper::Visit(const BlockDecl::Capture &C) {
 void JSONNodeDumper::Visit(const GenericSelectionExpr::ConstAssociation &A) {
   JOS.attribute("associationKind", A.getTypeSourceInfo() ? "case" : "default");
   attributeOnlyIfTrue("selected", A.isSelected());
+}
+
+void JSONNodeDumper::Visit(const concepts::Requirement *R) {
+  if (!R)
+    return;
+
+  switch (R->getKind()) {
+  case concepts::Requirement::RK_Type:
+    JOS.attribute("kind", "TypeRequirement");
+    break;
+  case concepts::Requirement::RK_Simple:
+    JOS.attribute("kind", "SimpleRequirement");
+    break;
+  case concepts::Requirement::RK_Compound:
+    JOS.attribute("kind", "CompoundRequirement");
+    break;
+  case concepts::Requirement::RK_Nested:
+    JOS.attribute("kind", "NestedRequirement");
+    break;
+  }
+
+  if (auto *ER = dyn_cast<concepts::ExprRequirement>(R))
+    attributeOnlyIfTrue("noexcept", ER->hasNoexceptRequirement());
+
+  attributeOnlyIfTrue("isDependent", R->isDependent());
+  if (!R->isDependent())
+    JOS.attribute("satisfied", R->isSatisfied());
+  attributeOnlyIfTrue("containsUnexpandedPack",
+                      R->containsUnexpandedParameterPack());
 }
 
 void JSONNodeDumper::Visit(const APValue &Value, QualType Ty) {
@@ -499,6 +530,14 @@ JSONNodeDumper::createCXXBaseSpecifier(const CXXBaseSpecifier &BS) {
 
 void JSONNodeDumper::VisitTypedefType(const TypedefType *TT) {
   JOS.attribute("decl", createBareDeclRef(TT->getDecl()));
+  if (!TT->typeMatchesDecl())
+    JOS.attribute("type", createQualType(TT->desugar()));
+}
+
+void JSONNodeDumper::VisitUsingType(const UsingType *TT) {
+  JOS.attribute("decl", createBareDeclRef(TT->getFoundDecl()));
+  if (!TT->typeMatchesDecl())
+    JOS.attribute("type", createQualType(TT->desugar()));
 }
 
 void JSONNodeDumper::VisitFunctionType(const FunctionType *T) {
@@ -631,9 +670,11 @@ void JSONNodeDumper::VisitUnresolvedUsingType(const UnresolvedUsingType *UUT) {
 
 void JSONNodeDumper::VisitUnaryTransformType(const UnaryTransformType *UTT) {
   switch (UTT->getUTTKind()) {
-  case UnaryTransformType::EnumUnderlyingType:
-    JOS.attribute("transformKind", "underlying_type");
+#define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait)                                  \
+  case UnaryTransformType::Enum:                                               \
+    JOS.attribute("transformKind", #Trait);                                    \
     break;
+#include "clang/Basic/TransformTypeTraits.def"
   }
 }
 
@@ -647,6 +688,12 @@ void JSONNodeDumper::VisitTemplateTypeParmType(
   JOS.attribute("index", TTPT->getIndex());
   attributeOnlyIfTrue("isPack", TTPT->isParameterPack());
   JOS.attribute("decl", createBareDeclRef(TTPT->getDecl()));
+}
+
+void JSONNodeDumper::VisitSubstTemplateTypeParmType(
+    const SubstTemplateTypeParmType *STTPT) {
+  if (auto PackIndex = STTPT->getPackIndex())
+    JOS.attribute("pack_index", *PackIndex);
 }
 
 void JSONNodeDumper::VisitAutoType(const AutoType *AT) {
@@ -711,6 +758,17 @@ void JSONNodeDumper::VisitMemberPointerType(const MemberPointerType *MPT) {
 void JSONNodeDumper::VisitNamedDecl(const NamedDecl *ND) {
   if (ND && ND->getDeclName()) {
     JOS.attribute("name", ND->getNameAsString());
+    // FIXME: There are likely other contexts in which it makes no sense to ask
+    // for a mangled name.
+    if (isa<RequiresExprBodyDecl>(ND->getDeclContext()))
+      return;
+
+    // Mangled names are not meaningful for locals, and may not be well-defined
+    // in the case of VLAs.
+    auto *VD = dyn_cast<VarDecl>(ND);
+    if (VD && VD->hasLocalStorage())
+      return;
+
     std::string MangledName = ASTNameGen.getName(ND);
     if (!MangledName.empty())
       JOS.attribute("mangledName", MangledName);
@@ -754,6 +812,10 @@ void JSONNodeDumper::VisitUsingDecl(const UsingDecl *UD) {
   }
   Name += UD->getNameAsString();
   JOS.attribute("name", Name);
+}
+
+void JSONNodeDumper::VisitUsingEnumDecl(const UsingEnumDecl *UED) {
+  JOS.attribute("target", createBareDeclRef(UED->getEnumDecl()));
 }
 
 void JSONNodeDumper::VisitUsingShadowDecl(const UsingShadowDecl *USD) {
@@ -847,6 +909,11 @@ void JSONNodeDumper::VisitCXXRecordDecl(const CXXRecordDecl *RD) {
   }
 }
 
+void JSONNodeDumper::VisitHLSLBufferDecl(const HLSLBufferDecl *D) {
+  VisitNamedDecl(D);
+  JOS.attribute("bufferKind", D->isCBuffer() ? "cbuffer" : "tbuffer");
+}
+
 void JSONNodeDumper::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *D) {
   VisitNamedDecl(D);
   JOS.attribute("tagUsed", D->wasDeclaredWithTypename() ? "typename" : "class");
@@ -887,9 +954,10 @@ void JSONNodeDumper::VisitTemplateTemplateParmDecl(
 
   if (D->hasDefaultArgument())
     JOS.attributeObject("defaultArg", [=] {
+      const auto *InheritedFrom = D->getDefaultArgStorage().getInheritedFrom();
       Visit(D->getDefaultArgument().getArgument(),
-            D->getDefaultArgStorage().getInheritedFrom()->getSourceRange(),
-            D->getDefaultArgStorage().getInheritedFrom(),
+            InheritedFrom ? InheritedFrom->getSourceRange() : SourceLocation{},
+            InheritedFrom,
             D->defaultArgumentWasInherited() ? "inherited from" : "previous");
     });
 }
@@ -1163,6 +1231,15 @@ void JSONNodeDumper::VisitDeclRefExpr(const DeclRefExpr *DRE) {
   }
 }
 
+void JSONNodeDumper::VisitSYCLUniqueStableNameExpr(
+    const SYCLUniqueStableNameExpr *E) {
+  JOS.attribute("typeSourceInfo",
+                createQualType(E->getTypeSourceInfo()->getType()));
+}
+
+void JSONNodeDumper::VisitSYCLUniqueStableIdExpr(
+    const SYCLUniqueStableIdExpr *E) {}
+
 void JSONNodeDumper::VisitPredefinedExpr(const PredefinedExpr *PE) {
   JOS.attribute("name", PredefinedExpr::getIdentKindName(PE->getIdentKind()));
 }
@@ -1402,10 +1479,16 @@ void JSONNodeDumper::VisitCXXDependentScopeMemberExpr(
   }
 }
 
+void JSONNodeDumper::VisitRequiresExpr(const RequiresExpr *RE) {
+  if (!RE->isValueDependent())
+    JOS.attribute("satisfied", RE->isSatisfied());
+}
+
 void JSONNodeDumper::VisitIntegerLiteral(const IntegerLiteral *IL) {
-  JOS.attribute("value",
-                IL->getValue().toString(
-                    /*Radix=*/10, IL->getType()->isSignedIntegerType()));
+  llvm::SmallString<16> Buffer;
+  IL->getValue().toString(Buffer,
+                          /*Radix=*/10, IL->getType()->isSignedIntegerType());
+  JOS.attribute("value", Buffer);
 }
 void JSONNodeDumper::VisitCharacterLiteral(const CharacterLiteral *CL) {
   // FIXME: This should probably print the character literal as a string,
@@ -1437,6 +1520,8 @@ void JSONNodeDumper::VisitIfStmt(const IfStmt *IS) {
   attributeOnlyIfTrue("hasVar", IS->hasVarStorage());
   attributeOnlyIfTrue("hasElse", IS->hasElseStorage());
   attributeOnlyIfTrue("isConstexpr", IS->isConstexpr());
+  attributeOnlyIfTrue("isConsteval", IS->isConsteval());
+  attributeOnlyIfTrue("constevalIsNegated", IS->isNegatedConsteval());
 }
 
 void JSONNodeDumper::VisitSwitchStmt(const SwitchStmt *SS) {
@@ -1450,6 +1535,7 @@ void JSONNodeDumper::VisitCaseStmt(const CaseStmt *CS) {
 void JSONNodeDumper::VisitLabelStmt(const LabelStmt *LS) {
   JOS.attribute("name", LS->getName());
   JOS.attribute("declId", createPointerRepresentation(LS->getDecl()));
+  attributeOnlyIfTrue("sideEntry", LS->isSideEntry());
 }
 void JSONNodeDumper::VisitGotoStmt(const GotoStmt *GS) {
   JOS.attribute("targetLabelDeclId",
@@ -1629,4 +1715,19 @@ void JSONNodeDumper::visitVerbatimBlockLineComment(
 void JSONNodeDumper::visitVerbatimLineComment(
     const comments::VerbatimLineComment *C, const comments::FullComment *) {
   JOS.attribute("text", C->getText());
+}
+
+llvm::json::Object JSONNodeDumper::createFPOptions(FPOptionsOverride FPO) {
+  llvm::json::Object Ret;
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  if (FPO.has##NAME##Override())                                               \
+    Ret.try_emplace(#NAME, static_cast<unsigned>(FPO.get##NAME##Override()));
+#include "clang/Basic/FPOptions.def"
+  return Ret;
+}
+
+void JSONNodeDumper::VisitCompoundStmt(const CompoundStmt *S) {
+  VisitStmt(S);
+  if (S->hasStoredFPFeatures())
+    JOS.attribute("fpoptions", createFPOptions(S->getStoredFPFeatures()));
 }

@@ -45,12 +45,16 @@ public:
   WebAssemblyTargetLowering(const TargetMachine &TM,
                             const WebAssemblySubtarget &STI);
 
+  MVT getPointerTy(const DataLayout &DL, uint32_t AS = 0) const override;
+  MVT getPointerMemTy(const DataLayout &DL, uint32_t AS = 0) const override;
+
 private:
   /// Keep a pointer to the WebAssemblySubtarget around so that we can make the
   /// right decision when generating code for different targets.
   const WebAssemblySubtarget *Subtarget;
 
   AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
+  bool shouldScalarizeBinop(SDValue VecOp) const override;
   FastISel *createFastISel(FunctionLoweringInfo &FuncInfo,
                            const TargetLibraryInfo *LibInfo) const override;
   MVT getScalarShiftAmountTy(const DataLayout &DL, EVT) const override;
@@ -61,8 +65,8 @@ private:
   std::pair<unsigned, const TargetRegisterClass *>
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
-  bool isCheapToSpeculateCttz() const override;
-  bool isCheapToSpeculateCtlz() const override;
+  bool isCheapToSpeculateCttz(Type *Ty) const override;
+  bool isCheapToSpeculateCtlz(Type *Ty) const override;
   bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
                              unsigned AS,
                              Instruction *I = nullptr) const override;
@@ -71,11 +75,20 @@ private:
                                       bool *Fast) const override;
   bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
+  bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
   bool getTgtMemIntrinsic(IntrinsicInfo &Info, const CallInst &I,
                           MachineFunction &MF,
                           unsigned Intrinsic) const override;
+
+  void computeKnownBitsForTargetNode(const SDValue Op, KnownBits &Known,
+                                     const APInt &DemandedElts,
+                                     const SelectionDAG &DAG,
+                                     unsigned Depth) const override;
+
+  TargetLoweringBase::LegalizeTypeAction
+  getPreferredVectorAction(MVT VT) const override;
 
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
@@ -100,6 +113,10 @@ private:
     report_fatal_error("llvm.clear_cache is not supported on wasm");
   }
 
+  bool
+  shouldSimplifyDemandedVectorElts(SDValue Op,
+                                   const TargetLoweringOpt &TLO) const override;
+
   // Custom lowering hooks.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   SDValue LowerFrameIndex(SDValue Op, SelectionDAG &DAG) const;
@@ -119,6 +136,14 @@ private:
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerAccessVectorElement(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShift(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFP_TO_INT_SAT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerLoad(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerStore(SDValue Op, SelectionDAG &DAG) const;
+
+  // Helper for LoadLoad and LowerStore
+  bool MatchTableForLowering(SelectionDAG &DAG, const SDLoc &DL,
+                             const SDValue &Base, GlobalAddressSDNode *&GA,
+                             SDValue &Idx) const;
 
   // Custom DAG combine hooks
   SDValue

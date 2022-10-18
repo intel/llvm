@@ -10,7 +10,6 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineStableHash.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 
@@ -125,7 +124,7 @@ std::string VRegRenamer::getInstructionOpcodeHash(MachineInstr &MI) {
     MIOperands.push_back((unsigned)Op->getSize());
     MIOperands.push_back((unsigned)Op->getFlags());
     MIOperands.push_back((unsigned)Op->getOffset());
-    MIOperands.push_back((unsigned)Op->getOrdering());
+    MIOperands.push_back((unsigned)Op->getSuccessOrdering());
     MIOperands.push_back((unsigned)Op->getAddrSpace());
     MIOperands.push_back((unsigned)Op->getSyncScopeID());
     MIOperands.push_back((unsigned)Op->getBaseAlign().value());

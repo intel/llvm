@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 class Foo {
@@ -39,10 +39,10 @@ int main() {
   return 0;
 }
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1"() #0 !kernel_arg_buffer_location ![[NUM0:[0-9]+]] !initiation_interval ![[NUM1:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 !kernel_arg_buffer_location ![[NUM0]] !initiation_interval ![[NUM42:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 !kernel_arg_buffer_location ![[NUM0]] !initiation_interval ![[NUM2:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4"() #0 !kernel_arg_buffer_location ![[NUM0]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0 {{.*}} !initiation_interval ![[NUM1:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0 {{.*}} !initiation_interval ![[NUM42:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3() #0 {{.*}} !initiation_interval ![[NUM2:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0 {{.*}} ![[NUM0:[0-9]+]]
 // CHECK: ![[NUM0]] = !{}
 // CHECK: ![[NUM1]] = !{i32 1}
 // CHECK: ![[NUM42]] = !{i32 42}

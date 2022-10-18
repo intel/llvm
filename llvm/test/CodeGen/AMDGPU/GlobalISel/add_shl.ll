@@ -2,6 +2,7 @@
 ; RUN: llc -global-isel -mtriple=amdgcn-amd-mesa3d -mcpu=fiji -verify-machineinstrs < %s | FileCheck -check-prefix=VI %s
 ; RUN: llc -global-isel -mtriple=amdgcn-amd-mesa3d -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefix=GFX9 %s
 ; RUN: llc -global-isel -mtriple=amdgcn-amd-mesa3d -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefix=GFX10 %s
+; RUN: llc -global-isel -mtriple=amdgcn-amd-mesa3d -mcpu=gfx1100 -amdgpu-enable-delay-alu=0 -verify-machineinstrs < %s | FileCheck -check-prefix=GFX10 %s
 
 ; ===================================================================================
 ; V_ADD_LSHL_U32
@@ -112,7 +113,7 @@ define amdgpu_ps float @add_shl_vgpr_const_inline_const(i32 %a) {
 ;
 ; GFX10-LABEL: add_shl_vgpr_const_inline_const:
 ; GFX10:       ; %bb.0:
-; GFX10-NEXT:    v_add_lshl_u32 v0, v0, 0x3f4, 9
+; GFX10-NEXT:    v_add_lshl_u32 v0, 0x3f4, v0, 9
 ; GFX10-NEXT:    ; return to shader part epilog
   %x = add i32 %a, 1012
   %result = shl i32 %x, 9

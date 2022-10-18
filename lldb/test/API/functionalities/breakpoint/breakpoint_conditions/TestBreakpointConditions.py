@@ -10,8 +10,6 @@ from lldbsuite.test import lldbutil
 
 class BreakpointConditionsTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def test_breakpoint_condition_and_run_command(self):
         """Exercise breakpoint condition with 'breakpoint modify -c <expr> id'."""
         self.build()
@@ -118,11 +116,7 @@ class BreakpointConditionsTestCase(TestBase):
 
     def breakpoint_conditions_python(self):
         """Use Python APIs to set breakpoint conditions."""
-        exe = self.getBuildArtifact("a.out")
-
-        # Create a target by the debugger.
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         # Now create a breakpoint on main.c by name 'c'.
         breakpoint = target.BreakpointCreateByName('c', 'a.out')

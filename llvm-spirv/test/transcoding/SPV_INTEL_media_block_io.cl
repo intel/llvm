@@ -4,6 +4,8 @@
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 // RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
+// RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 uchar __attribute__((overloadable)) intel_sub_group_media_block_read_uc(int2 src_offset, int width, int height, read_only image2d_t image);
 uchar2 __attribute__((overloadable)) intel_sub_group_media_block_read_uc2(int2 src_offset, int width, int height, read_only image2d_t image);
@@ -212,3 +214,32 @@ __kernel void intel_media_block_test(int2 edgeCoord, __read_only image2d_t src_l
 // CHECK-LLVM: call spir_func void @_Z37intel_sub_group_media_block_write_ui2Dv2_iiiDv2_j14ocl_image2d_wo(<2 x i32> %edgeCoord, i32 1, i32 16, <2 x i32> %{{.*}}, %opencl.image2d_wo_t addrspace(1)* %dst_luma_image)
 // CHECK-LLVM: call spir_func void @_Z37intel_sub_group_media_block_write_ui4Dv2_iiiDv4_j14ocl_image2d_wo(<2 x i32> %edgeCoord, i32 1, i32 16, <4 x i32> %{{.*}}, %opencl.image2d_wo_t addrspace(1)* %dst_luma_image)
 // CHECK-LLVM: call spir_func void @_Z37intel_sub_group_media_block_write_ui8Dv2_iiiDv8_j14ocl_image2d_wo(<2 x i32> %edgeCoord, i32 1, i32 16, <8 x i32> %{{.*}}, %opencl.image2d_wo_t addrspace(1)* %dst_luma_image)
+
+// CHECK-SPV-IR: call spir_func i8 @_Z46__spirv_SubgroupImageMediaBlockReadINTEL_RcharPU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <2 x i8> @_Z47__spirv_SubgroupImageMediaBlockReadINTEL_Rchar2PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <4 x i8> @_Z47__spirv_SubgroupImageMediaBlockReadINTEL_Rchar4PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <8 x i8> @_Z47__spirv_SubgroupImageMediaBlockReadINTEL_Rchar8PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <16 x i8> @_Z48__spirv_SubgroupImageMediaBlockReadINTEL_Rchar16PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func i16 @_Z47__spirv_SubgroupImageMediaBlockReadINTEL_RshortPU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <2 x i16> @_Z48__spirv_SubgroupImageMediaBlockReadINTEL_Rshort2PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <4 x i16> @_Z48__spirv_SubgroupImageMediaBlockReadINTEL_Rshort4PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <8 x i16> @_Z48__spirv_SubgroupImageMediaBlockReadINTEL_Rshort8PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <16 x i16> @_Z49__spirv_SubgroupImageMediaBlockReadINTEL_Rshort16PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func i32 @_Z45__spirv_SubgroupImageMediaBlockReadINTEL_RintPU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <2 x i32> @_Z46__spirv_SubgroupImageMediaBlockReadINTEL_Rint2PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <4 x i32> @_Z46__spirv_SubgroupImageMediaBlockReadINTEL_Rint4PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func <8 x i32> @_Z46__spirv_SubgroupImageMediaBlockReadINTEL_Rint8PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_iii(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %src_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16)
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiic(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, i8 %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv2_c(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <2 x i8> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv4_c(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <4 x i8> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv8_c(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <8 x i8> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv16_c(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <16 x i8> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiis(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, i16 %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv2_s(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <2 x i16> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv4_s(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <4 x i16> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv8_s(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <8 x i16> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv16_s(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <16 x i16> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiii(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, i32 %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiS2_(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <2 x i32> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv4_i(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <4 x i32> %{{.*}})
+// CHECK-SPV-IR: call spir_func void @_Z41__spirv_SubgroupImageMediaBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iiiDv8_i(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)* %dst_luma_image, <2 x i32> %edgeCoord, i32 1, i32 16, <8 x i32> %{{.*}})

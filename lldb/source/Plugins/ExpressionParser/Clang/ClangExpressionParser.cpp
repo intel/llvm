@@ -84,8 +84,8 @@
 #include "lldb/Target/ThreadPlanCallFunction.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/LLDBAssert.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
-#include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/StringList.h"
@@ -189,7 +189,7 @@ public:
       // when we move the expression result ot the ScratchASTContext). Let's at
       // least log these diagnostics until we find a way to properly render
       // them and display them to the user.
-      Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+      Log *log = GetLog(LLDBLog::Expressions);
       if (log) {
         llvm::SmallVector<char, 32> diag_str;
         Info.FormatDiagnostic(diag_str);
@@ -282,7 +282,7 @@ private:
 static void SetupModuleHeaderPaths(CompilerInstance *compiler,
                                    std::vector<std::string> include_directories,
                                    lldb::TargetSP target_sp) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   HeaderSearchOptions &search_opts = compiler->getHeaderSearchOpts();
 
@@ -364,7 +364,7 @@ ClangExpressionParser::ClangExpressionParser(
       m_pp_callbacks(nullptr),
       m_include_directories(std::move(include_directories)),
       m_filename(std::move(filename)) {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   // We can't compile expressions without a target.  So if the exe_scope is
   // null or doesn't have a target, then we just need to get out of here.  I'll
@@ -389,18 +389,6 @@ ClangExpressionParser::ClangExpressionParser(
 
   // 1. Create a new compiler instance.
   m_compiler = std::make_unique<CompilerInstance>();
-
-  // When capturing a reproducer, hook up the file collector with clang to
-  // collector modules and headers.
-  if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator()) {
-    repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
-    m_compiler->setModuleDepCollector(
-        std::make_shared<ModuleDependencyCollectorAdaptor>(
-            fp.GetFileCollector()));
-    DependencyOutputOptions &opts = m_compiler->getDependencyOutputOpts();
-    opts.IncludeSystemHeaders = true;
-    opts.IncludeModuleFiles = true;
-  }
 
   // Make sure clang uses the same VFS as LLDB.
   m_compiler->createFileManager(FileSystem::Instance().GetVirtualFileSystem());
@@ -514,7 +502,7 @@ ClangExpressionParser::ClangExpressionParser(
     LLDB_LOGF(log, "Using SIMD alignment: %d",
               target_info->getSimdDefaultAlign());
     LLDB_LOGF(log, "Target datalayout string: '%s'",
-              target_info->getDataLayout().getStringRepresentation().c_str());
+              target_info->getDataLayoutString());
     LLDB_LOGF(log, "Target ABI: '%s'", target_info->getABI().str().c_str());
     LLDB_LOGF(log, "Target vector alignment: %d",
               target_info->getMaxVectorAlign());
@@ -558,7 +546,7 @@ ClangExpressionParser::ClangExpressionParser(
   case lldb::eLanguageTypeC_plus_plus_14:
     lang_opts.CPlusPlus11 = true;
     m_compiler->getHeaderSearchOpts().UseLibcxx = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case lldb::eLanguageTypeC_plus_plus_03:
     lang_opts.CPlusPlus = true;
     if (process_sp)
@@ -658,7 +646,8 @@ ClangExpressionParser::ClangExpressionParser(
   //
   // FIXME: We shouldn't need to do this, the target should be immutable once
   // created. This complexity should be lifted elsewhere.
-  m_compiler->getTarget().adjust(m_compiler->getLangOpts());
+  m_compiler->getTarget().adjust(m_compiler->getDiagnostics(),
+		                 m_compiler->getLangOpts());
 
   // 6. Set up the diagnostic buffer for reporting errors
 
@@ -687,11 +676,11 @@ ClangExpressionParser::ClangExpressionParser(
     break;
   }
 
-  if (ClangModulesDeclVendor *decl_vendor =
-          target_sp->GetClangModulesDeclVendor()) {
-    if (auto *clang_persistent_vars = llvm::cast<ClangPersistentVariables>(
-            target_sp->GetPersistentExpressionStateForLanguage(
-                lldb::eLanguageTypeC))) {
+  if (auto *clang_persistent_vars = llvm::cast<ClangPersistentVariables>(
+          target_sp->GetPersistentExpressionStateForLanguage(
+              lldb::eLanguageTypeC))) {
+    if (std::shared_ptr<ClangModulesDeclVendor> decl_vendor =
+            clang_persistent_vars->GetClangModulesDeclVendor()) {
       std::unique_ptr<PPCallbacks> pp_callbacks(
           new LLDBPreprocessorCallbacks(*decl_vendor, *clang_persistent_vars,
                                         m_compiler->getSourceManager()));
@@ -720,11 +709,12 @@ ClangExpressionParser::ClangExpressionParser(
   m_llvm_context = std::make_unique<LLVMContext>();
   m_code_generator.reset(CreateLLVMCodeGen(
       m_compiler->getDiagnostics(), module_name,
-      m_compiler->getHeaderSearchOpts(), m_compiler->getPreprocessorOpts(),
-      m_compiler->getCodeGenOpts(), *m_llvm_context));
+      &m_compiler->getVirtualFileSystem(), m_compiler->getHeaderSearchOpts(),
+      m_compiler->getPreprocessorOpts(), m_compiler->getCodeGenOpts(),
+      *m_llvm_context));
 }
 
-ClangExpressionParser::~ClangExpressionParser() {}
+ClangExpressionParser::~ClangExpressionParser() = default;
 
 namespace {
 
@@ -994,7 +984,8 @@ public:
   void ProcessOverloadCandidates(Sema &S, unsigned CurrentArg,
                                  OverloadCandidate *Candidates,
                                  unsigned NumCandidates,
-                                 SourceLocation OpenParLoc) override {
+                                 SourceLocation OpenParLoc,
+                                 bool Braced) override {
     // At the moment we don't filter out any overloaded candidates.
   }
 
@@ -1068,7 +1059,7 @@ ClangExpressionParser::ParseInternal(DiagnosticManager &diagnostic_manager,
     }
 
     if (temp_fd != -1) {
-      lldb_private::NativeFile file(temp_fd, File::eOpenOptionWrite, true);
+      lldb_private::NativeFile file(temp_fd, File::eOpenOptionWriteOnly, true);
       const size_t expr_text_len = strlen(expr_text);
       size_t bytes_written = expr_text_len;
       if (file.Write(expr_text, bytes_written).Success()) {
@@ -1308,7 +1299,7 @@ static bool FindFunctionInModule(ConstString &mangled_name,
                                  llvm::Module *module, const char *orig_name) {
   for (const auto &func : module->getFunctionList()) {
     const StringRef &name = func.getName();
-    if (name.find(orig_name) != StringRef::npos) {
+    if (name.contains(orig_name)) {
       mangled_name.SetString(name);
       return true;
     }
@@ -1323,7 +1314,7 @@ lldb_private::Status ClangExpressionParser::PrepareForExecution(
     bool &can_interpret, ExecutionPolicy execution_policy) {
   func_addr = LLDB_INVALID_ADDRESS;
   func_end = LLDB_INVALID_ADDRESS;
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+  Log *log = GetLog(LLDBLog::Expressions);
 
   lldb_private::Status err;
 

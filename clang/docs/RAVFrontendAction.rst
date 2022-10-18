@@ -27,8 +27,7 @@ unit.
       public:
         virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
           clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
-          return std::unique_ptr<clang::ASTConsumer>(
-              new FindNamedClassConsumer);
+          return std::make_unique<FindNamedClassConsumer>();
         }
       };
 
@@ -114,8 +113,7 @@ freshly created FindNamedClassConsumer:
 
       virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
         clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
-        return std::unique_ptr<clang::ASTConsumer>(
-            new FindNamedClassConsumer(&Compiler.getASTContext()));
+        return std::make_unique<FindNamedClassConsumer>(&Compiler.getASTContext());
       }
 
 Now that the ASTContext is available in the RecursiveASTVisitor, we can
@@ -189,8 +187,7 @@ Now we can combine all of the above into a small example program:
       public:
         virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
           clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
-          return std::unique_ptr<clang::ASTConsumer>(
-              new FindNamedClassConsumer(&Compiler.getASTContext()));
+          return std::make_unique<FindNamedClassConsumer>(&Compiler.getASTContext());
         }
       };
 
@@ -211,7 +208,7 @@ following CMakeLists.txt to link it:
 
     add_clang_executable(find-class-decls FindClassDecls.cpp)
 
-    target_link_libraries(find-class-decls 
+    target_link_libraries(find-class-decls
       PRIVATE
       clangAST
       clangBasic
@@ -227,4 +224,3 @@ declarations of a class n::m::C it found:
 
       $ ./bin/find-class-decls "namespace n { namespace m { class C {}; } }"
       Found declaration at 1:29
-

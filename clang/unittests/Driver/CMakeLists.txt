@@ -1,11 +1,13 @@
 set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
-  Support
+  MC
   Option
+  Support
   )
 
 add_clang_unittest(ClangDriverTests
   DistroTest.cpp
+  DXCModeTest.cpp
   ToolChainTest.cpp
   ModuleCacheTest.cpp
   MultilibTest.cpp

@@ -6,15 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
-#define LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
+#ifndef LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H
+#define LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H
 
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Frontend/PCHContainerOperations.h"
-#include "clang/Lex/PreprocessorExcludedConditionalDirectiveSkipMapping.h"
-#include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 #include "llvm/Support/Error.h"
@@ -30,16 +28,33 @@ namespace dependencies {
 
 class DependencyScanningWorkerFilesystem;
 
+/// A command-line tool invocation that is part of building a TU.
+///
+/// \see FullDependencies::Commands.
+struct Command {
+  std::string Executable;
+  std::vector<std::string> Arguments;
+};
+
 class DependencyConsumer {
 public:
   virtual ~DependencyConsumer() {}
 
-  virtual void handleFileDependency(const DependencyOutputOptions &Opts,
-                                    StringRef Filename) = 0;
+  virtual void handleBuildCommand(Command Cmd) = 0;
+
+  virtual void
+  handleDependencyOutputOpts(const DependencyOutputOptions &Opts) = 0;
+
+  virtual void handleFileDependency(StringRef Filename) = 0;
+
+  virtual void handlePrebuiltModuleDependency(PrebuiltModuleDep PMD) = 0;
 
   virtual void handleModuleDependency(ModuleDeps MD) = 0;
 
   virtual void handleContextHash(std::string Hash) = 0;
+
+  virtual std::string lookupModuleOutput(const ModuleID &ID,
+                                         ModuleOutputKind Kind) = 0;
 };
 
 /// An individual dependency scanning worker that is able to run on its own
@@ -50,37 +65,53 @@ public:
 /// using the regular processing run.
 class DependencyScanningWorker {
 public:
-  DependencyScanningWorker(DependencyScanningService &Service);
+  DependencyScanningWorker(DependencyScanningService &Service,
+                           llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS);
 
-  /// Run the dependency scanning tool for a given clang driver invocation (as
-  /// specified for the given Input in the CDB), and report the discovered
-  /// dependencies to the provided consumer.
+  /// Run the dependency scanning tool for a given clang driver command-line,
+  /// and report the discovered dependencies to the provided consumer. If \p
+  /// ModuleName isn't empty, this function reports the dependencies of module
+  /// \p ModuleName.
   ///
+  /// \returns false if clang errors occurred (with diagnostics reported to
+  /// \c DiagConsumer), true otherwise.
+  bool computeDependencies(StringRef WorkingDirectory,
+                           const std::vector<std::string> &CommandLine,
+                           DependencyConsumer &DepConsumer,
+                           DiagnosticConsumer &DiagConsumer,
+                           llvm::Optional<StringRef> ModuleName = None);
   /// \returns A \c StringError with the diagnostic output if clang errors
   /// occurred, success otherwise.
-  llvm::Error computeDependencies(const std::string &Input,
-                                  StringRef WorkingDirectory,
-                                  const CompilationDatabase &CDB,
-                                  DependencyConsumer &Consumer);
+  llvm::Error computeDependencies(StringRef WorkingDirectory,
+                                  const std::vector<std::string> &CommandLine,
+                                  DependencyConsumer &Consumer,
+                                  llvm::Optional<StringRef> ModuleName = None);
+
+  bool shouldEagerLoadModules() const { return EagerLoadModules; }
 
 private:
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts;
   std::shared_ptr<PCHContainerOperations> PCHContainerOps;
-  std::unique_ptr<ExcludedPreprocessorDirectiveSkipMapping> PPSkipMappings;
 
+  /// The physical filesystem overlaid by `InMemoryFS`.
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> RealFS;
+  /// The in-memory filesystem laid on top the physical filesystem in `RealFS`.
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFS;
   /// The file system that is used by each worker when scanning for
-  /// dependencies. This filesystem persists accross multiple compiler
+  /// dependencies. This filesystem persists across multiple compiler
   /// invocations.
   llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS;
-  /// The file manager that is reused accross multiple invocations by this
+  /// The file manager that is reused across multiple invocations by this
   /// worker. If null, the file manager will not be reused.
   llvm::IntrusiveRefCntPtr<FileManager> Files;
   ScanningOutputFormat Format;
+  /// Whether to optimize the modules' command-line arguments.
+  bool OptimizeArgs;
+  /// Whether to set up command-lines to load PCM files eagerly.
+  bool EagerLoadModules;
 };
 
 } // end namespace dependencies
 } // end namespace tooling
 } // end namespace clang
 
-#endif // LLVM_CLANG_TOOLING_DEPENDENCY_SCANNING_WORKER_H
+#endif // LLVM_CLANG_TOOLING_DEPENDENCYSCANNING_DEPENDENCYSCANNINGWORKER_H

@@ -18,7 +18,13 @@
 #include <cinttypes>
 #include <optional>
 
+namespace Fortran::runtime {
+class Descriptor;
+} // namespace Fortran::runtime
+
 namespace Fortran::runtime::io {
+
+class IoStatementState;
 
 enum EditingFlags {
   blankZero = 1, // BLANK=ZERO or BZ edit
@@ -34,13 +40,15 @@ struct MutableModes {
   bool pad{true}; // PAD= mode on READ
   char delim{'\0'}; // DELIM=
   short scale{0}; // kP
+  bool inNamelist{false}; // skip ! comments
+  bool nonAdvancing{false}; // ADVANCE='NO', or $ or \ in FORMAT
 };
 
 // A single edit descriptor extracted from a FORMAT
 struct DataEdit {
   char descriptor; // capitalized: one of A, I, B, O, Z, F, E(N/S/X), D, G
 
-  // Special internal data edit descriptors for list-directed I/O
+  // Special internal data edit descriptors for list-directed & NAMELIST I/O
   static constexpr char ListDirected{'g'}; // non-COMPLEX list-directed
   static constexpr char ListDirectedRealPart{'r'}; // emit "(r," or "(r;"
   static constexpr char ListDirectedImaginaryPart{'z'}; // emit "z)"
@@ -49,6 +57,11 @@ struct DataEdit {
     return descriptor == ListDirected || descriptor == ListDirectedRealPart ||
         descriptor == ListDirectedImaginaryPart;
   }
+  constexpr bool IsNamelist() const {
+    return IsListDirected() && modes.inNamelist;
+  }
+
+  static constexpr char DefinedDerivedType{'d'}; // DT user-defined derived type
 
   char variation{'\0'}; // N, S, or X for EN, ES, EX
   std::optional<int> width; // the 'w' field; optional for A
@@ -56,39 +69,29 @@ struct DataEdit {
   std::optional<int> expoDigits; // 'Ee' field
   MutableModes modes;
   int repeat{1};
-};
 
-// FormatControl<A> requires that A have these member functions;
-// these default implementations just crash if called.
-struct DefaultFormatControlCallbacks : public IoErrorHandler {
-  using IoErrorHandler::IoErrorHandler;
-  DataEdit GetNextDataEdit(int = 1);
-  bool Emit(const char *, std::size_t, std::size_t elementBytes = 0);
-  bool Emit(const char16_t *, std::size_t);
-  bool Emit(const char32_t *, std::size_t);
-  std::optional<char32_t> GetCurrentChar();
-  bool AdvanceRecord(int = 1);
-  void BackspaceRecord();
-  void HandleAbsolutePosition(std::int64_t);
-  void HandleRelativePosition(std::int64_t);
+  // "iotype" &/or "v_list" values for a DT'iotype'(v_list)
+  // user-defined derived type data edit descriptor
+  static constexpr std::size_t maxIoTypeChars{32};
+  static constexpr std::size_t maxVListEntries{4};
+  std::uint8_t ioTypeChars{0};
+  std::uint8_t vListEntries{0};
+  char ioType[maxIoTypeChars];
+  int vList[maxVListEntries];
 };
 
 // Generates a sequence of DataEdits from a FORMAT statement or
 // default-CHARACTER string.  Driven by I/O item list processing.
-// Errors are fatal.  See clause 13.4 in Fortran 2018 for background.
+// Errors are fatal.  See subclause 13.4 in Fortran 2018 for background.
 template <typename CONTEXT> class FormatControl {
 public:
   using Context = CONTEXT;
-  using CharType = typename Context::CharType;
+  using CharType = char; // formats are always default kind CHARACTER
 
   FormatControl() {}
   FormatControl(const Terminator &, const CharType *format,
-      std::size_t formatLength, int maxHeight = maxMaxHeight);
-
-  // Determines the max parenthesis nesting level by scanning and validating
-  // the FORMAT string.
-  static int GetMaxParenthesisNesting(
-      IoErrorHandler &, const CharType *format, std::size_t formatLength);
+      std::size_t formatLength, const Descriptor *formatDescriptor = nullptr,
+      int maxHeight = maxMaxHeight);
 
   // For attempting to allocate in a user-supplied stack area
   static std::size_t GetNeededSize(int maxHeight) {
@@ -97,7 +100,8 @@ public:
   }
 
   // Extracts the next data edit descriptor, handling control edit descriptors
-  // along the way.
+  // along the way.  If maxRepeat==0, this is a peek at the next data edit
+  // descriptor.
   DataEdit GetNextDataEdit(Context &, int maxRepeat = 1);
 
   // Emit any remaining character literals after the last data item (on output)
@@ -114,7 +118,9 @@ private:
   };
 
   void SkipBlanks() {
-    while (offset_ < formatLength_ && format_[offset_] == ' ') {
+    while (offset_ < formatLength_ &&
+        (format_[offset_] == ' ' || format_[offset_] == '\t' ||
+            format_[offset_] == '\v')) {
       ++offset_;
     }
   }
@@ -125,8 +131,13 @@ private:
   CharType GetNextChar(IoErrorHandler &handler) {
     SkipBlanks();
     if (offset_ >= formatLength_) {
-      handler.SignalError(
-          IostatErrorInFormat, "FORMAT missing at least one ')'");
+      if (formatLength_ == 0) {
+        handler.SignalError(
+            IostatErrorInFormat, "Empty or badly assigned FORMAT");
+      } else {
+        handler.SignalError(
+            IostatErrorInFormat, "FORMAT missing at least one ')'");
+      }
       return '\n';
     }
     return format_[offset_++];
@@ -144,13 +155,36 @@ private:
     return ch >= 'a' && ch <= 'z' ? ch + 'A' - 'a' : ch;
   }
 
+  void ReportBadFormat(Context &context, const char *msg, int offset) const {
+    if constexpr (std::is_same_v<CharType, char>) {
+      // Echo the bad format in the error message, but trim any leading or
+      // trailing spaces.
+      int firstNonBlank{0};
+      while (firstNonBlank < formatLength_ && format_[firstNonBlank] == ' ') {
+        ++firstNonBlank;
+      }
+      int lastNonBlank{formatLength_ - 1};
+      while (lastNonBlank > firstNonBlank && format_[lastNonBlank] == ' ') {
+        --lastNonBlank;
+      }
+      if (firstNonBlank <= lastNonBlank) {
+        context.SignalError(IostatErrorInFormat,
+            "%s; at offset %d in format '%.*s'", msg, offset,
+            lastNonBlank - firstNonBlank + 1, format_ + firstNonBlank);
+        return;
+      }
+    }
+    context.SignalError(IostatErrorInFormat, "%s; at offset %d", msg, offset);
+  }
+
   // Data members are arranged and typed so as to reduce size.
   // This structure may be allocated in stack space loaned by the
   // user program for internal I/O.
   const std::uint8_t maxHeight_{maxMaxHeight};
   std::uint8_t height_{0};
+  bool freeFormat_{false};
   const CharType *format_{nullptr};
-  int formatLength_{0};
+  int formatLength_{0}; // in units of characters
   int offset_{0}; // next item is at format_[offset_]
 
   // must be last, may be incomplete

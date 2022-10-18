@@ -2,20 +2,41 @@
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
 ; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
 ; RUN: | FileCheck -check-prefixes CHECK,CHECK-NOFTZ,CHECK-F16-NOFTZ %s
+; RUN: %if ptxas %{                                                           \
+; RUN:   llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
+; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
+; RUN:   | %ptxas-verify -arch=sm_53                                          \
+; RUN: %}
 ; ## Full FP16 with FTZ
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
 ; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
 ; RUN:          -denormal-fp-math-f32=preserve-sign \
 ; RUN: | FileCheck -check-prefixes CHECK,CHECK-F16-FTZ %s
+; RUN: %if ptxas %{                                                           \
+; RUN:   llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
+; RUN:          -O0 -disable-post-ra -frame-pointer=all -verify-machineinstrs \
+; RUN:          -denormal-fp-math-f32=preserve-sign                           \
+; RUN:   | %ptxas-verify -arch=sm_53                                          \
+; RUN: %}
 ; ## FP16 support explicitly disabled.
 ; RUN: llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
 ; RUN:          -O0 -disable-post-ra -frame-pointer=all --nvptx-no-f16-math \
 ; RUN:           -verify-machineinstrs \
 ; RUN: | FileCheck -check-prefixes CHECK,CHECK-NOFTZ,CHECK-NOF16 %s
+; RUN: %if ptxas %{                                                           \
+; RUN:   llc < %s -mtriple=nvptx64-nvidia-cuda -mcpu=sm_53 -asm-verbose=false \
+; RUN:          -O0 -disable-post-ra -frame-pointer=all --nvptx-no-f16-math   \
+; RUN:   | %ptxas-verify -arch=sm_53                                          \
+; RUN: %}
 ; ## FP16 is not supported by hardware.
 ; RUN: llc < %s -O0 -mtriple=nvptx64-nvidia-cuda -mcpu=sm_52 -asm-verbose=false \
 ; RUN:          -disable-post-ra -frame-pointer=all -verify-machineinstrs \
 ; RUN: | FileCheck -check-prefixes CHECK,CHECK-NOFTZ,CHECK-NOF16 %s
+; RUN: %if ptxas %{                                                               \
+; RUN:   llc < %s -O0 -mtriple=nvptx64-nvidia-cuda -mcpu=sm_52 -asm-verbose=false \
+; RUN:          -disable-post-ra -frame-pointer=all -verify-machineinstrs         \
+; RUN:   | %ptxas-verify -arch=sm_52                                              \
+; RUN: %}
 
 target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 
@@ -164,13 +185,13 @@ define half @test_fdiv(half %a, half %b) #0 {
 ; CHECK-NOFTZ-DAG:  cvt.f32.f16     [[FA:%f[0-9]+]], [[A]];
 ; CHECK-NOFTZ-DAG:  cvt.f32.f16     [[FB:%f[0-9]+]], [[B]];
 ; CHECK-NOFTZ-NEXT: div.rn.f32      [[D:%f[0-9]+]], [[FA]], [[FB]];
-; CHECK-NOFTZ-NEXT: cvt.rmi.f32.f32 [[DI:%f[0-9]+]], [[D]];
+; CHECK-NOFTZ-NEXT: cvt.rzi.f32.f32 [[DI:%f[0-9]+]], [[D]];
 ; CHECK-NOFTZ-NEXT: mul.f32         [[RI:%f[0-9]+]], [[DI]], [[FB]];
 ; CHECK-NOFTZ-NEXT: sub.f32         [[RF:%f[0-9]+]], [[FA]], [[RI]];
 ; CHECK-F16-FTZ-DAG:  cvt.ftz.f32.f16     [[FA:%f[0-9]+]], [[A]];
 ; CHECK-F16-FTZ-DAG:  cvt.ftz.f32.f16     [[FB:%f[0-9]+]], [[B]];
 ; CHECK-F16-FTZ-NEXT: div.rn.ftz.f32      [[D:%f[0-9]+]], [[FA]], [[FB]];
-; CHECK-F16-FTZ-NEXT: cvt.rmi.ftz.f32.f32 [[DI:%f[0-9]+]], [[D]];
+; CHECK-F16-FTZ-NEXT: cvt.rzi.ftz.f32.f32 [[DI:%f[0-9]+]], [[D]];
 ; CHECK-F16-FTZ-NEXT: mul.ftz.f32         [[RI:%f[0-9]+]], [[DI]], [[FB]];
 ; CHECK-F16-FTZ-NEXT: sub.ftz.f32         [[RF:%f[0-9]+]], [[FA]], [[RI]];
 ; CHECK-NEXT: cvt.rn.f16.f32  [[R:%h[0-9]+]], [[RF]];
@@ -580,7 +601,7 @@ define i1 @test_fcmp_ord(half %a, half %b) #0 {
 ; CHECK-NOF16-DAG: cvt.f32.f16 [[AF:%f[0-9]+]], [[A]];
 ; CHECK-NOF16-DAG: cvt.f32.f16 [[BF:%f[0-9]+]], [[B]];
 ; CHECK-NOF16: setp.lt.f32    [[PRED:%p[0-9]+]], [[AF]], [[BF]]
-; CHECK-NEXT: @[[PRED]] bra   [[LABEL:LBB.*]];
+; CHECK-NEXT: @[[PRED]] bra   [[LABEL:\$L__BB.*]];
 ; CHECK:      st.u32  [%[[C]]],
 ; CHECK:      [[LABEL]]:
 ; CHECK:      st.u32  [%[[D]]],
@@ -599,7 +620,7 @@ else:
 ; CHECK-LABEL: test_phi(
 ; CHECK:      ld.param.u64    %[[P1:rd[0-9]+]], [test_phi_param_0];
 ; CHECK:      ld.b16  {{%h[0-9]+}}, [%[[P1]]];
-; CHECK: [[LOOP:LBB[0-9_]+]]:
+; CHECK: [[LOOP:\$L__BB[0-9_]+]]:
 ; CHECK:      mov.b16 [[R:%h[0-9]+]], [[AB:%h[0-9]+]];
 ; CHECK:      ld.b16  [[AB:%h[0-9]+]], [%[[P1]]];
 ; CHECK:      {
@@ -806,7 +827,7 @@ define half @test_bitcast_i16tohalf(i16 %a) #0 {
 
 
 declare half @llvm.sqrt.f16(half %a) #0
-declare half @llvm.powi.f16(half %a, i32 %b) #0
+declare half @llvm.powi.f16.i32(half %a, i32 %b) #0
 declare half @llvm.sin.f16(half %a) #0
 declare half @llvm.cos.f16(half %a) #0
 declare half @llvm.pow.f16(half %a, half %b) #0
@@ -826,6 +847,7 @@ declare half @llvm.trunc.f16(half %a) #0
 declare half @llvm.rint.f16(half %a) #0
 declare half @llvm.nearbyint.f16(half %a) #0
 declare half @llvm.round.f16(half %a) #0
+declare half @llvm.roundeven.f16(half %a) #0
 declare half @llvm.fmuladd.f16(half %a, half %b, half %c) #0
 
 ; CHECK-LABEL: test_sqrt(
@@ -845,7 +867,7 @@ define half @test_sqrt(half %a) #0 {
 ;;; Can't do this yet: requires libcall.
 ; XCHECK-LABEL: test_powi(
 ;define half @test_powi(half %a, i32 %b) #0 {
-;  %r = call half @llvm.powi.f16(half %a, i32 %b)
+;  %r = call half @llvm.powi.f16.i32(half %a, i32 %b)
 ;  ret half %r
 ;}
 
@@ -1103,6 +1125,16 @@ define half @test_rint(half %a) #0 {
 ; CHECK:      ret;
 define half @test_nearbyint(half %a) #0 {
   %r = call half @llvm.nearbyint.f16(half %a)
+  ret half %r
+}
+
+; CHECK-LABEL: test_roundeven(
+; CHECK:      ld.param.b16    [[A:%h[0-9]+]], [test_roundeven_param_0];
+; CHECK:      cvt.rni.f16.f16 [[R:%h[0-9]+]], [[A]];
+; CHECK:      st.param.b16    [func_retval0+0], [[R]];
+; CHECK:      ret;
+define half @test_roundeven(half %a) #0 {
+  %r = call half @llvm.roundeven.f16(half %a)
   ret half %r
 }
 

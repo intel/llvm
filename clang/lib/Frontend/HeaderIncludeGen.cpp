@@ -45,6 +45,9 @@ public:
   void FileChanged(SourceLocation Loc, FileChangeReason Reason,
                    SrcMgr::CharacteristicKind FileType,
                    FileID PrevFID) override;
+
+  void FileSkipped(const FileEntryRef &SkippedFile, const Token &FilenameTok,
+                   SrcMgr::CharacteristicKind FileType) override;
 };
 }
 
@@ -101,7 +104,7 @@ void clang::AttachHeaderIncludeGen(Preprocessor &PP,
     std::error_code EC;
     llvm::raw_fd_ostream *OS = new llvm::raw_fd_ostream(
         OutputPath.str(), EC,
-        llvm::sys::fs::OF_Append | llvm::sys::fs::OF_Text);
+        llvm::sys::fs::OF_Append | llvm::sys::fs::OF_TextWithCRLF);
     if (EC) {
       PP.getDiagnostics().Report(clang::diag::warn_fe_cc_print_header_failure)
           << EC.message();
@@ -116,7 +119,7 @@ void clang::AttachHeaderIncludeGen(Preprocessor &PP,
   // Print header info for extra headers, pretending they were discovered by
   // the regular preprocessor. The primary use case is to support proper
   // generation of Make / Ninja file dependencies for implicit includes, such
-  // as sanitizer blacklists. It's only important for cl.exe compatibility,
+  // as sanitizer ignorelists. It's only important for cl.exe compatibility,
   // the GNU way to generate rules is -M / -MM / -MD / -MMD.
   for (const auto &Header : DepOpts.ExtraDeps)
     PrintHeaderInfo(OutputFile, Header.first, ShowDepth, 2, MSStyle);
@@ -180,4 +183,17 @@ void HeaderIncludesCallback::FileChanged(SourceLocation Loc,
     PrintHeaderInfo(OutputFile, UserLoc.getFilename(), ShowDepth, IncludeDepth,
                     MSStyle);
   }
+}
+
+void HeaderIncludesCallback::FileSkipped(const FileEntryRef &SkippedFile, const
+                                         Token &FilenameTok,
+                                         SrcMgr::CharacteristicKind FileType) {
+  if (!DepOpts.ShowSkippedHeaderIncludes)
+    return;
+
+  if (!DepOpts.IncludeSystemHeaders && isSystem(FileType))
+    return;
+
+  PrintHeaderInfo(OutputFile, SkippedFile.getName(), ShowDepth,
+                  CurrentIncludeDepth + 1, MSStyle);
 }

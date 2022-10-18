@@ -10,7 +10,7 @@
 #include "Symbols.h"
 #include "Target.h"
 #include "lld/Common/ErrorHandler.h"
-#include "llvm/Object/ELF.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/Endian.h"
 
 using namespace llvm;
@@ -40,7 +40,6 @@ public:
 AMDGPU::AMDGPU() {
   relativeRel = R_AMDGPU_RELATIVE64;
   gotRel = R_AMDGPU_ABS64;
-  noneRel = R_AMDGPU_NONE;
   symbolicRel = R_AMDGPU_ABS64;
 }
 
@@ -49,10 +48,10 @@ static uint32_t getEFlags(InputFile *file) {
 }
 
 uint32_t AMDGPU::calcEFlagsV3() const {
-  uint32_t ret = getEFlags(objectFiles[0]);
+  uint32_t ret = getEFlags(ctx.objectFiles[0]);
 
   // Verify that all input files have the same e_flags.
-  for (InputFile *f : makeArrayRef(objectFiles).slice(1)) {
+  for (InputFile *f : makeArrayRef(ctx.objectFiles).slice(1)) {
     if (ret == getEFlags(f))
       continue;
     error("incompatible e_flags: " + toString(f));
@@ -62,14 +61,15 @@ uint32_t AMDGPU::calcEFlagsV3() const {
 }
 
 uint32_t AMDGPU::calcEFlagsV4() const {
-  uint32_t retMach = getEFlags(objectFiles[0]) & EF_AMDGPU_MACH;
-  uint32_t retXnack = getEFlags(objectFiles[0]) & EF_AMDGPU_FEATURE_XNACK_V4;
+  uint32_t retMach = getEFlags(ctx.objectFiles[0]) & EF_AMDGPU_MACH;
+  uint32_t retXnack =
+      getEFlags(ctx.objectFiles[0]) & EF_AMDGPU_FEATURE_XNACK_V4;
   uint32_t retSramEcc =
-      getEFlags(objectFiles[0]) & EF_AMDGPU_FEATURE_SRAMECC_V4;
+      getEFlags(ctx.objectFiles[0]) & EF_AMDGPU_FEATURE_SRAMECC_V4;
 
   // Verify that all input files have compatible e_flags (same mach, all
   // features in the same category are either ANY, ANY and ON, or ANY and OFF).
-  for (InputFile *f : makeArrayRef(objectFiles).slice(1)) {
+  for (InputFile *f : makeArrayRef(ctx.objectFiles).slice(1)) {
     if (retMach != (getEFlags(f) & EF_AMDGPU_MACH)) {
       error("incompatible mach: " + toString(f));
       return 0;
@@ -106,15 +106,19 @@ uint32_t AMDGPU::calcEFlagsV4() const {
 }
 
 uint32_t AMDGPU::calcEFlags() const {
-  assert(!objectFiles.empty());
+  if (ctx.objectFiles.empty())
+    return 0;
 
-  uint8_t abiVersion = cast<ObjFile<ELF64LE>>(objectFiles[0])->getObj()
-      .getHeader().e_ident[EI_ABIVERSION];
+  uint8_t abiVersion = cast<ObjFile<ELF64LE>>(ctx.objectFiles[0])
+                           ->getObj()
+                           .getHeader()
+                           .e_ident[EI_ABIVERSION];
   switch (abiVersion) {
   case ELFABIVERSION_AMDGPU_HSA_V2:
   case ELFABIVERSION_AMDGPU_HSA_V3:
     return calcEFlagsV3();
   case ELFABIVERSION_AMDGPU_HSA_V4:
+  case ELFABIVERSION_AMDGPU_HSA_V5:
     return calcEFlagsV4();
   default:
     error("unknown abi version: " + Twine(abiVersion));
@@ -139,6 +143,12 @@ void AMDGPU::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   case R_AMDGPU_REL32_HI:
     write32le(loc, val >> 32);
     break;
+  case R_AMDGPU_REL16: {
+    int64_t simm = (static_cast<int64_t>(val) - 4) / 4;
+    checkInt(loc, simm, 16, rel);
+    write16le(loc, simm);
+    break;
+  }
   default:
     llvm_unreachable("unknown relocation");
   }
@@ -154,6 +164,7 @@ RelExpr AMDGPU::getRelExpr(RelType type, const Symbol &s,
   case R_AMDGPU_REL32_LO:
   case R_AMDGPU_REL32_HI:
   case R_AMDGPU_REL64:
+  case R_AMDGPU_REL16:
     return R_PC;
   case R_AMDGPU_GOTPCREL:
   case R_AMDGPU_GOTPCREL32_LO:

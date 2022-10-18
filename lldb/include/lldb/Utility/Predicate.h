@@ -9,8 +9,8 @@
 #ifndef LLDB_UTILITY_PREDICATE_H
 #define LLDB_UTILITY_PREDICATE_H
 
-#include <stdint.h>
-#include <time.h>
+#include <cstdint>
+#include <ctime>
 
 #include <condition_variable>
 #include <mutex>
@@ -44,7 +44,7 @@ public:
   ///
   /// Initializes the mutex, condition and value with their default
   /// constructors.
-  Predicate() : m_value(), m_mutex(), m_condition() {}
+  Predicate() : m_value() {}
 
   /// Construct with initial T value \a initial_value.
   ///
@@ -53,8 +53,7 @@ public:
   ///
   /// \param[in] initial_value
   ///     The initial value for our T object.
-  Predicate(T initial_value)
-      : m_value(initial_value), m_mutex(), m_condition() {}
+  Predicate(T initial_value) : m_value(initial_value) {}
 
   /// Destructor.
   ///

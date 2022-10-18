@@ -11,9 +11,8 @@
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
-#include "Thunks.h"
 #include "lld/Common/ErrorHandler.h"
-#include "llvm/Object/ELF.h"
+#include "llvm/BinaryFormat/ELF.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -46,11 +45,9 @@ public:
 template <class ELFT> MIPS<ELFT>::MIPS() {
   gotPltHeaderEntriesNum = 2;
   defaultMaxPageSize = 65536;
-  gotBaseSymInGotPlt = false;
   pltEntrySize = 16;
   pltHeaderSize = 32;
   copyRel = R_MIPS_COPY;
-  noneRel = R_MIPS_NONE;
   pltRel = R_MIPS_JUMP_SLOT;
   needsThunks = true;
 
@@ -128,18 +125,19 @@ RelExpr MIPS<ELFT>::getRelExpr(RelType type, const Symbol &s,
       return R_MIPS_GOT_GP_PC;
     if (&s == ElfSym::mipsLocalGp)
       return R_MIPS_GOT_GP;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_MIPS_32:
   case R_MIPS_64:
   case R_MIPS_GOT_OFST:
   case R_MIPS_SUB:
+    return R_ABS;
   case R_MIPS_TLS_DTPREL_HI16:
   case R_MIPS_TLS_DTPREL_LO16:
   case R_MIPS_TLS_DTPREL32:
   case R_MIPS_TLS_DTPREL64:
   case R_MICROMIPS_TLS_DTPREL_HI16:
   case R_MICROMIPS_TLS_DTPREL_LO16:
-    return R_ABS;
+    return R_DTPREL;
   case R_MIPS_TLS_TPREL_HI16:
   case R_MIPS_TLS_TPREL_LO16:
   case R_MIPS_TLS_TPREL32:
@@ -166,7 +164,7 @@ RelExpr MIPS<ELFT>::getRelExpr(RelType type, const Symbol &s,
   case R_MICROMIPS_GOT16:
     if (s.isLocal())
       return R_MIPS_GOT_LOCAL_PAGE;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_MIPS_CALL16:
   case R_MIPS_GOT_DISP:
   case R_MIPS_TLS_GOTTPREL:
@@ -385,8 +383,10 @@ int64_t MIPS<ELFT>::getImplicitAddend(const uint8_t *buf, RelType type) const {
   const endianness e = ELFT::TargetEndianness;
   switch (type) {
   case R_MIPS_32:
+  case R_MIPS_REL32:
   case R_MIPS_GPREL32:
   case R_MIPS_TLS_DTPREL32:
+  case R_MIPS_TLS_DTPMOD32:
   case R_MIPS_TLS_TPREL32:
     return SignExtend64<32>(read32(buf));
   case R_MIPS_26:
@@ -394,25 +394,37 @@ int64_t MIPS<ELFT>::getImplicitAddend(const uint8_t *buf, RelType type) const {
     // we should use another expression for calculation:
     // ((A << 2) | (P & 0xf0000000)) >> 2
     return SignExtend64<28>(read32(buf) << 2);
+  case R_MIPS_CALL_HI16:
   case R_MIPS_GOT16:
+  case R_MIPS_GOT_HI16:
   case R_MIPS_HI16:
   case R_MIPS_PCHI16:
     return SignExtend64<16>(read32(buf)) << 16;
+  case R_MIPS_CALL16:
+  case R_MIPS_CALL_LO16:
+  case R_MIPS_GOT_LO16:
   case R_MIPS_GPREL16:
   case R_MIPS_LO16:
   case R_MIPS_PCLO16:
   case R_MIPS_TLS_DTPREL_HI16:
   case R_MIPS_TLS_DTPREL_LO16:
+  case R_MIPS_TLS_GD:
+  case R_MIPS_TLS_GOTTPREL:
+  case R_MIPS_TLS_LDM:
   case R_MIPS_TLS_TPREL_HI16:
   case R_MIPS_TLS_TPREL_LO16:
     return SignExtend64<16>(read32(buf));
   case R_MICROMIPS_GOT16:
   case R_MICROMIPS_HI16:
     return SignExtend64<16>(readShuffle<e>(buf)) << 16;
+  case R_MICROMIPS_CALL16:
   case R_MICROMIPS_GPREL16:
   case R_MICROMIPS_LO16:
   case R_MICROMIPS_TLS_DTPREL_HI16:
   case R_MICROMIPS_TLS_DTPREL_LO16:
+  case R_MICROMIPS_TLS_GD:
+  case R_MICROMIPS_TLS_GOTTPREL:
+  case R_MICROMIPS_TLS_LDM:
   case R_MICROMIPS_TLS_TPREL_HI16:
   case R_MICROMIPS_TLS_TPREL_LO16:
     return SignExtend64<16>(readShuffle<e>(buf));
@@ -446,7 +458,22 @@ int64_t MIPS<ELFT>::getImplicitAddend(const uint8_t *buf, RelType type) const {
     return SignExtend64<25>(readShuffle<e>(buf) << 2);
   case R_MICROMIPS_PC26_S1:
     return SignExtend64<27>(readShuffle<e>(buf) << 1);
+  case R_MIPS_64:
+  case R_MIPS_TLS_DTPMOD64:
+  case R_MIPS_TLS_DTPREL64:
+  case R_MIPS_TLS_TPREL64:
+  case (R_MIPS_64 << 8) | R_MIPS_REL32:
+    return read64(buf);
+  case R_MIPS_COPY:
+    return config->is64 ? read64(buf) : read32(buf);
+  case R_MIPS_NONE:
+  case R_MIPS_JUMP_SLOT:
+  case R_MIPS_JALR:
+    // These relocations are defined as not having an implicit addend.
+    return 0;
   default:
+    internalLinkerError(getErrorLocation(buf),
+                        "cannot read addend for relocation " + toString(type));
     return 0;
   }
 }
@@ -600,7 +627,7 @@ void MIPS<ELFT>::relocate(uint8_t *loc, const Relocation &rel,
   case R_MIPS_TLS_GOTTPREL:
   case R_MIPS_TLS_LDM:
     checkInt(loc, val, 16, rel);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case R_MIPS_CALL_LO16:
   case R_MIPS_GOT_LO16:
   case R_MIPS_GOT_OFST:

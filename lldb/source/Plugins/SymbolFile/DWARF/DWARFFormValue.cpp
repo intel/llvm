@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <assert.h>
+#include <cassert>
 
 #include "lldb/Core/Module.h"
 #include "lldb/Core/dwarf.h"
@@ -20,6 +20,7 @@
 class DWARFUnit;
 
 using namespace lldb_private;
+using namespace lldb_private::dwarf;
 
 void DWARFFormValue::Clear() {
   m_unit = nullptr;

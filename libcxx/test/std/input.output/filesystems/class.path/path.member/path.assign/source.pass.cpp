@@ -9,7 +9,7 @@
 // UNSUPPORTED: c++03
 
 // These tests require locale for non-char paths
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 
 // <filesystem>
 
@@ -137,7 +137,7 @@ void RunTestCase(MultiStringType const& MS) {
   //////////////////////////////////////////////////////////////////////////////
   // Iterators
   {
-    using It = input_iterator<const CharT*>;
+    using It = cpp17_input_iterator<const CharT*>;
     path p; PathReserve(p, Size + 1);
     It it(TestPath);
     {
@@ -150,7 +150,7 @@ void RunTestCase(MultiStringType const& MS) {
     assert(p.string<CharT>() == TestPath);
   }
   {
-    using It = input_iterator<const CharT*>;
+    using It = cpp17_input_iterator<const CharT*>;
     path p; PathReserve(p, Size + 1);
     It it(TestPath);
     {
@@ -161,7 +161,7 @@ void RunTestCase(MultiStringType const& MS) {
     assert(p.string<CharT>() == TestPath);
   }
   {
-    using It = input_iterator<const CharT*>;
+    using It = cpp17_input_iterator<const CharT*>;
     path p; PathReserve(p, Size + 1);
     It it(TestPath);
     It e(TestPathEnd);
@@ -189,7 +189,7 @@ void test_sfinae() {
     static_assert(has_assign<It>(), "");
   }
   {
-    using It = input_iterator<const char*>;
+    using It = cpp17_input_iterator<const char*>;
     static_assert(std::is_assignable<path, It>::value, "");
     static_assert(has_assign<It>(), "");
   }
@@ -201,12 +201,12 @@ void test_sfinae() {
       using reference = const char&;
       using difference_type = std::ptrdiff_t;
     };
-    using It = input_iterator<const char*, Traits>;
+    using It = cpp17_input_iterator<const char*, Traits>;
     static_assert(std::is_assignable<path, It>::value, "");
     static_assert(has_assign<It>(), "");
   }
   {
-    using It = output_iterator<const char*>;
+    using It = cpp17_output_iterator<const char*>;
     static_assert(!std::is_assignable<path, It>::value, "");
     static_assert(!has_assign<It>(), "");
 
@@ -236,7 +236,9 @@ void RunStringMoveTest(const fs::path::value_type* Expect) {
 int main(int, char**) {
   for (auto const& MS : PathList) {
     RunTestCase<char>(MS);
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     RunTestCase<wchar_t>(MS);
+#endif
     RunTestCase<char16_t>(MS);
     RunTestCase<char32_t>(MS);
     RunStringMoveTest(MS);

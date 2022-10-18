@@ -19,7 +19,7 @@ This is the object format that the llvm will produce when run with the
 Usage
 -----
 
-The WebAssembly version of lld is installed as **wasm-ld**.  It shared many 
+The WebAssembly version of lld is installed as **wasm-ld**.  It shared many
 common linker flags with **ld.lld** but also includes several
 WebAssembly-specific options:
 
@@ -72,7 +72,8 @@ WebAssembly-specific options:
 .. option:: --allow-undefined
 
   Allow undefined symbols in linked binary.  This is the legacy
-  flag which corresponds to ``--unresolved-symbols=import-functions``.
+  flag which corresponds to ``--unresolve-symbols=ignore`` +
+  ``--import-undefined``.
 
 .. option:: --unresolved-symbols=<method>
 
@@ -91,15 +92,31 @@ WebAssembly-specific options:
      this is trivial.  For direct function calls, the linker will generate a
      trapping stub function in place of the undefined function.
 
-  import-functions:
+  import-dynamic:
 
-     Generate WebAssembly imports for any undefined functions.  Undefined data
-     symbols are resolved to zero as in ``ignore-all``.  This corresponds to
-     the legacy ``--allow-undefined`` flag.
+     Undefined symbols generate WebAssembly imports, including undefined data
+     symbols.  This is somewhat similar to the --import-undefined option but
+     works all symbol types.  This options puts limitations on the type of
+     relocations that are allowed for imported data symbols.  Relocations that
+     require absolute data addresses (i.e. All R_WASM_MEMORY_ADDR_I32) will
+     generate an error if they cannot be resolved statically.  For clang/llvm
+     this means inputs should be compiled with `-fPIC` (i.e. `pic` or
+     `dynamic-no-pic` relocation models).  This options is useful for linking
+     binaries that are themselves static (non-relocatable) but whose undefined
+     symbols are resolved by a dynamic linker.  Since the dynamic linking API is
+     experimental, this option currently requires `--experimental-pic` to also
+     be specified.
 
 .. option:: --import-memory
 
   Import memory from the environment.
+
+.. option:: --import-undefined
+
+   Generate WebAssembly imports for undefined symbols, where possible.  For
+   example, for function symbols this is always possible, but in general this
+   is not possible for undefined data symbols.  Undefined data symbols will
+   still be reported as normal (in accordance with ``--unresolved-symbols``).
 
 .. option:: --initial-memory=<value>
 
@@ -152,7 +169,8 @@ the ``WASM_SYMBOL_EXPORTED`` flag are exported by default.  In LLVM the
 in turn can be set using ``__attribute__((export_name))`` clang attribute.
 
 In addition, symbols can be exported via the linker command line using
-``--export``.
+``--export`` (which will error if the symbol is not found) or
+``--export-if-defined`` (which will not).
 
 Finally, just like with native ELF linker the ``--export-dynamic`` flag can be
 used to export symbols in the executable which are marked as
@@ -202,6 +220,6 @@ Missing features
   supported.
 - No support for creating shared libraries.  The spec for shared libraries in
   WebAssembly is still in flux:
-  https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md
+  https://github.com/WebAssembly/tool-conventions/blob/main/DynamicLinking.md
 
-.. _linking: https://github.com/WebAssembly/tool-conventions/blob/master/Linking.md
+.. _linking: https://github.com/WebAssembly/tool-conventions/blob/main/Linking.md

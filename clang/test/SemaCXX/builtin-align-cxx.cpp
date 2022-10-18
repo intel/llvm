@@ -31,10 +31,10 @@ void test_templated_arguments() {
 void test() {
   test_templated_arguments<int, 32>(); // fine
   test_templated_arguments<struct fwddecl, 16>();
-  // expected-note@-1{{in instantiation of function template specialization 'test_templated_arguments<fwddecl, 16, 16>'}}
+  // expected-note@-1{{in instantiation of function template specialization 'test_templated_arguments<fwddecl, 16L, 16L>'}}
   // expected-note@-2{{forward declaration of 'fwddecl'}}
   test_templated_arguments<int, 7>(); // invalid alignment value
-  // expected-note@-1{{in instantiation of function template specialization 'test_templated_arguments<int, 7, 16>'}}
+  // expected-note@-1{{in instantiation of function template specialization 'test_templated_arguments<int, 7L, 16L>'}}
 }
 
 template <typename T, long ArraySize>
@@ -200,7 +200,7 @@ static_assert(__builtin_align_down(&align32array[6], 4) == &align32array[4], "")
 static_assert(__builtin_align_down(&align32array[7], 4) == &align32array[4], "");
 static_assert(__builtin_align_down(&align32array[8], 4) == &align32array[8], "");
 
-// Achiving the same thing using casts to uintptr_t is not allowed:
+// Achieving the same thing using casts to uintptr_t is not allowed:
 static_assert((char *)((__UINTPTR_TYPE__)&align32array[7] & ~3) == &align32array[4], ""); // expected-error{{not an integral constant expression}}
 
 static_assert(__builtin_align_down(&align32array[1], 4) == &align32array[0], "");

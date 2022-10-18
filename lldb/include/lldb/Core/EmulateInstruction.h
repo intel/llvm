@@ -21,8 +21,8 @@
 #include "lldb/lldb-private-types.h"
 #include "lldb/lldb-types.h"
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 namespace lldb_private {
 class OptionValueDictionary;
@@ -179,11 +179,16 @@ public:
     eInfoTypeISAAndImmediateSigned,
     eInfoTypeISA,
     eInfoTypeNoArgs
-  } InfoType;
+  };
 
   struct Context {
-    ContextType type;
-    enum InfoType info_type;
+    ContextType type = eContextInvalid;
+
+  private:
+    enum InfoType info_type = eInfoTypeNoArgs;
+
+  public:
+    enum InfoType GetInfoType() const { return info_type; }
     union {
       struct RegisterPlusOffset {
         RegisterInfo reg;      // base register
@@ -237,7 +242,7 @@ public:
       uint32_t isa;
     } info;
 
-    Context() : type(eContextInvalid), info_type(eInfoTypeNoArgs) {}
+    Context() = default;
 
     void SetRegisterPlusOffset(RegisterInfo base_reg, int64_t signed_offset) {
       info_type = eInfoTypeRegisterPlusOffset;
@@ -370,8 +375,8 @@ public:
   virtual bool TestEmulation(Stream *out_stream, ArchSpec &arch,
                              OptionValueDictionary *test_data) = 0;
 
-  virtual bool GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num,
-                               RegisterInfo &reg_info) = 0;
+  virtual llvm::Optional<RegisterInfo>
+  GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num) = 0;
 
   // Optional overrides
   virtual bool SetInstruction(const Opcode &insn_opcode,

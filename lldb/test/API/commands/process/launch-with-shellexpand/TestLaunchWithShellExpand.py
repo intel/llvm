@@ -11,8 +11,6 @@ from lldbsuite.test import lldbutil
 
 
 class LaunchWithShellExpandTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     @expectedFailureAll(
@@ -25,12 +23,7 @@ class LaunchWithShellExpandTestCase(TestBase):
     @expectedFailureNetBSD
     def test(self):
         self.build()
-        exe = self.getBuildArtifact("a.out")
-
-        self.runCmd("target create %s" % exe)
-
-        # Create the target
-        target = self.dbg.CreateTarget(exe)
+        target = self.createTestTarget()
 
         # Create any breakpoints we need
         breakpoint = target.BreakpointCreateBySourceRegex(
@@ -46,8 +39,8 @@ class LaunchWithShellExpandTestCase(TestBase):
 
         process = self.process()
 
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        STOPPED_DUE_TO_BREAKPOINT)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         STOPPED_DUE_TO_BREAKPOINT)
 
         thread = process.GetThreadAtIndex(0)
 
@@ -77,8 +70,8 @@ class LaunchWithShellExpandTestCase(TestBase):
 
         process = self.process()
 
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        STOPPED_DUE_TO_BREAKPOINT)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         STOPPED_DUE_TO_BREAKPOINT)
 
         thread = process.GetThreadAtIndex(0)
 
@@ -100,8 +93,8 @@ class LaunchWithShellExpandTestCase(TestBase):
 
         process = self.process()
 
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        STOPPED_DUE_TO_BREAKPOINT)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         STOPPED_DUE_TO_BREAKPOINT)
 
         thread = process.GetThreadAtIndex(0)
 

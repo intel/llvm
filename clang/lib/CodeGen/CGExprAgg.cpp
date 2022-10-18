@@ -127,6 +127,8 @@ public:
   }
 
   void VisitConstantExpr(ConstantExpr *E) {
+    EnsureDest(E->getType());
+
     if (llvm::Value *Result = ConstantEmitter(CGF).tryEmitConstantExpr(E)) {
       CGF.EmitAggregateStore(Result, Dest.getAddress(),
                              E->getType().isVolatileQualified());
@@ -276,7 +278,7 @@ void AggExprEmitter::withReturnValueSlot(
     RetAddr = Dest.getAddress();
   } else {
     RetAddr = CGF.CreateMemTemp(RetTy, "tmp", &RetAllocaAddr);
-    uint64_t Size =
+    llvm::TypeSize Size =
         CGF.CGM.getDataLayout().getTypeAllocSize(CGF.ConvertTypeForMem(RetTy));
     LifetimeSizePtr = CGF.EmitLifetimeStart(Size, RetAllocaAddr.getPointer());
     if (LifetimeSizePtr) {
@@ -299,7 +301,7 @@ void AggExprEmitter::withReturnValueSlot(
   if (!UseTemp)
     return;
 
-  assert(Dest.getPointer() != Src.getAggregatePointer());
+  assert(Dest.isIgnored() || Dest.getPointer() != Src.getAggregatePointer());
   EmitFinalDestCopy(E->getType(), Src);
 
   if (!RequiresDestruction && LifetimeStartInst) {
@@ -417,8 +419,8 @@ AggExprEmitter::VisitCXXStdInitializerListExpr(CXXStdInitializerListExpr *E) {
   LValue Start = CGF.EmitLValueForFieldInitialization(DestLV, *Field);
   llvm::Value *Zero = llvm::ConstantInt::get(CGF.PtrDiffTy, 0);
   llvm::Value *IdxStart[] = { Zero, Zero };
-  llvm::Value *ArrayStart =
-      Builder.CreateInBoundsGEP(ArrayPtr.getPointer(), IdxStart, "arraystart");
+  llvm::Value *ArrayStart = Builder.CreateInBoundsGEP(
+      ArrayPtr.getElementType(), ArrayPtr.getPointer(), IdxStart, "arraystart");
   CGF.EmitStoreThroughLValue(RValue::get(ArrayStart), Start);
   ++Field;
 
@@ -434,8 +436,8 @@ AggExprEmitter::VisitCXXStdInitializerListExpr(CXXStdInitializerListExpr *E) {
                       ArrayType->getElementType())) {
     // End pointer.
     llvm::Value *IdxEnd[] = { Zero, Size };
-    llvm::Value *ArrayEnd =
-        Builder.CreateInBoundsGEP(ArrayPtr.getPointer(), IdxEnd, "arrayend");
+    llvm::Value *ArrayEnd = Builder.CreateInBoundsGEP(
+        ArrayPtr.getElementType(), ArrayPtr.getPointer(), IdxEnd, "arrayend");
     CGF.EmitStoreThroughLValue(RValue::get(ArrayEnd), EndOrLength);
   } else if (Ctx.hasSameType(Field->getType(), Ctx.getSizeType())) {
     // Length.
@@ -484,12 +486,14 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
   // down a level.
   llvm::Value *zero = llvm::ConstantInt::get(CGF.SizeTy, 0);
   llvm::Value *indices[] = { zero, zero };
-  llvm::Value *begin =
-    Builder.CreateInBoundsGEP(DestPtr.getPointer(), indices, "arrayinit.begin");
+  llvm::Value *begin = Builder.CreateInBoundsGEP(
+      DestPtr.getElementType(), DestPtr.getPointer(), indices,
+      "arrayinit.begin");
 
   CharUnits elementSize = CGF.getContext().getTypeSizeInChars(elementType);
   CharUnits elementAlign =
     DestPtr.getAlignment().alignmentOfArrayElement(elementSize);
+  llvm::Type *llvmElementType = CGF.ConvertTypeForMem(elementType);
 
   // Consider initializing the array by copying from a global. For this to be
   // more efficient than per-element initialization, the size of the elements
@@ -509,7 +513,8 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
       Emitter.finalize(GV);
       CharUnits Align = CGM.getContext().getTypeAlignInChars(ArrayQTy);
       GV->setAlignment(Align.getAsAlign());
-      EmitFinalDestCopy(ArrayQTy, CGF.MakeAddrLValue(GV, ArrayQTy, Align));
+      Address GVAddr(GV, GV->getValueType(), Align);
+      EmitFinalDestCopy(ArrayQTy, CGF.MakeAddrLValue(GVAddr, ArrayQTy));
       return;
     }
   }
@@ -552,7 +557,8 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
   for (uint64_t i = 0; i != NumInitElements; ++i) {
     // Advance to the next element.
     if (i > 0) {
-      element = Builder.CreateInBoundsGEP(element, one, "arrayinit.element");
+      element = Builder.CreateInBoundsGEP(
+          llvmElementType, element, one, "arrayinit.element");
 
       // Tell the cleanup that it needs to destroy up to this
       // element.  TODO: some of these stores can be trivially
@@ -560,8 +566,8 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
       if (endOfInit.isValid()) Builder.CreateStore(element, endOfInit);
     }
 
-    LValue elementLV =
-      CGF.MakeAddrLValue(Address(element, elementAlign), elementType);
+    LValue elementLV = CGF.MakeAddrLValue(
+        Address(element, llvmElementType, elementAlign), elementType);
     EmitInitializationToLValue(E->getInit(i), elementLV);
   }
 
@@ -581,14 +587,15 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
 
     // Advance to the start of the rest of the array.
     if (NumInitElements) {
-      element = Builder.CreateInBoundsGEP(element, one, "arrayinit.start");
+      element = Builder.CreateInBoundsGEP(
+          llvmElementType, element, one, "arrayinit.start");
       if (endOfInit.isValid()) Builder.CreateStore(element, endOfInit);
     }
 
     // Compute the end of the array.
-    llvm::Value *end = Builder.CreateInBoundsGEP(begin,
-                      llvm::ConstantInt::get(CGF.SizeTy, NumArrayElements),
-                                                 "arrayinit.end");
+    llvm::Value *end = Builder.CreateInBoundsGEP(
+        llvmElementType, begin,
+        llvm::ConstantInt::get(CGF.SizeTy, NumArrayElements), "arrayinit.end");
 
     llvm::BasicBlock *entryBB = Builder.GetInsertBlock();
     llvm::BasicBlock *bodyBB = CGF.createBasicBlock("arrayinit.body");
@@ -607,8 +614,8 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
       //   every temporary created in a default argument is sequenced before
       //   the construction of the next array element, if any
       CodeGenFunction::RunCleanupsScope CleanupsScope(CGF);
-      LValue elementLV =
-        CGF.MakeAddrLValue(Address(currentElement, elementAlign), elementType);
+      LValue elementLV = CGF.MakeAddrLValue(
+          Address(currentElement, llvmElementType, elementAlign), elementType);
       if (filler)
         EmitInitializationToLValue(filler, elementLV);
       else
@@ -616,8 +623,8 @@ void AggExprEmitter::EmitArrayInit(Address DestPtr, llvm::ArrayType *AType,
     }
 
     // Move on to the next element.
-    llvm::Value *nextElement =
-      Builder.CreateInBoundsGEP(currentElement, one, "arrayinit.next");
+    llvm::Value *nextElement = Builder.CreateInBoundsGEP(
+        llvmElementType, currentElement, one, "arrayinit.next");
 
     // Tell the EH cleanup that we finished with the last element.
     if (endOfInit.isValid()) Builder.CreateStore(nextElement, endOfInit);
@@ -843,7 +850,7 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
       return;
     }
 
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
 
   case CK_NoOp:
@@ -901,6 +908,7 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_CopyAndAutoreleaseBlockObject:
   case CK_BuiltinFnToFnPtr:
   case CK_ZeroToOCLOpaqueType:
+  case CK_MatrixCast:
 
   case CK_IntToOCLSampler:
   case CK_FloatingToFixedPoint:
@@ -1422,6 +1430,7 @@ static bool castPreservesZero(const CastExpr *CE) {
   case CK_PointerToIntegral:
     // Language extensions.
   case CK_VectorSplat:
+  case CK_MatrixCast:
   case CK_NonAtomicToAtomic:
   case CK_AtomicToNonAtomic:
     return true;
@@ -1777,8 +1786,9 @@ void AggExprEmitter::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *E,
   // destPtr is an array*. Construct an elementType* by drilling down a level.
   llvm::Value *zero = llvm::ConstantInt::get(CGF.SizeTy, 0);
   llvm::Value *indices[] = {zero, zero};
-  llvm::Value *begin = Builder.CreateInBoundsGEP(destPtr.getPointer(), indices,
-                                                 "arrayinit.begin");
+  llvm::Value *begin = Builder.CreateInBoundsGEP(
+      destPtr.getElementType(), destPtr.getPointer(), indices,
+      "arrayinit.begin");
 
   // Prepare to special-case multidimensional array initialization: we avoid
   // emitting multiple destructor loops in that case.
@@ -1791,6 +1801,7 @@ void AggExprEmitter::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *E,
   CharUnits elementSize = CGF.getContext().getTypeSizeInChars(elementType);
   CharUnits elementAlign =
       destPtr.getAlignment().alignmentOfArrayElement(elementSize);
+  llvm::Type *llvmElementType = CGF.ConvertTypeForMem(elementType);
 
   llvm::BasicBlock *entryBB = Builder.GetInsertBlock();
   llvm::BasicBlock *bodyBB = CGF.createBasicBlock("arrayinit.body");
@@ -1800,7 +1811,8 @@ void AggExprEmitter::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *E,
   llvm::PHINode *index =
       Builder.CreatePHI(zero->getType(), 2, "arrayinit.index");
   index->addIncoming(zero, entryBB);
-  llvm::Value *element = Builder.CreateInBoundsGEP(begin, index);
+  llvm::Value *element =
+      Builder.CreateInBoundsGEP(llvmElementType, begin, index);
 
   // Prepare for a cleanup.
   QualType::DestructionKind dtorKind = elementType.isDestructedType();
@@ -1822,8 +1834,8 @@ void AggExprEmitter::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *E,
     // at the end of each iteration.
     CodeGenFunction::RunCleanupsScope CleanupsScope(CGF);
     CodeGenFunction::ArrayInitLoopExprScope Scope(CGF, index);
-    LValue elementLV =
-        CGF.MakeAddrLValue(Address(element, elementAlign), elementType);
+    LValue elementLV = CGF.MakeAddrLValue(
+        Address(element, llvmElementType, elementAlign), elementType);
 
     if (InnerLoop) {
       // If the subexpression is an ArrayInitLoopExpr, share its cleanup.

@@ -42,15 +42,14 @@ int main(int, char**)
     assert(p == In1);
   }
   {
-    path p = fs::u8path(In3);
+    path p = fs::u8path(In2.data());
     assert(p == In1);
   }
   {
     path p = fs::u8path(In3, In3End);
     assert(p == In1);
   }
-#if TEST_STD_VER > 17 && defined(__cpp_char8_t) && defined(_LIBCPP_VERSION) && \
-    !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+#if TEST_STD_VER > 17 && defined(__cpp_char8_t) && defined(_LIBCPP_VERSION) && !defined(TEST_HAS_NO_LOCALIZATION)
   const char8_t* u8In1 = u8"abcd/efg";
   const std::u8string u8In2(u8In1);
   const auto u8In3 = u8In2.begin();
@@ -65,7 +64,7 @@ int main(int, char**)
     assert(p == In1);
   }
   {
-    path p = fs::u8path(u8In3);
+    path p = fs::u8path(u8In2.data());
     assert(p == In1);
   }
   {

@@ -358,6 +358,7 @@ f37:
 // CHECK:          Name: .rela.eh_frame
 // CHECK-NEXT:     Type: SHT_RELA
 // CHECK-NEXT:     Flags [
+// CHECK-NEXT:       SHF_INFO_LINK
 // CHECK-NEXT:     ]
 // CHECK-NEXT:     Address: 0x0
 // CHECK-NEXT:     Offset:
@@ -446,16 +447,16 @@ f37:
 .ifdef ERR
 // ERR: [[#@LINE+1]]:15: error: expected .eh_frame or .debug_frame
 .cfi_sections $
-// ERR: [[#@LINE+1]]:28: error: unexpected token
+// ERR: [[#@LINE+1]]:28: error: expected comma
 .cfi_sections .debug_frame $
-// ERR: [[#@LINE+1]]:39: error: unexpected token
+// ERR: [[#@LINE+1]]:39: error: expected comma
 .cfi_sections .debug_frame, .eh_frame $
 
-// ERR: [[#@LINE+1]]:16: error: unexpected token in '.cfi_startproc' directive
+// ERR: [[#@LINE+1]]:16: error: unexpected token
 .cfi_startproc $
-// ERR: [[#@LINE+1]]:23: error: expected newline in '.cfi_startproc' directive
+// ERR: [[#@LINE+1]]:23: error: expected newline
 .cfi_startproc simple $
 
-// ERR: [[#@LINE+1]]:14: error: expected newline in '.cfi_endproc' directive
+// ERR: [[#@LINE+1]]:14: error: expected newline
 .cfi_endproc $
 .endif

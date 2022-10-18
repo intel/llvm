@@ -7,10 +7,10 @@
 
 ; X86-LABEL: {{^}}merge_store_partial_overlap_load:
 ; X86-DAG: movzwl ([[BASEREG:%[a-z]+]]), %e[[LO2:[a-z]+]]
-; X86-DAG: movb 2([[BASEREG]]), [[HI1:%[a-z]+]]
+; X86-DAG: movzbl 2([[BASEREG]]), %e[[HI1:[a-z]]]
 
 ; X86-NEXT: movw %[[LO2]], 1([[BASEREG]])
-; X86-NEXT: movb [[HI1]], 3([[BASEREG]])
+; X86-NEXT: movb %[[HI1]]l, 3([[BASEREG]])
 ; X86-NEXT: retq
 
 ; DBGDAG-LABEL: Optimized legalized selection DAG: %bb.0 'merge_store_partial_overlap_load:'
@@ -18,12 +18,12 @@
 ; DBGDAG-DAG: [[BASEPTR:t[0-9]+]]: i64,ch = CopyFromReg [[ENTRYTOKEN]],
 ; DBGDAG-DAG: [[ADDPTR:t[0-9]+]]: i64 = add {{(nuw )?}}[[BASEPTR]], Constant:i64<2>
 
-; DBGDAG-DAG: [[LD2:t[0-9]+]]: i16,ch = load<(load 2 from %ir.tmp81, align 1)> [[ENTRYTOKEN]], [[BASEPTR]], undef:i64
-; DBGDAG-DAG: [[LD1:t[0-9]+]]: i8,ch = load<(load 1 from %ir.tmp12)> [[ENTRYTOKEN]], [[ADDPTR]], undef:i64
+; DBGDAG-DAG: [[LD2:t[0-9]+]]: i16,ch = load<(load (s16) from %ir.tmp81, align 1)> [[ENTRYTOKEN]], [[BASEPTR]], undef:i64
+; DBGDAG-DAG: [[LD1:t[0-9]+]]: i8,ch = load<(load (s8) from %ir.tmp12)> [[ENTRYTOKEN]], [[ADDPTR]], undef:i64
 
-; DBGDAG-DAG: [[ST1:t[0-9]+]]: ch = store<(store 1 into %ir.tmp14)> [[ENTRYTOKEN]], [[LD1]], t{{[0-9]+}}, undef:i64
+; DBGDAG-DAG: [[ST1:t[0-9]+]]: ch = store<(store (s8) into %ir.tmp14)> [[ENTRYTOKEN]], [[LD1]], t{{[0-9]+}}, undef:i64
 ; DBGDAG-DAG: [[LOADTOKEN:t[0-9]+]]: ch = TokenFactor [[LD2]]:1, [[LD1]]:1
-; DBGDAG-DAG: [[ST2:t[0-9]+]]: ch = store<(store 2 into %ir.tmp10, align 1)> [[LOADTOKEN]], [[LD2]], t{{[0-9]+}}, undef:i64
+; DBGDAG-DAG: [[ST2:t[0-9]+]]: ch = store<(store (s16) into %ir.tmp10, align 1)> [[LOADTOKEN]], [[LD2]], t{{[0-9]+}}, undef:i64
 
 ; DBGDAG: X86ISD::RET_FLAG t{{[0-9]+}},
 

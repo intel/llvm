@@ -1,4 +1,4 @@
-; RUN: opt < %s -tailcallelim -verify-dom-info -S | FileCheck %s
+; RUN: opt < %s -passes=tailcallelim -verify-dom-info -S | FileCheck %s
 
 declare void @noarg()
 declare void @use(i32*)
@@ -12,15 +12,16 @@ define void @test0() {
 	ret void
 }
 
-; PR615. Make sure that we do not move the alloca so that it interferes with the tail call.
+; Make sure that we do not do TRE if pointer to local stack
+; escapes through function call.
 define i32 @test1() {
 ; CHECK: i32 @test1()
 ; CHECK-NEXT: alloca
 	%A = alloca i32		; <i32*> [#uses=2]
 	store i32 5, i32* %A
 	call void @use(i32* %A)
-; CHECK: tail call i32 @test1
-	%X = tail call i32 @test1()		; <i32> [#uses=1]
+; CHECK: call i32 @test1
+	%X = call i32 @test1()		; <i32> [#uses=1]
 	ret i32 %X
 }
 
@@ -47,7 +48,7 @@ endif.0:		; preds = %entry
 define i32 @test3(i32 %c) {
 ; CHECK: i32 @test3
 ; CHECK: tailrecurse:
-; CHECK: %ret.tr = phi i32 [ undef, %entry ], [ %current.ret.tr, %else ]
+; CHECK: %ret.tr = phi i32 [ poison, %entry ], [ %current.ret.tr, %else ]
 ; CHECK: %ret.known.tr = phi i1 [ false, %entry ], [ true, %else ]
 ; CHECK: else:
 ; CHECK-NOT: call
@@ -214,11 +215,11 @@ entry:
 define void @test13() {
 ; CHECK-LABEL: @test13
 ; CHECK: tail call void @bar(%struct.foo* byval(%struct.foo) %f)
-; CHECK: tail call void @bar(%struct.foo* null)
+; CHECK: tail call void @bar(%struct.foo* byval(%struct.foo) null)
 entry:
   %f = alloca %struct.foo
   call void @bar(%struct.foo* byval(%struct.foo) %f)
-  call void @bar(%struct.foo* null)
+  call void @bar(%struct.foo* byval(%struct.foo) null)
   ret void
 }
 

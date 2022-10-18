@@ -38,12 +38,12 @@ namespace opts {
 static cl::OptionCategory CommonRefactorOptions("Refactoring options");
 
 static cl::opt<bool> Verbose("v", cl::desc("Use verbose output"),
-                             cl::cat(cl::GeneralCategory),
-                             cl::sub(*cl::AllSubCommands));
+                             cl::cat(cl::getGeneralCategory()),
+                             cl::sub(cl::SubCommand::getAll()));
 
 static cl::opt<bool> Inplace("i", cl::desc("Inplace edit <file>s"),
-                             cl::cat(cl::GeneralCategory),
-                             cl::sub(*cl::AllSubCommands));
+                             cl::cat(cl::getGeneralCategory()),
+                             cl::sub(cl::SubCommand::getAll()));
 
 } // end namespace opts
 
@@ -499,7 +499,7 @@ public:
 
       if (opts::Inplace) {
         std::error_code EC;
-        llvm::raw_fd_ostream OS(File, EC, llvm::sys::fs::OF_Text);
+        llvm::raw_fd_ostream OS(File, EC, llvm::sys::fs::OF_TextWithCRLF);
         if (EC) {
           llvm::errs() << EC.message() << "\n";
           return true;
@@ -613,7 +613,7 @@ int main(int argc, const char **argv) {
   ClangRefactorTool RefactorTool;
 
   auto ExpectedParser = CommonOptionsParser::create(
-      argc, argv, cl::GeneralCategory, cl::ZeroOrMore,
+      argc, argv, cl::getGeneralCategory(), cl::ZeroOrMore,
       "Clang-based refactoring tool for C, C++ and Objective-C");
   if (!ExpectedParser) {
     llvm::errs() << ExpectedParser.takeError();

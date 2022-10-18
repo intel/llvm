@@ -9,7 +9,7 @@
 #ifndef LLDB_DATAFORMATTERS_TYPESYNTHETIC_H
 #define LLDB_DATAFORMATTERS_TYPESYNTHETIC_H
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <functional>
 #include <initializer_list>
@@ -133,7 +133,7 @@ class SyntheticChildren {
 public:
   class Flags {
   public:
-    Flags() : m_flags(lldb::eTypeOptionCascade) {}
+    Flags() = default;
 
     Flags(const Flags &other) : m_flags(other.m_flags) {}
 
@@ -225,7 +225,7 @@ public:
     void SetValue(uint32_t value) { m_flags = value; }
 
   private:
-    uint32_t m_flags;
+    uint32_t m_flags = lldb::eTypeOptionCascade;
   };
 
   SyntheticChildren(const Flags &flags) : m_flags(flags) {}
@@ -266,7 +266,7 @@ public:
   uint32_t &GetRevision() { return m_my_revision; }
 
 protected:
-  uint32_t m_my_revision;
+  uint32_t m_my_revision = 0;
   Flags m_flags;
 
 private:
@@ -279,11 +279,11 @@ class TypeFilterImpl : public SyntheticChildren {
 
 public:
   TypeFilterImpl(const SyntheticChildren::Flags &flags)
-      : SyntheticChildren(flags), m_expression_paths() {}
+      : SyntheticChildren(flags) {}
 
   TypeFilterImpl(const SyntheticChildren::Flags &flags,
                  const std::initializer_list<const char *> items)
-      : SyntheticChildren(flags), m_expression_paths() {
+      : SyntheticChildren(flags) {
     for (auto path : items)
       AddExpressionPath(path);
   }
@@ -391,7 +391,7 @@ class ScriptedSyntheticChildren : public SyntheticChildren {
 public:
   ScriptedSyntheticChildren(const SyntheticChildren::Flags &flags,
                             const char *pclass, const char *pcode = nullptr)
-      : SyntheticChildren(flags), m_python_class(), m_python_code() {
+      : SyntheticChildren(flags) {
     if (pclass)
       m_python_class = pclass;
     if (pcode)

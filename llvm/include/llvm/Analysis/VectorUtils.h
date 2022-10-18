@@ -31,7 +31,7 @@ enum class VFParamKind {
   OMP_LinearPos,     // declare simd linear(i:c) uniform(c)
   OMP_LinearValPos,  // declare simd linear(val(i:c)) uniform(c)
   OMP_LinearRefPos,  // declare simd linear(ref(i:c)) uniform(c)
-  OMP_LinearUValPos, // declare simd linear(uval(i:c)) uniform(c
+  OMP_LinearUValPos, // declare simd linear(uval(i:c)) uniform(c)
   OMP_Uniform,       // declare simd uniform(i)
   GlobalPredicate,   // Global logical predicate that acts on all lanes
                      // of the input and output mask concurrently. For
@@ -80,13 +80,11 @@ struct VFParameter {
 /// represent vector functions. in particular, it is not attached to
 /// any target-specific ABI.
 struct VFShape {
-  unsigned VF;     // Vectorization factor.
-  bool IsScalable; // True if the function is a scalable function.
+  ElementCount VF;                        // Vectorization factor.
   SmallVector<VFParameter, 8> Parameters; // List of parameter information.
   // Comparison operator.
   bool operator==(const VFShape &Other) const {
-    return std::tie(VF, IsScalable, Parameters) ==
-           std::tie(Other.VF, Other.IsScalable, Other.Parameters);
+    return std::tie(VF, Parameters) == std::tie(Other.VF, Other.Parameters);
   }
 
   /// Update the parameter in position P.ParamPos to P.
@@ -115,9 +113,9 @@ struct VFShape {
       Parameters.push_back(
           VFParameter({CI.arg_size(), VFParamKind::GlobalPredicate}));
 
-    return {EC.getKnownMinValue(), EC.isScalable(), Parameters};
+    return {EC, Parameters};
   }
-  /// Sanity check on the Parameters in the VFShape.
+  /// Validation check on the Parameters in the VFShape.
   bool hasValidParameterList() const;
 };
 
@@ -127,12 +125,6 @@ struct VFInfo {
   std::string ScalarName; /// Scalar Function Name.
   std::string VectorName; /// Vector Function Name associated to this VFInfo.
   VFISAKind ISA;          /// Instruction Set Architecture.
-
-  // Comparison operator.
-  bool operator==(const VFInfo &Other) const {
-    return std::tie(Shape, ScalarName, VectorName, ISA) ==
-           std::tie(Shape, Other.ScalarName, Other.VectorName, Other.ISA);
-  }
 };
 
 namespace VFABI {
@@ -244,10 +236,10 @@ class VFDatabase {
       // ensuring that the variant described in the attribute has a
       // corresponding definition or declaration of the vector
       // function in the Module M.
-      if (Shape.hasValue() && (Shape.getValue().ScalarName == ScalarName)) {
-        assert(CI.getModule()->getFunction(Shape.getValue().VectorName) &&
+      if (Shape && (Shape.value().ScalarName == ScalarName)) {
+        assert(CI.getModule()->getFunction(Shape.value().VectorName) &&
                "Vector function is missing.");
-        Mappings.push_back(Shape.getValue());
+        Mappings.push_back(Shape.value());
       }
     }
   }
@@ -317,11 +309,16 @@ inline Type *ToVectorTy(Type *Scalar, unsigned VF) {
 /// Identify if the intrinsic is trivially vectorizable.
 /// This method returns true if the intrinsic's argument types are all scalars
 /// for the scalar form of the intrinsic and all vectors (or scalars handled by
-/// hasVectorInstrinsicScalarOpd) for the vector form of the intrinsic.
+/// isVectorIntrinsicWithScalarOpAtArg) for the vector form of the intrinsic.
 bool isTriviallyVectorizable(Intrinsic::ID ID);
 
 /// Identifies if the vector form of the intrinsic has a scalar operand.
-bool hasVectorInstrinsicScalarOpd(Intrinsic::ID ID, unsigned ScalarOpdIdx);
+bool isVectorIntrinsicWithScalarOpAtArg(Intrinsic::ID ID,
+                                        unsigned ScalarOpdIdx);
+
+/// Identifies if the vector form of the intrinsic has a operand that has
+/// an overloaded type.
+bool isVectorIntrinsicWithOverloadTypeAtArg(Intrinsic::ID ID, unsigned OpdIdx);
 
 /// Returns intrinsic ID for call.
 /// For the input call instruction it finds mapping intrinsic and returns
@@ -400,6 +397,24 @@ void narrowShuffleMaskElts(int Scale, ArrayRef<int> Mask,
 /// divide evenly (scale down) to map to wider vector elements.
 bool widenShuffleMaskElts(int Scale, ArrayRef<int> Mask,
                           SmallVectorImpl<int> &ScaledMask);
+
+/// Splits and processes shuffle mask depending on the number of input and
+/// output registers. The function does 2 main things: 1) splits the
+/// source/destination vectors into real registers; 2) do the mask analysis to
+/// identify which real registers are permuted. Then the function processes
+/// resulting registers mask using provided action items. If no input register
+/// is defined, \p NoInputAction action is used. If only 1 input register is
+/// used, \p SingleInputAction is used, otherwise \p ManyInputsAction is used to
+/// process > 2 input registers and masks.
+/// \param Mask Original shuffle mask.
+/// \param NumOfSrcRegs Number of source registers.
+/// \param NumOfDestRegs Number of destination registers.
+/// \param NumOfUsedRegs Number of actually used destination registers.
+void processShuffleMasks(
+    ArrayRef<int> Mask, unsigned NumOfSrcRegs, unsigned NumOfDestRegs,
+    unsigned NumOfUsedRegs, function_ref<void()> NoInputAction,
+    function_ref<void(ArrayRef<int>, unsigned, unsigned)> SingleInputAction,
+    function_ref<void(ArrayRef<int>, unsigned, unsigned)> ManyInputsAction);
 
 /// Compute a map of integer instructions to their minimum legal type
 /// size.
@@ -536,6 +551,12 @@ llvm::SmallVector<int, 16> createStrideMask(unsigned Start, unsigned Stride,
 llvm::SmallVector<int, 16>
 createSequentialMask(unsigned Start, unsigned NumInts, unsigned NumUndefs);
 
+/// Given a shuffle mask for a binary shuffle, create the equivalent shuffle
+/// mask assuming both operands are identical. This assumes that the unary
+/// shuffle will use elements from operand 0 (operand 1 will be unused).
+llvm::SmallVector<int, 16> createUnaryMask(ArrayRef<int> Mask,
+                                           unsigned NumElts);
+
 /// Concatenate a list of vectors.
 ///
 /// This function generates code that concatenate the vectors in \p Vecs into a
@@ -602,10 +623,6 @@ public:
 
   bool isReverse() const { return Reverse; }
   uint32_t getFactor() const { return Factor; }
-  LLVM_ATTRIBUTE_DEPRECATED(uint32_t getAlignment() const,
-                            "Use getAlign instead.") {
-    return Alignment.value();
-  }
   Align getAlign() const { return Alignment; }
   uint32_t getNumMembers() const { return Members.size(); }
 
@@ -693,10 +710,8 @@ public:
     if (getMember(getFactor() - 1))
       return false;
 
-    // We have a group with gaps. It therefore cannot be a group of stores,
-    // and it can't be a reversed access, because such groups get invalidated.
-    assert(!getMember(0)->mayWriteToMemory() &&
-           "Group should have been invalidated");
+    // We have a group with gaps. It therefore can't be a reversed access,
+    // because such groups get invalidated (TODO).
     assert(!isReverse() && "Group should have been invalidated");
 
     // This is a group of loads, with gaps, and without a last-member
@@ -795,6 +810,9 @@ public:
   /// happen when optimizing for size forbids a scalar epilogue, and the gap
   /// cannot be filtered by masking the load/store.
   void invalidateGroupsRequiringScalarEpilogue();
+
+  /// Returns true if we have any interleave groups.
+  bool hasGroups() const { return !InterleaveGroups.empty(); }
 
 private:
   /// A wrapper around ScalarEvolution, used to add runtime SCEV checks.

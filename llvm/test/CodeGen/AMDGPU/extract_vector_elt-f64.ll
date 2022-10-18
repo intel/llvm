@@ -14,12 +14,12 @@ define amdgpu_kernel void @extract_vector_elt_v3f64_2(double addrspace(1)* %out,
 
 ; GCN-LABEL: {{^}}dyn_extract_vector_elt_v3f64:
 ; GCN-NOT: buffer_load
-; GCN-DAG: v_cmp_eq_u32_e64 [[C1:[^,]+]], [[IDX:s[0-9]+]], 1
-; GCN-DAG: v_cmp_eq_u32_e64 [[C2:[^,]+]], [[IDX]], 2
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C1]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C1]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C2]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C2]]
+; GCN-DAG: s_cmp_eq_u32 s{{[0-9]+}}, 1
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cmp_eq_u32 s{{[0-9]+}}, 2
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
 ; GCN: store_dwordx2 v[{{[0-9:]+}}]
 define amdgpu_kernel void @dyn_extract_vector_elt_v3f64(double addrspace(1)* %out, <3 x double> %foo, i32 %elt) #0 {
   %dynelt = extractelement <3 x double> %foo, i32 %elt
@@ -29,15 +29,15 @@ define amdgpu_kernel void @dyn_extract_vector_elt_v3f64(double addrspace(1)* %ou
 
 ; GCN-LABEL: {{^}}dyn_extract_vector_elt_v4f64:
 ; GCN-NOT: buffer_load
-; GCN-DAG: v_cmp_eq_u32_e64 [[C1:[^,]+]], [[IDX:s[0-9]+]], 1
-; GCN-DAG: v_cmp_eq_u32_e64 [[C2:[^,]+]], [[IDX]], 2
-; GCN-DAG: v_cmp_eq_u32_e64 [[C3:[^,]+]], [[IDX]], 3
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C1]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C1]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C2]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C2]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C3]]
-; GCN-DAG: v_cndmask_b32_e{{32|64}} v{{[0-9]+}}, v{{[0-9]+}}, v{{[0-9]+}}, [[C3]]
+; GCN-DAG: s_cmp_eq_u32 s{{[0-9]+}}, 1
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cmp_eq_u32 s{{[0-9]+}}, 2
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cmp_eq_u32 s{{[0-9]+}}, 3
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
+; GCN-DAG: s_cselect_b32 s{{[0-9]+}}, s{{[0-9]+}}, s{{[0-9]+}}
 ; GCN: store_dwordx2 v[{{[0-9:]+}}]
 define amdgpu_kernel void @dyn_extract_vector_elt_v4f64(double addrspace(1)* %out, <4 x double> %foo, i32 %elt) #0 {
   %dynelt = extractelement <4 x double> %foo, i32 %elt

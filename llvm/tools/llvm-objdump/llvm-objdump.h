@@ -13,7 +13,6 @@
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/Object/Archive.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/DataTypes.h"
 
@@ -22,36 +21,39 @@ class StringRef;
 class Twine;
 
 namespace object {
-class ELFObjectFileBase;
-class ELFSectionRef;
-class MachOObjectFile;
-class MachOUniversalBinary;
 class RelocationRef;
+struct VersionEntry;
 } // namespace object
 
 namespace objdump {
 
-extern cl::opt<bool> ArchiveHeaders;
-extern cl::opt<bool> Demangle;
-extern cl::opt<bool> Disassemble;
-extern cl::opt<bool> DisassembleAll;
-extern cl::opt<DIDumpType> DwarfDumpType;
-extern cl::list<std::string> FilterSections;
-extern cl::list<std::string> MAttrs;
-extern cl::opt<std::string> MCPU;
-extern cl::opt<bool> NoShowRawInsn;
-extern cl::opt<bool> NoLeadingAddr;
-extern cl::opt<std::string> Prefix;
-extern cl::opt<uint32_t> PrefixStrip;
-extern cl::opt<bool> PrintImmHex;
-extern cl::opt<bool> PrivateHeaders;
-extern cl::opt<bool> Relocations;
-extern cl::opt<bool> SectionHeaders;
-extern cl::opt<bool> SectionContents;
-extern cl::opt<bool> SymbolDescription;
-extern cl::opt<bool> SymbolTable;
-extern cl::opt<std::string> TripleName;
-extern cl::opt<bool> UnwindInfo;
+enum DebugVarsFormat { DVDisabled, DVUnicode, DVASCII, DVInvalid };
+
+extern bool ArchiveHeaders;
+extern int DbgIndent;
+extern DebugVarsFormat DbgVariables;
+extern bool Demangle;
+extern bool Disassemble;
+extern bool DisassembleAll;
+extern DIDumpType DwarfDumpType;
+extern std::vector<std::string> FilterSections;
+extern bool LeadingAddr;
+extern std::vector<std::string> MAttrs;
+extern std::string MCPU;
+extern std::string Prefix;
+extern uint32_t PrefixStrip;
+extern bool PrintImmHex;
+extern bool PrintLines;
+extern bool PrintSource;
+extern bool PrivateHeaders;
+extern bool Relocations;
+extern bool SectionHeaders;
+extern bool SectionContents;
+extern bool ShowRawInsn;
+extern bool SymbolDescription;
+extern bool SymbolTable;
+extern std::string TripleName;
+extern bool UnwindInfo;
 
 extern StringSet<> FoundSectionSet;
 
@@ -122,18 +124,19 @@ SectionFilter ToolSectionFilter(llvm::object::ObjectFile const &O,
 bool isRelocAddressLess(object::RelocationRef A, object::RelocationRef B);
 void printRelocations(const object::ObjectFile *O);
 void printDynamicRelocations(const object::ObjectFile *O);
-void printSectionHeaders(const object::ObjectFile *O);
+void printSectionHeaders(object::ObjectFile &O);
 void printSectionContents(const object::ObjectFile *O);
-void printSymbolTable(const object::ObjectFile *O, StringRef ArchiveName,
+void printSymbolTable(const object::ObjectFile &O, StringRef ArchiveName,
                       StringRef ArchitectureName = StringRef(),
                       bool DumpDynamic = false);
-void printSymbol(const object::ObjectFile *O, const object::SymbolRef &Symbol,
+void printSymbol(const object::ObjectFile &O, const object::SymbolRef &Symbol,
+                 ArrayRef<object::VersionEntry> SymbolVersions,
                  StringRef FileName, StringRef ArchiveName,
                  StringRef ArchitectureName, bool DumpDynamic);
-LLVM_ATTRIBUTE_NORETURN void reportError(StringRef File, const Twine &Message);
-LLVM_ATTRIBUTE_NORETURN void reportError(Error E, StringRef FileName,
-                                         StringRef ArchiveName = "",
-                                         StringRef ArchitectureName = "");
+[[noreturn]] void reportError(StringRef File, const Twine &Message);
+[[noreturn]] void reportError(Error E, StringRef FileName,
+                              StringRef ArchiveName = "",
+                              StringRef ArchitectureName = "");
 void reportWarning(const Twine &Message, StringRef File);
 
 template <typename T, typename... Ts>
@@ -145,7 +148,7 @@ T unwrapOrError(Expected<T> EO, Ts &&... Args) {
 
 std::string getFileNameForError(const object::Archive::Child &C,
                                 unsigned Index);
-SymbolInfoTy createSymbolInfo(const object::ObjectFile *Obj,
+SymbolInfoTy createSymbolInfo(const object::ObjectFile &Obj,
                               const object::SymbolRef &Symbol);
 
 } // namespace objdump

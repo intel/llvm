@@ -29,9 +29,9 @@ public:
 
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
-                          CharSourceRange FileNameRange, const FileEntry *File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          CharSourceRange FileNameRange,
+                          Optional<FileEntryRef> File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
 
   void EndOfMainFile() override;
@@ -62,17 +62,17 @@ void KernelNameRestrictionCheck::registerPPCallbacks(const SourceManager &SM,
 
 void KernelNameRestrictionPPCallbacks::InclusionDirective(
     SourceLocation HashLoc, const Token &, StringRef FileName, bool,
-    CharSourceRange, const FileEntry *, StringRef, StringRef, const Module *,
-    SrcMgr::CharacteristicKind) {
+    CharSourceRange, Optional<FileEntryRef>, StringRef, StringRef,
+    const Module *, SrcMgr::CharacteristicKind) {
   IncludeDirective ID = {HashLoc, FileName};
   IncludeDirectives.push_back(std::move(ID));
 }
 
 bool KernelNameRestrictionPPCallbacks::fileNameIsRestricted(
     StringRef FileName) {
-  return FileName.equals_lower("kernel.cl") ||
-         FileName.equals_lower("verilog.cl") ||
-         FileName.equals_lower("vhdl.cl");
+  return FileName.equals_insensitive("kernel.cl") ||
+         FileName.equals_insensitive("verilog.cl") ||
+         FileName.equals_insensitive("vhdl.cl");
 }
 
 void KernelNameRestrictionPPCallbacks::EndOfMainFile() {

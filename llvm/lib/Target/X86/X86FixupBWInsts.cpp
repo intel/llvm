@@ -137,6 +137,8 @@ private:
   /// Machine instruction info used throughout the class.
   const X86InstrInfo *TII = nullptr;
 
+  const TargetRegisterInfo *TRI = nullptr;
+
   /// Local member for function's OptForSize attribute.
   bool OptForSize = false;
 
@@ -162,6 +164,7 @@ bool FixupBWInstPass::runOnMachineFunction(MachineFunction &MF) {
 
   this->MF = &MF;
   TII = MF.getSubtarget<X86Subtarget>().getInstrInfo();
+  TRI = MF.getRegInfo().getTargetRegisterInfo();
   MLI = &getAnalysis<MachineLoopInfo>();
   PSI = &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
   MBFI = (PSI && PSI->hasProfileSummary()) ?
@@ -303,6 +306,14 @@ MachineInstr *FixupBWInstPass::tryReplaceLoad(unsigned New32BitOpcode,
 
   MIB.setMemRefs(MI->memoperands());
 
+  // If it was debug tracked, record a substitution.
+  if (unsigned OldInstrNum = MI->peekDebugInstrNum()) {
+    unsigned Subreg = TRI->getSubRegIndex(MIB->getOperand(0).getReg(),
+                                          MI->getOperand(0).getReg());
+    unsigned NewInstrNum = MIB->getDebugInstrNum(*MF);
+    MF->makeDebugValueSubstitution({OldInstrNum, 0}, {NewInstrNum, 0}, Subreg);
+  }
+
   return MIB;
 }
 
@@ -366,6 +377,13 @@ MachineInstr *FixupBWInstPass::tryReplaceExtend(unsigned New32BitOpcode,
 
   MIB.setMemRefs(MI->memoperands());
 
+  if (unsigned OldInstrNum = MI->peekDebugInstrNum()) {
+    unsigned Subreg = TRI->getSubRegIndex(MIB->getOperand(0).getReg(),
+                                          MI->getOperand(0).getReg());
+    unsigned NewInstrNum = MIB->getDebugInstrNum(*MF);
+    MF->makeDebugValueSubstitution({OldInstrNum, 0}, {NewInstrNum, 0}, Subreg);
+  }
+
   return MIB;
 }
 
@@ -375,12 +393,12 @@ MachineInstr *FixupBWInstPass::tryReplaceInstr(MachineInstr *MI,
   switch (MI->getOpcode()) {
 
   case X86::MOV8rm:
-    // Only replace 8 bit loads with the zero extending versions if
-    // in an inner most loop and not optimizing for size. This takes
-    // an extra byte to encode, and provides limited performance upside.
-    if (MachineLoop *ML = MLI->getLoopFor(&MBB))
-      if (ML->begin() == ML->end() && !OptForSize)
-        return tryReplaceLoad(X86::MOVZX32rm8, MI);
+    // Replace 8-bit loads with the zero-extending version if not optimizing
+    // for size. The extending op is cheaper across a wide range of uarch and
+    // it avoids a potentially expensive partial register stall. It takes an
+    // extra byte to encode, however, so don't do this when optimizing for size.
+    if (!OptForSize)
+      return tryReplaceLoad(X86::MOVZX32rm8, MI);
     break;
 
   case X86::MOV16rm:
@@ -439,14 +457,12 @@ void FixupBWInstPass::processBasicBlock(MachineFunction &MF,
   OptForSize = MF.getFunction().hasOptSize() ||
                llvm::shouldOptimizeForSize(&MBB, PSI, MBFI);
 
-  for (auto I = MBB.rbegin(); I != MBB.rend(); ++I) {
-    MachineInstr *MI = &*I;
-
-    if (MachineInstr *NewMI = tryReplaceInstr(MI, MBB))
-      MIReplacements.push_back(std::make_pair(MI, NewMI));
+  for (MachineInstr &MI : llvm::reverse(MBB)) {
+    if (MachineInstr *NewMI = tryReplaceInstr(&MI, MBB))
+      MIReplacements.push_back(std::make_pair(&MI, NewMI));
 
     // We're done with this instruction, update liveness for the next one.
-    LiveRegs.stepBackward(*MI);
+    LiveRegs.stepBackward(MI);
   }
 
   while (!MIReplacements.empty()) {

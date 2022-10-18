@@ -1,6 +1,6 @@
 // RUN: mlir-opt %s -test-linalg-transform-patterns=test-tile-and-distribute-options -split-input-file | FileCheck %s
 
-func @gemm1(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
+func.func @gemm1(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 {
   linalg.matmul {__internal_linalg_transform__ = "distribute1"}
     ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
@@ -12,21 +12,21 @@ func @gemm1(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 // CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG2:[a-zA-Z0-9_]*]]: memref<?x?xf32>
-//      CHECK: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
-//      CHECK: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
+//  CHECK-DAG: %[[BIDY:.*]] = gpu.block_id y
+//  CHECK-DAG: %[[BIDX:.*]] = gpu.block_id x
 //      CHECK: scf.for %[[ARG3:.*]] =
 //      CHECK:   %[[OFFSETY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
-//      CHECK:   %[[SV1:.*]] = memref.subview %[[ARG0]][%[[OFFSETY]], %[[ARG3]]]
 //      CHECK:   %[[OFFSETX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK:   %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG3]], %[[OFFSETX]]]
 //      CHECK:   %[[OFFSETY_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
-//      CHECK:   %[[OFFSETX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK:   %[[SV3:.*]] = memref.subview %[[ARG2]][%[[OFFSETY_2]], %[[OFFSETX]]]
+//      CHECK:   %[[OFFSETX_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
+//      CHECK:   %[[SV1:.*]] = memref.subview %[[ARG0]][%[[OFFSETY]], %[[ARG3]]]
+//      CHECK:   %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG3]], %[[OFFSETX]]]
+//      CHECK:   %[[SV3:.*]] = memref.subview %[[ARG2]][%[[OFFSETY_2]], %[[OFFSETX_2]]]
 //      CHECK:   linalg.matmul ins(%[[SV1]], %[[SV2]]{{.*}} outs(%[[SV3]]
 
 // -----
 
-func @gemm2(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
+func.func @gemm2(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 {
   linalg.matmul  {__internal_linalg_transform__ = "distribute2"}
     ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
@@ -38,27 +38,27 @@ func @gemm2(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 // CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG2:[a-zA-Z0-9_]*]]: memref<?x?xf32>
-//  CHECK-DAG: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
-//  CHECK-DAG: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
+//  CHECK-DAG: %[[BIDY:.*]] = gpu.block_id y
+//  CHECK-DAG: %[[BIDX:.*]] = gpu.block_id x
 //      CHECK: %[[ITERY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK: %[[ITERX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK: %[[INBOUNDSY:.*]] = cmpi slt, %[[ITERY]], %{{.*}}
-//      CHECK: %[[INBOUNDSX:.*]] = cmpi slt, %[[ITERX]], %{{.*}}
-//      CHECK: %[[INBOUNDS:.*]] = and %[[INBOUNDSY]], %[[INBOUNDSX]]
+//      CHECK: %[[INBOUNDSY:.*]] = arith.cmpi slt, %[[ITERY]], %{{.*}}
+//      CHECK: %[[INBOUNDSX:.*]] = arith.cmpi slt, %[[ITERX]], %{{.*}}
+//      CHECK: %[[INBOUNDS:.*]] = arith.andi %[[INBOUNDSY]], %[[INBOUNDSX]]
 //      CHECK: scf.if %[[INBOUNDS]]
 //      CHECK:   scf.for %[[ARG3:.*]] =
 //      CHECK:     %[[OFFSETY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
-//      CHECK:     %[[SV1:.*]] = memref.subview %[[ARG0]][%[[OFFSETY]], %[[ARG3]]]
 //      CHECK:     %[[OFFSETX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK:     %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG3]], %[[OFFSETX]]]
 //      CHECK:     %[[OFFSETY_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK:     %[[OFFSETX_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
+//      CHECK:     %[[SV1:.*]] = memref.subview %[[ARG0]][%[[OFFSETY]], %[[ARG3]]]
+//      CHECK:     %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG3]], %[[OFFSETX]]]
 //      CHECK:     %[[SV3:.*]] = memref.subview %[[ARG2]][%[[OFFSETY_2]], %[[OFFSETX_2]]]
 //      CHECK:     linalg.matmul ins(%[[SV1]], %[[SV2]]{{.*}} outs(%[[SV3]]
 
 // -----
 
-func @gemm3(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
+func.func @gemm3(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 {
   linalg.matmul {__internal_linalg_transform__ = "distribute3"}
     ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
@@ -70,10 +70,10 @@ func @gemm3(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 // CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG2:[a-zA-Z0-9_]*]]: memref<?x?xf32>
-//      CHECK: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
-//      CHECK: %[[NBLOCKSY:.*]] = "gpu.grid_dim"() {dimension = "y"}
-//      CHECK: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
-//      CHECK: %[[NBLOCKSX:.*]] = "gpu.grid_dim"() {dimension = "x"}
+//  CHECK-DAG: %[[BIDY:.*]] = gpu.block_id y
+//  CHECK-DAG: %[[NBLOCKSY:.*]] = gpu.grid_dim y
+//  CHECK-DAG: %[[BIDX:.*]] = gpu.block_id x
+//  CHECK-DAG: %[[NBLOCKSX:.*]] = gpu.grid_dim x
 //      CHECK: %[[LBY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK: %[[STEPY:.*]] = affine.apply #[[MAP0]]()[%[[NBLOCKSY]]]
 //      CHECK: %[[LBX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
@@ -87,7 +87,7 @@ func @gemm3(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 
 // -----
 
-func @gemm4(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
+func.func @gemm4(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 {
   linalg.matmul {__internal_linalg_transform__ = "distribute4"}
     ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
@@ -99,24 +99,24 @@ func @gemm4(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 // CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG2:[a-zA-Z0-9_]*]]: memref<?x?xf32>
-//      CHECK: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
-//      CHECK: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
+//  CHECK-DAG: %[[BIDY:.*]] = gpu.block_id y
+//  CHECK-DAG: %[[BIDX:.*]] = gpu.block_id x
 //      CHECK: %[[LBX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK: %[[INBOUNDS:.*]] = cmpi slt, %[[LBX]], %{{.*}}
+//      CHECK: %[[INBOUNDS:.*]] = arith.cmpi slt, %[[LBX]], %{{.*}}
 //      CHECK: scf.if %[[INBOUNDS]]
 //      CHECK:   scf.for %[[ARG3:.*]] =
 //      CHECK:     %[[OFFSETY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
-//      CHECK:     %[[SV1:.*]] = memref.subview %[[ARG0]][%[[OFFSETY]], %[[ARG3]]]
 //      CHECK:     %[[OFFSETX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK:     %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG3]], %[[OFFSETX]]]
 //      CHECK:     %[[OFFSETY_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK:     %[[OFFSETX_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
+//      CHECK:     %[[SV1:.*]] = memref.subview %[[ARG0]][%[[OFFSETY]], %[[ARG3]]]
+//      CHECK:     %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG3]], %[[OFFSETX]]]
 //      CHECK:     %[[SV3:.*]] = memref.subview %[[ARG2]][%[[OFFSETY_2]], %[[OFFSETX_2]]]
 //      CHECK:     linalg.matmul ins(%[[SV1]], %[[SV2]]{{.*}} outs(%[[SV3]]
 
 // -----
 
-func @gemm5(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
+func.func @gemm5(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 {
   linalg.matmul {__internal_linalg_transform__ = "distribute5"}
     ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
@@ -128,26 +128,26 @@ func @gemm5(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 // CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG2:[a-zA-Z0-9_]*]]: memref<?x?xf32>
-//      CHECK: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
-//      CHECK: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
-//      CHECK: %[[NBLOCKSX:.*]] = "gpu.grid_dim"() {dimension = "x"}
+//  CHECK-DAG: %[[BIDY:.*]] = gpu.block_id y
+//  CHECK-DAG: %[[BIDX:.*]] = gpu.block_id x
+//  CHECK-DAG: %[[NBLOCKSX:.*]] = gpu.grid_dim x
 //      CHECK: %[[LBY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK: %[[LBX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
 //      CHECK: %[[STEPX:.*]] = affine.apply #[[MAP0]]()[%[[NBLOCKSX]]]
-//      CHECK: %[[INBOUNDS:.*]] = cmpi slt, %[[LBY]], %{{.*}}
+//      CHECK: %[[INBOUNDS:.*]] = arith.cmpi slt, %[[LBY]], %{{.*}}
 //      CHECK: scf.if %[[INBOUNDS]]
 //      CHECK:   scf.parallel (%[[ARG3:.*]]) = (%[[LBX]]) to (%{{.*}}) step (%[[STEPX]])
 //      CHECK:     scf.for %[[ARG4:.*]] =
 //      CHECK:      %[[OFFSETY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
+//      CHECK:       %[[OFFSETY_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK:       %[[SV1:.*]] = memref.subview %[[ARG0]][%[[OFFSETY]], %[[ARG4]]]
 //      CHECK:       %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG4]], %[[ARG3]]]
-//      CHECK:       %[[OFFSETY_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK:       %[[SV3:.*]] = memref.subview %[[ARG2]][%[[OFFSETY_2]], %[[ARG3]]]
 //      CHECK:       linalg.matmul ins(%[[SV1]], %[[SV2]]{{.*}} outs(%[[SV3]]
 
 // -----
 
-func @gemm6(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
+func.func @gemm6(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 {
   linalg.matmul {__internal_linalg_transform__ = "distribute6"}
     ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
@@ -159,17 +159,17 @@ func @gemm6(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 // CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<?x?xf32>
 // CHECK-SAME: %[[ARG2:[a-zA-Z0-9_]*]]: memref<?x?xf32>
-//      CHECK: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
-//      CHECK: %[[NBLOCKSY:.*]] = "gpu.grid_dim"() {dimension = "y"}
-//      CHECK: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
+//  CHECK-DAG: %[[BIDY:.*]] = gpu.block_id y
+//  CHECK-DAG: %[[NBLOCKSY:.*]] = gpu.grid_dim y
+//  CHECK-DAG: %[[BIDX:.*]] = gpu.block_id x
 //      CHECK: %[[LBY:.*]] = affine.apply #[[MAP0]]()[%[[BIDY]]]
 //      CHECK: %[[STEPY:.*]] = affine.apply #[[MAP0]]()[%[[NBLOCKSY]]]
 //      CHECK: scf.parallel (%[[ARG3:.*]]) = (%[[LBY]]) to (%{{.*}}) step (%[[STEPY]])
 //      CHECK:   scf.for %[[ARG4:.*]] =
-//      CHECK:     %[[SV1:.*]] = memref.subview %[[ARG0]][%[[ARG3]], %[[ARG4]]]
 //      CHECK:     %[[OFFSETX:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
-//      CHECK:     %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG4]], %[[OFFSETX]]]
 //      CHECK:     %[[OFFSETX_2:.*]] = affine.apply #[[MAP0]]()[%[[BIDX]]]
+//      CHECK:     %[[SV1:.*]] = memref.subview %[[ARG0]][%[[ARG3]], %[[ARG4]]]
+//      CHECK:     %[[SV2:.*]] = memref.subview %[[ARG1]][%[[ARG4]], %[[OFFSETX]]]
 //      CHECK:     %[[SV3:.*]] = memref.subview %[[ARG2]][%[[ARG3]], %[[OFFSETX_2]]]
 //      CHECK:     linalg.matmul ins(%[[SV1]], %[[SV2]]{{.*}} outs(%[[SV3]]
 
@@ -181,15 +181,15 @@ func @gemm6(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>)
 // CHECK-SAME:    %[[TA:[0-9a-z]+]]: tensor<?x?xf32>
 // CHECK-SAME:    %[[TB:[0-9a-z]+]]: tensor<?x?xf32>
 // CHECK-SAME:    %[[TC:[0-9a-z]+]]: tensor<?x?xf32>) -> tensor<?x?xf32> {
-func @matmul_tensors(
+func.func @matmul_tensors(
   %arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>, %arg2: tensor<?x?xf32>)
     -> tensor<?x?xf32> {
-//  CHECK-DAG: %[[C8:.*]] = constant 8 : index
-//  CHECK-DAG: %[[C0:.*]] = constant 0 : index
-//      CHECK: %[[BIDY:.*]] = "gpu.block_id"() {dimension = "y"}
-//      CHECK: %[[NBLOCKSY:.*]] = "gpu.grid_dim"() {dimension = "y"}
-//      CHECK: %[[BIDX:.*]] = "gpu.block_id"() {dimension = "x"}
-//      CHECK: %[[NBLOCKSX:.*]] = "gpu.grid_dim"() {dimension = "x"}
+//  CHECK-DAG: %[[C8:.*]] = arith.constant 8 : index
+//  CHECK-DAG: %[[C0:.*]] = arith.constant 0 : index
+//  CHECK-DAG: %[[BIDY:.*]] = gpu.block_id y
+//  CHECK-DAG: %[[NBLOCKSY:.*]] = gpu.grid_dim y
+//  CHECK-DAG: %[[BIDX:.*]] = gpu.block_id x
+//  CHECK-DAG: %[[NBLOCKSX:.*]] = gpu.grid_dim x
 //      CHECK: %[[MUL:.+]] = affine.apply #[[MULMAP]]()[%[[BIDY]], %[[C8]]]
 //      CHECK: %[[LBY:.+]] = affine.apply #[[ADDMAP]]()[%[[MUL]], %[[C0]]]
 //      CHECK: %[[STEPY:.+]] = affine.apply #[[MULMAP]]()[%[[NBLOCKSY]], %[[C8]]]
@@ -199,12 +199,12 @@ func @matmul_tensors(
 //      CHECK: %[[STEPX:.+]] = affine.apply #[[MULMAP]]()[%[[NBLOCKSX]], %[[C8]]]
 //      CHECK:   %[[TD1:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC1:.*]] = %[[TC0]]) -> (tensor<?x?xf32>) {
 //      CHECK:     %[[TD2:.*]] = scf.for {{.*}} to {{.*}} step {{.*}} iter_args(%[[TC2:.*]] = %[[TC1]]) -> (tensor<?x?xf32>) {
-//      CHECK:       %[[sTA:.*]] = subtensor %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTB:.*]] = subtensor %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
-//      CHECK:       %[[sTC:.*]] = subtensor %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTA:.*]] = tensor.extract_slice %[[TA]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTB:.*]] = tensor.extract_slice %[[TB]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
+//      CHECK:       %[[sTC:.*]] = tensor.extract_slice %[[TC2]][{{.*}}] : tensor<?x?xf32> to tensor<?x?xf32>
 //      CHECK:       %[[sTD:.*]] = linalg.matmul ins(%[[sTA]], %[[sTB]] : tensor<?x?xf32>, tensor<?x?xf32>)
 // CHECK-SAME:                                  outs(%[[sTC]] : tensor<?x?xf32>)  -> tensor<?x?xf32>
-//      CHECK:       %[[TD:.*]] = subtensor_insert %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
+//      CHECK:       %[[TD:.*]] = tensor.insert_slice %[[sTD]] into %[[TC2]][{{.*}}]  : tensor<?x?xf32> into tensor<?x?xf32>
 //      CHECK:       scf.yield %[[TD]] : tensor<?x?xf32>
 //      CHECK:     scf.yield %[[TD2]] : tensor<?x?xf32>
 //      CHECK:   scf.yield %[[TD1]] : tensor<?x?xf32>

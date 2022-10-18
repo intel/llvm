@@ -361,6 +361,18 @@ pre-existing debug info metadata. It could be run as follows:
   # Check the preservation of original Debug Info after each pass.
   $ opt -verify-each-debuginfo-preserve -O2 sample.ll
 
+Limit number of observed functions to speed up the analysis:
+
+.. code-block:: bash
+
+  # Test up to 100 functions (per compile unit) per pass.
+  $ opt -verify-each-debuginfo-preserve -O2 -debugify-func-limit=100 sample.ll
+
+Please do note that running ``-verify-each-debuginfo-preserve`` on big projects
+could be heavily time consuming. Therefore, we suggest using
+``-debugify-func-limit`` with a suitable limit number to prevent extremely long
+builds.
+
 Furthermore, there is a way to export the issues that have been found into
 a JSON file as follows:
 
@@ -386,6 +398,9 @@ as follows:
 
   # Test each pass and export the issues report into the JSON file.
   $ clang -Xclang -fverify-debuginfo-preserve -Xclang -fverify-debuginfo-preserve-export=sample.json -g -O2 sample.c
+
+Please do note that there are some known false positives, for source locations
+and debug intrinsic checking, so that will be addressed as a future work.
 
 Mutation testing for MIR-level transformations
 ----------------------------------------------

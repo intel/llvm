@@ -19,10 +19,12 @@
 #include "RegisterValue.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstBuilder.h"
 #include "llvm/Support/YAMLTraits.h"
 #include <limits>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -67,7 +69,7 @@ struct InstructionBenchmark {
   const MCInst &keyInstruction() const { return Key.Instructions[0]; }
   // The number of instructions inside the repeated snippet. For example, if a
   // snippet of 3 instructions is repeated 4 times, this is 12.
-  int NumRepetitions = 0;
+  unsigned NumRepetitions = 0;
   enum RepetitionModeE { Duplicate, Loop, AggregateMin };
   // Note that measurements are per instruction.
   std::vector<BenchmarkMeasure> Measurements;
@@ -78,10 +80,22 @@ struct InstructionBenchmark {
   enum ResultAggregationModeE { Min, Max, Mean, MinVariance };
   // Read functions.
   static Expected<InstructionBenchmark> readYaml(const LLVMState &State,
-                                                 StringRef Filename);
+                                                 MemoryBufferRef Buffer);
 
   static Expected<std::vector<InstructionBenchmark>>
-  readYamls(const LLVMState &State, StringRef Filename);
+  readYamls(const LLVMState &State, MemoryBufferRef Buffer);
+
+  // Given a set of serialized instruction benchmarks, returns the set of
+  // triples and CPUs that appear in the list of benchmarks.
+  struct TripleAndCpu {
+    std::string LLVMTriple;
+    std::string CpuName;
+    bool operator<(const TripleAndCpu &O) const {
+      return std::tie(LLVMTriple, CpuName) < std::tie(O.LLVMTriple, O.CpuName);
+    }
+  };
+  static Expected<std::set<TripleAndCpu>>
+  readTriplesAndCpusFromYamls(MemoryBufferRef Buffer);
 
   class Error readYamlFrom(const LLVMState &State, StringRef InputContent);
 
@@ -90,6 +104,8 @@ struct InstructionBenchmark {
 
   class Error writeYaml(const LLVMState &State, const StringRef Filename);
 };
+
+bool operator==(const BenchmarkMeasure &A, const BenchmarkMeasure &B);
 
 //------------------------------------------------------------------------------
 // Utilities to work with Benchmark measures.

@@ -59,6 +59,13 @@ void GuardedPoolAllocator::init(const options::Options &Opts) {
   SingletonPtr = this;
   Backtrace = Opts.Backtrace;
 
+  State.VersionMagic = {{AllocatorVersionMagic::kAllocatorVersionMagic[0],
+                         AllocatorVersionMagic::kAllocatorVersionMagic[1],
+                         AllocatorVersionMagic::kAllocatorVersionMagic[2],
+                         AllocatorVersionMagic::kAllocatorVersionMagic[3]},
+                        AllocatorVersionMagic::kAllocatorVersion,
+                        0};
+
   State.MaxSimultaneousAllocations = Opts.MaxSimultaneousAllocations;
 
   const size_t PageSize = getPlatformPageSize();
@@ -258,7 +265,10 @@ void GuardedPoolAllocator::trapOnAddress(uintptr_t Address, Error E) {
   // Raise a SEGV by touching first guard page.
   volatile char *p = reinterpret_cast<char *>(State.GuardedPagePool);
   *p = 0;
-  __builtin_unreachable();
+  // Normally, would be __builtin_unreachable(), but because of
+  // https://bugs.llvm.org/show_bug.cgi?id=47480, unreachable will DCE the
+  // volatile store above, even though it has side effects.
+  __builtin_trap();
 }
 
 void GuardedPoolAllocator::stop() {

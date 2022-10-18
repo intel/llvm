@@ -6,14 +6,17 @@ unittest("BasicTests") {
     "//clang/lib/Basic",
     "//clang/lib/Lex",
     "//llvm/lib/Support",
+    "//llvm/lib/Testing/Support",
   ]
   sources = [
     "CharInfoTest.cpp",
+    "DarwinSDKInfoTest.cpp",
     "DiagnosticTest.cpp",
     "FileEntryTest.cpp",
     "FileManagerTest.cpp",
     "LineOffsetMappingTest.cpp",
     "SanitizersTest.cpp",
+    "SarifTest.cpp",
     "SourceManagerTest.cpp",
   ]
 }

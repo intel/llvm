@@ -1,10 +1,20 @@
 ; RUN: llc -verify-machineinstrs -mtriple powerpc-ibm-aix-xcoff -mcpu=pwr4 \
 ; RUN:     -mattr=-altivec -simplifycfg-require-and-preserve-domtree=1 < %s | \
-; RUN:   FileCheck --check-prefixes=ASM,ASM32 %s
+; RUN:   FileCheck --check-prefixes=ASM,ASMNFS,ASM32 %s
 
 ; RUN: llc -verify-machineinstrs -mtriple powerpc64-ibm-aix-xcoff -mcpu=pwr4 \
 ; RUN:     -mattr=-altivec -simplifycfg-require-and-preserve-domtree=1 < %s | \
-; RUN:   FileCheck --check-prefixes=ASM,ASM64 %s
+; RUN:   FileCheck --check-prefixes=ASM,ASMNFS,ASM64 %s
+
+; RUN: llc -verify-machineinstrs -mtriple powerpc-ibm-aix-xcoff -mcpu=pwr4 \
+; RUN:     -mattr=-altivec -simplifycfg-require-and-preserve-domtree=1 \
+; RUN:     -function-sections < %s | \
+; RUN:   FileCheck --check-prefixes=ASM,ASMFS,ASM32 %s
+
+; RUN: llc -verify-machineinstrs -mtriple powerpc64-ibm-aix-xcoff -mcpu=pwr4 \
+; RUN:     -mattr=-altivec -simplifycfg-require-and-preserve-domtree=1 \
+; RUN:     -function-sections < %s | \
+; RUN:   FileCheck --check-prefixes=ASM,ASMFS,ASM64 %s
 
 @_ZTIi = external constant i8*
 
@@ -17,7 +27,8 @@ entry:
   unreachable
 }
 
-; ASM:    ._Z9throwFuncv:
+; ASMNFS: ._Z9throwFuncv:
+; ASMFS:    .csect ._Z9throwFuncv[PR],5
 ; ASM:      bl .__cxa_allocate_exception[PR]
 ; ASM:      nop
 ; ASM32:    lwz 4, L..C0(2)
@@ -78,7 +89,8 @@ eh.resume:                                        ; preds = %catch.dispatch
   resume { i8*, i32 } %lpad.val3
 }
 
-; ASM:  ._Z9catchFuncv:
+; ASMNFS: ._Z9catchFuncv:
+; ASMFS:        .csect ._Z9catchFuncv[PR],5
 ; ASM:  L..func_begin0:
 ; ASM:  # %bb.0:                                # %entry
 ; ASM:  	mflr 0
@@ -103,27 +115,29 @@ eh.resume:                                        ; preds = %catch.dispatch
 ; ASM:    .vbyte  4, 0x00000000                   # Traceback table begin
 ; ASM:    .byte   0x00                            # Version = 0
 ; ASM:    .byte   0x09                            # Language = CPlusPlus
-; ASM:    .byte   0x22                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
+; ASM:    .byte   0x20                            # -IsGlobaLinkage, -IsOutOfLineEpilogOrPrologue
 ; ASM:                                    # +HasTraceBackTableOffset, -IsInternalProcedure
 ; ASM:                                    # -HasControlledStorage, -IsTOCless
-; ASM:                                    # +IsFloatingPointPresent
+; ASM:                                    # -IsFloatingPointPresent
 ; ASM:                                    # -IsFloatingPointOperationLogOrAbortEnabled
 ; ASM:    .byte   0x41                            # -IsInterruptHandler, +IsFunctionNamePresent, -IsAllocaUsed
 ; ASM:                                    # OnConditionDirective = 0, -IsCRSaved, +IsLRSaved
 ; ASM:    .byte   0x80                            # +IsBackChainStored, -IsFixup, NumOfFPRsSaved = 0
-; ASM:    .byte   0x40                            # -HasVectorInfo, +HasExtensionTable, NumOfGPRsSaved = 0
+; ASM:    .byte   0x80                            # +HasExtensionTable, -HasVectorInfo, NumOfGPRsSaved = 0
 ; ASM:    .byte   0x00                            # NumberOfFixedParms = 0
 ; ASM:    .byte   0x01                            # NumberOfFPParms = 0, +HasParmsOnStack
-; ASM:    .vbyte  4, L.._Z9catchFuncv0-._Z9catchFuncv # Function size
+; ASMNFS: .vbyte  4, L.._Z9catchFuncv0-._Z9catchFuncv # Function size
+; ASMFS:  .vbyte  4, L.._Z9catchFuncv0-._Z9catchFuncv[PR] # Function size
 ; ASM:    .vbyte  2, 0x000d                       # Function name len = 13
-; ASM:    .byte   '_,'Z,'9,'c,'a,'t,'c,'h,'F,'u,'n,'c,'v # Function Name
+; ASM:    .byte   "_Z9catchFuncv"                 # Function Name
 ; ASM:    .byte   0x08                            # ExtensionTableFlag = TB_EH_INFO
 ; ASM:    .align  2
 ; ASM32:  .vbyte  4, L..C1-TOC[TC0]               # EHInfo Table
 ; ASM64:  .vbyte  8, L..C1-TOC[TC0]               # EHInfo Table
 ; ASM:  L..func_end0:
 
-; ASM:  	.csect .gcc_except_table[RO],2
+; ASMNFS:  	.csect .gcc_except_table[RO],2
+; ASMFS:  	.csect .gcc_except_table._Z9catchFuncv[RO],2
 ; ASM:  	.align	2
 ; ASM:  GCC_except_table1:
 ; ASM:  L..exception0:
@@ -153,7 +167,8 @@ eh.resume:                                        ; preds = %catch.dispatch
 ; ASM:  L..ttbase0:
 ; ASM:  	.align	2
 
-; ASM:  	.csect .eh_info_table[RW],2
+; ASMNFS:  	.csect .eh_info_table[RW],2
+; ASMFS:  	.csect .eh_info_table._Z9catchFuncv[RW],2
 ; ASM:  __ehinfo.1:
 ; ASM:  	.vbyte	4, 0
 ; ASM32:  .align  2

@@ -14,7 +14,7 @@ define void @int322(i32 %foo) !dbg !5 {
 entry:
   %val = load i64, i64* getelementptr (%0, %0* bitcast (%struct.S1* @g_10 to %0*), i32 0, i32 0), !dbg !16
   %0 = load i32, i32* getelementptr inbounds (%struct.S1, %struct.S1* @g_10, i32 0, i32 1), align 4, !dbg !17
-; MIR: renamable {{\$r[a-z]+}} = MOVSX64rm32 {{.*}}, @g_10 + 4,{{.*}} debug-location !17 :: (dereferenceable load 4 from `i64* getelementptr (%0, %0* bitcast (%struct.S1* @g_10 to %0*), i32 0, i32 0)` + 4)
+; MIR: renamable {{\$r[a-z]+}} = MOVSX64rm32 {{.*}}, @g_10 + 4,{{.*}} debug-location !17 :: (dereferenceable load (s32) from `i64* getelementptr (%0, %0* bitcast (%struct.S1* @g_10 to %0*), i32 0, i32 0)` + 4)
   %1 = sext i32 %0 to i64, !dbg !18
   %tmp4.i = lshr i64 %val, 32, !dbg !19
   %tmp5.i = trunc i64 %tmp4.i to i32, !dbg !20
@@ -35,7 +35,7 @@ declare void @llvm.dbg.value(metadata, metadata, metadata)
 !llvm.debugify = !{!3, !4}
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: "debugify", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2)
-!1 = !DIFile(filename: "/Users/vsk/src/llvm.org-master/llvm/test/CodeGen/X86/fold-sext-trunc.ll", directory: "/")
+!1 = !DIFile(filename: "/Users/vsk/src/llvm.org-main/llvm/test/CodeGen/X86/fold-sext-trunc.ll", directory: "/")
 !2 = !{}
 !3 = !{i32 8}
 !4 = !{i32 6}

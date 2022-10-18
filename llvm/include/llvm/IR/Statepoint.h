@@ -19,10 +19,9 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Attributes.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Instruction.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
@@ -52,8 +51,9 @@ enum class StatepointFlags {
   MaskAll = 3 ///< A bitmask that includes all valid flags.
 };
 
+// These two are defined in IntrinsicInst since they're part of the
+// IntrinsicInst class hierarchy.
 class GCRelocateInst;
-class GCResultInst;
 
 /// Represents a gc.statepoint intrinsic call.  This extends directly from
 /// CallBase as the IntrinsicInst only supports calls and gc.statepoint is
@@ -120,9 +120,8 @@ public:
   /// Return the type of the value returned by the call underlying the
   /// statepoint.
   Type *getActualReturnType() const {
-    auto *CalleeTy =
-      cast<PointerType>(getActualCalledOperand()->getType())->getElementType();
-    return cast<FunctionType>(CalleeTy)->getReturnType();
+    auto *FT = cast<FunctionType>(getParamElementType(CalledFunctionPos));
+    return FT->getReturnType();
   }
 
 
@@ -202,102 +201,6 @@ public:
   /// For example this could happen due to relocations on unwinding
   /// path of invoke.
   inline std::vector<const GCRelocateInst *> getGCRelocates() const;
-
-  /// Returns pair of boolean flags. The first one is true is there is
-  /// a gc.result intrinsic in the same block as statepoint. The second flag
-  /// is true if there is an intrinsic outside of the block with statepoint.
-  inline std::pair<bool, bool> getGCResultLocality() const;
-};
-
-/// Common base class for representing values projected from a statepoint.
-/// Currently, the only projections available are gc.result and gc.relocate.
-class GCProjectionInst : public IntrinsicInst {
-public:
-  static bool classof(const IntrinsicInst *I) {
-    return I->getIntrinsicID() == Intrinsic::experimental_gc_relocate ||
-      I->getIntrinsicID() == Intrinsic::experimental_gc_result;
-  }
-
-  static bool classof(const Value *V) {
-    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
-  }
-
-  /// Return true if this relocate is tied to the invoke statepoint.
-  /// This includes relocates which are on the unwinding path.
-  bool isTiedToInvoke() const {
-    const Value *Token = getArgOperand(0);
-
-    return isa<LandingPadInst>(Token) || isa<InvokeInst>(Token);
-  }
-
-  /// The statepoint with which this gc.relocate is associated.
-  const GCStatepointInst *getStatepoint() const {
-    const Value *Token = getArgOperand(0);
-
-    // This takes care both of relocates for call statepoints and relocates
-    // on normal path of invoke statepoint.
-    if (!isa<LandingPadInst>(Token))
-      return cast<GCStatepointInst>(Token);
-
-    // This relocate is on exceptional path of an invoke statepoint
-    const BasicBlock *InvokeBB =
-        cast<Instruction>(Token)->getParent()->getUniquePredecessor();
-
-    assert(InvokeBB && "safepoints should have unique landingpads");
-    assert(InvokeBB->getTerminator() &&
-           "safepoint block should be well formed");
-
-    return cast<GCStatepointInst>(InvokeBB->getTerminator());
-  }
-};
-
-/// Represents calls to the gc.relocate intrinsic.
-class GCRelocateInst : public GCProjectionInst {
-public:
-  static bool classof(const IntrinsicInst *I) {
-    return I->getIntrinsicID() == Intrinsic::experimental_gc_relocate;
-  }
-
-  static bool classof(const Value *V) {
-    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
-  }
-
-  /// The index into the associate statepoint's argument list
-  /// which contains the base pointer of the pointer whose
-  /// relocation this gc.relocate describes.
-  unsigned getBasePtrIndex() const {
-    return cast<ConstantInt>(getArgOperand(1))->getZExtValue();
-  }
-
-  /// The index into the associate statepoint's argument list which
-  /// contains the pointer whose relocation this gc.relocate describes.
-  unsigned getDerivedPtrIndex() const {
-    return cast<ConstantInt>(getArgOperand(2))->getZExtValue();
-  }
-
-  Value *getBasePtr() const {
-    if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
-      return *(Opt->Inputs.begin() + getBasePtrIndex());
-    return *(getStatepoint()->arg_begin() + getBasePtrIndex());
-  }
-
-  Value *getDerivedPtr() const {
-    if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
-      return *(Opt->Inputs.begin() + getDerivedPtrIndex());
-    return *(getStatepoint()->arg_begin() + getDerivedPtrIndex());
-  }
-};
-
-/// Represents calls to the gc.result intrinsic.
-class GCResultInst : public GCProjectionInst {
-public:
-  static bool classof(const IntrinsicInst *I) {
-    return I->getIntrinsicID() == Intrinsic::experimental_gc_result;
-  }
-
-  static bool classof(const Value *V) {
-    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
-  }
 };
 
 std::vector<const GCRelocateInst *> GCStatepointInst::getGCRelocates() const {
@@ -323,18 +226,6 @@ std::vector<const GCRelocateInst *> GCStatepointInst::getGCRelocates() const {
       Result.push_back(Relocate);
   }
   return Result;
-}
-
-std::pair<bool, bool> GCStatepointInst::getGCResultLocality() const {
-  std::pair<bool, bool> Res(false, false);
-  for (auto *U : users())
-    if (auto *GRI = dyn_cast<GCResultInst>(U)) {
-      if (GRI->getParent() == this->getParent())
-        Res.first = true;
-      else
-        Res.second = true;
-    }
-  return Res;
 }
 
 /// Call sites that get wrapped by a gc.statepoint (currently only in

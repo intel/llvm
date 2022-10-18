@@ -25,6 +25,7 @@ class LLVM_LIBRARY_VISIBILITY WebAssemblyAsmPrinter final : public AsmPrinter {
   // TODO: Do the uniquing of Signatures here instead of ObjectFileWriter?
   std::vector<std::unique_ptr<wasm::WasmSignature>> Signatures;
   std::vector<std::unique_ptr<std::string>> Names;
+  bool signaturesEmitted = false;
 
   StringRef storeName(StringRef Name) {
     std::unique_ptr<std::string> N = std::make_unique<std::string>(Name);
@@ -65,6 +66,8 @@ public:
   void emitEndOfAsmFile(Module &M) override;
   void EmitProducerInfo(Module &M);
   void EmitTargetFeatures(Module &M);
+  void emitSymbolType(const MCSymbolWasm *Sym);
+  void emitGlobalVariable(const GlobalVariable *GV) override;
   void emitJumpTableInfo() override;
   void emitConstantPool() override;
   void emitFunctionBodyStart() override;
@@ -80,6 +83,8 @@ public:
   MCSymbolWasm *getMCSymbolForFunction(const Function *F, bool EnableEmEH,
                                        wasm::WasmSignature *Sig,
                                        bool &InvokeDetected);
+  MCSymbol *getOrCreateWasmSymbol(StringRef Name);
+  void emitDecls(const Module &M);
 };
 
 } // end namespace llvm

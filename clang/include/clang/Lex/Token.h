@@ -33,7 +33,7 @@ class IdentifierInfo;
 /// information about the SourceRange of the tokens and the type object.
 class Token {
   /// The location of the token. This is actually a SourceLocation.
-  unsigned Loc;
+  SourceLocation::UIntTy Loc;
 
   // Conceptually these next two fields could be in a union.  However, this
   // causes gcc 4.2 to pessimize LexTokenInternal, a very performance critical
@@ -43,7 +43,7 @@ class Token {
   /// UintData - This holds either the length of the token text, when
   /// a normal token, or the end of the SourceRange when an annotation
   /// token.
-  unsigned UintData;
+  SourceLocation::UIntTy UintData;
 
   /// PtrData - This is a union of four different pointer types, which depends
   /// on what type of token this is:
@@ -99,9 +99,8 @@ public:
   bool isOneOf(tok::TokenKind K1, tok::TokenKind K2) const {
     return is(K1) || is(K2);
   }
-  template <typename... Ts>
-  bool isOneOf(tok::TokenKind K1, tok::TokenKind K2, Ts... Ks) const {
-    return is(K1) || isOneOf(K2, Ks...);
+  template <typename... Ts> bool isOneOf(tok::TokenKind K1, Ts... Ks) const {
+    return is(K1) || isOneOf(Ks...);
   }
 
   /// Return true if this is a raw identifier (when lexing

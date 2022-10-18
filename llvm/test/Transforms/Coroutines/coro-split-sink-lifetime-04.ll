@@ -1,7 +1,6 @@
 ; Tests that coro-split will optimize the lifetime.start maker of each local variable,
 ; sink them to the places after the suspend block.
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse,simplifycfg' -S | FileCheck %s
 
 %"struct.std::coroutine_handle" = type { i8* }
 %"struct.std::coroutine_handle.0" = type { %"struct.std::coroutine_handle" }
@@ -11,7 +10,7 @@ declare i8* @malloc(i64)
 declare void @print(i32)
 declare void @consume.i8(i8)
 
-define void @a() "coroutine.presplit"="1" {
+define void @a() presplitcoroutine {
 entry:
   %ref.tmp7 = alloca %"struct.lean_future<int>::Awaiter", align 8
   %testval = alloca i8

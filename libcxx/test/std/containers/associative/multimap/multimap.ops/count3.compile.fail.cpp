@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++03, c++11
+
 // <map>
 
 // class multimap
 
-//       iterator find(const key_type& k);
-// const_iterator find(const key_type& k) const;
+// size_type count(const key_type& k) const;
 //
 //   The member function templates find, count, lower_bound, upper_bound, and
 // equal_range shall not participate in overload resolution unless the
@@ -24,14 +25,9 @@
 #include "test_macros.h"
 #include "is_transparent.h"
 
-#if TEST_STD_VER <= 11
-#error "This test requires is C++14 (or later)"
-#else
-
 int main(int, char**)
 {
     typedef std::multimap<int, double, transparent_less_not_a_type> M;
 
     TEST_IGNORE_NODISCARD M().count(C2Int{5});
 }
-#endif

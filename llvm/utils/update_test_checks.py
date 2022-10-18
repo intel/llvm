@@ -22,11 +22,6 @@ Workflow:
 7. Re-run this script on affected regression tests.
 8. Check the diffs to ensure the script has done something reasonable.
 9. Submit a patch including the regression test diffs for review.
-
-A common pattern is to have the script insert complete checking of every
-instruction. Then, edit it down to only check the relevant instructions.
-The script is designed to make adding checks to a test case fast, it is *not*
-designed to be authoratitive about what constitutes a good test!
 """
 
 from __future__ import print_function
@@ -80,7 +75,13 @@ def main():
         common.warn('Skipping unparseable RUN line: ' + l)
         continue
 
-      (tool_cmd, filecheck_cmd) = tuple([cmd.strip() for cmd in l.split('|', 1)])
+      commands = [cmd.strip() for cmd in l.split('|')]
+      assert len(commands) >= 2
+      preprocess_cmd = None
+      if len(commands) > 2:
+        preprocess_cmd = " | ".join(commands[:-2])
+      tool_cmd = commands[-2]
+      filecheck_cmd = commands[-1]
       common.verify_filecheck_prefixes(filecheck_cmd)
       if not tool_cmd.startswith(opt_basename + ' '):
         common.warn('Skipping non-%s RUN line: %s' % (opt_basename, l))
@@ -101,28 +102,31 @@ def main():
 
       # FIXME: We should use multiple check prefixes to common check lines. For
       # now, we just ignore all but the last.
-      prefix_list.append((check_prefixes, tool_cmd_args))
+      prefix_list.append((check_prefixes, tool_cmd_args, preprocess_cmd))
 
     global_vars_seen_dict = {}
     builder = common.FunctionTestBuilder(
       run_list=prefix_list,
       flags=ti.args,
-      scrubber_args=[])
+      scrubber_args=[],
+      path=ti.path)
 
-    for prefixes, opt_args in prefix_list:
+    for prefixes, opt_args, preprocess_cmd in prefix_list:
       common.debug('Extracted opt cmd: ' + opt_basename + ' ' + opt_args)
       common.debug('Extracted FileCheck prefixes: ' + str(prefixes))
 
       raw_tool_output = common.invoke_tool(ti.args.opt_binary, opt_args,
-                                           ti.path)
+                                           ti.path, preprocess_cmd=preprocess_cmd,
+                                           verbose=ti.args.verbose)
       builder.process_run_line(common.OPT_FUNCTION_RE, common.scrub_body,
-              raw_tool_output, prefixes)
+              raw_tool_output, prefixes, False)
+      builder.processed_prefixes(prefixes)
 
     func_dict = builder.finish_and_get_func_dict()
     is_in_function = False
     is_in_function_start = False
     has_checked_pre_function_globals = False
-    prefix_set = set([prefix for prefixes, _ in prefix_list for prefix in prefixes])
+    prefix_set = set([prefix for prefixes, _, _ in prefix_list for prefix in prefixes])
     common.debug('Rewriting FileCheck prefixes:', str(prefix_set))
     output_lines = []
 
@@ -152,7 +156,8 @@ def main():
                                                     prefixes,
                                                     func_dict, func, False,
                                                     args.function_signature,
-                                                    global_vars_seen_dict))
+                                                    global_vars_seen_dict,
+                                                    is_filtered=builder.is_filtered()))
     else:
       # "Normal" mode.
       for input_line_info in ti.iterlines(output_lines):
@@ -170,7 +175,8 @@ def main():
           # Print out the various check lines here.
           common.add_ir_checks(output_lines, ';', prefix_list, func_dict,
                                func_name, args.preserve_names, args.function_signature,
-                               global_vars_seen_dict)
+                               global_vars_seen_dict,
+                               is_filtered=builder.is_filtered())
           is_in_function_start = False
 
         m = common.IR_FUNCTION_RE.match(input_line)

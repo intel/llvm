@@ -15,6 +15,9 @@
 #define LLVM_CODEGEN_PASSES_H
 
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/Discriminator.h"
+#include "llvm/CodeGen/RegAllocCommon.h"
+
 #include <functional>
 #include <string>
 
@@ -23,17 +26,19 @@ namespace llvm {
 class FunctionPass;
 class MachineFunction;
 class MachineFunctionPass;
-class MemoryBuffer;
 class ModulePass;
 class Pass;
 class TargetMachine;
-class TargetRegisterClass;
 class raw_ostream;
 
 } // End llvm namespace
 
-/// List of target independent CodeGen pass IDs.
+// List of target independent CodeGen pass IDs.
 namespace llvm {
+
+  /// AtomicExpandPass - At IR level this pass replace atomic instructions with
+  /// __atomic_* library calls, or target specific instruction which implement the
+  /// same semantics in a way which better fits the target backend.
   FunctionPass *createAtomicExpandPass();
 
   /// createUnreachableBlockEliminationPass - The LLVM code generator does not
@@ -45,10 +50,8 @@ namespace llvm {
   FunctionPass *createUnreachableBlockEliminationPass();
 
   /// createBasicBlockSections Pass - This pass assigns sections to machine
-  /// basic blocks and is enabled with -fbasic-block-sections. Buf is a memory
-  /// buffer that contains the list of functions and basic block ids to
-  /// selectively enable basic block sections.
-  MachineFunctionPass *createBasicBlockSectionsPass(const MemoryBuffer *Buf);
+  /// basic blocks and is enabled with -fbasic-block-sections.
+  MachineFunctionPass *createBasicBlockSectionsPass();
 
   /// createMachineFunctionSplitterPass - This pass splits machine functions
   /// using profile information.
@@ -86,7 +89,7 @@ namespace llvm {
   /// MachineDominators - This pass is a machine dominators analysis pass.
   extern char &MachineDominatorsID;
 
-/// MachineDominanaceFrontier - This pass is a machine dominators analysis pass.
+  /// MachineDominanaceFrontier - This pass is a machine dominators analysis.
   extern char &MachineDominanceFrontierID;
 
   /// MachineRegionInfo - This pass computes SESE regions for machine functions.
@@ -150,6 +153,7 @@ namespace llvm {
   /// VirtRegRewriter pass. Rewrite virtual registers to physical registers as
   /// assigned in VirtRegMap.
   extern char &VirtRegRewriterID;
+  FunctionPass *createVirtRegRewriter(bool ClearVirtRegs = true);
 
   /// UnreachableMachineBlockElimination - This pass removes unreachable
   /// machine basic blocks.
@@ -164,20 +168,30 @@ namespace llvm {
   /// This pass perform post-ra machine sink for COPY instructions.
   extern char &PostRAMachineSinkingID;
 
+  /// This pass adds flow sensitive discriminators.
+  extern char &MIRAddFSDiscriminatorsID;
+
+  /// This pass reads flow sensitive profile.
+  extern char &MIRProfileLoaderPassID;
+
   /// FastRegisterAllocation Pass - This pass register allocates as fast as
   /// possible. It is best suited for debug code where live ranges are short.
   ///
   FunctionPass *createFastRegisterAllocator();
+  FunctionPass *createFastRegisterAllocator(RegClassFilterFunc F,
+                                            bool ClearVirtRegs);
 
   /// BasicRegisterAllocation Pass - This pass implements a degenerate global
   /// register allocator using the basic regalloc framework.
   ///
   FunctionPass *createBasicRegisterAllocator();
+  FunctionPass *createBasicRegisterAllocator(RegClassFilterFunc F);
 
   /// Greedy register allocation pass - This pass implements a global register
   /// allocator for optimized builds.
   ///
   FunctionPass *createGreedyRegisterAllocator();
+  FunctionPass *createGreedyRegisterAllocator(RegClassFilterFunc F);
 
   /// PBQPRegisterAllocation Pass - This pass implements the Partitioned Boolean
   /// Quadratic Prograaming (PBQP) based register allocator.
@@ -265,10 +279,18 @@ namespace llvm {
   /// operations.
   FunctionPass *createGCLoweringPass();
 
+  /// GCLowering Pass - Used by gc.root to perform its default lowering
+  /// operations.
+  extern char &GCLoweringID;
+
   /// ShadowStackGCLowering - Implements the custom lowering mechanism
   /// used by the shadow stack GC.  Only runs on functions which opt in to
   /// the shadow stack collector.
   FunctionPass *createShadowStackGCLoweringPass();
+
+  /// ShadowStackGCLowering - Implements the custom lowering mechanism
+  /// used by the shadow stack GC.
+  extern char &ShadowStackGCLoweringID;
 
   /// GCMachineCodeAnalysis - Target-independent pass to mark safe points
   /// in machine code. Must be added very late during code generation, just
@@ -305,6 +327,8 @@ namespace llvm {
   /// MachineCopyPropagation - This pass performs copy propagation on
   /// machine instructions.
   extern char &MachineCopyPropagationID;
+
+  MachineFunctionPass *createMachineCopyPropagationPass(bool UseCopyInstr);
 
   /// PeepholeOptimizer - This pass performs peephole optimizations -
   /// like extension and comparison eliminations.
@@ -381,6 +405,12 @@ namespace llvm {
   /// the intrinsic for later emission to the StackMap.
   extern char &StackMapLivenessID;
 
+  /// RemoveRedundantDebugValues pass.
+  extern char &RemoveRedundantDebugValuesID;
+
+  /// MachineCFGPrinter pass.
+  extern char &MachineCFGPrinterID;
+
   /// LiveDebugValues pass
   extern char &LiveDebugValuesID;
 
@@ -452,6 +482,14 @@ namespace llvm {
   // the corresponding function in a vector library (e.g., SVML, libmvec).
   FunctionPass *createReplaceWithVeclibLegacyPass();
 
+  /// This pass expands the vector predication intrinsics into unpredicated
+  /// instructions with selects or just the explicit vector length into the
+  /// predicate mask.
+  FunctionPass *createExpandVectorPredicationPass();
+
+  // Expands large div/rem instructions.
+  FunctionPass *createExpandLargeDivRemPass();
+
   // This pass expands memcmp() to load/stores.
   FunctionPass *createExpandMemCmpPass();
 
@@ -460,6 +498,9 @@ namespace llvm {
 
   // This pass expands indirectbr instructions.
   FunctionPass *createIndirectBrExpandPass();
+
+  /// Creates CFI Fixup pass. \see CFIFixup.cpp
+  FunctionPass *createCFIFixup();
 
   /// Creates CFI Instruction Inserter pass. \see CFIInstrInserter.cpp
   FunctionPass *createCFIInstrInserter();
@@ -481,6 +522,16 @@ namespace llvm {
   /// Create IR Type Promotion pass. \see TypePromotion.cpp
   FunctionPass *createTypePromotionPass();
 
+  /// Add Flow Sensitive Discriminators. PassNum specifies the
+  /// sequence number of this pass (starting from 1).
+  FunctionPass *
+  createMIRAddFSDiscriminatorsPass(sampleprof::FSDiscriminatorPass P);
+
+  /// Read Flow Sensitive Profile.
+  FunctionPass *createMIRProfileLoaderPass(std::string File,
+                                           std::string RemappingFile,
+                                           sampleprof::FSDiscriminatorPass P);
+
   /// Creates MIR Debugify pass. \see MachineDebugify.cpp
   ModulePass *createDebugifyMachineModulePass();
 
@@ -501,9 +552,22 @@ namespace llvm {
   /// or split the data to two <128 x i32>.
   FunctionPass *createX86LowerAMXTypePass();
 
+  /// The pass insert tile config intrinsics for AMX fast register allocation.
+  FunctionPass *createX86PreAMXConfigPass();
+
   /// The pass transforms amx intrinsics to scalar operation if the function has
   /// optnone attribute or it is O0.
   FunctionPass *createX86LowerAMXIntrinsicsPass();
+
+  /// When learning an eviction policy, extract score(reward) information,
+  /// otherwise this does nothing
+  FunctionPass *createRegAllocScoringPass();
+
+  /// JMC instrument pass.
+  ModulePass *createJMCInstrumenterPass();
+
+  /// This pass converts conditional moves to conditional jumps when profitable.
+  FunctionPass *createSelectOptimizePass();
 } // End llvm namespace
 
 #endif

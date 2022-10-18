@@ -15,6 +15,18 @@
 namespace clang {
 namespace driver {
 
+class SYCLInstallationDetector {
+public:
+  SYCLInstallationDetector(const Driver &D);
+  void getSYCLDeviceLibPath(
+      llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
+  void print(llvm::raw_ostream &OS) const;
+
+private:
+  const Driver &D;
+  llvm::SmallVector<llvm::SmallString<128>, 4> InstallationCandidates;
+};
+
 class Command;
 
 namespace tools {
@@ -24,7 +36,8 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  std::unique_ptr<Command> InputCommand,
                                  const InputInfoList &InputFiles,
                                  const InputInfo &Output, const Tool *T,
-                                 StringRef Ext);
+                                 StringRef Increment, StringRef Ext = "out",
+                                 StringRef ParallelJobs = "");
 
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -41,11 +54,6 @@ public:
                     const char *LinkingOutput) const override;
 
 private:
-  /// \return llvm-spirv output file name.
-  const char *constructLLVMSpirvCommand(Compilation &C, const JobAction &JA,
-                                       const InputInfo &Output,
-                                       llvm::StringRef OutputFilePrefix,
-                                       bool isBc, const char *InputFile) const;
   /// \return llvm-link output file name.
   const char *constructLLVMLinkCommand(Compilation &C, const JobAction &JA,
                              const InputInfo &Output,
@@ -72,6 +80,12 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
+
+private:
+  void constructOpenCLAOTCommand(Compilation &C, const JobAction &JA,
+                                 const InputInfo &Output,
+                                 const InputInfoList &InputFiles,
+                                 const llvm::opt::ArgList &Args) const;
 };
 
 } // end namespace fpga
@@ -90,6 +104,9 @@ public:
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
+StringRef resolveGenDevice(StringRef DeviceName);
+StringRef getGenDeviceMacro(StringRef DeviceName);
 
 } // end namespace gen
 
@@ -130,14 +147,23 @@ public:
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args,
                          Action::OffloadKind DeviceOffloadKind) const override;
-  void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
-      llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,
-      llvm::opt::ArgStringList &CmdArgs) const;
+  void AddImpliedTargetArgs(const llvm::Triple &Triple,
+                            const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs,
+                            const JobAction &JA) const;
+  void TranslateBackendTargetArgs(const llvm::Triple &Triple,
+                                  const llvm::opt::ArgList &Args,
+                                  llvm::opt::ArgStringList &CmdArgs,
+                                  StringRef Device = "") const;
+  void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
+                                 const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }
-  bool isPIEDefault() const override { return false; }
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {\
+    return false;
+  }
   bool isPICDefaultForced() const override { return false; }
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
@@ -151,7 +177,6 @@ public:
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
 
-
   const ToolChain &HostTC;
 
 protected:
@@ -160,8 +185,10 @@ protected:
 
 private:
   void TranslateTargetOpt(const llvm::opt::ArgList &Args,
-      llvm::opt::ArgStringList &CmdArgs, llvm::opt::OptSpecifier Opt,
-      llvm::opt::OptSpecifier Opt_EQ) const;
+                          llvm::opt::ArgStringList &CmdArgs,
+                          llvm::opt::OptSpecifier Opt,
+                          llvm::opt::OptSpecifier Opt_EQ,
+                          StringRef Device) const;
 };
 
 } // end namespace toolchains

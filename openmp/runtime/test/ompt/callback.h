@@ -34,7 +34,8 @@ static const char *ompt_task_status_t_values[] = {
     "ompt_task_detach", // 4
     "ompt_task_early_fulfill", // 5
     "ompt_task_late_fulfill", // 6
-    "ompt_task_switch" // 7
+    "ompt_task_switch", // 7
+    "ompt_taskwait_complete" // 8
 };
 static const char* ompt_cancel_flag_t_values[] = {
   "ompt_cancel_parallel",
@@ -67,6 +68,8 @@ static void format_task_type(int type, char *buffer) {
     progress += sprintf(progress, "ompt_task_explicit");
   if (type & ompt_task_target)
     progress += sprintf(progress, "ompt_task_target");
+  if (type & ompt_task_taskwait)
+    progress += sprintf(progress, "ompt_task_taskwait");
   if (type & ompt_task_undeferred)
     progress += sprintf(progress, "|ompt_task_undeferred");
   if (type & ompt_task_untied)
@@ -204,6 +207,13 @@ ompt_label_##id:
   printf("%" PRIu64 ": current_address=%p or %p\n", \
          ompt_get_thread_data()->value, ((char *)addr) - 8, ((char *)addr) - 12)
 #endif
+#elif KMP_ARCH_LOONGARCH64
+// On LoongArch64 the NOP instruction is 4 bytes long, can be followed by
+// inserted jump instruction (another 4 bytes long).
+#define print_possible_return_addresses(addr)                                  \
+  printf("%" PRIu64 ": current_address=%p or %p\n",                            \
+         ompt_get_thread_data()->value, ((char *)addr) - 4,                    \
+         ((char *)addr) - 8)
 #else
 #error Unsupported target architecture, cannot determine address offset!
 #endif
@@ -787,6 +797,12 @@ on_ompt_callback_work(
       switch(wstype)
       {
         case ompt_work_loop:
+        case ompt_work_loop_static:
+        case ompt_work_loop_dynamic:
+        case ompt_work_loop_guided:
+        case ompt_work_loop_other:
+        // TODO: add schedule attribute for the different work_loop types.
+        // e.g., ", schedule=%s", ..., ompt_schedule_values[wstype]
           printf("%" PRIu64 ":" _TOOL_PREFIX
                  " ompt_event_loop_begin: parallel_id=%" PRIu64
                  ", parent_task_id=%" PRIu64 ", codeptr_ra=%p, count=%" PRIu64
@@ -851,6 +867,10 @@ on_ompt_callback_work(
       switch(wstype)
       {
         case ompt_work_loop:
+        case ompt_work_loop_static:
+        case ompt_work_loop_dynamic:
+        case ompt_work_loop_guided:
+        case ompt_work_loop_other:
           printf("%" PRIu64 ":" _TOOL_PREFIX
                  " ompt_event_loop_end: parallel_id=%" PRIu64
                  ", task_id=%" PRIu64 ", codeptr_ra=%p, count=%" PRIu64 "\n",
@@ -912,6 +932,43 @@ on_ompt_callback_work(
       printf("ompt_scope_beginend should never be passed to %s\n", __func__);
       exit(-1);
   }
+}
+
+static void on_ompt_callback_dispatch(
+    ompt_data_t *parallel_data,
+    ompt_data_t *task_data,
+    ompt_dispatch_t kind,
+    ompt_data_t instance) {
+  char *event_name = NULL;
+  void *codeptr_ra = NULL;
+  ompt_dispatch_chunk_t *dispatch_chunk = NULL;
+  switch (kind) {
+  case ompt_dispatch_section:
+    event_name = "ompt_event_section_begin";
+    codeptr_ra = instance.ptr;
+    break;
+  case ompt_dispatch_ws_loop_chunk:
+    event_name = "ompt_event_ws_loop_chunk_begin";
+    dispatch_chunk = (ompt_dispatch_chunk_t *)instance.ptr;
+    break;
+  case ompt_dispatch_taskloop_chunk:
+    event_name = "ompt_event_taskloop_chunk_begin";
+    dispatch_chunk = (ompt_dispatch_chunk_t *)instance.ptr;
+    break;
+  case ompt_dispatch_distribute_chunk:
+    event_name = "ompt_event_distribute_chunk_begin";
+    dispatch_chunk = (ompt_dispatch_chunk_t *)instance.ptr;
+    break;
+  default:
+    event_name = "ompt_ws_loop_iteration_begin";
+  }
+  printf("%" PRIu64 ":" _TOOL_PREFIX
+         " %s: parallel_id=%" PRIu64 ", task_id=%" PRIu64
+         ", codeptr_ra=%p, chunk_start=%" PRIu64 ", chunk_iterations=%" PRIu64
+         "\n", ompt_get_thread_data()->value, event_name, parallel_data->value,
+         task_data->value, codeptr_ra,
+         dispatch_chunk ? dispatch_chunk->start : 0,
+         dispatch_chunk ? dispatch_chunk->iterations : 0);
 }
 
 static void on_ompt_callback_masked(ompt_scope_endpoint_t endpoint,
@@ -1015,7 +1072,8 @@ on_ompt_callback_task_schedule(
          (second_task_data ? second_task_data->value : -1),
          ompt_task_status_t_values[prior_task_status], prior_task_status);
   if (prior_task_status == ompt_task_complete ||
-      prior_task_status == ompt_task_late_fulfill) {
+      prior_task_status == ompt_task_late_fulfill ||
+      prior_task_status == ompt_taskwait_complete) {
     printf("%" PRIu64 ":" _TOOL_PREFIX " ompt_event_task_end: task_id=%" PRIu64
            "\n", ompt_get_thread_data()->value, first_task_data->value);
   }
@@ -1029,7 +1087,8 @@ on_ompt_callback_dependences(
 {
   char buffer[2048];
   char *progress = buffer;
-  for (int i = 0; i < ndeps && progress < buffer + 2000; i++) {
+  int i;
+  for (i = 0; i < ndeps && progress < buffer + 2000; i++) {
     if (deps[i].dependence_type == ompt_dependence_type_source ||
         deps[i].dependence_type == ompt_dependence_type_sink)
       progress +=
@@ -1173,6 +1232,7 @@ int ompt_initialize(
   register_ompt_callback_t(ompt_callback_lock_init, ompt_callback_mutex_acquire_t);
   register_ompt_callback_t(ompt_callback_lock_destroy, ompt_callback_mutex_t);
   register_ompt_callback(ompt_callback_work);
+  register_ompt_callback(ompt_callback_dispatch);
   register_ompt_callback(ompt_callback_masked);
   register_ompt_callback(ompt_callback_parallel_begin);
   register_ompt_callback(ompt_callback_parallel_end);

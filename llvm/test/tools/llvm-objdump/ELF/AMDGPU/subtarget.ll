@@ -4,8 +4,44 @@ define amdgpu_kernel void @test_kernel() {
 
 ; Test subtarget detection. Disassembly is only supported for GFX8 and beyond.
 ;
-; ----------------------------------GFX10--------------------------------------
+; ----------------------------------GFX11--------------------------------------
 ;
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1103 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1103 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1102 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1102 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1101 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1101 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1100 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1100 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; ----------------------------------GFX10--------------------------------------
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1036 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1036 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1035 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1035 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1034 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1034 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1033 -filetype=obj -O0 -o %t.o %s
 ; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1033 %t.o > %t-specify.txt
 ; RUN: llvm-objdump -D %t.o > %t-detect.txt
@@ -23,6 +59,11 @@ define amdgpu_kernel void @test_kernel() {
 
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1030 -filetype=obj -O0 -o %t.o %s
 ; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1030 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1013 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx1013 %t.o > %t-specify.txt
 ; RUN: llvm-objdump -D %t.o > %t-detect.txt
 ; RUN: diff %t-specify.txt %t-detect.txt
 
@@ -44,6 +85,21 @@ define amdgpu_kernel void @test_kernel() {
 
 ; ----------------------------------GFX9---------------------------------------
 ;
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx940 -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx940 %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx90c -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx90c %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx90a -filetype=obj -O0 -o %t.o %s
+; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx90a %t.o > %t-specify.txt
+; RUN: llvm-objdump -D %t.o > %t-detect.txt
+; RUN: diff %t-specify.txt %t-detect.txt
+
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx909 -filetype=obj -O0 -o %t.o %s
 ; RUN: llvm-objdump -D --arch-name=amdgcn --mcpu=gfx909 %t.o > %t-specify.txt
 ; RUN: llvm-objdump -D %t.o > %t-detect.txt

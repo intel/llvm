@@ -13,6 +13,7 @@
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionGroupPythonClassWithDict.h"
@@ -49,7 +50,7 @@ static void AddBreakpointDescription(Stream *s, Breakpoint *bp,
 
 class lldb_private::BreakpointOptionGroup : public OptionGroup {
 public:
-  BreakpointOptionGroup() : OptionGroup(), m_bp_opts(false) {}
+  BreakpointOptionGroup() : m_bp_opts(false) {}
 
   ~BreakpointOptionGroup() override = default;
 
@@ -110,7 +111,19 @@ public:
     case 't': {
       lldb::tid_t thread_id = LLDB_INVALID_THREAD_ID;
       if (option_arg[0] != '\0') {
-        if (option_arg.getAsInteger(0, thread_id))
+        if (option_arg == "current") {
+          if (!execution_context) {
+            error.SetErrorStringWithFormat("No context to determine current "
+                                           "thread");
+          } else {
+            ThreadSP ctx_thread_sp = execution_context->GetThreadSP();
+            if (!ctx_thread_sp || !ctx_thread_sp->IsValid()) {
+              error.SetErrorStringWithFormat("No currently selected thread");
+            } else {
+              thread_id = ctx_thread_sp->GetID();
+            }
+          }
+        } else if (option_arg.getAsInteger(0, thread_id))
           error.SetErrorStringWithFormat("invalid thread id string '%s'",
                                          option_arg.str().c_str());
       }
@@ -167,7 +180,7 @@ public:
 
 class BreakpointDummyOptionGroup : public OptionGroup {
 public:
-  BreakpointDummyOptionGroup() : OptionGroup() {}
+  BreakpointDummyOptionGroup() = default;
 
   ~BreakpointDummyOptionGroup() override = default;
 
@@ -222,8 +235,7 @@ public:
             interpreter, "breakpoint set",
             "Sets a breakpoint or set of breakpoints in the executable.",
             "breakpoint set <cmd-options>"),
-        m_bp_opts(), m_python_class_options("scripted breakpoint", true, 'P'),
-        m_options() {
+        m_python_class_options("scripted breakpoint", true, 'P') {
     // We're picking up all the normal options, commands and disable.
     m_all_options.Append(&m_python_class_options,
                          LLDB_OPT_SET_1 | LLDB_OPT_SET_2, LLDB_OPT_SET_11);
@@ -241,16 +253,7 @@ public:
 
   class CommandOptions : public OptionGroup {
   public:
-    CommandOptions()
-        : OptionGroup(), m_condition(), m_filenames(), m_line_num(0),
-          m_column(0), m_func_names(),
-          m_func_name_type_mask(eFunctionNameTypeNone), m_func_regexp(),
-          m_source_text_regexp(), m_modules(), m_load_addr(), m_catch_bp(false),
-          m_throw_bp(true), m_hardware(false),
-          m_exception_language(eLanguageTypeUnknown),
-          m_language(lldb::eLanguageTypeUnknown),
-          m_skip_prologue(eLazyBoolCalculate), m_all_files(false),
-          m_move_to_nearest_code(eLazyBoolCalculate) {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -500,25 +503,25 @@ public:
 
     std::string m_condition;
     FileSpecList m_filenames;
-    uint32_t m_line_num;
-    uint32_t m_column;
+    uint32_t m_line_num = 0;
+    uint32_t m_column = 0;
     std::vector<std::string> m_func_names;
     std::vector<std::string> m_breakpoint_names;
-    lldb::FunctionNameType m_func_name_type_mask;
+    lldb::FunctionNameType m_func_name_type_mask = eFunctionNameTypeNone;
     std::string m_func_regexp;
     std::string m_source_text_regexp;
     FileSpecList m_modules;
-    lldb::addr_t m_load_addr;
+    lldb::addr_t m_load_addr = 0;
     lldb::addr_t m_offset_addr;
-    bool m_catch_bp;
-    bool m_throw_bp;
-    bool m_hardware; // Request to use hardware breakpoints
-    lldb::LanguageType m_exception_language;
-    lldb::LanguageType m_language;
-    LazyBool m_skip_prologue;
-    bool m_all_files;
+    bool m_catch_bp = false;
+    bool m_throw_bp = true;
+    bool m_hardware = false; // Request to use hardware breakpoints
+    lldb::LanguageType m_exception_language = eLanguageTypeUnknown;
+    lldb::LanguageType m_language = lldb::eLanguageTypeUnknown;
+    LazyBool m_skip_prologue = eLazyBoolCalculate;
+    bool m_all_files = false;
     Args m_exception_extra_args;
-    LazyBool m_move_to_nearest_code;
+    LazyBool m_move_to_nearest_code = eLazyBoolCalculate;
     std::unordered_set<std::string> m_source_regex_func_names;
     std::string m_current_key;
   };
@@ -573,13 +576,11 @@ protected:
       if (num_files == 0) {
         if (!GetDefaultFile(target, file, result)) {
           result.AppendError("No file supplied and no default file available.");
-          result.SetStatus(eReturnStatusFailed);
           return false;
         }
       } else if (num_files > 1) {
         result.AppendError("Only one file at a time is allowed for file and "
                            "line breakpoints.");
-        result.SetStatus(eReturnStatusFailed);
         return false;
       } else
         file = m_options.m_filenames.GetFileSpecAtIndex(0);
@@ -611,7 +612,6 @@ protected:
       } else {
         result.AppendError("Only one shared library can be specified for "
                            "address breakpoints.");
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
       break;
@@ -646,7 +646,6 @@ protected:
             result.AppendWarning(
                 "Function name regex does not accept glob patterns.");
         }
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
 
@@ -664,7 +663,6 @@ protected:
         if (!GetDefaultFile(target, file, result)) {
           result.AppendError(
               "No files provided and could not find default file.");
-          result.SetStatus(eReturnStatusFailed);
           return false;
         } else {
           m_options.m_filenames.Append(file);
@@ -676,7 +674,6 @@ protected:
         result.AppendErrorWithFormat(
             "Source text regular expression could not be compiled: \"%s\"",
             llvm::toString(std::move(err)).c_str());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
       bp_sp = target.CreateSourceRegexBreakpoint(
@@ -695,7 +692,6 @@ protected:
             "Error setting extra exception arguments: %s",
             precond_error.AsCString());
         target.RemoveBreakpointByID(bp_sp->GetID());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
     } break;
@@ -710,7 +706,6 @@ protected:
         result.AppendErrorWithFormat(
             "Error setting extra exception arguments: %s", error.AsCString());
         target.RemoveBreakpointByID(bp_sp->GetID());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
     } break;
@@ -720,7 +715,7 @@ protected:
 
     // Now set the various options that were passed in:
     if (bp_sp) {
-      bp_sp->GetOptions()->CopyOverSetOptions(m_bp_opts.GetBreakpointOptions());
+      bp_sp->GetOptions().CopyOverSetOptions(m_bp_opts.GetBreakpointOptions());
 
       if (!m_options.m_breakpoint_names.empty()) {
         Status name_error;
@@ -730,7 +725,6 @@ protected:
             result.AppendErrorWithFormat("Invalid breakpoint name: %s",
                                          name.c_str());
             target.RemoveBreakpointByID(bp_sp->GetID());
-            result.SetStatus(eReturnStatusFailed);
             return false;
           }
         }
@@ -757,7 +751,6 @@ protected:
       result.SetStatus(eReturnStatusSuccessFinishResult);
     } else if (!bp_sp) {
       result.AppendError("Breakpoint creation failed: No breakpoint created.");
-      result.SetStatus(eReturnStatusFailed);
     }
 
     return result.Succeeded();
@@ -774,12 +767,10 @@ private:
       if (cur_frame == nullptr) {
         result.AppendError(
             "No selected frame to use to find the default file.");
-        result.SetStatus(eReturnStatusFailed);
         return false;
       } else if (!cur_frame->HasDebugInformation()) {
         result.AppendError("Cannot use the selected frame to find the default "
                            "file, it has no debug info.");
-        result.SetStatus(eReturnStatusFailed);
         return false;
       } else {
         const SymbolContext &sc =
@@ -789,7 +780,6 @@ private:
         } else {
           result.AppendError("Can't find the file for the selected frame to "
                              "use as the default file.");
-          result.SetStatus(eReturnStatusFailed);
           return false;
         }
       }
@@ -817,8 +807,7 @@ public:
                             "created breakpoint.  "
                             "With the exception of -e, -d and -i, passing an "
                             "empty argument clears the modification.",
-                            nullptr),
-        m_options() {
+                            nullptr) {
     CommandArgumentEntry arg;
     CommandObject::AddIDsArgumentData(arg, eArgTypeBreakpointID,
                                       eArgTypeBreakpointIDRange);
@@ -870,10 +859,10 @@ protected:
             BreakpointLocation *location =
                 bp->FindLocationByID(cur_bp_id.GetLocationID()).get();
             if (location)
-              location->GetLocationOptions()->CopyOverSetOptions(
+              location->GetLocationOptions().CopyOverSetOptions(
                   m_bp_opts.GetBreakpointOptions());
           } else {
-            bp->GetOptions()->CopyOverSetOptions(
+            bp->GetOptions().CopyOverSetOptions(
                 m_bp_opts.GetBreakpointOptions());
           }
         }
@@ -930,7 +919,6 @@ protected:
 
     if (num_breakpoints == 0) {
       result.AppendError("No breakpoints exist to be enabled.");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1044,7 +1032,6 @@ protected:
 
     if (num_breakpoints == 0) {
       result.AppendError("No breakpoints exist to be disabled.");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1110,8 +1097,7 @@ public:
       : CommandObjectParsed(
             interpreter, "breakpoint list",
             "List some or all breakpoints at configurable levels of detail.",
-            nullptr),
-        m_options() {
+            nullptr) {
     CommandArgumentEntry arg;
     CommandArgumentData bp_id_arg;
 
@@ -1133,9 +1119,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions()
-        : Options(), m_level(lldb::eDescriptionLevelBrief), m_use_dummy(false) {
-    }
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1179,10 +1163,10 @@ public:
 
     // Instance variables to hold the values for command options.
 
-    lldb::DescriptionLevel m_level;
+    lldb::DescriptionLevel m_level = lldb::eDescriptionLevelBrief;
 
     bool m_internal;
-    bool m_use_dummy;
+    bool m_use_dummy = false;
   };
 
 protected:
@@ -1232,7 +1216,6 @@ protected:
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendError("Invalid breakpoint ID.");
-        result.SetStatus(eReturnStatusFailed);
       }
     }
 
@@ -1259,8 +1242,7 @@ public:
       : CommandObjectParsed(interpreter, "breakpoint clear",
                             "Delete or disable breakpoints matching the "
                             "specified source file and line.",
-                            "breakpoint clear <cmd-options>"),
-        m_options() {}
+                            "breakpoint clear <cmd-options>") {}
 
   ~CommandObjectBreakpointClear() override = default;
 
@@ -1268,7 +1250,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options(), m_filename(), m_line_num(0) {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1305,7 +1287,7 @@ public:
     // Instance variables to hold the values for command options.
 
     std::string m_filename;
-    uint32_t m_line_num;
+    uint32_t m_line_num = 0;
   };
 
 protected:
@@ -1330,7 +1312,6 @@ protected:
     // Early return if there's no breakpoint at all.
     if (num_breakpoints == 0) {
       result.AppendError("Breakpoint clear: No breakpoint cleared.");
-      result.SetStatus(eReturnStatusFailed);
       return result.Succeeded();
     }
 
@@ -1377,7 +1358,6 @@ protected:
       result.SetStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError("Breakpoint clear: No breakpoint cleared.");
-      result.SetStatus(eReturnStatusFailed);
     }
 
     return result.Succeeded();
@@ -1399,8 +1379,7 @@ public:
       : CommandObjectParsed(interpreter, "breakpoint delete",
                             "Delete the specified breakpoint(s).  If no "
                             "breakpoints are specified, delete them all.",
-                            nullptr),
-        m_options() {
+                            nullptr) {
     CommandArgumentEntry arg;
     CommandObject::AddIDsArgumentData(arg, eArgTypeBreakpointID,
                                       eArgTypeBreakpointIDRange);
@@ -1423,8 +1402,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options(), m_use_dummy(false), m_force(false),
-      m_delete_disabled(false) {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1464,9 +1442,9 @@ public:
     }
 
     // Instance variables to hold the values for command options.
-    bool m_use_dummy;
-    bool m_force;
-    bool m_delete_disabled;
+    bool m_use_dummy = false;
+    bool m_force = false;
+    bool m_delete_disabled = false;
   };
 
 protected:
@@ -1483,10 +1461,10 @@ protected:
 
     if (num_breakpoints == 0) {
       result.AppendError("No breakpoints exist to be deleted.");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
+    // Handle the delete all breakpoints case:
     if (command.empty() && !m_options.m_delete_disabled) {
       if (!m_options.m_force &&
           !m_interpreter.Confirm(
@@ -1500,68 +1478,73 @@ protected:
             (uint64_t)num_breakpoints, num_breakpoints > 1 ? "s" : "");
       }
       result.SetStatus(eReturnStatusSuccessFinishNoResult);
-    } else {
-      // Particular breakpoint selected; disable that breakpoint.
-      BreakpointIDList valid_bp_ids;
-      
-      if (m_options.m_delete_disabled) {
-        BreakpointIDList excluded_bp_ids;
+      return result.Succeeded();
+    }
+ 
+    // Either we have some kind of breakpoint specification(s),
+    // or we are handling "break disable --deleted".  Gather the list
+    // of breakpoints to delete here, the we'll delete them below.
+    BreakpointIDList valid_bp_ids;
+    
+    if (m_options.m_delete_disabled) {
+      BreakpointIDList excluded_bp_ids;
 
-        if (!command.empty()) {
-          CommandObjectMultiwordBreakpoint::VerifyBreakpointOrLocationIDs(
-              command, &target, result, &excluded_bp_ids,
-              BreakpointName::Permissions::PermissionKinds::deletePerm);
-        }
-        for (auto breakpoint_sp : breakpoints.Breakpoints()) {
-          if (!breakpoint_sp->IsEnabled() && breakpoint_sp->AllowDelete()) {
-            BreakpointID bp_id(breakpoint_sp->GetID());
-            size_t pos = 0;
-            if (!excluded_bp_ids.FindBreakpointID(bp_id, &pos))
-              valid_bp_ids.AddBreakpointID(breakpoint_sp->GetID());
-          }
-        }
-        if (valid_bp_ids.GetSize() == 0) {
-          result.AppendError("No disabled breakpoints.");
-          result.SetStatus(eReturnStatusFailed);
-          return false;
-        }
-      } else {
+      if (!command.empty()) {
         CommandObjectMultiwordBreakpoint::VerifyBreakpointOrLocationIDs(
-            command, &target, result, &valid_bp_ids,
+            command, &target, result, &excluded_bp_ids,
             BreakpointName::Permissions::PermissionKinds::deletePerm);
+        if (!result.Succeeded())
+          return false;
       }
-      
-      if (result.Succeeded()) {
-        int delete_count = 0;
-        int disable_count = 0;
-        const size_t count = valid_bp_ids.GetSize();
-        for (size_t i = 0; i < count; ++i) {
-          BreakpointID cur_bp_id = valid_bp_ids.GetBreakpointIDAtIndex(i);
 
-          if (cur_bp_id.GetBreakpointID() != LLDB_INVALID_BREAK_ID) {
-            if (cur_bp_id.GetLocationID() != LLDB_INVALID_BREAK_ID) {
-              Breakpoint *breakpoint =
-                  target.GetBreakpointByID(cur_bp_id.GetBreakpointID()).get();
-              BreakpointLocation *location =
-                  breakpoint->FindLocationByID(cur_bp_id.GetLocationID()).get();
-              // It makes no sense to try to delete individual locations, so we
-              // disable them instead.
-              if (location) {
-                location->SetEnabled(false);
-                ++disable_count;
-              }
-            } else {
-              target.RemoveBreakpointByID(cur_bp_id.GetBreakpointID());
-              ++delete_count;
-            }
-          }
+      for (auto breakpoint_sp : breakpoints.Breakpoints()) {
+        if (!breakpoint_sp->IsEnabled() && breakpoint_sp->AllowDelete()) {
+          BreakpointID bp_id(breakpoint_sp->GetID());
+          size_t pos = 0;
+          if (!excluded_bp_ids.FindBreakpointID(bp_id, &pos))
+            valid_bp_ids.AddBreakpointID(breakpoint_sp->GetID());
         }
-        result.AppendMessageWithFormat(
-            "%d breakpoints deleted; %d breakpoint locations disabled.\n",
-            delete_count, disable_count);
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      }
+      if (valid_bp_ids.GetSize() == 0) {
+        result.AppendError("No disabled breakpoints.");
+        return false;
+      }
+    } else {
+      CommandObjectMultiwordBreakpoint::VerifyBreakpointOrLocationIDs(
+          command, &target, result, &valid_bp_ids,
+          BreakpointName::Permissions::PermissionKinds::deletePerm);
+      if (!result.Succeeded())
+        return false;
+    }
+    
+    int delete_count = 0;
+    int disable_count = 0;
+    const size_t count = valid_bp_ids.GetSize();
+    for (size_t i = 0; i < count; ++i) {
+      BreakpointID cur_bp_id = valid_bp_ids.GetBreakpointIDAtIndex(i);
+
+      if (cur_bp_id.GetBreakpointID() != LLDB_INVALID_BREAK_ID) {
+        if (cur_bp_id.GetLocationID() != LLDB_INVALID_BREAK_ID) {
+          Breakpoint *breakpoint =
+              target.GetBreakpointByID(cur_bp_id.GetBreakpointID()).get();
+          BreakpointLocation *location =
+              breakpoint->FindLocationByID(cur_bp_id.GetLocationID()).get();
+          // It makes no sense to try to delete individual locations, so we
+          // disable them instead.
+          if (location) {
+            location->SetEnabled(false);
+            ++disable_count;
+          }
+        } else {
+          target.RemoveBreakpointByID(cur_bp_id.GetBreakpointID());
+          ++delete_count;
+        }
       }
     }
+    result.AppendMessageWithFormat(
+        "%d breakpoints deleted; %d breakpoint locations disabled.\n",
+        delete_count, disable_count);
+    result.SetStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 
@@ -1576,8 +1559,7 @@ private:
 class BreakpointNameOptionGroup : public OptionGroup {
 public:
   BreakpointNameOptionGroup()
-      : OptionGroup(), m_breakpoint(LLDB_INVALID_BREAK_ID), m_use_dummy(false) {
-  }
+      : m_breakpoint(LLDB_INVALID_BREAK_ID), m_use_dummy(false) {}
 
   ~BreakpointNameOptionGroup() override = default;
 
@@ -1637,7 +1619,7 @@ public:
 
 class BreakpointAccessOptionGroup : public OptionGroup {
 public:
-  BreakpointAccessOptionGroup() : OptionGroup() {}
+  BreakpointAccessOptionGroup() = default;
 
   ~BreakpointAccessOptionGroup() override = default;
 
@@ -1707,8 +1689,7 @@ public:
             "the breakpoint, otherwise only the options specified will be set "
             "on the name.",
             "breakpoint name configure <command-options> "
-            "<breakpoint-name-list>"),
-        m_bp_opts(), m_option_group() {
+            "<breakpoint-name-list>") {
     // Create the first variant for the first (and only) argument for this
     // command.
     CommandArgumentEntry arg1;
@@ -1736,7 +1717,6 @@ protected:
     const size_t argc = command.GetArgumentCount();
     if (argc == 0) {
       result.AppendError("No names provided.");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -1751,7 +1731,6 @@ protected:
       if (!BreakpointID::StringIsBreakpointName(entry.ref(), error)) {
         result.AppendErrorWithFormat("Invalid breakpoint name: %s - %s",
                                      entry.c_str(), error.AsCString());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
     }
@@ -1764,7 +1743,6 @@ protected:
       if (!bp_sp) {
         result.AppendErrorWithFormatv("Could not find specified breakpoint {0}",
                                       bp_id);
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
     }
@@ -1779,7 +1757,7 @@ protected:
         bp_name->SetHelp(m_bp_id.m_help_string.GetStringValue().str().c_str());
 
       if (bp_sp)
-        target.ConfigureBreakpointName(*bp_name, *bp_sp->GetOptions(),
+        target.ConfigureBreakpointName(*bp_name, bp_sp->GetOptions(),
                                        m_access_options.GetPermissions());
       else
         target.ConfigureBreakpointName(*bp_name,
@@ -1801,8 +1779,7 @@ public:
   CommandObjectBreakpointNameAdd(CommandInterpreter &interpreter)
       : CommandObjectParsed(
             interpreter, "add", "Add a name to the breakpoints provided.",
-            "breakpoint name add <command-options> <breakpoint-id-list>"),
-        m_name_options(), m_option_group() {
+            "breakpoint name add <command-options> <breakpoint-id-list>") {
     // Create the first variant for the first (and only) argument for this
     // command.
     CommandArgumentEntry arg1;
@@ -1831,7 +1808,7 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     if (!m_name_options.m_name.OptionWasSet()) {
-      result.SetError("No name option provided.");
+      result.AppendError("No name option provided.");
       return false;
     }
 
@@ -1845,8 +1822,7 @@ protected:
 
     size_t num_breakpoints = breakpoints.GetSize();
     if (num_breakpoints == 0) {
-      result.SetError("No breakpoints, cannot add names.");
-      result.SetStatus(eReturnStatusFailed);
+      result.AppendError("No breakpoints, cannot add names.");
       return false;
     }
 
@@ -1858,8 +1834,7 @@ protected:
 
     if (result.Succeeded()) {
       if (valid_bp_ids.GetSize() == 0) {
-        result.SetError("No breakpoints specified, cannot add names.");
-        result.SetStatus(eReturnStatusFailed);
+        result.AppendError("No breakpoints specified, cannot add names.");
         return false;
       }
       size_t num_valid_ids = valid_bp_ids.GetSize();
@@ -1888,8 +1863,7 @@ public:
       : CommandObjectParsed(
             interpreter, "delete",
             "Delete a name from the breakpoints provided.",
-            "breakpoint name delete <command-options> <breakpoint-id-list>"),
-        m_name_options(), m_option_group() {
+            "breakpoint name delete <command-options> <breakpoint-id-list>") {
     // Create the first variant for the first (and only) argument for this
     // command.
     CommandArgumentEntry arg1;
@@ -1918,7 +1892,7 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     if (!m_name_options.m_name.OptionWasSet()) {
-      result.SetError("No name option provided.");
+      result.AppendError("No name option provided.");
       return false;
     }
 
@@ -1932,8 +1906,7 @@ protected:
 
     size_t num_breakpoints = breakpoints.GetSize();
     if (num_breakpoints == 0) {
-      result.SetError("No breakpoints, cannot delete names.");
-      result.SetStatus(eReturnStatusFailed);
+      result.AppendError("No breakpoints, cannot delete names.");
       return false;
     }
 
@@ -1945,8 +1918,7 @@ protected:
 
     if (result.Succeeded()) {
       if (valid_bp_ids.GetSize() == 0) {
-        result.SetError("No breakpoints specified, cannot delete names.");
-        result.SetStatus(eReturnStatusFailed);
+        result.AppendError("No breakpoints specified, cannot delete names.");
         return false;
       }
       ConstString bp_name(m_name_options.m_name.GetCurrentValue());
@@ -1974,8 +1946,7 @@ public:
                             "List either the names for a breakpoint or info "
                             "about a given name.  With no arguments, lists all "
                             "names",
-                            "breakpoint name list <command-options>"),
-        m_name_options(), m_option_group() {
+                            "breakpoint name list <command-options>") {
     m_option_group.Append(&m_name_options, LLDB_OPT_SET_3, LLDB_OPT_SET_ALL);
     m_option_group.Finalize();
   }
@@ -2048,8 +2019,99 @@ class CommandObjectBreakpointName : public CommandObjectMultiword {
 public:
   CommandObjectBreakpointName(CommandInterpreter &interpreter)
       : CommandObjectMultiword(
-            interpreter, "name", "Commands to manage name tags for breakpoints",
-            "breakpoint name <subcommand> [<command-options>]") {
+            interpreter, "name", "Commands to manage breakpoint names") {
+  
+            
+    SetHelpLong(
+            R"(
+Breakpoint names provide a general tagging mechanism for breakpoints.  Each 
+breakpoint name can be added to any number of breakpoints, and each breakpoint 
+can have any number of breakpoint names attached to it. For instance:
+
+    (lldb) break name add -N MyName 1-10
+
+adds the name MyName to breakpoints 1-10, and:
+
+    (lldb) break set -n myFunc -N Name1 -N Name2
+
+adds two names to the breakpoint set at myFunc.
+
+They have a number of interrelated uses:
+
+1) They provide a stable way to refer to a breakpoint (e.g. in another 
+breakpoint's action). Using the breakpoint ID for this purpose is fragile, since
+it depends on the order of breakpoint creation.  Giving a name to the breakpoint
+you want to act on, and then referring to it by name, is more robust:
+
+    (lldb) break set -n myFunc -N BKPT1
+    (lldb) break set -n myOtherFunc -C "break disable BKPT1"
+
+2) This is actually just a specific use of a more general feature of breakpoint
+names.  The <breakpt-id-list> argument type used to specify one or more 
+breakpoints in most of the commands that deal with breakpoints also accepts 
+breakpoint names.  That allows you to refer to one breakpoint in a stable 
+manner, but also makes them a convenient grouping mechanism, allowing you to 
+easily act on a group of breakpoints by using their name, for instance disabling
+them all in one action:
+
+    (lldb) break set -n myFunc -N Group1
+    (lldb) break set -n myOtherFunc -N Group1
+    (lldb) break disable Group1
+    
+3) But breakpoint names are also entities in their own right, and can be 
+configured with all the modifiable attributes of a breakpoint.  Then when you 
+add a breakpoint name to a breakpoint, the breakpoint will be configured to 
+match the state of the breakpoint name.  The link between the name and the 
+breakpoints sharing it remains live, so if you change the configuration on the 
+name, it will also change the configurations on the breakpoints:
+
+    (lldb) break name configure -i 10 IgnoreSome
+    (lldb) break set -n myFunc -N IgnoreSome
+    (lldb) break list IgnoreSome
+    2: name = 'myFunc', locations = 0 (pending) Options: ignore: 10 enabled 
+      Names:
+        IgnoreSome
+    (lldb) break name configure -i 5 IgnoreSome
+    (lldb) break list IgnoreSome
+    2: name = 'myFunc', locations = 0 (pending) Options: ignore: 5 enabled 
+      Names:
+        IgnoreSome
+
+Options that are not configured on a breakpoint name don't affect the value of 
+those options on the breakpoints they are added to.  So for instance, if Name1
+has the -i option configured and Name2 the -c option, adding both names to a 
+breakpoint will set the -i option from Name1 and the -c option from Name2, and
+the other options will be unaltered.
+
+If you add multiple names to a breakpoint which have configured values for
+the same option, the last name added's value wins.
+
+The "liveness" of these settings is one way, from name to breakpoint.  
+If you use "break modify" to change an option that is also configured on a name 
+which that breakpoint has, the "break modify" command will override the setting 
+for that breakpoint, but won't change the value configured in the name or on the
+other breakpoints sharing that name.
+
+4) Breakpoint names are also a convenient way to copy option sets from one 
+breakpoint to another.  Using the -B option to "breakpoint name configure" makes
+a name configured with all the options of the original breakpoint.  Then 
+adding that name to another breakpoint copies over all the values from the 
+original breakpoint to the new one.
+
+5) You can also use breakpoint names to hide breakpoints from the breakpoint
+operations that act on all breakpoints: "break delete", "break disable" and 
+"break list".  You do that by specifying a "false" value for the 
+--allow-{list,delete,disable} options to "breakpoint name configure" and then 
+adding that name to a breakpoint.
+
+This won't keep the breakpoint from being deleted or disabled if you refer to it 
+specifically by ID. The point of the feature is to make sure users don't 
+inadvertently delete or disable useful breakpoints (e.g. ones an IDE is using
+for its own purposes) as part of a "delete all" or "disable all" operation.  The
+list hiding is because it's confusing for people to see breakpoints they 
+didn't set.
+
+)");
     CommandObjectSP add_command_object(
         new CommandObjectBreakpointNameAdd(interpreter));
     CommandObjectSP delete_command_object(
@@ -2081,8 +2143,7 @@ public:
       : CommandObjectParsed(interpreter, "breakpoint read",
                             "Read and set the breakpoints previously saved to "
                             "a file with \"breakpoint write\".  ",
-                            nullptr),
-        m_options() {}
+                            nullptr) {}
 
   ~CommandObjectBreakpointRead() override = default;
 
@@ -2090,7 +2151,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -2222,7 +2283,6 @@ protected:
 
     if (!error.Success()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -2264,8 +2324,7 @@ public:
                             "Write the breakpoints listed to a file that can "
                             "be read in with \"breakpoint read\".  "
                             "If given no arguments, writes all breakpoints.",
-                            nullptr),
-        m_options() {
+                            nullptr) {
     CommandArgumentEntry arg;
     CommandObject::AddIDsArgumentData(arg, eArgTypeBreakpointID,
                                       eArgTypeBreakpointIDRange);
@@ -2288,7 +2347,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -2351,7 +2410,6 @@ protected:
     if (!error.Success()) {
       result.AppendErrorWithFormat("error serializing breakpoints: %s.",
                                    error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
     }
     return result.Succeeded();
   }
@@ -2444,7 +2502,6 @@ void CommandObjectMultiwordBreakpoint::VerifyIDs(
     } else {
       result.AppendError(
           "No breakpoint specified and no last created breakpoint.");
-      result.SetStatus(eReturnStatusFailed);
     }
     return;
   }
@@ -2486,14 +2543,12 @@ void CommandObjectMultiwordBreakpoint::VerifyIDs(
           result.AppendErrorWithFormat(
               "'%s' is not a currently valid breakpoint/location id.\n",
               id_str.GetData());
-          result.SetStatus(eReturnStatusFailed);
         }
       } else {
         i = valid_ids->GetSize() + 1;
         result.AppendErrorWithFormat(
             "'%d' is not a currently valid breakpoint ID.\n",
             cur_bp_id.GetBreakpointID());
-        result.SetStatus(eReturnStatusFailed);
       }
     }
   }

@@ -210,7 +210,7 @@ TEST(JSONCompilationDatabase, ArgumentsPreferredOverCommand) {
 struct FakeComparator : public PathComparator {
   ~FakeComparator() override {}
   bool equivalent(StringRef FileA, StringRef FileB) const override {
-    return FileA.equals_lower(FileB);
+    return FileA.equals_insensitive(FileB);
   }
 };
 
@@ -642,7 +642,7 @@ TEST(ParseFixedCompilationDatabase, HandlesPositionalArgsSyntaxOnly) {
   // Adjust the given command line arguments to ensure that any positional
   // arguments in them are stripped.
   const char *Argv[] = {"--", "somefile.cpp", "-fsyntax-only", "-DDEF3"};
-  int Argc = llvm::array_lengthof(Argv);
+  int Argc = std::size(Argv);
   std::string ErrorMessage;
   std::unique_ptr<CompilationDatabase> Database =
       FixedCompilationDatabase::loadFromCommandLine(Argc, Argv, ErrorMessage);
@@ -700,6 +700,10 @@ protected:
     SmallVector<StringRef, 8> Argv = {Clang, File, "-D", File};
     llvm::SplitString(Flags, Argv);
 
+    // Trim double quotation from the argumnets if any.
+    for (auto *It = Argv.begin(); It != Argv.end(); ++It)
+      *It = It->trim("\"");
+
     SmallString<32> Dir;
     llvm::sys::path::system_temp_directory(false, Dir);
 
@@ -734,6 +738,9 @@ protected:
     // drop the input file argument, so tests don't have to deal with path().
     EXPECT_EQ(Results[0].CommandLine.back(), MakeNative ? path(F) : F)
         << "Last arg should be the file";
+    Results[0].CommandLine.pop_back();
+    EXPECT_EQ(Results[0].CommandLine.back(), "--")
+        << "Second-last arg should be --";
     Results[0].CommandLine.pop_back();
     return llvm::join(Results[0].CommandLine, " ");
   }
@@ -822,23 +829,19 @@ TEST_F(InterpolateTest, StripDoubleDash) {
   EXPECT_EQ(getCommand("dir/bar.cpp"), "clang -D dir/foo.cpp -Wall -std=c++14");
 }
 
-TEST_F(InterpolateTest, InsertDoubleDash) {
-  add("dir/foo.cpp", "-o foo.o -std=c++14 -Wall");
-  EXPECT_EQ(getCommand("-dir/bar.cpp", false),
-            "clang -D dir/foo.cpp -Wall -std=c++14 --");
-}
-
-TEST_F(InterpolateTest, InsertDoubleDashForClangCL) {
-  add("dir/foo.cpp", "clang-cl", "/std:c++14 /W4");
-  EXPECT_EQ(getCommand("/dir/bar.cpp", false),
-            "clang-cl -D dir/foo.cpp /W4 /std:c++14 --");
-}
-
 TEST_F(InterpolateTest, Case) {
   add("FOO/BAR/BAZ/SHOUT.cc");
   add("foo/bar/baz/quiet.cc");
   // Case mismatches are completely ignored, so we choose the name match.
   EXPECT_EQ(getProxy("foo/bar/baz/shout.C"), "FOO/BAR/BAZ/SHOUT.cc");
+}
+
+TEST_F(InterpolateTest, LanguagePreference) {
+  add("foo/bar/baz/exact.C");
+  add("foo/bar/baz/exact.c");
+  add("other/random/path.cpp");
+  // Proxies for ".H" files are ".C" files, and not ".c files".
+  EXPECT_EQ(getProxy("foo/bar/baz/exact.H"), "foo/bar/baz/exact.C");
 }
 
 TEST_F(InterpolateTest, Aliasing) {
@@ -875,7 +878,7 @@ TEST(TransferCompileCommandTest, Smoke) {
   CompileCommand Transferred = transferCompileCommand(std::move(Cmd), "foo.h");
   EXPECT_EQ(Transferred.Filename, "foo.h");
   EXPECT_THAT(Transferred.CommandLine,
-              ElementsAre("clang", "-Wall", "-x", "c++-header", "foo.h"));
+              ElementsAre("clang", "-Wall", "-x", "c++-header", "--", "foo.h"));
   EXPECT_EQ(Transferred.Directory, "dir");
 }
 
@@ -960,6 +963,13 @@ TEST_F(ExpandResponseFilesTest, ExpandResponseFiles) {
   add("bar.cpp", "clang", "-Dflag");
   EXPECT_EQ(getCommand("foo.cpp"), "clang foo.cpp -D foo.cpp -Dflag");
   EXPECT_EQ(getCommand("bar.cpp"), "clang bar.cpp -D bar.cpp -Dflag");
+}
+
+TEST_F(ExpandResponseFilesTest, ExpandResponseFilesEmptyArgument) {
+  addFile(path(StringRef("rsp1.rsp")), "-Dflag");
+
+  add("foo.cpp", "clang", "@rsp1.rsp \"\"");
+  EXPECT_EQ(getCommand("foo.cpp"), "clang foo.cpp -D foo.cpp -Dflag ");
 }
 
 } // end namespace tooling

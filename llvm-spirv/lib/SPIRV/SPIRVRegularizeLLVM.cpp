@@ -37,14 +37,17 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spvregular"
 
+#include "SPIRVRegularizeLLVM.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
 
-#include "llvm/IR/InstVisitor.h"
-#include "llvm/IR/Instructions.h"
+#include "llvm/ADT/StringExtras.h" // llvm::isDigit
+#include "llvm/CodeGen/IntrinsicLowering.h"
+#include "llvm/Demangle/Demangle.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h" // expandMemSetAsLoop()
 
@@ -60,58 +63,13 @@ namespace SPIRV {
 static bool SPIRVDbgSaveRegularizedModule = false;
 static std::string RegularizedModuleTmpFile = "regularized.bc";
 
-class SPIRVRegularizeLLVM : public ModulePass {
-public:
-  SPIRVRegularizeLLVM() : ModulePass(ID), M(nullptr), Ctx(nullptr) {
-    initializeSPIRVRegularizeLLVMPass(*PassRegistry::getPassRegistry());
-  }
+char SPIRVRegularizeLLVMLegacy::ID = 0;
 
-  bool runOnModule(Module &M) override;
+bool SPIRVRegularizeLLVMLegacy::runOnModule(Module &Module) {
+  return runRegularizeLLVM(Module);
+}
 
-  // Lower functions
-  bool regularize();
-
-  /// Erase cast inst of function and replace with the function.
-  /// Assuming F is a SPIR-V builtin function with op code \param OC.
-  void lowerFuncPtr(Function *F, Op OC);
-  void lowerFuncPtr(Module *M);
-
-  /// There is no SPIR-V counterpart for @llvm.memset.* intrinsic. Cases with
-  /// constant value and length arguments are emulated via "storing" a constant
-  /// array to the destination. For other cases we wrap the intrinsic in
-  /// @spirv.llvm_memset_* function and expand the intrinsic to a loop via
-  /// expandMemSetAsLoop() from llvm/Transforms/Utils/LowerMemIntrinsics.h
-  /// During reverse translation from SPIR-V to LLVM IR we can detect
-  /// @spirv.llvm_memset_* and replace it with @llvm.memset.
-  void lowerMemset(MemSetInst *MSI);
-
-  /// No SPIR-V counterpart for @llvm.fshl.i* intrinsic. It will be lowered
-  /// to a newly generated @spirv.llvm_fshl_i* function.
-  /// Conceptually, FSHL:
-  /// 1. concatenates the ints, the first one being the more significant;
-  /// 2. performs a left shift-rotate on the resulting doubled-sized int;
-  /// 3. returns the most significant bits of the shift-rotate result,
-  ///    the number of bits being equal to the size of the original integers.
-  /// The actual implementation algorithm will be slightly different to speed
-  /// things up.
-  void lowerFunnelShiftLeft(IntrinsicInst *FSHLIntrinsic);
-  void buildFunnelShiftLeftFunc(Function *FSHLFunc);
-
-  void lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic);
-  void buildUMulWithOverflowFunc(Function *UMulFunc);
-
-  static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
-
-  static char ID;
-
-private:
-  Module *M;
-  LLVMContext *Ctx;
-};
-
-char SPIRVRegularizeLLVM::ID = 0;
-
-std::string SPIRVRegularizeLLVM::lowerLLVMIntrinsicName(IntrinsicInst *II) {
+std::string SPIRVRegularizeLLVMBase::lowerLLVMIntrinsicName(IntrinsicInst *II) {
   Function *IntrinsicFunc = II->getCalledFunction();
   assert(IntrinsicFunc && "Missing function");
   std::string FuncName = IntrinsicFunc->getName().str();
@@ -120,115 +78,137 @@ std::string SPIRVRegularizeLLVM::lowerLLVMIntrinsicName(IntrinsicInst *II) {
   return FuncName;
 }
 
-void SPIRVRegularizeLLVM::lowerMemset(MemSetInst *MSI) {
-  if (isa<Constant>(MSI->getValue()) && isa<ConstantInt>(MSI->getLength()))
-    return; // To be handled in LLVMToSPIRV::transIntrinsicInst
+void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
+    IntrinsicInst *Intrinsic) {
+  // For @llvm.memset.* intrinsic cases with constant value and length arguments
+  // are emulated via "storing" a constant array to the destination. For other
+  // cases we wrap the intrinsic in @spirv.llvm_memset_* function and expand the
+  // intrinsic to a loop via expandMemSetAsLoop() from
+  // llvm/Transforms/Utils/LowerMemIntrinsics.h
+  if (auto *MSI = dyn_cast<MemSetInst>(Intrinsic))
+    if (isa<Constant>(MSI->getValue()) && isa<ConstantInt>(MSI->getLength()))
+      return; // To be handled in LLVMToSPIRV::transIntrinsicInst
 
-  std::string FuncName = lowerLLVMIntrinsicName(MSI);
-  if (MSI->isVolatile())
+  std::string FuncName = lowerLLVMIntrinsicName(Intrinsic);
+  if (Intrinsic->isVolatile())
     FuncName += ".volatile";
-  // Redirect @llvm.memset.* call to @spirv.llvm_memset_*
+  // Redirect @llvm.intrinsic.* call to @spirv.llvm_intrinsic_*
   Function *F = M->getFunction(FuncName);
   if (F) {
     // This function is already linked in.
-    MSI->setCalledFunction(F);
+    Intrinsic->setCalledFunction(F);
     return;
   }
   // TODO copy arguments attributes: nocapture writeonly.
-  FunctionCallee FC = M->getOrInsertFunction(FuncName, MSI->getFunctionType());
-  MSI->setCalledFunction(FC);
+  FunctionCallee FC =
+      M->getOrInsertFunction(FuncName, Intrinsic->getFunctionType());
+  auto IntrinsicID = Intrinsic->getIntrinsicID();
+  Intrinsic->setCalledFunction(FC);
 
   F = dyn_cast<Function>(FC.getCallee());
   assert(F && "must be a function!");
-  Argument *Dest = F->getArg(0);
-  Argument *Val = F->getArg(1);
-  Argument *Len = F->getArg(2);
-  Argument *IsVolatile = F->getArg(3);
-  Dest->setName("dest");
-  Val->setName("val");
-  Len->setName("len");
-  IsVolatile->setName("isvolatile");
-  IsVolatile->addAttr(Attribute::ImmArg);
-  BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
-  IRBuilder<> IRB(EntryBB);
-  auto *MemSet =
-      IRB.CreateMemSet(Dest, Val, Len, MSI->getDestAlign(), MSI->isVolatile());
-  IRB.CreateRetVoid();
-  expandMemSetAsLoop(cast<MemSetInst>(MemSet));
-  MemSet->eraseFromParent();
+
+  switch (IntrinsicID) {
+  case Intrinsic::memset: {
+    auto *MSI = static_cast<MemSetInst *>(Intrinsic);
+    Argument *Dest = F->getArg(0);
+    Argument *Val = F->getArg(1);
+    Argument *Len = F->getArg(2);
+    Argument *IsVolatile = F->getArg(3);
+    Dest->setName("dest");
+    Val->setName("val");
+    Len->setName("len");
+    IsVolatile->setName("isvolatile");
+    IsVolatile->addAttr(Attribute::ImmArg);
+    BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
+    IRBuilder<> IRB(EntryBB);
+    auto *MemSet = IRB.CreateMemSet(Dest, Val, Len, MSI->getDestAlign(),
+                                    MSI->isVolatile());
+    IRB.CreateRetVoid();
+    expandMemSetAsLoop(cast<MemSetInst>(MemSet));
+    MemSet->eraseFromParent();
+    break;
+  }
+  case Intrinsic::bswap: {
+    BasicBlock *EntryBB = BasicBlock::Create(M->getContext(), "entry", F);
+    IRBuilder<> IRB(EntryBB);
+    auto *BSwap = IRB.CreateIntrinsic(Intrinsic::bswap, Intrinsic->getType(),
+                                      F->getArg(0));
+    IRB.CreateRet(BSwap);
+    IntrinsicLowering IL(M->getDataLayout());
+    IL.LowerIntrinsicCall(BSwap);
+    break;
+  }
+  default:
+    break; // do nothing
+  }
+
   return;
 }
 
-void SPIRVRegularizeLLVM::buildFunnelShiftLeftFunc(Function *FSHLFunc) {
-  if (!FSHLFunc->empty())
-    return;
-
-  auto *IntTy = dyn_cast<IntegerType>(FSHLFunc->getReturnType());
-  assert(IntTy && "llvm.fshl: expected an integer return type");
-  assert(FSHLFunc->arg_size() == 3 && "llvm.fshl: expected 3 arguments");
-  for (Argument &Arg : FSHLFunc->args())
-    assert(Arg.getType()->getTypeID() == IntTy->getTypeID() &&
-           "llvm.fshl: mismatched return type and argument types");
-
-  // Our function will require 3 basic blocks; the purpose of each will be
-  // clarified below.
-  auto *CondBB = BasicBlock::Create(M->getContext(), "cond", FSHLFunc);
-  auto *RotateBB =
-      BasicBlock::Create(M->getContext(), "rotate", FSHLFunc); // Main logic
-  auto *PhiBB = BasicBlock::Create(M->getContext(), "phi", FSHLFunc);
-
-  IRBuilder<> Builder(CondBB);
-  // If the number of bits to rotate for is divisible by the bitsize,
-  // the shift becomes useless, and we should bypass the main logic in that
-  // case.
-  unsigned BitWidth = IntTy->getIntegerBitWidth();
-  ConstantInt *BitWidthConstant = Builder.getInt({BitWidth, BitWidth});
-  auto *RotateModVal =
-      Builder.CreateURem(/*Rotate*/ FSHLFunc->getArg(2), BitWidthConstant);
-  ConstantInt *ZeroConstant = Builder.getInt({BitWidth, 0});
-  auto *CheckRotateModIfZero = Builder.CreateICmpEQ(RotateModVal, ZeroConstant);
-  Builder.CreateCondBr(CheckRotateModIfZero, /*True*/ PhiBB,
-                       /*False*/ RotateBB);
-
-  // Build the actual funnel shift rotate logic.
-  Builder.SetInsertPoint(RotateBB);
-  // Shift the more significant number left, the "rotate" number of bits
-  // will be 0-filled on the right as a result of this regular shift.
-  auto *ShiftLeft = Builder.CreateShl(FSHLFunc->getArg(0), RotateModVal);
-  // We want the "rotate" number of the second int's MSBs to occupy the
-  // rightmost "0 space" left by the previous operation. Therefore,
-  // subtract the "rotate" number from the integer bitsize...
-  auto *SubRotateVal = Builder.CreateSub(BitWidthConstant, RotateModVal);
-  // ...and right-shift the second int by this number, zero-filling the MSBs.
-  auto *ShiftRight = Builder.CreateLShr(FSHLFunc->getArg(1), SubRotateVal);
-  // A simple binary addition of the shifted ints yields the final result.
-  auto *FunnelShiftRes = Builder.CreateOr(ShiftLeft, ShiftRight);
-  Builder.CreateBr(PhiBB);
-
-  // PHI basic block. If no actual rotate was required, return the first, more
-  // significant int. E.g. for 32-bit integers, it's equivalent to concatenating
-  // the 2 ints and taking 32 MSBs.
-  Builder.SetInsertPoint(PhiBB);
-  PHINode *Phi = Builder.CreatePHI(IntTy, 0);
-  Phi->addIncoming(FunnelShiftRes, RotateBB);
-  Phi->addIncoming(FSHLFunc->getArg(0), CondBB);
-  Builder.CreateRet(Phi);
-}
-
-void SPIRVRegularizeLLVM::lowerFunnelShiftLeft(IntrinsicInst *FSHLIntrinsic) {
+void SPIRVRegularizeLLVMBase::lowerFunnelShift(IntrinsicInst *FSHIntrinsic) {
   // Get a separate function - otherwise, we'd have to rework the CFG of the
   // current one. Then simply replace the intrinsic uses with a call to the new
   // function.
-  FunctionType *FSHLFuncTy = FSHLIntrinsic->getFunctionType();
-  Type *FSHLRetTy = FSHLFuncTy->getReturnType();
-  const std::string FuncName = lowerLLVMIntrinsicName(FSHLIntrinsic);
-  Function *FSHLFunc =
-      getOrCreateFunction(M, FSHLRetTy, FSHLFuncTy->params(), FuncName);
-  buildFunnelShiftLeftFunc(FSHLFunc);
-  FSHLIntrinsic->setCalledFunction(FSHLFunc);
+  // Expected LLVM IR for the function: i* @spirv.llvm_fsh?_i* (i* %a, i* %b, i*
+  // %c)
+  FunctionType *FSHFuncTy = FSHIntrinsic->getFunctionType();
+  Type *FSHRetTy = FSHFuncTy->getReturnType();
+  const std::string FuncName = lowerLLVMIntrinsicName(FSHIntrinsic);
+  Function *FSHFunc =
+      getOrCreateFunction(M, FSHRetTy, FSHFuncTy->params(), FuncName);
+
+  if (!FSHFunc->empty()) {
+    FSHIntrinsic->setCalledFunction(FSHFunc);
+    return;
+  }
+  auto *RotateBB = BasicBlock::Create(M->getContext(), "rotate", FSHFunc);
+  IRBuilder<> Builder(RotateBB);
+  Type *Ty = FSHFunc->getReturnType();
+  // Build the actual funnel shift rotate logic.
+  // In the comments, "int" is used interchangeably with "vector of int
+  // elements".
+  FixedVectorType *VectorTy = dyn_cast<FixedVectorType>(Ty);
+  Type *IntTy = VectorTy ? VectorTy->getElementType() : Ty;
+  unsigned BitWidth = IntTy->getIntegerBitWidth();
+  ConstantInt *BitWidthConstant = Builder.getInt({BitWidth, BitWidth});
+  Value *BitWidthForInsts =
+      VectorTy ? Builder.CreateVectorSplat(VectorTy->getNumElements(),
+                                           BitWidthConstant)
+               : BitWidthConstant;
+  auto *RotateModVal =
+      Builder.CreateURem(/*Rotate*/ FSHFunc->getArg(2), BitWidthForInsts);
+  Value *FirstShift = nullptr, *SecShift = nullptr;
+  if (FSHIntrinsic->getIntrinsicID() == Intrinsic::fshr)
+    // Shift the less significant number right, the "rotate" number of bits
+    // will be 0-filled on the left as a result of this regular shift.
+    FirstShift = Builder.CreateLShr(FSHFunc->getArg(1), RotateModVal);
+  else
+    // Shift the more significant number left, the "rotate" number of bits
+    // will be 0-filled on the right as a result of this regular shift.
+    FirstShift = Builder.CreateShl(FSHFunc->getArg(0), RotateModVal);
+
+  // We want the "rotate" number of the more significant int's LSBs (MSBs) to
+  // occupy the leftmost (rightmost) "0 space" left by the previous operation.
+  // Therefore, subtract the "rotate" number from the integer bitsize...
+  auto *SubRotateVal = Builder.CreateSub(BitWidthForInsts, RotateModVal);
+  if (FSHIntrinsic->getIntrinsicID() == Intrinsic::fshr)
+    // ...and left-shift the more significant int by this number, zero-filling
+    // the LSBs.
+    SecShift = Builder.CreateShl(FSHFunc->getArg(0), SubRotateVal);
+  else
+    // ...and right-shift the less significant int by this number, zero-filling
+    // the MSBs.
+    SecShift = Builder.CreateLShr(FSHFunc->getArg(1), SubRotateVal);
+
+  // A simple binary addition of the shifted ints yields the final result.
+  auto *FunnelShiftRes = Builder.CreateOr(FirstShift, SecShift);
+  Builder.CreateRet(FunnelShiftRes);
+
+  FSHIntrinsic->setCalledFunction(FSHFunc);
 }
 
-void SPIRVRegularizeLLVM::buildUMulWithOverflowFunc(Function *UMulFunc) {
+void SPIRVRegularizeLLVMBase::buildUMulWithOverflowFunc(Function *UMulFunc) {
   if (!UMulFunc->empty())
     return;
 
@@ -254,7 +234,8 @@ void SPIRVRegularizeLLVM::buildUMulWithOverflowFunc(Function *UMulFunc) {
   Builder.CreateRet(Res);
 }
 
-void SPIRVRegularizeLLVM::lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic) {
+void SPIRVRegularizeLLVMBase::lowerUMulWithOverflow(
+    IntrinsicInst *UMulIntrinsic) {
   // Get a separate function - otherwise, we'd have to rework the CFG of the
   // current one. Then simply replace the intrinsic uses with a call to the new
   // function.
@@ -267,7 +248,221 @@ void SPIRVRegularizeLLVM::lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic) {
   UMulIntrinsic->setCalledFunction(UMulFunc);
 }
 
-bool SPIRVRegularizeLLVM::runOnModule(Module &Module) {
+void SPIRVRegularizeLLVMBase::expandVEDWithSYCLTypeSRetArg(Function *F) {
+  auto Attrs = F->getAttributes();
+  StructType *SRetTy = cast<StructType>(Attrs.getParamStructRetType(0));
+  Attrs = Attrs.removeParamAttribute(F->getContext(), 0, Attribute::StructRet);
+  std::string Name = F->getName().str();
+  CallInst *OldCall = nullptr;
+  mutateFunction(
+      F,
+      [=, &OldCall](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
+        Args.erase(Args.begin());
+        RetTy = SRetTy->getElementType(0);
+        OldCall = CI;
+        return Name;
+      },
+      [=, &OldCall](CallInst *NewCI) {
+        IRBuilder<> Builder(OldCall);
+        Value *Target =
+            Builder.CreateStructGEP(SRetTy, OldCall->getOperand(0), 0);
+        return Builder.CreateStore(NewCI, Target);
+      },
+      nullptr, &Attrs, true);
+}
+
+void SPIRVRegularizeLLVMBase::expandVIDWithSYCLTypeByValComp(Function *F) {
+  auto Attrs = F->getAttributes();
+  auto *CompPtrTy = cast<StructType>(Attrs.getParamByValType(1));
+  Attrs = Attrs.removeParamAttribute(F->getContext(), 1, Attribute::ByVal);
+  std::string Name = F->getName().str();
+  mutateFunction(
+      F,
+      [=](CallInst *CI, std::vector<Value *> &Args) {
+        Type *HalfTy = CompPtrTy->getElementType(0);
+        IRBuilder<> Builder(CI);
+        auto *Target = Builder.CreateStructGEP(CompPtrTy, CI->getOperand(1), 0);
+        Args[1] = Builder.CreateLoad(HalfTy, Target);
+        return Name;
+      },
+      nullptr, &Attrs, true);
+}
+
+void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
+  std::vector<Function *> ToExpandVEDWithSYCLTypeSRetArg;
+  std::vector<Function *> ToExpandVIDWithSYCLTypeByValComp;
+
+  for (auto &F : *M) {
+    if (F.getName().startswith("_Z28__spirv_VectorExtractDynamic") &&
+        F.hasStructRetAttr()) {
+      auto *SRetTy = F.getParamStructRetType(0);
+      if (isSYCLHalfType(SRetTy) || isSYCLBfloat16Type(SRetTy))
+        ToExpandVEDWithSYCLTypeSRetArg.push_back(&F);
+      else
+        llvm_unreachable("The return type of the VectorExtractDynamic "
+                         "instruction cannot be a structure other than SYCL "
+                         "half.");
+    }
+    if (F.getName().startswith("_Z27__spirv_VectorInsertDynamic") &&
+        F.getArg(1)->getType()->isPointerTy()) {
+      auto *ET = F.getParamByValType(1);
+      if (isSYCLHalfType(ET) || isSYCLBfloat16Type(ET))
+        ToExpandVIDWithSYCLTypeByValComp.push_back(&F);
+      else
+        llvm_unreachable("The component argument type of an "
+                         "VectorInsertDynamic instruction can't be a "
+                         "structure other than SYCL half.");
+    }
+  }
+
+  for (auto *F : ToExpandVEDWithSYCLTypeSRetArg)
+    expandVEDWithSYCLTypeSRetArg(F);
+  for (auto *F : ToExpandVIDWithSYCLTypeByValComp)
+    expandVIDWithSYCLTypeByValComp(F);
+}
+
+Value *SPIRVRegularizeLLVMBase::extendBitInstBoolArg(Instruction *II) {
+  IRBuilder<> Builder(II);
+  auto *ArgTy = II->getOperand(0)->getType();
+  Type *NewArgType = nullptr;
+  if (ArgTy->isIntegerTy()) {
+    NewArgType = Builder.getInt32Ty();
+  } else if (ArgTy->isVectorTy() &&
+             cast<VectorType>(ArgTy)->getElementType()->isIntegerTy()) {
+    unsigned NumElements = cast<FixedVectorType>(ArgTy)->getNumElements();
+    NewArgType = VectorType::get(Builder.getInt32Ty(), NumElements, false);
+  } else {
+    llvm_unreachable("Unexpected type");
+  }
+  auto *NewBase = Builder.CreateZExt(II->getOperand(0), NewArgType);
+  auto *NewShift = Builder.CreateZExt(II->getOperand(1), NewArgType);
+  switch (II->getOpcode()) {
+  case Instruction::LShr:
+    return Builder.CreateLShr(NewBase, NewShift);
+  case Instruction::Shl:
+    return Builder.CreateShl(NewBase, NewShift);
+  default:
+    return II;
+  }
+}
+
+void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
+  if (!ST->hasName())
+    return;
+  StringRef STName = ST->getName();
+  STName.consume_front("struct.");
+  STName.consume_front("__spv::");
+  StringRef MangledName = STName.substr(0, STName.find('.'));
+
+  // Older versions of clang will generate JointMatrixINTEL types using this
+  // representation. Newer versions will generate the correct struct name
+  // "%spirv.JointMatrixINTEL._{parameters}" directly, obviating the need for
+  // this check.
+  // Representation in LLVM IR before the translator is a pointer array wrapped
+  // in a structure:
+  // %struct.__spirv_JointMatrixINTEL = type { [R x [C x [L x [S x type]]]]* }
+  // where R = Rows, C = Columnts, L = Layout + 1, S = Scope + 1
+  // this '+1' for the Layout and Scope is required because both of them can
+  // be '0', but array size can not be '0'.
+  // The result should look like SPIR-V friendly LLVM IR:
+  // %spirv.JointMatrixINTEL._char_2_2_0_3
+  // Here we check the structure name yet again. Another option would be to
+  // check SPIR-V friendly function calls (by their name) and obtain return
+  // or their parameter types, assuming, that the appropriate types are Matrix
+  // structure type. But in the near future, we will reuse Composite
+  // instructions to do, for example, matrix initialization directly on AMX
+  // register by OpCompositeConstruct. And we can't claim, that the Result type
+  // of OpCompositeConstruct instruction is always the joint matrix type, it's
+  // simply not true.
+  if (MangledName == "__spirv_JointMatrixINTEL" && !ST->isOpaquePointerTy()) {
+    auto *PtrTy = dyn_cast<PointerType>(ST->getElementType(0));
+    assert(PtrTy &&
+           "Expected a pointer to an array to represent joint matrix type");
+    std::vector<size_t> TypeLayout;
+    ArrayType *ArrayTy =
+        dyn_cast<ArrayType>(PtrTy->getNonOpaquePointerElementType());
+    assert(ArrayTy && "Expected a pointer element type of an array type to "
+                      "represent joint matrix type");
+    TypeLayout.push_back(ArrayTy->getNumElements());
+    for (size_t I = 1; I != 4; ++I) {
+      ArrayTy = dyn_cast<ArrayType>(ArrayTy->getElementType());
+      assert(ArrayTy &&
+             "Expected a element type to represent joint matrix type");
+      TypeLayout.push_back(ArrayTy->getNumElements());
+    }
+    // JointMatrixINTEL type can have optional 'Use' parameter, which is encoded
+    // as another array dimention. In case if it has default 'Unnecessary' (4)
+    // parameter - ignore it.
+    if (isa<ArrayType>(ArrayTy->getElementType())) {
+      ArrayTy = cast<ArrayType>(ArrayTy->getElementType());
+      uint32_t UseInt = ArrayTy->getNumElements();
+      assert(UseInt <= 4 && "Use parameter encoded in the array must be < 5 ");
+      if (UseInt != 4)
+        TypeLayout.push_back(UseInt);
+    }
+
+    auto *ElemTy = ArrayTy->getElementType();
+    std::string ElemTyStr;
+    if (ElemTy->isIntegerTy()) {
+      auto *IntElemTy = cast<IntegerType>(ElemTy);
+      switch (IntElemTy->getBitWidth()) {
+      case 8:
+        ElemTyStr = "char";
+        break;
+      case 16:
+        ElemTyStr = "short";
+        break;
+      case 32:
+        ElemTyStr = "int";
+        break;
+      case 64:
+        ElemTyStr = "long";
+        break;
+      default:
+        ElemTyStr = "i" + std::to_string(IntElemTy->getBitWidth());
+      }
+    }
+    // Check half type like this as well, but in DPC++ it most likelly will
+    // be a class
+    else if (ElemTy->isHalfTy())
+      ElemTyStr = "half";
+    else if (ElemTy->isFloatTy())
+      ElemTyStr = "float";
+    else if (ElemTy->isDoubleTy())
+      ElemTyStr = "double";
+    else {
+      // Half type is special: in DPC++ we use `class half` instead of `half`
+      // type natively supported by Clang.
+      auto *STElemTy = dyn_cast<StructType>(ElemTy);
+      if (!STElemTy && !STElemTy->hasName())
+        llvm_unreachable("Unexpected type for matrix!");
+      if (isSYCLHalfType(ElemTy))
+        ElemTyStr = "half";
+      if (isSYCLBfloat16Type(ElemTy))
+        ElemTyStr = "bfloat16";
+      if (ElemTyStr.size() == 0)
+        llvm_unreachable("Unexpected type for matrix!");
+    }
+    std::stringstream SPVName;
+    SPVName << kSPIRVTypeName::PrefixAndDelim
+            << kSPIRVTypeName::JointMatrixINTEL << kSPIRVTypeName::Delimiter
+            << kSPIRVTypeName::PostfixDelim << ElemTyStr
+            << kSPIRVTypeName::PostfixDelim << std::to_string(TypeLayout[0])
+            << kSPIRVTypeName::PostfixDelim << std::to_string(TypeLayout[1])
+            << kSPIRVTypeName::PostfixDelim << std::to_string(TypeLayout[2] - 1)
+            << kSPIRVTypeName::PostfixDelim
+            << std::to_string(TypeLayout[3] - 1);
+    if (TypeLayout.size() == 5)
+      SPVName << kSPIRVTypeName::PostfixDelim
+              << std::to_string(TypeLayout[4] - 1);
+    // Note, that this structure is not opaque and there is no way to make it
+    // opaque but to recreate it entirely and replace it everywhere. Lets
+    // keep the structure as is, dealing with it during SPIR-V generation.
+    ST->setName(SPVName.str());
+  }
+}
+
+bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
 
@@ -281,9 +476,9 @@ bool SPIRVRegularizeLLVM::runOnModule(Module &Module) {
 }
 
 /// Remove entities not representable by SPIR-V
-bool SPIRVRegularizeLLVM::regularize() {
+bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
-  lowerFuncPtr(M);
+  expandSYCLTypeUsing(M);
 
   for (auto I = M->begin(), E = M->end(); I != E;) {
     Function *F = &(*I++);
@@ -301,13 +496,30 @@ bool SPIRVRegularizeLLVM::regularize() {
           if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
             auto *II = cast<IntrinsicInst>(Call);
-            if (auto *MSI = dyn_cast<MemSetInst>(II))
-              lowerMemset(MSI);
-            else if (II->getIntrinsicID() == Intrinsic::fshl)
-              lowerFunnelShiftLeft(II);
+            if (II->getIntrinsicID() == Intrinsic::memset ||
+                II->getIntrinsicID() == Intrinsic::bswap)
+              lowerIntrinsicToFunction(II);
+            else if (II->getIntrinsicID() == Intrinsic::fshl ||
+                     II->getIntrinsicID() == Intrinsic::fshr)
+              lowerFunnelShift(II);
             else if (II->getIntrinsicID() == Intrinsic::umul_with_overflow)
               lowerUMulWithOverflow(II);
           }
+        }
+
+        // Translator treats i1 as boolean, but bit instructions take
+        // a scalar/vector integers, so we have to extend such arguments
+        if (II.isLogicalShift() &&
+            II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
+          auto *NewInst = extendBitInstBoolArg(&II);
+          for (auto *U : II.users()) {
+            if (cast<Instruction>(U)->getOpcode() == Instruction::ZExt) {
+              U->dropAllReferences();
+              U->replaceAllUsesWith(NewInst);
+              ToErase.push_back(cast<Instruction>(U));
+            }
+          }
+          ToErase.push_back(&II);
         }
 
         // Remove optimization info not supported by SPIRV
@@ -332,6 +544,31 @@ bool SPIRVRegularizeLLVM::regularize() {
         for (auto &MDName : MDs) {
           if (II.getMetadata(MDName)) {
             II.setMetadata(MDName, nullptr);
+          }
+        }
+        // Add an additional bitcast in case address space cast also changes
+        // pointer element type.
+        if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
+          Type *DestTy = ASCast->getDestTy();
+          Type *SrcTy = ASCast->getSrcTy();
+          if (!II.getContext().supportsTypedPointers())
+            continue;
+          if (DestTy->getScalarType()->getNonOpaquePointerElementType() !=
+              SrcTy->getScalarType()->getNonOpaquePointerElementType()) {
+            Type *InterTy = PointerType::getWithSamePointeeType(
+                cast<PointerType>(DestTy->getScalarType()),
+                cast<PointerType>(SrcTy->getScalarType())
+                    ->getPointerAddressSpace());
+            if (DestTy->isVectorTy())
+              InterTy = VectorType::get(
+                  InterTy, cast<VectorType>(DestTy)->getElementCount());
+            BitCastInst *NewBCast = new BitCastInst(
+                ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
+            AddrSpaceCastInst *NewASCast =
+                new AddrSpaceCastInst(NewBCast, DestTy, /*NameStr=*/"", ASCast);
+            ToErase.push_back(ASCast);
+            ASCast->dropAllReferences();
+            ASCast->replaceAllUsesWith(NewASCast);
           }
         }
         if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
@@ -373,11 +610,13 @@ bool SPIRVRegularizeLLVM::regularize() {
           Value *Val = Cmpxchg->getNewValOperand();
           Value *Comparator = Cmpxchg->getCompareOperand();
 
+          Type *MemType = Cmpxchg->getCompareOperand()->getType();
+
           llvm::Value *Args[] = {Ptr,        MemoryScope, EqualSem,
                                  UnequalSem, Val,         Comparator};
-          auto *Res = addCallInstSPIRV(M, "__spirv_AtomicCompareExchange",
-                                       Cmpxchg->getCompareOperand()->getType(),
-                                       Args, nullptr, &II, "cmpxchg.res");
+          auto *Res =
+              addCallInstSPIRV(M, "__spirv_AtomicCompareExchange", MemType,
+                               Args, nullptr, {MemType}, &II, "cmpxchg.res");
           IRBuilder<> Builder(Cmpxchg);
           auto *Cmp = Builder.CreateICmpEQ(Res, Comparator, "cmpxchg.success");
           auto *V1 = Builder.CreateInsertValue(
@@ -394,53 +633,19 @@ bool SPIRVRegularizeLLVM::regularize() {
     }
   }
 
+  for (StructType *ST : M->getIdentifiedStructTypes())
+    adaptStructTypes(ST);
+
   if (SPIRVDbgSaveRegularizedModule)
     saveLLVMModule(M, RegularizedModuleTmpFile);
   return true;
 }
 
-// Assume F is a SPIR-V builtin function with a function pointer argument which
-// is a bitcast instruction casting a function to a void(void) function pointer.
-void SPIRVRegularizeLLVM::lowerFuncPtr(Function *F, Op OC) {
-  LLVM_DEBUG(dbgs() << "[lowerFuncPtr] " << *F << '\n');
-  auto Name = decorateSPIRVFunction(getName(OC));
-  std::set<Value *> InvokeFuncPtrs;
-  auto Attrs = F->getAttributes();
-  mutateFunction(
-      F,
-      [=, &InvokeFuncPtrs](CallInst *CI, std::vector<Value *> &Args) {
-        for (auto &I : Args) {
-          if (isFunctionPointerType(I->getType())) {
-            InvokeFuncPtrs.insert(I);
-            I = removeCast(I);
-          }
-        }
-        return Name;
-      },
-      nullptr, &Attrs, false);
-  for (auto &I : InvokeFuncPtrs)
-    eraseIfNoUse(I);
-}
-
-void SPIRVRegularizeLLVM::lowerFuncPtr(Module *M) {
-  std::vector<std::pair<Function *, Op>> Work;
-  for (auto &F : *M) {
-    auto AI = F.arg_begin();
-    if (hasFunctionPointerArg(&F, AI)) {
-      auto OC = getSPIRVFuncOC(F.getName());
-      if (OC != OpNop) // builtin with a function pointer argument
-        Work.push_back(std::make_pair(&F, OC));
-    }
-  }
-  for (auto &I : Work)
-    lowerFuncPtr(I.first, I.second);
-}
-
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVRegularizeLLVM, "spvregular", "Regularize LLVM for SPIR-V",
-                false, false)
+INITIALIZE_PASS(SPIRVRegularizeLLVMLegacy, "spvregular",
+                "Regularize LLVM for SPIR-V", false, false)
 
-ModulePass *llvm::createSPIRVRegularizeLLVM() {
-  return new SPIRVRegularizeLLVM();
+ModulePass *llvm::createSPIRVRegularizeLLVMLegacy() {
+  return new SPIRVRegularizeLLVMLegacy();
 }

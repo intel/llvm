@@ -13,7 +13,6 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator.h"
-#include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/Support/Error.h"
 #include <map>
@@ -23,6 +22,9 @@
 namespace llvm {
 
 class raw_ostream;
+class DWARFDataExtractor;
+class MCRegisterInfo;
+struct DIDumpOptions;
 
 namespace dwarf {
 
@@ -46,11 +48,12 @@ public:
     ///   reg = CFA + offset
     ///   reg = defef(CFA + offset)
     CFAPlusOffset,
-    /// Register it in or at a register plus offset:
-    ///   reg = reg + offset
-    ///   reg = deref(reg + offset)
+    /// Register or CFA is in or at a register plus offset, optionally in
+    /// an address space:
+    ///   reg = reg + offset [in addrspace]
+    ///   reg = deref(reg + offset [in addrspace])
     RegPlusOffset,
-    /// Register value is in or at a value found by evaluating a DWARF
+    /// Register or CFA value is in or at a value found by evaluating a DWARF
     /// expression:
     ///   reg = eval(dwarf_expr)
     ///   reg = deref(eval(dwarf_expr))
@@ -64,6 +67,8 @@ private:
   Location Kind;   /// The type of the location that describes how to unwind it.
   uint32_t RegNum; /// The register number for Kind == RegPlusOffset.
   int32_t Offset;  /// The offset for Kind == CFAPlusOffset or RegPlusOffset.
+  Optional<uint32_t> AddrSpace; /// The address space for Kind == RegPlusOffset
+                                /// for CFA.
   Optional<DWARFExpression> Expr; /// The DWARF expression for Kind ==
                                   /// DWARFExpression.
   bool Dereference; /// If true, the resulting location must be dereferenced
@@ -72,10 +77,12 @@ private:
   // Constructors are private to force people to use the create static
   // functions.
   UnwindLocation(Location K)
-      : Kind(K), RegNum(InvalidRegisterNumber), Offset(0), Dereference(false) {}
+      : Kind(K), RegNum(InvalidRegisterNumber), Offset(0), AddrSpace(None),
+        Dereference(false) {}
 
-  UnwindLocation(Location K, uint32_t Reg, int32_t Off, bool Deref)
-      : Kind(K), RegNum(Reg), Offset(Off), Dereference(Deref) {}
+  UnwindLocation(Location K, uint32_t Reg, int32_t Off, Optional<uint32_t> AS,
+                 bool Deref)
+      : Kind(K), RegNum(Reg), Offset(Off), AddrSpace(AS), Dereference(Deref) {}
 
   UnwindLocation(DWARFExpression E, bool Deref)
       : Kind(DWARFExpr), RegNum(InvalidRegisterNumber), Offset(0), Expr(E),
@@ -101,14 +108,19 @@ public:
   static UnwindLocation createIsCFAPlusOffset(int32_t Off);
   static UnwindLocation createAtCFAPlusOffset(int32_t Off);
   /// Create a location where the saved value is in (Deref == false) or at
-  /// (Deref == true) a regiser plus an offset.
+  /// (Deref == true) a regiser plus an offset and, optionally, in the specified
+  /// address space (used mostly for the CFA).
   ///
   /// The CFA is usually defined using this rule by using the stack pointer or
   /// frame pointer as the register, with an offset that accounts for all
   /// spilled registers and all local variables in a function, and Deref ==
   /// false.
-  static UnwindLocation createIsRegisterPlusOffset(uint32_t Reg, int32_t Off);
-  static UnwindLocation createAtRegisterPlusOffset(uint32_t Reg, int32_t Off);
+  static UnwindLocation
+  createIsRegisterPlusOffset(uint32_t Reg, int32_t Off,
+                             Optional<uint32_t> AddrSpace = None);
+  static UnwindLocation
+  createAtRegisterPlusOffset(uint32_t Reg, int32_t Off,
+                             Optional<uint32_t> AddrSpace = None);
   /// Create a location whose value is the result of evaluating a DWARF
   /// expression. This allows complex expressions to be evaluated in order to
   /// unwind a register or CFA value.
@@ -119,13 +131,17 @@ public:
   Location getLocation() const { return Kind; }
   uint32_t getRegister() const { return RegNum; }
   int32_t getOffset() const { return Offset; }
+  uint32_t getAddressSpace() const {
+    assert(Kind == RegPlusOffset && AddrSpace);
+    return *AddrSpace;
+  }
   int32_t getConstant() const { return Offset; }
   /// Some opcodes will modify the CFA location's register only, so we need
   /// to be able to modify the CFA register when evaluating DWARF Call Frame
   /// Information opcodes.
   void setRegister(uint32_t NewRegNum) { RegNum = NewRegNum; }
   /// Some opcodes will modify the CFA location's offset only, so we need
-  /// to be able to modify the CFA register when evaluating DWARF Call Frame
+  /// to be able to modify the CFA offset when evaluating DWARF Call Frame
   /// Information opcodes.
   void setOffset(int32_t NewOffset) { Offset = NewOffset; }
   /// Some opcodes modify a constant value and we need to be able to update
@@ -245,7 +261,7 @@ public:
   UnwindRow() : CFAValue(UnwindLocation::createUnspecified()) {}
 
   /// Returns true if the address is valid in this object.
-  bool hasAddress() const { return Address.hasValue(); }
+  bool hasAddress() const { return Address.has_value(); }
 
   /// Get the address for this row.
   ///
@@ -388,7 +404,8 @@ raw_ostream &operator<<(raw_ostream &OS, const UnwindTable &Rows);
 /// manual, "6.4.1 Structure of Call Frame Information".
 class CFIProgram {
 public:
-  typedef SmallVector<uint64_t, 2> Operands;
+  static constexpr size_t MaxOperands = 3;
+  typedef SmallVector<uint64_t, MaxOperands> Operands;
 
   /// An instruction consists of a DWARF CFI opcode and an optional sequence of
   /// operands. If it refers to an expression, then this expression has its own
@@ -467,6 +484,15 @@ private:
     Instructions.back().Ops.push_back(Operand2);
   }
 
+  /// Add a new instruction that has three operands.
+  void addInstruction(uint8_t Opcode, uint64_t Operand1, uint64_t Operand2,
+                      uint64_t Operand3) {
+    Instructions.push_back(Instruction(Opcode));
+    Instructions.back().Ops.push_back(Operand1);
+    Instructions.back().Ops.push_back(Operand2);
+    Instructions.back().Ops.push_back(Operand3);
+  }
+
   /// Types of operands to CFI instructions
   /// In DWARF, this type is implicitly tied to a CFI instruction opcode and
   /// thus this type doesn't need to be explictly written to the file (this is
@@ -482,6 +508,7 @@ private:
     OT_SignedFactDataOffset,
     OT_UnsignedFactDataOffset,
     OT_Register,
+    OT_AddressSpace,
     OT_Expression
   };
 
@@ -490,7 +517,7 @@ private:
 
   /// Retrieve the array describing the types of operands according to the enum
   /// above. This is indexed by opcode.
-  static ArrayRef<OperandType[2]> getOperandTypes();
+  static ArrayRef<OperandType[MaxOperands]> getOperandTypes();
 
   /// Print \p Opcode's operand number \p OperandIdx which has value \p Operand.
   void printOperand(raw_ostream &OS, DIDumpOptions DumpOpts,
@@ -510,7 +537,7 @@ public:
       : Kind(K), IsDWARF64(IsDWARF64), Offset(Offset), Length(Length),
         CFIs(CodeAlign, DataAlign, Arch) {}
 
-  virtual ~FrameEntry() {}
+  virtual ~FrameEntry() = default;
 
   FrameKind getKind() const { return Kind; }
   uint64_t getOffset() const { return Offset; }

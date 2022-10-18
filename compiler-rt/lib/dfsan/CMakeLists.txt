@@ -3,14 +3,17 @@ include_directories(..)
 # Runtime library sources and build flags.
 set(DFSAN_RTL_SOURCES
   dfsan.cpp
+  dfsan_allocator.cpp
   dfsan_chained_origin_depot.cpp
   dfsan_custom.cpp
   dfsan_interceptors.cpp
+  dfsan_new_delete.cpp
   dfsan_thread.cpp
   )
 
 set(DFSAN_RTL_HEADERS
   dfsan.h
+  dfsan_allocator.h
   dfsan_chained_origin_depot.h
   dfsan_flags.inc
   dfsan_flags.h
@@ -22,6 +25,9 @@ set(DFSAN_COMMON_CFLAGS ${SANITIZER_COMMON_CFLAGS})
 append_rtti_flag(OFF DFSAN_COMMON_CFLAGS)
 # Prevent clang from generating libc calls.
 append_list_if(COMPILER_RT_HAS_FFREESTANDING_FLAG -ffreestanding DFSAN_COMMON_CFLAGS)
+
+# Too many existing bugs, needs cleanup.
+append_list_if(COMPILER_RT_HAS_WNO_FORMAT -Wno-format DFSAN_COMMON_CFLAGS)
 
 # Static runtime library.
 add_compiler_rt_component(dfsan)
@@ -62,4 +68,4 @@ add_custom_command(OUTPUT ${dfsan_abilist_filename}
                    DEPENDS done_abilist.txt libc_ubuntu1404_abilist.txt)
 add_dependencies(dfsan dfsan_abilist)
 install(FILES ${dfsan_abilist_filename}
-        DESTINATION ${COMPILER_RT_INSTALL_PATH}/share)
+        DESTINATION ${COMPILER_RT_INSTALL_DATA_DIR})

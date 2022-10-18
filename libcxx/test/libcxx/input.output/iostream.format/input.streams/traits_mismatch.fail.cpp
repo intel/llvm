@@ -13,6 +13,8 @@
 
 // The char type of the stream and the char_type of the traits have to match
 
+// UNSUPPORTED: no-wide-characters
+
 #include <istream>
 #include <type_traits>
 #include <cassert>
@@ -23,7 +25,8 @@ struct test_istream
 
 int main(int, char**)
 {
-//  expected-error-re@ios:* {{static_assert failed{{.*}} "traits_type::char_type must be the same type as CharT"}}
+//  expected-error-re@ios:* {{{{(static_assert|static assertion)}} failed{{.*}}traits_type::char_type must be the same type as CharT}}
+//  expected-error@istream:* {{only virtual member functions can be marked 'override'}}
 
   return 0;
 }

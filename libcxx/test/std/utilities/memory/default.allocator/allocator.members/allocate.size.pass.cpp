@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <cassert>
+#include <new>
 
 #include "test_macros.h"
 
@@ -24,7 +25,7 @@ void test_max(size_t count)
     try {
         TEST_IGNORE_NODISCARD a.allocate(count);
         assert(false);
-    } catch (const std::exception &) {
+    } catch (const std::bad_array_new_length &) {
     }
 }
 

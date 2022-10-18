@@ -1,13 +1,13 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <type_traits>
 
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 void foo(sycl::accessor<int, 1, sycl::access::mode::read_write,
-                        sycl::access::target::global_buffer,
+                        sycl::access::target::device,
                         sycl::access::placeholder::true_t,
                         accessor_property_list<property::no_alias::instance<>,
                                                property::no_offset::instance<>>>
@@ -45,7 +45,7 @@ int main() {
 
   {
     // Property list copy
-    accessor_property_list PL{no_alias, sycl::noinit};
+    accessor_property_list PL{no_alias, sycl::no_init};
 
     accessor_property_list PL_1{PL};
     static_assert(PL_1.has_property<property::no_alias>(),
@@ -108,10 +108,10 @@ int main() {
     sycl::buffer<int, 1> buf_data(data, sycl::range<1>(1),
                                   {sycl::property::buffer::use_host_ptr()});
 
-    accessor_property_list PL{sycl::noinit, no_alias};
+    accessor_property_list PL{sycl::no_init, no_alias};
     sycl::accessor acc_1(buf_data, PL);
     sycl::accessor<int, 1, sycl::access::mode::read_write,
-                   sycl::access::target::global_buffer,
+                   sycl::access::target::device,
                    sycl::access::placeholder::true_t,
                    accessor_property_list<property::no_alias::instance<>>>
         acc_2(acc_1);

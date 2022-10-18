@@ -26,7 +26,6 @@ entry:
 vector.ph:                                        ; preds = %entry
   %n.rnd.up = add i32 %n, 3
   %n.vec = and i32 %n.rnd.up, -4
-  %trip.count.minus.1 = add i32 %n, -1
   br label %vector.body
 
 vector.body:                                      ; preds = %vector.body, %vector.ph
@@ -72,7 +71,6 @@ entry:
 vector.ph:                                        ; preds = %entry
   %n.rnd.up = add i32 %n, 3
   %n.vec = and i32 %n.rnd.up, -4
-  %trip.count.minus.1 = add i32 %n, -1
   br label %vector.body
 
 vector.body:                                      ; preds = %vector.body, %vector.ph
@@ -118,7 +116,6 @@ entry:
 vector.ph:                                        ; preds = %entry
   %n.rnd.up = add i32 %n, 3
   %n.vec = and i32 %n.rnd.up, -4
-  %trip.count.minus.1 = add i32 %n, -1
   br label %vector.body
 
 vector.body:                                      ; preds = %vector.body, %vector.ph
@@ -164,7 +161,6 @@ entry:
 vector.ph:                                        ; preds = %entry
   %n.rnd.up = add i32 %n, 3
   %n.vec = and i32 %n.rnd.up, -4
-  %trip.count.minus.1 = add i32 %n, -1
   br label %vector.body
 
 vector.body:                                      ; preds = %vector.body, %vector.ph
@@ -210,7 +206,6 @@ entry:
 vector.ph:                                        ; preds = %entry
   %n.rnd.up = add i32 %n, 3
   %n.vec = and i32 %n.rnd.up, -4
-  %trip.count.minus.1 = add i32 %n, -1
   br label %vector.body
 
 vector.body:                                      ; preds = %vector.body, %vector.ph
@@ -245,11 +240,11 @@ define arm_aapcs_vfpcc void @nearbyint(float* noalias nocapture readonly %pSrcA,
 ; CHECK-NEXT:  .LBB5_2: @ %vector.body
 ; CHECK-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-NEXT:    vldrw.u32 q0, [r0], #16
-; CHECK-NEXT:    vrintr.f32 s7, s3
-; CHECK-NEXT:    vrintr.f32 s6, s2
-; CHECK-NEXT:    vrintr.f32 s5, s1
-; CHECK-NEXT:    vrintr.f32 s4, s0
-; CHECK-NEXT:    vstrw.32 q1, [r1], #16
+; CHECK-NEXT:    vrintr.f32 s3, s3
+; CHECK-NEXT:    vrintr.f32 s2, s2
+; CHECK-NEXT:    vrintr.f32 s1, s1
+; CHECK-NEXT:    vrintr.f32 s0, s0
+; CHECK-NEXT:    vstrw.32 q0, [r1], #16
 ; CHECK-NEXT:    letp lr, .LBB5_2
 ; CHECK-NEXT:  @ %bb.3: @ %for.cond.cleanup
 ; CHECK-NEXT:    pop {r7, pc}
@@ -260,7 +255,6 @@ entry:
 vector.ph:                                        ; preds = %entry
   %n.rnd.up = add i32 %n, 3
   %n.vec = and i32 %n.rnd.up, -4
-  %trip.count.minus.1 = add i32 %n, -1
   br label %vector.body
 
 vector.body:                                      ; preds = %vector.body, %vector.ph

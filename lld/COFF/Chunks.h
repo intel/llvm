@@ -21,8 +21,7 @@
 #include <utility>
 #include <vector>
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 using llvm::COFF::ImportDirectoryTableEntry;
 using llvm::object::COFFSymbolRef;
@@ -86,8 +85,8 @@ public:
   // can be stored with 32 bits.
   uint32_t getRVA() const { return rva; }
   void setRVA(uint64_t v) {
+    // This may truncate. The writer checks for overflow later.
     rva = (uint32_t)v;
-    assert(rva == v && "RVA truncated");
   }
 
   // Returns readable/writable/executable bits.
@@ -101,7 +100,6 @@ public:
   // chunk has a back pointer to an output section.
   void setOutputSectionIdx(uint16_t o) { osidx = o; }
   uint16_t getOutputSectionIdx() const { return osidx; }
-  OutputSection *getOutputSection() const;
 
   // Windows-specific.
   // Collect all locations that contain absolute addresses for base relocations.
@@ -174,6 +172,23 @@ public:
 
 protected:
   NonSectionChunk(Kind k = OtherKind) : Chunk(k) {}
+};
+
+// MinGW specific; information about one individual location in the image
+// that needs to be fixed up at runtime after loading. This represents
+// one individual element in the PseudoRelocTableChunk table.
+class RuntimePseudoReloc {
+public:
+  RuntimePseudoReloc(Defined *sym, SectionChunk *target, uint32_t targetOffset,
+                     int flags)
+      : sym(sym), target(target), targetOffset(targetOffset), flags(flags) {}
+
+  Defined *sym;
+  SectionChunk *target;
+  uint32_t targetOffset;
+  // The Flags field contains the size of the relocation, in bits. No other
+  // flags are currently defined.
+  int flags;
 };
 
 // A chunk corresponding a section of an input file.
@@ -293,8 +308,12 @@ public:
 
   // Allow iteration over the associated child chunks for this section.
   llvm::iterator_range<AssociatedIterator> children() const {
-    return llvm::make_range(AssociatedIterator(assocChildren),
-                            AssociatedIterator(nullptr));
+    // Associated sections do not have children. The assocChildren field is
+    // part of the parent's list of children.
+    bool isAssoc = selection == llvm::COFF::IMAGE_COMDAT_SELECT_ASSOCIATIVE;
+    return llvm::make_range(
+        AssociatedIterator(isAssoc ? nullptr : assocChildren),
+        AssociatedIterator(nullptr));
   }
 
   // The section ID this chunk belongs to in its Obj.
@@ -411,7 +430,7 @@ inline StringRef Chunk::getDebugName() const {
 class MergeChunk : public NonSectionChunk {
 public:
   MergeChunk(uint32_t alignment);
-  static void addSection(SectionChunk *c);
+  static void addSection(COFFLinkerContext &ctx, SectionChunk *c);
   void finalizeContents();
   void assignSubsectionRVAs();
 
@@ -420,7 +439,6 @@ public:
   size_t getSize() const override;
   void writeTo(uint8_t *buf) const override;
 
-  static MergeChunk *instances[Log2MaxSectionAlignment + 1];
   std::vector<SectionChunk *> sections;
 
 private:
@@ -584,6 +602,17 @@ private:
   SymbolRVASet syms;
 };
 
+// Table which contains symbol RVAs with flags. Used for /guard:ehcont.
+class RVAFlagTableChunk : public NonSectionChunk {
+public:
+  explicit RVAFlagTableChunk(SymbolRVASet s) : syms(std::move(s)) {}
+  size_t getSize() const override { return syms.size() * 5; }
+  void writeTo(uint8_t *buf) const override;
+
+private:
+  SymbolRVASet syms;
+};
+
 // Windows-specific.
 // This class represents a block in .reloc section.
 // See the PE/COFF spec 5.6 for details.
@@ -637,23 +666,6 @@ private:
   std::vector<RuntimePseudoReloc> relocs;
 };
 
-// MinGW specific; information about one individual location in the image
-// that needs to be fixed up at runtime after loading. This represents
-// one individual element in the PseudoRelocTableChunk table.
-class RuntimePseudoReloc {
-public:
-  RuntimePseudoReloc(Defined *sym, SectionChunk *target, uint32_t targetOffset,
-                     int flags)
-      : sym(sym), target(target), targetOffset(targetOffset), flags(flags) {}
-
-  Defined *sym;
-  SectionChunk *target;
-  uint32_t targetOffset;
-  // The Flags field contains the size of the relocation, in bits. No other
-  // flags are currently defined.
-  int flags;
-};
-
 // MinGW specific. A Chunk that contains one pointer-sized absolute value.
 class AbsolutePointerChunk : public NonSectionChunk {
 public:
@@ -685,8 +697,7 @@ void applyArm64Addr(uint8_t *off, uint64_t s, uint64_t p, int shift);
 void applyArm64Imm(uint8_t *off, uint64_t imm, uint32_t rangeLimit);
 void applyArm64Branch26(uint8_t *off, int64_t v);
 
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff
 
 namespace llvm {
 template <>

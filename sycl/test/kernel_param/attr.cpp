@@ -3,8 +3,8 @@
 
 // Check copying of parallel_for kernel attributes to wrapper kernel.
 
-#include <CL/sycl.hpp>
-using namespace cl::sycl;
+#include <sycl/sycl.hpp>
+using namespace sycl;
 
 int main() {
   range<1> Size{10};
@@ -12,7 +12,7 @@ int main() {
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
       cgh.parallel_for<class C>(Size, [=](item<1> ITEM)
-                                          [[intel::reqd_work_group_size(4)]]{});
+                                          [[sycl::reqd_work_group_size(4)]]{});
     });
   }
 

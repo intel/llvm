@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "lldb/Breakpoint/BreakpointSite.h"
 
@@ -25,9 +25,9 @@ BreakpointSite::BreakpointSite(BreakpointSiteList *list,
       m_type(eSoftware), // Process subclasses need to set this correctly using
                          // SetType()
       m_saved_opcode(), m_trap_opcode(),
-      m_enabled(false), // Need to create it disabled, so the first enable turns
-                        // it on.
-      m_owners(), m_owners_mutex() {
+      m_enabled(false) // Need to create it disabled, so the first enable turns
+                       // it on.
+{
   m_owners.Add(owner);
 }
 
@@ -144,7 +144,7 @@ BreakpointLocationSP BreakpointSite::GetOwnerAtIndex(size_t index) {
   return m_owners.GetByIndex(index);
 }
 
-bool BreakpointSite::ValidForThisThread(Thread *thread) {
+bool BreakpointSite::ValidForThisThread(Thread &thread) {
   std::lock_guard<std::recursive_mutex> guard(m_owners_mutex);
   return m_owners.ValidForThisThread(thread);
 }

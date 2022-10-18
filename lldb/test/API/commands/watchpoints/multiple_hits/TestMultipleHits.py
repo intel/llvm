@@ -11,24 +11,20 @@ from lldbsuite.test import lldbutil
 
 
 class MultipleHitsTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     @skipIf(bugnumber="llvm.org/pr30758", oslist=["linux"], archs=["arm", "aarch64", "powerpc64le"])
     @skipIfwatchOS
     def test(self):
         self.build()
-        exe = self.getBuildArtifact("a.out")
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target and target.IsValid(), VALID_TARGET)
+        target = self.createTestTarget()
 
         bp = target.BreakpointCreateByName("main")
         self.assertTrue(bp and bp.IsValid(), "Breakpoint is valid")
 
         process = target.LaunchSimple(None, None,
                 self.get_process_working_directory())
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
 
         thread = lldbutil.get_stopped_thread(process, lldb.eStopReasonBreakpoint)
         self.assertIsNotNone(thread)
@@ -45,9 +41,9 @@ class MultipleHitsTestCase(TestBase):
 
             error = lldb.SBError()
             watch = member.Watch(True, True, True, error)
-            self.assertTrue(error.Success())
+            self.assertSuccess(error)
 
         process.Continue();
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonWatchpoint)
+        self.assertState(process.GetState(), lldb.eStateStopped)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonWatchpoint)
 

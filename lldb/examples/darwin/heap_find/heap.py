@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #----------------------------------------------------------------------
 # This module is designed to live inside the "lldb" python package
@@ -8,7 +8,6 @@
 #   (lldb) script import lldb.macosx.heap
 #----------------------------------------------------------------------
 
-from __future__ import print_function
 import lldb
 import optparse
 import os
@@ -36,7 +35,7 @@ typedef uintptr_t vm_address_t;
 typedef natural_t task_t;
 typedef int kern_return_t;
 #define KERN_SUCCESS 0
-typedef void (*range_callback_t)(task_t task, void *baton, unsigned type, uintptr_t ptr_addr, uintptr_t ptr_size);
+typedef void (*range_callback_t)(task_t, void *, unsigned, uintptr_t, uintptr_t);
 '''
     if options.search_vm_regions:
         expr += '''
@@ -120,8 +119,8 @@ typedef struct vm_range_t {
     vm_address_t	address;
     vm_size_t		size;
 } vm_range_t;
-typedef kern_return_t (*memory_reader_t)(task_t task, vm_address_t remote_address, vm_size_t size, void **local_memory);
-typedef void (*vm_range_recorder_t)(task_t task, void *baton, unsigned type, vm_range_t *range, unsigned size);
+typedef kern_return_t (*memory_reader_t)(task_t, vm_address_t, vm_size_t, void **);
+typedef void (*vm_range_recorder_t)(task_t, void *, unsigned, vm_range_t *, unsigned);
 typedef struct malloc_introspection_t {
     kern_return_t (*enumerator)(task_t task, void *, unsigned type_mask, vm_address_t zone_address, memory_reader_t reader, vm_range_recorder_t recorder); /* enumerates all the malloc pointers in use */
 } malloc_introspection_t;
@@ -129,8 +128,8 @@ typedef struct malloc_zone_t {
     void *reserved1[12];
     struct malloc_introspection_t	*introspect;
 } malloc_zone_t;
-kern_return_t malloc_get_all_zones(task_t task, memory_reader_t reader, vm_address_t **addresses, unsigned *count);
-memory_reader_t task_peek = [](task_t task, vm_address_t remote_address, vm_size_t size, void **local_memory) -> kern_return_t {
+kern_return_t malloc_get_all_zones(task_t, memory_reader_t, vm_address_t **, unsigned *);
+memory_reader_t task_peek = [](task_t, vm_address_t remote_address, vm_size_t, void **local_memory) -> kern_return_t {
     *local_memory = (void*) remote_address;
     return KERN_SUCCESS;
 };
@@ -1494,30 +1493,29 @@ int nc = (int)objc_getClassList(baton.classes, sizeof(baton.classes)/sizeof(Clas
 if __name__ == '__main__':
     lldb.debugger = lldb.SBDebugger.Create()
 
-# Make the options so we can generate the help text for the new LLDB
-# command line command prior to registering it with LLDB below. This way
-# if clients in LLDB type "help malloc_info", they will see the exact same
-# output as typing "malloc_info --help".
-ptr_refs.__doc__ = get_ptr_refs_options().format_help()
-cstr_refs.__doc__ = get_cstr_refs_options().format_help()
-malloc_info.__doc__ = get_malloc_info_options().format_help()
-objc_refs.__doc__ = get_objc_refs_options().format_help()
-lldb.debugger.HandleCommand(
-    'command script add -f %s.ptr_refs ptr_refs' %
-    __name__)
-lldb.debugger.HandleCommand(
-    'command script add -f %s.cstr_refs cstr_refs' %
-    __name__)
-lldb.debugger.HandleCommand(
-    'command script add -f %s.malloc_info malloc_info' %
-    __name__)
-lldb.debugger.HandleCommand(
-    'command script add -f %s.find_variable find_variable' %
-    __name__)
-# lldb.debugger.HandleCommand('command script add -f %s.heap heap' % package_name)
-# lldb.debugger.HandleCommand('command script add -f %s.section_ptr_refs section_ptr_refs' % package_name)
-# lldb.debugger.HandleCommand('command script add -f %s.stack_ptr_refs stack_ptr_refs' % package_name)
-lldb.debugger.HandleCommand(
-    'command script add -f %s.objc_refs objc_refs' %
-    __name__)
-print('"malloc_info", "ptr_refs", "cstr_refs", "find_variable", and "objc_refs" commands have been installed, use the "--help" options on these commands for detailed help.')
+def __lldb_init_module(debugger, internal_dict):
+    # Make the options so we can generate the help text for the new LLDB
+    # command line command prior to registering it with LLDB below. This way
+    # if clients in LLDB type "help malloc_info", they will see the exact same
+    # output as typing "malloc_info --help".
+    ptr_refs.__doc__ = get_ptr_refs_options().format_help()
+    cstr_refs.__doc__ = get_cstr_refs_options().format_help()
+    malloc_info.__doc__ = get_malloc_info_options().format_help()
+    objc_refs.__doc__ = get_objc_refs_options().format_help()
+    debugger.HandleCommand(
+        'command script add -f %s.ptr_refs ptr_refs' %
+        __name__)
+    debugger.HandleCommand(
+        'command script add -f %s.cstr_refs cstr_refs' %
+        __name__)
+    debugger.HandleCommand(
+        'command script add -f %s.malloc_info malloc_info' %
+        __name__)
+    debugger.HandleCommand(
+        'command script add -f %s.find_variable find_variable' %
+        __name__)
+    # debugger.HandleCommand('command script add -f %s.section_ptr_refs section_ptr_refs' % package_name)
+    debugger.HandleCommand(
+        'command script add -f %s.objc_refs objc_refs' %
+        __name__)
+    print('"malloc_info", "ptr_refs", "cstr_refs", "find_variable", and "objc_refs" commands have been installed, use the "--help" options on these commands for detailed help.')

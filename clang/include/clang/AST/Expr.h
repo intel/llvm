@@ -266,13 +266,11 @@ public:
   /// C++11 divides the concept of "r-value" into pure r-values
   /// ("pr-values") and so-called expiring values ("x-values"), which
   /// identify specific objects that can be safely cannibalized for
-  /// their resources.  This is an unfortunate abuse of terminology on
-  /// the part of the C++ committee.  In Clang, when we say "r-value",
-  /// we generally mean a pr-value.
+  /// their resources.
   bool isLValue() const { return getValueKind() == VK_LValue; }
-  bool isRValue() const { return getValueKind() == VK_RValue; }
+  bool isPRValue() const { return getValueKind() == VK_PRValue; }
   bool isXValue() const { return getValueKind() == VK_XValue; }
-  bool isGLValue() const { return getValueKind() != VK_RValue; }
+  bool isGLValue() const { return getValueKind() != VK_PRValue; }
 
   enum LValueClassification {
     LV_Valid,
@@ -425,7 +423,7 @@ public:
                 ? VK_LValue
                 : (RT->getPointeeType()->isFunctionType()
                      ? VK_LValue : VK_XValue));
-    return VK_RValue;
+    return VK_PRValue;
   }
 
   /// getValueKind - The value kind that this expression produces.
@@ -573,6 +571,12 @@ public:
   /// it is used to store the address of first non constant expr.
   bool isConstantInitializer(ASTContext &Ctx, bool ForRef,
                              const Expr **Culprit = nullptr) const;
+
+  /// If this expression is an unambiguous reference to a single declaration,
+  /// in the style of __builtin_function_start, return that declaration.  Note
+  /// that this may return a non-static member function or field in C++ if this
+  /// expression is a member pointer constant.
+  const ValueDecl *getAsBuiltinConstantDeclRef(const ASTContext &Context) const;
 
   /// EvalStatus is a struct with detailed info about an evaluation in progress.
   struct EvalStatus {
@@ -741,6 +745,12 @@ public:
   /// "type" parameter of __builtin_object_size
   bool tryEvaluateObjectSize(uint64_t &Result, ASTContext &Ctx,
                              unsigned Type) const;
+
+  /// If the current Expr is a pointer, this will try to statically
+  /// determine the strlen of the string pointed to.
+  /// Returns true if all of the above holds and we were able to figure out the
+  /// strlen, false otherwise.
+  bool tryEvaluateStrLen(uint64_t &Result, ASTContext &Ctx) const;
 
   /// Enumeration used to describe the kind of Null pointer constant
   /// returned from \c isNullPointerConstant().
@@ -1588,8 +1598,8 @@ public:
   // type should be IntTy
   CharacterLiteral(unsigned value, CharacterKind kind, QualType type,
                    SourceLocation l)
-      : Expr(CharacterLiteralClass, type, VK_RValue, OK_Ordinary), Value(value),
-        Loc(l) {
+      : Expr(CharacterLiteralClass, type, VK_PRValue, OK_Ordinary),
+        Value(value), Loc(l) {
     CharacterLiteralBits.Kind = kind;
     setDependence(ExprDependence::None);
   }
@@ -1614,6 +1624,8 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CharacterLiteralClass;
   }
+
+  static void print(unsigned val, CharacterKind Kind, raw_ostream &OS);
 
   // Iterators
   child_range children() {
@@ -1707,7 +1719,7 @@ class ImaginaryLiteral : public Expr {
   Stmt *Val;
 public:
   ImaginaryLiteral(Expr *val, QualType Ty)
-      : Expr(ImaginaryLiteralClass, Ty, VK_RValue, OK_Ordinary), Val(val) {
+      : Expr(ImaginaryLiteralClass, Ty, VK_PRValue, OK_Ordinary), Val(val) {
     setDependence(ExprDependence::None);
   }
 
@@ -1774,7 +1786,7 @@ class StringLiteral final
   /// * An array of getByteLength() char used to store the string data.
 
 public:
-  enum StringKind { Ascii, Wide, UTF8, UTF16, UTF32 };
+  enum StringKind { Ordinary, Wide, UTF8, UTF16, UTF32 };
 
 private:
   unsigned numTrailingObjects(OverloadToken<unsigned>) const { return 1; }
@@ -1871,7 +1883,7 @@ public:
     return static_cast<StringKind>(StringLiteralBits.Kind);
   }
 
-  bool isAscii() const { return getKind() == Ascii; }
+  bool isOrdinary() const { return getKind() == Ordinary; }
   bool isWide() const { return getKind() == Wide; }
   bool isUTF8() const { return getKind() == UTF8; }
   bool isUTF16() const { return getKind() == UTF16; }
@@ -1946,17 +1958,13 @@ public:
 /// [C99 6.4.2.2] - A predefined identifier such as __func__.
 class PredefinedExpr final
     : public Expr,
-      private llvm::TrailingObjects<PredefinedExpr, Stmt *, Expr *,
-                                    TypeSourceInfo *> {
+      private llvm::TrailingObjects<PredefinedExpr, Stmt *> {
   friend class ASTStmtReader;
   friend TrailingObjects;
 
   // PredefinedExpr is optionally followed by a single trailing
   // "Stmt *" for the predefined identifier. It is present if and only if
   // hasFunctionName() is true and is always a "StringLiteral *".
-  // It can also be followed by a Expr* in the case of a
-  // __builtin_unique_stable_name with an expression, or TypeSourceInfo * if
-  // __builtin_unique_stable_name with a type.
 
 public:
   enum IdentKind {
@@ -1969,18 +1977,12 @@ public:
     PrettyFunction,
     /// The same as PrettyFunction, except that the
     /// 'virtual' keyword is omitted for virtual member functions.
-    PrettyFunctionNoVirtual,
-    UniqueStableNameType,
-    UniqueStableNameExpr,
+    PrettyFunctionNoVirtual
   };
 
 private:
   PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
                  StringLiteral *SL);
-  PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
-                 TypeSourceInfo *Info);
-  PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
-                 Expr *E);
 
   explicit PredefinedExpr(EmptyShell Empty, bool HasFunctionName);
 
@@ -1993,39 +1995,10 @@ private:
     *getTrailingObjects<Stmt *>() = SL;
   }
 
-  void setTypeSourceInfo(TypeSourceInfo *Info) {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
-           "TypeSourceInfo only valid for UniqueStableName of a Type");
-    *getTrailingObjects<TypeSourceInfo *>() = Info;
-  }
-
-  void setExpr(Expr *E) {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
-    *getTrailingObjects<Expr *>() = E;
-  }
-
-  size_t numTrailingObjects(OverloadToken<Stmt *>) const {
-    return hasFunctionName();
-  }
-
-  size_t numTrailingObjects(OverloadToken<TypeSourceInfo *>) const {
-    return getIdentKind() == UniqueStableNameType && !hasFunctionName();
-  }
-  size_t numTrailingObjects(OverloadToken<Expr *>) const {
-    return getIdentKind() == UniqueStableNameExpr && !hasFunctionName();
-  }
-
 public:
   /// Create a PredefinedExpr.
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
                                 QualType FNTy, IdentKind IK, StringLiteral *SL);
-  static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FNTy, IdentKind IK, StringLiteral *SL,
-                                TypeSourceInfo *Info);
-  static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FNTy, IdentKind IK, StringLiteral *SL,
-                                Expr *E);
 
   /// Create an empty PredefinedExpr.
   static PredefinedExpr *CreateEmpty(const ASTContext &Ctx,
@@ -2050,38 +2023,12 @@ public:
                : nullptr;
   }
 
-  TypeSourceInfo *getTypeSourceInfo() {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
-           "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return *getTrailingObjects<TypeSourceInfo *>();
-  }
-
-  const TypeSourceInfo *getTypeSourceInfo() const {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameType &&
-           "TypeSourceInfo only valid for UniqueStableName of a Type");
-    return *getTrailingObjects<TypeSourceInfo *>();
-  }
-
-  Expr *getExpr() {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
-    return *getTrailingObjects<Expr *>();
-  }
-
-  const Expr *getExpr() const {
-    assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "TypeSourceInfo only valid for UniqueStableName of n Expression.");
-    return *getTrailingObjects<Expr *>();
-  }
-
   static StringRef getIdentKindName(IdentKind IK);
   StringRef getIdentKindName() const {
     return getIdentKindName(getIdentKind());
   }
 
   static std::string ComputeName(IdentKind IK, const Decl *CurrentDecl);
-  static std::string ComputeName(ASTContext &Context, IdentKind IK,
-                                 const QualType Ty);
 
   SourceLocation getBeginLoc() const { return getLocation(); }
   SourceLocation getEndLoc() const { return getLocation(); }
@@ -2100,6 +2047,116 @@ public:
     return const_child_range(getTrailingObjects<Stmt *>(),
                              getTrailingObjects<Stmt *>() + hasFunctionName());
   }
+};
+
+// This represents a use of the __builtin_sycl_unique_stable_name, which takes a
+// type-id, and at CodeGen time emits a unique string representation of the
+// type in a way that permits us to properly encode information about the SYCL
+// kernels.
+class SYCLUniqueStableNameExpr final : public Expr {
+  friend class ASTStmtReader;
+  SourceLocation OpLoc, LParen, RParen;
+  TypeSourceInfo *TypeInfo;
+
+  SYCLUniqueStableNameExpr(EmptyShell Empty, QualType ResultTy);
+  SYCLUniqueStableNameExpr(SourceLocation OpLoc, SourceLocation LParen,
+                           SourceLocation RParen, QualType ResultTy,
+                           TypeSourceInfo *TSI);
+
+  void setTypeSourceInfo(TypeSourceInfo *Ty) { TypeInfo = Ty; }
+
+  void setLocation(SourceLocation L) { OpLoc = L; }
+  void setLParenLocation(SourceLocation L) { LParen = L; }
+  void setRParenLocation(SourceLocation L) { RParen = L; }
+
+public:
+  TypeSourceInfo *getTypeSourceInfo() { return TypeInfo; }
+
+  const TypeSourceInfo *getTypeSourceInfo() const { return TypeInfo; }
+
+  static SYCLUniqueStableNameExpr *
+  Create(const ASTContext &Ctx, SourceLocation OpLoc, SourceLocation LParen,
+         SourceLocation RParen, TypeSourceInfo *TSI);
+
+  static SYCLUniqueStableNameExpr *CreateEmpty(const ASTContext &Ctx);
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return RParen; }
+  SourceLocation getLocation() const { return OpLoc; }
+  SourceLocation getLParenLocation() const { return LParen; }
+  SourceLocation getRParenLocation() const { return RParen; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == SYCLUniqueStableNameExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  // Convenience function to generate the name of the currently stored type.
+  std::string ComputeName(ASTContext &Context) const;
+
+  // Get the generated name of the type.  Note that this only works after all
+  // kernels have been instantiated.
+  static std::string ComputeName(ASTContext &Context, QualType Ty);
+};
+
+class SYCLUniqueStableIdExpr final : public Expr {
+  friend class ASTStmtReader;
+  SourceLocation OpLoc, LParen, RParen;
+  // A statement instead of an expression because otherwise implementing
+  // 'children' is awkward.
+  Stmt *DRE = nullptr;
+
+  SYCLUniqueStableIdExpr(EmptyShell Empty, QualType ResultTy);
+  SYCLUniqueStableIdExpr(SourceLocation OpLoc, SourceLocation LParen,
+                         SourceLocation RParen, QualType ResultTy, Expr *E);
+
+  void setExpr(Expr *E) { DRE = E; }
+
+  void setLocation(SourceLocation L) { OpLoc = L; }
+  void setLParenLocation(SourceLocation L) { LParen = L; }
+  void setRParenLocation(SourceLocation L) { RParen = L; }
+
+public:
+  Expr *getExpr() { return cast<Expr>(DRE); }
+  const Expr *getExpr() const { return cast<Expr>(DRE); }
+
+  static SYCLUniqueStableIdExpr *Create(const ASTContext &Ctx,
+                                        SourceLocation OpLoc,
+                                        SourceLocation LParen,
+                                        SourceLocation RParen, Expr *E);
+
+  static SYCLUniqueStableIdExpr *CreateEmpty(const ASTContext &Ctx);
+
+  SourceLocation getBeginLoc() const { return getLocation(); }
+  SourceLocation getEndLoc() const { return RParen; }
+  SourceLocation getLocation() const { return OpLoc; }
+  SourceLocation getLParenLocation() const { return LParen; }
+  SourceLocation getRParenLocation() const { return RParen; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == SYCLUniqueStableIdExprClass;
+  }
+
+  // Iterators
+  child_range children() { return child_range(&DRE, &DRE + 1); }
+  const_child_range children() const {
+    return const_child_range(&DRE, &DRE + 1);
+  }
+
+  // Convenience function to generate the name of the currently stored type.
+  std::string ComputeName(ASTContext &Context) const;
+
+  // Get the generated name of the type.  Note that this only works after all
+  // kernels have been instantiated.
+  static std::string ComputeName(ASTContext &Context, const VarDecl *VD);
 };
 
 /// ParenExpr - This represents a parethesized expression, e.g. "(1)".  This
@@ -2383,7 +2440,7 @@ public:
 
   /// Create an offsetof node that refers into a C++ base class.
   explicit OffsetOfNode(const CXXBaseSpecifier *Base)
-      : Range(), Data(reinterpret_cast<uintptr_t>(Base) | OffsetOfNode::Base) {}
+      : Data(reinterpret_cast<uintptr_t>(Base) | OffsetOfNode::Base) {}
 
   /// Determine what kind of offsetof node this is.
   Kind getKind() const { return static_cast<Kind>(Data & Mask); }
@@ -2552,7 +2609,8 @@ public:
   UnaryExprOrTypeTraitExpr(UnaryExprOrTypeTrait ExprKind, TypeSourceInfo *TInfo,
                            QualType resultType, SourceLocation op,
                            SourceLocation rp)
-      : Expr(UnaryExprOrTypeTraitExprClass, resultType, VK_RValue, OK_Ordinary),
+      : Expr(UnaryExprOrTypeTraitExprClass, resultType, VK_PRValue,
+             OK_Ordinary),
         OpLoc(op), RParenLoc(rp) {
     assert(ExprKind <= UETT_Last && "invalid enum value!");
     UnaryExprOrTypeTraitExprBits.Kind = ExprKind;
@@ -2993,9 +3051,20 @@ public:
   }
 
   /// setArg - Set the specified argument.
+  /// ! the dependence bits might be stale after calling this setter, it is
+  /// *caller*'s responsibility to recompute them by calling
+  /// computeDependence().
   void setArg(unsigned Arg, Expr *ArgExpr) {
     assert(Arg < getNumArgs() && "Arg access out of range!");
     getArgs()[Arg] = ArgExpr;
+  }
+
+  /// Compute and set dependence bits.
+  void computeDependence() {
+    setDependence(clang::computeDependence(
+        this, llvm::makeArrayRef(
+                  reinterpret_cast<Expr **>(getTrailingStmts() + PREARGS_START),
+                  getNumPreArgs())));
   }
 
   /// Reduce the number of arguments in this call expression. This is used for
@@ -3043,10 +3112,6 @@ public:
     return llvm::makeArrayRef(getTrailingStmts(),
                               PREARGS_START + getNumPreArgs() + getNumArgs());
   }
-
-  /// getNumCommas - Return the number of commas that must have been present in
-  /// this function call.
-  unsigned getNumCommas() const { return getNumArgs() ? getNumArgs() - 1 : 0; }
 
   /// Get FPOptionsOverride from trailing storage.
   FPOptionsOverride getStoredFPFeatures() const {
@@ -3111,11 +3176,7 @@ public:
     setDependence(getDependence() | ExprDependence::TypeValueInstantiation);
   }
 
-  bool isCallToStdMove() const {
-    const FunctionDecl *FD = getDirectCallee();
-    return getNumArgs() == 1 && FD && FD->isInStdNamespace() &&
-           FD->getIdentifier() && FD->getIdentifier()->isStr("move");
-  }
+  bool isCallToStdMove() const;
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstCallExprConstant &&
@@ -3480,7 +3541,6 @@ protected:
     CastExprBits.BasePathSize = BasePathSize;
     assert((CastExprBits.BasePathSize == BasePathSize) &&
            "BasePathSize overflow!");
-    setDependence(computeDependence(this));
     assert(CastConsistency());
     CastExprBits.HasFPFeatures = HasFPFeatures;
   }
@@ -3614,6 +3674,7 @@ class ImplicitCastExpr final
                    ExprValueKind VK)
       : CastExpr(ImplicitCastExprClass, ty, VK, kind, op, BasePathLength,
                  FPO.requiresTrailingStorage()) {
+    setDependence(computeDependence(this));
     if (hasStoredFPFeatures())
       *getTrailingFPFeatures() = FPO;
   }
@@ -3691,7 +3752,9 @@ protected:
                    CastKind kind, Expr *op, unsigned PathSize,
                    bool HasFPFeatures, TypeSourceInfo *writtenTy)
       : CastExpr(SC, exprTy, VK, kind, op, PathSize, HasFPFeatures),
-        TInfo(writtenTy) {}
+        TInfo(writtenTy) {
+    setDependence(computeDependence(this));
+  }
 
   /// Construct an empty explicit cast.
   ExplicitCastExpr(StmtClass SC, EmptyShell Shell, unsigned PathSize,
@@ -3994,7 +4057,7 @@ public:
   }
 
   // This is used in ASTImporter
-  FPOptionsOverride getFPFeatures(const LangOptions &LO) const {
+  FPOptionsOverride getFPFeatures() const {
     if (BinaryOperatorBits.HasFPFeatures)
       return getStoredFPFeatures();
     return FPOptionsOverride();
@@ -4292,7 +4355,7 @@ class AddrLabelExpr : public Expr {
 public:
   AddrLabelExpr(SourceLocation AALoc, SourceLocation LLoc, LabelDecl *L,
                 QualType t)
-      : Expr(AddrLabelExprClass, t, VK_RValue, OK_Ordinary), AmpAmpLoc(AALoc),
+      : Expr(AddrLabelExprClass, t, VK_PRValue, OK_Ordinary), AmpAmpLoc(AALoc),
         LabelLoc(LLoc), Label(L) {
     setDependence(ExprDependence::None);
   }
@@ -4337,7 +4400,7 @@ class StmtExpr : public Expr {
 public:
   StmtExpr(CompoundStmt *SubStmt, QualType T, SourceLocation LParenLoc,
            SourceLocation RParenLoc, unsigned TemplateDepth)
-      : Expr(StmtExprClass, T, VK_RValue, OK_Ordinary), SubStmt(SubStmt),
+      : Expr(StmtExprClass, T, VK_PRValue, OK_Ordinary), SubStmt(SubStmt),
         LParenLoc(LParenLoc), RParenLoc(RParenLoc) {
     setDependence(computeDependence(this, TemplateDepth));
     // FIXME: A templated statement expression should have an associated
@@ -4587,7 +4650,7 @@ class GNUNullExpr : public Expr {
 
 public:
   GNUNullExpr(QualType Ty, SourceLocation Loc)
-      : Expr(GNUNullExprClass, Ty, VK_RValue, OK_Ordinary), TokenLoc(Loc) {
+      : Expr(GNUNullExprClass, Ty, VK_PRValue, OK_Ordinary), TokenLoc(Loc) {
     setDependence(ExprDependence::None);
   }
 
@@ -4622,7 +4685,7 @@ class VAArgExpr : public Expr {
 public:
   VAArgExpr(SourceLocation BLoc, Expr *e, TypeSourceInfo *TInfo,
             SourceLocation RPLoc, QualType t, bool IsMS)
-      : Expr(VAArgExprClass, t, VK_RValue, OK_Ordinary), Val(e),
+      : Expr(VAArgExprClass, t, VK_PRValue, OK_Ordinary), Val(e),
         TInfo(TInfo, IsMS), BuiltinLoc(BLoc), RParenLoc(RPLoc) {
     setDependence(computeDependence(this));
   }
@@ -4663,16 +4726,17 @@ public:
 };
 
 /// Represents a function call to one of __builtin_LINE(), __builtin_COLUMN(),
-/// __builtin_FUNCTION(), or __builtin_FILE().
+/// __builtin_FUNCTION(), __builtin_FILE(), or __builtin_source_location().
 class SourceLocExpr final : public Expr {
   SourceLocation BuiltinLoc, RParenLoc;
   DeclContext *ParentContext;
 
 public:
-  enum IdentKind { Function, File, Line, Column };
+  enum IdentKind { Function, File, Line, Column, SourceLocStruct };
 
-  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, SourceLocation BLoc,
-                SourceLocation RParenLoc, DeclContext *Context);
+  SourceLocExpr(const ASTContext &Ctx, IdentKind Type, QualType ResultTy,
+                SourceLocation BLoc, SourceLocation RParenLoc,
+                DeclContext *Context);
 
   /// Build an empty call expression.
   explicit SourceLocExpr(EmptyShell Empty) : Expr(SourceLocExprClass, Empty) {}
@@ -4689,18 +4753,18 @@ public:
     return static_cast<IdentKind>(SourceLocExprBits.Kind);
   }
 
-  bool isStringType() const {
+  bool isIntType() const {
     switch (getIdentKind()) {
     case File:
     case Function:
-      return true;
+    case SourceLocStruct:
+      return false;
     case Line:
     case Column:
-      return false;
+      return true;
     }
     llvm_unreachable("unknown source location expression kind");
   }
-  bool isIntType() const LLVM_READONLY { return !isStringType(); }
 
   /// If the SourceLocExpr has been resolved return the subexpression
   /// representing the resolved value. Otherwise return null.
@@ -5314,7 +5378,7 @@ public:
 class NoInitExpr : public Expr {
 public:
   explicit NoInitExpr(QualType ty)
-      : Expr(NoInitExprClass, ty, VK_RValue, OK_Ordinary) {
+      : Expr(NoInitExprClass, ty, VK_PRValue, OK_Ordinary) {
     setDependence(computeDependence(this));
   }
 
@@ -5410,7 +5474,7 @@ class ArrayInitLoopExpr : public Expr {
 
 public:
   explicit ArrayInitLoopExpr(QualType T, Expr *CommonInit, Expr *ElementInit)
-      : Expr(ArrayInitLoopExprClass, T, VK_RValue, OK_Ordinary),
+      : Expr(ArrayInitLoopExprClass, T, VK_PRValue, OK_Ordinary),
         SubExprs{CommonInit, ElementInit} {
     setDependence(computeDependence(this));
   }
@@ -5461,7 +5525,7 @@ class ArrayInitIndexExpr : public Expr {
 
 public:
   explicit ArrayInitIndexExpr(QualType T)
-      : Expr(ArrayInitIndexExprClass, T, VK_RValue, OK_Ordinary) {
+      : Expr(ArrayInitIndexExprClass, T, VK_PRValue, OK_Ordinary) {
     setDependence(ExprDependence::None);
   }
 
@@ -5494,7 +5558,7 @@ public:
 class ImplicitValueInitExpr : public Expr {
 public:
   explicit ImplicitValueInitExpr(QualType ty)
-      : Expr(ImplicitValueInitExprClass, ty, VK_RValue, OK_Ordinary) {
+      : Expr(ImplicitValueInitExprClass, ty, VK_PRValue, OK_Ordinary) {
     setDependence(computeDependence(this));
   }
 
@@ -5899,7 +5963,7 @@ public:
   ExtVectorElementExpr(QualType ty, ExprValueKind VK, Expr *base,
                        IdentifierInfo &accessor, SourceLocation loc)
       : Expr(ExtVectorElementExprClass, ty, VK,
-             (VK == VK_RValue ? OK_Ordinary : OK_VectorComponent)),
+             (VK == VK_PRValue ? OK_Ordinary : OK_VectorComponent)),
         Base(base), Accessor(&accessor), AccessorLoc(loc) {
     setDependence(computeDependence(this));
   }
@@ -5956,7 +6020,7 @@ protected:
   BlockDecl *TheBlock;
 public:
   BlockExpr(BlockDecl *BD, QualType ty)
-      : Expr(BlockExprClass, ty, VK_RValue, OK_Ordinary), TheBlock(BD) {
+      : Expr(BlockExprClass, ty, VK_PRValue, OK_Ordinary), TheBlock(BD) {
     setDependence(computeDependence(this));
   }
 
@@ -6294,8 +6358,10 @@ public:
   bool isCmpXChg() const {
     return getOp() == AO__c11_atomic_compare_exchange_strong ||
            getOp() == AO__c11_atomic_compare_exchange_weak ||
+           getOp() == AO__hip_atomic_compare_exchange_strong ||
            getOp() == AO__opencl_atomic_compare_exchange_strong ||
            getOp() == AO__opencl_atomic_compare_exchange_weak ||
+           getOp() == AO__hip_atomic_compare_exchange_weak ||
            getOp() == AO__atomic_compare_exchange ||
            getOp() == AO__atomic_compare_exchange_n;
   }
@@ -6330,6 +6396,8 @@ public:
     auto Kind =
         (Op >= AO__opencl_atomic_load && Op <= AO__opencl_atomic_fetch_max)
             ? AtomicScopeModelKind::OpenCL
+        : (Op >= AO__hip_atomic_load && Op <= AO__hip_atomic_fetch_max)
+            ? AtomicScopeModelKind::HIP
             : AtomicScopeModelKind::None;
     return AtomicScopeModel::create(Kind);
   }

@@ -319,7 +319,7 @@ public:
       // We care about logical not only if we care about comparisons.
       if (!ShouldRetrieveFromComparisons)
         return nullptr;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     // Function pointer/references can be dereferenced before a call.
     // That doesn't make it, however, any different from a regular call.
     // For this reason, dereference operation is a "no-op".
@@ -478,7 +478,7 @@ bool mentionsAnyOfConventionalNames(const Expr *E) {
     return llvm::any_of(
         CONVENTIONAL_CONDITIONS,
         [ConditionName](const llvm::StringLiteral &Conventional) {
-          return ConditionName.contains_lower(Conventional);
+          return ConditionName.contains_insensitive(Conventional);
         });
   });
 }
@@ -983,9 +983,9 @@ private:
       return false;
     }
 
-    QualType BlockType = Ty->getAs<BlockPointerType>()->getPointeeType();
+    QualType BlockType = Ty->castAs<BlockPointerType>()->getPointeeType();
     // Completion handlers should have a block type with void return type.
-    return BlockType->getAs<FunctionType>()->getReturnType()->isVoidType();
+    return BlockType->castAs<FunctionType>()->getReturnType()->isVoidType();
   }
 
   /// Return true if the only parameter of the function is conventional.
@@ -1011,11 +1011,16 @@ private:
     return llvm::None;
   }
 
+  /// Return true if the specified selector represents init method.
+  static bool isInitMethod(Selector MethodSelector) {
+    return MethodSelector.getMethodFamily() == OMF_init;
+  }
+
   /// Return true if the specified selector piece matches conventions.
   static bool isConventionalSelectorPiece(Selector MethodSelector,
                                           unsigned PieceIndex,
                                           QualType PieceType) {
-    if (!isConventional(PieceType)) {
+    if (!isConventional(PieceType) || isInitMethod(MethodSelector)) {
       return false;
     }
 
@@ -1060,7 +1065,7 @@ private:
     // 'swift_async' goes first and overrides anything else.
     if (auto ConventionalAsync =
             isConventionalSwiftAsync(Function, ParamIndex)) {
-      return ConventionalAsync.getValue();
+      return *ConventionalAsync;
     }
 
     return shouldBeCalledOnce(Function->getParamDecl(ParamIndex)) ||
@@ -1077,7 +1082,7 @@ private:
 
     // 'swift_async' goes first and overrides anything else.
     if (auto ConventionalAsync = isConventionalSwiftAsync(Method, ParamIndex)) {
-      return ConventionalAsync.getValue();
+      return *ConventionalAsync;
     }
 
     const ParmVarDecl *Parameter = Method->getParamDecl(ParamIndex);

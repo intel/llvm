@@ -10,9 +10,9 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_AVR_H
 
 #include "Gnu.h"
-#include "InputInfo.h"
-#include "clang/Driver/ToolChain.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Tool.h"
+#include "clang/Driver/ToolChain.h"
 
 namespace clang {
 namespace driver {
@@ -22,18 +22,25 @@ class LLVM_LIBRARY_VISIBILITY AVRToolChain : public Generic_ELF {
 public:
   AVRToolChain(const Driver &D, const llvm::Triple &Triple,
                const llvm::opt::ArgList &Args);
+  void
+  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                            llvm::opt::ArgStringList &CC1Args) const override;
+
+  void
+  addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
+                        llvm::opt::ArgStringList &CC1Args,
+                        Action::OffloadKind DeviceOffloadKind) const override;
+
+  llvm::Optional<std::string> findAVRLibcInstallation() const;
+  StringRef getGCCInstallPath() const { return GCCInstallPath; }
+  std::string getCompilerRT(const llvm::opt::ArgList &Args, StringRef Component,
+                            FileType Type) const override;
 
 protected:
   Tool *buildLinker() const override;
 
 private:
-  /// Whether libgcc, libct, and friends should be linked.
-  ///
-  /// This is not done if the user does not specify a
-  /// microcontroller on the command line.
-  bool LinkStdlib;
-
-  llvm::Optional<std::string> findAVRLibcInstallation() const;
+  StringRef GCCInstallPath;
 };
 
 } // end namespace toolchains
@@ -42,9 +49,8 @@ namespace tools {
 namespace AVR {
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
 public:
-  Linker(const llvm::Triple &Triple, const ToolChain &TC, bool LinkStdlib)
-      : Tool("AVR::Linker", "avr-ld", TC), Triple(Triple),
-        LinkStdlib(LinkStdlib) {}
+  Linker(const llvm::Triple &Triple, const ToolChain &TC)
+      : Tool("AVR::Linker", "avr-ld", TC), Triple(Triple) {}
 
   bool hasIntegratedCPP() const override { return false; }
   bool isLinkJob() const override { return true; }
@@ -55,7 +61,6 @@ public:
 
 protected:
   const llvm::Triple &Triple;
-  bool LinkStdlib;
 };
 } // end namespace AVR
 } // end namespace tools

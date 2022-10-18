@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: c++03, c++11
 
 // shared_timed_mutex was introduced in macosx10.12
-// UNSUPPORTED: with_system_cxx_lib=macosx10.11
-// UNSUPPORTED: with_system_cxx_lib=macosx10.10
-// UNSUPPORTED: with_system_cxx_lib=macosx10.9
+// UNSUPPORTED: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
+
+// ALLOW_RETRIES: 3
 
 // <shared_mutex>
 
@@ -20,10 +20,12 @@
 
 // void lock();
 
-#include <shared_mutex>
 #include <thread>
+
+#include <atomic>
 #include <cstdlib>
 #include <cassert>
+#include <shared_mutex>
 
 #include "make_test_thread.h"
 #include "test_macros.h"

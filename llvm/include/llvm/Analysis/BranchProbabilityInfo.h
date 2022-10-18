@@ -16,14 +16,12 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/BranchProbability.h"
-#include "llvm/Support/Casting.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -167,12 +165,6 @@ public:
   /// Check whether this edge out of the source block is 'hot'. We define hot
   /// as having a relative probability >= 80%.
   bool isEdgeHot(const BasicBlock *Src, const BasicBlock *Dst) const;
-
-  /// Retrieve the hot successor of a block if one exists.
-  ///
-  /// Given a basic block, look through its successors and if one exists for
-  /// which \see isEdgeHot would return true, return that successor block.
-  const BasicBlock *getHotSucc(const BasicBlock *BB) const;
 
   /// Print an edge's probability.
   ///

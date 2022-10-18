@@ -9,61 +9,44 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <detail/config.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
-class MockHandler : public sycl::handler {
+inline constexpr auto DisablePostEnqueueCleanupName =
+    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+
+class MockHandlerStreamInit : public MockHandler {
 public:
-  MockHandler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
-      : sycl::handler(Queue, IsHost) {}
-
-  void setType(detail::CG::CGTYPE Type) {
-    static_cast<sycl::handler *>(this)->MCGType = Type;
-  }
-
-  template <typename KernelType, typename ArgType, int Dims,
-            typename KernelName>
-  void setHostKernel(KernelType Kernel) {
-    static_cast<sycl::handler *>(this)->MHostKernel.reset(
-        new sycl::detail::HostKernel<KernelType, ArgType, Dims, KernelName>(
-            Kernel));
-  }
-
-  template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
-    static_cast<sycl::handler *>(this)->MNDRDesc.set(std::move(Range));
-  }
-
-  void addStream(const detail::StreamImplPtr &Stream) {
-    sycl::handler::addStream(Stream);
-  }
-
-  unique_ptr_class<detail::CG> finalize() {
-    auto CGH = static_cast<sycl::handler *>(this);
-    unique_ptr_class<detail::CG> CommandGroup;
-    switch (CGH->MCGType) {
-    case detail::CG::KERNEL:
-    case detail::CG::RUN_ON_HOST_INTEL: {
+  MockHandlerStreamInit(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
+      : MockHandler(Queue, IsHost) {}
+  std::unique_ptr<detail::CG> finalize() {
+    std::unique_ptr<detail::CG> CommandGroup;
+    switch (getType()) {
+    case detail::CG::Kernel:
+    case detail::CG::RunOnHostIntel: {
       CommandGroup.reset(new detail::CGExecKernel(
-          std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
-          std::move(CGH->MKernel), std::move(CGH->MArgsStorage),
-          std::move(CGH->MAccStorage), std::move(CGH->MSharedPtrStorage),
-          std::move(CGH->MRequirements), std::move(CGH->MEvents),
-          std::move(CGH->MArgs), std::move(CGH->MKernelName),
-          std::move(CGH->MOSModuleHandle), std::move(CGH->MStreamStorage),
-          CGH->MCGType, CGH->MCodeLoc));
+          getNDRDesc(), std::move(getHostKernel()), getKernel(),
+          std::move(MImpl->MKernelBundle),
+          getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
+          getRequirements(), getEvents(), getArgs(), getKernelName(),
+          getOSModuleHandle(), getStreamStorage(), std::move(MImpl->MAuxiliaryResources),
+          getCGType(), getCodeLoc()));
       break;
     }
     default:
       throw sycl::runtime_error("Unhandled type of command group",
-                                PI_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
     }
 
     return CommandGroup;
   }
 };
 
-using CmdTypeTy = cl::sycl::detail::Command::CommandType;
+using CmdTypeTy = sycl::detail::Command::CommandType;
 
 // Function recursively checks that initial command has dependency on chain of
 // other commands that should have type DepCmdsTypes[Depth] (Depth is a distance
@@ -75,7 +58,7 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
                                     size_t Depth = 0) {
   if (!Cmd || Depth >= DepCmdsTypes.size())
     throw sycl::runtime_error("Command parameters are invalid",
-                              PI_INVALID_VALUE);
+                              PI_ERROR_INVALID_VALUE);
 
   for (const detail::DepDesc &Dep : Cmd->MDeps) {
     if (Dep.MDepCommand &&
@@ -92,12 +75,18 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
-  cl::sycl::queue HQueue(host_selector{});
-  detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
+  // Disable post enqueue cleanup so that it doesn't interfere with dependency
+  // checks.
+  unittest::ScopedEnvVar DisabledCleanup{
+      DisablePostEnqueueCleanupName, "1",
+      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
+  std::shared_ptr<detail::queue_impl> HQueueImpl(new detail::queue_impl(
+      detail::device_impl::getHostDeviceImpl(), /*AsyncHandler=*/{},
+      /*PropList=*/{}));
 
   // Emulating processing of command group function
-  MockHandler MockCGH(HQueueImpl, true);
-  MockCGH.setType(detail::CG::KERNEL);
+  MockHandlerStreamInit MockCGH(HQueueImpl, true);
+  MockCGH.setType(detail::CG::Kernel);
 
   auto EmptyKernel = [](sycl::nd_item<1>) {};
   MockCGH
@@ -118,17 +107,18 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   ASSERT_TRUE(!!FlushBufMemObjPtr)
       << "Memory object for stream flush buffer not initialized";
 
-  unique_ptr_class<detail::CG> MainCG = MockCGH.finalize();
+  std::unique_ptr<detail::CG> MainCG = MockCGH.finalize();
 
   // Emulate call of Scheduler::addCG
-  vector_class<detail::StreamImplPtr> Streams =
+  std::vector<detail::StreamImplPtr> Streams =
       static_cast<detail::CGExecKernel *>(MainCG.get())->getStreams();
   ASSERT_EQ(Streams.size(), 1u) << "Invalid number of stream objects";
 
   initStream(Streams[0], HQueueImpl);
 
   MockScheduler MS;
-  detail::Command *NewCmd = MS.addCG(std::move(MainCG), HQueueImpl);
+  std::vector<detail::Command *> AuxCmds;
+  detail::Command *NewCmd = MS.addCG(std::move(MainCG), HQueueImpl, AuxCmds);
   ASSERT_TRUE(!!NewCmd) << "Failed to add command group into scheduler";
   ASSERT_GT(NewCmd->MDeps.size(), 0u)
       << "No deps appeared in the new exec kernel command";

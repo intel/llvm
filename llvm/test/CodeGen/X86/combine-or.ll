@@ -240,8 +240,9 @@ define <4 x i32> @test18(<4 x i32> %a, <4 x i32> %b) {
 ; CHECK-NEXT:    pxor %xmm2, %xmm2
 ; CHECK-NEXT:    pblendw {{.*#+}} xmm0 = xmm0[0,1],xmm2[2,3,4,5,6,7]
 ; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[1,0,1,1]
-; CHECK-NEXT:    pblendw {{.*#+}} xmm1 = xmm1[0,1],xmm2[2,3,4,5,6,7]
-; CHECK-NEXT:    por %xmm1, %xmm0
+; CHECK-NEXT:    pblendw {{.*#+}} xmm2 = xmm1[0,1],xmm2[2,3,4,5,6,7]
+; CHECK-NEXT:    por %xmm0, %xmm2
+; CHECK-NEXT:    movdqa %xmm2, %xmm0
 ; CHECK-NEXT:    retq
   %shuf1 = shufflevector <4 x i32> %a, <4 x i32> zeroinitializer, <4 x i32><i32 4, i32 0, i32 4, i32 4>
   %shuf2 = shufflevector <4 x i32> %b, <4 x i32> zeroinitializer, <4 x i32><i32 0, i32 4, i32 4, i32 4>
@@ -435,8 +436,8 @@ define <4 x i32> @test2f(<4 x i32> %a, <4 x i32> %b) {
 define <2 x i64> @or_and_v2i64(<2 x i64> %a0) {
 ; CHECK-LABEL: or_and_v2i64:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    orps {{.*}}(%rip), %xmm0
-; CHECK-NEXT:    andps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    orps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
   %1 = and <2 x i64> %a0, <i64 7, i64 7>
   %2 = or <2 x i64> %1, <i64 3, i64 3>
@@ -446,8 +447,8 @@ define <2 x i64> @or_and_v2i64(<2 x i64> %a0) {
 define <4 x i32> @or_and_v4i32(<4 x i32> %a0) {
 ; CHECK-LABEL: or_and_v4i32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    orps {{.*}}(%rip), %xmm0
-; CHECK-NEXT:    andps {{.*}}(%rip), %xmm0
+; CHECK-NEXT:    orps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-NEXT:    retq
   %1 = and <4 x i32> %a0, <i32 1, i32 3, i32 5, i32 7>
   %2 = or <4 x i32> %1, <i32 3, i32 2, i32 15, i32 2>
@@ -488,3 +489,125 @@ define <4 x i32> @or_zext_v4i16(<4 x i16> %a0) {
   ret <4 x i32> %2
 }
 
+; fold (or (and X, C1), (and (or X, Y), C2)) -> (or (and X, C1|C2), (and Y, C2))
+
+define i32 @or_and_and_i32(i32 %x, i32 %y) {
+; CHECK-LABEL: or_and_and_i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl %edi, %eax
+; CHECK-NEXT:    andl $-11, %esi
+; CHECK-NEXT:    andl $-3, %eax
+; CHECK-NEXT:    orl %esi, %eax
+; CHECK-NEXT:    retq
+  %xy = or i32 %x, %y
+  %mx = and i32 %x, 8
+  %mxy = and i32 %xy, -11
+  %r = or i32 %mx, %mxy
+  ret i32 %r
+}
+
+define i64 @or_and_and_commute_i64(i64 %x, i64 %y) {
+; CHECK-LABEL: or_and_and_commute_i64:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq %rdi, %rax
+; CHECK-NEXT:    orq %rsi, %rax
+; CHECK-NEXT:    andq $-3, %rax
+; CHECK-NEXT:    retq
+  %xy = or i64 %x, %y
+  %mx = and i64 %x, 8
+  %mxy = and i64 %xy, -3
+  %r = or i64 %mxy, %mx
+  ret i64 %r
+}
+
+define <4 x i32> @or_and_and_v4i32(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: or_and_and_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm1
+; CHECK-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-NEXT:    orps %xmm1, %xmm0
+; CHECK-NEXT:    retq
+  %xy = or <4 x i32> %x, %y
+  %mx = and <4 x i32> %x, <i32 2, i32 4, i32 8, i32 16>
+  %mxy = and <4 x i32> %xy, <i32 1, i32 -1, i32 -5, i32 -25>
+  %r = or <4 x i32> %mx, %mxy
+  ret <4 x i32> %r
+}
+
+define i32 @or_and_and_multiuse_i32(i32 %x, i32 %y) nounwind {
+; CHECK-LABEL: or_and_and_multiuse_i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    pushq %rbx
+; CHECK-NEXT:    # kill: def $esi killed $esi def $rsi
+; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
+; CHECK-NEXT:    orl %edi, %esi
+; CHECK-NEXT:    andl $8, %edi
+; CHECK-NEXT:    andl $-11, %esi
+; CHECK-NEXT:    leal (%rdi,%rsi), %ebx
+; CHECK-NEXT:    movl %esi, %edi
+; CHECK-NEXT:    callq use_i32@PLT
+; CHECK-NEXT:    movl %ebx, %eax
+; CHECK-NEXT:    popq %rbx
+; CHECK-NEXT:    retq
+  %xy = or i32 %x, %y
+  %mx = and i32 %x, 8
+  %mxy = and i32 %xy, -11
+  %r = or i32 %mx, %mxy
+  call void @use_i32(i32 %mxy)
+  ret i32 %r
+}
+
+define i32 @or_and_multiuse_and_i32(i32 %x, i32 %y) nounwind {
+; CHECK-LABEL: or_and_multiuse_and_i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    pushq %rbx
+; CHECK-NEXT:    # kill: def $esi killed $esi def $rsi
+; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
+; CHECK-NEXT:    orl %edi, %esi
+; CHECK-NEXT:    andl $8, %edi
+; CHECK-NEXT:    andl $-11, %esi
+; CHECK-NEXT:    leal (%rsi,%rdi), %ebx
+; CHECK-NEXT:    # kill: def $edi killed $edi killed $rdi
+; CHECK-NEXT:    callq use_i32@PLT
+; CHECK-NEXT:    movl %ebx, %eax
+; CHECK-NEXT:    popq %rbx
+; CHECK-NEXT:    retq
+  %xy = or i32 %x, %y
+  %mx = and i32 %x, 8
+  %mxy = and i32 %xy, -11
+  %r = or i32 %mx, %mxy
+  call void @use_i32(i32 %mx)
+  ret i32 %r
+}
+
+define i32 @or_and_multiuse_and_multiuse_i32(i32 %x, i32 %y) nounwind {
+; CHECK-LABEL: or_and_multiuse_and_multiuse_i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    pushq %rbp
+; CHECK-NEXT:    pushq %rbx
+; CHECK-NEXT:    pushq %rax
+; CHECK-NEXT:    movl %esi, %ebx
+; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
+; CHECK-NEXT:    orl %edi, %ebx
+; CHECK-NEXT:    andl $8, %edi
+; CHECK-NEXT:    andl $-11, %ebx
+; CHECK-NEXT:    leal (%rdi,%rbx), %ebp
+; CHECK-NEXT:    # kill: def $edi killed $edi killed $rdi
+; CHECK-NEXT:    callq use_i32@PLT
+; CHECK-NEXT:    movl %ebx, %edi
+; CHECK-NEXT:    callq use_i32@PLT
+; CHECK-NEXT:    movl %ebp, %eax
+; CHECK-NEXT:    addq $8, %rsp
+; CHECK-NEXT:    popq %rbx
+; CHECK-NEXT:    popq %rbp
+; CHECK-NEXT:    retq
+  %xy = or i32 %x, %y
+  %mx = and i32 %x, 8
+  %mxy = and i32 %xy, -11
+  %r = or i32 %mx, %mxy
+  call void @use_i32(i32 %mx)
+  call void @use_i32(i32 %mxy)
+  ret i32 %r
+}
+
+declare void @use_i32(i32)

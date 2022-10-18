@@ -10,8 +10,6 @@ from lldbsuite.test.decorators import *
 
 class EnumTypesTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -58,8 +56,7 @@ class EnumTypesTestCase(TestBase):
                              'stop reason = breakpoint'])
 
         # The breakpoint should have a hit count of 1.
-        self.expect("breakpoint list -f", BREAKPOINT_HIT_ONCE,
-                    substrs=[' resolved, hit count = 1'])
+        lldbutil.check_breakpoint(self, bpno = 1, expected_hit_count = 1)
 
         # Look up information about the 'enum_test_days' enum type.
         # Check for correct display.
@@ -137,7 +134,7 @@ class EnumTypesTestCase(TestBase):
             self.assertEqual(member.signed, value_matches[idx], "Value matches for %d"%(idx))
         
     def test_api(self):
-        """Test the the SBTypeEnumMember API's work correctly for enum_test_days"""
+        """Test that the SBTypeEnumMember API's work correctly for enum_test_days"""
         self.build()
         target = lldbutil.run_to_breakpoint_make_target(self)
 

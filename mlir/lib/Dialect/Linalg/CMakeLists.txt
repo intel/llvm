@@ -1,5 +1,5 @@
 add_subdirectory(Analysis)
-add_subdirectory(EDSC)
 add_subdirectory(IR)
+add_subdirectory(TransformOps)
 add_subdirectory(Transforms)
 add_subdirectory(Utils)

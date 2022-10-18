@@ -11,10 +11,12 @@
 
 #include <helpers/PiMock.hpp>
 
+#include <detail/buffer_impl.hpp>
+
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static pi_result redefinedDeviceGetInfo(pi_device Device,
                                         pi_device_info ParamName,
@@ -58,27 +60,51 @@ static pi_result redefinedEnqueueMemBufferWriteRect(
   return PI_SUCCESS;
 }
 
+static pi_result redefinedMemRetain(pi_mem mem) { return PI_SUCCESS; }
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
-TEST_F(SchedulerTest, NoHostUnifiedMemory) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
+static pi_context InteropPiContext = nullptr;
+static pi_result redefinedMemGetInfo(pi_mem mem, pi_mem_info param_name,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret) {
+  auto *Result = reinterpret_cast<pi_context *>(param_value);
+  *Result = InteropPiContext;
+  return PI_SUCCESS;
 
-  queue Q;
-  unittest::PiMock Mock{Q};
+  if (param_name == PI_MEM_CONTEXT) {
+    auto *Result = reinterpret_cast<pi_context *>(param_value);
+    *Result = InteropPiContext;
+  } else if (param_name == PI_MEM_SIZE) {
+    auto *Result = reinterpret_cast<size_t *>(param_value);
+    *Result = 8;
+  }
+}
+static pi_result
+redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
+                                   pi_context context, bool own_native_handle,
+                                   pi_mem *mem) {
+  *mem = detail::pi::cast<pi_mem>(native_handle);
+  return PI_SUCCESS;
+}
+
+TEST_F(SchedulerTest, NoHostUnifiedMemory) {
+  unittest::PiMock Mock;
+  queue Q{Mock.getPlatform().get_devices()[0]};
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
       redefinedEnqueueMemBufferReadRect);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
       redefinedEnqueueMemBufferWriteRect);
+  Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
-  cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
+  Mock.redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
+  Mock.redefine<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+      redefinedMemCreateWithNativeHandle);
+  sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
-  device HostDevice;
+  device HostDevice = detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl());
   std::shared_ptr<detail::queue_impl> DefaultHostQueue{
       new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
 
@@ -89,9 +115,11 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     buffer<int, 1> Buf(&val, range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
 
     // Both non-host and host allocations should be created in this case in
     // order to perform a memory move.
@@ -102,7 +130,8 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(Record->MCurContext->is_host());
 
-    detail::Command *MemoryMove = MS.insertMemoryMove(Record, &Req, QImpl);
+    detail::Command *MemoryMove =
+        MS.insertMemoryMove(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
   }
   // Check non-host alloca with discard access modes
@@ -116,8 +145,10 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
 
     // No need to create a host allocation in this case since the data can be
     // discarded.
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
-    MS.getOrCreateAllocaForReq(Record, &DiscardReq, QImpl);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &DiscardReq, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
   // Check non-host alloca without user pointer
@@ -127,8 +158,10 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
 
     // No need to create a host allocation in this case since there's no data to
     // initialize the buffer with.
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
-    MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
   }
   // Check host -> non-host alloca
@@ -139,18 +172,20 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
 
     // No special handling required: alloca commands are created one after
     // another and the transfer is done via a write operation.
+    std::vector<detail::Command *> AuxCmds;
     detail::MemObjRecord *Record =
-        MS.getOrInsertMemObjRecord(DefaultHostQueue, &Req);
+        MS.getOrInsertMemObjRecord(DefaultHostQueue, &Req, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(Record->MAllocaCommands.size(), 2U);
     EXPECT_TRUE(!HostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_TRUE(!NonHostAllocaCmd->MLinkedAllocaCmd);
 
-    detail::Command *MemoryMove = MS.insertMemoryMove(Record, &Req, QImpl);
+    detail::Command *MemoryMove =
+        MS.insertMemoryMove(Record, &Req, QImpl, AuxCmds);
     EXPECT_EQ(MemoryMove->getType(), detail::Command::COPY_MEMORY);
   }
   // Check that memory movement operations work correctly with/after discard
@@ -163,15 +198,41 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     detail::Requirement DiscardReq = getMockRequirement(Buf);
     DiscardReq.MAccessMode = access::mode::discard_read_write;
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
-    MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
-    MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
+    MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 
     // Memory movement operations should be omitted for discard access modes.
     detail::Command *MemoryMove =
-        MS.insertMemoryMove(Record, &DiscardReq, DefaultHostQueue);
-    EXPECT_EQ(MemoryMove, nullptr);
+        MS.insertMemoryMove(Record, &DiscardReq, DefaultHostQueue, AuxCmds);
+    EXPECT_TRUE(MemoryMove == nullptr);
     // The current context for the record should still be modified.
     EXPECT_EQ(Record->MCurContext, DefaultHostQueue->getContextImplPtr());
+  }
+  // Check that interoperability memory objects are initialized.
+  {
+    cl_mem MockInteropBuffer = reinterpret_cast<cl_mem>(1);
+    context InteropContext = Q.get_context();
+    InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
+    auto BufI = std::make_shared<detail::buffer_impl>(
+        detail::pi::cast<pi_native_handle>(MockInteropBuffer), Q.get_context(),
+        make_unique_ptr<
+            detail::SYCLMemObjAllocatorHolder<buffer_allocator<char>, char>>(),
+        /* OwnNativeHandle */ true, event());
+
+    detail::Requirement Req = getMockRequirement();
+    Req.MSYCLMemObj = BufI.get();
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    detail::AllocaCommandBase *InteropAlloca =
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
+    detail::EnqueueResultT Res;
+    MockScheduler::enqueueCommand(InteropAlloca, Res, detail::BLOCKING);
+
+    EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
+    EXPECT_EQ(InteropAlloca->MMemAllocation, MockInteropBuffer);
   }
 }

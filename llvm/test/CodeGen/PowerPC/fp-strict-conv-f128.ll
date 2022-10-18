@@ -6,7 +6,7 @@
 ; RUN:   < %s -mtriple=powerpc64le-unknown-linux -mcpu=pwr9 | FileCheck %s \
 ; RUN:   -check-prefix=P9
 ; RUN: llc -verify-machineinstrs -ppc-asm-full-reg-names -ppc-vsr-nums-as-vr \
-; RUN:   < %s -mtriple=powerpc64le-unknown-linux -mcpu=pwr8 -enable-soft-fp128 -mattr=-vsx \
+; RUN:   < %s -mtriple=powerpc64le-unknown-linux -mcpu=pwr8 -mattr=-vsx \
 ; RUN:   | FileCheck %s -check-prefix=NOVSX
 
 declare i1 @llvm.experimental.constrained.fptosi.i1.f128(fp128, metadata)
@@ -183,7 +183,7 @@ define i1 @q_to_u1(fp128 %m) #0 {
 ; P8-NEXT:    stdu r1, -112(r1)
 ; P8-NEXT:    .cfi_def_cfa_offset 112
 ; P8-NEXT:    .cfi_offset lr, 16
-; P8-NEXT:    bl __fixunskfsi
+; P8-NEXT:    bl __fixkfsi
 ; P8-NEXT:    nop
 ; P8-NEXT:    addi r1, r1, 112
 ; P8-NEXT:    ld r0, 16(r1)
@@ -203,7 +203,7 @@ define i1 @q_to_u1(fp128 %m) #0 {
 ; NOVSX-NEXT:    stdu r1, -32(r1)
 ; NOVSX-NEXT:    .cfi_def_cfa_offset 32
 ; NOVSX-NEXT:    .cfi_offset lr, 16
-; NOVSX-NEXT:    bl __fixkfsi
+; NOVSX-NEXT:    bl __fixunskfsi
 ; NOVSX-NEXT:    nop
 ; NOVSX-NEXT:    addi r1, r1, 32
 ; NOVSX-NEXT:    ld r0, 16(r1)
@@ -447,7 +447,6 @@ define zeroext i32 @q_to_u32(fp128 %m) #0 {
 ; P9:       # %bb.0: # %entry
 ; P9-NEXT:    xscvqpuwz v2, v2
 ; P9-NEXT:    mfvsrwz r3, v2
-; P9-NEXT:    clrldi r3, r3, 32
 ; P9-NEXT:    blr
 ;
 ; NOVSX-LABEL: q_to_u32:
@@ -617,8 +616,8 @@ define zeroext i32 @ppcq_to_u32(ppc_fp128 %m) #0 {
 ; P8-NEXT:    xxlxor f3, f3, f3
 ; P8-NEXT:    std r30, 112(r1) # 8-byte Folded Spill
 ; P8-NEXT:    lfs f0, .LCPI13_0@toc@l(r3)
-; P8-NEXT:    fcmpo cr0, f2, f3
 ; P8-NEXT:    lis r3, -32768
+; P8-NEXT:    fcmpo cr0, f2, f3
 ; P8-NEXT:    xxlxor f3, f3, f3
 ; P8-NEXT:    fcmpo cr1, f1, f0
 ; P8-NEXT:    crand 4*cr5+lt, 4*cr1+eq, lt
@@ -786,7 +785,7 @@ define fp128 @u1_to_q(i1 zeroext %m) #0 {
 ; P8-NEXT:    stdu r1, -112(r1)
 ; P8-NEXT:    .cfi_def_cfa_offset 112
 ; P8-NEXT:    .cfi_offset lr, 16
-; P8-NEXT:    bl __floatunsikf
+; P8-NEXT:    bl __floatsikf
 ; P8-NEXT:    nop
 ; P8-NEXT:    addi r1, r1, 112
 ; P8-NEXT:    ld r0, 16(r1)
@@ -806,7 +805,7 @@ define fp128 @u1_to_q(i1 zeroext %m) #0 {
 ; NOVSX-NEXT:    stdu r1, -32(r1)
 ; NOVSX-NEXT:    .cfi_def_cfa_offset 32
 ; NOVSX-NEXT:    .cfi_offset lr, 16
-; NOVSX-NEXT:    bl __floatsikf
+; NOVSX-NEXT:    bl __floatunsikf
 ; NOVSX-NEXT:    nop
 ; NOVSX-NEXT:    addi r1, r1, 32
 ; NOVSX-NEXT:    ld r0, 16(r1)

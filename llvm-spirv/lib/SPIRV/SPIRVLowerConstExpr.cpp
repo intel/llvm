@@ -37,6 +37,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-const-expr"
 
+#include "SPIRVLowerConstExpr.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "SPIRVMDBuilder.h"
@@ -48,6 +49,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -64,25 +66,21 @@ cl::opt<bool> SPIRVLowerConst(
     "spirv-lower-const-expr", cl::init(true),
     cl::desc("LLVM/SPIR-V translation enable lowering constant expression"));
 
-class SPIRVLowerConstExpr : public ModulePass {
+class SPIRVLowerConstExprLegacy : public ModulePass,
+                                  public SPIRVLowerConstExprBase {
 public:
-  SPIRVLowerConstExpr() : ModulePass(ID), M(nullptr), Ctx(nullptr) {
-    initializeSPIRVLowerConstExprPass(*PassRegistry::getPassRegistry());
+  SPIRVLowerConstExprLegacy() : ModulePass(ID) {
+    initializeSPIRVLowerConstExprLegacyPass(*PassRegistry::getPassRegistry());
   }
 
-  bool runOnModule(Module &M) override;
-  void visit(Module *M);
+  bool runOnModule(Module &M) override { return runLowerConstExpr(M); }
 
   static char ID;
-
-private:
-  Module *M;
-  LLVMContext *Ctx;
 };
 
-char SPIRVLowerConstExpr::ID = 0;
+char SPIRVLowerConstExprLegacy::ID = 0;
 
-bool SPIRVLowerConstExpr::runOnModule(Module &Module) {
+bool SPIRVLowerConstExprBase::runLowerConstExpr(Module &Module) {
   if (!SPIRVLowerConst)
     return false;
 
@@ -90,11 +88,11 @@ bool SPIRVLowerConstExpr::runOnModule(Module &Module) {
   Ctx = &M->getContext();
 
   LLVM_DEBUG(dbgs() << "Enter SPIRVLowerConstExpr:\n");
-  visit(M);
+  bool Changed = visit(M);
 
   verifyRegularizationPass(*M, "SPIRVLowerConstExpr");
 
-  return true;
+  return Changed;
 }
 
 /// Since SPIR-V cannot represent constant expression, constant expressions
@@ -106,7 +104,8 @@ bool SPIRVLowerConstExpr::runOnModule(Module &Module) {
 /// is replaced by one instruction.
 /// ToDo: remove redundant instructions for common subexpression
 
-void SPIRVLowerConstExpr::visit(Module *M) {
+bool SPIRVLowerConstExprBase::visit(Module *M) {
+  bool Changed = false;
   for (auto &I : M->functions()) {
     std::list<Instruction *> WorkList;
     for (auto &BI : I) {
@@ -118,7 +117,7 @@ void SPIRVLowerConstExpr::visit(Module *M) {
     while (!WorkList.empty()) {
       auto II = WorkList.front();
 
-      auto LowerOp = [&II, &FBegin, &I](Value *V) -> Value * {
+      auto LowerOp = [&II, &FBegin, &I, &Changed](Value *V) -> Value * {
         if (isa<Function>(V))
           return V;
         auto *CE = cast<ConstantExpr>(V);
@@ -137,64 +136,48 @@ void SPIRVLowerConstExpr::visit(Module *M) {
               Users.push_back(InstUser);
           }
         }
-        for (auto &User : Users)
+        for (auto &User : Users) {
+          if (ReplInst->getParent() == User->getParent())
+            if (User->comesBefore(ReplInst))
+              ReplInst->moveBefore(User);
           User->replaceUsesOfWith(CE, ReplInst);
+        }
+        Changed = true;
         return ReplInst;
       };
 
       WorkList.pop_front();
+
       for (unsigned OI = 0, OE = II->getNumOperands(); OI != OE; ++OI) {
-        auto Op = II->getOperand(OI);
-        auto *Vec = dyn_cast<ConstantVector>(Op);
-        if (Vec && std::all_of(Vec->op_begin(), Vec->op_end(), [](Value *V) {
-              return isa<ConstantExpr>(V) || isa<Function>(V);
-            })) {
-          // Expand a vector of constexprs and construct it back with series of
-          // insertelement instructions
-          std::list<Value *> OpList;
-          std::transform(Vec->op_begin(), Vec->op_end(),
-                         std::back_inserter(OpList),
-                         [LowerOp](Value *V) { return LowerOp(V); });
-          Value *Repl = nullptr;
-          unsigned Idx = 0;
-          auto *PhiII = dyn_cast<PHINode>(II);
-          auto *InsPoint = PhiII ? &PhiII->getIncomingBlock(OI)->back() : II;
-          std::list<Instruction *> ReplList;
-          for (auto V : OpList) {
-            if (auto *Inst = dyn_cast<Instruction>(V))
-              ReplList.push_back(Inst);
-            Repl = InsertElementInst::Create(
-                (Repl ? Repl : UndefValue::get(Vec->getType())), V,
-                ConstantInt::get(Type::getInt32Ty(M->getContext()), Idx++), "",
-                InsPoint);
-          }
-          II->replaceUsesOfWith(Op, Repl);
-          WorkList.splice(WorkList.begin(), ReplList);
-        } else if (auto CE = dyn_cast<ConstantExpr>(Op)) {
+        auto *Op = II->getOperand(OI);
+        if (auto *CE = dyn_cast<ConstantExpr>(Op)) {
           WorkList.push_front(cast<Instruction>(LowerOp(CE)));
         } else if (auto MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
           Metadata *MD = MDAsVal->getMetadata();
           if (auto ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
             Constant *C = ConstMD->getValue();
-            if (auto CE = dyn_cast<ConstantExpr>(C)) {
-              Value *RepInst = LowerOp(CE);
-              Metadata *RepMD = ValueAsMetadata::get(RepInst);
+            Value *ReplInst = nullptr;
+            if (auto *CE = dyn_cast<ConstantExpr>(C))
+              ReplInst = LowerOp(CE);
+            if (ReplInst) {
+              Metadata *RepMD = ValueAsMetadata::get(ReplInst);
               Value *RepMDVal = MetadataAsValue::get(M->getContext(), RepMD);
               II->setOperand(OI, RepMDVal);
-              WorkList.push_front(cast<Instruction>(RepInst));
+              WorkList.push_front(cast<Instruction>(ReplInst));
             }
           }
         }
       }
     }
   }
+  return Changed;
 }
 
 } // namespace SPIRV
 
-INITIALIZE_PASS(SPIRVLowerConstExpr, "spv-lower-const-expr",
+INITIALIZE_PASS(SPIRVLowerConstExprLegacy, "spv-lower-const-expr",
                 "Regularize LLVM for SPIR-V", false, false)
 
-ModulePass *llvm::createSPIRVLowerConstExpr() {
-  return new SPIRVLowerConstExpr();
+ModulePass *llvm::createSPIRVLowerConstExprLegacy() {
+  return new SPIRVLowerConstExprLegacy();
 }

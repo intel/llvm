@@ -26,7 +26,6 @@ class MCAsmBackend;
 class MCCodeEmitter;
 class MCInstrInfo;
 class MCObjectTargetWriter;
-class MVT;
 class Triple;
 
 MCCodeEmitter *createWebAssemblyMCCodeEmitter(const MCInstrInfo &MCII);
@@ -72,14 +71,12 @@ enum OperandType {
   OPERAND_SIGNATURE,
   /// type signature immediate for call_indirect.
   OPERAND_TYPEINDEX,
-  /// Event index.
-  OPERAND_EVENT,
+  /// Tag index.
+  OPERAND_TAG,
   /// A list of branch targets for br_list.
   OPERAND_BRLIST,
   /// 32-bit unsigned table number.
   OPERAND_TABLE,
-  /// heap type immediate for ref.null.
-  OPERAND_HEAPTYPE,
 };
 } // end namespace WebAssembly
 
@@ -94,6 +91,9 @@ enum TOF {
   // runtime.  This adds a level of indirection similar to the GOT on native
   // platforms.
   MO_GOT,
+
+  // Same as MO_GOT but the address stored in the global is a TLS address.
+  MO_GOT_TLS,
 
   // On a symbol operand this indicates that the immediate is the symbol
   // address relative the __memory_base wasm global.
@@ -124,42 +124,15 @@ enum TOF {
 // Defines symbolic names for the WebAssembly instructions.
 //
 #define GET_INSTRINFO_ENUM
+#define GET_INSTRINFO_MC_HELPER_DECLS
 #include "WebAssemblyGenInstrInfo.inc"
 
 namespace llvm {
 namespace WebAssembly {
 
-/// Used as immediate MachineOperands for block signatures
-enum class BlockType : unsigned {
-  Invalid = 0x00,
-  Void = 0x40,
-  I32 = unsigned(wasm::ValType::I32),
-  I64 = unsigned(wasm::ValType::I64),
-  F32 = unsigned(wasm::ValType::F32),
-  F64 = unsigned(wasm::ValType::F64),
-  V128 = unsigned(wasm::ValType::V128),
-  Externref = unsigned(wasm::ValType::EXTERNREF),
-  Funcref = unsigned(wasm::ValType::FUNCREF),
-  // Multivalue blocks (and other non-void blocks) are only emitted when the
-  // blocks will never be exited and are at the ends of functions (see
-  // WebAssemblyCFGStackify::fixEndsAtEndOfFunction). They also are never made
-  // to pop values off the stack, so the exact multivalue signature can always
-  // be inferred from the return type of the parent function in MCInstLower.
-  Multivalue = 0xffff,
-};
-
-/// Used as immediate MachineOperands for heap types, e.g. for ref.null.
-enum class HeapType : unsigned {
-  Invalid = 0x00,
-  Externref = unsigned(wasm::ValType::EXTERNREF),
-  Funcref = unsigned(wasm::ValType::FUNCREF),
-};
-
 /// Instruction opcodes emitted via means other than CodeGen.
 static const unsigned Nop = 0x01;
 static const unsigned End = 0x0b;
-
-wasm::ValType toValType(const MVT &Ty);
 
 /// Return the default p2align value for a load or store with the given opcode.
 inline unsigned GetDefaultP2AlignAny(unsigned Opc) {

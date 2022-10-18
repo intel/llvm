@@ -12,18 +12,17 @@
 
 #include "llvm/Object/TapiFile.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/MachO.h"
 #include "llvm/Object/Error.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/TextAPI/ArchitectureSet.h"
+#include "llvm/TextAPI/InterfaceFile.h"
+#include "llvm/TextAPI/Platform.h"
+#include "llvm/TextAPI/Symbol.h"
 
 using namespace llvm;
 using namespace MachO;
 using namespace object;
-
-static constexpr StringLiteral ObjC1ClassNamePrefix = ".objc_class_name_";
-static constexpr StringLiteral ObjC2ClassNamePrefix = "_OBJC_CLASS_$_";
-static constexpr StringLiteral ObjC2MetaClassNamePrefix = "_OBJC_METACLASS_$_";
-static constexpr StringLiteral ObjC2EHTypePrefix = "_OBJC_EHTYPE_$_";
-static constexpr StringLiteral ObjC2IVarPrefix = "_OBJC_IVAR_$_";
 
 static uint32_t getFlags(const Symbol *Sym) {
   uint32_t Flags = BasicSymbolRef::SF_Global;
@@ -50,8 +49,7 @@ TapiFile::TapiFile(MemoryBufferRef Source, const InterfaceFile &interface,
       Symbols.emplace_back(StringRef(), Symbol->getName(), getFlags(Symbol));
       break;
     case SymbolKind::ObjectiveCClass:
-      if (interface.getPlatforms().count(PlatformKind::macOS) &&
-          Arch == AK_i386) {
+      if (interface.getPlatforms().count(PLATFORM_MACOS) && Arch == AK_i386) {
         Symbols.emplace_back(ObjC1ClassNamePrefix, Symbol->getName(),
                              getFlags(Symbol));
       } else {

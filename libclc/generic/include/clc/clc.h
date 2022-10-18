@@ -205,6 +205,7 @@
 #include <clc/relational/signbit.h>
 
 /* 6.11.8 Synchronization Functions */
+#include <clc/synchronization/cl_mem_fence_flags.h>
 #include <clc/synchronization/barrier.h>
 
 /* 6.11.9 Explicit Memory Fence Functions */

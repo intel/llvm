@@ -22,6 +22,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 
 namespace llvm {
@@ -117,20 +118,7 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandPtrTypeSCEV) {
 
   ScalarEvolution SE = buildSE(*F);
   auto *S = SE.getSCEV(CastB);
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
-  Value *V =
-      Exp.expandCodeFor(cast<SCEVAddExpr>(S)->getOperand(1), nullptr, Br);
-
-  // Expect the expansion code contains:
-  //   %0 = bitcast i32* %bitcast2 to i8*
-  //   %uglygep = getelementptr i8, i8* %0, i64 -1
-  //   %1 = bitcast i8* %uglygep to i32*
-  EXPECT_TRUE(isa<BitCastInst>(V));
-  Instruction *Gep = cast<Instruction>(V)->getPrevNode();
-  EXPECT_TRUE(isa<GetElementPtrInst>(Gep));
-  EXPECT_TRUE(isa<ConstantInt>(Gep->getOperand(1)));
-  EXPECT_EQ(cast<ConstantInt>(Gep->getOperand(1))->getSExtValue(), -1);
-  EXPECT_TRUE(isa<BitCastInst>(Gep->getPrevNode()));
+  EXPECT_TRUE(isa<SCEVUnknown>(S));
 }
 
 // Make sure that SCEV doesn't introduce illegal ptrtoint/inttoptr instructions
@@ -271,17 +259,17 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderIsSafeToExpandAt) {
   Instruction *Ret = Builder.CreateRetVoid();
 
   ScalarEvolution SE = buildSE(*F);
+  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
   const SCEV *S = SE.getSCEV(Phi);
   EXPECT_TRUE(isa<SCEVAddRecExpr>(S));
   const SCEVAddRecExpr *AR = cast<SCEVAddRecExpr>(S);
   EXPECT_TRUE(AR->isAffine());
-  EXPECT_FALSE(isSafeToExpandAt(AR, Top->getTerminator(), SE));
-  EXPECT_FALSE(isSafeToExpandAt(AR, LPh->getTerminator(), SE));
-  EXPECT_TRUE(isSafeToExpandAt(AR, L->getTerminator(), SE));
-  EXPECT_TRUE(isSafeToExpandAt(AR, Post->getTerminator(), SE));
+  EXPECT_FALSE(Exp.isSafeToExpandAt(AR, Top->getTerminator()));
+  EXPECT_FALSE(Exp.isSafeToExpandAt(AR, LPh->getTerminator()));
+  EXPECT_TRUE(Exp.isSafeToExpandAt(AR, L->getTerminator()));
+  EXPECT_TRUE(Exp.isSafeToExpandAt(AR, Post->getTerminator()));
 
   EXPECT_TRUE(LI->getLoopFor(L)->isLCSSAForm(*DT));
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
   Exp.expandCodeFor(SE.getSCEV(Add), nullptr, Ret);
   EXPECT_TRUE(LI->getLoopFor(L)->isLCSSAForm(*DT));
 }

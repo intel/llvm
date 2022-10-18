@@ -32,9 +32,9 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
-    ~CommandOptions() override {}
+    ~CommandOptions() override = default;
 
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
                           ExecutionContext *execution_context) override {

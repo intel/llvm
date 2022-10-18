@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   TestCtx(context &Ctx) : Ctx{Ctx} {};
@@ -22,6 +22,21 @@ struct TestCtx {
 };
 
 std::unique_ptr<TestCtx> TestContext;
+
+const int ExpectedEventThreshold = 128;
+
+pi_result redefinedQueueCreate(pi_context context, pi_device device,
+                               pi_queue_properties properties,
+                               pi_queue *queue) {
+  // Use in-order queues to force storing events for calling wait on them,
+  // rather than calling piQueueFinish.
+  if (properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
+  }
+  return PI_SUCCESS;
+}
+
+pi_result redefinedQueueRelease(pi_queue Queue) { return PI_SUCCESS; }
 
 pi_result redefinedUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
                                     size_t count,
@@ -44,10 +59,16 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
                                 size_t *param_value_size_ret) {
   EXPECT_EQ(param_name, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
       << "Unexpected event info requested";
-  // Report half of events as complete
+  // Report first half of events as complete.
+  // Report second half of events as running.
+  // This is important, because removal algorithm assumes that
+  // events are likely to be removed oldest first, and stops removing
+  // at the first non-completed event.
   static int Counter = 0;
   auto *Result = reinterpret_cast<pi_event_status *>(param_value);
-  *Result = (++Counter % 2 == 0) ? PI_EVENT_COMPLETE : PI_EVENT_RUNNING;
+  *Result = (Counter < (ExpectedEventThreshold / 2)) ? PI_EVENT_COMPLETE
+                                                     : PI_EVENT_RUNNING;
+  Counter++;
   return PI_SUCCESS;
 }
 
@@ -61,37 +82,25 @@ pi_result redefinedEventRelease(pi_event event) {
   return PI_SUCCESS;
 }
 
-bool preparePiMock(platform &Plt) {
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return false;
-  }
-  // TODO: Skip tests for CUDA temporarily
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() == backend::cuda) {
-    std::cout << "Not run on CUDA - usm is not supported for CUDA backend yet"
-              << std::endl;
-    return false;
-  }
-
-  unittest::PiMock Mock{Plt};
+void preparePiMock(unittest::PiMock &Mock) {
+  Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
   Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-  return true;
 }
 
 // Check that the USM events are cleared from the queue upon call to wait(),
 // so that they are not waited for multiple times.
 TEST(QueueEventClear, ClearOnQueueWait) {
-  platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
-    return;
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  preparePiMock(Mock);
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
   queue Q{Ctx, default_selector()};
 
@@ -108,16 +117,15 @@ TEST(QueueEventClear, ClearOnQueueWait) {
 // Check that shared events are cleaned up from the queue once their number
 // exceeds a threshold.
 TEST(QueueEventClear, CleanupOnThreshold) {
-  platform Plt{default_selector()};
-  if (!preparePiMock(Plt))
-    return;
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  preparePiMock(Mock);
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
   queue Q{Ctx, default_selector()};
 
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Ctx);
-  const int ExpectedEventThreshold = 128;
   TestContext->EventReferenceCount = ExpectedEventThreshold;
   for (size_t I = 0; I < ExpectedEventThreshold; ++I) {
     Q.memset(HostAlloc, 42, 1).wait();

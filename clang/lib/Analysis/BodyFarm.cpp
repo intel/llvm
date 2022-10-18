@@ -20,6 +20,7 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/Analysis/CodeInjector.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/Debug.h"
@@ -86,6 +87,9 @@ public:
   ImplicitCastExpr *makeImplicitCast(const Expr *Arg, QualType Ty,
                                      CastKind CK = CK_LValueToRValue);
 
+  /// Create a cast to reference type.
+  CastExpr *makeReferenceCast(const Expr *Arg, QualType Ty);
+
   /// Create an Objective-C bool literal.
   ObjCBoolLiteralExpr *makeObjCBool(bool Val);
 
@@ -116,7 +120,7 @@ BinaryOperator *ASTMaker::makeAssignment(const Expr *LHS, const Expr *RHS,
                                          QualType Ty) {
   return BinaryOperator::Create(
       C, const_cast<Expr *>(LHS), const_cast<Expr *>(RHS), BO_Assign, Ty,
-      VK_RValue, OK_Ordinary, SourceLocation(), FPOptionsOverride());
+      VK_PRValue, OK_Ordinary, SourceLocation(), FPOptionsOverride());
 }
 
 BinaryOperator *ASTMaker::makeComparison(const Expr *LHS, const Expr *RHS,
@@ -125,12 +129,13 @@ BinaryOperator *ASTMaker::makeComparison(const Expr *LHS, const Expr *RHS,
          BinaryOperator::isComparisonOp(Op));
   return BinaryOperator::Create(
       C, const_cast<Expr *>(LHS), const_cast<Expr *>(RHS), Op,
-      C.getLogicalOperationType(), VK_RValue, OK_Ordinary, SourceLocation(),
+      C.getLogicalOperationType(), VK_PRValue, OK_Ordinary, SourceLocation(),
       FPOptionsOverride());
 }
 
 CompoundStmt *ASTMaker::makeCompound(ArrayRef<Stmt *> Stmts) {
-  return CompoundStmt::Create(C, Stmts, SourceLocation(), SourceLocation());
+  return CompoundStmt::Create(C, Stmts, FPOptionsOverride(), SourceLocation(),
+                              SourceLocation());
 }
 
 DeclRefExpr *ASTMaker::makeDeclRefExpr(
@@ -169,8 +174,18 @@ ImplicitCastExpr *ASTMaker::makeImplicitCast(const Expr *Arg, QualType Ty,
                                   /* CastKind=*/CK,
                                   /* Expr=*/const_cast<Expr *>(Arg),
                                   /* CXXCastPath=*/nullptr,
-                                  /* ExprValueKind=*/VK_RValue,
+                                  /* ExprValueKind=*/VK_PRValue,
                                   /* FPFeatures */ FPOptionsOverride());
+}
+
+CastExpr *ASTMaker::makeReferenceCast(const Expr *Arg, QualType Ty) {
+  assert(Ty->isReferenceType());
+  return CXXStaticCastExpr::Create(
+      C, Ty.getNonReferenceType(),
+      Ty->isLValueReferenceType() ? VK_LValue : VK_XValue, CK_NoOp,
+      const_cast<Expr *>(Arg), /*CXXCastPath=*/nullptr,
+      /*Written=*/C.getTrivialTypeSourceInfo(Ty), FPOptionsOverride(),
+      SourceLocation(), SourceLocation(), SourceRange());
 }
 
 Expr *ASTMaker::makeIntegralCast(const Expr *Arg, QualType Ty) {
@@ -264,7 +279,7 @@ static CallExpr *create_call_once_funcptr_call(ASTContext &C, ASTMaker M,
     llvm_unreachable("Unexpected state");
   }
 
-  return CallExpr::Create(C, SubExpr, CallArgs, C.VoidTy, VK_RValue,
+  return CallExpr::Create(C, SubExpr, CallArgs, C.VoidTy, VK_PRValue,
                           SourceLocation(), FPOptionsOverride());
 }
 
@@ -291,9 +306,25 @@ static CallExpr *create_call_once_lambda_call(ASTContext &C, ASTMaker M,
       /*AstContext=*/C, OO_Call, callOperatorDeclRef,
       /*Args=*/CallArgs,
       /*QualType=*/C.VoidTy,
-      /*ExprValueType=*/VK_RValue,
+      /*ExprValueType=*/VK_PRValue,
       /*SourceLocation=*/SourceLocation(),
       /*FPFeatures=*/FPOptionsOverride());
+}
+
+/// Create a fake body for 'std::move' or 'std::forward'. This is just:
+///
+/// \code
+/// return static_cast<return_type>(param);
+/// \endcode
+static Stmt *create_std_move_forward(ASTContext &C, const FunctionDecl *D) {
+  LLVM_DEBUG(llvm::dbgs() << "Generating body for std::move / std::forward\n");
+
+  ASTMaker M(C);
+
+  QualType ReturnType = D->getType()->castAs<FunctionType>()->getReturnType();
+  Expr *Param = M.makeDeclRefExpr(D->getParamDecl(0));
+  Expr *Cast = M.makeReferenceCast(Param, ReturnType);
+  return M.makeReturn(Cast);
 }
 
 /// Create a fake body for std::call_once.
@@ -451,7 +482,7 @@ static Stmt *create_call_once(ASTContext &C, const FunctionDecl *D) {
                          CK_IntegralToBoolean),
       /* opc=*/UO_LNot,
       /* QualType=*/C.IntTy,
-      /* ExprValueKind=*/VK_RValue,
+      /* ExprValueKind=*/VK_PRValue,
       /* ExprObjectKind=*/OK_Ordinary, SourceLocation(),
       /* CanOverflow*/ false, FPOptionsOverride());
 
@@ -461,8 +492,7 @@ static Stmt *create_call_once(ASTContext &C, const FunctionDecl *D) {
       DerefType);
 
   auto *Out =
-      IfStmt::Create(C, SourceLocation(),
-                     /* IsConstexpr=*/false,
+      IfStmt::Create(C, SourceLocation(), IfStatementKind::Ordinary,
                      /* Init=*/nullptr,
                      /* Var=*/nullptr,
                      /* Cond=*/FlagCheck,
@@ -513,13 +543,13 @@ static Stmt *create_dispatch_once(ASTContext &C, const FunctionDecl *D) {
       /*StmtClass=*/M.makeLvalueToRvalue(/*Expr=*/Block),
       /*Args=*/None,
       /*QualType=*/C.VoidTy,
-      /*ExprValueType=*/VK_RValue,
+      /*ExprValueType=*/VK_PRValue,
       /*SourceLocation=*/SourceLocation(), FPOptionsOverride());
 
   // (2) Create the assignment to the predicate.
   Expr *DoneValue =
       UnaryOperator::Create(C, M.makeIntegerLiteral(0, C.LongTy), UO_Not,
-                            C.LongTy, VK_RValue, OK_Ordinary, SourceLocation(),
+                            C.LongTy, VK_PRValue, OK_Ordinary, SourceLocation(),
                             /*CanOverflow*/ false, FPOptionsOverride());
 
   BinaryOperator *B =
@@ -547,8 +577,7 @@ static Stmt *create_dispatch_once(ASTContext &C, const FunctionDecl *D) {
 
   Expr *GuardCondition = M.makeComparison(LValToRval, DoneValue, BO_NE);
   // (5) Create the 'if' statement.
-  auto *If = IfStmt::Create(C, SourceLocation(),
-                            /* IsConstexpr=*/false,
+  auto *If = IfStmt::Create(C, SourceLocation(), IfStatementKind::Ordinary,
                             /* Init=*/nullptr,
                             /* Var=*/nullptr,
                             /* Cond=*/GuardCondition,
@@ -580,7 +609,7 @@ static Stmt *create_dispatch_sync(ASTContext &C, const FunctionDecl *D) {
   ASTMaker M(C);
   DeclRefExpr *DR = M.makeDeclRefExpr(PV);
   ImplicitCastExpr *ICE = M.makeLvalueToRvalue(DR, Ty);
-  CallExpr *CE = CallExpr::Create(C, ICE, None, C.VoidTy, VK_RValue,
+  CallExpr *CE = CallExpr::Create(C, ICE, None, C.VoidTy, VK_PRValue,
                                   SourceLocation(), FPOptionsOverride());
   return CE;
 }
@@ -658,8 +687,7 @@ static Stmt *create_OSAtomicCompareAndSwap(ASTContext &C, const FunctionDecl *D)
 
   /// Construct the If.
   auto *If =
-      IfStmt::Create(C, SourceLocation(),
-                     /* IsConstexpr=*/false,
+      IfStmt::Create(C, SourceLocation(), IfStatementKind::Ordinary,
                      /* Init=*/nullptr,
                      /* Var=*/nullptr, Comparison,
                      /* LPL=*/SourceLocation(),
@@ -670,8 +698,8 @@ static Stmt *create_OSAtomicCompareAndSwap(ASTContext &C, const FunctionDecl *D)
 
 Stmt *BodyFarm::getBody(const FunctionDecl *D) {
   Optional<Stmt *> &Val = Bodies[D];
-  if (Val.hasValue())
-    return Val.getValue();
+  if (Val)
+    return Val.value();
 
   Val = nullptr;
 
@@ -684,8 +712,20 @@ Stmt *BodyFarm::getBody(const FunctionDecl *D) {
 
   FunctionFarmer FF;
 
-  if (Name.startswith("OSAtomicCompareAndSwap") ||
-      Name.startswith("objc_atomicCompareAndSwap")) {
+  if (unsigned BuiltinID = D->getBuiltinID()) {
+    switch (BuiltinID) {
+    case Builtin::BIas_const:
+    case Builtin::BIforward:
+    case Builtin::BImove:
+    case Builtin::BImove_if_noexcept:
+      FF = create_std_move_forward;
+      break;
+    default:
+      FF = nullptr;
+      break;
+    }
+  } else if (Name.startswith("OSAtomicCompareAndSwap") ||
+             Name.startswith("objc_atomicCompareAndSwap")) {
     FF = create_OSAtomicCompareAndSwap;
   } else if (Name == "call_once" && D->getDeclContext()->isStdNamespace()) {
     FF = create_call_once;
@@ -698,7 +738,7 @@ Stmt *BodyFarm::getBody(const FunctionDecl *D) {
 
   if (FF) { Val = FF(C, D); }
   else if (Injector) { Val = Injector->getBody(D); }
-  return Val.getValue();
+  return *Val;
 }
 
 static const ObjCIvarDecl *findBackingIvar(const ObjCPropertyDecl *Prop) {
@@ -742,8 +782,9 @@ static const ObjCIvarDecl *findBackingIvar(const ObjCPropertyDecl *Prop) {
 
 static Stmt *createObjCPropertyGetter(ASTContext &Ctx,
                                       const ObjCMethodDecl *MD) {
-    // First, find the backing ivar.
+  // First, find the backing ivar.
   const ObjCIvarDecl *IVar = nullptr;
+  const ObjCPropertyDecl *Prop = nullptr;
 
   // Property accessor stubs sometimes do not correspond to any property decl
   // in the current interface (but in a superclass). They still have a
@@ -751,53 +792,55 @@ static Stmt *createObjCPropertyGetter(ASTContext &Ctx,
   if (MD->isSynthesizedAccessorStub()) {
     const ObjCInterfaceDecl *IntD = MD->getClassInterface();
     const ObjCImplementationDecl *ImpD = IntD->getImplementation();
-    for (const auto *PI: ImpD->property_impls()) {
-      if (const ObjCPropertyDecl *P = PI->getPropertyDecl()) {
-        if (P->getGetterName() == MD->getSelector())
-          IVar = P->getPropertyIvarDecl();
+    for (const auto *PI : ImpD->property_impls()) {
+      if (const ObjCPropertyDecl *Candidate = PI->getPropertyDecl()) {
+        if (Candidate->getGetterName() == MD->getSelector()) {
+          Prop = Candidate;
+          IVar = Prop->getPropertyIvarDecl();
+        }
       }
     }
   }
 
   if (!IVar) {
-    const ObjCPropertyDecl *Prop = MD->findPropertyDecl();
+    Prop = MD->findPropertyDecl();
     IVar = findBackingIvar(Prop);
-    if (!IVar)
-      return nullptr;
+  }
 
-    // Ignore weak variables, which have special behavior.
-    if (Prop->getPropertyAttributes() & ObjCPropertyAttribute::kind_weak)
-      return nullptr;
+  if (!IVar || !Prop)
+    return nullptr;
 
-    // Look to see if Sema has synthesized a body for us. This happens in
-    // Objective-C++ because the return value may be a C++ class type with a
-    // non-trivial copy constructor. We can only do this if we can find the
-    // @synthesize for this property, though (or if we know it's been auto-
-    // synthesized).
-    const ObjCImplementationDecl *ImplDecl =
+  // Ignore weak variables, which have special behavior.
+  if (Prop->getPropertyAttributes() & ObjCPropertyAttribute::kind_weak)
+    return nullptr;
+
+  // Look to see if Sema has synthesized a body for us. This happens in
+  // Objective-C++ because the return value may be a C++ class type with a
+  // non-trivial copy constructor. We can only do this if we can find the
+  // @synthesize for this property, though (or if we know it's been auto-
+  // synthesized).
+  const ObjCImplementationDecl *ImplDecl =
       IVar->getContainingInterface()->getImplementation();
-    if (ImplDecl) {
-      for (const auto *I : ImplDecl->property_impls()) {
-        if (I->getPropertyDecl() != Prop)
-          continue;
+  if (ImplDecl) {
+    for (const auto *I : ImplDecl->property_impls()) {
+      if (I->getPropertyDecl() != Prop)
+        continue;
 
-        if (I->getGetterCXXConstructor()) {
-          ASTMaker M(Ctx);
-          return M.makeReturn(I->getGetterCXXConstructor());
-        }
+      if (I->getGetterCXXConstructor()) {
+        ASTMaker M(Ctx);
+        return M.makeReturn(I->getGetterCXXConstructor());
       }
     }
-
-    // Sanity check that the property is the same type as the ivar, or a
-    // reference to it, and that it is either an object pointer or trivially
-    // copyable.
-    if (!Ctx.hasSameUnqualifiedType(IVar->getType(),
-                                    Prop->getType().getNonReferenceType()))
-      return nullptr;
-    if (!IVar->getType()->isObjCLifetimeType() &&
-        !IVar->getType().isTriviallyCopyableType(Ctx))
-      return nullptr;
   }
+
+  // We expect that the property is the same type as the ivar, or a reference to
+  // it, and that it is either an object pointer or trivially copyable.
+  if (!Ctx.hasSameUnqualifiedType(IVar->getType(),
+                                  Prop->getType().getNonReferenceType()))
+    return nullptr;
+  if (!IVar->getType()->isObjCLifetimeType() &&
+      !IVar->getType().isTriviallyCopyableType(Ctx))
+    return nullptr;
 
   // Generate our body:
   //   return self->_ivar;
@@ -807,11 +850,8 @@ static Stmt *createObjCPropertyGetter(ASTContext &Ctx,
   if (!selfVar)
     return nullptr;
 
-  Expr *loadedIVar =
-    M.makeObjCIvarRef(
-      M.makeLvalueToRvalue(
-        M.makeDeclRefExpr(selfVar),
-        selfVar->getType()),
+  Expr *loadedIVar = M.makeObjCIvarRef(
+      M.makeLvalueToRvalue(M.makeDeclRefExpr(selfVar), selfVar->getType()),
       IVar);
 
   if (!MD->getReturnType()->isReferenceType())
@@ -833,8 +873,8 @@ Stmt *BodyFarm::getBody(const ObjCMethodDecl *D) {
     return nullptr;
 
   Optional<Stmt *> &Val = Bodies[D];
-  if (Val.hasValue())
-    return Val.getValue();
+  if (Val)
+    return Val.value();
   Val = nullptr;
 
   // For now, we only synthesize getters.
@@ -861,5 +901,5 @@ Stmt *BodyFarm::getBody(const ObjCMethodDecl *D) {
 
   Val = createObjCPropertyGetter(C, D);
 
-  return Val.getValue();
+  return *Val;
 }

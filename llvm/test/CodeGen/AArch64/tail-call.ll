@@ -16,80 +16,82 @@ define fastcc void @caller_to0_from0() nounwind {
 ; COMMON-NEXT: b callee_stack0
 }
 
-define fastcc void @caller_to0_from8([8 x i64], i64) {
+define fastcc void @caller_to0_from8([8 x i64], i64) #0 {
 ; COMMON-LABEL: caller_to0_from8:
 
   tail call fastcc void @callee_stack0()
   ret void
 
 ; COMMON: add sp, sp, #16
+; COMMON: .cfi_def_cfa_offset  -16
 ; COMMON-NEXT: b callee_stack0
 }
 
-define fastcc void @caller_to8_from0() {
+define fastcc void @caller_to8_from0() #0 {
 ; COMMON-LABEL: caller_to8_from0:
-; COMMON: sub sp, sp, #32
 
 ; Key point is that the "42" should go #16 below incoming stack
 ; pointer (we didn't have arg space to reuse).
   tail call fastcc void @callee_stack8([8 x i64] undef, i64 42)
   ret void
 
-; COMMON: str {{x[0-9]+}}, [sp, #16]!
+; COMMON: str {{x[0-9]+}}, [sp, #-16]!
+; COMMON-NEXT: .cfi_def_cfa_offset 16
 ; COMMON-NEXT: b callee_stack8
 }
 
-define fastcc void @caller_to8_from8([8 x i64], i64 %a) {
+define fastcc void @caller_to8_from8([8 x i64], i64 %a) #0 {
 ; COMMON-LABEL: caller_to8_from8:
-; COMMON: sub sp, sp, #16
+; COMMON-NOT: sub sp,
 
 ; Key point is that the "%a" should go where at SP on entry.
   tail call fastcc void @callee_stack8([8 x i64] undef, i64 42)
   ret void
 
-; COMMON: str {{x[0-9]+}}, [sp, #16]!
+; COMMON: str {{x[0-9]+}}, [sp]
 ; COMMON-NEXT: b callee_stack8
 }
 
-define fastcc void @caller_to16_from8([8 x i64], i64 %a) {
+define fastcc void @caller_to16_from8([8 x i64], i64 %a) #0 {
 ; COMMON-LABEL: caller_to16_from8:
-; COMMON: sub sp, sp, #16
+; COMMON-NOT: sub sp,
 
 ; Important point is that the call reuses the "dead" argument space
 ; above %a on the stack. If it tries to go below incoming-SP then the
 ; callee will not deallocate the space, even in fastcc.
   tail call fastcc void @callee_stack16([8 x i64] undef, i64 42, i64 2)
 
-; COMMON: stp {{x[0-9]+}}, {{x[0-9]+}}, [sp, #16]!
+; COMMON: stp {{x[0-9]+}}, {{x[0-9]+}}, [sp]
 ; COMMON-NEXT: b callee_stack16
   ret void
 }
 
 
-define fastcc void @caller_to8_from24([8 x i64], i64 %a, i64 %b, i64 %c) {
+define fastcc void @caller_to8_from24([8 x i64], i64 %a, i64 %b, i64 %c) #0 {
 ; COMMON-LABEL: caller_to8_from24:
-; COMMON: sub sp, sp, #16
+; COMMON-NOT: sub sp,
 
 ; Key point is that the "%a" should go where at #16 above SP on entry.
   tail call fastcc void @callee_stack8([8 x i64] undef, i64 42)
   ret void
 
-; COMMON: str {{x[0-9]+}}, [sp, #32]!
+; COMMON: str {{x[0-9]+}}, [sp, #16]!
+; COMMON: .cfi_def_cfa_offset  -16
 ; COMMON-NEXT: b callee_stack8
 }
 
 
-define fastcc void @caller_to16_from16([8 x i64], i64 %a, i64 %b) {
+define fastcc void @caller_to16_from16([8 x i64], i64 %a, i64 %b) #0 {
 ; COMMON-LABEL: caller_to16_from16:
-; COMMON: sub sp, sp, #16
+; COMMON-NOT: sub sp,
 
 ; Here we want to make sure that both loads happen before the stores:
 ; otherwise either %a or %b will be wrongly clobbered.
   tail call fastcc void @callee_stack16([8 x i64] undef, i64 %b, i64 %a)
   ret void
 
-; COMMON: ldp {{x[0-9]+}}, {{x[0-9]+}}, [sp, #16]
-; COMMON: stp {{x[0-9]+}}, {{x[0-9]+}}, [sp, #16]!
+; COMMON: ldp {{x[0-9]+}}, {{x[0-9]+}}, [sp]
+; COMMON: stp {{x[0-9]+}}, {{x[0-9]+}}, [sp]
 ; COMMON-NEXT: b callee_stack16
 }
 
@@ -106,7 +108,7 @@ define fastcc void @disable_tail_calls() nounwind "disable-tail-calls"="true" {
 
 ; Weakly-referenced extern functions cannot be tail-called, as AAELF does
 ; not define the behaviour of branch instructions to undefined weak symbols.
-define fastcc void @caller_weak() {
+define fastcc void @caller_weak() #0 {
 ; COMMON-LABEL: caller_weak:
 ; COMMON: bl callee_weak
   tail call void @callee_weak()
@@ -115,7 +117,7 @@ define fastcc void @caller_weak() {
 
 declare { [2 x float] } @get_vec2()
 
-define { [3 x float] } @test_add_elem() {
+define { [3 x float] } @test_add_elem() #0 {
 ; SDAG-LABEL: test_add_elem:
 ; SDAG: bl get_vec2
 ; SDAG: fmov s2, #1.0
@@ -139,7 +141,7 @@ define { [3 x float] } @test_add_elem() {
 }
 
 declare double @get_double()
-define { double, [2 x double] } @test_mismatched_insert() {
+define { double, [2 x double] } @test_mismatched_insert() #0 {
 ; COMMON-LABEL: test_mismatched_insert:
 ; COMMON: bl get_double
 ; COMMON: bl get_double
@@ -156,3 +158,5 @@ define { double, [2 x double] } @test_mismatched_insert() {
 
   ret { double, [2 x double] } %res.012
 }
+
+attributes #0 = { uwtable }

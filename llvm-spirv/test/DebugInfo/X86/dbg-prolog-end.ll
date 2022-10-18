@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 < %t.ll | FileCheck %s
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
@@ -30,7 +30,7 @@ entry:
 declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 
 ;CHECK-LABEL: main:
-;CHECK: .loc 1 0 0 prologue_end
+;CHECK: .loc 1 8 2 prologue_end
 
 define i32 @main() nounwind ssp !dbg !6 {
 entry:

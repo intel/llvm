@@ -493,28 +493,23 @@ define arm_aapcs_vfpcc signext i16 @trunc_and_zext(<8 x i16> %vec, i32 %max) #1 
 define arm_aapcs_vfpcc i64 @uminv2i64(<2 x i64> %vec, i64 %min) {
 ; CHECK-LABEL: uminv2i64:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    .save {r4, r5, r7, lr}
-; CHECK-NEXT:    push {r4, r5, r7, lr}
-; CHECK-NEXT:    vmov r12, s3
-; CHECK-NEXT:    vmov lr, s1
-; CHECK-NEXT:    vmov r2, s0
-; CHECK-NEXT:    vmov r3, s2
+; CHECK-NEXT:    .save {r4, lr}
+; CHECK-NEXT:    push {r4, lr}
+; CHECK-NEXT:    vmov r2, r12, d1
+; CHECK-NEXT:    vmov r3, lr, d0
+; CHECK-NEXT:    cmp r3, r2
+; CHECK-NEXT:    csel r4, r3, r2, lo
 ; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r4, r2, r3, lo
-; CHECK-NEXT:    cmp r2, r3
-; CHECK-NEXT:    csel r2, r2, r3, lo
-; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r5, r2, r4, eq
+; CHECK-NEXT:    csel r2, r3, r2, lo
 ; CHECK-NEXT:    csel r3, lr, r12, lo
-; CHECK-NEXT:    subs r2, r5, r0
-; CHECK-NEXT:    mov.w r4, #0
-; CHECK-NEXT:    sbcs.w r2, r3, r1
-; CHECK-NEXT:    it lo
-; CHECK-NEXT:    movlo r4, #1
+; CHECK-NEXT:    csel r2, r4, r2, eq
+; CHECK-NEXT:    subs r4, r2, r0
+; CHECK-NEXT:    sbcs.w r4, r3, r1
+; CHECK-NEXT:    cset r4, lo
 ; CHECK-NEXT:    cmp r4, #0
-; CHECK-NEXT:    csel r0, r5, r0, ne
+; CHECK-NEXT:    csel r0, r2, r0, ne
 ; CHECK-NEXT:    csel r1, r3, r1, ne
-; CHECK-NEXT:    pop {r4, r5, r7, pc}
+; CHECK-NEXT:    pop {r4, pc}
   %x = call i64 @llvm.vector.reduce.umin.v2i64(<2 x i64> %vec)
   %cmp = icmp ult i64 %x, %min
   %1 = select i1 %cmp, i64 %x, i64 %min
@@ -524,28 +519,23 @@ define arm_aapcs_vfpcc i64 @uminv2i64(<2 x i64> %vec, i64 %min) {
 define arm_aapcs_vfpcc i64 @sminv2i64(<2 x i64> %vec, i64 %min) {
 ; CHECK-LABEL: sminv2i64:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    .save {r4, r5, r7, lr}
-; CHECK-NEXT:    push {r4, r5, r7, lr}
-; CHECK-NEXT:    vmov r12, s3
-; CHECK-NEXT:    vmov lr, s1
-; CHECK-NEXT:    vmov r2, s0
-; CHECK-NEXT:    vmov r3, s2
+; CHECK-NEXT:    .save {r4, lr}
+; CHECK-NEXT:    push {r4, lr}
+; CHECK-NEXT:    vmov r2, r12, d1
+; CHECK-NEXT:    vmov r3, lr, d0
+; CHECK-NEXT:    cmp r3, r2
+; CHECK-NEXT:    csel r4, r3, r2, lo
 ; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r4, r2, r3, lt
-; CHECK-NEXT:    cmp r2, r3
-; CHECK-NEXT:    csel r2, r2, r3, lo
-; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r5, r2, r4, eq
+; CHECK-NEXT:    csel r2, r3, r2, lt
 ; CHECK-NEXT:    csel r3, lr, r12, lt
-; CHECK-NEXT:    subs r2, r5, r0
-; CHECK-NEXT:    mov.w r4, #0
-; CHECK-NEXT:    sbcs.w r2, r3, r1
-; CHECK-NEXT:    it lt
-; CHECK-NEXT:    movlt r4, #1
+; CHECK-NEXT:    csel r2, r4, r2, eq
+; CHECK-NEXT:    subs r4, r2, r0
+; CHECK-NEXT:    sbcs.w r4, r3, r1
+; CHECK-NEXT:    cset r4, lt
 ; CHECK-NEXT:    cmp r4, #0
-; CHECK-NEXT:    csel r0, r5, r0, ne
+; CHECK-NEXT:    csel r0, r2, r0, ne
 ; CHECK-NEXT:    csel r1, r3, r1, ne
-; CHECK-NEXT:    pop {r4, r5, r7, pc}
+; CHECK-NEXT:    pop {r4, pc}
   %x = call i64 @llvm.vector.reduce.smin.v2i64(<2 x i64> %vec)
   %cmp = icmp slt i64 %x, %min
   %1 = select i1 %cmp, i64 %x, i64 %min
@@ -555,28 +545,23 @@ define arm_aapcs_vfpcc i64 @sminv2i64(<2 x i64> %vec, i64 %min) {
 define arm_aapcs_vfpcc i64 @umaxv2i64(<2 x i64> %vec, i64 %max) {
 ; CHECK-LABEL: umaxv2i64:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    .save {r4, r5, r7, lr}
-; CHECK-NEXT:    push {r4, r5, r7, lr}
-; CHECK-NEXT:    vmov r12, s3
-; CHECK-NEXT:    vmov lr, s1
-; CHECK-NEXT:    vmov r2, s0
-; CHECK-NEXT:    vmov r3, s2
+; CHECK-NEXT:    .save {r4, lr}
+; CHECK-NEXT:    push {r4, lr}
+; CHECK-NEXT:    vmov r2, r12, d1
+; CHECK-NEXT:    vmov r3, lr, d0
+; CHECK-NEXT:    cmp r3, r2
+; CHECK-NEXT:    csel r4, r3, r2, hi
 ; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r4, r2, r3, hi
-; CHECK-NEXT:    cmp r2, r3
-; CHECK-NEXT:    csel r2, r2, r3, hi
-; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r5, r2, r4, eq
+; CHECK-NEXT:    csel r2, r3, r2, hi
 ; CHECK-NEXT:    csel r3, lr, r12, hi
-; CHECK-NEXT:    subs r2, r0, r5
-; CHECK-NEXT:    mov.w r4, #0
-; CHECK-NEXT:    sbcs.w r2, r1, r3
-; CHECK-NEXT:    it lo
-; CHECK-NEXT:    movlo r4, #1
+; CHECK-NEXT:    csel r2, r4, r2, eq
+; CHECK-NEXT:    subs r4, r0, r2
+; CHECK-NEXT:    sbcs.w r4, r1, r3
+; CHECK-NEXT:    cset r4, lo
 ; CHECK-NEXT:    cmp r4, #0
-; CHECK-NEXT:    csel r0, r5, r0, ne
+; CHECK-NEXT:    csel r0, r2, r0, ne
 ; CHECK-NEXT:    csel r1, r3, r1, ne
-; CHECK-NEXT:    pop {r4, r5, r7, pc}
+; CHECK-NEXT:    pop {r4, pc}
   %x = call i64 @llvm.vector.reduce.umax.v2i64(<2 x i64> %vec)
   %cmp = icmp ugt i64 %x, %max
   %1 = select i1 %cmp, i64 %x, i64 %max
@@ -586,28 +571,23 @@ define arm_aapcs_vfpcc i64 @umaxv2i64(<2 x i64> %vec, i64 %max) {
 define arm_aapcs_vfpcc i64 @smaxv2i64(<2 x i64> %vec, i64 %max) {
 ; CHECK-LABEL: smaxv2i64:
 ; CHECK:       @ %bb.0:
-; CHECK-NEXT:    .save {r4, r5, r7, lr}
-; CHECK-NEXT:    push {r4, r5, r7, lr}
-; CHECK-NEXT:    vmov r12, s3
-; CHECK-NEXT:    vmov lr, s1
-; CHECK-NEXT:    vmov r2, s0
-; CHECK-NEXT:    vmov r3, s2
+; CHECK-NEXT:    .save {r4, lr}
+; CHECK-NEXT:    push {r4, lr}
+; CHECK-NEXT:    vmov r2, r12, d1
+; CHECK-NEXT:    vmov r3, lr, d0
+; CHECK-NEXT:    cmp r3, r2
+; CHECK-NEXT:    csel r4, r3, r2, hi
 ; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r4, r2, r3, gt
-; CHECK-NEXT:    cmp r2, r3
-; CHECK-NEXT:    csel r2, r2, r3, hi
-; CHECK-NEXT:    cmp lr, r12
-; CHECK-NEXT:    csel r5, r2, r4, eq
+; CHECK-NEXT:    csel r2, r3, r2, gt
 ; CHECK-NEXT:    csel r3, lr, r12, gt
-; CHECK-NEXT:    subs r2, r0, r5
-; CHECK-NEXT:    mov.w r4, #0
-; CHECK-NEXT:    sbcs.w r2, r1, r3
-; CHECK-NEXT:    it lt
-; CHECK-NEXT:    movlt r4, #1
+; CHECK-NEXT:    csel r2, r4, r2, eq
+; CHECK-NEXT:    subs r4, r0, r2
+; CHECK-NEXT:    sbcs.w r4, r1, r3
+; CHECK-NEXT:    cset r4, lt
 ; CHECK-NEXT:    cmp r4, #0
-; CHECK-NEXT:    csel r0, r5, r0, ne
+; CHECK-NEXT:    csel r0, r2, r0, ne
 ; CHECK-NEXT:    csel r1, r3, r1, ne
-; CHECK-NEXT:    pop {r4, r5, r7, pc}
+; CHECK-NEXT:    pop {r4, pc}
   %x = call i64 @llvm.vector.reduce.smax.v2i64(<2 x i64> %vec)
   %cmp = icmp sgt i64 %x, %max
   %1 = select i1 %cmp, i64 %x, i64 %max

@@ -43,7 +43,9 @@ class ARMFunctionInfo : public MachineFunctionInfo {
   /// "attach" GPR-part to the part that was passed via stack.
   unsigned StByValParamsPadding = 0;
 
-  /// VarArgsRegSaveSize - Size of the register save area for vararg functions.
+  /// ArgsRegSaveSize - Size of the register save area for vararg functions or
+  /// those making guaranteed tail calls that need more stack argument space
+  /// than is provided by this functions incoming parameters.
   ///
   unsigned ArgRegsSaveSize = 0;
 
@@ -84,6 +86,7 @@ class ARMFunctionInfo : public MachineFunctionInfo {
   /// GPRCS1Size, GPRCS2Size, DPRCSSize - Sizes of callee saved register spills
   /// areas.
   unsigned FPCXTSaveSize = 0;
+  unsigned FRSaveSize = 0;
   unsigned GPRCS1Size = 0;
   unsigned GPRCS2Size = 0;
   unsigned DPRCSAlignGapSize = 0;
@@ -118,6 +121,10 @@ class ARMFunctionInfo : public MachineFunctionInfo {
   /// being passed on the stack
   unsigned ArgumentStackSize = 0;
 
+  /// ArgumentStackToRestore - amount of bytes on stack consumed that we must
+  /// restore on return.
+  unsigned ArgumentStackToRestore = 0;
+
   /// CoalescedWeights - mapping of basic blocks to the rolling counter of
   /// coalesced weights.
   DenseMap<const MachineBasicBlock*, unsigned> CoalescedWeights;
@@ -136,10 +143,26 @@ class ARMFunctionInfo : public MachineFunctionInfo {
   /// con/destructors).
   bool PreservesR0 = false;
 
+  /// True if the function should sign its return address.
+  bool SignReturnAddress = false;
+
+  /// True if the fucntion should sign its return address, even if LR is not
+  /// saved.
+  bool SignReturnAddressAll = false;
+
+  /// True if BTI instructions should be placed at potential indirect jump
+  /// destinations.
+  bool BranchTargetEnforcement = false;
+
 public:
   ARMFunctionInfo() = default;
 
   explicit ARMFunctionInfo(MachineFunction &MF);
+
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
 
   bool isThumbFunction() const { return isThumb; }
   bool isThumb1OnlyFunction() const { return isThumb && !hasThumb2; }
@@ -181,12 +204,14 @@ public:
   void setDPRCalleeSavedAreaOffset(unsigned o)  { DPRCSOffset = o; }
 
   unsigned getFPCXTSaveAreaSize() const       { return FPCXTSaveSize; }
+  unsigned getFrameRecordSavedAreaSize() const { return FRSaveSize; }
   unsigned getGPRCalleeSavedArea1Size() const { return GPRCS1Size; }
   unsigned getGPRCalleeSavedArea2Size() const { return GPRCS2Size; }
   unsigned getDPRCalleeSavedGapSize() const   { return DPRCSAlignGapSize; }
   unsigned getDPRCalleeSavedAreaSize()  const { return DPRCSSize; }
 
   void setFPCXTSaveAreaSize(unsigned s)       { FPCXTSaveSize = s; }
+  void setFrameRecordSavedAreaSize(unsigned s) { FRSaveSize = s; }
   void setGPRCalleeSavedArea1Size(unsigned s) { GPRCS1Size = s; }
   void setGPRCalleeSavedArea2Size(unsigned s) { GPRCS2Size = s; }
   void setDPRCalleeSavedGapSize(unsigned s)   { DPRCSAlignGapSize = s; }
@@ -194,6 +219,9 @@ public:
 
   unsigned getArgumentStackSize() const { return ArgumentStackSize; }
   void setArgumentStackSize(unsigned size) { ArgumentStackSize = size; }
+
+  unsigned getArgumentStackToRestore() const { return ArgumentStackToRestore; }
+  void setArgumentStackToRestore(unsigned v) { ArgumentStackToRestore = v; }
 
   void initPICLabelUId(unsigned UId) {
     PICLabelUId = UId;
@@ -259,6 +287,20 @@ public:
 
   void setPreservesR0() { PreservesR0 = true; }
   bool getPreservesR0() const { return PreservesR0; }
+
+  bool shouldSignReturnAddress() const {
+    return shouldSignReturnAddress(LRSpilled);
+  }
+
+  bool shouldSignReturnAddress(bool SpillsLR) const {
+    if (!SignReturnAddress)
+      return false;
+    if (SignReturnAddressAll)
+      return true;
+    return SpillsLR;
+  }
+
+  bool branchTargetEnforcement() const { return BranchTargetEnforcement; }
 };
 
 } // end namespace llvm

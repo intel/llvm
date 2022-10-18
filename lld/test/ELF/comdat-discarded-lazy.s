@@ -11,7 +11,7 @@
 ## *before* the symbol fetching the lazy object.
 ## The test relies on the symbol table order of llvm-mc (lexical), which will
 ## need adjustment if llvm-mc changes its behavior.
-# RUN: echo '.globl aa, f2; f2: call aa; \
+# RUN: echo '.globl aa, f2; f2: .weak foo; foo: call aa; \
 # RUN:   .section .text.foo,"axG",@progbits,foo,comdat; aa:' | \
 # RUN:   llvm-mc -filetype=obj -triple=x86_64 - -o %taa.o
 # RUN: llvm-nm -p %taa.o | FileCheck --check-prefix=AA-NM %s
@@ -26,11 +26,12 @@
 # AA-NEXT: >>> defined in {{.*}}aa.o
 # AA-NEXT: >>> section group signature: foo
 # AA-NEXT: >>> prevailing definition is in {{.*}}1.o
+# AA-NEXT: >>> or the symbol in the prevailing group {{.*}}
 # AA-NEXT: >>> referenced by {{.*}}aa.o:(.text+0x1)
 
 ## Test the case when the symbol causing a "discarded section" is ordered
 ## *after* the symbol fetching the lazy object.
-# RUN: echo '.globl f2, zz; f2: call zz; \
+# RUN: echo '.globl f2, zz; .weak foo; foo: f2: call zz; \
 # RUN:   .section .text.foo,"axG",@progbits,foo,comdat; zz:' | \
 # RUN:   llvm-mc -filetype=obj -triple=x86_64 - -o %tzz.o
 # RUN: llvm-nm -p %tzz.o | FileCheck --check-prefix=ZZ-NM %s
@@ -45,14 +46,15 @@
 # ZZ-NEXT: >>> defined in {{.*}}zz.o
 # ZZ-NEXT: >>> section group signature: foo
 # ZZ-NEXT: >>> prevailing definition is in {{.*}}1.o
+# ZZ-NEXT: >>> or the symbol in the prevailing group {{.*}}
 # ZZ-NEXT: >>> referenced by {{.*}}zz.o:(.text+0x1)
 
-## Don't error if the symbol which would cause "discarded section"
-## was inserted before %tzz.o
+## The definition in %tdef.o is outside a group. Currently we give an error
+## because %tdef.o is not extracted.
 # RUN: echo '.globl zz; zz:' | llvm-mc -filetype=obj -triple=x86_64 - -o %tdef.o
-# RUN: ld.lld %t.o --start-lib %t1.o %tdef.o %tzz.o --end-lib -o /dev/null
+# RUN: not ld.lld %t.o --start-lib %t1.o %tdef.o %tzz.o --end-lib -o /dev/null 2>&1 | FileCheck --check-prefix=ZZ %s
 # RUN: rm -f %tdef.a && llvm-ar rc %tdef.a %tdef.o
-# RUN: ld.lld %t.o --start-lib %t1.o %tdef.a %tzz.o --end-lib -o /dev/null
+# RUN: not ld.lld %t.o --start-lib %t1.o %tdef.a %tzz.o --end-lib -o /dev/null 2>&1 | FileCheck --check-prefix=ZZ %s
 
 .globl _start
 _start:

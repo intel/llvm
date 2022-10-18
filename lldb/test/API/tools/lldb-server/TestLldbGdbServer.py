@@ -10,25 +10,26 @@ gdb remote packet functional areas.  For now it contains
 the initial set of tests implemented.
 """
 
-import unittest2
+import binascii
+import itertools
+import struct
+
 import gdbremote_testcase
 import lldbgdbserverutils
 from lldbsuite.support import seven
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.lldbdwarf import *
-from lldbsuite.test import lldbutil
+from lldbsuite.test import lldbutil, lldbplatformutil
 
 
 class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcodeParser):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     def test_thread_suffix_supported(self):
         server = self.connect_to_debug_monitor()
         self.assertIsNotNone(server)
 
-        self.add_no_ack_remote_stream()
+        self.do_handshake()
         self.test_sequence.add_log_lines(
             ["lldb-server <  26> read packet: $QThreadSuffixSupported#e4",
              "lldb-server <   6> send packet: $OK#9a"],
@@ -41,7 +42,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         server = self.connect_to_debug_monitor()
         self.assertIsNotNone(server)
 
-        self.add_no_ack_remote_stream()
+        self.do_handshake()
         self.test_sequence.add_log_lines(
             ["lldb-server <  27> read packet: $QListThreadsInStopReply#21",
              "lldb-server <   6> send packet: $OK#9a"],
@@ -78,13 +79,14 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.test_sequence.add_log_lines(["read packet: $qC#00",
                                           {"direction": "send",
                                            "regex": r"^\$QC([0-9a-fA-F]+)#",
-                                           "capture": {1: "thread_id"}},
+                                           "capture": {1: "thread_id_QC"}},
                                           "read packet: $?#00",
                                           {"direction": "send",
                                               "regex": r"^\$T[0-9a-fA-F]{2}thread:([0-9a-fA-F]+)",
-                                              "expect_captures": {1: "thread_id"}}],
+                                              "capture": {1: "thread_id_?"}}],
                                          True)
-        self.expect_gdbremote_sequence()
+        context = self.expect_gdbremote_sequence()
+        self.assertEqual(context.get("thread_id_QC"), context.get("thread_id_?"))
 
     def test_attach_commandline_continue_app_exits(self):
         self.build()
@@ -350,18 +352,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             reg_index += 1
 
     def Hg_switches_to_3_threads(self, pass_pid=False):
-        # Startup the inferior with three threads (main + 2 new ones).
-        procs = self.prep_debug_monitor_and_inferior(
-            inferior_args=["thread:new", "thread:new"])
-
-        # Let the inferior process have a few moments to start up the thread
-        # when launched.  (The launch scenario has no time to run, so threads
-        # won't be there yet.)
-        self.run_process_then_stop(run_seconds=1)
-
-        # Wait at most x seconds for 3 threads to be present.
-        threads = self.wait_for_thread_count(3)
-        self.assertEqual(len(threads), 3)
+        _, threads = self.launch_with_threads(3)
 
         pid_str = ""
         if pass_pid:
@@ -385,34 +376,14 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             self.assertIsNotNone(context.get("thread_id"))
             self.assertEqual(int(context.get("thread_id"), 16), thread)
 
-    @expectedFailureAll(oslist=["windows"]) # expect 4 threads
+    @skipIf(compiler="clang", compiler_version=['<', '11.0'])
     def test_Hg_switches_to_3_threads_launch(self):
         self.build()
         self.set_inferior_startup_launch()
         self.Hg_switches_to_3_threads()
 
-    @expectedFailureAll(oslist=["windows"]) # expecting one more thread
-    def test_Hg_switches_to_3_threads_attach(self):
-        self.build()
-        self.set_inferior_startup_attach()
-        self.Hg_switches_to_3_threads()
-
-    @expectedFailureAll(oslist=["windows"]) # expect 4 threads
-    @add_test_categories(["llgs"])
-    def test_Hg_switches_to_3_threads_attach_pass_correct_pid(self):
-        self.build()
-        self.set_inferior_startup_attach()
-        self.Hg_switches_to_3_threads(pass_pid=True)
-
     def Hg_fails_on_pid(self, pass_pid):
-        # Start the inferior.
-        procs = self.prep_debug_monitor_and_inferior(
-            inferior_args=["thread:new"])
-
-        self.run_process_then_stop(run_seconds=1)
-
-        threads = self.wait_for_thread_count(2)
-        self.assertEqual(len(threads), 2)
+        _, threads = self.launch_with_threads(2)
 
         if pass_pid == -1:
             pid_str = "p-1."
@@ -427,21 +398,18 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
 
         self.expect_gdbremote_sequence()
 
-    @expectedFailureAll(oslist=["windows"])
     @add_test_categories(["llgs"])
     def test_Hg_fails_on_another_pid(self):
         self.build()
         self.set_inferior_startup_launch()
         self.Hg_fails_on_pid(1)
 
-    @expectedFailureAll(oslist=["windows"])
     @add_test_categories(["llgs"])
     def test_Hg_fails_on_zero_pid(self):
         self.build()
         self.set_inferior_startup_launch()
         self.Hg_fails_on_pid(0)
 
-    @expectedFailureAll(oslist=["windows"])
     @add_test_categories(["llgs"])
     def test_Hg_fails_on_minus_one_pid(self):
         self.build()
@@ -470,13 +438,6 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             inferior_args=inferior_args)
         self.test_sequence.add_log_lines(["read packet: $c#63"], True)
         context = self.expect_gdbremote_sequence()
-
-        # Let the inferior process have a few moments to start up the thread when launched.
-        # context = self.run_process_then_stop(run_seconds=1)
-
-        # Wait at most x seconds for all threads to be present.
-        # threads = self.wait_for_thread_count(NUM_THREADS)
-        # self.assertEquals(len(threads), NUM_THREADS)
 
         signaled_tids = {}
         print_thread_ids = {}
@@ -561,7 +522,6 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
 
     @expectedFailureDarwin
     @skipIfWindows # no SIGSEGV support
-    @expectedFailureAll(oslist=["freebsd"], bugnumber="llvm.org/pr48419")
     @expectedFailureNetBSD
     def test_Hc_then_Csignal_signals_correct_thread_launch(self):
         self.build()
@@ -848,7 +808,7 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         target_arch = self.getArchitecture()
 
         # Set the breakpoint.
-        if (target_arch == "arm") or (target_arch == "aarch64"):
+        if target_arch in ["arm", "arm64", "aarch64"]:
             # TODO: Handle case when setting breakpoint in thumb code
             BREAKPOINT_KIND = 4
         else:
@@ -953,22 +913,91 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.set_inferior_startup_launch()
         self.breakpoint_set_and_remove_work(want_hardware=True)
 
-    def test_qSupported_returns_known_stub_features(self):
+    def get_qSupported_dict(self, features=[]):
         self.build()
         self.set_inferior_startup_launch()
 
         # Start up the stub and start/prep the inferior.
         procs = self.prep_debug_monitor_and_inferior()
-        self.add_qSupported_packets()
+        self.add_qSupported_packets(features)
 
         # Run the packet stream.
         context = self.expect_gdbremote_sequence()
         self.assertIsNotNone(context)
 
         # Retrieve the qSupported features.
-        supported_dict = self.parse_qSupported_response(context)
+        return self.parse_qSupported_response(context)
+
+    def test_qSupported_returns_known_stub_features(self):
+        supported_dict = self.get_qSupported_dict()
         self.assertIsNotNone(supported_dict)
         self.assertTrue(len(supported_dict) > 0)
+
+    def test_qSupported_auvx(self):
+        expected = ('+' if lldbplatformutil.getPlatform()
+                    in ["freebsd", "linux", "netbsd"] else '-')
+        supported_dict = self.get_qSupported_dict()
+        self.assertEqual(supported_dict.get('qXfer:auxv:read', '-'), expected)
+
+    def test_qSupported_libraries_svr4(self):
+        expected = ('+' if lldbplatformutil.getPlatform()
+                    in ["freebsd", "linux", "netbsd"] else '-')
+        supported_dict = self.get_qSupported_dict()
+        self.assertEqual(supported_dict.get('qXfer:libraries-svr4:read', '-'),
+                         expected)
+
+    def test_qSupported_siginfo_read(self):
+        expected = ('+' if lldbplatformutil.getPlatform()
+                    in ["freebsd", "linux"] else '-')
+        supported_dict = self.get_qSupported_dict()
+        self.assertEqual(supported_dict.get('qXfer:siginfo:read', '-'),
+                         expected)
+
+    def test_qSupported_QPassSignals(self):
+        expected = ('+' if lldbplatformutil.getPlatform()
+                    in ["freebsd", "linux", "netbsd"] else '-')
+        supported_dict = self.get_qSupported_dict()
+        self.assertEqual(supported_dict.get('QPassSignals', '-'), expected)
+
+    @add_test_categories(["fork"])
+    def test_qSupported_fork_events(self):
+        supported_dict = (
+            self.get_qSupported_dict(['multiprocess+', 'fork-events+']))
+        self.assertEqual(supported_dict.get('multiprocess', '-'), '+')
+        self.assertEqual(supported_dict.get('fork-events', '-'), '+')
+        self.assertEqual(supported_dict.get('vfork-events', '-'), '-')
+
+    @add_test_categories(["fork"])
+    def test_qSupported_fork_events_without_multiprocess(self):
+        supported_dict = (
+            self.get_qSupported_dict(['fork-events+']))
+        self.assertEqual(supported_dict.get('multiprocess', '-'), '-')
+        self.assertEqual(supported_dict.get('fork-events', '-'), '-')
+        self.assertEqual(supported_dict.get('vfork-events', '-'), '-')
+
+    @add_test_categories(["fork"])
+    def test_qSupported_vfork_events(self):
+        supported_dict = (
+            self.get_qSupported_dict(['multiprocess+', 'vfork-events+']))
+        self.assertEqual(supported_dict.get('multiprocess', '-'), '+')
+        self.assertEqual(supported_dict.get('fork-events', '-'), '-')
+        self.assertEqual(supported_dict.get('vfork-events', '-'), '+')
+
+    @add_test_categories(["fork"])
+    def test_qSupported_vfork_events_without_multiprocess(self):
+        supported_dict = (
+            self.get_qSupported_dict(['vfork-events+']))
+        self.assertEqual(supported_dict.get('multiprocess', '-'), '-')
+        self.assertEqual(supported_dict.get('fork-events', '-'), '-')
+        self.assertEqual(supported_dict.get('vfork-events', '-'), '-')
+
+    # We need to be able to self.runCmd to get cpuinfo,
+    # which is not possible when using a remote platform.
+    @skipIfRemote
+    def test_qSupported_memory_tagging(self):
+        supported_dict = self.get_qSupported_dict()
+        self.assertEqual(supported_dict.get("memory-tagging", '-'),
+                         '+' if self.isAArch64MTE() else '-')
 
     @skipIfWindows # No pty support to test any inferior output
     def test_written_M_content_reads_back_correctly(self):
@@ -1078,8 +1107,9 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.set_inferior_startup_launch()
 
         # Startup the inferior with three threads.
-        procs = self.prep_debug_monitor_and_inferior(
-            inferior_args=["thread:new", "thread:new"])
+        _, threads = self.launch_with_threads(3)
+
+        self.reset_test_sequence()
         self.add_thread_suffix_request_packets()
         self.add_register_info_collection_packets()
         self.add_process_info_collection_packets()
@@ -1100,15 +1130,6 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
         self.assertIsNotNone(reg_index)
         reg_byte_size = int(reg_infos[reg_index]["bitsize"]) // 8
         self.assertTrue(reg_byte_size > 0)
-
-        # Run the process a bit so threads can start up, and collect register
-        # info.
-        context = self.run_process_then_stop(run_seconds=1)
-        self.assertIsNotNone(context)
-
-        # Wait for 3 threads to be present.
-        threads = self.wait_for_thread_count(3)
-        self.assertEqual(len(threads), 3)
 
         expected_reg_values = []
         register_increment = 1
@@ -1183,3 +1204,83 @@ class LldbGdbServerTestCase(gdbremote_testcase.GdbRemoteTestCaseBase, DwarfOpcod
             # Make sure we read back what we wrote.
             self.assertEqual(read_value, expected_reg_values[thread_index])
             thread_index += 1
+
+    @skipUnlessPlatform(oslist=["freebsd", "linux"])
+    @add_test_categories(["llgs"])
+    def test_qXfer_siginfo_read(self):
+        self.build()
+        self.set_inferior_startup_launch()
+        procs = self.prep_debug_monitor_and_inferior(
+                inferior_args=["thread:segfault", "thread:new", "sleep:10"])
+        self.test_sequence.add_log_lines(["read packet: $c#63"], True)
+        self.expect_gdbremote_sequence()
+
+        # Run until SIGSEGV comes in.
+        self.reset_test_sequence()
+        self.test_sequence.add_log_lines(
+            [{"direction": "send",
+              "regex": r"^\$T([0-9a-fA-F]{2})thread:([0-9a-fA-F]+);",
+              "capture": {1: "signo", 2: "thread_id"},
+              }], True)
+
+        # Figure out which thread crashed.
+        context = self.expect_gdbremote_sequence()
+        self.assertIsNotNone(context)
+        self.assertEqual(int(context["signo"], 16),
+                         lldbutil.get_signal_number('SIGSEGV'))
+        crashing_thread = int(context["thread_id"], 16)
+
+        # Grab siginfo for the crashing thread.
+        self.reset_test_sequence()
+        self.add_process_info_collection_packets()
+        self.test_sequence.add_log_lines(
+            ["read packet: $Hg{:x}#00".format(crashing_thread),
+             "send packet: $OK#00",
+             "read packet: $qXfer:siginfo:read::0,80:#00",
+             {"direction": "send",
+              "regex": re.compile(r"^\$([^E])(.*)#[0-9a-fA-F]{2}$",
+                                  re.MULTILINE | re.DOTALL),
+              "capture": {1: "response_type", 2: "content_raw"},
+              }], True)
+        context = self.expect_gdbremote_sequence()
+        self.assertIsNotNone(context)
+
+        # Ensure we end up with all data in one packet.
+        self.assertEqual(context.get("response_type"), "l")
+
+        # Decode binary data.
+        content_raw = context.get("content_raw")
+        self.assertIsNotNone(content_raw)
+        content = self.decode_gdbremote_binary(content_raw).encode("latin1")
+
+        # Decode siginfo_t.
+        process_info = self.parse_process_info_response(context)
+        pad = ""
+        if process_info["ptrsize"] == "8":
+            pad = "i"
+        signo_idx = 0
+        errno_idx = 1
+        code_idx = 2
+        addr_idx = -1
+        SEGV_MAPERR = 1
+        if process_info["ostype"] == "linux":
+            # si_signo, si_errno, si_code, [pad], _sifields._sigfault.si_addr
+            format_str = "iii{}P".format(pad)
+        elif process_info["ostype"].startswith("freebsd"):
+            # si_signo, si_errno, si_code, si_pid, si_uid, si_status, si_addr
+            format_str = "iiiiiiP"
+        elif process_info["ostype"].startswith("netbsd"):
+            # _signo, _code, _errno, [pad], _reason._fault._addr
+            format_str = "iii{}P".format(pad)
+            errno_idx = 2
+            code_idx = 1
+        else:
+            assert False, "unknown ostype"
+
+        decoder = struct.Struct(format_str)
+        decoded = decoder.unpack(content[:decoder.size])
+        self.assertEqual(decoded[signo_idx],
+                         lldbutil.get_signal_number('SIGSEGV'))
+        self.assertEqual(decoded[errno_idx], 0)  # si_errno
+        self.assertEqual(decoded[code_idx], SEGV_MAPERR)  # si_code
+        self.assertEqual(decoded[addr_idx], 0)  # si_addr

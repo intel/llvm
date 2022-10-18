@@ -55,7 +55,7 @@ public:
   /// returned.
   AliasResult merge(AliasResult other) const;
 
-  /// Returns if this result is a partial alias.
+  /// Returns if this result indicates no possibility of aliasing.
   bool isNo() const { return kind == NoAlias; }
 
   /// Returns if this result is a may alias.
@@ -67,13 +67,105 @@ public:
   /// Returns if this result is a partial alias.
   bool isPartial() const { return kind == PartialAlias; }
 
-  /// Return the internal kind of this alias result.
-  Kind getKind() const { return kind; }
+  /// Print this alias result to the provided output stream.
+  void print(raw_ostream &os) const;
 
 private:
   /// The internal kind of the result.
   Kind kind;
 };
+
+inline raw_ostream &operator<<(raw_ostream &os, const AliasResult &result) {
+  result.print(os);
+  return os;
+}
+
+//===----------------------------------------------------------------------===//
+// ModRefResult
+//===----------------------------------------------------------------------===//
+
+/// The possible results of whether a memory access modifies or references
+/// a memory location. The possible results are: no access at all, a
+/// modification, a reference, or both a modification and a reference.
+class [[nodiscard]] ModRefResult {
+  /// Note: This is a simplified version of the ModRefResult in
+  /// `llvm/Analysis/AliasAnalysis.h`, and namely removes the `Must` concept. If
+  /// this becomes useful/necessary we should add it here.
+  enum class Kind {
+    /// The access neither references nor modifies the value stored in memory.
+    NoModRef = 0,
+    /// The access may reference the value stored in memory.
+    Ref = 1,
+    /// The access may modify the value stored in memory.
+    Mod = 2,
+    /// The access may reference and may modify the value stored in memory.
+    ModRef = Ref | Mod,
+  };
+
+public:
+  bool operator==(const ModRefResult &rhs) const { return kind == rhs.kind; }
+  bool operator!=(const ModRefResult &rhs) const { return !(*this == rhs); }
+
+  /// Return a new result that indicates that the memory access neither
+  /// references nor modifies the value stored in memory.
+  static ModRefResult getNoModRef() { return Kind::NoModRef; }
+
+  /// Return a new result that indicates that the memory access may reference
+  /// the value stored in memory.
+  static ModRefResult getRef() { return Kind::Ref; }
+
+  /// Return a new result that indicates that the memory access may modify the
+  /// value stored in memory.
+  static ModRefResult getMod() { return Kind::Mod; }
+
+  /// Return a new result that indicates that the memory access may reference
+  /// and may modify the value stored in memory.
+  static ModRefResult getModAndRef() { return Kind::ModRef; }
+
+  /// Returns if this result does not modify or reference memory.
+  [[nodiscard]] bool isNoModRef() const { return kind == Kind::NoModRef; }
+
+  /// Returns if this result modifies memory.
+  [[nodiscard]] bool isMod() const {
+    return static_cast<int>(kind) & static_cast<int>(Kind::Mod);
+  }
+
+  /// Returns if this result references memory.
+  [[nodiscard]] bool isRef() const {
+    return static_cast<int>(kind) & static_cast<int>(Kind::Ref);
+  }
+
+  /// Returns if this result modifies *or* references memory.
+  [[nodiscard]] bool isModOrRef() const { return kind != Kind::NoModRef; }
+
+  /// Returns if this result modifies *and* references memory.
+  [[nodiscard]] bool isModAndRef() const { return kind == Kind::ModRef; }
+
+  /// Merge this ModRef result with `other` and return the result.
+  ModRefResult merge(const ModRefResult &other) {
+    return ModRefResult(static_cast<Kind>(static_cast<int>(kind) |
+                                          static_cast<int>(other.kind)));
+  }
+  /// Intersect this ModRef result with `other` and return the result.
+  ModRefResult intersect(const ModRefResult &other) {
+    return ModRefResult(static_cast<Kind>(static_cast<int>(kind) &
+                                          static_cast<int>(other.kind)));
+  }
+
+  /// Print this ModRef result to the provided output stream.
+  void print(raw_ostream &os) const;
+
+private:
+  ModRefResult(Kind kind) : kind(kind) {}
+
+  /// The internal kind of the result.
+  Kind kind;
+};
+
+inline raw_ostream &operator<<(raw_ostream &os, const ModRefResult &result) {
+  result.print(os);
+  return os;
+}
 
 //===----------------------------------------------------------------------===//
 // AliasAnalysisTraits
@@ -88,17 +180,21 @@ struct AliasAnalysisTraits {
   /// querying into derived analysis implementations.
   class Concept {
   public:
-    virtual ~Concept() {}
+    virtual ~Concept() = default;
 
     /// Given two values, return their aliasing behavior.
     virtual AliasResult alias(Value lhs, Value rhs) = 0;
+
+    /// Return the modify-reference behavior of `op` on `location`.
+    virtual ModRefResult getModRef(Operation *op, Value location) = 0;
   };
 
   /// This class represents the `Model` of an alias analysis implementation
   /// `ImplT`. A model is instantiated for each alias analysis implementation
   /// to implement the `Concept` without the need for the derived
   /// implementation to inherit from the `Concept` class.
-  template <typename ImplT> class Model final : public Concept {
+  template <typename ImplT>
+  class Model final : public Concept {
   public:
     explicit Model(ImplT &&impl) : impl(std::forward<ImplT>(impl)) {}
     ~Model() override = default;
@@ -108,11 +204,16 @@ struct AliasAnalysisTraits {
       return impl.alias(lhs, rhs);
     }
 
+    /// Return the modify-reference behavior of `op` on `location`.
+    ModRefResult getModRef(Operation *op, Value location) final {
+      return impl.getModRef(op, location);
+    }
+
   private:
     ImplT impl;
   };
 };
-} // end namespace detail
+} // namespace detail
 
 //===----------------------------------------------------------------------===//
 // AliasAnalysis
@@ -147,7 +248,12 @@ public:
   ///   * AnalysisT(AnalysisT &&)
   ///   * AliasResult alias(Value lhs, Value rhs)
   ///     - This method returns an `AliasResult` that corresponds to the
-  ///       aliasing behavior between `lhs` and `rhs`.
+  ///       aliasing behavior between `lhs` and `rhs`. The conservative "I don't
+  ///       know" result of this method should be MayAlias.
+  ///   * ModRefResult getModRef(Operation *op, Value location)
+  ///     - This method returns a `ModRefResult` that corresponds to the
+  ///       modify-reference behavior of `op` on the given `location`. The
+  ///       conservative "I don't know" result of this method should be ModRef.
   template <typename AnalysisT>
   void addAnalysisImplementation(AnalysisT &&analysis) {
     aliasImpls.push_back(
@@ -161,11 +267,18 @@ public:
   /// Given two values, return their aliasing behavior.
   AliasResult alias(Value lhs, Value rhs);
 
+  //===--------------------------------------------------------------------===//
+  // ModRef Queries
+  //===--------------------------------------------------------------------===//
+
+  /// Return the modify-reference behavior of `op` on `location`.
+  ModRefResult getModRef(Operation *op, Value location);
+
 private:
   /// A set of internal alias analysis implementations.
   SmallVector<std::unique_ptr<Concept>, 4> aliasImpls;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_ANALYSIS_ALIASANALYSIS_H_

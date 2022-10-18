@@ -16,7 +16,6 @@
 #define LLVM_CODEGEN_SCHEDULEDAG_H
 
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
@@ -31,6 +30,7 @@
 
 namespace llvm {
 
+template <class GraphType> struct GraphTraits;
 template<class Graph> class GraphWriter;
 class LLVMTargetMachine;
 class MachineFunction;
@@ -525,9 +525,8 @@ class TargetRegisterInfo;
     virtual void push(SUnit *U) = 0;
 
     void push_all(const std::vector<SUnit *> &Nodes) {
-      for (std::vector<SUnit *>::const_iterator I = Nodes.begin(),
-           E = Nodes.end(); I != E; ++I)
-        push(*I);
+      for (SUnit *SU : Nodes)
+        push(SU);
     }
 
     virtual SUnit *pop() = 0;
@@ -614,14 +613,19 @@ class TargetRegisterInfo;
     const MCInstrDesc *getNodeDesc(const SDNode *Node) const;
   };
 
-  class SUnitIterator : public std::iterator<std::forward_iterator_tag,
-                                             SUnit, ptrdiff_t> {
+  class SUnitIterator {
     SUnit *Node;
     unsigned Operand;
 
     SUnitIterator(SUnit *N, unsigned Op) : Node(N), Operand(Op) {}
 
   public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = SUnit;
+    using difference_type = std::ptrdiff_t;
+    using pointer = value_type *;
+    using reference = value_type &;
+
     bool operator==(const SUnitIterator& x) const {
       return Operand == x.Operand;
     }

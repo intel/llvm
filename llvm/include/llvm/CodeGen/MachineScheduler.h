@@ -74,6 +74,7 @@
 #ifndef LLVM_CODEGEN_MACHINESCHEDULER_H
 #define LLVM_CODEGEN_MACHINESCHEDULER_H
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
@@ -100,6 +101,13 @@ namespace llvm {
 extern cl::opt<bool> ForceTopDown;
 extern cl::opt<bool> ForceBottomUp;
 extern cl::opt<bool> VerifyScheduling;
+#ifndef NDEBUG
+extern cl::opt<bool> ViewMISchedDAGs;
+extern cl::opt<bool> PrintDAGs;
+#else
+extern const bool ViewMISchedDAGs;
+extern const bool PrintDAGs;
+#endif
 
 class AAResults;
 class LiveIntervals;
@@ -281,7 +289,7 @@ protected:
   const SUnit *NextClusterPred = nullptr;
   const SUnit *NextClusterSucc = nullptr;
 
-#ifndef NDEBUG
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
   /// The number of instructions scheduled so far. Used to cut off the
   /// scheduler at the point determined by misched-cutoff.
   unsigned NumInstrsScheduled = 0;
@@ -418,10 +426,6 @@ protected:
   /// The bottom of the unscheduled zone.
   IntervalPressure BotPressure;
   RegPressureTracker BotRPTracker;
-
-  /// True if disconnected subregister components are already renamed.
-  /// The renaming is only done on demand if lane masks are tracked.
-  bool DisconnectedComponentsRenamed = false;
 
 public:
   ScheduleDAGMILive(MachineSchedContext *C,
@@ -674,7 +678,10 @@ private:
   // it.
   SmallVector<unsigned, 16> ReservedCyclesIndex;
 
-#ifndef NDEBUG
+  // For each PIdx, stores the resource group IDs of its subunits
+  SmallVector<APInt, 16> ResourceGroupSubUnitMasks;
+
+#if LLVM_ENABLE_ABI_BREAKING_CHECKS
   // Remember the greatest possible stall as an upper bound on the number of
   // times we should retry the pending queue because of a hazard.
   unsigned MaxObservedStall;
@@ -751,8 +758,14 @@ public:
   unsigned getNextResourceCycleByInstance(unsigned InstanceIndex,
                                           unsigned Cycles);
 
-  std::pair<unsigned, unsigned> getNextResourceCycle(unsigned PIdx,
+  std::pair<unsigned, unsigned> getNextResourceCycle(const MCSchedClassDesc *SC,
+                                                     unsigned PIdx,
                                                      unsigned Cycles);
+
+  bool isUnbufferedGroup(unsigned PIdx) const {
+    return SchedModel->getProcResource(PIdx)->SubUnitsIdxBegin &&
+           !SchedModel->getProcResource(PIdx)->BufferSize;
+  }
 
   bool checkHazard(SUnit *SU);
 
@@ -775,7 +788,8 @@ public:
 
   void incExecutedResources(unsigned PIdx, unsigned Count);
 
-  unsigned countResource(unsigned PIdx, unsigned Cycles, unsigned ReadyCycle);
+  unsigned countResource(const MCSchedClassDesc *SC, unsigned PIdx,
+                         unsigned Cycles, unsigned ReadyCycle);
 
   void bumpNode(SUnit *SU);
 
@@ -1001,7 +1015,7 @@ protected:
                      const RegPressureTracker &RPTracker,
                      RegPressureTracker &TempTracker);
 
-  virtual void tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand,
+  virtual bool tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand,
                             SchedBoundary *Zone) const;
 
   SUnit *pickNodeBidirectional(bool &IsTopNode);
@@ -1064,7 +1078,7 @@ public:
   }
 
 protected:
-  virtual void tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand);
+  virtual bool tryCandidate(SchedCandidate &Cand, SchedCandidate &TryCand);
 
   void pickNodeFromQueue(SchedCandidate &Cand);
 };

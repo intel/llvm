@@ -22,8 +22,8 @@ const A csource() {return A();}
 int main(int, char**)
 {
     {
-        std::forward<A&>(source());  // expected-note {{requested here}}
-        // expected-error-re@type_traits:* 1 {{static_assert failed{{.*}} "can not forward an rvalue as an lvalue"}}
+        (void)std::forward<A&>(source());  // expected-note {{requested here}}
+        // expected-error-re@*:* 1 {{{{(static_assert|static assertion)}} failed{{.*}}cannot forward an rvalue as an lvalue}}
     }
     {
         const A ca = A();

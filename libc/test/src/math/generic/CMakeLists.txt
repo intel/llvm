@@ -8,7 +8,6 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.generic.ceil
-    libc.utils.FPUtil.fputil
 )
 
 add_fp_unittest(
@@ -21,7 +20,6 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.generic.ceilf
-    libc.utils.FPUtil.fputil
 )
 
 add_fp_unittest(
@@ -34,6 +32,5 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.generic.ceill
-    libc.utils.FPUtil.fputil
 )
 

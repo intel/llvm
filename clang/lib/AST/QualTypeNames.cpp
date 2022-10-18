@@ -80,8 +80,12 @@ static bool getFullyQualifiedTemplateName(const ASTContext &Ctx,
         Ctx, ArgTDecl, true, WithGlobalNsPrefix);
   }
   if (NNS) {
-    TName = Ctx.getQualifiedTemplateName(NNS,
-                                         /*TemplateKeyword=*/false, ArgTDecl);
+    TemplateName UnderlyingTN(ArgTDecl);
+    if (UsingShadowDecl *USD = TName.getAsUsingShadowDecl())
+      UnderlyingTN = TemplateName(USD);
+    TName =
+        Ctx.getQualifiedTemplateName(NNS,
+                                     /*TemplateKeyword=*/false, UnderlyingTN);
     Changed = true;
   }
   return Changed;
@@ -301,7 +305,7 @@ static NestedNameSpecifier *createNestedNameSpecifierForScopeOf(
     } else if (const auto *TD = dyn_cast<TagDecl>(Outer)) {
       return createNestedNameSpecifier(
           Ctx, TD, FullyQualified, WithGlobalNsPrefix);
-    } else if (dyn_cast<TranslationUnitDecl>(Outer)) {
+    } else if (isa<TranslationUnitDecl>(Outer)) {
       // Context is the TU. Nothing needs to be done.
       return nullptr;
     } else {
@@ -361,11 +365,19 @@ NestedNameSpecifier *createNestedNameSpecifier(const ASTContext &Ctx,
                                                const TypeDecl *TD,
                                                bool FullyQualify,
                                                bool WithGlobalNsPrefix) {
+  const Type *TypePtr = TD->getTypeForDecl();
+  if (isa<const TemplateSpecializationType>(TypePtr) ||
+      isa<const RecordType>(TypePtr)) {
+    // We are asked to fully qualify and we have a Record Type (which
+    // may point to a template specialization) or Template
+    // Specialization Type. We need to fully qualify their arguments.
+
+    TypePtr = getFullyQualifiedTemplateType(Ctx, TypePtr, WithGlobalNsPrefix);
+  }
+
   return NestedNameSpecifier::Create(
-      Ctx,
-      createOuterNNS(Ctx, TD, FullyQualify, WithGlobalNsPrefix),
-      false /*No TemplateKeyword*/,
-      TD->getTypeForDecl());
+      Ctx, createOuterNNS(Ctx, TD, FullyQualify, WithGlobalNsPrefix),
+      false /*No TemplateKeyword*/, TypePtr);
 }
 
 /// Return the fully qualified type, including fully-qualified
@@ -441,6 +453,14 @@ QualType getFullyQualifiedType(QualType QT, const ASTContext &Ctx,
     assert(!QT.hasLocalQualifiers());
     Keyword = ETypeInput->getKeyword();
   }
+
+  // We don't consider the alias introduced by `using a::X` as a new type.
+  // The qualified name is still a::X.
+  if (const auto *UT = QT->getAs<UsingType>()) {
+    QT = Ctx.getQualifiedType(UT->getUnderlyingType(), PrefixQualifiers);
+    return getFullyQualifiedType(QT, Ctx, WithGlobalNsPrefix);
+  }
+
   // Create a nested name specifier if needed.
   Prefix = createNestedNameSpecifierForScopeOf(Ctx, QT.getTypePtr(),
                                                true /*FullyQualified*/,

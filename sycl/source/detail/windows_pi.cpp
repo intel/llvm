@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 
+#include <cassert>
 #include <string>
 #include <windows.h>
 #include <winreg.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -26,13 +27,24 @@ void *loadOsLibrary(const std::string &PluginPath) {
   // NOTE: we restore the old mode to not affect user app behavior.
   //
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+  // Exclude current directory from DLL search path
+  if (!SetDllDirectoryA("")) {
+    assert(false && "Failed to update DLL search path");
+  }
   auto Result = (void *)LoadLibraryA(PluginPath.c_str());
   (void)SetErrorMode(SavedMode);
+  if (!SetDllDirectoryA(nullptr)) {
+    assert(false && "Failed to restore DLL search path");
+  }
 
   return Result;
 }
 
 int unloadOsLibrary(void *Library) {
+  // The mock plugin does not have an associated library, so we allow nullptr
+  // here to avoid it trying to free a non-existent library.
+  if (!Library)
+    return 1;
   return (int)FreeLibrary((HMODULE)Library);
 }
 
@@ -43,5 +55,5 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

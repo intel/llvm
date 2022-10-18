@@ -1280,7 +1280,10 @@
 
 // RUN: %clang -march=icelake-client -m32 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
-// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_ICL_M32
+// RUN:   | FileCheck -match-full-lines %s -check-prefixes=CHECK_ICL_M32,CHECK_ICL_M32S
+// RUN: %clang -march=rocketlake -m32 -E -dM %s -o - 2>&1 \
+// RUN:     -target i386-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefixes=CHECK_ICL_M32,CHECK_RKL_M32S
 // CHECK_ICL_M32: #define __AES__ 1
 // CHECK_ICL_M32: #define __AVX2__ 1
 // CHECK_ICL_M32: #define __AVX512BITALG__ 1
@@ -1298,7 +1301,7 @@
 // CHECK_ICL_M32: #define __BMI2__ 1
 // CHECK_ICL_M32: #define __BMI__ 1
 // CHECK_ICL_M32: #define __CLFLUSHOPT__ 1
-// CHECK_ICL_M32: #define __CLWB__ 1
+// CHECK_ICL_M32-NOT: #define __CLWB__ 1
 // CHECK_ICL_M32: #define __F16C__ 1
 // CHECK_ICL_M32: #define __FMA__ 1
 // CHECK_ICL_M32: #define __GFNI__ 1
@@ -1313,7 +1316,8 @@
 // CHECK_ICL_M32: #define __RDPID__ 1
 // CHECK_ICL_M32: #define __RDRND__ 1
 // CHECK_ICL_M32: #define __RDSEED__ 1
-// CHECK_ICL_M32: #define __SGX__ 1
+// CHECK_ICL_M32S: #define __SGX__ 1
+// CHECK_RKL_M32S-NOT: #define __SGX__ 1
 // CHECK_ICL_M32: #define __SHA__ 1
 // CHECK_ICL_M32: #define __SSE2__ 1
 // CHECK_ICL_M32: #define __SSE3__ 1
@@ -1337,7 +1341,10 @@
 
 // RUN: %clang -march=icelake-client -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
-// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_ICL_M64
+// RUN:   | FileCheck -match-full-lines %s -check-prefixes=CHECK_ICL_M64,CHECK_ICL_M64S
+// RUN: %clang -march=rocketlake -m64 -E -dM %s -o - 2>&1 \
+// RUN:     -target i386-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefixes=CHECK_ICL_M64,CHECK_RKL_M64S
 // CHECK_ICL_M64: #define __AES__ 1
 // CHECK_ICL_M64: #define __AVX2__ 1
 // CHECK_ICL_M64: #define __AVX512BITALG__ 1
@@ -1355,7 +1362,7 @@
 // CHECK_ICL_M64: #define __BMI2__ 1
 // CHECK_ICL_M64: #define __BMI__ 1
 // CHECK_ICL_M64: #define __CLFLUSHOPT__ 1
-// CHECK_ICL_M64: #define __CLWB__ 1
+// CHECK_ICL_M64-NOT: #define __CLWB__ 1
 // CHECK_ICL_M64: #define __F16C__ 1
 // CHECK_ICL_M64: #define __FMA__ 1
 // CHECK_ICL_M64: #define __GFNI__ 1
@@ -1370,7 +1377,8 @@
 // CHECK_ICL_M64: #define __RDPID__ 1
 // CHECK_ICL_M64: #define __RDRND__ 1
 // CHECK_ICL_M64: #define __RDSEED__ 1
-// CHECK_ICL_M64: #define __SGX__ 1
+// CHECK_ICL_M64S: #define __SGX__ 1
+// CHECK_RKL_M64S-NOT: #define __SGX__ 1
 // CHECK_ICL_M64: #define __SHA__ 1
 // CHECK_ICL_M64: #define __SSE2__ 1
 // CHECK_ICL_M64: #define __SSE3__ 1
@@ -1648,6 +1656,7 @@
 // CHECK_SPR_M32: #define __AVX512BW__ 1
 // CHECK_SPR_M32: #define __AVX512CD__ 1
 // CHECK_SPR_M32: #define __AVX512DQ__ 1
+// CHECK_SPR_M32: #define __AVX512FP16__ 1
 // CHECK_SPR_M32: #define __AVX512F__ 1
 // CHECK_SPR_M32: #define __AVX512IFMA__ 1
 // CHECK_SPR_M32: #define __AVX512VBMI2__ 1
@@ -1719,6 +1728,7 @@
 // CHECK_SPR_M64: #define __AVX512BW__ 1
 // CHECK_SPR_M64: #define __AVX512CD__ 1
 // CHECK_SPR_M64: #define __AVX512DQ__ 1
+// CHECK_SPR_M64: #define __AVX512FP16__ 1
 // CHECK_SPR_M64: #define __AVX512F__ 1
 // CHECK_SPR_M64: #define __AVX512IFMA__ 1
 // CHECK_SPR_M64: #define __AVX512VBMI2__ 1
@@ -3206,6 +3216,7 @@
 // CHECK_ZNVER2_M32: #define __POPCNT__ 1
 // CHECK_ZNVER2_M32: #define __PRFCHW__ 1
 // CHECK_ZNVER2_M32: #define __RDPID__ 1
+// CHECK_ZNVER2_M32: #define __RDPRU__ 1
 // CHECK_ZNVER2_M32: #define __RDRND__ 1
 // CHECK_ZNVER2_M32: #define __RDSEED__ 1
 // CHECK_ZNVER2_M32: #define __SHA__ 1
@@ -3256,6 +3267,7 @@
 // CHECK_ZNVER2_M64: #define __POPCNT__ 1
 // CHECK_ZNVER2_M64: #define __PRFCHW__ 1
 // CHECK_ZNVER2_M64: #define __RDPID__ 1
+// CHECK_ZNVER2_M64: #define __RDPRU__ 1
 // CHECK_ZNVER2_M64: #define __RDRND__ 1
 // CHECK_ZNVER2_M64: #define __RDSEED__ 1
 // CHECK_ZNVER2_M64: #define __SHA__ 1
@@ -3308,6 +3320,7 @@
 // CHECK_ZNVER3_M32: #define __POPCNT__ 1
 // CHECK_ZNVER3_M32: #define __PRFCHW__ 1
 // CHECK_ZNVER3_M32: #define __RDPID__ 1
+// CHECK_ZNVER3_M32: #define __RDPRU__ 1
 // CHECK_ZNVER3_M32: #define __RDRND__ 1
 // CHECK_ZNVER3_M32: #define __RDSEED__ 1
 // CHECK_ZNVER3_M32: #define __SHA__ 1
@@ -3358,6 +3371,7 @@
 // CHECK_ZNVER3_M64: #define __POPCNT__ 1
 // CHECK_ZNVER3_M64: #define __PRFCHW__ 1
 // CHECK_ZNVER3_M64: #define __RDPID__ 1
+// CHECK_ZNVER3_M64: #define __RDPRU__ 1
 // CHECK_ZNVER3_M64: #define __RDRND__ 1
 // CHECK_ZNVER3_M64: #define __RDSEED__ 1
 // CHECK_ZNVER3_M64: #define __SHA__ 1
@@ -3469,8 +3483,8 @@
 // CHECK_SPARC-V9-NOT: #define __sparcv8 1
 // CHECK_SPARC-V9-NOT: #define __sparcv8__ 1
 // CHECK_SPARC-V9: #define __sparc_v9__ 1
-// CHECK_SPARC-V9: #define __sparcv9 1
-// CHECK_SPARC-V9: #define __sparcv9__ 1
+// CHECK_SPARC-V9-NOT: #define __sparcv9 1
+// CHECK_SPARC-V9-NOT: #define __sparcv9__ 1
 
 // RUN: %clang -E -dM %s -o - 2>&1 \
 // RUN:     -target sparc-sun-solaris \
@@ -3677,6 +3691,24 @@
 // CHECK_SYSTEMZ_ARCH13: #define __s390x__ 1
 // CHECK_SYSTEMZ_ARCH13: #define __zarch__ 1
 
+// RUN: %clang -march=arch14 -E -dM %s -o - 2>&1 \
+// RUN:     -target s390x-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ARCH14
+// RUN: %clang -march=z16 -E -dM %s -o - 2>&1 \
+// RUN:     -target s390x-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ARCH14
+// CHECK_SYSTEMZ_ARCH14: #define __ARCH__ 14
+// CHECK_SYSTEMZ_ARCH14: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 1
+// CHECK_SYSTEMZ_ARCH14: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 1
+// CHECK_SYSTEMZ_ARCH14: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 1
+// CHECK_SYSTEMZ_ARCH14: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8 1
+// CHECK_SYSTEMZ_ARCH14: #define __HTM__ 1
+// CHECK_SYSTEMZ_ARCH14: #define __LONG_DOUBLE_128__ 1
+// CHECK_SYSTEMZ_ARCH14: #define __VX__ 1
+// CHECK_SYSTEMZ_ARCH14: #define __s390__ 1
+// CHECK_SYSTEMZ_ARCH14: #define __s390x__ 1
+// CHECK_SYSTEMZ_ARCH14: #define __zarch__ 1
+
 // RUN: %clang -mhtm -E -dM %s -o - 2>&1 \
 // RUN:     -target s390x-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_HTM
@@ -3693,7 +3725,7 @@
 // RUN: %clang -mzvector -E -dM %s -o - 2>&1 \
 // RUN:     -target s390x-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ZVECTOR
-// CHECK_SYSTEMZ_ZVECTOR: #define __VEC__ 10303
+// CHECK_SYSTEMZ_ZVECTOR: #define __VEC__ 10304
 
 // Begin amdgcn tests ----------------
 

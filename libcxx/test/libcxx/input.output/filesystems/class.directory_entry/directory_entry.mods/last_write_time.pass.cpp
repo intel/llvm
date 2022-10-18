@@ -9,7 +9,14 @@
 // UNSUPPORTED: c++03
 // ADDITIONAL_COMPILE_FLAGS: -I %S/../../../../../../src/filesystem
 
-// XFAIL: LIBCXX-WINDOWS-FIXME
+// This test relies on calling functions from the libcxx internal header
+// filesystem_common.h; the Windows implementation uses different
+// internals and doesn't provide the same set_file_times function as for
+// other platforms.
+// UNSUPPORTED: windows
+
+// This test assumes that time is stored as a 64 bit value when on MVS it is stored as 32 bit
+// UNSUPPORTED: target={{.+}}-zos{{.*}}
 
 // <filesystem>
 

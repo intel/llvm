@@ -6,7 +6,6 @@
 ; We have two sets of tests, one with registers and implicit locals, and
 ; a stack / explicit locals based version (NOREGS).
 
-target datalayout = "e-m:e-p:32:32-i64:64-n32:64-S128"
 target triple = "wasm32-unknown-unknown"
 
 ; No because of pointer aliasing.
@@ -332,9 +331,9 @@ entry:
 ; NOREGS-NEXT:  local.get 1{{$}}
 ; NOREGS-NEXT:  local.get 0{{$}}
 ; NOREGS-NEXT:  i32.mul
-; NOREGS-NEXT:  local.tee   1{{$}}
+; NOREGS-NEXT:  local.tee   0{{$}}
 ; NOREGS-NEXT:  call        use_a{{$}}
-; NOREGS-NEXT:  local.get   1{{$}}
+; NOREGS-NEXT:  local.get   0{{$}}
 ; NOREGS-NEXT:  call        use_b{{$}}
 ; NOREGS-NEXT:  return{{$}}
 declare void @use_a(i32)
@@ -359,8 +358,8 @@ define void @simple_multiple_use(i32 %x, i32 %y) {
 ; NOREGS-NEXT:  local.get 1{{$}}
 ; NOREGS-NEXT:  local.get 0{{$}}
 ; NOREGS-NEXT:  i32.mul
-; NOREGS-NEXT:  local.tee   1{{$}}
-; NOREGS-NEXT:  local.get   1{{$}}
+; NOREGS-NEXT:  local.tee   0{{$}}
+; NOREGS-NEXT:  local.get   0{{$}}
 ; NOREGS-NEXT:  call        use_2{{$}}
 ; NOREGS-NEXT:  return{{$}}
 declare void @use_2(i32, i32)

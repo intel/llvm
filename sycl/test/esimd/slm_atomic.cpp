@@ -1,30 +1,31 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
-// expected-no-diagnostics
+// RUN: %clangxx -fsycl -fsyntax-only -Wno-unused-command-line-argument %s
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+// This test checks compilation of ESIMD slm atomic APIs.
+
 #include <limits>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
-using namespace sycl::INTEL::gpu;
-using namespace cl::sycl;
+using namespace sycl::ext::intel::esimd;
+using namespace sycl;
 
-void kernel0() __attribute__((sycl_device)) {
+void kernel0() SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
 
-  slm_atomic<EsimdAtomicOpType::ATOMIC_INC, uint32_t, 32>(offsets, 1);
+  slm_atomic_update<atomic_op::inc, uint32_t, 32>(offsets, 1);
 }
 
-void kernel1() __attribute__((sycl_device)) {
+void kernel1() SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint32_t, 32> v1(0, 1);
 
-  slm_atomic<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, 32>(offsets, v1, 1);
+  slm_atomic_update<atomic_op::add, uint32_t, 32>(offsets, v1, 1);
 }
 
-void kernel2() __attribute__((sycl_device)) {
+void kernel2() SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint32_t, 32> v1(0, 1);
 
-  slm_atomic<EsimdAtomicOpType::ATOMIC_CMPXCHG, uint32_t, 32>(offsets, v1, v1, 1);
+  slm_atomic_update<atomic_op::cmpxchg, uint32_t, 32>(offsets, v1, v1, 1);
 }

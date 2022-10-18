@@ -16,7 +16,6 @@
 
 #include "llvm/TableGen/Main.h"
 #include "TGParser.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -24,7 +23,6 @@
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include <algorithm>
-#include <cstdio>
 #include <system_error>
 using namespace llvm;
 
@@ -54,6 +52,10 @@ WriteIfChanged("write-if-changed", cl::desc("Only write output if it changed"));
 
 static cl::opt<bool>
 TimePhases("time-phases", cl::desc("Time phases of parser and backend"));
+
+static cl::opt<bool> NoWarnOnUnusedTemplateArgs(
+    "no-warn-on-unused-template-args",
+    cl::desc("Disable unused template argument warnings."));
 
 static int reportError(const char *ProgName, Twine Msg) {
   errs() << ProgName << ": " << Msg;
@@ -93,7 +95,7 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
 
   Records.startTimer("Parse, build records");
   ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrErr =
-      MemoryBuffer::getFileOrSTDIN(InputFilename, /*IsText=*/false);
+      MemoryBuffer::getFileOrSTDIN(InputFilename, /*IsText=*/true);
   if (std::error_code EC = FileOrErr.getError())
     return reportError(argv0, "Could not open input file '" + InputFilename +
                                   "': " + EC.message() + "\n");
@@ -107,7 +109,7 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
   // it later.
   SrcMgr.setIncludeDirs(IncludeDirs);
 
-  TGParser Parser(SrcMgr, MacroNames, Records);
+  TGParser Parser(SrcMgr, MacroNames, Records, NoWarnOnUnusedTemplateArgs);
 
   if (Parser.ParseFile())
     return 1;
@@ -138,7 +140,7 @@ int llvm::TableGenMain(const char *argv0, TableGenMainFn *MainFn) {
     // This prevents recompilation of all the files depending on it if there
     // aren't any.
     if (auto ExistingOrErr =
-            MemoryBuffer::getFile(OutputFilename, /*IsText=*/false))
+            MemoryBuffer::getFile(OutputFilename, /*IsText=*/true))
       if (std::move(ExistingOrErr.get())->getBuffer() == Out.str())
         WriteFile = false;
   }

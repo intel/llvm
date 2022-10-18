@@ -1,5 +1,5 @@
 add_subdirectory(FPUtil)
-add_subdirectory(CPP)
+add_subdirectory(UnitTest)
 
 if(NOT LLVM_LIBC_FULL_BUILD)
   return()

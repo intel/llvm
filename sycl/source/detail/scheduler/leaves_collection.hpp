@@ -16,8 +16,8 @@
 #include <unordered_map>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 struct MemObjRecord;
@@ -39,10 +39,11 @@ class LeavesCollection {
 public:
   using GenericCommandsT = CircularBuffer<Command *>;
   using HostAccessorCommandsT = std::list<EmptyCommand *>;
+  using EnqueueListT = std::vector<Command *>;
 
   // Make first command depend on the second
   using AllocateDependencyF =
-      std::function<void(Command *, Command *, MemObjRecord *)>;
+      std::function<void(Command *, Command *, MemObjRecord *, EnqueueListT &)>;
 
   template <bool IsConst> class IteratorT;
 
@@ -81,7 +82,7 @@ public:
   }
 
   /// Returns true if insertion took place. Returns false otherwise.
-  bool push_back(value_type Cmd);
+  bool push_back(value_type Cmd, EnqueueListT &ToEnqueue);
 
   /// Replacement for std::remove with subsequent call to erase(newEnd, end()).
   /// This function is introduced here due to complexity of iterator.
@@ -125,8 +126,8 @@ private:
 
   AllocateDependencyF MAllocateDependency;
 
-  bool addGenericCommand(value_type Cmd);
-  bool addHostAccessorCommand(EmptyCommand *Cmd);
+  bool addGenericCommand(value_type Cmd, EnqueueListT &ToEnqueue);
+  bool addHostAccessorCommand(EmptyCommand *Cmd, EnqueueListT &ToEnqueue);
 
   // inserts a command to the end of list for its mem object
   void insertHostAccessorCommand(EmptyCommand *Cmd);
@@ -155,12 +156,20 @@ private:
   friend class IteratorT<false>;
 
   template <bool IsConst, typename T> struct Ref;
-  template <typename T> struct Ref<true, T> { using type = const T &; };
-  template <typename T> struct Ref<false, T> { using type = T &; };
+  template <typename T> struct Ref<true, T> {
+    using type = const T &;
+  };
+  template <typename T> struct Ref<false, T> {
+    using type = T &;
+  };
 
   template <bool IsConst, typename T> struct Ptr;
-  template <typename T> struct Ptr<true, T> { using type = const T *; };
-  template <typename T> struct Ptr<false, T> { using type = T *; };
+  template <typename T> struct Ptr<true, T> {
+    using type = const T *;
+  };
+  template <typename T> struct Ptr<false, T> {
+    using type = T *;
+  };
 
 public:
   // iterate over generic commands in the first place and over host accessors
@@ -263,5 +272,5 @@ public:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -60,22 +60,28 @@ public:
   }
 
   template <typename INT>
-  static ValueWithRealFlags<Complex> FromInteger(
-      const INT &n, Rounding rounding = defaultRounding) {
+  static ValueWithRealFlags<Complex> FromInteger(const INT &n,
+      Rounding rounding = TargetCharacteristics::defaultRounding) {
     ValueWithRealFlags<Complex> result;
     result.value.re_ =
         Part::FromInteger(n, rounding).AccumulateFlags(result.flags);
     return result;
   }
 
-  ValueWithRealFlags<Complex> Add(
-      const Complex &, Rounding rounding = defaultRounding) const;
-  ValueWithRealFlags<Complex> Subtract(
-      const Complex &, Rounding rounding = defaultRounding) const;
-  ValueWithRealFlags<Complex> Multiply(
-      const Complex &, Rounding rounding = defaultRounding) const;
-  ValueWithRealFlags<Complex> Divide(
-      const Complex &, Rounding rounding = defaultRounding) const;
+  ValueWithRealFlags<Complex> Add(const Complex &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  ValueWithRealFlags<Complex> Subtract(const Complex &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  ValueWithRealFlags<Complex> Multiply(const Complex &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+  ValueWithRealFlags<Complex> Divide(const Complex &,
+      Rounding rounding = TargetCharacteristics::defaultRounding) const;
+
+  // ABS/CABS = HYPOT(re_, imag_) = SQRT(re_**2 + im_**2)
+  ValueWithRealFlags<Part> ABS(
+      Rounding rounding = TargetCharacteristics::defaultRounding) const {
+    return re_.HYPOT(im_, rounding);
+  }
 
   constexpr Complex FlushSubnormalToZero() const {
     return {re_.FlushSubnormalToZero(), im_.FlushSubnormalToZero()};
@@ -88,7 +94,6 @@ public:
   std::string DumpHexadecimal() const;
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &, int kind) const;
 
-  // TODO: (C)ABS once Real::HYPOT is done
   // TODO: unit testing
 
 private:

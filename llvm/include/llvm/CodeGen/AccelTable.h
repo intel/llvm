@@ -5,31 +5,28 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file contains support for writing accelerator tables.
-//
+/// \file
+/// This file contains support for writing accelerator tables.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CODEGEN_ACCELTABLE_H
 #define LLVM_CODEGEN_ACCELTABLE_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/DIE.h"
 #include "llvm/CodeGen/DwarfStringPoolEntry.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/DJB.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/raw_ostream.h"
-#include <cstddef>
 #include <cstdint>
 #include <vector>
 
+/// \file
 /// The DWARF and Apple accelerator tables are an indirect hash table optimized
 /// for null lookup rather than access to known data. The Apple accelerator
 /// tables are a precursor of the newer DWARF v5 accelerator tables. Both
@@ -107,6 +104,8 @@ namespace llvm {
 class AsmPrinter;
 class DwarfCompileUnit;
 class DwarfDebug;
+class MCSymbol;
+class raw_ostream;
 
 /// Interface which the different types of accelerator table data have to
 /// conform. It serves as a base class for different values of the template
@@ -301,7 +300,7 @@ void emitAppleAccelTableImpl(AsmPrinter *Asm, AccelTableBase &Contents,
 template <typename DataT>
 void emitAppleAccelTable(AsmPrinter *Asm, AccelTable<DataT> &Contents,
                          StringRef Prefix, const MCSymbol *SecBegin) {
-  static_assert(std::is_convertible<DataT *, AppleAccelTableData *>::value, "");
+  static_assert(std::is_convertible<DataT *, AppleAccelTableData *>::value);
   emitAppleAccelTableImpl(Asm, Contents, Prefix, SecBegin, DataT::Atoms);
 }
 

@@ -37,25 +37,30 @@ public:
   /// @{
 
   unsigned getInliningThresholdMultiplier() { return 3; }
+  unsigned adjustInliningThreshold(const CallBase *CB) const;
 
-  int getIntImmCost(const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind);
+  InstructionCost getIntImmCost(const APInt &Imm, Type *Ty,
+                                TTI::TargetCostKind CostKind);
 
-  int getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm,
-                        Type *Ty, TTI::TargetCostKind CostKind,
-                        Instruction *Inst = nullptr);
-  int getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                          Type *Ty, TTI::TargetCostKind CostKind);
+  InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx,
+                                    const APInt &Imm, Type *Ty,
+                                    TTI::TargetCostKind CostKind,
+                                    Instruction *Inst = nullptr);
+  InstructionCost getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
+                                      const APInt &Imm, Type *Ty,
+                                      TTI::TargetCostKind CostKind);
 
   TTI::PopcntSupportKind getPopcntSupport(unsigned TyWidth);
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
-                               TTI::UnrollingPreferences &UP);
+                               TTI::UnrollingPreferences &UP,
+                               OptimizationRemarkEmitter *ORE);
 
   void getPeelingPreferences(Loop *L, ScalarEvolution &SE,
                              TTI::PeelingPreferences &PP);
 
-  bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
-                     TargetTransformInfo::LSRCost &C2);
+  bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
+                     const TargetTransformInfo::LSRCost &C2);
   /// @}
 
   /// \name Vector TTI Implementations
@@ -78,38 +83,42 @@ public:
   bool supportsEfficientVectorElementLoadStore() { return true; }
   bool enableInterleavedAccessVectorization() { return true; }
 
-  int getArithmeticInstrCost(
-      unsigned Opcode, Type *Ty,
-      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
-      TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
-      TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
-      TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
-      TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
+  InstructionCost getArithmeticInstrCost(
+      unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
+      TTI::OperandValueInfo Op1Info = {TTI::OK_AnyValue, TTI::OP_None},
+      TTI::OperandValueInfo Op2Info = {TTI::OK_AnyValue, TTI::OP_None},
       ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
       const Instruction *CxtI = nullptr);
-  int getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp, ArrayRef<int> Mask,
-                     int Index, VectorType *SubTp);
+  InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp,
+                                 ArrayRef<int> Mask,
+                                 TTI::TargetCostKind CostKind, int Index,
+                                 VectorType *SubTp,
+                                 ArrayRef<const Value *> Args = None);
   unsigned getVectorTruncCost(Type *SrcTy, Type *DstTy);
   unsigned getVectorBitmaskConversionCost(Type *SrcTy, Type *DstTy);
   unsigned getBoolVecToIntConversionCost(unsigned Opcode, Type *Dst,
                                          const Instruction *I);
-  int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
-                       TTI::CastContextHint CCH, TTI::TargetCostKind CostKind,
-                       const Instruction *I = nullptr);
-  int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
-                         CmpInst::Predicate VecPred,
-                         TTI::TargetCostKind CostKind,
-                         const Instruction *I = nullptr);
-  int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
+  InstructionCost getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+                                   TTI::CastContextHint CCH,
+                                   TTI::TargetCostKind CostKind,
+                                   const Instruction *I = nullptr);
+  InstructionCost getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                                     CmpInst::Predicate VecPred,
+                                     TTI::TargetCostKind CostKind,
+                                     const Instruction *I = nullptr);
+  using BaseT::getVectorInstrCost;
+  InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
+                                     unsigned Index);
   bool isFoldableLoad(const LoadInst *Ld, const Instruction *&FoldedValue);
-  int getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
-                      unsigned AddressSpace, TTI::TargetCostKind CostKind,
-                      const Instruction *I = nullptr);
+  InstructionCost
+  getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
+                  unsigned AddressSpace, TTI::TargetCostKind CostKind,
+                  TTI::OperandValueInfo OpInfo = {TTI::OK_AnyValue, TTI::OP_None},
+                  const Instruction *I = nullptr);
 
-  int getInterleavedMemoryOpCost(
+  InstructionCost getInterleavedMemoryOpCost(
       unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
-      Align Alignment, unsigned AddressSpace,
-      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
+      Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
       bool UseMaskForCond = false, bool UseMaskForGaps = false);
 
   InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,

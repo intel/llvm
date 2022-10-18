@@ -134,11 +134,20 @@
 #define FTN_PAUSE_RESOURCE_ALL omp_pause_resource_all
 #define FTN_GET_SUPPORTED_ACTIVE_LEVELS omp_get_supported_active_levels
 #define FTN_DISPLAY_ENV omp_display_env
+#define FTN_IN_EXPLICIT_TASK omp_in_explicit_task
 #define FTN_FULFILL_EVENT omp_fulfill_event
 #define FTN_SET_NUM_TEAMS omp_set_num_teams
 #define FTN_GET_MAX_TEAMS omp_get_max_teams
 #define FTN_SET_TEAMS_THREAD_LIMIT omp_set_teams_thread_limit
 #define FTN_GET_TEAMS_THREAD_LIMIT omp_get_teams_thread_limit
+
+#define FTN_GET_NUM_INTEROP_PROPERTIES omp_get_num_interop_properties
+#define FTN_GET_INTEROP_INT omp_get_interop_int
+#define FTN_GET_INTEROP_PTR omp_get_interop_ptr
+#define FTN_GET_INTEROP_STR omp_get_interop_str
+#define FTN_GET_INTEROP_NAME omp_get_interop_name
+#define FTN_GET_INTEROP_TYPE_DESC omp_get_interop_type_desc
+#define FTN_GET_INTEROP_RC_DESC omp_get_interop_rc_desc
 
 #endif /* KMP_FTN_PLAIN */
 
@@ -262,11 +271,20 @@
 #define FTN_PAUSE_RESOURCE_ALL omp_pause_resource_all_
 #define FTN_GET_SUPPORTED_ACTIVE_LEVELS omp_get_supported_active_levels_
 #define FTN_DISPLAY_ENV omp_display_env_
+#define FTN_IN_EXPLICIT_TASK omp_in_explicit_task_
 #define FTN_FULFILL_EVENT omp_fulfill_event_
 #define FTN_SET_NUM_TEAMS omp_set_num_teams_
 #define FTN_GET_MAX_TEAMS omp_get_max_teams_
 #define FTN_SET_TEAMS_THREAD_LIMIT omp_set_teams_thread_limit_
 #define FTN_GET_TEAMS_THREAD_LIMIT omp_get_teams_thread_limit_
+
+#define FTN_GET_NUM_INTEROP_PROPERTIES omp_get_num_interop_properties_
+#define FTN_GET_INTEROP_INT omp_get_interop_int_
+#define FTN_GET_INTEROP_PTR omp_get_interop_ptr_
+#define FTN_GET_INTEROP_STR omp_get_interop_str_
+#define FTN_GET_INTEROP_NAME omp_get_interop_name_
+#define FTN_GET_INTEROP_TYPE_DESC omp_get_interop_type_desc_
+#define FTN_GET_INTEROP_RC_DESC omp_get_interop_rc_desc_
 
 #endif /* KMP_FTN_APPEND */
 
@@ -388,11 +406,20 @@
 #define FTN_PAUSE_RESOURCE_ALL OMP_PAUSE_RESOURCE_ALL
 #define FTN_GET_SUPPORTED_ACTIVE_LEVELS OMP_GET_SUPPORTED_ACTIVE_LEVELS
 #define FTN_DISPLAY_ENV OMP_DISPLAY_ENV
+#define FTN_IN_EXPLICIT_TASK OMP_IN_EXPLICIT_TASK
 #define FTN_FULFILL_EVENT OMP_FULFILL_EVENT
 #define FTN_SET_NUM_TEAMS OMP_SET_NUM_TEAMS
 #define FTN_GET_MAX_TEAMS OMP_GET_MAX_TEAMS
 #define FTN_SET_TEAMS_THREAD_LIMIT OMP_SET_TEAMS_THREAD_LIMIT
 #define FTN_GET_TEAMS_THREAD_LIMIT OMP_GET_TEAMS_THREAD_LIMIT
+
+#define FTN_GET_NUM_INTEROP_PROPERTIES OMP_GET_NUM_INTEROP_PROPERTIES
+#define FTN_GET_INTEROP_INT OMP_GET_INTEROP_INT
+#define FTN_GET_INTEROP_PTR OMP_GET_INTEROP_PTR
+#define FTN_GET_INTEROP_STR OMP_GET_INTEROP_STR
+#define FTN_GET_INTEROP_NAME OMP_GET_INTEROP_NAME
+#define FTN_GET_INTEROP_TYPE_DESC OMP_GET_INTEROP_TYPE_DESC
+#define FTN_GET_INTEROP_RC_DESC OMP_GET_INTEROP_RC_DESC
 
 #endif /* KMP_FTN_UPPER */
 
@@ -516,11 +543,20 @@
 #define FTN_PAUSE_RESOURCE_ALL OMP_PAUSE_RESOURCE_ALL_
 #define FTN_GET_SUPPORTED_ACTIVE_LEVELS OMP_GET_SUPPORTED_ACTIVE_LEVELS_
 #define FTN_DISPLAY_ENV OMP_DISPLAY_ENV_
+#define FTN_IN_EXPLICIT_TASK OMP_IN_EXPLICIT_TASK_
 #define FTN_FULFILL_EVENT OMP_FULFILL_EVENT_
 #define FTN_SET_NUM_TEAMS OMP_SET_NUM_TEAMS_
 #define FTN_GET_MAX_TEAMS OMP_GET_MAX_TEAMS_
 #define FTN_SET_TEAMS_THREAD_LIMIT OMP_SET_TEAMS_THREAD_LIMIT_
 #define FTN_GET_TEAMS_THREAD_LIMIT OMP_GET_TEAMS_THREAD_LIMIT_
+
+#define FTN_GET_NUM_INTEROP_PROPERTIES OMP_GET_NUM_INTEROP_PROPERTIES_
+#define FTN_GET_INTEROP_INT OMP_GET_INTEROP_INT_
+#define FTN_GET_INTEROP_PTR OMP_GET_INTEROP_PTR_
+#define FTN_GET_INTEROP_STR OMP_GET_INTEROP_STR_
+#define FTN_GET_INTEROP_NAME OMP_GET_INTEROP_NAME_
+#define FTN_GET_INTEROP_TYPE_DESC OMP_GET_INTEROP_TYPE_DESC_
+#define FTN_GET_INTEROP_RC_DESC OMP_GET_INTEROP_RC_DESC_
 
 #endif /* KMP_FTN_UAPPEND */
 
@@ -697,5 +733,21 @@
   GOMP_parallel_loop_maybe_nonmonotonic_runtime
 #define KMP_API_NAME_GOMP_TEAMS_REG GOMP_teams_reg
 #define KMP_API_NAME_GOMP_TASKWAIT_DEPEND GOMP_taskwait_depend
-
+#define KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_REGISTER                         \
+  GOMP_taskgroup_reduction_register
+#define KMP_API_NAME_GOMP_TASKGROUP_REDUCTION_UNREGISTER                       \
+  GOMP_taskgroup_reduction_unregister
+#define KMP_API_NAME_GOMP_TASK_REDUCTION_REMAP GOMP_task_reduction_remap
+#define KMP_API_NAME_GOMP_PARALLEL_REDUCTIONS GOMP_parallel_reductions
+#define KMP_API_NAME_GOMP_LOOP_START GOMP_loop_start
+#define KMP_API_NAME_GOMP_LOOP_ULL_START GOMP_loop_ull_start
+#define KMP_API_NAME_GOMP_LOOP_DOACROSS_START GOMP_loop_doacross_start
+#define KMP_API_NAME_GOMP_LOOP_ULL_DOACROSS_START GOMP_loop_ull_doacross_start
+#define KMP_API_NAME_GOMP_LOOP_ORDERED_START GOMP_loop_ordered_start
+#define KMP_API_NAME_GOMP_LOOP_ULL_ORDERED_START GOMP_loop_ull_ordered_start
+#define KMP_API_NAME_GOMP_SECTIONS2_START GOMP_sections2_start
+#define KMP_API_NAME_GOMP_WORKSHARE_TASK_REDUCTION_UNREGISTER                  \
+  GOMP_workshare_task_reduction_unregister
+#define KMP_API_NAME_GOMP_ALLOC GOMP_alloc
+#define KMP_API_NAME_GOMP_FREE GOMP_free
 #endif /* KMP_FTN_OS_H */

@@ -1,7 +1,3 @@
-if ( CMAKE_SYSTEM_NAME MATCHES "Windows" )
-  add_definitions( -DEXPORT_LIBLLDB )
-endif()
-
 get_property(LLDB_ALL_PLUGINS GLOBAL PROPERTY LLDB_PLUGINS)
 
 if(LLDB_BUILD_FRAMEWORK)
@@ -76,7 +72,7 @@ add_lldb_library(liblldb SHARED ${option_framework}
   SBThreadCollection.cpp
   SBThreadPlan.cpp
   SBTrace.cpp
-  SBTraceOptions.cpp
+  SBTraceCursor.cpp
   SBType.cpp
   SBTypeCategory.cpp
   SBTypeEnumMember.cpp
@@ -95,7 +91,6 @@ add_lldb_library(liblldb SHARED ${option_framework}
   ${lldb_lua_wrapper}
 
   LINK_LIBS
-    lldbBase
     lldbBreakpoint
     lldbCore
     lldbDataFormatters
@@ -106,6 +101,7 @@ add_lldb_library(liblldb SHARED ${option_framework}
     lldbSymbol
     lldbTarget
     lldbUtility
+    lldbVersion
     ${LLDB_ALL_PLUGINS}
   LINK_COMPONENTS
     Support
@@ -166,6 +162,7 @@ set_target_properties(liblldb
   VERSION ${LLDB_VERSION}
 )
 
+target_compile_definitions(liblldb PRIVATE LLDB_IN_LIBLLDB)
 if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
   if (NOT LLDB_EXPORT_ALL_SYMBOLS)
     # If we're not exporting all symbols, we'll want to explicitly set
@@ -182,13 +179,7 @@ if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
   set_target_properties(liblldb_exports PROPERTIES FOLDER "lldb misc")
 endif()
 
-if (MSVC)
-  # Only MSVC has the ABI compatibility problem and avoids using FindPythonLibs,
-  # so only it needs to explicitly link against ${Python3_LIBRARIES}
-  if (LLDB_ENABLE_PYTHON)
-    target_link_libraries(liblldb PRIVATE ${Python3_LIBRARIES})
-  endif()
-else()
+if (NOT MSVC)
   set_target_properties(liblldb
     PROPERTIES
     OUTPUT_NAME lldb

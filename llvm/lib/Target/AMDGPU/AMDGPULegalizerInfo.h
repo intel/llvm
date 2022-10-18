@@ -21,7 +21,6 @@
 namespace llvm {
 
 class GCNTargetMachine;
-class LLVMContext;
 class GCNSubtarget;
 class MachineIRBuilder;
 
@@ -90,34 +89,45 @@ public:
   bool legalizeBuildVector(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B) const;
 
+  void buildMultiply(LegalizerHelper &Helper, MutableArrayRef<Register> Accum,
+                     ArrayRef<Register> Src0, ArrayRef<Register> Src1,
+                     bool UsePartialMad64_32,
+                     bool SeparateOddAlignedProducts) const;
+  bool legalizeMul(LegalizerHelper &Helper, MachineInstr &MI) const;
+  bool legalizeCTLZ_CTTZ(MachineInstr &MI, MachineRegisterInfo &MRI,
+                         MachineIRBuilder &B) const;
+
   bool loadInputValue(Register DstReg, MachineIRBuilder &B,
                       const ArgDescriptor *Arg,
                       const TargetRegisterClass *ArgRC, LLT ArgTy) const;
   bool loadInputValue(Register DstReg, MachineIRBuilder &B,
                       AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
+
   bool legalizePreloadedArgIntrin(
     MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
     AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
+  bool legalizeWorkitemIDIntrinsic(
+      MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
+      unsigned Dim, AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
 
-  bool legalizeUDIV_UREM(MachineInstr &MI, MachineRegisterInfo &MRI,
-                         MachineIRBuilder &B) const;
+  Register getKernargParameterPtr(MachineIRBuilder &B, int64_t Offset) const;
+  bool legalizeKernargMemParameter(MachineInstr &MI, MachineIRBuilder &B,
+                                   uint64_t Offset,
+                                   Align Alignment = Align(4)) const;
 
-  void legalizeUDIV_UREM32Impl(MachineIRBuilder &B,
-                               Register DstReg, Register Num, Register Den,
-                               bool IsRem) const;
-  bool legalizeUDIV_UREM32(MachineInstr &MI, MachineRegisterInfo &MRI,
-                           MachineIRBuilder &B) const;
-  bool legalizeSDIV_SREM32(MachineInstr &MI, MachineRegisterInfo &MRI,
-                           MachineIRBuilder &B) const;
+  bool legalizeUnsignedDIV_REM(MachineInstr &MI, MachineRegisterInfo &MRI,
+                               MachineIRBuilder &B) const;
 
-  void legalizeUDIV_UREM64Impl(MachineIRBuilder &B,
-                               Register DstReg, Register Numer, Register Denom,
-                               bool IsDiv) const;
+  void legalizeUnsignedDIV_REM32Impl(MachineIRBuilder &B, Register DstDivReg,
+                                     Register DstRemReg, Register Num,
+                                     Register Den) const;
 
-  bool legalizeUDIV_UREM64(MachineInstr &MI, MachineRegisterInfo &MRI,
-                           MachineIRBuilder &B) const;
-  bool legalizeSDIV_SREM(MachineInstr &MI, MachineRegisterInfo &MRI,
-                         MachineIRBuilder &B) const;
+  void legalizeUnsignedDIV_REM64Impl(MachineIRBuilder &B, Register DstDivReg,
+                                     Register DstRemReg, Register Num,
+                                     Register Den) const;
+
+  bool legalizeSignedDIV_REM(MachineInstr &MI, MachineRegisterInfo &MRI,
+                             MachineIRBuilder &B) const;
 
   bool legalizeFDIV(MachineInstr &MI, MachineRegisterInfo &MRI,
                     MachineIRBuilder &B) const;
@@ -145,11 +155,21 @@ public:
 
   bool legalizeImplicitArgPtr(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B) const;
+
+  bool getLDSKernelId(Register DstReg, MachineRegisterInfo &MRI,
+                      MachineIRBuilder &B) const;
+
+  bool legalizeLDSKernelId(MachineInstr &MI, MachineRegisterInfo &MRI,
+                           MachineIRBuilder &B) const;
+
   bool legalizeIsAddrSpace(MachineInstr &MI, MachineRegisterInfo &MRI,
                            MachineIRBuilder &B, unsigned AddrSpace) const;
 
-  std::tuple<Register, unsigned, unsigned>
-  splitBufferOffsets(MachineIRBuilder &B, Register OrigOffset) const;
+  std::pair<Register, unsigned> splitBufferOffsets(MachineIRBuilder &B,
+                                                   Register OrigOffset) const;
+  void updateBufferMMO(MachineMemOperand *MMO, Register VOffset,
+                       Register SOffset, unsigned ImmOffset, Register VIndex,
+                       MachineRegisterInfo &MRI) const;
 
   Register handleD16VData(MachineIRBuilder &B, MachineRegisterInfo &MRI,
                           Register Reg, bool ImageStore = false) const;
@@ -170,6 +190,8 @@ public:
                             Intrinsic::ID IID) const;
 
   bool legalizeBVHIntrinsic(MachineInstr &MI, MachineIRBuilder &B) const;
+
+  bool legalizeFPTruncRound(MachineInstr &MI, MachineIRBuilder &B) const;
 
   bool legalizeImageIntrinsic(
       MachineInstr &MI, MachineIRBuilder &B,

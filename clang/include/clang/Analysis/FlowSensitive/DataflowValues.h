@@ -19,13 +19,14 @@
 #include "clang/Analysis/ProgramPoint.h"
 #include "llvm/ADT/DenseMap.h"
 
+namespace clang {
+
 //===----------------------------------------------------------------------===//
 /// Dataflow Directional Tag Classes.  These are used for tag dispatching
 ///  within the dataflow solver/transfer functions to determine what direction
 ///  a dataflow analysis flows.
 //===----------------------------------------------------------------------===//
 
-namespace clang {
 namespace dataflow {
   struct forward_analysis_tag {};
   struct backward_analysis_tag {};
@@ -133,7 +134,7 @@ public:
   /// getBlockDataMap - Retrieves the internal map between CFGBlocks and
   /// dataflow values.  If the dataflow analysis operates in the forward
   /// direction, the values correspond to the dataflow values at the start
-  /// of the block.  Otherwise, for a backward analysis, the values correpsond
+  /// of the block.  Otherwise, for a backward analysis, the values correspond
   /// to the dataflow values at the end of the block.
   BlockDataMapTy& getBlockDataMap() { return BlockDataMap; }
   const BlockDataMapTy& getBlockDataMap() const { return BlockDataMap; }

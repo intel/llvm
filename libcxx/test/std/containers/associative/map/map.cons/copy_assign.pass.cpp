@@ -12,6 +12,8 @@
 
 // map& operator=(const map& m);
 
+// XFAIL: libcpp-has-debug-mode
+
 #include <map>
 #include <algorithm>
 #include <cassert>
@@ -40,12 +42,12 @@ public:
     template <class U> bool operator==(const counting_allocatorT<U>& other) const noexcept { return foo == other.foo; }
     template <class U> bool operator!=(const counting_allocatorT<U>& other) const noexcept { return foo != other.foo; }
 
-    T * allocate(const size_t n) const {
+    T* allocate(size_t n) const {
         ca_allocs.push_back(foo);
         void * const pv = ::malloc(n * sizeof(T));
         return static_cast<T *>(pv);
     }
-    void deallocate(T * const p, size_t) const noexcept {
+    void deallocate(T* p, size_t) const noexcept {
         ca_deallocs.push_back(foo);
         free(p);
     }
@@ -63,12 +65,12 @@ public:
     template <class U> bool operator==(const counting_allocatorF<U>& other) const noexcept { return foo == other.foo; }
     template <class U> bool operator!=(const counting_allocatorF<U>& other) const noexcept { return foo != other.foo; }
 
-    T * allocate(const size_t n) const {
+    T* allocate(size_t n) const {
         ca_allocs.push_back(foo);
         void * const pv = ::malloc(n * sizeof(T));
         return static_cast<T *>(pv);
     }
-    void deallocate(T * const p, size_t) const noexcept {
+    void deallocate(T* p, size_t) const noexcept {
         ca_deallocs.push_back(foo);
         free(p);
     }
@@ -130,7 +132,7 @@ int main(int, char**)
             V(3, 1.5),
             V(3, 2)
         };
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef test_allocator<V> A;
         std::map<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A(2));
         std::map<int, double, C, A> m(ar, ar+sizeof(ar)/sizeof(ar[0])/2, C(3), A(7));
@@ -138,18 +140,18 @@ int main(int, char**)
         assert(m.get_allocator() == A(7));
         assert(m.key_comp() == C(5));
         assert(m.size() == 3);
-        assert(distance(m.begin(), m.end()) == 3);
+        assert(std::distance(m.begin(), m.end()) == 3);
         assert(*m.begin() == V(1, 1));
-        assert(*next(m.begin()) == V(2, 1));
-        assert(*next(m.begin(), 2) == V(3, 1));
+        assert(*std::next(m.begin()) == V(2, 1));
+        assert(*std::next(m.begin(), 2) == V(3, 1));
 
         assert(mo.get_allocator() == A(2));
         assert(mo.key_comp() == C(5));
         assert(mo.size() == 3);
-        assert(distance(mo.begin(), mo.end()) == 3);
+        assert(std::distance(mo.begin(), mo.end()) == 3);
         assert(*mo.begin() == V(1, 1));
-        assert(*next(mo.begin()) == V(2, 1));
-        assert(*next(mo.begin(), 2) == V(3, 1));
+        assert(*std::next(mo.begin()) == V(2, 1));
+        assert(*std::next(mo.begin(), 2) == V(3, 1));
     }
     {
         typedef std::pair<const int, double> V;
@@ -180,7 +182,7 @@ int main(int, char**)
             V(3, 1.5),
             V(3, 2)
         };
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef other_allocator<V> A;
         std::map<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A(2));
         std::map<int, double, C, A> m(ar, ar+sizeof(ar)/sizeof(ar[0])/2, C(3), A(7));
@@ -188,18 +190,18 @@ int main(int, char**)
         assert(m.get_allocator() == A(2));
         assert(m.key_comp() == C(5));
         assert(m.size() == 3);
-        assert(distance(m.begin(), m.end()) == 3);
+        assert(std::distance(m.begin(), m.end()) == 3);
         assert(*m.begin() == V(1, 1));
-        assert(*next(m.begin()) == V(2, 1));
-        assert(*next(m.begin(), 2) == V(3, 1));
+        assert(*std::next(m.begin()) == V(2, 1));
+        assert(*std::next(m.begin(), 2) == V(3, 1));
 
         assert(mo.get_allocator() == A(2));
         assert(mo.key_comp() == C(5));
         assert(mo.size() == 3);
-        assert(distance(mo.begin(), mo.end()) == 3);
+        assert(std::distance(mo.begin(), mo.end()) == 3);
         assert(*mo.begin() == V(1, 1));
-        assert(*next(mo.begin()) == V(2, 1));
-        assert(*next(mo.begin(), 2) == V(3, 1));
+        assert(*std::next(mo.begin()) == V(2, 1));
+        assert(*std::next(mo.begin(), 2) == V(3, 1));
     }
 #if TEST_STD_VER >= 11
     {
@@ -216,7 +218,7 @@ int main(int, char**)
             V(3, 1.5),
             V(3, 2)
         };
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef min_allocator<V> A;
         std::map<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A());
         std::map<int, double, C, A> m(ar, ar+sizeof(ar)/sizeof(ar[0])/2, C(3), A());
@@ -224,18 +226,18 @@ int main(int, char**)
         assert(m.get_allocator() == A());
         assert(m.key_comp() == C(5));
         assert(m.size() == 3);
-        assert(distance(m.begin(), m.end()) == 3);
+        assert(std::distance(m.begin(), m.end()) == 3);
         assert(*m.begin() == V(1, 1));
-        assert(*next(m.begin()) == V(2, 1));
-        assert(*next(m.begin(), 2) == V(3, 1));
+        assert(*std::next(m.begin()) == V(2, 1));
+        assert(*std::next(m.begin(), 2) == V(3, 1));
 
         assert(mo.get_allocator() == A());
         assert(mo.key_comp() == C(5));
         assert(mo.size() == 3);
-        assert(distance(mo.begin(), mo.end()) == 3);
+        assert(std::distance(mo.begin(), mo.end()) == 3);
         assert(*mo.begin() == V(1, 1));
-        assert(*next(mo.begin()) == V(2, 1));
-        assert(*next(mo.begin(), 2) == V(3, 1));
+        assert(*std::next(mo.begin()) == V(2, 1));
+        assert(*std::next(mo.begin(), 2) == V(3, 1));
     }
     {
         typedef std::pair<const int, double> V;
@@ -251,7 +253,7 @@ int main(int, char**)
             V(3, 1.5),
             V(3, 2)
         };
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef min_allocator<V> A;
         std::map<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A());
         std::map<int, double, C, A> m(ar, ar+sizeof(ar)/sizeof(ar[0])/2, C(3), A());
@@ -259,18 +261,18 @@ int main(int, char**)
         assert(m.get_allocator() == A());
         assert(m.key_comp() == C(5));
         assert(m.size() == 3);
-        assert(distance(m.begin(), m.end()) == 3);
+        assert(std::distance(m.begin(), m.end()) == 3);
         assert(*m.begin() == V(1, 1));
-        assert(*next(m.begin()) == V(2, 1));
-        assert(*next(m.begin(), 2) == V(3, 1));
+        assert(*std::next(m.begin()) == V(2, 1));
+        assert(*std::next(m.begin(), 2) == V(3, 1));
 
         assert(mo.get_allocator() == A());
         assert(mo.key_comp() == C(5));
         assert(mo.size() == 3);
-        assert(distance(mo.begin(), mo.end()) == 3);
+        assert(std::distance(mo.begin(), mo.end()) == 3);
         assert(*mo.begin() == V(1, 1));
-        assert(*next(mo.begin()) == V(2, 1));
-        assert(*next(mo.begin(), 2) == V(3, 1));
+        assert(*std::next(mo.begin()) == V(2, 1));
+        assert(*std::next(mo.begin(), 2) == V(3, 1));
     }
 
     assert(balanced_allocs());
@@ -288,24 +290,24 @@ int main(int, char**)
             V(3, 1.5),
             V(3, 2)
         };
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef counting_allocatorT<V> A;
         std::map<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A(1));
         std::map<int, double, C, A> m(ar, ar+sizeof(ar)/sizeof(ar[0])/2, C(3), A(2));
         m = mo;
         assert(m.key_comp() == C(5));
         assert(m.size() == 3);
-        assert(distance(m.begin(), m.end()) == 3);
+        assert(std::distance(m.begin(), m.end()) == 3);
         assert(*m.begin() == V(1, 1));
-        assert(*next(m.begin()) == V(2, 1));
-        assert(*next(m.begin(), 2) == V(3, 1));
+        assert(*std::next(m.begin()) == V(2, 1));
+        assert(*std::next(m.begin(), 2) == V(3, 1));
 
         assert(mo.key_comp() == C(5));
         assert(mo.size() == 3);
-        assert(distance(mo.begin(), mo.end()) == 3);
+        assert(std::distance(mo.begin(), mo.end()) == 3);
         assert(*mo.begin() == V(1, 1));
-        assert(*next(mo.begin()) == V(2, 1));
-        assert(*next(mo.begin(), 2) == V(3, 1));
+        assert(*std::next(mo.begin()) == V(2, 1));
+        assert(*std::next(mo.begin(), 2) == V(3, 1));
     }
     assert(balanced_allocs());
     {
@@ -322,24 +324,24 @@ int main(int, char**)
             V(3, 1.5),
             V(3, 2)
         };
-        typedef test_compare<std::less<int> > C;
+        typedef test_less<int> C;
         typedef counting_allocatorF<V> A;
         std::map<int, double, C, A> mo(ar, ar+sizeof(ar)/sizeof(ar[0]), C(5), A(100));
         std::map<int, double, C, A> m(ar, ar+sizeof(ar)/sizeof(ar[0])/2, C(3), A(200));
         m = mo;
         assert(m.key_comp() == C(5));
         assert(m.size() == 3);
-        assert(distance(m.begin(), m.end()) == 3);
+        assert(std::distance(m.begin(), m.end()) == 3);
         assert(*m.begin() == V(1, 1));
-        assert(*next(m.begin()) == V(2, 1));
-        assert(*next(m.begin(), 2) == V(3, 1));
+        assert(*std::next(m.begin()) == V(2, 1));
+        assert(*std::next(m.begin(), 2) == V(3, 1));
 
         assert(mo.key_comp() == C(5));
         assert(mo.size() == 3);
-        assert(distance(mo.begin(), mo.end()) == 3);
+        assert(std::distance(mo.begin(), mo.end()) == 3);
         assert(*mo.begin() == V(1, 1));
-        assert(*next(mo.begin()) == V(2, 1));
-        assert(*next(mo.begin(), 2) == V(3, 1));
+        assert(*std::next(mo.begin()) == V(2, 1));
+        assert(*std::next(mo.begin(), 2) == V(3, 1));
     }
     assert(balanced_allocs());
 #endif

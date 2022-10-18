@@ -121,13 +121,29 @@ namespace clang {
 
   /// VE builtins
   namespace VE {
-  enum { LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1, LastTSBuiltin };
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsVE.def"
+    LastTSBuiltin
+  };
+  }
+
+  namespace RISCVVector {
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsRISCVVector.def"
+    FirstTSBuiltin,
+  };
   }
 
   /// RISCV builtins
   namespace RISCV {
   enum {
     LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+    FirstRVVBuiltin = clang::Builtin::FirstTSBuiltin,
+    LastRVVBuiltin = RISCVVector::FirstTSBuiltin - 1,
 #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
 #include "clang/Basic/BuiltinsRISCV.def"
     LastTSBuiltin
@@ -300,16 +316,6 @@ namespace clang {
     };
   }
 
-  /// Le64 builtins
-  namespace Le64 {
-  enum {
-    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
-  #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
-  #include "clang/Basic/BuiltinsLe64.def"
-    LastTSBuiltin
-  };
-  }
-
   /// SystemZ builtins
   namespace SystemZ {
     enum {
@@ -331,12 +337,11 @@ namespace clang {
   }
 
   static constexpr uint64_t LargestBuiltinID = std::max<uint64_t>(
-      {NEON::FirstTSBuiltin, ARM::LastTSBuiltin, SVE::FirstTSBuiltin,
-       AArch64::LastTSBuiltin, BPF::LastTSBuiltin, PPC::LastTSBuiltin,
-       NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin, X86::LastTSBuiltin,
+      {ARM::LastTSBuiltin, AArch64::LastTSBuiltin, BPF::LastTSBuiltin,
+       PPC::LastTSBuiltin, NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin,
+       X86::LastTSBuiltin, VE::LastTSBuiltin, RISCV::LastTSBuiltin,
        Hexagon::LastTSBuiltin, Mips::LastTSBuiltin, XCore::LastTSBuiltin,
-       Le64::LastTSBuiltin, SystemZ::LastTSBuiltin,
-       WebAssembly::LastTSBuiltin});
+       SystemZ::LastTSBuiltin, WebAssembly::LastTSBuiltin});
 
 } // end namespace clang.
 

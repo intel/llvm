@@ -16,155 +16,151 @@
 
 #include <tuple>
 
+#include "TestTraits.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/SubElementInterfaces.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/DataLayoutInterfaces.h"
 
-namespace mlir {
 namespace test {
+class TestAttrWithFormatAttr;
 
 /// FieldInfo represents a field in the StructType data type. It is used as a
 /// parameter in TestTypeDefs.td.
 struct FieldInfo {
-  StringRef name;
-  Type type;
+  ::llvm::StringRef name;
+  ::mlir::Type type;
 
   // Custom allocation called from generated constructor code
-  FieldInfo allocateInto(TypeStorageAllocator &alloc) const {
+  FieldInfo allocateInto(::mlir::TypeStorageAllocator &alloc) const {
     return FieldInfo{alloc.copyInto(name), type};
   }
 };
 
+/// A custom type for a test type parameter.
+struct CustomParam {
+  int value;
+
+  bool operator==(const CustomParam &other) const {
+    return other.value == value;
+  }
+};
+
+inline llvm::hash_code hash_value(const test::CustomParam &param) {
+  return llvm::hash_value(param.value);
+}
+
 } // namespace test
+
+namespace mlir {
+template <>
+struct FieldParser<test::CustomParam> {
+  static FailureOr<test::CustomParam> parse(AsmParser &parser) {
+    auto value = FieldParser<int>::parse(parser);
+    if (failed(value))
+      return failure();
+    return test::CustomParam{*value};
+  }
+};
+
+inline mlir::AsmPrinter &operator<<(mlir::AsmPrinter &printer,
+                                    test::CustomParam param) {
+  return printer << param.value;
+}
+
+/// Overload the attribute parameter parser for optional integers.
+template <>
+struct FieldParser<Optional<int>> {
+  static FailureOr<Optional<int>> parse(AsmParser &parser) {
+    Optional<int> value;
+    value.emplace();
+    OptionalParseResult result = parser.parseOptionalInteger(*value);
+    if (result.has_value()) {
+      if (succeeded(*result))
+        return value;
+      return failure();
+    }
+    value.reset();
+    return value;
+  }
+};
 } // namespace mlir
+
+#include "TestTypeInterfaces.h.inc"
 
 #define GET_TYPEDEF_CLASSES
 #include "TestTypeDefs.h.inc"
 
-namespace mlir {
 namespace test {
-
-#include "TestTypeInterfaces.h.inc"
-
-/// This class is a simple test type that uses a generated interface.
-struct TestType : public Type::TypeBase<TestType, Type, TypeStorage,
-                                        TestTypeInterface::Trait> {
-  using Base::Base;
-
-  /// Provide a definition for the necessary interface methods.
-  void printTypeC(Location loc) const {
-    emitRemark(loc) << *this << " - TestC";
-  }
-};
 
 /// Storage for simple named recursive types, where the type is identified by
 /// its name and can "contain" another type, including itself.
-struct TestRecursiveTypeStorage : public TypeStorage {
-  using KeyTy = StringRef;
+struct TestRecursiveTypeStorage : public ::mlir::TypeStorage {
+  using KeyTy = ::llvm::StringRef;
 
-  explicit TestRecursiveTypeStorage(StringRef key) : name(key), body(Type()) {}
+  explicit TestRecursiveTypeStorage(::llvm::StringRef key) : name(key) {}
 
   bool operator==(const KeyTy &other) const { return name == other; }
 
-  static TestRecursiveTypeStorage *construct(TypeStorageAllocator &allocator,
-                                             const KeyTy &key) {
+  static TestRecursiveTypeStorage *
+  construct(::mlir::TypeStorageAllocator &allocator, const KeyTy &key) {
     return new (allocator.allocate<TestRecursiveTypeStorage>())
         TestRecursiveTypeStorage(allocator.copyInto(key));
   }
 
-  LogicalResult mutate(TypeStorageAllocator &allocator, Type newBody) {
+  ::mlir::LogicalResult mutate(::mlir::TypeStorageAllocator &allocator,
+                               ::mlir::Type newBody) {
     // Cannot set a different body than before.
     if (body && body != newBody)
-      return failure();
+      return ::mlir::failure();
 
     body = newBody;
-    return success();
+    return ::mlir::success();
   }
 
-  StringRef name;
-  Type body;
+  ::llvm::StringRef name;
+  ::mlir::Type body;
 };
 
 /// Simple recursive type identified by its name and pointing to another named
 /// type, potentially itself. This requires the body to be mutated separately
 /// from type creation.
 class TestRecursiveType
-    : public Type::TypeBase<TestRecursiveType, Type, TestRecursiveTypeStorage> {
+    : public ::mlir::Type::TypeBase<TestRecursiveType, ::mlir::Type,
+                                    TestRecursiveTypeStorage,
+                                    ::mlir::SubElementTypeInterface::Trait,
+                                    ::mlir::TypeTrait::IsMutable> {
 public:
   using Base::Base;
 
-  static TestRecursiveType get(MLIRContext *ctx, StringRef name) {
+  static TestRecursiveType get(::mlir::MLIRContext *ctx,
+                               ::llvm::StringRef name) {
     return Base::get(ctx, name);
   }
 
   /// Body getter and setter.
-  LogicalResult setBody(Type body) { return Base::mutate(body); }
-  Type getBody() { return getImpl()->body; }
+  ::mlir::LogicalResult setBody(Type body) { return Base::mutate(body); }
+  ::mlir::Type getBody() const { return getImpl()->body; }
 
   /// Name/key getter.
-  StringRef getName() { return getImpl()->name; }
-};
+  ::llvm::StringRef getName() { return getImpl()->name; }
 
-struct TestTypeWithLayoutStorage : public TypeStorage {
-  using KeyTy = unsigned;
-
-  explicit TestTypeWithLayoutStorage(unsigned key) : key(key) {}
-  bool operator==(const KeyTy &other) const { return other == key; }
-
-  static TestTypeWithLayoutStorage *construct(TypeStorageAllocator &allocator,
-                                              const KeyTy &key) {
-    return new (allocator.allocate<TestTypeWithLayoutStorage>())
-        TestTypeWithLayoutStorage(key);
+  void walkImmediateSubElements(
+      ::llvm::function_ref<void(::mlir::Attribute)> walkAttrsFn,
+      ::llvm::function_ref<void(::mlir::Type)> walkTypesFn) const {
+    walkTypesFn(getBody());
   }
-
-  unsigned key;
-};
-
-class TestTypeWithLayout
-    : public Type::TypeBase<TestTypeWithLayout, Type, TestTypeWithLayoutStorage,
-                            DataLayoutTypeInterface::Trait> {
-public:
-  using Base::Base;
-
-  static TestTypeWithLayout get(MLIRContext *ctx, unsigned key) {
-    return Base::get(ctx, key);
+  Type replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute> replAttrs,
+                                   llvm::ArrayRef<mlir::Type> replTypes) const {
+    // TODO: It's not clear how we support replacing sub-elements of mutable
+    // types.
+    return nullptr;
   }
-
-  unsigned getKey() { return getImpl()->key; }
-
-  unsigned getTypeSizeInBits(const DataLayout &dataLayout,
-                             DataLayoutEntryListRef params) const {
-    return extractKind(params, "size");
-  }
-
-  unsigned getABIAlignment(const DataLayout &dataLayout,
-                           DataLayoutEntryListRef params) const {
-    return extractKind(params, "alignment");
-  }
-
-  unsigned getPreferredAlignment(const DataLayout &dataLayout,
-                                 DataLayoutEntryListRef params) const {
-    return extractKind(params, "preferred");
-  }
-
-  bool areCompatible(DataLayoutEntryListRef oldLayout,
-                     DataLayoutEntryListRef newLayout) const {
-    unsigned old = extractKind(oldLayout, "alignment");
-    return old == 1 || extractKind(newLayout, "alignment") <= old;
-  }
-
-  LogicalResult verifyEntries(DataLayoutEntryListRef params,
-                              Location loc) const;
-
-private:
-  unsigned extractKind(DataLayoutEntryListRef params,
-                       StringRef expectedKind) const;
 };
 
 } // namespace test
-} // namespace mlir
 
 #endif // MLIR_TESTTYPES_H

@@ -8,14 +8,18 @@
 # RUN: llvm-mc -triple x86_64-windows-msvc %s -filetype=obj -o %basename_t.obj
 
 # Check that the Guard address-taken IAT entry tables are propagated to the final executable.
-# RUN: lld-link %basename_t.obj -guard:cf -entry:main -out:%basename_t-nodelay.exe %basename_t-exp.lib
+# RUN: lld-link %basename_t.obj -guard:cf -guard:longjmp -entry:main -out:%basename_t-nodelay.exe %basename_t-exp.lib
 # RUN: llvm-readobj --file-headers --coff-load-config %basename_t-nodelay.exe | FileCheck %s --check-prefix CHECK
 
 # CHECK: ImageBase: 0x140000000
 # CHECK: LoadConfig [
 # CHECK:   GuardCFFunctionTable: 0x140002114
 # CHECK:   GuardCFFunctionCount: 1
-# CHECK:   GuardFlags: 0x10500
+# CHECK:   GuardFlags [ (0x10500)
+# CHECK:     CF_FUNCTION_TABLE_PRESENT (0x400)
+# CHECK:     CF_INSTRUMENTED (0x100)
+# CHECK:     CF_LONGJUMP_TABLE_PRESENT (0x10000)
+# CHECK:   ]
 # CHECK:   GuardAddressTakenIatEntryTable: 0x140002118
 # CHECK:   GuardAddressTakenIatEntryCount: 1
 # CHECK: ]
@@ -28,14 +32,18 @@
 
 
 # Check that the additional load thunk symbol is added to the GFIDs table.
-# RUN: lld-link %basename_t.obj -guard:cf -entry:main -out:%basename_t-delay.exe %basename_t-exp.lib -alternatename:__delayLoadHelper2=main -delayload:%basename_t-exp.dll
+# RUN: lld-link %basename_t.obj -guard:cf -guard:longjmp -entry:main -out:%basename_t-delay.exe %basename_t-exp.lib -alternatename:__delayLoadHelper2=main -delayload:%basename_t-exp.dll
 # RUN: llvm-readobj --file-headers --coff-load-config %basename_t-delay.exe | FileCheck %s --check-prefix DELAY-CHECK
 
 # DELAY-CHECK: ImageBase: 0x140000000
 # DELAY-CHECK: LoadConfig [
 # DELAY-CHECK:   GuardCFFunctionTable: 0x140002114
 # DELAY-CHECK:   GuardCFFunctionCount: 2
-# DELAY-CHECK:   GuardFlags: 0x10500
+# DELAY-CHECK:   GuardFlags [ (0x10500)
+# DELAY-CHECK:     CF_FUNCTION_TABLE_PRESENT (0x400)
+# DELAY-CHECK:     CF_INSTRUMENTED (0x100)
+# DELAY-CHECK:     CF_LONGJUMP_TABLE_PRESENT (0x10000)
+# DELAY-CHECK:   ]
 # DELAY-CHECK:   GuardAddressTakenIatEntryTable: 0x14000211C
 # DELAY-CHECK:   GuardAddressTakenIatEntryCount: 1
 # DELAY-CHECK: ]

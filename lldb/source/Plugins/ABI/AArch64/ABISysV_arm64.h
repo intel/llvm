@@ -67,6 +67,8 @@ public:
 
   bool GetPointerReturnRegister(const char *&name) override;
 
+  lldb::addr_t FixAddress(lldb::addr_t pc, lldb::addr_t mask) override;
+
   // Static Functions
 
   static void Initialize();
@@ -75,13 +77,14 @@ public:
 
   static lldb::ABISP CreateInstance(lldb::ProcessSP process_sp, const lldb_private::ArchSpec &arch);
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "SysV-arm64"; }
 
   // PluginInterface protocol
 
-  lldb_private::ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  uint32_t GetPluginVersion() override;
+  lldb::addr_t FixCodeAddress(lldb::addr_t pc) override;
+  lldb::addr_t FixDataAddress(lldb::addr_t pc) override;
 
 protected:
   lldb::ValueObjectSP

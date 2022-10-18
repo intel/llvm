@@ -11,6 +11,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Unwind.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 #include "Plugins/Process/Utility/RegisterContextFreeBSD_i386.h"
@@ -20,6 +21,7 @@
 #include "Plugins/Process/Utility/RegisterContextLinux_i386.h"
 #include "Plugins/Process/Utility/RegisterContextLinux_s390x.h"
 #include "Plugins/Process/Utility/RegisterContextLinux_x86_64.h"
+#include "Plugins/Process/Utility/RegisterContextNetBSD_i386.h"
 #include "Plugins/Process/Utility/RegisterContextNetBSD_x86_64.h"
 #include "Plugins/Process/Utility/RegisterContextOpenBSD_i386.h"
 #include "Plugins/Process/Utility/RegisterContextOpenBSD_x86_64.h"
@@ -63,7 +65,7 @@ RegisterContextSP
 ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
   RegisterContextSP reg_ctx_sp;
   uint32_t concrete_frame_idx = 0;
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_THREAD));
+  Log *log = GetLog(LLDBLog::Thread);
 
   if (frame)
     concrete_frame_idx = frame->GetConcreteFrameIndex();
@@ -106,6 +108,9 @@ ThreadElfCore::CreateRegisterContextForFrame(StackFrame *frame) {
     case llvm::Triple::NetBSD: {
       switch (arch.GetMachine()) {
       case llvm::Triple::aarch64:
+        break;
+      case llvm::Triple::x86:
+        reg_interface = new RegisterContextNetBSD_i386(arch);
         break;
       case llvm::Triple::x86_64:
         reg_interface = new RegisterContextNetBSD_x86_64(arch);

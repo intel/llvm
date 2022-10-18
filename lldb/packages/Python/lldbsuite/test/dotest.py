@@ -36,7 +36,6 @@ import sys
 import tempfile
 
 # Third-party modules
-import six
 import unittest2
 
 # LLDB Modules
@@ -281,6 +280,18 @@ def parseOptionsAndInitTestdirs():
         logging.warning('No valid FileCheck executable; some tests may fail...')
         logging.warning('(Double-check the --llvm-tools-dir argument to dotest.py)')
 
+    configuration.libcxx_include_dir = args.libcxx_include_dir
+    configuration.libcxx_library_dir = args.libcxx_library_dir
+    if args.libcxx_include_dir or args.libcxx_library_dir:
+        if args.lldb_platform_name:
+            logging.warning('Custom libc++ is not supported for remote runs: ignoring --libcxx arguments')
+        elif args.libcxx_include_dir and args.libcxx_library_dir:
+            configuration.libcxx_include_dir = args.libcxx_include_dir
+            configuration.libcxx_library_dir = args.libcxx_library_dir
+        else:
+            logging.error('Custom libc++ requires both --libcxx-include-dir and --libcxx-library-dir')
+            sys.exit(-1)
+
     if args.channels:
         lldbtest_config.channels = args.channels
 
@@ -357,7 +368,7 @@ def parseOptionsAndInitTestdirs():
 
     if args.executable:
         # lldb executable is passed explicitly
-        lldbtest_config.lldbExec = os.path.realpath(args.executable)
+        lldbtest_config.lldbExec = os.path.abspath(args.executable)
         if not is_exe(lldbtest_config.lldbExec):
             lldbtest_config.lldbExec = which(args.executable)
         if not is_exe(lldbtest_config.lldbExec):
@@ -393,16 +404,6 @@ def parseOptionsAndInitTestdirs():
     if do_help:
         usage(parser)
 
-    # Reproducer arguments
-    if args.capture_path and args.replay_path:
-        logging.error('Cannot specify both a capture and a replay path.')
-        sys.exit(-1)
-
-    if args.capture_path:
-        configuration.capture_path = args.capture_path
-
-    if args.replay_path:
-        configuration.replay_path = args.replay_path
     if args.lldb_platform_name:
         configuration.lldb_platform_name = args.lldb_platform_name
     if args.lldb_platform_url:
@@ -477,6 +478,7 @@ def setupSysPath():
     pluginPath = os.path.join(scriptPath, 'plugins')
     toolsLLDBVSCode = os.path.join(scriptPath, 'tools', 'lldb-vscode')
     toolsLLDBServerPath = os.path.join(scriptPath, 'tools', 'lldb-server')
+    intelpt = os.path.join(scriptPath, 'tools', 'intelpt')
 
     # Insert script dir, plugin dir and lldb-server dir to the sys.path.
     sys.path.insert(0, pluginPath)
@@ -484,8 +486,11 @@ def setupSysPath():
     # "import lldb_vscode_testcase" from the VSCode tests
     sys.path.insert(0, toolsLLDBVSCode)
     # Adding test/tools/lldb-server to the path makes it easy
-    sys.path.insert(0, toolsLLDBServerPath)
     # to "import lldbgdbserverutils" from the lldb-server tests
+    sys.path.insert(0, toolsLLDBServerPath)
+    # Adding test/tools/intelpt to the path makes it easy
+    # to "import intelpt_testcase" from the lldb-server tests
+    sys.path.insert(0, intelpt)
 
     # This is the root of the lldb git/svn checkout
     # When this changes over to a package instead of a standalone script, this
@@ -751,7 +756,7 @@ def canRunLibcxxTests():
         with tempfile.NamedTemporaryFile() as f:
             cmd = [configuration.compiler, "-xc++", "-stdlib=libc++", "-o", f.name, "-"]
             p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-            _, stderr = p.communicate("#include <algorithm>\nint main() {}")
+            _, stderr = p.communicate("#include <cassert>\nint main() {}")
             if not p.returncode:
                 return True, "Compiling with -stdlib=libc++ works"
             return False, "Compiling with -stdlib=libc++ fails with the error: %s" % stderr
@@ -764,7 +769,8 @@ def checkLibcxxSupport():
         return # libc++ supported
     if "libc++" in configuration.categories_list:
         return # libc++ category explicitly requested, let it run.
-    print("Libc++ tests will not be run because: " + reason)
+    if configuration.verbose:
+        print("libc++ tests will not be run because: " + reason)
     configuration.skip_categories.append("libc++")
 
 def canRunLibstdcxxTests():
@@ -783,7 +789,8 @@ def checkLibstdcxxSupport():
         return # libstdcxx supported
     if "libstdcxx" in configuration.categories_list:
         return # libstdcxx category explicitly requested, let it run.
-    print("libstdcxx tests will not be run because: " + reason)
+    if configuration.verbose:
+        print("libstdcxx tests will not be run because: " + reason)
     configuration.skip_categories.append("libstdcxx")
 
 def canRunWatchpointTests():
@@ -813,31 +820,29 @@ def checkWatchpointSupport():
         return # watchpoints supported
     if "watchpoint" in configuration.categories_list:
         return # watchpoint category explicitly requested, let it run.
-    print("watchpoint tests will not be run because: " + reason)
+    if configuration.verbose:
+        print("watchpoint tests will not be run because: " + reason)
     configuration.skip_categories.append("watchpoint")
 
 def checkObjcSupport():
     from lldbsuite.test import lldbplatformutil
 
     if not lldbplatformutil.platformIsDarwin():
-        print("objc tests will be skipped because of unsupported platform")
+        if configuration.verbose:
+            print("objc tests will be skipped because of unsupported platform")
         configuration.skip_categories.append("objc")
 
 def checkDebugInfoSupport():
-    import lldb
+    from lldbsuite.test import lldbplatformutil
 
-    platform = lldb.selected_platform.GetTriple().split('-')[2]
+    platform = lldbplatformutil.getPlatform()
     compiler = configuration.compiler
-    skipped = []
     for cat in test_categories.debug_info_categories:
         if cat in configuration.categories_list:
             continue # Category explicitly requested, let it run.
         if test_categories.is_supported_on_platform(cat, platform, compiler):
             continue
         configuration.skip_categories.append(cat)
-        skipped.append(cat)
-    if skipped:
-        print("Skipping following debug info categories:", skipped)
 
 def checkDebugServerSupport():
     from lldbsuite.test import lldbplatformutil
@@ -846,15 +851,26 @@ def checkDebugServerSupport():
     skip_msg = "Skipping %s tests, as they are not compatible with remote testing on this platform"
     if lldbplatformutil.platformIsDarwin():
         configuration.skip_categories.append("llgs")
-        if lldb.remote_platform:
+        if configuration.lldb_platform_name:
             # <rdar://problem/34539270>
             configuration.skip_categories.append("debugserver")
-            print(skip_msg%"debugserver");
+            if configuration.verbose:
+                print(skip_msg%"debugserver");
     else:
         configuration.skip_categories.append("debugserver")
-        if lldb.remote_platform and lldbplatformutil.getPlatform() == "windows":
+        if configuration.lldb_platform_name and lldbplatformutil.getPlatform() == "windows":
             configuration.skip_categories.append("llgs")
-            print(skip_msg%"lldb-server");
+            if configuration.verbose:
+                print(skip_msg%"lldb-server");
+
+
+def checkForkVForkSupport():
+    from lldbsuite.test import lldbplatformutil
+
+    platform = lldbplatformutil.getPlatform()
+    if platform not in ["freebsd", "linux", "netbsd"]:
+        configuration.skip_categories.append("fork")
+
 
 def run_suite():
     # On MacOS X, check to make sure that domain for com.apple.DebugSymbols defaults
@@ -873,21 +889,20 @@ def run_suite():
 
     setupSysPath()
 
-    import lldbconfig
-    if configuration.capture_path or configuration.replay_path:
-        lldbconfig.INITIALIZE = False
     import lldb
+    lldb.SBDebugger.Initialize()
+    lldb.SBDebugger.PrintStackTraceOnError()
 
-    if configuration.capture_path:
-        lldb.SBReproducer.Capture(configuration.capture_path)
-        lldb.SBReproducer.SetAutoGenerate(True)
-    elif configuration.replay_path:
-        lldb.SBReproducer.PassiveReplay(configuration.replay_path)
-
-    if not lldbconfig.INITIALIZE:
-        lldb.SBDebugger.Initialize()
+    checkLibcxxSupport()
+    checkLibstdcxxSupport()
+    checkWatchpointSupport()
+    checkDebugInfoSupport()
+    checkDebugServerSupport()
+    checkObjcSupport()
+    checkForkVForkSupport()
 
     # Use host platform by default.
+    lldb.remote_platform = None
     lldb.selected_platform = lldb.SBPlatform.GetHostPlatform()
 
     # Now we can also import lldbutil
@@ -898,6 +913,7 @@ def run_suite():
               (configuration.lldb_platform_name))
         lldb.remote_platform = lldb.SBPlatform(
             configuration.lldb_platform_name)
+        lldb.selected_platform = lldb.remote_platform
         if not lldb.remote_platform.IsValid():
             print(
                 "error: unable to create the LLDB platform named '%s'." %
@@ -943,15 +959,8 @@ def run_suite():
     # Note that it's not dotest's job to clean this directory.
     lldbutil.mkdir_p(configuration.test_build_dir)
 
-    from . import lldbplatformutil
-    target_platform = lldbplatformutil.getPlatform()
-
-    checkLibcxxSupport()
-    checkLibstdcxxSupport()
-    checkWatchpointSupport()
-    checkDebugInfoSupport()
-    checkDebugServerSupport()
-    checkObjcSupport()
+    skipped_categories_list = ", ".join(configuration.skip_categories)
+    print("Skipping the following test categories: {}".format(skipped_categories_list))
 
     for testdir in configuration.testdirs:
         for (dirpath, dirnames, filenames) in os.walk(testdir):

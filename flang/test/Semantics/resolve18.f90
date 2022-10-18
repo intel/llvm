@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 module m1
   implicit none
 contains
@@ -98,7 +98,7 @@ end
 module m6
   real :: f6
   interface g6
-  !ERROR: Procedure 'f6' was previously declared
+  !ERROR: 'f6' is already declared in this scoping unit
     real function f6()
     end function f6
   end interface g6
@@ -107,7 +107,7 @@ end module m6
 module m7
   integer :: f7
   interface g7
-    !ERROR: Procedure 'f7' was previously declared
+    !ERROR: 'f7' is already declared in this scoping unit
     real function f7()
     end function f7
   end interface g7
@@ -116,7 +116,7 @@ end module m7
 module m8
   real :: f8
   interface g8
-    !ERROR: Procedure 'f8' was previously declared
+    !ERROR: 'f8' is already declared in this scoping unit
     subroutine f8()
     end subroutine f8
   end interface g8
@@ -182,3 +182,29 @@ contains
   function f13()
   end function f13
 end module m13
+
+! Not an error
+module m14
+  interface gen1
+    module procedure s
+  end interface
+  generic :: gen2 => s
+ contains
+  subroutine s(x)
+    integer(1) :: x
+  end subroutine s
+end module m14
+module m15
+  use m14
+  interface gen1
+    module procedure gen1
+  end interface
+  generic :: gen2 => gen2
+ contains
+  subroutine gen1(x)
+    integer(2) :: x
+  end subroutine gen1
+  subroutine gen2(x)
+    integer(4) :: x
+  end subroutine gen2
+end module m15

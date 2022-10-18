@@ -32,11 +32,11 @@ target triple = "bpf"
 define dso_local void @test(%struct.r1* %arg) local_unnamed_addr #0 !dbg !7 {
 entry:
   call void @llvm.dbg.value(metadata %struct.r1* %arg, metadata !22, metadata !DIExpression()), !dbg !29
-  %0 = tail call %struct.s1* @llvm.preserve.struct.access.index.p0s_struct.s1s.p0s_struct.r1s(%struct.r1* %arg, i32 0, i32 0), !dbg !30, !llvm.preserve.access.index !11
+  %0 = tail call %struct.s1* @llvm.preserve.struct.access.index.p0s_struct.s1s.p0s_struct.r1s(%struct.r1* elementtype(%struct.r1) %arg, i32 0, i32 0), !dbg !30, !llvm.preserve.access.index !11
   call void @llvm.dbg.value(metadata %struct.s1* %0, metadata !23, metadata !DIExpression()), !dbg !29
-  %1 = tail call %struct.t1* @llvm.preserve.struct.access.index.p0s_struct.t1s.p0s_struct.s1s(%struct.s1* %0, i32 0, i32 0), !dbg !31, !llvm.preserve.access.index !14
+  %1 = tail call %struct.t1* @llvm.preserve.struct.access.index.p0s_struct.t1s.p0s_struct.s1s(%struct.s1* elementtype(%struct.s1) %0, i32 0, i32 0), !dbg !31, !llvm.preserve.access.index !14
   call void @llvm.dbg.value(metadata %struct.t1* %1, metadata !25, metadata !DIExpression()), !dbg !29
-  %2 = tail call i32* @llvm.preserve.struct.access.index.p0i32.p0s_struct.t1s(%struct.t1* %1, i32 0, i32 0), !dbg !32, !llvm.preserve.access.index !17
+  %2 = tail call i32* @llvm.preserve.struct.access.index.p0i32.p0s_struct.t1s(%struct.t1* elementtype(%struct.t1) %1, i32 0, i32 0), !dbg !32, !llvm.preserve.access.index !17
   call void @llvm.dbg.value(metadata i32* %2, metadata !27, metadata !DIExpression()), !dbg !29
   %3 = bitcast %struct.s1* %0 to i8*, !dbg !33
   %4 = bitcast %struct.t1* %1 to i8*, !dbg !34
@@ -56,18 +56,18 @@ entry:
 ; CHECK:             .long   16                      # FieldReloc
 ; CHECK-NEXT:        .long   29                      # Field reloc section string offset=29
 ; CHECK-NEXT:        .long   3
-; CHECK_NEXT:        .long   .Ltmp{{[0-9]+}}
-; CHECK_NEXT:        .long   2
-; CHECK_NEXT:        .long   72
-; CHECK_NEXT:        .long   0
-; CHECK_NEXT:        .long   .Ltmp{{[0-9]+}}
-; CHECK_NEXT:        .long   2
-; CHECK_NEXT:        .long   76
-; CHECK_NEXT:        .long   0
-; CHECK_NEXT:        .long   .Ltmp{{[0-9]+}}
-; CHECK_NEXT:        .long   2
-; CHECK_NEXT:        .long   82
-; CHECK_NEXT:        .long   0
+; CHECK-NEXT:        .long   .Ltmp{{[0-9]+}}
+; CHECK-NEXT:        .long   2
+; CHECK-NEXT:        .long   72
+; CHECK-NEXT:        .long   0
+; CHECK-NEXT:        .long   .Ltmp{{[0-9]+}}
+; CHECK-NEXT:        .long   2
+; CHECK-NEXT:        .long   76
+; CHECK-NEXT:        .long   0
+; CHECK-NEXT:        .long   .Ltmp{{[0-9]+}}
+; CHECK-NEXT:        .long   2
+; CHECK-NEXT:        .long   82
+; CHECK-NEXT:        .long   0
 
 ; Function Attrs: nounwind readnone
 declare %struct.s1* @llvm.preserve.struct.access.index.p0s_struct.s1s.p0s_struct.r1s(%struct.r1*, i32, i32) #1

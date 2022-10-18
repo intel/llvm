@@ -9,7 +9,7 @@
 /// Provides analysis for querying information about KnownBits during GISel
 /// passes.
 //
-//===------------------
+//===----------------------------------------------------------------------===//
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -17,6 +17,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
+#include "llvm/IR/Module.h"
 
 #define DEBUG_TYPE "gisel-known-bits"
 
@@ -36,6 +37,10 @@ Align GISelKnownBits::computeKnownAlignment(Register R, unsigned Depth) {
   switch (MI->getOpcode()) {
   case TargetOpcode::COPY:
     return computeKnownAlignment(MI->getOperand(1).getReg(), Depth);
+  case TargetOpcode::G_ASSERT_ALIGN: {
+    // TODO: Min with source
+    return Align(MI->getOperand(2).getImm());
+  }
   case TargetOpcode::G_FRAME_INDEX: {
     int FrameIdx = MI->getOperand(1).getIndex();
     return MF.getFrameInfo().getObjectAlign(FrameIdx);
@@ -56,7 +61,7 @@ KnownBits GISelKnownBits::getKnownBits(MachineInstr &MI) {
 KnownBits GISelKnownBits::getKnownBits(Register R) {
   const LLT Ty = MRI.getType(R);
   APInt DemandedElts =
-      Ty.isVector() ? APInt::getAllOnesValue(Ty.getNumElements()) : APInt(1, 1);
+      Ty.isVector() ? APInt::getAllOnes(Ty.getNumElements()) : APInt(1, 1);
   return getKnownBits(R, DemandedElts);
 }
 
@@ -87,10 +92,10 @@ LLVM_ATTRIBUTE_UNUSED static void
 dumpResult(const MachineInstr &MI, const KnownBits &Known, unsigned Depth) {
   dbgs() << "[" << Depth << "] Compute known bits: " << MI << "[" << Depth
          << "] Computed for: " << MI << "[" << Depth << "] Known: 0x"
-         << (Known.Zero | Known.One).toString(16, false) << "\n"
-         << "[" << Depth << "] Zero: 0x" << Known.Zero.toString(16, false)
+         << toString(Known.Zero | Known.One, 16, false) << "\n"
+         << "[" << Depth << "] Zero: 0x" << toString(Known.Zero, 16, false)
          << "\n"
-         << "[" << Depth << "] One:  0x" << Known.One.toString(16, false)
+         << "[" << Depth << "] One:  0x" << toString(Known.One, 16, false)
          << "\n";
 }
 
@@ -111,6 +116,20 @@ void GISelKnownBits::computeKnownBitsMin(Register Src0, Register Src1,
 
   // Only known if known in both the LHS and RHS.
   Known = KnownBits::commonBits(Known, Known2);
+}
+
+// Bitfield extract is computed as (Src >> Offset) & Mask, where Mask is
+// created using Width. Use this function when the inputs are KnownBits
+// objects. TODO: Move this KnownBits.h if this is usable in more cases.
+static KnownBits extractBits(unsigned BitWidth, const KnownBits &SrcOpKnown,
+                             const KnownBits &OffsetKnown,
+                             const KnownBits &WidthKnown) {
+  KnownBits Mask(BitWidth);
+  Mask.Zero = APInt::getBitsSetFrom(
+      BitWidth, WidthKnown.getMaxValue().getLimitedValue(BitWidth));
+  Mask.One = APInt::getLowBitsSet(
+      BitWidth, WidthKnown.getMinValue().getLimitedValue(BitWidth));
+  return KnownBits::lshr(SrcOpKnown, OffsetKnown) & Mask;
 }
 
 void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
@@ -183,8 +202,8 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
   case TargetOpcode::COPY:
   case TargetOpcode::G_PHI:
   case TargetOpcode::PHI: {
-    Known.One = APInt::getAllOnesValue(BitWidth);
-    Known.Zero = APInt::getAllOnesValue(BitWidth);
+    Known.One = APInt::getAllOnes(BitWidth);
+    Known.Zero = APInt::getAllOnes(BitWidth);
     // Destination registers should not have subregisters at this
     // point of the pipeline, otherwise the main live-range will be
     // defined more than once, which is against SSA.
@@ -230,7 +249,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     break;
   }
   case TargetOpcode::G_CONSTANT: {
-    auto CstVal = getConstantVRegVal(R, MRI);
+    auto CstVal = getIConstantVRegVal(R, MRI);
     if (!CstVal)
       break;
     Known = KnownBits::makeConstant(*CstVal);
@@ -266,7 +285,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     LLT Ty = MRI.getType(MI.getOperand(1).getReg());
     if (DL.isNonIntegralAddressSpace(Ty.getAddressSpace()))
       break;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case TargetOpcode::G_ADD: {
     computeKnownBitsImpl(MI.getOperand(1).getReg(), Known, DemandedElts,
@@ -302,7 +321,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
                          Depth + 1);
     computeKnownBitsImpl(MI.getOperand(1).getReg(), Known2, DemandedElts,
                          Depth + 1);
-    Known = KnownBits::computeForMul(Known, Known2);
+    Known = KnownBits::mul(Known, Known2);
     break;
   }
   case TargetOpcode::G_SELECT: {
@@ -427,7 +446,7 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     if (DstTy.isVector())
       break;
     // Fall through and handle them the same as zext/trunc.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case TargetOpcode::G_ASSERT_ZEXT:
   case TargetOpcode::G_ZEXT:
   case TargetOpcode::G_TRUNC: {
@@ -449,6 +468,16 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
     Known = Known.zextOrTrunc(BitWidth);
     if (BitWidth > SrcBitWidth)
       Known.Zero.setBitsFrom(SrcBitWidth);
+    break;
+  }
+  case TargetOpcode::G_ASSERT_ALIGN: {
+    int64_t LogOfAlign = Log2_64(MI.getOperand(2).getImm());
+
+    // TODO: Should use maximum with source
+    // If a node is guaranteed to be aligned, set low zero bits accordingly as
+    // well as clearing one bits.
+    Known.Zero.setLowBits(LogOfAlign);
+    Known.One.clearLowBits(LogOfAlign);
     break;
   }
   case TargetOpcode::G_MERGE_VALUES: {
@@ -486,13 +515,73 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
   case TargetOpcode::G_BSWAP: {
     Register SrcReg = MI.getOperand(1).getReg();
     computeKnownBitsImpl(SrcReg, Known, DemandedElts, Depth + 1);
-    Known.byteSwap();
+    Known = Known.byteSwap();
     break;
   }
   case TargetOpcode::G_BITREVERSE: {
     Register SrcReg = MI.getOperand(1).getReg();
     computeKnownBitsImpl(SrcReg, Known, DemandedElts, Depth + 1);
-    Known.reverseBits();
+    Known = Known.reverseBits();
+    break;
+  }
+  case TargetOpcode::G_CTPOP: {
+    computeKnownBitsImpl(MI.getOperand(1).getReg(), Known2, DemandedElts,
+                         Depth + 1);
+    // We can bound the space the count needs.  Also, bits known to be zero can't
+    // contribute to the population.
+    unsigned BitsPossiblySet = Known2.countMaxPopulation();
+    unsigned LowBits = Log2_32(BitsPossiblySet)+1;
+    Known.Zero.setBitsFrom(LowBits);
+    // TODO: we could bound Known.One using the lower bound on the number of
+    // bits which might be set provided by popcnt KnownOne2.
+    break;
+  }
+  case TargetOpcode::G_UBFX: {
+    KnownBits SrcOpKnown, OffsetKnown, WidthKnown;
+    computeKnownBitsImpl(MI.getOperand(1).getReg(), SrcOpKnown, DemandedElts,
+                         Depth + 1);
+    computeKnownBitsImpl(MI.getOperand(2).getReg(), OffsetKnown, DemandedElts,
+                         Depth + 1);
+    computeKnownBitsImpl(MI.getOperand(3).getReg(), WidthKnown, DemandedElts,
+                         Depth + 1);
+    Known = extractBits(BitWidth, SrcOpKnown, OffsetKnown, WidthKnown);
+    break;
+  }
+  case TargetOpcode::G_SBFX: {
+    KnownBits SrcOpKnown, OffsetKnown, WidthKnown;
+    computeKnownBitsImpl(MI.getOperand(1).getReg(), SrcOpKnown, DemandedElts,
+                         Depth + 1);
+    computeKnownBitsImpl(MI.getOperand(2).getReg(), OffsetKnown, DemandedElts,
+                         Depth + 1);
+    computeKnownBitsImpl(MI.getOperand(3).getReg(), WidthKnown, DemandedElts,
+                         Depth + 1);
+    Known = extractBits(BitWidth, SrcOpKnown, OffsetKnown, WidthKnown);
+    // Sign extend the extracted value using shift left and arithmetic shift
+    // right.
+    KnownBits ExtKnown = KnownBits::makeConstant(APInt(BitWidth, BitWidth));
+    KnownBits ShiftKnown = KnownBits::computeForAddSub(
+        /*Add*/ false, /*NSW*/ false, ExtKnown, WidthKnown);
+    Known = KnownBits::ashr(KnownBits::shl(Known, ShiftKnown), ShiftKnown);
+    break;
+  }
+  case TargetOpcode::G_UADDO:
+  case TargetOpcode::G_UADDE:
+  case TargetOpcode::G_SADDO:
+  case TargetOpcode::G_SADDE:
+  case TargetOpcode::G_USUBO:
+  case TargetOpcode::G_USUBE:
+  case TargetOpcode::G_SSUBO:
+  case TargetOpcode::G_SSUBE:
+  case TargetOpcode::G_UMULO:
+  case TargetOpcode::G_SMULO: {
+    if (MI.getOperand(1).getReg() == R) {
+      // If we know the result of a compare has the top bits zero, use this
+      // info.
+      if (TL.getBooleanContents(DstTy.isVector(), false) ==
+              TargetLowering::ZeroOrOneBooleanContent &&
+          BitWidth > 1)
+        Known.Zero.setBitsFrom(1);
+    }
     break;
   }
   }
@@ -601,6 +690,27 @@ unsigned GISelKnownBits::computeNumSignBits(Register R,
                                  MI.getOperand(3).getReg(), DemandedElts,
                                  Depth + 1);
   }
+  case TargetOpcode::G_SADDO:
+  case TargetOpcode::G_SADDE:
+  case TargetOpcode::G_UADDO:
+  case TargetOpcode::G_UADDE:
+  case TargetOpcode::G_SSUBO:
+  case TargetOpcode::G_SSUBE:
+  case TargetOpcode::G_USUBO:
+  case TargetOpcode::G_USUBE:
+  case TargetOpcode::G_SMULO:
+  case TargetOpcode::G_UMULO: {
+    // If compares returns 0/-1, all bits are sign bits.
+    // We know that we have an integer-based boolean since these operations
+    // are only available for integer.
+    if (MI.getOperand(1).getReg() == R) {
+      if (TL.getBooleanContents(DstTy.isVector(), false) ==
+          TargetLowering::ZeroOrNegativeOneBooleanContent)
+        return TyBits;
+    }
+
+    break;
+  }
   case TargetOpcode::G_INTRINSIC:
   case TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS:
   default: {
@@ -633,9 +743,8 @@ unsigned GISelKnownBits::computeNumSignBits(Register R,
 
 unsigned GISelKnownBits::computeNumSignBits(Register R, unsigned Depth) {
   LLT Ty = MRI.getType(R);
-  APInt DemandedElts = Ty.isVector()
-                           ? APInt::getAllOnesValue(Ty.getNumElements())
-                           : APInt(1, 1);
+  APInt DemandedElts =
+      Ty.isVector() ? APInt::getAllOnes(Ty.getNumElements()) : APInt(1, 1);
   return computeNumSignBits(R, DemandedElts, Depth);
 }
 

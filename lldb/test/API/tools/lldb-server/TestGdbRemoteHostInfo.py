@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 # lldb test suite imports
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import TestBase
@@ -11,25 +9,25 @@ from gdbremote_testcase import GdbRemoteTestCaseBase
 
 class TestGdbRemoteHostInfo(GdbRemoteTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     KNOWN_HOST_INFO_KEYS = set([
+        "addressing_bits",
         "arch",
-        "cputype",
         "cpusubtype",
+        "cputype",
+        "default_packet_timeout",
         "distribution_id",
         "endian",
         "hostname",
-        "ostype",
+        "maccatalyst_version",
         "os_build",
         "os_kernel",
         "os_version",
-        "maccatalyst_version",
+        "ostype",
         "ptrsize",
         "triple",
         "vendor",
+        "vm-page-size",
         "watchpoint_exceptions_received",
-        "default_packet_timeout",
     ])
 
     DARWIN_REQUIRED_HOST_INFO_KEYS = set([
@@ -77,7 +75,7 @@ class TestGdbRemoteHostInfo(GdbRemoteTestCaseBase):
         # Launch the debug monitor stub, attaching to the inferior.
         server = self.connect_to_debug_monitor()
         self.assertIsNotNone(server)
-        self.add_no_ack_remote_stream()
+        self.do_handshake()
 
         # Request qHostInfo and get response
         self.add_host_info_collection_packets()

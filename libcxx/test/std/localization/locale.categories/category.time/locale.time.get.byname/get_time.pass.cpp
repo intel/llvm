@@ -27,7 +27,7 @@
 
 #include "platform_support.h" // locale name macros
 
-typedef input_iterator<const char*> I;
+typedef cpp17_input_iterator<const char*> I;
 
 typedef std::time_get_byname<char, I> F;
 
@@ -50,7 +50,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);
@@ -62,7 +62,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);
@@ -74,7 +74,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);
@@ -86,7 +86,7 @@ int main(int, char**)
         err = std::ios_base::goodbit;
         t = std::tm();
         I i = f.get_time(I(in), I(in+sizeof(in)-1), ios, err, &t);
-        assert(i.base() == in+sizeof(in)-1);
+        assert(base(i) == in+sizeof(in)-1);
         assert(t.tm_hour == 13);
         assert(t.tm_min == 14);
         assert(t.tm_sec == 15);

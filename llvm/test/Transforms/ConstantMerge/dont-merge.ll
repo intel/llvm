@@ -1,4 +1,4 @@
-; RUN: opt < %s -constmerge -S | FileCheck %s
+; RUN: opt < %s -passes=constmerge -S | FileCheck %s
 
 ; Don't merge constants with specified sections.
 
@@ -78,5 +78,17 @@ define void @test4(i32** %P1, i32** %P2, i32** %P3, i32** %P4, i32** %P5, i32** 
         store i32* @T4C2, i32** %P6
         store i32* @T4D1, i32** %P7
         store i32* @T4D2, i32** %P8
+        ret void
+}
+
+; CHECK: @T5tls
+; CHECK: @T5ua
+
+@T5tls = private thread_local constant i32 555
+@T5ua = private unnamed_addr constant i32 555
+
+define void @test5(i32** %P1, i32** %P2) {
+        store i32* @T5tls, i32** %P1
+        store i32* @T5ua, i32** %P2
         ret void
 }

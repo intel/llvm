@@ -15,6 +15,7 @@
 #include "llvm/ObjectYAML/DWARFYAML.h"
 #include "llvm/ObjectYAML/ELFYAML.h"
 #include "llvm/Support/DataExtractor.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/YAMLTraits.h"
 
@@ -31,6 +32,7 @@ class ELFDumper {
 
   DenseMap<StringRef, uint32_t> UsedSectionNames;
   std::vector<std::string> SectionNames;
+  Optional<uint32_t> ShStrTabIndex;
 
   DenseMap<StringRef, uint32_t> UsedSymbolNames;
   std::vector<std::string> SymbolNames;
@@ -200,15 +202,16 @@ bool ELFDumper<ELFT>::shouldPrintSection(const ELFYAML::Section &S,
     if (const ELFYAML::RawContentSection *RawSec =
             dyn_cast<const ELFYAML::RawContentSection>(&S)) {
       if (RawSec->Type != ELF::SHT_PROGBITS || RawSec->Link || RawSec->Info ||
-          RawSec->AddressAlign != 1 || RawSec->Address || RawSec->EntSize)
+          RawSec->AddressAlign != yaml::Hex64{1} || RawSec->Address ||
+          RawSec->EntSize)
         return true;
 
-      ELFYAML::ELF_SHF ShFlags = RawSec->Flags.getValueOr(ELFYAML::ELF_SHF(0));
+      ELFYAML::ELF_SHF ShFlags = RawSec->Flags.value_or(ELFYAML::ELF_SHF(0));
 
       if (SecName == "debug_str")
         return ShFlags != ELFYAML::ELF_SHF(ELF::SHF_MERGE | ELF::SHF_STRINGS);
 
-      return ShFlags != 0;
+      return ShFlags != ELFYAML::ELF_SHF{0};
     }
   }
 
@@ -223,7 +226,7 @@ bool ELFDumper<ELFT>::shouldPrintSection(const ELFYAML::Section &S,
   // are empty, which should not normally happen.
   if (S.Type == ELF::SHT_STRTAB || S.Type == ELF::SHT_SYMTAB ||
       S.Type == ELF::SHT_DYNSYM) {
-    return S.Size || S.Flags.getValueOr(ELFYAML::ELF_SHF(0)) & ELF::SHF_ALLOC;
+    return S.Size || S.Flags.value_or(ELFYAML::ELF_SHF(0)) & ELF::SHF_ALLOC;
   }
 
   return true;
@@ -288,6 +291,13 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     return SectionsOrErr.takeError();
   Sections = *SectionsOrErr;
   SectionNames.resize(Sections.size());
+
+  if (Sections.size() > 0) {
+    ShStrTabIndex = Obj.getHeader().e_shstrndx;
+    if (*ShStrTabIndex == ELF::SHN_XINDEX)
+      ShStrTabIndex = Sections[0].sh_link;
+    // TODO: Set EShStrndx if the value doesn't represent a real section.
+  }
 
   // Normally an object that does not have sections has e_shnum == 0.
   // Also, e_shnum might be 0, when the the number of entries in the section
@@ -398,6 +408,29 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
     return !shouldPrintSection(S, Sections[S.OriginalSecNdx], Y->DWARF);
   });
 
+  // The section header string table by default is assumed to be called
+  // ".shstrtab" and be in its own unique section. However, it's possible for it
+  // to be called something else and shared with another section. If the name
+  // isn't the default, provide this in the YAML.
+  if (ShStrTabIndex && *ShStrTabIndex != ELF::SHN_UNDEF &&
+      *ShStrTabIndex < Sections.size()) {
+    StringRef ShStrtabName;
+    if (SymTab && SymTab->sh_link == *ShStrTabIndex) {
+      // Section header string table is shared with the symbol table. Use that
+      // section's name (usually .strtab).
+      ShStrtabName = cantFail(Obj.getSectionName(Sections[SymTab->sh_link]));
+    } else if (DynSymTab && DynSymTab->sh_link == *ShStrTabIndex) {
+      // Section header string table is shared with the dynamic symbol table.
+      // Use that section's name (usually .dynstr).
+      ShStrtabName = cantFail(Obj.getSectionName(Sections[DynSymTab->sh_link]));
+    } else {
+      // Otherwise, the section name potentially needs uniquifying.
+      ShStrtabName = cantFail(getUniquedSectionName(Sections[*ShStrTabIndex]));
+    }
+    if (ShStrtabName != ".shstrtab")
+      Y->Header.SectionHeaderStringTable = ShStrtabName;
+  }
+
   Y->Chunks = std::move(Chunks);
   return Y.release();
 }
@@ -486,6 +519,12 @@ Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
 
     if (ELFYAML::RawContentSection *RawSec =
             dyn_cast<ELFYAML::RawContentSection>(C.get())) {
+      // FIXME: The dumpDebug* functions should take the content as stored in
+      // RawSec. Currently, they just use the last section with the matching
+      // name, which defeats this attempt to skip reading a section header
+      // string table with the same name as a DWARF section.
+      if (ShStrTabIndex && RawSec->OriginalSecNdx == *ShStrTabIndex)
+        continue;
       Error Err = Error::success();
       cantFail(std::move(Err));
 
@@ -587,6 +626,7 @@ ELFDumper<ELFT>::dumpSections() {
     case ELF::SHT_LLVM_CALL_GRAPH_PROFILE:
       return
           [this](const Elf_Shdr *S) { return dumpCallGraphProfileSection(S); };
+    case ELF::SHT_LLVM_BB_ADDR_MAP_V0:
     case ELF::SHT_LLVM_BB_ADDR_MAP:
       return [this](const Elf_Shdr *S) { return dumpBBAddrMapSection(S); };
     case ELF::SHT_STRTAB:
@@ -850,7 +890,18 @@ ELFDumper<ELFT>::dumpBBAddrMapSection(const Elf_Shdr *Shdr) {
 
   std::vector<ELFYAML::BBAddrMapEntry> Entries;
   DataExtractor::Cursor Cur(0);
+  uint8_t Version = 0;
+  uint8_t Feature = 0;
   while (Cur && Cur.tell() < Content.size()) {
+    if (Shdr->sh_type == ELF::SHT_LLVM_BB_ADDR_MAP) {
+      Version = Data.getU8(Cur);
+      if (Cur && Version > 1)
+        return createStringError(
+            errc::invalid_argument,
+            "invalid SHT_LLVM_BB_ADDR_MAP section version: " +
+                Twine(static_cast<int>(Version)));
+      Feature = Data.getU8(Cur);
+    }
     uint64_t Address = Data.getAddress(Cur);
     uint64_t NumBlocks = Data.getULEB128(Cur);
     std::vector<ELFYAML::BBAddrMapEntry::BBEntry> BBEntries;
@@ -861,7 +912,8 @@ ELFDumper<ELFT>::dumpBBAddrMapSection(const Elf_Shdr *Shdr) {
       uint64_t Metadata = Data.getULEB128(Cur);
       BBEntries.push_back({Offset, Size, Metadata});
     }
-    Entries.push_back({Address, /*NumBlocks=*/{}, BBEntries});
+    Entries.push_back(
+        {Version, Feature, Address, /*NumBlocks=*/{}, std::move(BBEntries)});
   }
 
   if (!Cur) {
@@ -985,41 +1037,31 @@ ELFDumper<ELFT>::dumpCallGraphProfileSection(const Elf_Shdr *Shdr) {
   if (!ContentOrErr)
     return ContentOrErr.takeError();
   ArrayRef<uint8_t> Content = *ContentOrErr;
-
+  const uint32_t SizeOfEntry = ELFYAML::getDefaultShEntSize<ELFT>(
+      Obj.getHeader().e_machine, S->Type, S->Name);
   // Dump the section by using the Content key when it is truncated.
   // There is no need to create either "Content" or "Entries" fields when the
   // section is empty.
-  if (Content.empty() || Content.size() % 16 != 0) {
+  if (Content.empty() || Content.size() % SizeOfEntry != 0) {
     if (!Content.empty())
       S->Content = yaml::BinaryRef(Content);
     return S.release();
   }
 
-  std::vector<ELFYAML::CallGraphEntry> Entries(Content.size() / 16);
+  std::vector<ELFYAML::CallGraphEntryWeight> Entries(Content.size() /
+                                                     SizeOfEntry);
   DataExtractor Data(Content, Obj.isLE(), /*AddressSize=*/0);
   DataExtractor::Cursor Cur(0);
-  auto ReadEntry = [&](ELFYAML::CallGraphEntry &E) {
-    uint32_t FromSymIndex = Data.getU32(Cur);
-    uint32_t ToSymIndex = Data.getU32(Cur);
+  auto ReadEntry = [&](ELFYAML::CallGraphEntryWeight &E) {
     E.Weight = Data.getU64(Cur);
     if (!Cur) {
       consumeError(Cur.takeError());
       return false;
     }
-
-    Expected<StringRef> From = getSymbolName(Shdr->sh_link, FromSymIndex);
-    Expected<StringRef> To = getSymbolName(Shdr->sh_link, ToSymIndex);
-    if (From && To) {
-      E.From = *From;
-      E.To = *To;
-      return true;
-    }
-    consumeError(From.takeError());
-    consumeError(To.takeError());
-    return false;
+    return true;
   };
 
-  for (ELFYAML::CallGraphEntry &E : Entries) {
+  for (ELFYAML::CallGraphEntryWeight &E : Entries) {
     if (ReadEntry(E))
       continue;
     S->Content = yaml::BinaryRef(Content);

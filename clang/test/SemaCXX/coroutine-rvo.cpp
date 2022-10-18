@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin9 %s -stdlib=libc++ -std=c++1z -fcoroutines-ts -fsyntax-only
+// RUN: %clang_cc1 -verify -std=c++20 -fsyntax-only %s
 
-namespace std::experimental {
+namespace std {
 template <class Promise = void> struct coroutine_handle {
   coroutine_handle() = default;
   static coroutine_handle from_address(void *) noexcept;
@@ -30,19 +30,23 @@ struct traits_sfinae_base<T, void_t<typename T::promise_type>> {
 
 template <class Ret, class... Args>
 struct coroutine_traits : public traits_sfinae_base<Ret> {};
-}
+} // namespace std
 
 struct suspend_never {
   bool await_ready() noexcept;
-  void await_suspend(std::experimental::coroutine_handle<>) noexcept;
+  void await_suspend(std::coroutine_handle<>) noexcept;
   void await_resume() noexcept;
 };
 
 struct MoveOnly {
-  MoveOnly() {};
+  MoveOnly() = default;
   MoveOnly(const MoveOnly&) = delete;
-  MoveOnly(MoveOnly&&) noexcept {};
-  ~MoveOnly() {};
+  MoveOnly(MoveOnly &&) = default;
+};
+
+struct NoCopyNoMove {
+  NoCopyNoMove() = default;
+  NoCopyNoMove(const NoCopyNoMove &) = delete;
 };
 
 template <typename T>
@@ -52,18 +56,93 @@ struct task {
     auto final_suspend() noexcept { return suspend_never{}; }
     auto get_return_object() { return task{}; }
     static void unhandled_exception() {}
-    void return_value(T&& value) {}
+    void return_value(T &&value) {} // expected-note 4{{passing argument}}
   };
 };
 
-task<MoveOnly> f() {
-  MoveOnly value;
+task<NoCopyNoMove> local2val() {
+  NoCopyNoMove value;
   co_return value;
 }
 
-int main() {
-  f();
-  return 0;
+task<NoCopyNoMove &> local2ref() {
+  NoCopyNoMove value;
+  co_return value; // expected-error {{non-const lvalue reference to type 'NoCopyNoMove' cannot bind to a temporary of type 'NoCopyNoMove'}}
 }
 
-// expected-no-diagnostics
+// We need the move constructor for construction of the coroutine.
+task<MoveOnly> param2val(MoveOnly value) {
+  co_return value;
+}
+
+task<NoCopyNoMove> lvalue2val(NoCopyNoMove &value) {
+  co_return value; // expected-error {{rvalue reference to type 'NoCopyNoMove' cannot bind to lvalue of type 'NoCopyNoMove'}}
+}
+
+task<NoCopyNoMove> rvalue2val(NoCopyNoMove &&value) {
+  co_return value;
+}
+
+task<NoCopyNoMove &> lvalue2ref(NoCopyNoMove &value) {
+  co_return value;
+}
+
+task<NoCopyNoMove &> rvalue2ref(NoCopyNoMove &&value) {
+  co_return value; // expected-error {{non-const lvalue reference to type 'NoCopyNoMove' cannot bind to a temporary of type 'NoCopyNoMove'}}
+}
+
+struct To {
+  operator MoveOnly() &&;
+};
+task<MoveOnly> conversion_operator() {
+  To t;
+  co_return t;
+}
+
+struct Construct {
+  Construct(MoveOnly);
+};
+task<Construct> converting_constructor() {
+  MoveOnly w;
+  co_return w;
+}
+
+struct Derived : MoveOnly {};
+task<MoveOnly> derived2base() {
+  Derived result;
+  co_return result;
+}
+
+struct RetThis {
+  task<RetThis> foo() && {
+    co_return *this; // expected-error {{rvalue reference to type 'RetThis' cannot bind to lvalue of type 'RetThis'}}
+  }
+};
+
+template <typename, typename>
+struct is_same { static constexpr bool value = false; };
+
+template <typename T>
+struct is_same<T, T> { static constexpr bool value = true; };
+
+template <typename T>
+struct generic_task {
+  struct promise_type {
+    auto initial_suspend() { return suspend_never{}; }
+    auto final_suspend() noexcept { return suspend_never{}; }
+    auto get_return_object() { return generic_task{}; }
+    static void unhandled_exception();
+    template <typename U>
+    void return_value(U &&value) {
+      static_assert(is_same<T, U>::value);
+    }
+  };
+};
+
+generic_task<MoveOnly> param2template(MoveOnly value) {
+  co_return value; // We should deduce U = MoveOnly.
+}
+
+generic_task<NoCopyNoMove &> lvalue2template(NoCopyNoMove &value) {
+  co_return value; // We should deduce U = NoCopyNoMove&.
+}

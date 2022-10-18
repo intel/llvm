@@ -9,9 +9,7 @@
 // UNSUPPORTED: c++03
 
 // These tests require locale for non-char paths
-// UNSUPPORTED: libcpp-has-no-localization
-
-// XFAIL: LIBCXX-WINDOWS-FIXME
+// UNSUPPORTED: no-localization
 
 // <filesystem>
 
@@ -130,7 +128,7 @@ void doAppendSourceAllocTest(AppendOperatorTestcase const& TC)
   using Ptr = CharT const*;
   using Str = std::basic_string<CharT>;
   using StrView = std::basic_string_view<CharT>;
-  using InputIter = input_iterator<Ptr>;
+  using InputIter = cpp17_input_iterator<Ptr>;
 
   const Ptr L = TC.lhs;
   Str RShort = (Ptr)TC.rhs;
@@ -196,18 +194,23 @@ void doAppendSourceAllocTest(AppendOperatorTestcase const& TC)
   // For "char" no allocations will be performed because no conversion is
   // required.
   // On Windows, the append method is more complex and uses intermediate
-  // path objects, which causes extra allocations.
-#ifdef _WIN32
-  bool DisableAllocations = false;
-#else
-  bool DisableAllocations = std::is_same<CharT, char>::value;
+  // path objects, which causes extra allocations. This is checked by comparing
+  // path::value_type with "char" - on Windows, it's wchar_t.
+#if TEST_SUPPORTS_LIBRARY_INTERNAL_ALLOCATIONS
+  // Only check allocations if we can pick up allocations done within the
+  // library implementation.
+  bool ExpectNoAllocations = std::is_same<CharT, char>::value &&
+                             std::is_same<path::value_type, char>::value;
 #endif
   {
     path LHS(L); PathReserve(LHS, ReserveSize);
     InputIter RHS(R);
     {
-      RequireAllocationGuard  g; // requires 1 or more allocations occur by default
-      if (DisableAllocations) g.requireExactly(0);
+      RequireAllocationGuard g(0); // require "at least zero" allocations by default
+#if TEST_SUPPORTS_LIBRARY_INTERNAL_ALLOCATIONS
+      if (ExpectNoAllocations)
+        g.requireExactly(0);
+#endif
       LHS /= RHS;
     }
     assert(PathEq(LHS, E));
@@ -217,8 +220,11 @@ void doAppendSourceAllocTest(AppendOperatorTestcase const& TC)
     InputIter RHS(R);
     InputIter REnd(StrEnd(R));
     {
-      RequireAllocationGuard g;
-      if (DisableAllocations) g.requireExactly(0);
+      RequireAllocationGuard g(0); // require "at least zero" allocations by default
+#if TEST_SUPPORTS_LIBRARY_INTERNAL_ALLOCATIONS
+      if (ExpectNoAllocations)
+        g.requireExactly(0);
+#endif
       LHS.append(RHS, REnd);
     }
     assert(PathEq(LHS, E));
@@ -232,7 +238,7 @@ void doAppendSourceTest(AppendOperatorTestcase const& TC)
   using Ptr = CharT const*;
   using Str = std::basic_string<CharT>;
   using StrView = std::basic_string_view<CharT>;
-  using InputIter = input_iterator<Ptr>;
+  using InputIter = cpp17_input_iterator<Ptr>;
   const Ptr L = TC.lhs;
   const Ptr R = TC.rhs;
   const Ptr E = TC.expected_result();
@@ -338,7 +344,7 @@ void test_sfinae()
     static_assert(has_append<It>(), "");
   }
   {
-    using It = input_iterator<const char*>;
+    using It = cpp17_input_iterator<const char*>;
     static_assert(has_append<It>(), "");
   }
   {
@@ -349,11 +355,11 @@ void test_sfinae()
       using reference = const char&;
       using difference_type = std::ptrdiff_t;
     };
-    using It = input_iterator<const char*, Traits>;
+    using It = cpp17_input_iterator<const char*, Traits>;
     static_assert(has_append<It>(), "");
   }
   {
-    using It = output_iterator<const char*>;
+    using It = cpp17_output_iterator<const char*>;
     static_assert(!has_append<It>(), "");
 
   }
@@ -380,14 +386,18 @@ int main(int, char**)
       assert(&Res == &LHS);
     }
     doAppendSourceTest<char>    (TC);
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     doAppendSourceTest<wchar_t> (TC);
+#endif
     doAppendSourceTest<char16_t>(TC);
     doAppendSourceTest<char32_t>(TC);
   }
   for (auto const & TC : LongLHSCases) {
     (void)TC;
     LIBCPP_ONLY(doAppendSourceAllocTest<char>(TC));
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     LIBCPP_ONLY(doAppendSourceAllocTest<wchar_t>(TC));
+#endif
   }
   test_sfinae();
 

@@ -8,8 +8,8 @@
 
 #include <arpa/inet.h>
 #include <asl.h>
+#include <cerrno>
 #include <crt_externs.h>
-#include <errno.h>
 #include <getopt.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -368,7 +368,7 @@ RNBRunLoopMode RNBRunLoopLaunchAttaching(RNBRemote *remote,
   DNBLogThreadedIf(LOG_RNB_MINIMAL, "%s Attaching to pid %i...", __FUNCTION__,
                    attach_pid);
   char err_str[1024];
-  pid = DNBProcessAttach(attach_pid, NULL, ctx.GetUnmaskSignals(), err_str,
+  pid = DNBProcessAttach(attach_pid, NULL, ctx.GetIgnoredExceptions(), err_str,
                          sizeof(err_str));
   g_pid = pid;
 
@@ -526,10 +526,6 @@ RNBRunLoopMode RNBRunLoopInferiorExecuting(RNBRemote *remote) {
       // packets
       event_mask &= ~RNBContext::event_proc_stdio_available;
       event_mask &= ~RNBContext::event_proc_profile_data;
-      // When we enable async structured data packets over another logical
-      // channel,
-      // this can be relaxed.
-      event_mask &= ~RNBContext::event_darwin_log_data_available;
     }
 
     // We want to make sure we consume all process state changes and have
@@ -554,10 +550,6 @@ RNBRunLoopMode RNBRunLoopInferiorExecuting(RNBRemote *remote) {
 
       if (set_events & RNBContext::event_proc_profile_data) {
         remote->SendAsyncProfileData();
-      }
-
-      if (set_events & RNBContext::event_darwin_log_data_available) {
-        remote->SendAsyncDarwinLogData();
       }
 
       if (set_events & RNBContext::event_read_packet_available) {
@@ -809,8 +801,11 @@ void FileLogCallback(void *baton, uint32_t flags, const char *format,
 }
 
 void show_version_and_exit(int exit_code) {
-  printf("%s-%s for %s.\n", DEBUGSERVER_PROGRAM_NAME, DEBUGSERVER_VERSION_STR,
-         RNB_ARCH);
+  const char *in_translation = "";
+  if (DNBDebugserverIsTranslated())
+    in_translation = " (running under translation)";
+  printf("%s-%s for %s%s.\n", DEBUGSERVER_PROGRAM_NAME, DEBUGSERVER_VERSION_STR,
+         RNB_ARCH, in_translation);
   exit(exit_code);
 }
 
@@ -1280,7 +1275,7 @@ int main(int argc, char *argv[]) {
       break;
 
     case 'U':
-      ctx.SetUnmaskSignals(true);
+      ctx.AddDefaultIgnoredExceptions();
       break;
 
     case '2':
@@ -1353,8 +1348,12 @@ int main(int argc, char *argv[]) {
   // as long as we're dropping remotenub in as a replacement for gdbserver,
   // explicitly note that this is not gdbserver.
 
-  RNBLogSTDOUT("%s-%s %sfor %s.\n", DEBUGSERVER_PROGRAM_NAME,
-               DEBUGSERVER_VERSION_STR, compile_options.c_str(), RNB_ARCH);
+  const char *in_translation = "";
+  if (DNBDebugserverIsTranslated())
+    in_translation = " (running under translation)";
+  RNBLogSTDOUT("%s-%s %sfor %s%s.\n", DEBUGSERVER_PROGRAM_NAME,
+               DEBUGSERVER_VERSION_STR, compile_options.c_str(), RNB_ARCH,
+               in_translation);
 
   std::string host;
   int port = INT32_MAX;
@@ -1575,7 +1574,7 @@ int main(int argc, char *argv[]) {
 
         RNBLogSTDOUT("Attaching to process %s...\n", attach_pid_name.c_str());
         nub_process_t pid = DNBProcessAttachByName(
-            attach_pid_name.c_str(), timeout_ptr, ctx.GetUnmaskSignals(),
+            attach_pid_name.c_str(), timeout_ptr, ctx.GetIgnoredExceptions(),
             err_str, sizeof(err_str));
         g_pid = pid;
         if (pid == INVALID_NUB_PROCESS) {

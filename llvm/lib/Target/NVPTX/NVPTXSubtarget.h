@@ -70,6 +70,7 @@ public:
 
   bool hasAtomAddF64() const { return SmVersion >= 60; }
   bool hasAtomScope() const { return SmVersion >= 60; }
+  bool hasAtomSemantics() const { return SmVersion >= 70; }
   bool hasAtomBitwise64() const { return SmVersion >= 32; }
   bool hasAtomMinMax64() const { return SmVersion >= 32; }
   bool hasLDG() const { return SmVersion >= 32; }
@@ -77,6 +78,7 @@ public:
   bool hasImageHandles() const;
   bool hasFP16Math() const { return SmVersion >= 53; }
   bool allowFP16Math() const;
+  bool hasMaskOperator() const { return PTXVersion >= 71; }
   unsigned int getSmVersion() const { return SmVersion; }
   std::string getTargetName() const { return TargetName; }
 

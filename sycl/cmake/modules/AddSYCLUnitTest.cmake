@@ -4,9 +4,11 @@
 # Produces a binary names `basename(test_dirname)`.
 macro(add_sycl_unittest test_dirname link_variant)
   # Enable exception handling for these unit tests
-  set(LLVM_REQUIRES_EH 1)
+  set(LLVM_REQUIRES_EH ON)
+  set(LLVM_REQUIRES_RTTI ON)
 
-  if (MSVC AND CMAKE_BUILD_TYPE MATCHES "Debug")
+  string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
+  if (MSVC AND build_type_lower MATCHES "debug")
     set(sycl_obj_target "sycld_object")
     set(sycl_so_target "sycld")
   else()
@@ -20,10 +22,33 @@ macro(add_sycl_unittest test_dirname link_variant)
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
-    target_compile_definitions(${test_dirname} PRIVATE __SYCL_BUILD_SYCL_DLL)
+    target_compile_definitions(${test_dirname}
+                               PRIVATE __SYCL_BUILD_SYCL_DLL)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()
+
+  if (SYCL_ENABLE_COVERAGE)
+    target_compile_options(${test_dirname} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+    target_link_options(${test_dirname} PUBLIC
+      -fprofile-instr-generate -fcoverage-mapping
+    )
+  endif()
+
+  add_custom_target(check-sycl-${test_dirname}
+    ${CMAKE_COMMAND} -E env
+    LLVM_PROFILE_FILE="${SYCL_COVERAGE_PATH}/${test_dirname}.profraw"
+    env SYCL_CONFIG_FILE_NAME=null.cfg
+    env SYCL_DEVICELIB_NO_FALLBACK=1
+    env SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
+    ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
+    DEPENDS
+    ${test_dirname}
+  )
+
+  add_dependencies(check-sycl-unittests check-sycl-${test_dirname})
 
   target_link_libraries(${test_dirname}
     PRIVATE
@@ -44,67 +69,5 @@ macro(add_sycl_unittest test_dirname link_variant)
         -Wno-unused-parameter
         -Wno-inconsistent-missing-override
     )
-  endif()
-  # LLVM gtest uses LLVM utilities that require C++-14
-  # CXX_STANDARD_REQUIRED makes CXX_STANDARD a hard requirement.
-  set_target_properties(${test_dirname}
-    PROPERTIES
-      CXX_STANDARD 14
-      CXX_STANDARD_REQUIRED ON
-    )
-endmacro()
-
-macro(add_sycl_unittest_with_device test_dirname link_variant)
-  set(LLVM_REQUIRES_EH 1)
-
-  if (MSVC AND CMAKE_BUILD_TYPE MATCHES "Debug")
-    set(sycl_obj_target "sycld_object")
-    set(sycl_so_target "sycld")
-    set(XPTI_LIB xptid)
-    set(WIN_CRT /MDd)
-  else()
-    set(sycl_obj_target "sycl_object")
-    set(sycl_so_target "sycl")
-    set(XPTI_LIB xpti)
-    set(WIN_CRT /MD)
-  endif()
-
-  set(COMMON_OPTS
-    -DGTEST_LANG_CXX11=1
-    -DGTEST_HAS_TR1_TUPLE=0
-    -D__SYCL_BUILD_SYCL_DLL
-    -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
-    -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include
-    -I${LLVM_BINARY_DIR}/include
-    -I${LLVM_MAIN_SRC_DIR}/include
-    -I${PROJECT_SOURCE_DIR}/source
-    -I${PROJECT_SOURCE_DIR}/unittests
-    )
-
-  if (MSVC)
-    list(APPEND COMMON_OPTS ${WIN_CRT})
-    list(APPEND COMMON_OPTS /EHsc)
-    list(APPEND COMMON_OPTS /link)
-    list(APPEND COMMON_OPTS /LIBPATH:${LLVM_BINARY_DIR}/lib)
-    list(APPEND COMMON_OPTS /subsystem:console)
-    list(APPEND COMMON_OPTS /INCREMENTAL:NO)
-
-    list(APPEND EXTRA_LIBS shlwapi)
-  else()
-    list(APPEND EXTRA_LIBS dl)
-  endif()
-
-  if (SYCL_ENABLE_XPTI_TRACING)
-    list(APPEND EXTRA_LIBS ${XPTI_LIB})
-  endif()
-
-  if ("${link_variant}" MATCHES "OBJECT")
-    add_sycl_executable(${test_dirname}
-      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB} ${TERMINFO_LIB}
-      SOURCES ${ARGN} $<TARGET_OBJECTS:${sycl_obj_target}>
-      LIBRARIES gtest_main gtest LLVMSupport LLVMTestingSupport OpenCL ${EXTRA_LIBS}
-      DEPENDANTS SYCLUnitTests)
-  else()
-    # TODO support shared library case.
   endif()
 endmacro()

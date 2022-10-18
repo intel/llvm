@@ -58,15 +58,12 @@ void *map(void *Addr, uptr Size, UNUSED const char *Name, uptr Flags,
   if (Flags & MAP_MEMTAG)
     MmapProt |= PROT_MTE;
 #endif
-  if (Addr) {
-    // Currently no scenario for a noaccess mapping with a fixed address.
-    DCHECK_EQ(Flags & MAP_NOACCESS, 0);
+  if (Addr)
     MmapFlags |= MAP_FIXED;
-  }
   void *P = mmap(Addr, Size, MmapProt, MmapFlags, -1, 0);
   if (P == MAP_FAILED) {
     if (!(Flags & MAP_ALLOWNOMEM) || errno != ENOMEM)
-      dieOnMapUnmapError(errno == ENOMEM);
+      dieOnMapUnmapError(errno == ENOMEM ? Size : 0);
     return nullptr;
   }
 #if SCUDO_ANDROID
@@ -92,6 +89,7 @@ void setMemoryPermission(uptr Addr, uptr Size, uptr Flags,
 void releasePagesToOS(uptr BaseAddress, uptr Offset, uptr Size,
                       UNUSED MapPlatformData *Data) {
   void *Addr = reinterpret_cast<void *>(BaseAddress + Offset);
+
   while (madvise(Addr, Size, MADV_DONTNEED) == -1 && errno == EAGAIN) {
   }
 }

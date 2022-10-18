@@ -9,6 +9,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "mlir/Support/Timing.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ManagedStatic.h"
 
@@ -20,11 +21,11 @@ struct PassManagerOptions {
   // Crash Reproducer Generator
   //===--------------------------------------------------------------------===//
   llvm::cl::opt<std::string> reproducerFile{
-      "pass-pipeline-crash-reproducer",
+      "mlir-pass-pipeline-crash-reproducer",
       llvm::cl::desc("Generate a .mlir reproducer file at the given output path"
                      " if the pass manager crashes or fails")};
   llvm::cl::opt<bool> localReproducer{
-      "pass-pipeline-local-reproducer",
+      "mlir-pass-pipeline-local-reproducer",
       llvm::cl::desc("When generating a crash reproducer, attempt to generated "
                      "a reproducer with the smallest pipeline."),
       llvm::cl::init(false)};
@@ -32,23 +33,28 @@ struct PassManagerOptions {
   //===--------------------------------------------------------------------===//
   // IR Printing
   //===--------------------------------------------------------------------===//
-  PassNameCLParser printBefore{"print-ir-before",
+  PassNameCLParser printBefore{"mlir-print-ir-before",
                                "Print IR before specified passes"};
-  PassNameCLParser printAfter{"print-ir-after",
+  PassNameCLParser printAfter{"mlir-print-ir-after",
                               "Print IR after specified passes"};
   llvm::cl::opt<bool> printBeforeAll{
-      "print-ir-before-all", llvm::cl::desc("Print IR before each pass"),
+      "mlir-print-ir-before-all", llvm::cl::desc("Print IR before each pass"),
       llvm::cl::init(false)};
-  llvm::cl::opt<bool> printAfterAll{"print-ir-after-all",
+  llvm::cl::opt<bool> printAfterAll{"mlir-print-ir-after-all",
                                     llvm::cl::desc("Print IR after each pass"),
                                     llvm::cl::init(false)};
   llvm::cl::opt<bool> printAfterChange{
-      "print-ir-after-change",
+      "mlir-print-ir-after-change",
       llvm::cl::desc(
           "When printing the IR after a pass, only print if the IR changed"),
       llvm::cl::init(false)};
+  llvm::cl::opt<bool> printAfterFailure{
+      "mlir-print-ir-after-failure",
+      llvm::cl::desc(
+          "When printing the IR after a pass, only print if the pass failed"),
+      llvm::cl::init(false)};
   llvm::cl::opt<bool> printModuleScope{
-      "print-ir-module-scope",
+      "mlir-print-ir-module-scope",
       llvm::cl::desc("When printing IR for print-ir-[before|after]{-all} "
                      "always print the top-level operation"),
       llvm::cl::init(false)};
@@ -57,28 +63,13 @@ struct PassManagerOptions {
   void addPrinterInstrumentation(PassManager &pm);
 
   //===--------------------------------------------------------------------===//
-  // Pass Timing
-  //===--------------------------------------------------------------------===//
-  llvm::cl::opt<bool> passTiming{
-      "pass-timing",
-      llvm::cl::desc("Display the execution times of each pass")};
-  llvm::cl::opt<PassDisplayMode> passTimingDisplayMode{
-      "pass-timing-display",
-      llvm::cl::desc("Display method for pass timing data"),
-      llvm::cl::init(PassDisplayMode::Pipeline),
-      llvm::cl::values(
-          clEnumValN(PassDisplayMode::List, "list",
-                     "display the results in a list sorted by total time"),
-          clEnumValN(PassDisplayMode::Pipeline, "pipeline",
-                     "display the results with a nested pipeline view"))};
-
-  //===--------------------------------------------------------------------===//
   // Pass Statistics
   //===--------------------------------------------------------------------===//
   llvm::cl::opt<bool> passStatistics{
-      "pass-statistics", llvm::cl::desc("Display the statistics of each pass")};
+      "mlir-pass-statistics",
+      llvm::cl::desc("Display the statistics of each pass")};
   llvm::cl::opt<PassDisplayMode> passStatisticsDisplayMode{
-      "pass-statistics-display",
+      "mlir-pass-statistics-display",
       llvm::cl::desc("Display method for pass statistics"),
       llvm::cl::init(PassDisplayMode::Pipeline),
       llvm::cl::values(
@@ -87,11 +78,8 @@ struct PassManagerOptions {
               "display the results in a merged list sorted by pass name"),
           clEnumValN(PassDisplayMode::Pipeline, "pipeline",
                      "display the results with a nested pipeline view"))};
-
-  /// Add a pass timing instrumentation if enabled by 'pass-timing' flags.
-  void addTimingInstrumentation(PassManager &pm);
 };
-} // end anonymous namespace
+} // namespace
 
 static llvm::ManagedStatic<PassManagerOptions> options;
 
@@ -114,8 +102,9 @@ void PassManagerOptions::addPrinterInstrumentation(PassManager &pm) {
   }
 
   // Handle print-after.
-  if (printAfterAll) {
-    // If we are printing after all, then just return true for the filter.
+  if (printAfterAll || printAfterFailure) {
+    // If we are printing after all or failure, then just return true for the
+    // filter.
     shouldPrintAfterPass = [](Pass *, Operation *) { return true; };
   } else if (printAfter.hasAnyOccurrences()) {
     // Otherwise if there are specific passes to print after, then check to see
@@ -132,14 +121,8 @@ void PassManagerOptions::addPrinterInstrumentation(PassManager &pm) {
 
   // Otherwise, add the IR printing instrumentation.
   pm.enableIRPrinting(shouldPrintBeforePass, shouldPrintAfterPass,
-                      printModuleScope, printAfterChange, llvm::errs());
-}
-
-/// Add a pass timing instrumentation if enabled by 'pass-timing' flags.
-void PassManagerOptions::addTimingInstrumentation(PassManager &pm) {
-  if (passTiming)
-    pm.enableTiming(
-        std::make_unique<PassManager::PassTimingConfig>(passTimingDisplayMode));
+                      printModuleScope, printAfterChange, printAfterFailure,
+                      llvm::errs());
 }
 
 void mlir::registerPassManagerCLOptions() {
@@ -162,9 +145,12 @@ void mlir::applyPassManagerCLOptions(PassManager &pm) {
 
   // Add the IR printing instrumentation.
   options->addPrinterInstrumentation(pm);
+}
 
-  // Note: The pass timing instrumentation should be added last to avoid any
-  // potential "ghost" timing from other instrumentations being unintentionally
-  // included in the timing results.
-  options->addTimingInstrumentation(pm);
+void mlir::applyDefaultTimingPassManagerCLOptions(PassManager &pm) {
+  // Create a temporary timing manager for the PM to own, apply its CL options,
+  // and pass it to the PM.
+  auto tm = std::make_unique<DefaultTimingManager>();
+  applyDefaultTimingManagerCLOptions(*tm);
+  pm.enableTiming(std::move(tm));
 }

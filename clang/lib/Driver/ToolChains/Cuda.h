@@ -31,8 +31,6 @@ private:
   const Driver &D;
   bool IsValid = false;
   CudaVersion Version = CudaVersion::UNKNOWN;
-  std::string DetectedVersion;
-  bool DetectedVersionIsNotSupported = false;
   std::string InstallPath;
   std::string BinPath;
   std::string LibPath;
@@ -63,7 +61,10 @@ public:
   void print(raw_ostream &OS) const;
 
   /// Get the detected Cuda install's version.
-  CudaVersion version() const { return Version; }
+  CudaVersion version() const {
+    return Version == CudaVersion::NEW ? CudaVersion::PARTIALLY_SUPPORTED
+                                       : Version;
+  }
   /// Get the detected Cuda installation path.
   StringRef getInstallPath() const { return InstallPath; }
   /// Get the detected path to Cuda's bin directory.
@@ -137,6 +138,10 @@ private:
   mutable std::unique_ptr<Tool> SYCLToolChainLinker;
 };
 
+void getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
+                            const llvm::opt::ArgList &Args,
+                            std::vector<StringRef> &Features);
+
 } // end namespace NVPTX
 } // end namespace tools
 
@@ -170,13 +175,17 @@ public:
   bool useIntegratedAs() const override { return false; }
   bool isCrossCompiling() const override { return true; }
   bool isPICDefault() const override { return false; }
-  bool isPIEDefault() const override { return false; }
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
+    return false;
+  }
   bool isPICDefaultForced() const override { return false; }
   bool SupportsProfiling() const override { return false; }
   bool supportsDebugInfoOption(const llvm::opt::Arg *A) const override;
   void adjustDebugInfoKind(codegenoptions::DebugInfoKind &DebugInfoKind,
                            const llvm::opt::ArgList &Args) const override;
-  bool IsMathErrnoDefault() const override { return false; }
+
+  // math-errno should be the default for SYCL but not other OFK using CUDA TC
+  bool IsMathErrnoDefault() const override { return OK == Action::OFK_SYCL; }
 
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;

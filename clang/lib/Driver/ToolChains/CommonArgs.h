@@ -9,8 +9,8 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_COMMONARGS_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_COMMONARGS_H
 
-#include "InputInfo.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Multilib.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
@@ -49,6 +49,39 @@ void AddRunTimeLibs(const ToolChain &TC, const Driver &D,
                     llvm::opt::ArgStringList &CmdArgs,
                     const llvm::opt::ArgList &Args);
 
+void AddStaticDeviceLibsLinking(Compilation &C, const Tool &T,
+                                const JobAction &JA,
+                                const InputInfoList &Inputs,
+                                const llvm::opt::ArgList &DriverArgs,
+                                llvm::opt::ArgStringList &CmdArgs,
+                                StringRef Arch, StringRef Target,
+                                bool isBitCodeSDL, bool postClangLink);
+void AddStaticDeviceLibsPostLinking(const Driver &D,
+                                    const llvm::opt::ArgList &DriverArgs,
+                                    llvm::opt::ArgStringList &CmdArgs,
+                                    StringRef Arch, StringRef Target,
+                                    bool isBitCodeSDL, bool postClangLink);
+void AddStaticDeviceLibs(Compilation *C, const Tool *T, const JobAction *JA,
+                         const InputInfoList *Inputs, const Driver &D,
+                         const llvm::opt::ArgList &DriverArgs,
+                         llvm::opt::ArgStringList &CmdArgs, StringRef Arch,
+                         StringRef Target, bool isBitCodeSDL,
+                         bool postClangLink);
+
+bool SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
+               llvm::opt::ArgStringList &CmdArgs,
+               SmallVector<std::string, 8> LibraryPaths, std::string Lib,
+               StringRef Arch, StringRef Target, bool isBitCodeSDL,
+               bool postClangLink);
+
+bool GetSDLFromOffloadArchive(Compilation &C, const Driver &D, const Tool &T,
+                              const JobAction &JA, const InputInfoList &Inputs,
+                              const llvm::opt::ArgList &DriverArgs,
+                              llvm::opt::ArgStringList &CC1Args,
+                              SmallVector<std::string, 8> LibraryPaths,
+                              StringRef Lib, StringRef Arch, StringRef Target,
+                              bool isBitCodeSDL, bool postClangLink);
+
 const char *SplitDebugName(const JobAction &JA, const llvm::opt::ArgList &Args,
                            const InputInfo &Input, const InputInfo &Output);
 
@@ -59,6 +92,8 @@ void SplitDebugInfo(const ToolChain &TC, Compilation &C, const Tool &T,
 void addLTOOptions(const ToolChain &ToolChain, const llvm::opt::ArgList &Args,
                    llvm::opt::ArgStringList &CmdArgs, const InputInfo &Output,
                    const InputInfo &Input, bool IsThinLTO);
+
+const char *RelocationModelName(llvm::Reloc::Model Model);
 
 std::tuple<llvm::Reloc::Model, unsigned, bool>
 ParsePICArgs(const ToolChain &ToolChain, const llvm::opt::ArgList &Args);
@@ -73,13 +108,33 @@ void AddAssemblerKPIC(const ToolChain &ToolChain,
                       const llvm::opt::ArgList &Args,
                       llvm::opt::ArgStringList &CmdArgs);
 
+void addOpenMPRuntimeSpecificRPath(const ToolChain &TC,
+                                   const llvm::opt::ArgList &Args,
+                                   llvm::opt::ArgStringList &CmdArgs);
 void addArchSpecificRPath(const ToolChain &TC, const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs);
+void addOpenMPRuntimeLibraryPath(const ToolChain &TC,
+                                 const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs);
 /// Returns true, if an OpenMP runtime has been added.
 bool addOpenMPRuntime(llvm::opt::ArgStringList &CmdArgs, const ToolChain &TC,
                       const llvm::opt::ArgList &Args,
                       bool ForceStaticHostRuntime = false,
                       bool IsOffloadingHost = false, bool GompNeedsRT = false);
+
+/// Adds Fortran runtime libraries to \p CmdArgs.
+void addFortranRuntimeLibs(const ToolChain &TC,
+                           llvm::opt::ArgStringList &CmdArgs);
+
+/// Adds the path for the Fortran runtime libraries to \p CmdArgs.
+void addFortranRuntimeLibraryPath(const ToolChain &TC,
+                                  const llvm::opt::ArgList &Args,
+                                  llvm::opt::ArgStringList &CmdArgs);
+
+void addHIPRuntimeLibArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
+                          llvm::opt::ArgStringList &CmdArgs);
+
+const char *getAsNeededOption(const ToolChain &TC, bool as_needed);
 
 llvm::opt::Arg *getLastProfileUseArg(const llvm::opt::ArgList &Args);
 llvm::opt::Arg *getLastProfileSampleUseArg(const llvm::opt::ArgList &Args);
@@ -90,6 +145,8 @@ llvm::StringRef getLTOParallelism(const llvm::opt::ArgList &Args,
                                   const Driver &D);
 
 bool areOptimizationsEnabled(const llvm::opt::ArgList &Args);
+
+bool isDependentLibAdded(const llvm::opt::ArgList &Args, StringRef Lib);
 
 bool isUseSeparateSections(const llvm::Triple &Triple);
 
@@ -107,8 +164,8 @@ void AddTargetFeature(const llvm::opt::ArgList &Args,
                       llvm::opt::OptSpecifier OnOpt,
                       llvm::opt::OptSpecifier OffOpt, StringRef FeatureName);
 
-std::string getCPUName(const llvm::opt::ArgList &Args, const llvm::Triple &T,
-                       bool FromAs = false);
+std::string getCPUName(const Driver &D, const llvm::opt::ArgList &Args,
+                       const llvm::Triple &T, bool FromAs = false);
 
 /// Iterate \p Args and convert -mxxx to +xxx and -mno-xxx to -xxx and
 /// append it to \p Features.
@@ -121,8 +178,7 @@ void handleTargetFeaturesGroup(const llvm::opt::ArgList &Args,
                                llvm::opt::OptSpecifier Group);
 
 /// If there are multiple +xxx or -xxx features, keep the last one.
-std::vector<StringRef>
-unifyTargetFeatures(const std::vector<StringRef> &Features);
+SmallVector<StringRef> unifyTargetFeatures(ArrayRef<StringRef> Features);
 
 /// Handles the -save-stats option and returns the filename to save statistics
 /// to.
@@ -138,9 +194,14 @@ void addMultilibFlag(bool Enabled, const char *const Flag,
 void addX86AlignBranchArgs(const Driver &D, const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs, bool IsLTO);
 
-unsigned getOrCheckAMDGPUCodeObjectVersion(const Driver &D,
-                                           const llvm::opt::ArgList &Args,
-                                           bool Diagnose = false);
+void checkAMDGPUCodeObjectVersion(const Driver &D,
+                                  const llvm::opt::ArgList &Args);
+
+unsigned getAMDGPUCodeObjectVersion(const Driver &D,
+                                    const llvm::opt::ArgList &Args);
+
+bool haveAMDGPUCodeObjectVersionArgument(const Driver &D,
+                                         const llvm::opt::ArgList &Args);
 
 void addMachineOutlinerArgs(const Driver &D, const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,

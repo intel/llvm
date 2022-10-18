@@ -11,7 +11,8 @@
 // integer sets in the IR - for 'affine.if' operations and as attributes of
 // other operations. It is typically expected to contain only a handful of
 // affine constraints, and is immutable like an affine map. Integer sets are not
-// unique'd - although affine expressions that make up its equalities and
+// unique'd unless the number of constraints they contain are below a certain
+// threshold - although affine expressions that make up its equalities and
 // inequalities are themselves unique.
 
 // This class is not meant for affine analysis and operations like set
@@ -20,8 +21,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_IR_INTEGER_SET_H
-#define MLIR_IR_INTEGER_SET_H
+#ifndef MLIR_IR_INTEGERSET_H
+#define MLIR_IR_INTEGERSET_H
 
 #include "mlir/IR/AffineExpr.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -30,20 +31,21 @@ namespace mlir {
 
 namespace detail {
 struct IntegerSetStorage;
-}
+} // namespace detail
 
 class MLIRContext;
 
 /// An integer set representing a conjunction of one or more affine equalities
 /// and inequalities. An integer set in the IR is immutable like the affine map,
-/// but integer sets are not unique'd. The affine expressions that make up the
+/// but integer sets are not unique'd unless the number of constraints in them
+/// is below `kUniquingThreshold`. The affine expressions that make up the
 /// equalities and inequalities of an integer set are themselves unique and are
 /// allocated by the bump pointer allocator.
 class IntegerSet {
 public:
   using ImplType = detail::IntegerSetStorage;
 
-  constexpr IntegerSet() : set(nullptr) {}
+  constexpr IntegerSet() {}
   explicit IntegerSet(ImplType *set) : set(set) {}
 
   static IntegerSet get(unsigned dimCount, unsigned symbolCount,
@@ -54,7 +56,7 @@ public:
   static IntegerSet getEmptySet(unsigned numDims, unsigned numSymbols,
                                 MLIRContext *context) {
     auto one = getAffineConstantExpr(1, context);
-    /* 1 == 0 */
+    // 1 == 0.
     return get(numDims, numSymbols, one, true);
   }
 
@@ -73,6 +75,7 @@ public:
 
   explicit operator bool() { return set; }
   bool operator==(IntegerSet other) const { return set == other.set; }
+  bool operator!=(IntegerSet other) const { return set != other.set; }
 
   unsigned getNumDims() const;
   unsigned getNumSymbols() const;
@@ -114,9 +117,7 @@ public:
   }
 
 private:
-  ImplType *set;
-  /// Sets with constraints fewer than kUniquingThreshold are uniqued.
-  constexpr static unsigned kUniquingThreshold = 4;
+  ImplType *set{nullptr};
 };
 
 // Make AffineExpr hashable.
@@ -124,17 +125,18 @@ inline ::llvm::hash_code hash_value(IntegerSet arg) {
   return ::llvm::hash_value(arg.set);
 }
 
-} // end namespace mlir
+} // namespace mlir
 namespace llvm {
 
-// IntegerSet hash just like pointers
-template <> struct DenseMapInfo<mlir::IntegerSet> {
+// IntegerSet hash just like pointers.
+template <>
+struct DenseMapInfo<mlir::IntegerSet> {
   static mlir::IntegerSet getEmptyKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::IntegerSet(static_cast<mlir::IntegerSet::ImplType *>(pointer));
   }
   static mlir::IntegerSet getTombstoneKey() {
-    auto pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
+    auto *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
     return mlir::IntegerSet(static_cast<mlir::IntegerSet::ImplType *>(pointer));
   }
   static unsigned getHashValue(mlir::IntegerSet val) {
@@ -146,4 +148,4 @@ template <> struct DenseMapInfo<mlir::IntegerSet> {
 };
 
 } // namespace llvm
-#endif // MLIR_IR_INTEGER_SET_H
+#endif // MLIR_IR_INTEGERSET_H

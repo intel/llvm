@@ -8,7 +8,6 @@ import os
 import os.path
 import platform
 import re
-import six
 import socket
 import subprocess
 from lldbsuite.support import seven
@@ -78,26 +77,6 @@ def _is_packet_lldb_gdbserver_input(packet_type, llgs_input_is_read):
         # don't understand what type of packet this is
         raise "Unknown packet type: {}".format(packet_type)
 
-
-def handle_O_packet(context, packet_contents, logger):
-    """Handle O packets."""
-    if (not packet_contents) or (len(packet_contents) < 1):
-        return False
-    elif packet_contents[0] != "O":
-        return False
-    elif packet_contents == "OK":
-        return False
-
-    new_text = gdbremote_hex_decode_string(packet_contents[1:])
-    context["O_content"] += new_text
-    context["O_count"] += 1
-
-    if logger:
-        logger.debug(
-            "text: new \"{}\", cumulative: \"{}\"".format(
-                new_text, context["O_content"]))
-
-    return True
 
 _STRIP_CHECKSUM_REGEX = re.compile(r'#[0-9a-fA-F]{2}$')
 _STRIP_COMMAND_PREFIX_REGEX = re.compile(r"^\$")
@@ -284,9 +263,14 @@ def parse_threadinfo_response(response_packet):
     response_packet = _STRIP_COMMAND_PREFIX_M_REGEX.sub("", response_packet)
     response_packet = _STRIP_CHECKSUM_REGEX.sub("", response_packet)
 
-    # Return list of thread ids
-    return [int(thread_id_hex, 16) for thread_id_hex in response_packet.split(
-        ",") if len(thread_id_hex) > 0]
+    for tid in response_packet.split(","):
+        if not tid:
+            continue
+        if tid.startswith("p"):
+            pid, _, tid = tid.partition(".")
+            yield (int(pid[1:], 16), int(tid, 16))
+        else:
+            yield int(tid, 16)
 
 
 def unpack_endian_binary_string(endian, value_string):
@@ -381,8 +365,7 @@ class GdbRemoteEntry(GdbRemoteEntryBase):
             is_send_to_remote=True,
             exact_payload=None,
             regex=None,
-            capture=None,
-            expect_captures=None):
+            capture=None):
         """Create an entry representing one piece of the I/O to/from a gdb remote debug monitor.
 
         Args:
@@ -399,16 +382,12 @@ class GdbRemoteEntry(GdbRemoteEntryBase):
                 no-ack makes the checksum content essentially
                 undefined.
 
-            regex: currently only valid for receives from gdbremote.
-                When specified (and only if exact_payload is None),
-                indicates the gdbremote response must match the given
-                regex. Match groups in the regex can be used for two
-                different purposes: saving the match (see capture
-                arg), or validating that a match group matches a
-                previously established value (see expect_captures). It
-                is perfectly valid to have just a regex arg and to
-                specify neither capture or expect_captures args. This
-                arg only makes sense if exact_payload is not
+            regex: currently only valid for receives from gdbremote.  When
+                specified (and only if exact_payload is None), indicates the
+                gdbremote response must match the given regex. Match groups in
+                the regex can be used for the matching portion (see capture
+                arg). It is perfectly valid to have just a regex arg without a
+                capture arg. This arg only makes sense if exact_payload is not
                 specified.
 
             capture: if specified, is a dictionary of regex match
@@ -417,24 +396,12 @@ class GdbRemoteEntry(GdbRemoteEntryBase):
                 index. For example, {1:"thread_id"} will store capture
                 group 1's content in the context dictionary where
                 "thread_id" is the key and the match group value is
-                the value. The value stored off can be used later in a
-                expect_captures expression. This arg only makes sense
-                when regex is specified.
-
-            expect_captures: if specified, is a dictionary of regex
-                match group indices (should start with 1) to variable
-                names, where the match group should match the value
-                existing in the context at the given variable name.
-                For example, {2:"thread_id"} indicates that the second
-                match group must match the value stored under the
-                context's previously stored "thread_id" key. This arg
-                only makes sense when regex is specified.
+                the value. This arg only makes sense when regex is specified.
         """
         self._is_send_to_remote = is_send_to_remote
         self.exact_payload = exact_payload
         self.regex = regex
         self.capture = capture
-        self.expect_captures = expect_captures
 
     def is_send_to_remote(self):
         return self._is_send_to_remote
@@ -472,15 +439,6 @@ class GdbRemoteEntry(GdbRemoteEntryBase):
                 # The user must be okay with it since the regex itself matched
                 # above.
                 context[var_name] = capture_text
-
-        if self.expect_captures:
-            # Handle comparing matched groups to context dictionary entries.
-            for group_index, var_name in list(self.expect_captures.items()):
-                capture_text = match.group(group_index)
-                if not capture_text:
-                    raise Exception(
-                        "No content to expect for group index {}".format(group_index))
-                asserter.assertEqual(capture_text, context[var_name])
 
         return context
 
@@ -658,8 +616,7 @@ class MatchRemoteOutputEntry(GdbRemoteEntryBase):
             with 1) to variable names that will store the capture group indicated by the
             index. For example, {1:"thread_id"} will store capture group 1's content in the
             context dictionary where "thread_id" is the key and the match group value is
-            the value. The value stored off can be used later in a expect_captures expression.
-            This arg only makes sense when regex is specified.
+            the value. This arg only makes sense when regex is specified.
     """
 
     def __init__(self, regex=None, regex_mode="match", capture=None):
@@ -783,11 +740,10 @@ class GdbRemoteTestSequence(object):
                     direction = line.get("direction", None)
                     regex = line.get("regex", None)
                     capture = line.get("capture", None)
-                    expect_captures = line.get("expect_captures", None)
 
                     # Compile the regex.
                     if regex and (isinstance(regex, str)):
-                        regex = re.compile(regex)
+                        regex = re.compile(regex, re.DOTALL)
 
                     if _is_packet_lldb_gdbserver_input(
                             direction, remote_input_is_read):
@@ -798,8 +754,7 @@ class GdbRemoteTestSequence(object):
                             GdbRemoteEntry(
                                 is_send_to_remote=True,
                                 regex=regex,
-                                capture=capture,
-                                expect_captures=expect_captures))
+                                capture=capture))
                     else:
                         # Log line represents content to be expected from the remote debug monitor.
                         # if self.logger:
@@ -808,8 +763,7 @@ class GdbRemoteTestSequence(object):
                             GdbRemoteEntry(
                                 is_send_to_remote=False,
                                 regex=regex,
-                                capture=capture,
-                                expect_captures=expect_captures))
+                                capture=capture))
                 elif entry_type == "multi_response":
                     self.entries.append(MultiResponseGdbRemoteEntry(line))
                 elif entry_type == "output_match":
@@ -848,7 +802,7 @@ def process_is_running(pid, unknown_value=True):
         If we don't know how to check running process ids on the given OS:
         return the value provided by the unknown_value arg.
     """
-    if not isinstance(pid, six.integer_types):
+    if not isinstance(pid, int):
         raise Exception(
             "pid must be an integral type (actual type: %s)" % str(
                 type(pid)))
@@ -884,19 +838,21 @@ def process_is_running(pid, unknown_value=True):
     # Check if the pid is in the process_ids
     return pid in process_ids
 
+
 def _handle_output_packet_string(packet_contents):
-    if (not packet_contents) or (len(packet_contents) < 1):
+    # Warning: in non-stop mode, we currently handle only the first output
+    # packet since we'd need to inject vStdio packets
+    if not packet_contents.startswith((b"$O", b"%Stdio:O")):
         return None
-    elif packet_contents[0:1] != b"O":
-        return None
-    elif packet_contents == b"OK":
+    elif packet_contents == b"$OK":
         return None
     else:
-        return binascii.unhexlify(packet_contents[1:])
+        return binascii.unhexlify(packet_contents.partition(b"O")[2])
+
 
 class Server(object):
 
-    _GDB_REMOTE_PACKET_REGEX = re.compile(br'^\$([^\#]*)#[0-9a-fA-F]{2}')
+    _GDB_REMOTE_PACKET_REGEX = re.compile(br'^([\$%][^\#]*)#[0-9a-fA-F]{2}')
 
     class ChecksumMismatch(Exception):
         pass
@@ -911,6 +867,19 @@ class Server(object):
 
     def send_raw(self, frame):
         self._sock.sendall(frame)
+
+    def send_ack(self):
+        self.send_raw(b"+")
+
+    def send_packet(self, packet):
+        self.send_raw(b'$%s#%02x'%(packet, self._checksum(packet)))
+
+    @staticmethod
+    def _checksum(packet):
+        checksum = 0
+        for c in iter(packet):
+            checksum += c
+        return checksum % 256
 
     def _read(self, q):
         while not q:
@@ -961,6 +930,19 @@ class Server(object):
 
     def get_raw_normal_packet(self):
         return self._read(self._normal_queue)
+
+    @staticmethod
+    def _get_payload(frame):
+        payload = frame[1:-3]
+        checksum = int(frame[-2:], 16)
+        if checksum != Server._checksum(payload):
+            raise ChecksumMismatch
+        return payload
+
+    def get_normal_packet(self):
+        frame = self.get_raw_normal_packet()
+        if frame == b"+": return frame
+        return self._get_payload(frame)
 
     def get_accumulated_output(self):
         return self._accumulated_output

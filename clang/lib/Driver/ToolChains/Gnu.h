@@ -302,9 +302,10 @@ public:
 
   void printVerboseInfo(raw_ostream &OS) const override;
 
-  bool IsUnwindTablesDefault(const llvm::opt::ArgList &Args) const override;
+  UnwindTableLevel
+  getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override;
   bool isPICDefault() const override;
-  bool isPIEDefault() const override;
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override;
   bool isPICDefaultForced() const override;
   bool IsIntegratedAssemblerDefault() const override;
   llvm::opt::DerivedArgList *
@@ -315,11 +316,6 @@ protected:
   Tool *getTool(Action::ActionClass AC) const override;
   Tool *buildAssembler() const override;
   Tool *buildLinker() const override;
-
-  virtual std::string getMultiarchTriple(const Driver &D,
-                                         const llvm::Triple &TargetTriple,
-                                         StringRef SysRoot) const
-  { return TargetTriple.str(); }
 
   /// \name ToolChain Implementation Helper Functions
   /// @{
@@ -353,9 +349,9 @@ protected:
   addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
                            llvm::opt::ArgStringList &CC1Args) const;
 
-  bool
-  addGCCLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
-                           llvm::opt::ArgStringList &CC1Args) const;
+  bool addGCCLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
+                                   llvm::opt::ArgStringList &CC1Args,
+                                   StringRef DebianMultiarch) const;
 
   bool addLibStdCXXIncludePaths(Twine IncludeDir, StringRef Triple,
                                 Twine IncludeSuffix,

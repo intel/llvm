@@ -10,6 +10,7 @@
 #define LLDB_BREAKPOINT_BREAKPOINTRESOLVERFILELINE_H
 
 #include "lldb/Breakpoint/BreakpointResolver.h"
+#include "lldb/Core/SourceLocationSpec.h"
 
 namespace lldb_private {
 
@@ -20,11 +21,10 @@ namespace lldb_private {
 
 class BreakpointResolverFileLine : public BreakpointResolver {
 public:
-  BreakpointResolverFileLine(const lldb::BreakpointSP &bkpt,
-                             const FileSpec &resolver,
-                             uint32_t line_no, uint32_t column,
-                             lldb::addr_t m_offset, bool check_inlines,
-                             bool skip_prologue, bool exact_match);
+  BreakpointResolverFileLine(
+      const lldb::BreakpointSP &bkpt, lldb::addr_t offset, bool skip_prologue,
+      const SourceLocationSpec &location_spec,
+      llvm::Optional<llvm::StringRef> removed_prefix_opt = llvm::None);
 
   static BreakpointResolver *
   CreateFromStructuredData(const lldb::BreakpointSP &bkpt,
@@ -57,16 +57,15 @@ public:
   CopyForBreakpoint(lldb::BreakpointSP &breakpoint) override;
 
 protected:
-  void FilterContexts(SymbolContextList &sc_list, bool is_relative);
+  void FilterContexts(SymbolContextList &sc_list);
+  void DeduceSourceMapping(SymbolContextList &sc_list);
 
   friend class Breakpoint;
-  FileSpec m_file_spec;   ///< This is the file spec we are looking for.
-  uint32_t m_line_number; ///< This is the line number that we are looking for.
-  uint32_t m_column;      ///< This is the column that we are looking for.
-  bool m_inlines; ///< This determines whether the resolver looks for inlined
-                  ///< functions or not.
+  SourceLocationSpec m_location_spec;
   bool m_skip_prologue;
-  bool m_exact_match;
+  // Any previously removed file path prefix by reverse source mapping.
+  // This is used to auto deduce source map if needed.
+  llvm::Optional<llvm::StringRef> m_removed_prefix_opt;
 
 private:
   BreakpointResolverFileLine(const BreakpointResolverFileLine &) = delete;

@@ -7,42 +7,52 @@
 ; Any invalidation that shows up here is a bug, unless we started modifying
 ; the IR, in which case we need to make it immutable harder.
 
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='default<O0>' -S %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT
-; RUN: opt -disable-verify -debug-pass-manager -enable-matrix \
+; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT,CHECK-CORO
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager -enable-matrix \
 ; RUN:     -passes='default<O0>' -S %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT,CHECK-MATRIX
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT,CHECK-MATRIX,CHECK-CORO
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager -new-pm-debug-info-for-profiling \
+; RUN:     -passes='default<O0>' -S %s 2>&1 \
+; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DIS,CHECK-CORO
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='thinlto-pre-link<O0>' -S %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT,CHECK-PRE-LINK
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT,CHECK-PRE-LINK,CHECK-CORO
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='lto-pre-link<O0>' -S %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT,CHECK-PRE-LINK
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT,CHECK-PRE-LINK,CHECK-CORO
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='thinlto<O0>' -S %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-THINLTO
-; RUN: opt -disable-verify -debug-pass-manager \
+; RUN: opt -disable-verify -verify-cfg-preserved=0 -debug-pass-manager \
 ; RUN:     -passes='lto<O0>' -S %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK,CHECK-LTO
 
-; CHECK: Starting llvm::Module pass manager run.
-; CHECK-DEFAULT-NEXT: Running pass: AlwaysInlinerPass
+; CHECK-DIS: Running analysis: InnerAnalysisManagerProxy
+; CHECK-DIS-NEXT: Running pass: AddDiscriminatorsPass
+; CHECK-DIS-NEXT: Running pass: AlwaysInlinerPass
+; CHECK-DIS-NEXT: Running analysis: ProfileSummaryAnalysis
+; CHECK-DEFAULT: Running pass: AlwaysInlinerPass
 ; CHECK-DEFAULT-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-DEFAULT-NEXT: Running analysis: ProfileSummaryAnalysis
-; CHECK-MATRIX-NEXT: Running pass: LowerMatrixIntrinsicsPass
+; CHECK-MATRIX: Running pass: LowerMatrixIntrinsicsPass
 ; CHECK-MATRIX-NEXT: Running analysis: TargetIRAnalysis
-; CHECK-PRE-LINK-NEXT: Running pass: CanonicalizeAliasesPass
+; CHECK-CORO-NEXT: Running pass: CoroConditionalWrapper
+; CHECK-PRE-LINK: Running pass: CanonicalizeAliasesPass
 ; CHECK-PRE-LINK-NEXT: Running pass: NameAnonGlobalPass
-; CHECK-THINLTO-NEXT: Running pass: Annotation2MetadataPass
+; CHECK-THINLTO: Running pass: Annotation2MetadataPass
 ; CHECK-THINLTO-NEXT: Running pass: LowerTypeTestsPass
 ; CHECK-THINLTO-NEXT: Running pass: EliminateAvailableExternallyPass
 ; CHECK-THINLTO-NEXT: Running pass: GlobalDCEPass
-; CHECK-LTO-NEXT: Running pass: Annotation2MetadataPass
+; CHECK-LTO: Running pass: Annotation2MetadataPass
+; CHECK-LTO-NEXT: Running pass: CrossDSOCFIPass on [module]
 ; CHECK-LTO-NEXT: Running pass: WholeProgramDevirtPass
 ; CHECK-LTO-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-LTO-NEXT: Running pass: LowerTypeTestsPass
 ; CHECK-LTO-NEXT: Running pass: LowerTypeTestsPass
+; CHECK-CORO-NEXT: Running pass: AnnotationRemarksPass
+; CHECK-CORO-NEXT: Running analysis: TargetLibraryAnalysis
 ; CHECK-LTO-NEXT: Running pass: AnnotationRemarksPass
 ; CHECK-LTO-NEXT: Running analysis: TargetLibraryAnalysis
 ; CHECK-NEXT: Running pass: PrintModulePass
@@ -61,7 +71,6 @@
 ; CHECK-NEXT:   ret void
 ; CHECK-NEXT: }
 ;
-; CHECK-NEXT: Finished llvm::Module pass manager run.
 
 declare void @bar() local_unnamed_addr
 

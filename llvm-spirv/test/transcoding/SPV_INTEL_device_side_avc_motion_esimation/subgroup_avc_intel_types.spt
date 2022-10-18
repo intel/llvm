@@ -94,7 +94,9 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM-SPIRV
 
 ; CHECK-LLVM: %opencl.intel_sub_group_avc_mce_payload_t = type opaque
 ; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_payload_t = type opaque
@@ -108,4 +110,18 @@
 ; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_result_dual_reference_streamout_t = type opaque
 ; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_single_reference_streamin_t = type opaque
 ; CHECK-LLVM: %opencl.intel_sub_group_avc_ime_dual_reference_streamin_t = type opaque
-; CHECK-LLVM: define spir_func void @foo()
+
+; CHECK-LLVM-SPIRV: %spirv.AvcMcePayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImePayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcRefPayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcSicPayloadINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcMceResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcRefResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcSicResultINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeResultSingleReferenceStreamoutINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeResultDualReferenceStreamoutINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeSingleReferenceStreaminINTEL = type opaque
+; CHECK-LLVM-SPIRV: %spirv.AvcImeDualReferenceStreaminINTEL = type opaque
+
+; CHECK-COMMON: define spir_func void @foo()

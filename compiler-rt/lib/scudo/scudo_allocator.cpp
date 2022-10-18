@@ -49,7 +49,7 @@ inline u32 computeCRC32(u32 Crc, uptr Value, uptr *Array, uptr ArraySize) {
   // as opposed to only for scudo_crc32.cpp. This means that other hardware
   // specific instructions were likely emitted at other places, and as a
   // result there is no reason to not use it here.
-#if defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
+#if defined(__CRC32__) || defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
   Crc = CRC32_INTRINSIC(Crc, Value);
   for (uptr i = 0; i < ArraySize; i++)
     Crc = CRC32_INTRINSIC(Crc, Array[i]);
@@ -65,7 +65,7 @@ inline u32 computeCRC32(u32 Crc, uptr Value, uptr *Array, uptr ArraySize) {
   for (uptr i = 0; i < ArraySize; i++)
     Crc = computeSoftwareCRC32(Crc, Array[i]);
   return Crc;
-#endif  // defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
+#endif  // defined(__CRC32__) || defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
 }
 
 static BackendT &getBackend();
@@ -299,16 +299,10 @@ struct Allocator {
   NOINLINE bool isRssLimitExceeded();
 
   // Allocates a chunk.
-  void *allocate(uptr Size, uptr Alignment, AllocType Type,
-                 bool ForceZeroContents = false) {
+  void *
+  allocate(uptr Size, uptr Alignment, AllocType Type,
+           bool ForceZeroContents = false) SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
     initThreadMaybe();
-
-#ifdef GWP_ASAN_HOOKS
-    if (UNLIKELY(GuardedAlloc.shouldSample())) {
-      if (void *Ptr = GuardedAlloc.allocate(Size))
-        return Ptr;
-    }
-#endif // GWP_ASAN_HOOKS
 
     if (UNLIKELY(Alignment > MaxAlignment)) {
       if (AllocatorMayReturnNull())
@@ -317,6 +311,16 @@ struct Allocator {
     }
     if (UNLIKELY(Alignment < MinAlignment))
       Alignment = MinAlignment;
+
+#ifdef GWP_ASAN_HOOKS
+    if (UNLIKELY(GuardedAlloc.shouldSample())) {
+      if (void *Ptr = GuardedAlloc.allocate(Size, Alignment)) {
+        if (SCUDO_CAN_USE_HOOKS && &__sanitizer_malloc_hook)
+          __sanitizer_malloc_hook(Ptr, Size);
+        return Ptr;
+      }
+    }
+#endif // GWP_ASAN_HOOKS
 
     const uptr NeededSize = RoundUpTo(Size ? Size : 1, MinAlignment) +
         Chunk::getHeaderSize();
@@ -401,8 +405,8 @@ struct Allocator {
   // Place a chunk in the quarantine or directly deallocate it in the event of
   // a zero-sized quarantine, or if the size of the chunk is greater than the
   // quarantine chunk size threshold.
-  void quarantineOrDeallocateChunk(void *Ptr, UnpackedHeader *Header,
-                                   uptr Size) {
+  void quarantineOrDeallocateChunk(void *Ptr, UnpackedHeader *Header, uptr Size)
+      SANITIZER_NO_THREAD_SAFETY_ANALYSIS {
     const bool BypassQuarantine = !Size || (Size > QuarantineChunksUpToSize);
     if (BypassQuarantine) {
       UnpackedHeader NewHeader = *Header;

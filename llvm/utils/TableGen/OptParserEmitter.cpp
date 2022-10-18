@@ -13,7 +13,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
-#include <cctype>
 #include <cstring>
 #include <map>
 #include <memory>
@@ -173,7 +172,7 @@ static MarshallingInfo createMarshallingInfo(const Record &R) {
   Ret.NormalizedValuesScope = R.getValueAsString("NormalizedValuesScope");
   Ret.ImpliedCheck = R.getValueAsString("ImpliedCheck");
   Ret.ImpliedValue =
-      R.getValueAsOptionalString("ImpliedValue").getValueOr(Ret.DefaultValue);
+      R.getValueAsOptionalString("ImpliedValue").value_or(Ret.DefaultValue);
 
   Ret.ShouldParse = R.getValueAsString("ShouldParse");
   Ret.Normalizer = R.getValueAsString("Normalizer");
@@ -251,7 +250,7 @@ void EmitOptParser(RecordKeeper &Records, raw_ostream &OS) {
 
     // Prefix values.
     OS << ", {";
-    for (StringRef PrefixKey : Prefix.first)
+    for (const auto &PrefixKey : Prefix.first)
       OS << "\"" << PrefixKey << "\" COMMA ";
     OS << "nullptr})\n";
   }

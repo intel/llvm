@@ -26,11 +26,9 @@ define void @qpConv2sdw(fp128* nocapture readonly %a, i64* nocapture %b) {
 ; CHECK-PWR8-NEXT:    std 30, -16(1) # 8-byte Folded Spill
 ; CHECK-PWR8-NEXT:    std 0, 16(1)
 ; CHECK-PWR8-NEXT:    stdu 1, -48(1)
-; CHECK-PWR8-NEXT:    ld 5, 0(3)
-; CHECK-PWR8-NEXT:    ld 6, 8(3)
+; CHECK-PWR8-NEXT:    lxvd2x 0, 0, 3
 ; CHECK-PWR8-NEXT:    mr 30, 4
-; CHECK-PWR8-NEXT:    mr 3, 5
-; CHECK-PWR8-NEXT:    mr 4, 6
+; CHECK-PWR8-NEXT:    xxswapd 2, 0
 ; CHECK-PWR8-NEXT:    bl __fixkfdi
 ; CHECK-PWR8-NEXT:    nop
 ; CHECK-PWR8-NEXT:    std 3, 0(30)
@@ -66,11 +64,9 @@ define void @qpConv2sw(fp128* nocapture readonly %a, i32* nocapture %b) {
 ; CHECK-PWR8-NEXT:    std 30, -16(1) # 8-byte Folded Spill
 ; CHECK-PWR8-NEXT:    std 0, 16(1)
 ; CHECK-PWR8-NEXT:    stdu 1, -48(1)
-; CHECK-PWR8-NEXT:    ld 5, 0(3)
-; CHECK-PWR8-NEXT:    ld 6, 8(3)
+; CHECK-PWR8-NEXT:    lxvd2x 0, 0, 3
 ; CHECK-PWR8-NEXT:    mr 30, 4
-; CHECK-PWR8-NEXT:    mr 3, 5
-; CHECK-PWR8-NEXT:    mr 4, 6
+; CHECK-PWR8-NEXT:    xxswapd 2, 0
 ; CHECK-PWR8-NEXT:    bl __fixkfsi
 ; CHECK-PWR8-NEXT:    nop
 ; CHECK-PWR8-NEXT:    stw 3, 0(30)
@@ -106,11 +102,9 @@ define void @qpConv2udw(fp128* nocapture readonly %a, i64* nocapture %b) {
 ; CHECK-PWR8-NEXT:    std 30, -16(1) # 8-byte Folded Spill
 ; CHECK-PWR8-NEXT:    std 0, 16(1)
 ; CHECK-PWR8-NEXT:    stdu 1, -48(1)
-; CHECK-PWR8-NEXT:    ld 5, 0(3)
-; CHECK-PWR8-NEXT:    ld 6, 8(3)
+; CHECK-PWR8-NEXT:    lxvd2x 0, 0, 3
 ; CHECK-PWR8-NEXT:    mr 30, 4
-; CHECK-PWR8-NEXT:    mr 3, 5
-; CHECK-PWR8-NEXT:    mr 4, 6
+; CHECK-PWR8-NEXT:    xxswapd 2, 0
 ; CHECK-PWR8-NEXT:    bl __fixunskfdi
 ; CHECK-PWR8-NEXT:    nop
 ; CHECK-PWR8-NEXT:    std 3, 0(30)
@@ -146,11 +140,9 @@ define void @qpConv2uw(fp128* nocapture readonly %a, i32* nocapture %b) {
 ; CHECK-PWR8-NEXT:    std 30, -16(1) # 8-byte Folded Spill
 ; CHECK-PWR8-NEXT:    std 0, 16(1)
 ; CHECK-PWR8-NEXT:    stdu 1, -48(1)
-; CHECK-PWR8-NEXT:    ld 5, 0(3)
-; CHECK-PWR8-NEXT:    ld 6, 8(3)
+; CHECK-PWR8-NEXT:    lxvd2x 0, 0, 3
 ; CHECK-PWR8-NEXT:    mr 30, 4
-; CHECK-PWR8-NEXT:    mr 3, 5
-; CHECK-PWR8-NEXT:    mr 4, 6
+; CHECK-PWR8-NEXT:    xxswapd 2, 0
 ; CHECK-PWR8-NEXT:    bl __fixunskfsi
 ; CHECK-PWR8-NEXT:    nop
 ; CHECK-PWR8-NEXT:    stw 3, 0(30)
@@ -179,7 +171,7 @@ define void @dpConv2sdw(double* nocapture readonly %a, i64* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2sdw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -203,7 +195,7 @@ define void @dpConv2sw(double* nocapture readonly %a, i32* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2sw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -227,7 +219,7 @@ define void @dpConv2shw(double* nocapture readonly %a, i16* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2shw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    sth 3, 0(4)
@@ -252,7 +244,7 @@ define void @dpConv2sb(double* nocapture readonly %a, i8* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2sb:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stb 3, 0(4)
@@ -277,7 +269,7 @@ define void @spConv2sdw(float* nocapture readonly %a, i64* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2sdw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -301,7 +293,7 @@ define void @spConv2sw(float* nocapture readonly %a, i32* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2sw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -325,7 +317,7 @@ define void @spConv2shw(float* nocapture readonly %a, i16* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2shw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    sth 3, 0(4)
@@ -350,7 +342,7 @@ define void @spConv2sb(float* nocapture readonly %a, i8* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2sb:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stb 3, 0(4)
@@ -376,7 +368,7 @@ define void @dpConv2sdw_x(double* nocapture readonly %a, i64* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2sdw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 3
 ; CHECK-PWR8-NEXT:    xscvdpsxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 4, 3
@@ -405,7 +397,7 @@ define void @dpConv2sw_x(double* nocapture readonly %a, i32* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2sw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 2
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 4, 3
@@ -434,7 +426,7 @@ define void @dpConv2shw_x(double* nocapture readonly %a, i16* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2shw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 5, 5, 1
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
@@ -463,7 +455,7 @@ define void @dpConv2sb_x(double* nocapture readonly %a, i8* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2sb_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stbx 3, 4, 5
@@ -492,7 +484,7 @@ define void @spConv2sdw_x(float* nocapture readonly %a, i64* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2sdw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 3
 ; CHECK-PWR8-NEXT:    xscvdpsxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 4, 3
@@ -521,7 +513,7 @@ define void @spConv2sw_x(float* nocapture readonly %a, i32* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2sw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 2
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 4, 3
@@ -550,7 +542,7 @@ define void @spConv2shw_x(float* nocapture readonly %a, i16* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2shw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 5, 5, 1
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
@@ -579,7 +571,7 @@ define void @spConv2sb_x(float* nocapture readonly %a, i8* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2sb_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stbx 3, 4, 5
@@ -611,7 +603,7 @@ define void @dpConv2udw(double* nocapture readonly %a, i64* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2udw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpuxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -635,7 +627,7 @@ define void @dpConv2uw(double* nocapture readonly %a, i32* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2uw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpuxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -659,7 +651,7 @@ define void @dpConv2uhw(double* nocapture readonly %a, i16* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2uhw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    sth 3, 0(4)
@@ -684,7 +676,7 @@ define void @dpConv2ub(double* nocapture readonly %a, i8* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: dpConv2ub:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stb 3, 0(4)
@@ -709,7 +701,7 @@ define void @spConv2udw(float* nocapture readonly %a, i64* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2udw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpuxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -733,7 +725,7 @@ define void @spConv2uw(float* nocapture readonly %a, i32* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2uw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpuxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 0, 4
 ; CHECK-PWR8-NEXT:    blr
@@ -757,7 +749,7 @@ define void @spConv2uhw(float* nocapture readonly %a, i16* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2uhw:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    sth 3, 0(4)
@@ -782,7 +774,7 @@ define void @spConv2ub(float* nocapture readonly %a, i8* nocapture %b) {
 ;
 ; CHECK-PWR8-LABEL: spConv2ub:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stb 3, 0(4)
@@ -808,7 +800,7 @@ define void @dpConv2udw_x(double* nocapture readonly %a, i64* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2udw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 3
 ; CHECK-PWR8-NEXT:    xscvdpuxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 4, 3
@@ -837,7 +829,7 @@ define void @dpConv2uw_x(double* nocapture readonly %a, i32* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2uw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 2
 ; CHECK-PWR8-NEXT:    xscvdpuxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 4, 3
@@ -866,7 +858,7 @@ define void @dpConv2uhw_x(double* nocapture readonly %a, i16* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2uhw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 5, 5, 1
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
@@ -895,7 +887,7 @@ define void @dpConv2ub_x(double* nocapture readonly %a, i8* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: dpConv2ub_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfdx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfd 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stbx 3, 4, 5
@@ -924,7 +916,7 @@ define void @spConv2udw_x(float* nocapture readonly %a, i64* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2udw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 3
 ; CHECK-PWR8-NEXT:    xscvdpuxds 0, 0
 ; CHECK-PWR8-NEXT:    stxsdx 0, 4, 3
@@ -953,7 +945,7 @@ define void @spConv2uw_x(float* nocapture readonly %a, i32* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2uw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 3, 5, 2
 ; CHECK-PWR8-NEXT:    xscvdpuxws 0, 0
 ; CHECK-PWR8-NEXT:    stfiwx 0, 4, 3
@@ -982,7 +974,7 @@ define void @spConv2uhw_x(float* nocapture readonly %a, i16* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2uhw_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    sldi 5, 5, 1
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
@@ -1011,7 +1003,7 @@ define void @spConv2ub_x(float* nocapture readonly %a, i8* nocapture %b,
 ;
 ; CHECK-PWR8-LABEL: spConv2ub_x:
 ; CHECK-PWR8:       # %bb.0: # %entry
-; CHECK-PWR8-NEXT:    lfsx 0, 0, 3
+; CHECK-PWR8-NEXT:    lfs 0, 0(3)
 ; CHECK-PWR8-NEXT:    xscvdpsxws 0, 0
 ; CHECK-PWR8-NEXT:    mffprwz 3, 0
 ; CHECK-PWR8-NEXT:    stbx 3, 4, 5

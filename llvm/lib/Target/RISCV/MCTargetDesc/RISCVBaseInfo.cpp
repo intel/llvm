@@ -14,13 +14,24 @@
 #include "RISCVBaseInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/Support/TargetParser.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
+
+extern const SubtargetFeatureKV RISCVFeatureKV[RISCV::NumSubtargetFeatures];
+
 namespace RISCVSysReg {
 #define GET_SysRegsList_IMPL
 #include "RISCVGenSearchableTables.inc"
 } // namespace RISCVSysReg
+
+namespace RISCVInsnOpcode {
+#define GET_RISCVOpcodesList_IMPL
+#include "RISCVGenSearchableTables.inc"
+} // namespace RISCVInsnOpcode
 
 namespace RISCVABI {
 ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
@@ -51,15 +62,11 @@ ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
   if (TargetABI != ABI_Unknown)
     return TargetABI;
 
-  // For now, default to the ilp32/ilp32e/lp64 ABI if no explicit ABI is given
-  // or an invalid/unrecognised string is given. In the future, it might be
-  // worth changing this to default to ilp32f/lp64f and ilp32d/lp64d when
-  // hardware support for floating point is present.
-  if (IsRV32E)
-    return ABI_ILP32E;
-  if (IsRV64)
-    return ABI_LP64;
-  return ABI_ILP32;
+  // If no explicit ABI is given, try to compute the default ABI.
+  auto ISAInfo = RISCVFeatures::parseFeatureBits(IsRV64, FeatureBits);
+  if (!ISAInfo)
+    report_fatal_error(ISAInfo.takeError());
+  return getTargetABI((*ISAInfo)->computeDefaultABI());
 }
 
 ABI getTargetABI(StringRef ABIName) {
@@ -90,50 +97,92 @@ namespace RISCVFeatures {
 void validate(const Triple &TT, const FeatureBitset &FeatureBits) {
   if (TT.isArch64Bit() && !FeatureBits[RISCV::Feature64Bit])
     report_fatal_error("RV64 target requires an RV64 CPU");
-  if (!TT.isArch64Bit() && FeatureBits[RISCV::Feature64Bit])
+  if (!TT.isArch64Bit() && !FeatureBits[RISCV::Feature32Bit])
     report_fatal_error("RV32 target requires an RV32 CPU");
   if (TT.isArch64Bit() && FeatureBits[RISCV::FeatureRV32E])
     report_fatal_error("RV32E can't be enabled for an RV64 target");
+  if (FeatureBits[RISCV::Feature32Bit] &&
+      FeatureBits[RISCV::Feature64Bit])
+    report_fatal_error("RV32 and RV64 can't be combined");
+}
+
+llvm::Expected<std::unique_ptr<RISCVISAInfo>>
+parseFeatureBits(bool IsRV64, const FeatureBitset &FeatureBits) {
+  unsigned XLen = IsRV64 ? 64 : 32;
+  std::vector<std::string> FeatureVector;
+  // Convert FeatureBitset to FeatureVector.
+  for (auto Feature : RISCVFeatureKV) {
+    if (FeatureBits[Feature.Value] &&
+        llvm::RISCVISAInfo::isSupportedExtensionFeature(Feature.Key))
+      FeatureVector.push_back(std::string("+") + Feature.Key);
+  }
+  return llvm::RISCVISAInfo::parseFeatures(XLen, FeatureVector);
 }
 
 } // namespace RISCVFeatures
 
-void RISCVVType::printVType(unsigned VType, raw_ostream &OS) {
-  RISCVVSEW VSEW = getVSEW(VType);
-  RISCVVLMUL VLMUL = getVLMUL(VType);
+// Encode VTYPE into the binary format used by the the VSETVLI instruction which
+// is used by our MC layer representation.
+//
+// Bits | Name       | Description
+// -----+------------+------------------------------------------------
+// 7    | vma        | Vector mask agnostic
+// 6    | vta        | Vector tail agnostic
+// 5:3  | vsew[2:0]  | Standard element width (SEW) setting
+// 2:0  | vlmul[2:0] | Vector register group multiplier (LMUL) setting
+unsigned RISCVVType::encodeVTYPE(RISCVII::VLMUL VLMUL, unsigned SEW,
+                                 bool TailAgnostic, bool MaskAgnostic) {
+  assert(isValidSEW(SEW) && "Invalid SEW");
+  unsigned VLMULBits = static_cast<unsigned>(VLMUL);
+  unsigned VSEWBits = encodeSEW(SEW);
+  unsigned VTypeI = (VSEWBits << 3) | (VLMULBits & 0x7);
+  if (TailAgnostic)
+    VTypeI |= 0x40;
+  if (MaskAgnostic)
+    VTypeI |= 0x80;
 
-  unsigned Sew = 1 << (static_cast<unsigned>(VSEW) + 3);
+  return VTypeI;
+}
+
+std::pair<unsigned, bool> RISCVVType::decodeVLMUL(RISCVII::VLMUL VLMUL) {
+  switch (VLMUL) {
+  default:
+    llvm_unreachable("Unexpected LMUL value!");
+  case RISCVII::VLMUL::LMUL_1:
+  case RISCVII::VLMUL::LMUL_2:
+  case RISCVII::VLMUL::LMUL_4:
+  case RISCVII::VLMUL::LMUL_8:
+    return std::make_pair(1 << static_cast<unsigned>(VLMUL), false);
+  case RISCVII::VLMUL::LMUL_F2:
+  case RISCVII::VLMUL::LMUL_F4:
+  case RISCVII::VLMUL::LMUL_F8:
+    return std::make_pair(1 << (8 - static_cast<unsigned>(VLMUL)), true);
+  }
+}
+
+void RISCVVType::printVType(unsigned VType, raw_ostream &OS) {
+  unsigned Sew = getSEW(VType);
   OS << "e" << Sew;
 
-  switch (VLMUL) {
-  case RISCVVLMUL::LMUL_RESERVED:
-    llvm_unreachable("Unexpected LMUL value!");
-  case RISCVVLMUL::LMUL_1:
-  case RISCVVLMUL::LMUL_2:
-  case RISCVVLMUL::LMUL_4:
-  case RISCVVLMUL::LMUL_8: {
-    unsigned LMul = 1 << static_cast<unsigned>(VLMUL);
-    OS << ",m" << LMul;
-    break;
-  }
-  case RISCVVLMUL::LMUL_F2:
-  case RISCVVLMUL::LMUL_F4:
-  case RISCVVLMUL::LMUL_F8: {
-    unsigned LMul = 1 << (8 - static_cast<unsigned>(VLMUL));
-    OS << ",mf" << LMul;
-    break;
-  }
-  }
+  unsigned LMul;
+  bool Fractional;
+  std::tie(LMul, Fractional) = decodeVLMUL(getVLMUL(VType));
+
+  if (Fractional)
+    OS << ", mf";
+  else
+    OS << ", m";
+  OS << LMul;
 
   if (isTailAgnostic(VType))
-    OS << ",ta";
+    OS << ", ta";
   else
-    OS << ",tu";
+    OS << ", tu";
 
   if (isMaskAgnostic(VType))
-    OS << ",ma";
+    OS << ", ma";
   else
-    OS << ",mu";
+    OS << ", mu";
 }
 
 } // namespace llvm

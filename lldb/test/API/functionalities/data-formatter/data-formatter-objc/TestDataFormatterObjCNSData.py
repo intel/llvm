@@ -16,9 +16,16 @@ class ObjCDataFormatterNSData(ObjCDataFormatterTestCase):
 
     def test_nsdata_with_run_command(self):
         """Test formatters for  NSData."""
-        self.appkit_tester_impl(self.nsdata_data_formatter_commands)
+        self.appkit_tester_impl(self.nsdata_data_formatter_commands, True)
+
+    @skipUnlessDarwin
+    def test_nsdata_with_run_command_no_const(self):
+        """Test formatters for  NSData."""
+        self.appkit_tester_impl(self.nsdata_data_formatter_commands, False)
 
     def nsdata_data_formatter_commands(self):
+        self.runCmd('settings set target.prefer-dynamic-value no-dynamic-values')
+
         self.expect(
             'frame variable immutableData mutableData data_ref mutable_data_ref mutable_string_ref concreteData concreteMutableData',
             substrs=[

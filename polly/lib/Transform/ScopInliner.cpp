@@ -26,10 +26,8 @@
 using namespace llvm;
 using namespace polly;
 
-extern bool polly::PollyAllowFullFunction;
-
 namespace {
-class ScopInliner : public CallGraphSCCPass {
+class ScopInliner final : public CallGraphSCCPass {
   using llvm::Pass::doInitialization;
 
 public:
@@ -68,35 +66,43 @@ public:
     }
 
     PassBuilder PB;
+    // Populate analysis managers and register Polly-specific analyses.
+    LoopAnalysisManager LAM;
     FunctionAnalysisManager FAM;
+    CGSCCAnalysisManager CGAM;
+    ModuleAnalysisManager MAM;
     FAM.registerPass([] { return ScopAnalysis(); });
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
     PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
     RegionInfo &RI = FAM.getResult<RegionInfoAnalysis>(*F);
     ScopDetection &SD = FAM.getResult<ScopAnalysis>(*F);
 
     const bool HasScopAsTopLevelRegion =
-        SD.ValidRegions.count(RI.getTopLevelRegion()) > 0;
+        SD.ValidRegions.contains(RI.getTopLevelRegion());
 
+    bool Changed = false;
     if (HasScopAsTopLevelRegion) {
       LLVM_DEBUG(dbgs() << "Skipping " << F->getName()
                         << " has scop as top level region");
       F->addFnAttr(llvm::Attribute::AlwaysInline);
 
-      ModuleAnalysisManager MAM;
-      PB.registerModuleAnalyses(MAM);
-      MAM.registerPass([&] { return FunctionAnalysisManagerModuleProxy(FAM); });
       ModulePassManager MPM;
       MPM.addPass(AlwaysInlinerPass());
       Module *M = F->getParent();
       assert(M && "Function has illegal module");
-      MPM.run(*M, MAM);
+      PreservedAnalyses PA = MPM.run(*M, MAM);
+      if (!PA.areAllPreserved())
+        Changed = true;
     } else {
       LLVM_DEBUG(dbgs() << F->getName()
                         << " does NOT have scop as top level region\n");
     }
 
-    return false;
+    return Changed;
   };
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {

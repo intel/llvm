@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -sycl-std=2017 -fsycl-is-device -triple spir64 | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 
@@ -25,8 +25,8 @@ void invoke() {
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
 // CHECK:       TemplateArgument type 'int'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' inline
+// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit-inline
+// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
@@ -42,8 +42,8 @@ void invoke() {
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
 // CHECK:       TemplateArgument type 'short'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' inline
+// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit-inline
+// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'

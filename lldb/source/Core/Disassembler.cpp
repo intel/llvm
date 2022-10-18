@@ -48,7 +48,7 @@
 #include <cstring>
 #include <utility>
 
-#include <assert.h>
+#include <cassert>
 
 #define DEFAULT_DISASM_BYTE_SIZE 32
 
@@ -64,9 +64,8 @@ DisassemblerSP Disassembler::FindPlugin(const ArchSpec &arch,
   DisassemblerCreateInstance create_callback = nullptr;
 
   if (plugin_name) {
-    ConstString const_plugin_name(plugin_name);
-    create_callback = PluginManager::GetDisassemblerCreateCallbackForPluginName(
-        const_plugin_name);
+    create_callback =
+        PluginManager::GetDisassemblerCreateCallbackForPluginName(plugin_name);
     if (create_callback) {
       DisassemblerSP disassembler_sp(create_callback(arch, flavor));
 
@@ -122,7 +121,7 @@ static Address ResolveAddress(Target &target, const Address &addr) {
 
 lldb::DisassemblerSP Disassembler::DisassembleRange(
     const ArchSpec &arch, const char *plugin_name, const char *flavor,
-    Target &target, const AddressRange &range, bool prefer_file_cache) {
+    Target &target, const AddressRange &range, bool force_live_memory) {
   if (range.GetByteSize() <= 0)
     return {};
 
@@ -137,7 +136,7 @@ lldb::DisassemblerSP Disassembler::DisassembleRange(
 
   const size_t bytes_disassembled = disasm_sp->ParseInstructions(
       target, range.GetBaseAddress(), {Limit::Bytes, range.GetByteSize()},
-      nullptr, prefer_file_cache);
+      nullptr, force_live_memory);
   if (bytes_disassembled == 0)
     return {};
 
@@ -181,9 +180,9 @@ bool Disassembler::Disassemble(Debugger &debugger, const ArchSpec &arch,
   if (!disasm_sp)
     return false;
 
-  const bool prefer_file_cache = false;
+  const bool force_live_memory = true;
   size_t bytes_disassembled = disasm_sp->ParseInstructions(
-      exe_ctx.GetTargetRef(), address, limit, &strm, prefer_file_cache);
+      exe_ctx.GetTargetRef(), address, limit, &strm, force_live_memory);
   if (bytes_disassembled == 0)
     return false;
 
@@ -528,8 +527,11 @@ void Disassembler::PrintInstructions(Debugger &debugger, const ArchSpec &arch,
       }
 
       const bool show_bytes = (options & eOptionShowBytes) != 0;
-      inst->Dump(&strm, max_opcode_byte_size, true, show_bytes, &exe_ctx, &sc,
-                 &prev_sc, nullptr, address_text_size);
+      const bool show_control_flow_kind =
+          (options & eOptionShowControlFlowKind) != 0;
+      inst->Dump(&strm, max_opcode_byte_size, true, show_bytes,
+                 show_control_flow_kind, &exe_ctx, &sc, &prev_sc, nullptr,
+                 address_text_size);
       strm.EOL();
     } else {
       break;
@@ -575,8 +577,34 @@ AddressClass Instruction::GetAddressClass() {
   return m_address_class;
 }
 
+const char *Instruction::GetNameForInstructionControlFlowKind(
+    lldb::InstructionControlFlowKind instruction_control_flow_kind) {
+  switch (instruction_control_flow_kind) {
+  case eInstructionControlFlowKindUnknown:
+    return "unknown";
+  case eInstructionControlFlowKindOther:
+    return "other";
+  case eInstructionControlFlowKindCall:
+    return "call";
+  case eInstructionControlFlowKindReturn:
+    return "return";
+  case eInstructionControlFlowKindJump:
+    return "jump";
+  case eInstructionControlFlowKindCondJump:
+    return "cond jump";
+  case eInstructionControlFlowKindFarCall:
+    return "far call";
+  case eInstructionControlFlowKindFarReturn:
+    return "far return";
+  case eInstructionControlFlowKindFarJump:
+    return "far jump";
+  }
+  llvm_unreachable("Fully covered switch above!");
+}
+
 void Instruction::Dump(lldb_private::Stream *s, uint32_t max_opcode_byte_size,
                        bool show_address, bool show_bytes,
+                       bool show_control_flow_kind,
                        const ExecutionContext *exe_ctx,
                        const SymbolContext *sym_ctx,
                        const SymbolContext *prev_sym_ctx,
@@ -612,6 +640,13 @@ void Instruction::Dump(lldb_private::Stream *s, uint32_t max_opcode_byte_size,
       else
         m_opcode.Dump(&ss, 12);
     }
+  }
+
+  if (show_control_flow_kind) {
+    lldb::InstructionControlFlowKind instruction_control_flow_kind =
+        GetControlFlowKind(exe_ctx);
+    ss.Printf("%-12s", GetNameForInstructionControlFlowKind(
+                           instruction_control_flow_kind));
   }
 
   const size_t opcode_pos = ss.GetSizeOfLastLine();
@@ -958,6 +993,7 @@ InstructionSP InstructionList::GetInstructionAtAddress(const Address &address) {
 }
 
 void InstructionList::Dump(Stream *s, bool show_address, bool show_bytes,
+                           bool show_control_flow_kind,
                            const ExecutionContext *exe_ctx) {
   const uint32_t max_opcode_byte_size = GetMaxOpcocdeByteSize();
   collection::const_iterator pos, begin, end;
@@ -976,8 +1012,9 @@ void InstructionList::Dump(Stream *s, bool show_address, bool show_bytes,
        pos != end; ++pos) {
     if (pos != begin)
       s->EOL();
-    (*pos)->Dump(s, max_opcode_byte_size, show_address, show_bytes, exe_ctx,
-                 nullptr, nullptr, disassembly_format, 0);
+    (*pos)->Dump(s, max_opcode_byte_size, show_address, show_bytes,
+                 show_control_flow_kind, exe_ctx, nullptr, nullptr,
+                 disassembly_format, 0);
   }
 }
 
@@ -995,7 +1032,7 @@ InstructionList::GetIndexOfNextBranchInstruction(uint32_t start,
   size_t num_instructions = m_instructions.size();
 
   uint32_t next_branch = UINT32_MAX;
-  
+
   if (found_calls)
     *found_calls = false;
   for (size_t i = start; i < num_instructions; i++) {
@@ -1036,7 +1073,7 @@ InstructionList::GetIndexOfInstructionAtLoadAddress(lldb::addr_t load_addr,
 
 size_t Disassembler::ParseInstructions(Target &target, Address start,
                                        Limit limit, Stream *error_strm_ptr,
-                                       bool prefer_file_cache) {
+                                       bool force_live_memory) {
   m_instruction_list.Clear();
 
   if (!start.IsValid())
@@ -1052,8 +1089,8 @@ size_t Disassembler::ParseInstructions(Target &target, Address start,
   Status error;
   lldb::addr_t load_addr = LLDB_INVALID_ADDRESS;
   const size_t bytes_read =
-      target.ReadMemory(start, prefer_file_cache, data_sp->GetBytes(),
-                        data_sp->GetByteSize(), error, &load_addr);
+      target.ReadMemory(start, data_sp->GetBytes(), data_sp->GetByteSize(),
+                        error, force_live_memory, &load_addr);
   const bool data_from_file = load_addr == LLDB_INVALID_ADDRESS;
 
   if (bytes_read == 0) {
@@ -1122,6 +1159,10 @@ bool PseudoInstruction::HasDelaySlot() {
   // This is NOT a valid question for a pseudo instruction.
   return false;
 }
+
+bool PseudoInstruction::IsLoad() { return false; }
+
+bool PseudoInstruction::IsAuthenticated() { return false; }
 
 size_t PseudoInstruction::Decode(const lldb_private::Disassembler &disassembler,
                                  const lldb_private::DataExtractor &data,

@@ -9,11 +9,7 @@ define <2 x float> @foo({{float, float}}* %A) {
 ; CHECK-NEXT:    [[TMP0:%.*]] = bitcast { { float, float } }* [[A:%.*]] to <2 x float>*
 ; CHECK-NEXT:    [[TMP1:%.*]] = load <2 x float>, <2 x float>* [[TMP0]], align 8
 ; CHECK-NEXT:    [[TMP2:%.*]] = fmul <2 x float> [[TMP1]], <float 2.000000e+00, float 2.000000e+00>
-; CHECK-NEXT:    [[TMP3:%.*]] = extractelement <2 x float> [[TMP2]], i32 1
-; CHECK-NEXT:    [[INS1:%.*]] = insertelement <2 x float> undef, float [[TMP3]], i32 1
-; CHECK-NEXT:    [[TMP4:%.*]] = extractelement <2 x float> [[TMP2]], i32 0
-; CHECK-NEXT:    [[INS0:%.*]] = insertelement <2 x float> [[INS1]], float [[TMP4]], i32 0
-; CHECK-NEXT:    ret <2 x float> [[INS0]]
+; CHECK-NEXT:    ret <2 x float> [[TMP2]]
 ;
 entry:
   %0 = bitcast {{float, float}}* %A to <2 x float>*
@@ -34,38 +30,31 @@ entry:
 define {%Struct2Ty, %Struct2Ty} @StructOfStructOfStruct(i16 *%Ptr) {
 ; CHECK-LABEL: @StructOfStructOfStruct(
 ; CHECK-NEXT:    [[GEP0:%.*]] = getelementptr inbounds i16, i16* [[PTR:%.*]], i64 0
-; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 1
-; CHECK-NEXT:    [[GEP2:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 2
-; CHECK-NEXT:    [[GEP3:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 3
-; CHECK-NEXT:    [[GEP4:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 4
-; CHECK-NEXT:    [[GEP5:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 5
-; CHECK-NEXT:    [[GEP6:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 6
-; CHECK-NEXT:    [[GEP7:%.*]] = getelementptr inbounds i16, i16* [[PTR]], i64 7
 ; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i16* [[GEP0]] to <8 x i16>*
 ; CHECK-NEXT:    [[TMP2:%.*]] = load <8 x i16>, <8 x i16>* [[TMP1]], align 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = add <8 x i16> [[TMP2]], <i16 1, i16 2, i16 3, i16 4, i16 5, i16 6, i16 7, i16 8>
 ; CHECK-NEXT:    [[TMP4:%.*]] = extractelement <8 x i16> [[TMP3]], i32 1
 ; CHECK-NEXT:    [[STRUCTIN0:%.*]] = insertvalue [[STRUCT1TY:%.*]] undef, i16 [[TMP4]], 1
 ; CHECK-NEXT:    [[TMP5:%.*]] = extractelement <8 x i16> [[TMP3]], i32 0
-; CHECK-NEXT:    [[STRUCTIN1:%.*]] = insertvalue [[STRUCT1TY]] %StructIn0, i16 [[TMP5]], 0
+; CHECK-NEXT:    [[STRUCTIN1:%.*]] = insertvalue [[STRUCT1TY]] [[STRUCTIN0]], i16 [[TMP5]], 0
 ; CHECK-NEXT:    [[TMP6:%.*]] = extractelement <8 x i16> [[TMP3]], i32 2
 ; CHECK-NEXT:    [[STRUCTIN2:%.*]] = insertvalue [[STRUCT1TY]] undef, i16 [[TMP6]], 0
 ; CHECK-NEXT:    [[TMP7:%.*]] = extractelement <8 x i16> [[TMP3]], i32 3
-; CHECK-NEXT:    [[STRUCTIN3:%.*]] = insertvalue [[STRUCT1TY]] %StructIn2, i16 [[TMP7]], 1
+; CHECK-NEXT:    [[STRUCTIN3:%.*]] = insertvalue [[STRUCT1TY]] [[STRUCTIN2]], i16 [[TMP7]], 1
 ; CHECK-NEXT:    [[TMP8:%.*]] = extractelement <8 x i16> [[TMP3]], i32 4
 ; CHECK-NEXT:    [[STRUCTIN4:%.*]] = insertvalue [[STRUCT1TY]] undef, i16 [[TMP8]], 0
 ; CHECK-NEXT:    [[TMP9:%.*]] = extractelement <8 x i16> [[TMP3]], i32 5
-; CHECK-NEXT:    [[STRUCTIN5:%.*]] = insertvalue [[STRUCT1TY]] %StructIn4, i16 [[TMP9]], 1
+; CHECK-NEXT:    [[STRUCTIN5:%.*]] = insertvalue [[STRUCT1TY]] [[STRUCTIN4]], i16 [[TMP9]], 1
 ; CHECK-NEXT:    [[TMP10:%.*]] = extractelement <8 x i16> [[TMP3]], i32 7
 ; CHECK-NEXT:    [[STRUCTIN6:%.*]] = insertvalue [[STRUCT1TY]] undef, i16 [[TMP10]], 1
 ; CHECK-NEXT:    [[TMP11:%.*]] = extractelement <8 x i16> [[TMP3]], i32 6
-; CHECK-NEXT:    [[STRUCTIN7:%.*]] = insertvalue [[STRUCT1TY]] %StructIn6, i16 [[TMP11]], 0
-; CHECK-NEXT:    [[STRUCT2IN0:%.*]] = insertvalue [[STRUCT2TY:%.*]] undef, [[STRUCT1TY]] %StructIn1, 0
-; CHECK-NEXT:    [[STRUCT2IN1:%.*]] = insertvalue [[STRUCT2TY]] %Struct2In0, [[STRUCT1TY]] %StructIn3, 1
-; CHECK-NEXT:    [[STRUCT2IN2:%.*]] = insertvalue [[STRUCT2TY]] undef, [[STRUCT1TY]] %StructIn5, 0
-; CHECK-NEXT:    [[STRUCT2IN3:%.*]] = insertvalue [[STRUCT2TY]] %Struct2In2, [[STRUCT1TY]] %StructIn7, 1
-; CHECK-NEXT:    [[RET0:%.*]] = insertvalue { [[STRUCT2TY]], [[STRUCT2TY]] } undef, [[STRUCT2TY]] %Struct2In3, 1
-; CHECK-NEXT:    [[RET1:%.*]] = insertvalue { [[STRUCT2TY]], [[STRUCT2TY]] } [[RET0]], [[STRUCT2TY]] %Struct2In1, 0
+; CHECK-NEXT:    [[STRUCTIN7:%.*]] = insertvalue [[STRUCT1TY]] [[STRUCTIN6]], i16 [[TMP11]], 0
+; CHECK-NEXT:    [[STRUCT2IN0:%.*]] = insertvalue [[STRUCT2TY:%.*]] undef, [[STRUCT1TY]] [[STRUCTIN1]], 0
+; CHECK-NEXT:    [[STRUCT2IN1:%.*]] = insertvalue [[STRUCT2TY]] [[STRUCT2IN0]], [[STRUCT1TY]] [[STRUCTIN3]], 1
+; CHECK-NEXT:    [[STRUCT2IN2:%.*]] = insertvalue [[STRUCT2TY]] undef, [[STRUCT1TY]] [[STRUCTIN5]], 0
+; CHECK-NEXT:    [[STRUCT2IN3:%.*]] = insertvalue [[STRUCT2TY]] [[STRUCT2IN2]], [[STRUCT1TY]] [[STRUCTIN7]], 1
+; CHECK-NEXT:    [[RET0:%.*]] = insertvalue { [[STRUCT2TY]], [[STRUCT2TY]] } undef, [[STRUCT2TY]] [[STRUCT2IN3]], 1
+; CHECK-NEXT:    [[RET1:%.*]] = insertvalue { [[STRUCT2TY]], [[STRUCT2TY]] } [[RET0]], [[STRUCT2TY]] [[STRUCT2IN1]], 0
 ; CHECK-NEXT:    ret { [[STRUCT2TY]], [[STRUCT2TY]] } [[RET1]]
 ;
   %GEP0 = getelementptr inbounds i16, i16* %Ptr, i64 0

@@ -44,11 +44,12 @@ AST_MATCHER(QualType, isEnableIf) {
   if (CheckTemplate(BaseType->getAs<TemplateSpecializationType>()))
     return true; // Case: enable_if_t< >.
   if (const auto *Elaborated = BaseType->getAs<ElaboratedType>()) {
-    if (const auto *Qualifier = Elaborated->getQualifier()->getAsType()) {
-      if (CheckTemplate(Qualifier->getAs<TemplateSpecializationType>())) {
-        return true; // Case: enable_if< >::type.
+    if (const auto *Q = Elaborated->getQualifier())
+      if (const auto *Qualifier = Q->getAsType()) {
+        if (CheckTemplate(Qualifier->getAs<TemplateSpecializationType>())) {
+          return true; // Case: enable_if< >::type.
+        }
       }
-    }
   }
   return false;
 }
@@ -74,9 +75,15 @@ void ForwardingReferenceOverloadCheck::registerMatchers(MatchFinder *Finder) {
           unless(hasAnyParameter(
               // No warning: enable_if as constructor parameter.
               parmVarDecl(hasType(isEnableIf())))),
-          unless(hasParent(functionTemplateDecl(has(templateTypeParmDecl(
+          unless(hasParent(functionTemplateDecl(anyOf(
               // No warning: enable_if as type parameter.
-              hasDefaultArgument(isEnableIf())))))))
+              has(templateTypeParmDecl(hasDefaultArgument(isEnableIf()))),
+              // No warning: enable_if as non-type template parameter.
+              has(nonTypeTemplateParmDecl(
+                  hasType(isEnableIf()),
+                  anyOf(hasDescendant(cxxBoolLiteral()),
+                        hasDescendant(cxxNullPtrLiteralExpr()),
+                        hasDescendant(integerLiteral())))))))))
           .bind("ctor");
   Finder->addMatcher(FindOverload, this);
 }
@@ -106,8 +113,8 @@ void ForwardingReferenceOverloadCheck::check(
 
   // Every parameter after the first must have a default value.
   const auto *Ctor = Result.Nodes.getNodeAs<CXXConstructorDecl>("ctor");
-  for (auto Iter = Ctor->param_begin() + 1; Iter != Ctor->param_end(); ++Iter) {
-    if (!(*Iter)->hasDefaultArg())
+  for (const auto *Param : llvm::drop_begin(Ctor->parameters())) {
+    if (!Param->hasDefaultArg())
       return;
   }
   bool EnabledCopy = false, DisabledCopy = false, EnabledMove = false,

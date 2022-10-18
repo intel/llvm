@@ -9,7 +9,7 @@
 ## taking a non-stub dylib and editing the appropriate fields.
 
 # REQUIRES: x86
-# RUN: split-file %s %t
+# RUN: rm -rf %t; split-file %s %t
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/test.s -o %t/test.o
 # RUN: yaml2obj %t/fat.dylib.yaml > %t/fat.dylib
 # RUN: %lld -lSystem %t/test.o %t/fat.dylib -o %t/test
@@ -88,7 +88,7 @@ Slices:
           timestamp:       1
           current_version: 0
           compatibility_version: 0
-        PayloadString:   foo.dylib
+        Content:         foo.dylib
         ZeroPadBytes:    7
       - cmd:             LC_DYLD_INFO_ONLY
         cmdsize:         48

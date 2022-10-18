@@ -8,28 +8,27 @@
 
 #include "SchedulerTestUtils.hpp"
 
-#include <CL/sycl.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
 #include <gtest/gtest.h>
+#include <helpers/PiMock.hpp>
 #include <memory>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl::detail;
+using namespace sycl::detail;
 
 class LeavesCollectionTest : public ::testing::Test {
 protected:
-  cl::sycl::async_handler MAsyncHandler =
-      [](cl::sycl::exception_list ExceptionList) {
-        for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
-          try {
-            std::rethrow_exception(ExceptionPtr);
-          } catch (cl::sycl::exception &E) {
-            std::cerr << E.what();
-          } catch (...) {
-            std::cerr << "Unknown async exception was caught." << std::endl;
-          }
-        }
-      };
-  cl::sycl::queue MQueue = cl::sycl::queue(cl::sycl::device(), MAsyncHandler);
+  sycl::async_handler MAsyncHandler = [](sycl::exception_list ExceptionList) {
+    for (std::exception_ptr ExceptionPtr : ExceptionList) {
+      try {
+        std::rethrow_exception(ExceptionPtr);
+      } catch (sycl::exception &E) {
+        std::cerr << E.what();
+      } catch (...) {
+        std::cerr << "Unknown async exception was caught." << std::endl;
+      }
+    }
+  };
 };
 
 std::shared_ptr<Command>
@@ -47,12 +46,18 @@ createEmptyCommand(const std::shared_ptr<queue_impl> &Q,
 }
 
 TEST_F(LeavesCollectionTest, PushBack) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   static constexpr size_t GenericCmdsCapacity = 8;
 
   size_t TimesGenericWasFull;
 
+  std::vector<sycl::detail::Command *> ToEnqueue;
+
   LeavesCollection::AllocateDependencyF AllocateDependency =
-      [&](Command *, Command *, MemObjRecord *) { ++TimesGenericWasFull; };
+      [&](Command *, Command *, MemObjRecord *,
+          std::vector<sycl::detail::Command *> &) { ++TimesGenericWasFull; };
 
   // add only generic commands
   {
@@ -63,9 +68,9 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 2; ++Idx) {
-      Cmds.push_back(createGenericCommand(getSyclObjImpl(MQueue)));
+      Cmds.push_back(createGenericCommand(getSyclObjImpl(Q)));
 
-      LE.push_back(Cmds.back().get());
+      LE.push_back(Cmds.back().get(), ToEnqueue);
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
@@ -80,7 +85,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
   // add mix of generic and empty commands
   {
-    cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
+    sycl::buffer<int, 1> Buf(sycl::range<1>(1));
 
     Requirement MockReq = getMockRequirement(Buf);
 
@@ -91,11 +96,11 @@ TEST_F(LeavesCollectionTest, PushBack) {
     TimesGenericWasFull = 0;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(MQueue))
-                         : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
+                         : createEmptyCommand(getSyclObjImpl(Q), MockReq);
       Cmds.push_back(Cmd);
 
-      LE.push_back(Cmds.back().get());
+      LE.push_back(Cmds.back().get(), ToEnqueue);
     }
 
     ASSERT_EQ(TimesGenericWasFull, GenericCmdsCapacity)
@@ -110,13 +115,19 @@ TEST_F(LeavesCollectionTest, PushBack) {
 }
 
 TEST_F(LeavesCollectionTest, Remove) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   static constexpr size_t GenericCmdsCapacity = 8;
 
+  std::vector<sycl::detail::Command *> ToEnqueue;
+
   LeavesCollection::AllocateDependencyF AllocateDependency =
-      [](Command *, Command *Old, MemObjRecord *) { --Old->MLeafCounter; };
+      [](Command *, Command *Old, MemObjRecord *,
+         std::vector<sycl::detail::Command *> &) { --Old->MLeafCounter; };
 
   {
-    cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
+    sycl::buffer<int, 1> Buf(sycl::range<1>(1));
 
     Requirement MockReq = getMockRequirement(Buf);
 
@@ -125,11 +136,11 @@ TEST_F(LeavesCollectionTest, Remove) {
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
-      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(MQueue))
-                         : createEmptyCommand(getSyclObjImpl(MQueue), MockReq);
+      auto Cmd = Idx % 2 ? createGenericCommand(getSyclObjImpl(Q))
+                         : createEmptyCommand(getSyclObjImpl(Q), MockReq);
       Cmds.push_back(Cmd);
 
-      if (LE.push_back(Cmds.back().get()))
+      if (LE.push_back(Cmds.back().get(), ToEnqueue))
         ++Cmd->MLeafCounter;
     }
 

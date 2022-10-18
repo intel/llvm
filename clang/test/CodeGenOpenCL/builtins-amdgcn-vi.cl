@@ -1,12 +1,13 @@
 // REQUIRES: amdgpu-registered-target
-// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -target-cpu tonga -S -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -target-cpu gfx900 -S -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -target-cpu gfx1010 -S -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -target-cpu gfx1012 -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple amdgcn-unknown-unknown -target-cpu tonga -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple amdgcn-unknown-unknown -target-cpu gfx900 -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple amdgcn-unknown-unknown -target-cpu gfx1010 -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple amdgcn-unknown-unknown -target-cpu gfx1012 -S -emit-llvm -o - %s | FileCheck %s
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 typedef unsigned long ulong;
+typedef unsigned int  uint;
 
 // CHECK-LABEL: @test_div_fixup_f16
 // CHECK: call half @llvm.amdgcn.div.fixup.f16
@@ -136,4 +137,18 @@ void test_ds_fmaxf(local float *out, float src) {
 void test_s_memtime(global ulong* out)
 {
   *out = __builtin_amdgcn_s_memtime();
+}
+
+// CHECK-LABEL: @test_perm
+// CHECK: call i32 @llvm.amdgcn.perm(i32 %a, i32 %b, i32 %s)
+void test_perm(global uint* out, uint a, uint b, uint s)
+{
+  *out = __builtin_amdgcn_perm(a, b, s);
+}
+
+// CHECK-LABEL: @test_groupstaticsize
+// CHECK: call i32 @llvm.amdgcn.groupstaticsize()
+void test_groupstaticsize(global uint* out)
+{
+  *out = __builtin_amdgcn_groupstaticsize();
 }

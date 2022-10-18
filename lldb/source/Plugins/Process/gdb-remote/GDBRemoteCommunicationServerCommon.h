@@ -15,7 +15,6 @@
 #include "lldb/lldb-private-forward.h"
 
 #include "GDBRemoteCommunicationServer.h"
-#include "GDBRemoteCommunicationServerCommon.h"
 
 class StringExtractorGDBRemote;
 
@@ -26,8 +25,7 @@ class ProcessGDBRemote;
 
 class GDBRemoteCommunicationServerCommon : public GDBRemoteCommunicationServer {
 public:
-  GDBRemoteCommunicationServerCommon(const char *comm_name,
-                                     const char *listener_name);
+  GDBRemoteCommunicationServerCommon();
 
   ~GDBRemoteCommunicationServerCommon() override;
 
@@ -36,8 +34,6 @@ protected:
   Status m_process_launch_error;
   ProcessInstanceInfoList m_proc_infos;
   uint32_t m_proc_infos_index;
-  bool m_thread_suffix_supported;
-  bool m_list_threads_in_stop_reply;
 
   PacketResult Handle_A(StringExtractorGDBRemote &packet);
 
@@ -73,6 +69,8 @@ protected:
 
   PacketResult Handle_vFile_unlink(StringExtractorGDBRemote &packet);
 
+  PacketResult Handle_vFile_FStat(StringExtractorGDBRemote &packet);
+
   PacketResult Handle_vFile_Stat(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_vFile_MD5(StringExtractorGDBRemote &packet);
@@ -90,10 +88,6 @@ protected:
   PacketResult Handle_qPlatform_chmod(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_qSupported(StringExtractorGDBRemote &packet);
-
-  PacketResult Handle_QThreadSuffixSupported(StringExtractorGDBRemote &packet);
-
-  PacketResult Handle_QListThreadsInStopReply(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_QSetDetachOnError(StringExtractorGDBRemote &packet);
 
@@ -144,6 +138,11 @@ protected:
 
   virtual FileSpec FindModuleFile(const std::string &module_path,
                                   const ArchSpec &arch);
+
+  // Process client_features (qSupported) and return an array of server features
+  // to be returned in response.
+  virtual std::vector<std::string>
+  HandleFeatures(llvm::ArrayRef<llvm::StringRef> client_features);
 
 private:
   ModuleSpec GetModuleInfo(llvm::StringRef module_path, llvm::StringRef triple);

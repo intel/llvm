@@ -41,7 +41,7 @@ namespace DeducedNotCat {
     A operator<=>(const A&) const; // expected-note {{selected 'operator<=>' for member 'a' declared here}}
   };
   struct B {
-    A a; // expected-note {{return type 'DeducedNotCat::A' of three-way comparison for member 'a' is not a standard comparison category type}}
+    A a; // expected-note {{return type 'A' of three-way comparison for member 'a' is not a standard comparison category type}}
     auto operator<=>(const B&) const = default; // expected-warning {{implicitly deleted}}
   };
 }
@@ -171,4 +171,44 @@ namespace PR48856 {
     auto operator<=>(const C &) const = default; // expected-warning {{implicitly deleted}}
     int C::*x;                                   // expected-note {{because there is no viable three-way comparison function for member 'x'}}
   };
+}
+
+namespace PR50591 {
+  struct a1 {
+    operator int() const;
+  };
+  struct b1 {
+    auto operator<=>(b1 const &) const = default;
+    a1 f;
+  };
+  std::strong_ordering cmp_b1 = b1() <=> b1();
+
+  struct a2 {
+    operator float() const;
+  };
+  struct b2 {
+    auto operator<=>(b2 const &) const = default;
+    a2 f;
+  };
+  std::partial_ordering cmp_b2 = b2() <=> b2();
+
+  using fp = void (*)();
+
+  struct a3 {
+    operator fp() const;
+  };
+  struct b3 {
+    auto operator<=>(b3 const &) const = default; // expected-warning {{implicitly deleted}}
+    a3 f;                                         // expected-note {{because there is no viable three-way comparison function}}
+  };
+
+  struct a4 { // Test that function pointer conversion operator here is ignored for this overload resolution.
+    operator int() const;
+    operator fp() const;
+  };
+  struct b4 {
+    auto operator<=>(b4 const &) const = default;
+    a4 f;
+  };
+  std::strong_ordering cmp_b4 = b4() <=> b4();
 }

@@ -42,31 +42,13 @@ void test_signatures() {
   ASSERT_NOEXCEPT(Eq > 0);
   ASSERT_NOEXCEPT(0 >= Eq);
   ASSERT_NOEXCEPT(Eq >= 0);
-#ifndef TEST_HAS_NO_SPACESHIP_OPERATOR
   ASSERT_NOEXCEPT(0 <=> Eq);
   ASSERT_NOEXCEPT(Eq <=> 0);
   ASSERT_SAME_TYPE(decltype(Eq <=> 0), std::weak_ordering);
   ASSERT_SAME_TYPE(decltype(0 <=> Eq), std::weak_ordering);
-#endif
 }
 
 constexpr bool test_conversion() {
-  static_assert(std::is_convertible<const std::weak_ordering&,
-      std::weak_equality>::value, "");
-  { // value == 0
-    auto V = std::weak_ordering::equivalent;
-    std::weak_equality WV = V;
-    assert(WV == 0);
-  }
-  std::weak_ordering WeakTestCases[] = {
-      std::weak_ordering::less,
-      std::weak_ordering::greater,
-  };
-  for (auto V : WeakTestCases)
-  { // value != 0
-    std::weak_equality WV = V;
-    assert(WV != 0);
-  }
   static_assert(std::is_convertible<const std::weak_ordering&,
       std::partial_ordering>::value, "");
   { // value == 0
@@ -85,6 +67,15 @@ constexpr bool test_conversion() {
     assert(WV > 0);
   }
   return true;
+}
+
+constexpr void test_equality() {
+  auto& WeakEq = std::weak_ordering::equivalent;
+  auto& PartialEq = std::partial_ordering::equivalent;
+  assert(WeakEq == PartialEq);
+
+  auto& StrongEq = std::strong_ordering::equal;
+  assert(WeakEq == StrongEq);
 }
 
 constexpr bool test_constexpr() {
@@ -119,7 +110,6 @@ constexpr bool test_constexpr() {
     assert((0 <= V) == (TC.ExpectGreater || TC.ExpectEq));
     assert((0 >= V) == (TC.ExpectLess || TC.ExpectEq));
   }
-#ifndef TEST_HAS_NO_SPACESHIP_OPERATOR
   {
     std::weak_ordering res = (Eq <=> 0);
     ((void)res);
@@ -172,7 +162,8 @@ constexpr bool test_constexpr() {
                   std::weak_ordering::equivalent);
     static_assert(std::weak_ordering::greater == std::weak_ordering::greater);
   }
-#endif
+
+  test_equality();
 
   return true;
 }
@@ -180,6 +171,7 @@ constexpr bool test_constexpr() {
 int main(int, char**) {
   test_static_members();
   test_signatures();
+  test_equality();
   static_assert(test_conversion(), "conversion test failed");
   static_assert(test_constexpr(), "constexpr test failed");
 

@@ -26,12 +26,12 @@ namespace dr712 { // dr712: partial
         use(a);
         use((a));
         use(cond ? a : a);
-        use((cond, a)); // expected-warning 2{{unused}} FIXME: should only warn once
+        use((cond, a)); // expected-warning 2{{left operand of comma operator has no effect}} FIXME: should only warn once
 
         (void)a; // FIXME: expected-error {{declared in enclosing}}
         (void)(a); // FIXME: expected-error {{declared in enclosing}}
         (void)(cond ? a : a); // FIXME: expected-error 2{{declared in enclosing}}
-        (void)(cond, a); // FIXME: expected-error {{declared in enclosing}} expected-warning {{unused}}
+        (void)(cond, a); // FIXME: expected-error {{declared in enclosing}} expected-warning {{left operand of comma operator has no effect}}
       }
     };
   }
@@ -178,7 +178,8 @@ namespace dr727 { // dr727: partial
     static_assert(B<0>().v<1> == 3, "");
     static_assert(B<0>().v<0> == 4, "");
 #if __cplusplus < 201702L
-    // expected-error@-2 {{failed}}
+    // expected-error@-2 {{failed}} \
+    // expected-note@-2 {{evaluates to '2 == 4'}}
 #endif
 
     static_assert(B<1>().w<1> == 1, "");

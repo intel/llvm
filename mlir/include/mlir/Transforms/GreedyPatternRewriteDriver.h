@@ -18,6 +18,28 @@
 
 namespace mlir {
 
+/// This class allows control over how the GreedyPatternRewriteDriver works.
+class GreedyRewriteConfig {
+public:
+  /// This specifies the order of initial traversal that populates the rewriters
+  /// worklist.  When set to true, it walks the operations top-down, which is
+  /// generally more efficient in compile time.  When set to false, its initial
+  /// traversal of the region tree is bottom up on each block, which may match
+  /// larger patterns when given an ambiguous pattern set.
+  bool useTopDownTraversal = false;
+
+  // Perform control flow optimizations to the region tree after applying all
+  // patterns.
+  bool enableRegionSimplification = true;
+
+  /// This specifies the maximum number of times the rewriter will iterate
+  /// between applying patterns and simplifying regions. Use `kNoIterationLimit`
+  /// to disable this iteration limit.
+  int64_t maxIterations = 10;
+
+  static constexpr int64_t kNoIterationLimit = -1;
+};
+
 //===----------------------------------------------------------------------===//
 // applyPatternsGreedily
 //===----------------------------------------------------------------------===//
@@ -25,36 +47,29 @@ namespace mlir {
 /// Rewrite the regions of the specified operation, which must be isolated from
 /// above, by repeatedly applying the highest benefit patterns in a greedy
 /// work-list driven manner.
+///
 /// This variant may stop after a predefined number of iterations, see the
 /// alternative below to provide a specific number of iterations before stopping
 /// in absence of convergence.
+///
 /// Return success if the iterative process converged and no more patterns can
 /// be matched in the result operation regions.
+///
 /// Note: This does not apply patterns to the top-level operation itself.
 ///       These methods also perform folding and simple dead-code elimination
 ///       before attempting to match any of the provided patterns.
-LogicalResult
-applyPatternsAndFoldGreedily(Operation *op,
-                             const FrozenRewritePatternSet &patterns);
-
-/// Rewrite the regions of the specified operation, with a user-provided limit
-/// on iterations to attempt before reaching convergence.
-LogicalResult
-applyPatternsAndFoldGreedily(Operation *op,
-                             const FrozenRewritePatternSet &patterns,
-                             unsigned maxIterations);
+///
+/// You may configure several aspects of this with GreedyRewriteConfig.
+LogicalResult applyPatternsAndFoldGreedily(
+    MutableArrayRef<Region> regions, const FrozenRewritePatternSet &patterns,
+    GreedyRewriteConfig config = GreedyRewriteConfig());
 
 /// Rewrite the given regions, which must be isolated from above.
-LogicalResult
-applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
-                             const FrozenRewritePatternSet &patterns);
-
-/// Rewrite the given regions, with a user-provided limit on iterations to
-/// attempt before reaching convergence.
-LogicalResult
-applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
-                             const FrozenRewritePatternSet &patterns,
-                             unsigned maxIterations);
+inline LogicalResult applyPatternsAndFoldGreedily(
+    Operation *op, const FrozenRewritePatternSet &patterns,
+    GreedyRewriteConfig config = GreedyRewriteConfig()) {
+  return applyPatternsAndFoldGreedily(op->getRegions(), patterns, config);
+}
 
 /// Applies the specified patterns on `op` alone while also trying to fold it,
 /// by selecting the highest benefits patterns in a greedy manner. Returns
@@ -65,6 +80,20 @@ LogicalResult applyOpPatternsAndFold(Operation *op,
                                      const FrozenRewritePatternSet &patterns,
                                      bool *erased = nullptr);
 
-} // end namespace mlir
+/// Applies the specified rewrite patterns on `ops` while also trying to fold
+/// these ops as well as any other ops that were in turn created due to such
+/// rewrites. Furthermore, any pre-existing ops in the IR outside of `ops`
+/// remain completely unmodified if `strict` is set to true. If `strict` is
+/// false, other operations that use results of rewritten ops or supply operands
+/// to such ops are in turn simplified; any other ops still remain unmodified
+/// (i.e., regardless of `strict`). Note that ops in `ops` could be erased as a
+/// result of folding, becoming dead, or via pattern rewrites. If more far
+/// reaching simplification is desired, applyPatternsAndFoldGreedily should be
+/// used. Returns true if at all any IR was rewritten.
+bool applyOpPatternsAndFold(ArrayRef<Operation *> ops,
+                            const FrozenRewritePatternSet &patterns,
+                            bool strict);
+
+} // namespace mlir
 
 #endif // MLIR_TRANSFORMS_GREEDYPATTERNREWRITEDRIVER_H_

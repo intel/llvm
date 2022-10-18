@@ -1,11 +1,10 @@
 ; Test that in some simple cases allocas will not live on the frame even
 ; though their pointers are stored.
-; RUN: opt < %s -coro-split -S | FileCheck %s
-; RUN: opt < %s -passes=coro-split -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
 
 %handle = type { i8* }
 
-define i8* @f() "coroutine.presplit"="1" {
+define i8* @f() presplitcoroutine {
 entry:
   %0 = alloca %"handle", align 8
   %1 = alloca %"handle"*, align 8

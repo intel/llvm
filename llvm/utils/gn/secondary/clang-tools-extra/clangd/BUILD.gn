@@ -14,6 +14,7 @@ write_cmake_config("features") {
   values = [
     "CLANGD_ENABLE_REMOTE=0",
     "CLANGD_MALLOC_TRIM=1",
+    "CLANGD_TIDY_CHECKS=1",
     "ENABLE_GRPC_REFLECTION=0",
   ]
   if (clangd_build_xpc) {
@@ -41,6 +42,7 @@ static_library("clangd") {
     "//clang-tools-extra/clang-tidy:all-checks",
     "//clang-tools-extra/clang-tidy:clang-tidy-config",
     "//clang-tools-extra/clangd/support",
+    "//clang-tools-extra/pseudo/lib",
     "//clang/lib/AST",
     "//clang/lib/ASTMatchers",
     "//clang/lib/Basic",
@@ -62,6 +64,9 @@ static_library("clangd") {
   ]
   include_dirs = [
     ".",
+
+    # For "clang-pseudo/..." includes.
+    "//clang-tools-extra/pseudo/include",
 
     # To pick up the generated inc files.
     "$target_gen_dir/tool",
@@ -85,6 +90,7 @@ static_library("clangd") {
     "DumpAST.cpp",
     "ExpectedTypes.cpp",
     "FS.cpp",
+    "Feature.cpp",
     "FeatureModule.cpp",
     "FileDistance.cpp",
     "FindSymbols.cpp",
@@ -96,7 +102,9 @@ static_library("clangd") {
     "Headers.cpp",
     "HeuristicResolver.cpp",
     "Hover.cpp",
+    "IncludeCleaner.cpp",
     "IncludeFixer.cpp",
+    "InlayHints.cpp",
     "JSONTransport.cpp",
     "ParsedAST.cpp",
     "PathMapping.cpp",
@@ -128,6 +136,7 @@ static_library("clangd") {
     "index/Ref.cpp",
     "index/Relation.cpp",
     "index/Serialization.cpp",
+    "index/StdLib.cpp",
     "index/Symbol.cpp",
     "index/SymbolCollector.cpp",
     "index/SymbolID.cpp",
@@ -138,6 +147,7 @@ static_library("clangd") {
     "index/dex/Iterator.cpp",
     "index/dex/PostingList.cpp",
     "index/dex/Trigram.cpp",
+    "refactor/InsertionPoint.cpp",
     "refactor/Rename.cpp",
     "refactor/Tweak.cpp",
   ]

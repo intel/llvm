@@ -5,19 +5,11 @@ include(CheckSymbolExists)
 # define a handy helper function for it. The compile flags setting in CMake
 # has serious issues that make its syntax challenging at best.
 function(set_target_compile_flags target)
-  set(argstring "")
-  foreach(arg ${ARGN})
-    set(argstring "${argstring} ${arg}")
-  endforeach()
-  set_property(TARGET ${target} PROPERTY COMPILE_FLAGS "${argstring}")
+  set_property(TARGET ${target} PROPERTY COMPILE_OPTIONS ${ARGN})
 endfunction()
 
 function(set_target_link_flags target)
-  set(argstring "")
-  foreach(arg ${ARGN})
-    set(argstring "${argstring} ${arg}")
-  endforeach()
-  set_property(TARGET ${target} PROPERTY LINK_FLAGS "${argstring}")
+  set_property(TARGET ${target} PROPERTY LINK_OPTIONS ${ARGN})
 endfunction()
 
 # Set the variable var_PYBOOL to True if var holds a true-ish string,
@@ -128,7 +120,9 @@ macro(test_target_arch arch def)
     if(NOT HAS_${arch}_DEF)
       set(CAN_TARGET_${arch} FALSE)
     elseif(TEST_COMPILE_ONLY)
-      try_compile_only(CAN_TARGET_${arch} FLAGS ${TARGET_${arch}_CFLAGS})
+      try_compile_only(CAN_TARGET_${arch}
+                       SOURCE "#include <limits.h>\nint foo(int x, int y) { return x + y; }\n"
+                       FLAGS ${TARGET_${arch}_CFLAGS})
     else()
       set(FLAG_NO_EXCEPTIONS "")
       if(COMPILER_RT_HAS_FNO_EXCEPTIONS_FLAG)
@@ -153,6 +147,7 @@ endmacro()
 
 macro(detect_target_arch)
   check_symbol_exists(__arm__ "" __ARM)
+  check_symbol_exists(__AVR__ "" __AVR)
   check_symbol_exists(__aarch64__ "" __AARCH64)
   check_symbol_exists(__x86_64__ "" __X86_64)
   check_symbol_exists(__i386__ "" __I386)
@@ -170,10 +165,18 @@ macro(detect_target_arch)
   check_symbol_exists(__ve__ "" __VE)
   if(__ARM)
     add_default_target_arch(arm)
+  elseif(__AVR)
+    add_default_target_arch(avr)
   elseif(__AARCH64)
     add_default_target_arch(aarch64)
   elseif(__X86_64)
-    add_default_target_arch(x86_64)
+    if(CMAKE_SIZEOF_VOID_P EQUAL "4")
+      add_default_target_arch(x32)
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL "8")
+      add_default_target_arch(x86_64)
+    else()
+      message(FATAL_ERROR "Unsupported pointer size for X86_64")
+    endif()
   elseif(__I386)
     add_default_target_arch(i386)
   elseif(__MIPS64) # must be checked before __MIPS
@@ -209,6 +212,61 @@ macro(detect_target_arch)
   endif()
 endmacro()
 
+function(get_compiler_rt_root_source_dir ROOT_DIR_VAR)
+  # Compute the path to the root of the Compiler-RT source tree
+  # regardless of how the project was configured.
+  #
+  # This function is useful because using `${CMAKE_SOURCE_DIR}`
+  # is error prone due to the numerous ways Compiler-RT can be
+  # configured.
+  #
+  # `ROOT_DIR_VAR` - the name of the variable to write the result to.
+  #
+  # TODO(dliew): When CMake min version is 3.17 or newer use
+  # `CMAKE_CURRENT_FUNCTION_LIST_DIR` instead.
+  if ("${ROOT_DIR_VAR}" STREQUAL "")
+    message(FATAL_ERROR "ROOT_DIR_VAR cannot be empty")
+  endif()
+
+  # Compiler-rt supports different source root paths.
+  # Handle each case here.
+  set(PATH_TO_COMPILER_RT_SOURCE_ROOT "")
+  if (DEFINED CompilerRTBuiltins_SOURCE_DIR)
+    # Compiler-RT Builtins standalone build.
+    # `llvm-project/compiler-rt/lib/builtins`
+    set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CompilerRTBuiltins_SOURCE_DIR}/../../")
+  elseif (DEFINED CompilerRTCRT_SOURCE_DIR)
+    # Compiler-RT CRT standalone build.
+    # `llvm-project/compiler-rt/lib/crt`
+    set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CompilerRTCRT_SOURCE_DIR}/../../")
+  elseif(DEFINED CompilerRT_SOURCE_DIR)
+    # Compiler-RT standalone build.
+    # `llvm-project/compiler-rt`
+    set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CompilerRT_SOURCE_DIR}")
+  elseif (EXISTS "${CMAKE_SOURCE_DIR}/../compiler-rt")
+    # In tree build with LLVM as the root project.
+    # See `llvm-project/projects/`.
+    # Assumes monorepo layout.
+    set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CMAKE_SOURCE_DIR}/../compiler-rt")
+  else()
+    message(FATAL_ERROR "Unhandled Compiler-RT source root configuration.")
+  endif()
+
+  get_filename_component(ROOT_DIR "${PATH_TO_COMPILER_RT_SOURCE_ROOT}" ABSOLUTE)
+  if (NOT EXISTS "${ROOT_DIR}")
+    message(FATAL_ERROR "Path \"${ROOT_DIR}\" doesn't exist")
+  endif()
+
+  # Sanity check: Make sure we can locate the current source file via the
+  # computed path.
+  set(PATH_TO_CURRENT_FILE "${ROOT_DIR}/cmake/Modules/CompilerRTUtils.cmake")
+  if (NOT EXISTS "${PATH_TO_CURRENT_FILE}")
+    message(FATAL_ERROR "Could not find \"${PATH_TO_CURRENT_FILE}\"")
+  endif()
+
+  set("${ROOT_DIR_VAR}" "${ROOT_DIR}" PARENT_SCOPE)
+endfunction()
+
 macro(load_llvm_config)
   if (NOT LLVM_CONFIG_PATH)
     find_program(LLVM_CONFIG_PATH "llvm-config"
@@ -219,6 +277,20 @@ macro(load_llvm_config)
                       "Reconfigure with -DLLVM_CONFIG_PATH=path/to/llvm-config.")
     endif()
   endif()
+
+  # Compute path to LLVM sources assuming the monorepo layout.
+  # We don't set `LLVM_MAIN_SRC_DIR` directly to avoid overriding a user provided
+  # CMake cache value.
+  get_compiler_rt_root_source_dir(COMPILER_RT_ROOT_SRC_PATH)
+  get_filename_component(LLVM_MAIN_SRC_DIR_DEFAULT "${COMPILER_RT_ROOT_SRC_PATH}/../llvm" ABSOLUTE)
+  if (NOT EXISTS "${LLVM_MAIN_SRC_DIR_DEFAULT}")
+    # TODO(dliew): Remove this legacy fallback path.
+    message(WARNING
+      "LLVM source tree not found at \"${LLVM_MAIN_SRC_DIR_DEFAULT}\". "
+      "You are not using the monorepo layout. This configuration is DEPRECATED.")
+  endif()
+
+  set(FOUND_LLVM_CMAKE_DIR FALSE)
   if (LLVM_CONFIG_PATH)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--obj-root" "--bindir" "--libdir" "--src-root" "--includedir"
@@ -236,9 +308,19 @@ macro(load_llvm_config)
 
     set(LLVM_BINARY_DIR ${BINARY_DIR} CACHE PATH "Path to LLVM build tree")
     set(LLVM_LIBRARY_DIR ${LIBRARY_DIR} CACHE PATH "Path to llvm/lib")
-    set(LLVM_MAIN_SRC_DIR ${MAIN_SRC_DIR} CACHE PATH "Path to LLVM source tree")
     set(LLVM_TOOLS_BINARY_DIR ${TOOLS_BINARY_DIR} CACHE PATH "Path to llvm/bin")
     set(LLVM_INCLUDE_DIR ${INCLUDE_DIR} CACHE PATH "Paths to LLVM headers")
+
+    if (NOT EXISTS "${LLVM_MAIN_SRC_DIR_DEFAULT}")
+      # TODO(dliew): Remove this legacy fallback path.
+      message(WARNING
+        "Consulting llvm-config for the LLVM source path "
+        "as a fallback. This behavior will be removed in the future.")
+      # We don't set `LLVM_MAIN_SRC_DIR` directly to avoid overriding a user
+      # provided CMake cache value.
+      set(LLVM_MAIN_SRC_DIR_DEFAULT "${MAIN_SRC_DIR}")
+      message(STATUS "Using LLVM source path (${LLVM_MAIN_SRC_DIR_DEFAULT}) from llvm-config")
+    endif()
 
     # Detect if we have the LLVMXRay and TestingSupport library installed and
     # available from llvm-config.
@@ -291,20 +373,51 @@ macro(load_llvm_config)
       RESULT_VARIABLE HAD_ERROR
       OUTPUT_VARIABLE CONFIG_OUTPUT)
     if(NOT HAD_ERROR)
-      string(STRIP "${CONFIG_OUTPUT}" LLVM_CMAKE_PATH_FROM_LLVM_CONFIG)
-      file(TO_CMAKE_PATH ${LLVM_CMAKE_PATH_FROM_LLVM_CONFIG} LLVM_CMAKE_PATH)
+      string(STRIP "${CONFIG_OUTPUT}" LLVM_CMAKE_DIR_FROM_LLVM_CONFIG)
+      file(TO_CMAKE_PATH ${LLVM_CMAKE_DIR_FROM_LLVM_CONFIG} LLVM_CMAKE_DIR)
     else()
       file(TO_CMAKE_PATH ${LLVM_BINARY_DIR} LLVM_BINARY_DIR_CMAKE_STYLE)
-      set(LLVM_CMAKE_PATH "${LLVM_BINARY_DIR_CMAKE_STYLE}/lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm")
+      set(LLVM_CMAKE_DIR "${LLVM_BINARY_DIR_CMAKE_STYLE}/lib${LLVM_LIBDIR_SUFFIX}/cmake/llvm")
     endif()
 
-    list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_PATH}")
-    # Get some LLVM variables from LLVMConfig.
-    include("${LLVM_CMAKE_PATH}/LLVMConfig.cmake")
+    set(LLVM_CMAKE_INCLUDE_FILE "${LLVM_CMAKE_DIR}/LLVMConfig.cmake")
+    if (EXISTS "${LLVM_CMAKE_INCLUDE_FILE}")
+      list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+      # Get some LLVM variables from LLVMConfig.
+      include("${LLVM_CMAKE_INCLUDE_FILE}")
+      set(FOUND_LLVM_CMAKE_DIR TRUE)
+    else()
+      set(FOUND_LLVM_CMAKE_DIR FALSE)
+      message(WARNING "LLVM CMake path (${LLVM_CMAKE_INCLUDE_FILE}) reported by llvm-config does not exist")
+    endif()
+    unset(LLVM_CMAKE_INCLUDE_FILE)
 
     set(LLVM_LIBRARY_OUTPUT_INTDIR
       ${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib${LLVM_LIBDIR_SUFFIX})
   endif()
+
+  # Finally set the cache variable now that `llvm-config` has also had a chance
+  # to set `LLVM_MAIN_SRC_DIR_DEFAULT`.
+  set(LLVM_MAIN_SRC_DIR "${LLVM_MAIN_SRC_DIR_DEFAULT}" CACHE PATH "Path to LLVM source tree")
+  message(STATUS "LLVM_MAIN_SRC_DIR: \"${LLVM_MAIN_SRC_DIR}\"")
+  if (NOT EXISTS "${LLVM_MAIN_SRC_DIR}")
+    # TODO(dliew): Make this a hard error
+    message(WARNING "LLVM_MAIN_SRC_DIR (${LLVM_MAIN_SRC_DIR}) does not exist. "
+                    "You can override the inferred path by adding "
+                    "`-DLLVM_MAIN_SRC_DIR=<path_to_llvm_src>` to your CMake invocation "
+                    "where `<path_to_llvm_src>` is the path to the `llvm` directory in "
+                    "the `llvm-project` repo. "
+                    "This will be treated as error in the future.")
+  endif()
+
+  if (NOT FOUND_LLVM_CMAKE_DIR)
+    # This configuration tries to configure without the prescence of `LLVMConfig.cmake`. It is
+    # intended for testing purposes (generating the lit test suites) and will likely not support
+    # a build of the runtimes in compiler-rt.
+    include(CompilerRTMockLLVMCMakeConfig)
+    compiler_rt_mock_llvm_cmake_config()
+  endif()
+
 endmacro()
 
 macro(construct_compiler_rt_default_triple)
@@ -314,18 +427,12 @@ macro(construct_compiler_rt_default_triple)
     endif()
     set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${CMAKE_C_COMPILER_TARGET})
   else()
-    set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${TARGET_TRIPLE} CACHE STRING
+    set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${LLVM_TARGET_TRIPLE} CACHE STRING
           "Default triple for which compiler-rt runtimes will be built.")
   endif()
 
-  if(DEFINED COMPILER_RT_TEST_TARGET_TRIPLE)
-    # Backwards compatibility: this variable used to be called
-    # COMPILER_RT_TEST_TARGET_TRIPLE.
-    set(COMPILER_RT_DEFAULT_TARGET_TRIPLE ${COMPILER_RT_TEST_TARGET_TRIPLE})
-  endif()
-
-  string(REPLACE "-" ";" TARGET_TRIPLE_LIST ${COMPILER_RT_DEFAULT_TARGET_TRIPLE})
-  list(GET TARGET_TRIPLE_LIST 0 COMPILER_RT_DEFAULT_TARGET_ARCH)
+  string(REPLACE "-" ";" LLVM_TARGET_TRIPLE_LIST ${COMPILER_RT_DEFAULT_TARGET_TRIPLE})
+  list(GET LLVM_TARGET_TRIPLE_LIST 0 COMPILER_RT_DEFAULT_TARGET_ARCH)
 
   # Map various forms of the architecture names to the canonical forms
   # (as they are used by clang, see getArchNameForCompilerRTLib).
@@ -336,7 +443,7 @@ macro(construct_compiler_rt_default_triple)
 
   # Determine if test target triple is specified explicitly, and doesn't match the
   # default.
-  if(NOT COMPILER_RT_DEFAULT_TARGET_TRIPLE STREQUAL TARGET_TRIPLE)
+  if(NOT COMPILER_RT_DEFAULT_TARGET_TRIPLE STREQUAL LLVM_TARGET_TRIPLE)
     set(COMPILER_RT_HAS_EXPLICIT_DEFAULT_TARGET_TRIPLE TRUE)
   else()
     set(COMPILER_RT_HAS_EXPLICIT_DEFAULT_TARGET_TRIPLE FALSE)
@@ -377,6 +484,10 @@ function(get_compiler_rt_target arch variable)
     set(target "${COMPILER_RT_DEFAULT_TARGET_TRIPLE}")
   elseif(ANDROID AND ${arch} STREQUAL "i386")
     set(target "i686${triple_suffix}")
+  elseif(${arch} STREQUAL "amd64")
+    set(target "x86_64${triple_suffix}")
+  elseif(${arch} STREQUAL "sparc64")
+    set(target "sparcv9${triple_suffix}")
   else()
     set(target "${arch}${triple_suffix}")
   endif()
@@ -386,18 +497,18 @@ endfunction()
 function(get_compiler_rt_install_dir arch install_dir)
   if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
     get_compiler_rt_target(${arch} target)
-    set(${install_dir} ${COMPILER_RT_INSTALL_PATH}/lib/${target} PARENT_SCOPE)
+    set(${install_dir} ${COMPILER_RT_INSTALL_LIBRARY_DIR}/${target} PARENT_SCOPE)
   else()
-    set(${install_dir} ${COMPILER_RT_LIBRARY_INSTALL_DIR} PARENT_SCOPE)
+    set(${install_dir} ${COMPILER_RT_INSTALL_LIBRARY_DIR} PARENT_SCOPE)
   endif()
 endfunction()
 
 function(get_compiler_rt_output_dir arch output_dir)
   if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
     get_compiler_rt_target(${arch} target)
-    set(${output_dir} ${COMPILER_RT_OUTPUT_DIR}/lib/${target} PARENT_SCOPE)
+    set(${output_dir} ${COMPILER_RT_OUTPUT_LIBRARY_DIR}/${target} PARENT_SCOPE)
   else()
-    set(${output_dir} ${COMPILER_RT_LIBRARY_OUTPUT_DIR} PARENT_SCOPE)
+    set(${output_dir} ${COMPILER_RT_OUTPUT_LIBRARY_DIR} PARENT_SCOPE)
   endif()
 endfunction()
 
@@ -485,4 +596,35 @@ function(add_compiler_rt_install_targets name)
       add_dependencies(install-${LIB_PARENT_TARGET}-stripped install-${name}-stripped)
     endif()
   endif()
+endfunction()
+
+# Add warnings to catch potential errors that can lead to security
+# vulnerabilities.
+function(add_security_warnings out_flags macosx_sdk_version)
+  set(flags "${${out_flags}}")
+
+  append_list_if(COMPILER_RT_HAS_ARRAY_BOUNDS_FLAG -Werror=array-bounds flags)
+  append_list_if(COMPILER_RT_HAS_UNINITIALIZED_FLAG -Werror=uninitialized flags)
+  append_list_if(COMPILER_RT_HAS_SHADOW_FLAG -Werror=shadow flags)
+  append_list_if(COMPILER_RT_HAS_EMPTY_BODY_FLAG -Werror=empty-body flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_POINTER_MEMACCESS_FLAG -Werror=sizeof-pointer-memaccess flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_ARGUMENT_FLAG -Werror=sizeof-array-argument flags)
+  append_list_if(COMPILER_RT_HAS_SUSPICIOUS_MEMACCESS_FLAG -Werror=suspicious-memaccess flags)
+  append_list_if(COMPILER_RT_HAS_BUILTIN_MEMCPY_CHK_SIZE_FLAG -Werror=builtin-memcpy-chk-size flags)
+  append_list_if(COMPILER_RT_HAS_ARRAY_BOUNDS_POINTER_ARITHMETIC_FLAG -Werror=array-bounds-pointer-arithmetic flags)
+  append_list_if(COMPILER_RT_HAS_RETURN_STACK_ADDRESS_FLAG -Werror=return-stack-address flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_DECAY_FLAG -Werror=sizeof-array-decay flags)
+  append_list_if(COMPILER_RT_HAS_FORMAT_INSUFFICIENT_ARGS_FLAG -Werror=format-insufficient-args flags)
+  append_list_if(COMPILER_RT_HAS_BUILTIN_FORMAL_SECURITY_FLAG -Werror=format-security flags)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_ARRAY_DIV_FLAG -Werror=sizeof-array-div)
+  append_list_if(COMPILER_RT_HAS_SIZEOF_POINTER_DIV_FLAG -Werror=sizeof-pointer-div)
+
+  # Add -Wformat-nonliteral only if we can avoid adding the definition of
+  # eprintf. On Apple platforms, eprintf is needed only on macosx and only if
+  # its version is older than 10.7.
+  if ("${macosx_sdk_version}" VERSION_GREATER_EQUAL 10.7)
+    list(APPEND flags -Werror=format-nonliteral -DDONT_DEFINE_EPRINTF)
+  endif()
+
+  set(${out_flags} "${flags}" PARENT_SCOPE)
 endfunction()

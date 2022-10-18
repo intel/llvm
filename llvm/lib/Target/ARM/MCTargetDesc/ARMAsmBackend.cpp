@@ -48,9 +48,10 @@ public:
 } // end anonymous namespace
 
 Optional<MCFixupKind> ARMAsmBackend::getFixupKind(StringRef Name) const {
-  if (!STI.getTargetTriple().isOSBinFormatELF())
-    return None;
+  return None;
+}
 
+Optional<MCFixupKind> ARMAsmBackendELF::getFixupKind(StringRef Name) const {
   unsigned Type = llvm::StringSwitch<unsigned>(Name)
 #define ELF_RELOC(X, Y) .Case(#X, Y)
 #include "llvm/BinaryFormat/ELFRelocs/ARM.def"
@@ -84,6 +85,7 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_arm_pcrel_9", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_pcrel_9", 0, 32,
        IsPCRelConstant | MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
+      {"fixup_arm_ldst_abs_12", 0, 32, 0},
       {"fixup_thumb_adr_pcrel_10", 0, 8,
        IsPCRelConstant | MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
       {"fixup_arm_adr_pcrel_12", 0, 32, IsPCRelConstant},
@@ -120,8 +122,7 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_bfc_target", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_bfcsel_else_target", 0, 32, 0},
       {"fixup_wls", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}
-  };
+      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}};
   const static MCFixupKindInfo InfosBE[ARM::NumTargetFixupKinds] = {
       // This table *must* be in the order that the fixup_* kinds are defined in
       // ARMFixupKinds.h.
@@ -138,6 +139,7 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_arm_pcrel_9", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_t2_pcrel_9", 0, 32,
        IsPCRelConstant | MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
+      {"fixup_arm_ldst_abs_12", 0, 32, 0},
       {"fixup_thumb_adr_pcrel_10", 8, 8,
        IsPCRelConstant | MCFixupKindInfo::FKF_IsAlignedDownTo32Bits},
       {"fixup_arm_adr_pcrel_12", 0, 32, IsPCRelConstant},
@@ -174,8 +176,7 @@ const MCFixupKindInfo &ARMAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_bfc_target", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
       {"fixup_bfcsel_else_target", 0, 32, 0},
       {"fixup_wls", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
-      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}
-  };
+      {"fixup_le", 0, 32, MCFixupKindInfo::FKF_IsPCRel}};
 
   // Fixup kinds from .reloc directive are like R_ARM_NONE. They do not require
   // any extra processing.
@@ -330,7 +331,7 @@ void ARMAsmBackend::relaxInstruction(MCInst &Inst,
                                      const MCSubtargetInfo &STI) const {
   unsigned RelaxedOp = getRelaxedOpcode(Inst.getOpcode(), STI);
 
-  // Sanity check w/ diagnostic if we get here w/ a bogus instruction.
+  // Return a diagnostic if we get here w/ a bogus instruction.
   if (RelaxedOp == Inst.getOpcode()) {
     SmallString<256> Tmp;
     raw_svector_ostream OS(Tmp);
@@ -357,14 +358,15 @@ void ARMAsmBackend::relaxInstruction(MCInst &Inst,
   Inst.setOpcode(RelaxedOp);
 }
 
-bool ARMAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
+bool ARMAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
+                                 const MCSubtargetInfo *STI) const {
   const uint16_t Thumb1_16bitNopEncoding = 0x46c0; // using MOV r8,r8
   const uint16_t Thumb2_16bitNopEncoding = 0xbf00; // NOP
   const uint32_t ARMv4_NopEncoding = 0xe1a00000;   // using MOV r0,r0
   const uint32_t ARMv6T2_NopEncoding = 0xe320f000; // NOP
   if (isThumb()) {
     const uint16_t nopEncoding =
-        hasNOP() ? Thumb2_16bitNopEncoding : Thumb1_16bitNopEncoding;
+        hasNOP(STI) ? Thumb2_16bitNopEncoding : Thumb1_16bitNopEncoding;
     uint64_t NumNops = Count / 2;
     for (uint64_t i = 0; i != NumNops; ++i)
       support::endian::write(OS, nopEncoding, Endian);
@@ -374,7 +376,7 @@ bool ARMAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
   }
   // ARM mode
   const uint32_t nopEncoding =
-      hasNOP() ? ARMv6T2_NopEncoding : ARMv4_NopEncoding;
+      hasNOP(STI) ? ARMv6T2_NopEncoding : ARMv4_NopEncoding;
   uint64_t NumNops = Count / 4;
   for (uint64_t i = 0; i != NumNops; ++i)
     support::endian::write(OS, nopEncoding, Endian);
@@ -460,7 +462,7 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
     assert(STI != nullptr);
     if (IsResolved || !STI->getTargetTriple().isOSBinFormatELF())
       Value >>= 16;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ARM::fixup_arm_movw_lo16: {
     unsigned Hi4 = (Value & 0xF000) >> 12;
     unsigned Lo12 = Value & 0x0FFF;
@@ -473,7 +475,7 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
     assert(STI != nullptr);
     if (IsResolved || !STI->getTargetTriple().isOSBinFormatELF())
       Value >>= 16;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ARM::fixup_t2_movw_lo16: {
     unsigned Hi4 = (Value & 0xF000) >> 12;
     unsigned i = (Value & 0x800) >> 11;
@@ -489,10 +491,12 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
   case ARM::fixup_arm_ldst_pcrel_12:
     // ARM PC-relative values are offset by 8.
     Value -= 4;
-    LLVM_FALLTHROUGH;
-  case ARM::fixup_t2_ldst_pcrel_12: {
+    [[fallthrough]];
+  case ARM::fixup_t2_ldst_pcrel_12:
     // Offset by 4, adjusted by two due to the half-word ordering of thumb.
     Value -= 4;
+    [[fallthrough]];
+  case ARM::fixup_arm_ldst_abs_12: {
     bool isAdd = true;
     if ((int64_t)Value < 0) {
       Value = -Value;
@@ -738,7 +742,7 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
   case ARM::fixup_arm_pcrel_10:
     Value = Value - 4; // ARM fixups offset by an additional word and don't
                        // need to adjust for the half-word ordering.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ARM::fixup_t2_pcrel_10: {
     // Offset by 4, adjusted by two due to the half-word ordering of thumb.
     Value = Value - 4;
@@ -765,7 +769,7 @@ unsigned ARMAsmBackend::adjustFixupValue(const MCAssembler &Asm,
   case ARM::fixup_arm_pcrel_9:
     Value = Value - 4; // ARM fixups offset by an additional word and don't
                        // need to adjust for the half-word ordering.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ARM::fixup_t2_pcrel_9: {
     // Offset by 4, adjusted by two due to the half-word ordering of thumb.
     Value = Value - 4;
@@ -940,6 +944,7 @@ static unsigned getFixupKindNumBytes(unsigned Kind) {
   case ARM::fixup_arm_ldst_pcrel_12:
   case ARM::fixup_arm_pcrel_10:
   case ARM::fixup_arm_pcrel_9:
+  case ARM::fixup_arm_ldst_abs_12:
   case ARM::fixup_arm_adr_pcrel_12:
   case ARM::fixup_arm_uncondbl:
   case ARM::fixup_arm_condbl:
@@ -1044,11 +1049,11 @@ void ARMAsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
   unsigned Kind = Fixup.getKind();
   if (Kind >= FirstLiteralRelocationKind)
     return;
-  unsigned NumBytes = getFixupKindNumBytes(Kind);
   MCContext &Ctx = Asm.getContext();
   Value = adjustFixupValue(Asm, Fixup, Target, Value, IsResolved, Ctx, STI);
   if (!Value)
     return; // Doesn't change encoding.
+  const unsigned NumBytes = getFixupKindNumBytes(Kind);
 
   unsigned Offset = Fixup.getOffset();
   assert(Offset + NumBytes <= Data.size() && "Invalid fixup offset!");
@@ -1118,9 +1123,8 @@ uint32_t ARMAsmBackendDarwin::generateCompactUnwindEncoding(
   DenseMap<unsigned, int> RegOffsets;
   int FloatRegCount = 0;
   // Process each .cfi directive and build up compact unwind info.
-  for (size_t i = 0, e = Instrs.size(); i != e; ++i) {
+  for (const MCCFIInstruction &Inst : Instrs) {
     unsigned Reg;
-    const MCCFIInstruction &Inst = Instrs[i];
     switch (Inst.getOperation()) {
     case MCCFIInstruction::OpDefCfa: // DW_CFA_def_cfa
       CFARegisterOffset = Inst.getOffset();
@@ -1297,11 +1301,12 @@ static MCAsmBackend *createARMAsmBackend(const Target &T,
     return new ARMAsmBackendDarwin(T, STI, MRI);
   case Triple::COFF:
     assert(TheTriple.isOSWindows() && "non-Windows ARM COFF is not supported");
-    return new ARMAsmBackendWinCOFF(T, STI);
+    return new ARMAsmBackendWinCOFF(T, STI.getTargetTriple().isThumb());
   case Triple::ELF:
     assert(TheTriple.isOSBinFormatELF() && "using ELF for non-ELF target");
     uint8_t OSABI = MCELFObjectTargetWriter::getOSABI(TheTriple.getOS());
-    return new ARMAsmBackendELF(T, STI, OSABI, Endian);
+    return new ARMAsmBackendELF(T, STI.getTargetTriple().isThumb(), OSABI,
+                                Endian);
   }
 }
 

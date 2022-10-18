@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++11 -verify %s
+// RUN: %clang_cc1 -std=c++11 -verify %s -Wno-deprecated-builtins
 
 // rdar://12240916 stack overflow.
 namespace rdar12240916 {
@@ -103,4 +103,23 @@ namespace pr29091 {
   struct B : A { using A::A; };
   bool baz() { return __has_nothrow_constructor(B); }
   bool qux() { return __has_nothrow_copy(B); }
+}
+
+namespace undeduced_field {
+template<class T>
+struct Foo {
+  typedef T type;
+};
+
+struct Bar {
+  Bar();
+  // The missing expression makes A undeduced.
+  static constexpr auto A = ;  // expected-error {{expected expression}}
+                               // expected-error@-1 {{declaration of variable 'A' with deduced type 'const auto' requires an initializer}}
+
+  Foo<decltype(A)>::type B;  // The type of B is also undeduced (wrapped in Elaborated).
+};
+
+// This used to crash when trying to get the layout of B.
+Bar x;
 }

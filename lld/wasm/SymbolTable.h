@@ -37,13 +37,13 @@ class InputSegment;
 // There is one add* function per symbol type.
 class SymbolTable {
 public:
+  ArrayRef<Symbol *> symbols() const { return symVector; }
+
   void wrap(Symbol *sym, Symbol *real, Symbol *wrap);
 
   void addFile(InputFile *file);
 
-  void addCombinedLTOObject();
-
-  ArrayRef<Symbol *> getSymbols() const { return symVector; }
+  void compileBitcodeFiles();
 
   Symbol *find(StringRef name);
 
@@ -54,12 +54,11 @@ public:
   Symbol *addDefinedFunction(StringRef name, uint32_t flags, InputFile *file,
                              InputFunction *function);
   Symbol *addDefinedData(StringRef name, uint32_t flags, InputFile *file,
-                         InputSegment *segment, uint64_t address,
-                         uint64_t size);
+                         InputChunk *segment, uint64_t address, uint64_t size);
   Symbol *addDefinedGlobal(StringRef name, uint32_t flags, InputFile *file,
                            InputGlobal *g);
-  Symbol *addDefinedEvent(StringRef name, uint32_t flags, InputFile *file,
-                          InputEvent *e);
+  Symbol *addDefinedTag(StringRef name, uint32_t flags, InputFile *file,
+                        InputTag *t);
   Symbol *addDefinedTable(StringRef name, uint32_t flags, InputFile *file,
                           InputTable *t);
 
@@ -80,6 +79,10 @@ public:
                             llvm::Optional<StringRef> importModule,
                             uint32_t flags, InputFile *file,
                             const WasmTableType *type);
+  Symbol *addUndefinedTag(StringRef name, llvm::Optional<StringRef> importName,
+                          llvm::Optional<StringRef> importModule,
+                          uint32_t flags, InputFile *file,
+                          const WasmSignature *sig);
 
   TableSymbol *resolveIndirectFunctionTable(bool required);
 

@@ -38,7 +38,7 @@ json::Object encodeError(Error E) {
 
 Error decodeError(const json::Object &O) {
   std::string Msg =
-      std::string(O.getString("message").getValueOr("Unspecified error"));
+      std::string(O.getString("message").value_or("Unspecified error"));
   if (auto Code = O.getInteger("code"))
     return make_error<LSPError>(std::move(Msg), ErrorCode(*Code));
   return error("{0}", Msg);
@@ -47,7 +47,7 @@ Error decodeError(const json::Object &O) {
 // C "closure" for XPCTransport::loop() method
 namespace xpcClosure {
 void connection_handler(xpc_connection_t clientConnection);
-}
+} // namespace xpcClosure
 
 class XPCTransport : public Transport {
 public:

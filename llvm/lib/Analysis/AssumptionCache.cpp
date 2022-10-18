@@ -11,17 +11,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
@@ -30,7 +30,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <utility>
 
@@ -56,7 +55,7 @@ AssumptionCache::getOrInsertAffectedValues(Value *V) {
 }
 
 static void
-findAffectedValues(CallInst *CI,
+findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
                    SmallVectorImpl<AssumptionCache::ResultElem> &Affected) {
   // Note: This code must be kept in-sync with the code in
   // computeKnownBitsFromAssume in ValueTracking.
@@ -124,24 +123,32 @@ findAffectedValues(CallInst *CI,
         match(B, m_ConstantInt()))
       AddAffected(X);
   }
+
+  if (TTI) {
+    const Value *Ptr;
+    unsigned AS;
+    std::tie(Ptr, AS) = TTI->getPredicatedAddrSpace(Cond);
+    if (Ptr)
+      AddAffected(const_cast<Value *>(Ptr->stripInBoundsOffsets()));
+  }
 }
 
-void AssumptionCache::updateAffectedValues(CallInst *CI) {
+void AssumptionCache::updateAffectedValues(AssumeInst *CI) {
   SmallVector<AssumptionCache::ResultElem, 16> Affected;
-  findAffectedValues(CI, Affected);
+  findAffectedValues(CI, TTI, Affected);
 
   for (auto &AV : Affected) {
     auto &AVV = getOrInsertAffectedValues(AV.Assume);
-    if (std::find_if(AVV.begin(), AVV.end(), [&](ResultElem &Elem) {
+    if (llvm::none_of(AVV, [&](ResultElem &Elem) {
           return Elem.Assume == CI && Elem.Index == AV.Index;
-        }) == AVV.end())
+        }))
       AVV.push_back({CI, AV.Index});
   }
 }
 
-void AssumptionCache::unregisterAssumption(CallInst *CI) {
+void AssumptionCache::unregisterAssumption(AssumeInst *CI) {
   SmallVector<AssumptionCache::ResultElem, 16> Affected;
-  findAffectedValues(CI, Affected);
+  findAffectedValues(CI, TTI, Affected);
 
   for (auto &AV : Affected) {
     auto AVI = AffectedValues.find_as(AV.Assume);
@@ -202,22 +209,19 @@ void AssumptionCache::scanFunction() {
   // Go through all instructions in all blocks, add all calls to @llvm.assume
   // to this cache.
   for (BasicBlock &B : F)
-    for (Instruction &II : B)
-      if (match(&II, m_Intrinsic<Intrinsic::assume>()))
-        AssumeHandles.push_back({&II, ExprResultIdx});
+    for (Instruction &I : B)
+      if (isa<AssumeInst>(&I))
+        AssumeHandles.push_back({&I, ExprResultIdx});
 
   // Mark the scan as complete.
   Scanned = true;
 
   // Update affected values.
   for (auto &A : AssumeHandles)
-    updateAffectedValues(cast<CallInst>(A));
+    updateAffectedValues(cast<AssumeInst>(A));
 }
 
-void AssumptionCache::registerAssumption(CallInst *CI) {
-  assert(match(CI, m_Intrinsic<Intrinsic::assume>()) &&
-         "Registered call does not call @llvm.assume");
-
+void AssumptionCache::registerAssumption(AssumeInst *CI) {
   // If we haven't scanned the function yet, just drop this assumption. It will
   // be found when we scan later.
   if (!Scanned)
@@ -251,6 +255,12 @@ void AssumptionCache::registerAssumption(CallInst *CI) {
   updateAffectedValues(CI);
 }
 
+AssumptionCache AssumptionAnalysis::run(Function &F,
+                                        FunctionAnalysisManager &FAM) {
+  auto &TTI = FAM.getResult<TargetIRAnalysis>(F);
+  return AssumptionCache(F, &TTI);
+}
+
 AnalysisKey AssumptionAnalysis::Key;
 
 PreservedAnalyses AssumptionPrinterPass::run(Function &F,
@@ -281,10 +291,13 @@ AssumptionCache &AssumptionCacheTracker::getAssumptionCache(Function &F) {
   if (I != AssumptionCaches.end())
     return *I->second;
 
+  auto *TTIWP = getAnalysisIfAvailable<TargetTransformInfoWrapperPass>();
+  auto *TTI = TTIWP ? &TTIWP->getTTI(F) : nullptr;
+
   // Ok, build a new cache by scanning the function, insert it and the value
   // handle into our map, and return the newly populated cache.
   auto IP = AssumptionCaches.insert(std::make_pair(
-      FunctionCallbackVH(&F, this), std::make_unique<AssumptionCache>(F)));
+      FunctionCallbackVH(&F, this), std::make_unique<AssumptionCache>(F, TTI)));
   assert(IP.second && "Scanning function already in the map?");
   return *IP.first->second;
 }

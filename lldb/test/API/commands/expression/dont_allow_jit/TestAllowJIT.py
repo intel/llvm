@@ -11,9 +11,7 @@ from lldbsuite.test.decorators import *
 
 class TestAllowJIT(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
-    # If your test case doesn't stress debug info, the
+    # If your test case doesn't stress debug info, then
     # set this to true.  That way it won't be run once for
     # each debug info format.
     NO_DEBUG_INFO_TESTCASE = True
@@ -80,3 +78,16 @@ class TestAllowJIT(TestBase):
         self.assertSuccess(result.GetError())
         self.assertEqual(result.GetValueAsSigned(), 18, "got the right value.")
 
+    def test_allow_jit_with_top_level(self):
+        """Test combined --allow-jit and --top-level flags"""
+        # Can't force interpreting for top-level expressions which are always
+        # injected.
+        self.expect("expr --allow-jit false --top-level -- int i;", error=True,
+                    substrs=["Can't disable JIT compilation for top-level expressions."])
+
+        self.build()
+        lldbutil.run_to_source_breakpoint(self, "Set a breakpoint here", lldb.SBFileSpec("main.c"))
+        # Allowing JITing for top-level expressions is redundant but should work.
+        self.expect("expr --allow-jit true --top-level -- int top_level_f() { return 2; }")
+        # Make sure we actually declared a working top-level function.
+        self.expect_expr("top_level_f()", result_value="2")

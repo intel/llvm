@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===--------------------------- format -----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,170 +13,162 @@
 /*
 
 namespace std {
-  // [format.error], class format_error
-  class format_error : public runtime_error {
-  public:
-    explicit format_error(const string& what_arg);
-    explicit format_error(const char* what_arg);
+  // [format.context], class template basic_format_context
+  template<class Out, class charT> class basic_format_context;
+  using format_context = basic_format_context<unspecified, char>;
+  using wformat_context = basic_format_context<unspecified, wchar_t>;
+
+  // [format.args], class template basic_format_args
+  template<class Context> class basic_format_args;
+  using format_args = basic_format_args<format_context>;
+  using wformat_args = basic_format_args<wformat_context>;
+
+  // [format.fmt.string], class template basic_format_string
+  template<class charT, class... Args>
+    struct basic_format_string {                                // since C++23, exposition only before C++23
+    private:
+      basic_string_view<charT> str;                             // exposition only
+
+    public:
+      template<class T> consteval basic_format_string(const T& s);
+
+      constexpr basic_string_view<charT> get() const noexcept { return str; }
+    };
+  template<class... Args>
+    using format_string =                                       // since C++23, exposition only before C++23
+      basic_format_string<char, type_identity_t<Args>...>;
+  template<class... Args>
+    using wformat_string =                                      // since C++23, exposition only before C++23
+      basic_format_string<wchar_t, type_identity_t<Args>...>;
+
+  // [format.functions], formatting functions
+  template<class... Args>
+    string format(format-string<Args...> fmt, Args&&... args);
+  template<class... Args>
+    wstring format(wformat-string<Args...> fmt, Args&&... args);
+  template<class... Args>
+    string format(const locale& loc, format-string<Args...> fmt, Args&&... args);
+  template<class... Args>
+    wstring format(const locale& loc, wformat-string<Args...> fmt, Args&&... args);
+
+  string vformat(string_view fmt, format_args args);
+  wstring vformat(wstring_view fmt, wformat_args args);
+  string vformat(const locale& loc, string_view fmt, format_args args);
+  wstring vformat(const locale& loc, wstring_view fmt, wformat_args args);
+
+  template<class Out, class... Args>
+    Out format_to(Out out, format-string<Args...> fmt, Args&&... args);
+  template<class Out, class... Args>
+    Out format_to(Out out, wformat-string<Args...> fmt, Args&&... args);
+  template<class Out, class... Args>
+    Out format_to(Out out, const locale& loc, format-string<Args...> fmt, Args&&... args);
+  template<class Out, class... Args>
+    Out format_to(Out out, const locale& loc, wformat-string<Args...> fmt, Args&&... args);
+
+  template<class Out>
+    Out vformat_to(Out out, string_view fmt, format_args args);
+  template<class Out>
+    Out vformat_to(Out out, wstring_view fmt, wformat_args args);
+  template<class Out>
+    Out vformat_to(Out out, const locale& loc, string_view fmt,
+                   format_args char> args);
+  template<class Out>
+    Out vformat_to(Out out, const locale& loc, wstring_view fmt,
+                   wformat_args args);
+
+  template<class Out> struct format_to_n_result {
+    Out out;
+    iter_difference_t<Out> size;
   };
+  template<class Out, class... Args>
+    format_to_n_result<Out> format_to_n(Out out, iter_difference_t<Out> n,
+                                        format-string<Args...> fmt, Args&&... args);
+  template<class Out, class... Args>
+    format_to_n_result<Out> format_to_n(Out out, iter_difference_t<Out> n,
+                                        wformat-string<Args...> fmt, Args&&... args);
+  template<class Out, class... Args>
+    format_to_n_result<Out> format_to_n(Out out, iter_difference_t<Out> n,
+                                        const locale& loc, format-string<Args...> fmt,
+                                        Args&&... args);
+  template<class Out, class... Args>
+    format_to_n_result<Out> format_to_n(Out out, iter_difference_t<Out> n,
+                                        const locale& loc, wformat-string<Args...> fmt,
+                                        Args&&... args);
+
+  template<class... Args>
+    size_t formatted_size(format-string<Args...> fmt, Args&&... args);
+  template<class... Args>
+    size_t formatted_size(wformat-string<Args...> fmt, Args&&... args);
+  template<class... Args>
+    size_t formatted_size(const locale& loc, format-string<Args...> fmt, Args&&... args);
+  template<class... Args>
+    size_t formatted_size(const locale& loc, wformat-string<Args...> fmt, Args&&... args);
+
+  // [format.formatter], formatter
+  template<class T, class charT = char> struct formatter;
 
   // [format.parse.ctx], class template basic_format_parse_context
-  template<class charT>
-  class basic_format_parse_context {
-  public:
-    using char_type = charT;
-    using const_iterator = typename basic_string_view<charT>::const_iterator;
-    using iterator = const_iterator;
-
-  private:
-    iterator begin_;                                    // exposition only
-    iterator end_;                                      // exposition only
-    enum indexing { unknown, manual, automatic };       // exposition only
-    indexing indexing_;                                 // exposition only
-    size_t next_arg_id_;                                // exposition only
-    size_t num_args_;                                   // exposition only
-
-  public:
-    constexpr explicit basic_format_parse_context(basic_string_view<charT> fmt,
-                                                  size_t num_args = 0) noexcept;
-    basic_format_parse_context(const basic_format_parse_context&) = delete;
-    basic_format_parse_context& operator=(const basic_format_parse_context&) = delete;
-
-    constexpr const_iterator begin() const noexcept;
-    constexpr const_iterator end() const noexcept;
-    constexpr void advance_to(const_iterator it);
-
-    constexpr size_t next_arg_id();
-    constexpr void check_arg_id(size_t id);
-  };
+  template<class charT> class basic_format_parse_context;
   using format_parse_context = basic_format_parse_context<char>;
   using wformat_parse_context = basic_format_parse_context<wchar_t>;
+
+  // [format.arguments], arguments
+  // [format.arg], class template basic_format_arg
+  template<class Context> class basic_format_arg;
+
+  template<class Visitor, class Context>
+    see below visit_format_arg(Visitor&& vis, basic_format_arg<Context> arg);
+
+  // [format.arg.store], class template format-arg-store
+  template<class Context, class... Args> struct format-arg-store;      // exposition only
+
+  template<class Context = format_context, class... Args>
+    format-arg-store<Context, Args...>
+      make_format_args(Args&&... args);
+  template<class... Args>
+    format-arg-store<wformat_context, Args...>
+      make_wformat_args(Args&&... args);
+
+  // [format.error], class format_error
+  class format_error;
 }
 
 */
 
-#include <__config>
-#include <stdexcept>
-#include <string_view>
+#include <__assert> // all public C++ headers provide the assertion handler
+// Make sure all feature-test macros are available.
 #include <version>
+// Enable the contents of the header only when libc++ was built with experimental features enabled.
+#if !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 
-#ifdef _LIBCPP_NO_EXCEPTIONS
-#include <cstdlib>
-#endif
+#include <__config>
+#include <__format/buffer.h>
+#include <__format/concepts.h>
+#include <__format/enable_insertable.h>
+#include <__format/format_arg.h>
+#include <__format/format_arg_store.h>
+#include <__format/format_args.h>
+#include <__format/format_context.h>
+#include <__format/format_error.h>
+#include <__format/format_functions.h>
+#include <__format/format_fwd.h>
+#include <__format/format_parse_context.h>
+#include <__format/format_string.h>
+#include <__format/format_to_n_result.h>
+#include <__format/formatter.h>
+#include <__format/formatter_bool.h>
+#include <__format/formatter_char.h>
+#include <__format/formatter_floating_point.h>
+#include <__format/formatter_integer.h>
+#include <__format/formatter_pointer.h>
+#include <__format/formatter_string.h>
+#include <__format/parser_std_format_spec.h>
+#include <__format/unicode.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
-_LIBCPP_BEGIN_NAMESPACE_STD
-
-#if _LIBCPP_STD_VER > 17
-
-class _LIBCPP_EXCEPTION_ABI format_error : public runtime_error {
-public:
-  _LIBCPP_INLINE_VISIBILITY explicit format_error(const string& __s)
-      : runtime_error(__s) {}
-  _LIBCPP_INLINE_VISIBILITY explicit format_error(const char* __s)
-      : runtime_error(__s) {}
-  virtual ~format_error() noexcept;
-};
-
-// TODO FMT Remove this once we require compilers with proper C++20 support.
-// If the compiler has no concepts support, the format header will be disabled.
-// Without concepts support enable_if needs to be used and that too much effort
-// to support compilers with partial C++20 support.
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_BUILTIN_IS_CONSTANT_EVALUATED)
-
-_LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY void
-__throw_format_error(const char* __s) {
-#ifndef _LIBCPP_NO_EXCEPTIONS
-  throw format_error(__s);
-#else
-  (void)__s;
-  _VSTD::abort();
-#endif
-}
-
-template <class _CharT>
-class _LIBCPP_TEMPLATE_VIS basic_format_parse_context {
-public:
-  using char_type = _CharT;
-  using const_iterator =
-      typename _VSTD::basic_string_view<_CharT>::const_iterator;
-  using iterator = const_iterator;
-
-public:
-  _LIBCPP_INLINE_VISIBILITY
-  constexpr explicit basic_format_parse_context(
-      _VSTD::basic_string_view<_CharT> __fmt, size_t __num_args = 0) noexcept
-      : __begin_(__fmt.begin()),
-        __end_(__fmt.end()),
-        __indexing_(__unknown),
-        __next_arg_id_(0),
-        __num_args_(__num_args) {}
-
-  basic_format_parse_context(const basic_format_parse_context&) = delete;
-  basic_format_parse_context&
-  operator=(const basic_format_parse_context&) = delete;
-
-  _LIBCPP_INLINE_VISIBILITY constexpr const_iterator begin() const noexcept {
-    return __begin_;
-  }
-  _LIBCPP_INLINE_VISIBILITY constexpr const_iterator end() const noexcept {
-    return __end_;
-  }
-  _LIBCPP_INLINE_VISIBILITY constexpr void advance_to(const_iterator __it) {
-    __begin_ = __it;
-  }
-
-  _LIBCPP_INLINE_VISIBILITY constexpr size_t next_arg_id() {
-    if (__indexing_ == __manual)
-      __throw_format_error("Using automatic argument numbering in manual "
-                           "argument numbering mode");
-
-    if (__indexing_ == __unknown)
-      __indexing_ = __automatic;
-    return __next_arg_id_++;
-  }
-  _LIBCPP_INLINE_VISIBILITY constexpr void check_arg_id(size_t __id) {
-    if (__indexing_ == __automatic)
-      __throw_format_error("Using manual argument numbering in automatic "
-                           "argument numbering mode");
-
-    if (__indexing_ == __unknown)
-      __indexing_ = __manual;
-
-    // Throws an exception to make the expression a non core constant
-    // expression as required by:
-    // [format.parse.ctx]/11
-    //   Remarks: Call expressions where id >= num_args_ are not core constant
-    //   expressions ([expr.const]).
-    // Note: the Throws clause [format.parse.ctx]/10 doesn't specify the
-    // behavior when id >= num_args_.
-    if (_VSTD::is_constant_evaluated() && __id >= __num_args_)
-      __throw_format_error("Argument index outside the valid range");
-  }
-
-private:
-  iterator __begin_;
-  iterator __end_;
-  enum _Indexing { __unknown, __manual, __automatic };
-  _Indexing __indexing_;
-  size_t __next_arg_id_;
-  size_t __num_args_;
-};
-
-using format_parse_context = basic_format_parse_context<char>;
-using wformat_parse_context = basic_format_parse_context<wchar_t>;
-
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS) && !defined(_LIBCPP_HAS_NO_BUILTIN_IS_CONSTANT_EVALUATED)
-#endif //_LIBCPP_STD_VER > 17
-
-_LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
+#endif // !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
 
 #endif // _LIBCPP_FORMAT

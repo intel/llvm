@@ -19,10 +19,16 @@
 
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/Location.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/StringRef.h"
 
+// Pull in all enum type definitions and utility function declarations.
+#include "mlir/Dialect/Utils/DialectUtilsEnums.h.inc"
+
 namespace mlir {
+
+class OpBuilder;
 
 /// Tests whether the given maps describe a row major matmul. The test is
 /// permutation-invariant. Note that this only checks the affine maps from an
@@ -50,6 +56,12 @@ constexpr StringRef getIndexingMapsAttrName() { return "indexing_maps"; }
 /// op's iterators.
 constexpr StringRef getIteratorTypesAttrName() { return "iterator_types"; }
 
+/// Attribute name for the StrArrayAttr which encodes the distribution type for
+/// `linalg.tiled_loop`.
+constexpr StringRef getDistributionTypesAttrName() {
+  return "distribution_types";
+}
+
 /// Attribute name for the StringAttr which encodes an optional documentation
 /// string of the structured op.
 constexpr StringRef getDocAttrName() { return "doc"; }
@@ -57,9 +69,6 @@ constexpr StringRef getDocAttrName() { return "doc"; }
 /// Attribute name for the StrArrayAttr which encodes the external library
 /// function that implements the structured op.
 constexpr StringRef getLibraryCallAttrName() { return "library_call"; }
-
-/// Attribute name for the ArrayAttr of StrArrayAttr that encodes sparsity.
-constexpr StringRef getSparseAttrName() { return "sparse"; }
 
 /// Attribute name for the StrArrayAttr which encodes the value of strides.
 constexpr StringRef getStridesAttrName() { return "strides"; }
@@ -72,24 +81,12 @@ constexpr StringRef getPaddingAttrName() { return "padding"; }
 
 /// Use to encode that a particular iterator type has parallel semantics.
 constexpr StringRef getParallelIteratorTypeName() { return "parallel"; }
-inline bool isParallelIterator(Attribute attr) {
-  auto strAttr = attr.dyn_cast_or_null<StringAttr>();
-  return strAttr && strAttr.getValue() == getParallelIteratorTypeName();
-}
 
 /// Use to encode that a particular iterator type has reduction semantics.
 constexpr StringRef getReductionIteratorTypeName() { return "reduction"; }
-inline bool isReductionIterator(Attribute attr) {
-  auto strAttr = attr.dyn_cast_or_null<StringAttr>();
-  return strAttr && strAttr.getValue() == getReductionIteratorTypeName();
-}
 
 /// Use to encode that a particular iterator type has window semantics.
 constexpr StringRef getWindowIteratorTypeName() { return "window"; }
-inline bool isWindowIterator(Attribute attr) {
-  auto strAttr = attr.dyn_cast_or_null<StringAttr>();
-  return strAttr && strAttr.getValue() == getWindowIteratorTypeName();
-}
 
 /// Use to encode that a particular iterator type has window semantics.
 inline ArrayRef<StringRef> getAllIteratorTypeNames() {
@@ -100,47 +97,83 @@ inline ArrayRef<StringRef> getAllIteratorTypeNames() {
 }
 
 /// Returns the iterator of a certain type.
-inline unsigned getNumIterators(StringRef name, ArrayAttr iteratorTypes) {
+inline unsigned getNumIterators(StringRef name,
+                                ArrayRef<StringRef> iteratorTypes) {
   auto names = getAllIteratorTypeNames();
   (void)names;
   assert(llvm::is_contained(names, name));
-  return llvm::count_if(iteratorTypes, [name](Attribute a) {
-    return a.cast<StringAttr>().getValue() == name;
-  });
+  return llvm::count(iteratorTypes, name);
 }
 
-inline unsigned getNumIterators(ArrayAttr iteratorTypes) {
+inline unsigned getNumIterators(ArrayRef<StringRef> iteratorTypes) {
   unsigned res = 0;
   for (auto n : getAllIteratorTypeNames())
     res += getNumIterators(n, iteratorTypes);
   return res;
 }
 
-/// Typed representation for loop type strings.
-enum class IteratorType { Parallel, Reduction };
-
-inline StringRef toString(IteratorType t) {
-  switch (t) {
-  case IteratorType::Parallel:
-    return getParallelIteratorTypeName();
-  case IteratorType::Reduction:
-    return getReductionIteratorTypeName();
+/// Return positions in `iteratorTypes` that match `iteratorTypeName`.
+inline void findPositionsOfType(ArrayRef<StringRef> iteratorTypes,
+                                StringRef iteratorTypeName,
+                                SmallVectorImpl<unsigned> &res) {
+  for (const auto &en : llvm::enumerate(iteratorTypes)) {
+    if (en.value() == iteratorTypeName)
+      res.push_back(en.index());
   }
-  llvm_unreachable("Unsupported IteratorType");
 }
 
-/// Use to encode a dense or sparse dimension.
-constexpr StringRef getSparseDimName() { return "S"; }
-inline bool isSparseDim(Attribute attr) {
-  auto strAttr = attr.dyn_cast_or_null<StringAttr>();
-  return strAttr && strAttr.getValue() == getSparseDimName();
-}
-constexpr StringRef getDenseDimName() { return "D"; }
-inline bool isDenseDim(Attribute attr) {
-  auto strAttr = attr.dyn_cast_or_null<StringAttr>();
-  return strAttr && strAttr.getValue() == getDenseDimName();
-}
+/// Helper StructuredGenerator class to manipulate and rewrite ops with
+/// `StructuredOpInterface`. This is templated for now because VectorOps do not
+/// yet implement the StructuredOpInterface itself.
+template <typename StructuredOpInterface>
+class StructuredGenerator {
+public:
+  using MapList = ArrayRef<ArrayRef<AffineExpr>>;
 
-} // end namespace mlir
+  struct IteratorType {
+    IteratorType(StringRef strRef) : strRef(strRef) {}
+    bool isOfType(StringRef typeName) const { return typeName == strRef; }
+    StringRef strRef;
+  };
+  struct Par : public IteratorType {
+    Par() : IteratorType(getParallelIteratorTypeName()) {}
+  };
+  struct Red : public IteratorType {
+    Red() : IteratorType(getReductionIteratorTypeName()) {}
+  };
+  struct Win : public IteratorType {
+    Win() : IteratorType(getWindowIteratorTypeName()) {}
+  };
 
-#endif // MLIR_UTILS_STRUCTUREDOPSUTILS_H
+  StructuredGenerator(OpBuilder &builder, StructuredOpInterface op)
+      : builder(builder), ctx(op.getContext()), loc(op.getLoc()),
+        iterators(op.getIteratorTypeNames()), maps(op.getIndexingMapsArray()),
+        op(op) {}
+
+  bool iters(ArrayRef<IteratorType> its) {
+    if (its.size() != iterators.size())
+      return false;
+    for (int i = 0, e = its.size(); i != e; ++i) {
+      if (!its[i].isOfType(iterators[i]))
+        return false;
+    }
+    return true;
+  }
+
+  bool layout(MapList l) {
+    auto infer = [](MapList m) { return AffineMap::inferFromExprList(m); };
+    return maps == infer(l);
+  }
+
+protected:
+  OpBuilder &builder;
+  MLIRContext *ctx;
+  Location loc;
+  SmallVector<StringRef> iterators;
+  SmallVector<AffineMap, 4> maps;
+  Operation *op;
+};
+
+} // namespace mlir
+
+#endif // MLIR_DIALECT_UTILS_STRUCTUREDOPSUTILS_H

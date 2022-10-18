@@ -13,7 +13,7 @@
 // we have several customizations:
 //  - preamble handling
 //  - capturing diagnostics for later access
-//  - running clang-tidy checks checks
+//  - running clang-tidy checks
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,17 +24,13 @@
 #include "Compiler.h"
 #include "Diagnostics.h"
 #include "Headers.h"
-#include "HeuristicResolver.h"
 #include "Preamble.h"
 #include "index/CanonicalIncludes.h"
 #include "support/Path.h"
 #include "clang/Frontend/FrontendAction.h"
-#include "clang/Frontend/PrecompiledPreamble.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include <memory>
@@ -42,8 +38,9 @@
 #include <vector>
 
 namespace clang {
+class Sema;
 namespace clangd {
-class SymbolIndex;
+class HeuristicResolver;
 
 /// Stores and provides access to parsed AST.
 class ParsedAST {
@@ -67,6 +64,8 @@ public:
   /// from the main file to be in the AST.
   ASTContext &getASTContext();
   const ASTContext &getASTContext() const;
+
+  Sema &getSema();
 
   Preprocessor &getPreprocessor();
   std::shared_ptr<Preprocessor> getPreprocessorPtr();
@@ -101,12 +100,17 @@ public:
   /// Gets all macro references (definition, expansions) present in the main
   /// file, including those in the preamble region.
   const MainFileMacros &getMacros() const;
+  /// Gets all pragma marks in the main file.
+  const std::vector<PragmaMark> &getMarks() const;
   /// Tokens recorded while parsing the main file.
   /// (!) does not have tokens from the preamble.
   const syntax::TokenBuffer &getTokens() const { return Tokens; }
 
   /// Returns the version of the ParseInputs this AST was built from.
   llvm::StringRef version() const { return Version; }
+
+  /// Returns the path passed by the caller when building this AST.
+  PathRef tuPath() const { return TUPath; }
 
   /// Returns the version of the ParseInputs used to build Preamble part of this
   /// AST. Might be None if no Preamble is used.
@@ -117,14 +121,16 @@ public:
   }
 
 private:
-  ParsedAST(llvm::StringRef Version,
+  ParsedAST(PathRef TUPath, llvm::StringRef Version,
             std::shared_ptr<const PreambleData> Preamble,
             std::unique_ptr<CompilerInstance> Clang,
             std::unique_ptr<FrontendAction> Action, syntax::TokenBuffer Tokens,
-            MainFileMacros Macros, std::vector<Decl *> LocalTopLevelDecls,
+            MainFileMacros Macros, std::vector<PragmaMark> Marks,
+            std::vector<Decl *> LocalTopLevelDecls,
             llvm::Optional<std::vector<Diag>> Diags, IncludeStructure Includes,
             CanonicalIncludes CanonIncludes);
 
+  Path TUPath;
   std::string Version;
   // In-memory preambles must outlive the AST, it is important that this member
   // goes before Clang and Action.
@@ -144,6 +150,8 @@ private:
 
   /// All macro definitions and expansions in the main file.
   MainFileMacros Macros;
+  // Pragma marks in the main file.
+  std::vector<PragmaMark> Marks;
   // Data, stored after parsing. None if AST was built with a stale preamble.
   llvm::Optional<std::vector<Diag>> Diags;
   // Top-level decls inside the current file. Not that this does not include

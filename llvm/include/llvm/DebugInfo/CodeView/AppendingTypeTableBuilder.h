@@ -11,13 +11,12 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/DebugInfo/CodeView/CodeView.h"
+#include "llvm/DebugInfo/CodeView/CVRecord.h"
 #include "llvm/DebugInfo/CodeView/SimpleTypeSerializer.h"
 #include "llvm/DebugInfo/CodeView/TypeCollection.h"
 #include "llvm/DebugInfo/CodeView/TypeIndex.h"
 #include "llvm/Support/Allocator.h"
 #include <cstdint>
-#include <memory>
 
 namespace llvm {
 namespace codeview {

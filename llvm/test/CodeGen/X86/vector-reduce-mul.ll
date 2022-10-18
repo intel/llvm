@@ -460,16 +460,16 @@ define i64 @test_v16i64(<16 x i64> %a0) {
 ; SSE-NEXT:    psllq $32, %xmm9
 ; SSE-NEXT:    pmuludq %xmm6, %xmm2
 ; SSE-NEXT:    paddq %xmm9, %xmm2
-; SSE-NEXT:    movdqa %xmm0, %xmm8
-; SSE-NEXT:    psrlq $32, %xmm8
-; SSE-NEXT:    pmuludq %xmm4, %xmm8
-; SSE-NEXT:    movdqa %xmm4, %xmm6
+; SSE-NEXT:    movdqa %xmm0, %xmm6
 ; SSE-NEXT:    psrlq $32, %xmm6
-; SSE-NEXT:    pmuludq %xmm0, %xmm6
-; SSE-NEXT:    paddq %xmm8, %xmm6
-; SSE-NEXT:    psllq $32, %xmm6
+; SSE-NEXT:    pmuludq %xmm4, %xmm6
+; SSE-NEXT:    movdqa %xmm4, %xmm8
+; SSE-NEXT:    psrlq $32, %xmm8
+; SSE-NEXT:    pmuludq %xmm0, %xmm8
+; SSE-NEXT:    paddq %xmm6, %xmm8
+; SSE-NEXT:    psllq $32, %xmm8
 ; SSE-NEXT:    pmuludq %xmm4, %xmm0
-; SSE-NEXT:    paddq %xmm6, %xmm0
+; SSE-NEXT:    paddq %xmm8, %xmm0
 ; SSE-NEXT:    movdqa %xmm3, %xmm4
 ; SSE-NEXT:    psrlq $32, %xmm4
 ; SSE-NEXT:    pmuludq %xmm7, %xmm4
@@ -2240,7 +2240,7 @@ define i8 @test_v128i8(<128 x i8> %a0) {
 ; Legalization
 ;
 
-define i8 @illegal_v4i8(i8 %a0, <4 x i8>* %a1) {
+define i8 @illegal_v4i8(i8 %a0, ptr %a1) {
 ; SSE2-LABEL: illegal_v4i8:
 ; SSE2:       # %bb.0:
 ; SSE2-NEXT:    movl %edi, %eax
@@ -2284,13 +2284,13 @@ define i8 @illegal_v4i8(i8 %a0, <4 x i8>* %a1) {
 ; AVX-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX-NEXT:    mulb %cl
 ; AVX-NEXT:    retq
-  %ld = load <4 x i8>, <4 x i8>* %a1, align 4
+  %ld = load <4 x i8>, ptr %a1, align 4
   %rdx = call i8 @llvm.vector.reduce.mul.v4i8(<4 x i8> %ld)
   %mul = mul i8 %a0, %rdx
   ret i8 %mul
 }
 
-define i8 @illegal_v8i8(i8 %a0, <8 x i8>* %a1) {
+define i8 @illegal_v8i8(i8 %a0, ptr %a1) {
 ; SSE2-LABEL: illegal_v8i8:
 ; SSE2:       # %bb.0:
 ; SSE2-NEXT:    movl %edi, %eax
@@ -2338,10 +2338,68 @@ define i8 @illegal_v8i8(i8 %a0, <8 x i8>* %a1) {
 ; AVX-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX-NEXT:    mulb %cl
 ; AVX-NEXT:    retq
-  %ld = load <8 x i8>, <8 x i8>* %a1, align 4
+  %ld = load <8 x i8>, ptr %a1, align 4
   %rdx = call i8 @llvm.vector.reduce.mul.v8i8(<8 x i8> %ld)
   %mul = mul i8 %a0, %rdx
   ret i8 %mul
+}
+
+define i8 @PR51858(i128 %arg) {
+; SSE2-LABEL: PR51858:
+; SSE2:       # %bb.0:
+; SSE2-NEXT:    movq %rdi, %xmm0
+; SSE2-NEXT:    movq %rsi, %xmm1
+; SSE2-NEXT:    punpcklbw {{.*#+}} xmm1 = xmm1[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
+; SSE2-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
+; SSE2-NEXT:    pmullw %xmm1, %xmm0
+; SSE2-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[2,3,2,3]
+; SSE2-NEXT:    pmullw %xmm0, %xmm1
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm1[1,1,1,1]
+; SSE2-NEXT:    pmullw %xmm1, %xmm0
+; SSE2-NEXT:    movdqa %xmm0, %xmm1
+; SSE2-NEXT:    psrld $16, %xmm1
+; SSE2-NEXT:    pmullw %xmm0, %xmm1
+; SSE2-NEXT:    movd %xmm1, %eax
+; SSE2-NEXT:    # kill: def $al killed $al killed $eax
+; SSE2-NEXT:    retq
+;
+; SSE41-LABEL: PR51858:
+; SSE41:       # %bb.0:
+; SSE41-NEXT:    movq %rdi, %xmm0
+; SSE41-NEXT:    movq %rsi, %xmm1
+; SSE41-NEXT:    pmovzxbw {{.*#+}} xmm1 = xmm1[0],zero,xmm1[1],zero,xmm1[2],zero,xmm1[3],zero,xmm1[4],zero,xmm1[5],zero,xmm1[6],zero,xmm1[7],zero
+; SSE41-NEXT:    pmovzxbw {{.*#+}} xmm0 = xmm0[0],zero,xmm0[1],zero,xmm0[2],zero,xmm0[3],zero,xmm0[4],zero,xmm0[5],zero,xmm0[6],zero,xmm0[7],zero
+; SSE41-NEXT:    pmullw %xmm1, %xmm0
+; SSE41-NEXT:    pshufd {{.*#+}} xmm1 = xmm0[2,3,2,3]
+; SSE41-NEXT:    pmullw %xmm0, %xmm1
+; SSE41-NEXT:    pshufd {{.*#+}} xmm0 = xmm1[1,1,1,1]
+; SSE41-NEXT:    pmullw %xmm1, %xmm0
+; SSE41-NEXT:    movdqa %xmm0, %xmm1
+; SSE41-NEXT:    psrld $16, %xmm1
+; SSE41-NEXT:    pmullw %xmm0, %xmm1
+; SSE41-NEXT:    movd %xmm1, %eax
+; SSE41-NEXT:    # kill: def $al killed $al killed $eax
+; SSE41-NEXT:    retq
+;
+; AVX-LABEL: PR51858:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vmovq %rdi, %xmm0
+; AVX-NEXT:    vmovq %rsi, %xmm1
+; AVX-NEXT:    vpmovzxbw {{.*#+}} xmm1 = xmm1[0],zero,xmm1[1],zero,xmm1[2],zero,xmm1[3],zero,xmm1[4],zero,xmm1[5],zero,xmm1[6],zero,xmm1[7],zero
+; AVX-NEXT:    vpmovzxbw {{.*#+}} xmm0 = xmm0[0],zero,xmm0[1],zero,xmm0[2],zero,xmm0[3],zero,xmm0[4],zero,xmm0[5],zero,xmm0[6],zero,xmm0[7],zero
+; AVX-NEXT:    vpmullw %xmm1, %xmm0, %xmm0
+; AVX-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,2,3]
+; AVX-NEXT:    vpmullw %xmm1, %xmm0, %xmm0
+; AVX-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,1,1]
+; AVX-NEXT:    vpmullw %xmm1, %xmm0, %xmm0
+; AVX-NEXT:    vpsrld $16, %xmm0, %xmm1
+; AVX-NEXT:    vpmullw %xmm1, %xmm0, %xmm0
+; AVX-NEXT:    vmovd %xmm0, %eax
+; AVX-NEXT:    # kill: def $al killed $al killed $eax
+; AVX-NEXT:    retq
+  %vec = bitcast i128 %arg to <16 x i8>
+  %red = tail call i8 @llvm.vector.reduce.mul.v16i8(<16 x i8> %vec)
+  ret i8 %red
 }
 
 declare i64 @llvm.vector.reduce.mul.v2i64(<2 x i64>)

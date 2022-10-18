@@ -13,6 +13,7 @@
 
 #include "fuchsia.h"
 #include "linux.h"
+#include "trusty.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -171,8 +172,9 @@ void setMemoryPermission(uptr Addr, uptr Size, uptr Flags,
 void releasePagesToOS(uptr BaseAddress, uptr Offset, uptr Size,
                       MapPlatformData *Data = nullptr);
 
-// Internal map & unmap fatal error. This must not call map().
-void NORETURN dieOnMapUnmapError(bool OutOfMemory = false);
+// Internal map & unmap fatal error. This must not call map(). SizeIfOOM shall
+// hold the requested size on an out-of-memory error, 0 otherwise.
+void NORETURN dieOnMapUnmapError(uptr SizeIfOOM = 0);
 
 // Logging related functions.
 

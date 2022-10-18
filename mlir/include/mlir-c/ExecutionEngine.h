@@ -36,9 +36,15 @@ DEFINE_C_API_STRUCT(MlirExecutionEngine, void);
 /// expected to be "translatable" to LLVM IR (only contains operations in
 /// dialects that implement the `LLVMTranslationDialectInterface`). The module
 /// ownership stays with the client and can be destroyed as soon as the call
-/// returns.
-/// TODO: figure out options (optimization level, etc.).
-MLIR_CAPI_EXPORTED MlirExecutionEngine mlirExecutionEngineCreate(MlirModule op);
+/// returns. `optLevel` is the optimization level to be used for transformation
+/// and code generation. LLVM passes at `optLevel` are run before code
+/// generation. The number and array of paths corresponding to shared libraries
+/// that will be loaded are specified via `numPaths` and `sharedLibPaths`
+/// respectively.
+/// TODO: figure out other options.
+MLIR_CAPI_EXPORTED MlirExecutionEngine
+mlirExecutionEngineCreate(MlirModule op, int optLevel, int numPaths,
+                          const MlirStringRef *sharedLibPaths);
 
 /// Destroy an ExecutionEngine instance.
 MLIR_CAPI_EXPORTED void mlirExecutionEngineDestroy(MlirExecutionEngine jit);
@@ -56,6 +62,11 @@ static inline bool mlirExecutionEngineIsNull(MlirExecutionEngine jit) {
 MLIR_CAPI_EXPORTED MlirLogicalResult mlirExecutionEngineInvokePacked(
     MlirExecutionEngine jit, MlirStringRef name, void **arguments);
 
+/// Lookup the wrapper of the native function in the execution engine with the
+/// given name, returns nullptr if the function can't be looked-up.
+MLIR_CAPI_EXPORTED void *
+mlirExecutionEngineLookupPacked(MlirExecutionEngine jit, MlirStringRef name);
+
 /// Lookup a native function in the execution engine by name, returns nullptr
 /// if the name can't be looked-up.
 MLIR_CAPI_EXPORTED void *mlirExecutionEngineLookup(MlirExecutionEngine jit,
@@ -67,8 +78,13 @@ MLIR_CAPI_EXPORTED void
 mlirExecutionEngineRegisterSymbol(MlirExecutionEngine jit, MlirStringRef name,
                                   void *sym);
 
+/// Dump as an object in `fileName`.
+MLIR_CAPI_EXPORTED void
+mlirExecutionEngineDumpToObjectFile(MlirExecutionEngine jit,
+                                    MlirStringRef fileName);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // EXECUTIONENGINE_H
+#endif // MLIR_C_EXECUTIONENGINE_H

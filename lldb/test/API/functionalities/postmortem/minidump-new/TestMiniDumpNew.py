@@ -2,8 +2,6 @@
 Test basics of Minidump debugging.
 """
 
-from six import iteritems
-
 import shutil
 
 import lldb
@@ -13,8 +11,6 @@ from lldbsuite.test import lldbutil
 
 
 class MiniDumpNewTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
 
     NO_DEBUG_INFO_TESTCASE = True
 
@@ -29,7 +25,6 @@ class MiniDumpNewTestCase(TestBase):
         self.process = self.target.LoadCore(minidump_path)
         return self.process
 
-    @skipIfReproducer # lldb::FileSP used in typemap cannot be instrumented.
     def check_state(self):
         with open(os.devnull) as devnul:
             # sanitize test output
@@ -66,7 +61,7 @@ class MiniDumpNewTestCase(TestBase):
         error = lldb.SBError()
         self.process = self.target.LoadCore(minidump_path, error)
         self.assertTrue(self.process, PROCESS_IS_VALID)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
     def test_loadcore_error_status_failure(self):
         """Test the SBTarget.LoadCore(core, error) overload."""
@@ -120,10 +115,11 @@ class MiniDumpNewTestCase(TestBase):
         # one and only thread.
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonSignal)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonSignal)
         stop_description = thread.GetStopDescription(256)
         self.assertIn("SIGSEGV", stop_description)
 
+    @skipIfLLVMTargetMissing("X86")
     def test_stack_info_in_minidump(self):
         """Test that we can see a trivial stack in a breakpad-generated Minidump."""
         # target create linux-x86_64 -c linux-x86_64.dmp
@@ -155,7 +151,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
 
@@ -166,7 +162,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
 
@@ -193,7 +189,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
         registers = thread.GetFrameAtIndex(0).GetRegisters()
@@ -260,7 +256,7 @@ class MiniDumpNewTestCase(TestBase):
         self.check_state()
         self.assertEqual(self.process.GetNumThreads(), 1)
         thread = self.process.GetThreadAtIndex(0)
-        self.assertEqual(thread.GetStopReason(), lldb.eStopReasonNone)
+        self.assertStopReason(thread.GetStopReason(), lldb.eStopReasonNone)
         stop_description = thread.GetStopDescription(256)
         self.assertEqual(stop_description, "")
         registers = thread.GetFrameAtIndex(0).GetRegisters()
@@ -329,7 +325,7 @@ class MiniDumpNewTestCase(TestBase):
 
         expected_stack = {1: 'bar', 2: 'foo', 3: '_start'}
         self.assertGreaterEqual(thread.GetNumFrames(), len(expected_stack))
-        for index, name in iteritems(expected_stack):
+        for index, name in expected_stack.items():
             frame = thread.GetFrameAtIndex(index)
             self.assertTrue(frame.IsValid())
             function_name = frame.GetFunctionName()
@@ -344,7 +340,6 @@ class MiniDumpNewTestCase(TestBase):
                                   "linux-x86_64_not_crashed.dmp",
                                   self._linux_x86_64_not_crashed_pid)
 
-    @skipIfReproducer # VFS is a snapshot.
     def do_change_pid_in_minidump(self, core, newcore, offset, oldpid, newpid):
         """ This assumes that the minidump is breakpad generated on Linux -
         meaning that the PID in the file will be an ascii string part of
@@ -362,6 +357,7 @@ class MiniDumpNewTestCase(TestBase):
             newpid += "\n"
             f.write(newpid.encode('utf-8'))
 
+    @skipIfLLVMTargetMissing("X86")
     def test_deeper_stack_in_minidump_with_same_pid_running(self):
         """Test that we read the information from the core correctly even if we
         have a running process with the same PID"""
@@ -373,6 +369,7 @@ class MiniDumpNewTestCase(TestBase):
                                        str(os.getpid()))
         self.do_test_deeper_stack("linux-x86_64_not_crashed", new_core, os.getpid())
 
+    @skipIfLLVMTargetMissing("X86")
     def test_two_cores_same_pid(self):
         """Test that we handle the situation if we have two core files with the same PID """
         new_core = self.getBuildArtifact("linux-x86_64_not_crashed-pid.dmp")
@@ -385,6 +382,7 @@ class MiniDumpNewTestCase(TestBase):
                                   new_core, self._linux_x86_64_pid)
         self.test_stack_info_in_minidump()
 
+    @skipIfLLVMTargetMissing("X86")
     def test_local_variables_in_minidump(self):
         """Test that we can examine local variables in a Minidump."""
         # Launch with the Minidump, and inspect a local variable.

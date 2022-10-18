@@ -27,7 +27,7 @@ public:
   ValueObjectPrinter(ValueObject *valobj, Stream *s,
                      const DumpValueObjectOptions &options);
 
-  ~ValueObjectPrinter() {}
+  ~ValueObjectPrinter() = default;
 
   bool PrintValueObject();
 
@@ -116,6 +116,8 @@ protected:
   void PrintChildrenIfNeeded(bool value_printed, bool summary_printed);
 
   bool PrintChildrenOneLiner(bool hide_names);
+
+  bool HasReachedMaximumDepth();
 
 private:
   ValueObject *m_orig_valobj;

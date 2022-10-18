@@ -43,6 +43,8 @@
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVEntry.h"
 
+#include "llvm/IR/Metadata.h"
+
 #include <iostream>
 #include <set>
 #include <string>
@@ -92,6 +94,8 @@ class SPIRVAsmTargetINTEL;
 class SPIRVAsmINTEL;
 class SPIRVAsmCallINTEL;
 class SPIRVTypeBufferSurfaceINTEL;
+class SPIRVTypeTokenINTEL;
+class SPIRVTypeJointMatrixINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -173,9 +177,10 @@ public:
   virtual void setGeneratorVer(unsigned short) = 0;
   virtual void resolveUnknownStructFields() = 0;
   virtual void setSPIRVVersion(SPIRVWord) = 0;
+  virtual void insertEntryNoId(SPIRVEntry *Entry) = 0;
 
-  void setMinSPIRVVersion(SPIRVWord Ver) {
-    setSPIRVVersion(std::max(Ver, getSPIRVVersion()));
+  void setMinSPIRVVersion(VersionNumber Ver) {
+    setSPIRVVersion(std::max(static_cast<SPIRVWord>(Ver), getSPIRVVersion()));
   }
 
   // Object creation functions
@@ -239,6 +244,8 @@ public:
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
   virtual SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) = 0;
+  virtual SPIRVTypeJointMatrixINTEL *
+  addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;
@@ -248,7 +255,7 @@ public:
   virtual SPIRVTypeVmeImageINTEL *addVmeImageINTELType(SPIRVTypeImage *) = 0;
   virtual SPIRVTypeBufferSurfaceINTEL *
   addBufferSurfaceINTELType(SPIRVAccessQualifierKind Access) = 0;
-  virtual void createForwardPointers() = 0;
+  virtual SPIRVTypeTokenINTEL *addTokenTypeINTEL() = 0;
 
   // Constants creation functions
   virtual SPIRVValue *
@@ -260,8 +267,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) = 0;
   virtual SPIRVEntry *
   addSpecConstantCompositeContinuedINTEL(const std::vector<SPIRVValue *> &) = 0;
-  virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                   SPIRVFunction *F) = 0;
+  virtual SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                      SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, llvm::APInt) = 0;
@@ -303,6 +310,7 @@ public:
                                        SPIRVInstruction * = nullptr) = 0;
   virtual SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *,
                                    const std::vector<SPIRVWord> &) = 0;
+  virtual SPIRVEntry *addModuleProcessed(const std::string &) = 0;
   virtual void addCapability(SPIRVCapabilityKind) = 0;
   template <typename T> void addCapabilities(const T &Caps) {
     for (auto I : Caps)
@@ -357,6 +365,9 @@ public:
   virtual SPIRVInstTemplateBase *
   addInstTemplate(Op OC, const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB,
                   SPIRVType *Ty) = 0;
+  virtual void addInstTemplate(SPIRVInstTemplateBase *Ins,
+                               const std::vector<SPIRVWord> &Ops,
+                               SPIRVBasicBlock *BB, SPIRVType *Ty) = 0;
   virtual SPIRVInstruction *addLoadInst(SPIRVValue *,
                                         const std::vector<SPIRVWord> &,
                                         SPIRVBasicBlock *) = 0;
@@ -399,9 +410,6 @@ public:
       SPIRVValue *, SPIRVBasicBlock *,
       const std::vector<std::pair<std::vector<SPIRVWord>, SPIRVBasicBlock *>> &,
       SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addFModInst(SPIRVType *TheType, SPIRVId TheDividend,
-                                        SPIRVId TheDivisor,
-                                        SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addVectorTimesScalarInst(SPIRVType *TheType,
                                                      SPIRVId TheVector,
                                                      SPIRVId TheScalar,
@@ -446,12 +454,18 @@ public:
   virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
                                                 SPIRVValue *,
                                                 SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
-                                                   SPIRVBasicBlock *BB) = 0;
-  virtual SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy,
-                                               SPIRVValue *Value,
-                                               SPIRVValue *ExpectedValue,
-                                               SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
+                                                 SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
+                                             SPIRVValue *Value,
+                                             SPIRVValue *ExpectedValue,
+                                             SPIRVBasicBlock *BB) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 
@@ -478,6 +492,8 @@ public:
     return TranslationOpts.isGenArgNameMDEnabled();
   }
 
+  virtual std::vector<SPIRVModuleProcessed *> getModuleProcessedVec() = 0;
+
   bool getSpecializationConstant(SPIRVWord SpecId, uint64_t &ConstValue) {
     return TranslationOpts.getSpecializationConstant(SpecId, ConstValue);
   }
@@ -500,6 +516,11 @@ public:
 
   bool shouldReplaceLLVMFmulAddWithOpenCLMad() const noexcept {
     return TranslationOpts.shouldReplaceLLVMFmulAddWithOpenCLMad();
+  }
+
+  bool shouldPreserveOCLKernelArgTypeMetadataThroughString() const noexcept {
+    return TranslationOpts
+        .shouldPreserveOCLKernelArgTypeMetadataThroughString();
   }
 
   SPIRVExtInstSetKind getDebugInfoEIS() const {

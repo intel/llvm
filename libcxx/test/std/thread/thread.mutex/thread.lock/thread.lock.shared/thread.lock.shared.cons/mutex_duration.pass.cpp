@@ -6,13 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: c++03, c++11
 
 // dylib support for shared_mutex was added in macosx10.12
-// XFAIL: with_system_cxx_lib=macosx10.11
-// XFAIL: with_system_cxx_lib=macosx10.10
-// XFAIL: with_system_cxx_lib=macosx10.9
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
 
 // <shared_mutex>
 
@@ -21,11 +19,13 @@
 // template <class Rep, class Period>
 //   shared_lock(mutex_type& m, const chrono::duration<Rep, Period>& rel_time);
 
-#include <shared_mutex>
 #include <thread>
-#include <vector>
-#include <cstdlib>
+
+#include <atomic>
 #include <cassert>
+#include <cstdlib>
+#include <shared_mutex>
+#include <vector>
 
 #include "make_test_thread.h"
 #include "test_macros.h"

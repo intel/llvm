@@ -9,7 +9,7 @@
 ; ESIMD module should have isEsimdImage=1 property set after splitting.
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 
@@ -37,8 +37,8 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 !3 = !{}
 
 ; CHECK: [Code|Properties]
-; CHECK: {{.*}}_0.ll|{{.*}}_0.prop
-; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop
+; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop
+; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop
 
 ; CHECK-SYCL-IR-DAG: define dso_local spir_kernel void @SYCL_kernel()
 ; CHECK-SYCL-IR-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()

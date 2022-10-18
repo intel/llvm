@@ -44,12 +44,12 @@ void visitUsedValuesDefinedAbove(MutableArrayRef<Region> regions,
 /// Fill `values` with a list of values defined at the ancestors of the `limit`
 /// region and used within `region` or its descendants.
 void getUsedValuesDefinedAbove(Region &region, Region &limit,
-                               llvm::SetVector<Value> &values);
+                               SetVector<Value> &values);
 
 /// Fill `values` with a list of values used within any of the regions provided
 /// but defined in one of the ancestors.
 void getUsedValuesDefinedAbove(MutableArrayRef<Region> regions,
-                               llvm::SetVector<Value> &values);
+                               SetVector<Value> &values);
 
 /// Run a set of structural simplifications over the given regions. This
 /// includes transformations like unreachable block elimination, dead argument
@@ -58,6 +58,16 @@ void getUsedValuesDefinedAbove(MutableArrayRef<Region> regions,
 /// used to notify callers of operation and block deletion.
 LogicalResult simplifyRegions(RewriterBase &rewriter,
                               MutableArrayRef<Region> regions);
+
+/// Erase the unreachable blocks within the provided regions. Returns success
+/// if any blocks were erased, failure otherwise.
+LogicalResult eraseUnreachableBlocks(RewriterBase &rewriter,
+                                     MutableArrayRef<Region> regions);
+
+/// This function returns success if any operations or arguments were deleted,
+/// failure otherwise.
+LogicalResult runRegionDCE(RewriterBase &rewriter,
+                           MutableArrayRef<Region> regions);
 
 } // namespace mlir
 

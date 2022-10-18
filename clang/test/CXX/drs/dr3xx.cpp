@@ -1,7 +1,9 @@
-// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++98 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++11 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++14 %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
-// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++1z %s -verify -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++2b -verify=expected,cxx20_2b,cxx2b    -triple %itanium_abi_triple %s -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++20 -verify=expected,cxx98_20,cxx20_2b -triple %itanium_abi_triple %s -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++17 -verify=expected,cxx98_17,cxx98_20 -triple %itanium_abi_triple %s -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++14 -verify=expected,cxx98_17,cxx98_20 -triple %itanium_abi_triple %s -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++11 -verify=expected,cxx98_17,cxx98_20 -triple %itanium_abi_triple %s -fexceptions -fcxx-exceptions -pedantic-errors
+// RUN: %clang_cc1 -std=c++98 -verify=expected,cxx98_17,cxx98_20 -triple %itanium_abi_triple %s -fexceptions -fcxx-exceptions -pedantic-errors
 
 namespace dr300 { // dr300: yes
   template<typename R, typename A> void f(R (&)(A)) {}
@@ -16,10 +18,10 @@ namespace dr301 { // dr301: yes
   void operator-(S, S);
 
   void f() {
-    bool a = (void(*)(S, S))operator+<S> <
+    bool a = (void(*)(S, S))operator+<S> < // expected-warning {{ordered comparison of function pointers}}
              (void(*)(S, S))operator+<S>;
-    bool b = (void(*)(S, S))operator- <
-             (void(*)(S, S))operator-;
+    bool b = (void(*)(S, S))operator- < // cxx20_2b-note {{to match this '<'}} cxx98_17-warning {{ordered comparison of function pointers}}
+             (void(*)(S, S))operator-; // cxx20_2b-error {{expected '>'}}
     bool c = (void(*)(S, S))operator+ < // expected-note {{to match this '<'}}
              (void(*)(S, S))operator-; // expected-error {{expected '>'}}
   }
@@ -28,7 +30,7 @@ namespace dr301 { // dr301: yes
     typename T::template operator+<int> a; // expected-error {{typename specifier refers to a non-type template}} expected-error +{{}}
     // FIXME: This shouldn't say (null).
     class T::template operator+<int> b; // expected-error {{identifier followed by '<' indicates a class template specialization but (null) refers to a function template}}
-    enum T::template operator+<int> c; // expected-error {{expected identifier}} expected-error {{does not declare anything}}
+    enum T::template operator+<int> c; // expected-error {{expected identifier}}
     enum T::template operator+<int>::E d; // expected-error {{qualified name refers into a specialization of function template 'T::template operator +'}} expected-error {{forward reference}}
     enum T::template X<int>::E e;
     T::template operator+<int>::foobar(); // expected-error {{qualified name refers into a specialization of function template 'T::template operator +'}}
@@ -161,9 +163,9 @@ namespace dr308 { // dr308: yes
   void f() {
     try {
       throw D();
-    } catch (const A&) { // expected-note {{for type 'const dr308::A &'}}
+    } catch (const A&) { // expected-note {{for type 'const A &'}}
       // unreachable
-    } catch (const B&) { // expected-warning {{exception of type 'const dr308::B &' will be caught by earlier handler}}
+    } catch (const B&) { // expected-warning {{exception of type 'const B &' will be caught by earlier handler}}
       // get here instead
     }
   }
@@ -371,10 +373,19 @@ namespace dr330 { // dr330: 7
     q = p; // ok
     q2 = p; // ok
     r = p; // expected-error {{incompatible}}
-    s = p; // expected-error {{incompatible}} (for now)
+    s = p;
+#if __cplusplus < 202002
+    // expected-error@-2 {{incompatible}} (fixed by p0388)
+#endif
     t = p; // expected-error {{incompatible}}
-    s = q; // expected-error {{incompatible}}
-    s = q2; // expected-error {{incompatible}}
+    s = q;
+#if __cplusplus < 202002
+    // expected-error@-2 {{incompatible}} (fixed by p0388)
+#endif
+    s = q2;
+#if __cplusplus < 202002
+    // expected-error@-2 {{incompatible}} (fixed by p0388)
+#endif
     s = t; // ok, adding const
     t = s; // expected-error {{discards qualifiers}}
     (void) const_cast<P>(q);
@@ -439,8 +450,10 @@ namespace dr331 { // dr331: yes
 
 namespace dr332 { // dr332: dup 577
   void f(volatile void); // expected-error {{'void' as parameter must not have type qualifiers}}
+  // cxx20_2b-warning@-1 {{volatile-qualified parameter type 'volatile void' is deprecated}}
   void g(const void); // expected-error {{'void' as parameter must not have type qualifiers}}
   void h(int n, volatile void); // expected-error {{'void' must be the first and only parameter}}
+  // cxx20_2b-warning@-1 {{volatile-qualified parameter type 'volatile void' is deprecated}}
 }
 
 namespace dr333 { // dr333: yes
@@ -624,7 +637,8 @@ namespace dr349 { // dr349: no
   struct A {
     template <class T> operator T ***() {
       int ***p = 0;
-      return p; // expected-error {{cannot initialize return object of type 'const int ***' with an lvalue of type 'int ***'}}
+      return p; // cxx98_20-error {{cannot initialize return object of type 'const int ***' with an lvalue of type 'int ***'}}
+      // cxx2b-error@-1 {{cannot initialize return object of type 'const int ***' with an rvalue of type 'int ***'}}
     }
   };
 
@@ -910,10 +924,13 @@ namespace dr367 { // dr367: yes
 namespace dr368 { // dr368: yes
   template<typename T, T> struct S {}; // expected-note {{here}}
   template<typename T> int f(S<T, T()> *); // expected-error {{function type}}
-  template<typename T> int g(S<T, (T())> *); // expected-note {{type 'dr368::X'}}
-  template<typename T> int g(S<T, true ? T() : T()> *); // expected-note {{type 'dr368::X'}}
+  template<typename T> int g(S<T, (T())> *); // cxx98_17-note {{type 'dr368::X'}}
+  // cxx20_2b-note@-1 {{candidate function [with T = dr368::X]}}
+  template<typename T> int g(S<T, true ? T() : T()> *); // cxx98_17-note {{type 'dr368::X'}}
+  // cxx20_2b-note@-1 {{candidate function [with T = dr368::X]}}
   struct X {};
-  int n = g<X>(0); // expected-error {{no matching}}
+  int n = g<X>(0); // cxx98_17-error {{no matching}}
+  // cxx20_2b-error@-1 {{call to 'g' is ambiguous}}
 }
 
 // dr370: na

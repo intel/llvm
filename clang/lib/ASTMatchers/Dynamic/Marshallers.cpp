@@ -20,7 +20,7 @@ getBestGuess(llvm::StringRef Search, llvm::ArrayRef<llvm::StringRef> Allowed,
     ++MaxEditDistance;
   llvm::StringRef Res;
   for (const llvm::StringRef &Item : Allowed) {
-    if (Item.equals_lower(Search)) {
+    if (Item.equals_insensitive(Search)) {
       assert(!Item.equals(Search) && "This should be handled earlier on.");
       MaxEditDistance = 1;
       Res = Item;
@@ -40,7 +40,7 @@ getBestGuess(llvm::StringRef Search, llvm::ArrayRef<llvm::StringRef> Allowed,
       auto NoPrefix = Item;
       if (!NoPrefix.consume_front(DropPrefix))
         continue;
-      if (NoPrefix.equals_lower(Search)) {
+      if (NoPrefix.equals_insensitive(Search)) {
         if (NoPrefix.equals(Search))
           return Item.str();
         MaxEditDistance = 1;
@@ -148,7 +148,7 @@ clang::ast_matchers::dynamic::internal::ArgTypeTraits<
   for (StringRef OrFlag : Split) {
     if (llvm::Optional<llvm::Regex::RegexFlags> NextFlag =
             getRegexFlag(OrFlag.trim()))
-      Flag = Flag.getValueOr(llvm::Regex::NoFlags) | *NextFlag;
+      Flag = Flag.value_or(llvm::Regex::NoFlags) | *NextFlag;
     else
       return None;
   }

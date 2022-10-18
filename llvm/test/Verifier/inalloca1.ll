@@ -16,7 +16,7 @@ declare void @e(i64* readonly inalloca(i64) %p)
 ; CHECK: Attributes {{.*}} are incompatible
 
 declare void @f(void ()* inalloca(void()) %p)
-; CHECK: do not support unsized types
+; CHECK: Attribute 'inalloca' does not support unsized types
 
 declare void @g(i32* inalloca(i32) %p, i32 %p2)
 ; CHECK: inalloca isn't on the last parameter!
@@ -27,8 +27,8 @@ define void @inalloca_mismatched_pointee_type0(i32* inalloca(i8)) {
   ret void
 }
 
-; CHECK: Wrong types for attribute:
+; CHECK: Attribute 'inalloca(i8)' applied to incompatible type!
 ; CHECK-NEXT: void (i8)* @inalloca_not_pointer
-define void @inalloca_not_pointer(i8 byref(i8)) {
+define void @inalloca_not_pointer(i8 inalloca(i8)) {
   ret void
 }

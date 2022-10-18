@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ARMFeatures.h"
 #include "ARMBaseInstrInfo.h"
-#include "Utils/ARMBaseInfo.h"
+#include "ARMFeatures.h"
 #include "MCTargetDesc/ARMAddressingModes.h"
 #include "MCTargetDesc/ARMBaseInfo.h"
 #include "MCTargetDesc/ARMInstPrinter.h"
 #include "MCTargetDesc/ARMMCExpr.h"
 #include "MCTargetDesc/ARMMCTargetDesc.h"
 #include "TargetInfo/ARMTargetInfo.h"
+#include "Utils/ARMBaseInfo.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/None.h"
@@ -22,8 +22,8 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
@@ -32,7 +32,6 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCAsmParserExtension.h"
@@ -45,6 +44,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/ARMEHABI.h"
 #include "llvm/Support/Casting.h"
@@ -54,7 +54,6 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/TargetParser.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -138,21 +137,18 @@ public:
   int getFPReg() const { return FPReg; }
 
   void emitFnStartLocNotes() const {
-    for (Locs::const_iterator FI = FnStartLocs.begin(), FE = FnStartLocs.end();
-         FI != FE; ++FI)
-      Parser.Note(*FI, ".fnstart was specified here");
+    for (const SMLoc &Loc : FnStartLocs)
+      Parser.Note(Loc, ".fnstart was specified here");
   }
 
   void emitCantUnwindLocNotes() const {
-    for (Locs::const_iterator UI = CantUnwindLocs.begin(),
-                              UE = CantUnwindLocs.end(); UI != UE; ++UI)
-      Parser.Note(*UI, ".cantunwind was specified here");
+    for (const SMLoc &Loc : CantUnwindLocs)
+      Parser.Note(Loc, ".cantunwind was specified here");
   }
 
   void emitHandlerDataLocNotes() const {
-    for (Locs::const_iterator HI = HandlerDataLocs.begin(),
-                              HE = HandlerDataLocs.end(); HI != HE; ++HI)
-      Parser.Note(*HI, ".handlerdata was specified here");
+    for (const SMLoc &Loc : HandlerDataLocs)
+      Parser.Note(Loc, ".handlerdata was specified here");
   }
 
   void emitPersonalityLocNotes() const {
@@ -306,7 +302,7 @@ class ARMAsmParser : public MCTargetAsmParser {
     ITInst.addOperand(MCOperand::createImm(ITState.Mask));
     Out.emitInstruction(ITInst, getSTI());
 
-    // Emit the conditonal instructions
+    // Emit the conditional instructions
     assert(PendingConditionalInsts.size() <= 4);
     for (const MCInst &Inst : PendingConditionalInsts) {
       Out.emitInstruction(Inst, getSTI());
@@ -453,9 +449,11 @@ class ARMAsmParser : public MCTargetAsmParser {
   int tryParseRegister();
   bool tryParseRegisterWithWriteBack(OperandVector &);
   int tryParseShiftRegister(OperandVector &);
-  bool parseRegisterList(OperandVector &, bool EnforceOrder = true);
+  bool parseRegisterList(OperandVector &, bool EnforceOrder = true,
+                         bool AllowRAAC = false);
   bool parseMemory(OperandVector &);
   bool parseOperand(OperandVector &, StringRef Mnemonic);
+  bool parseImmExpr(int64_t &Out);
   bool parsePrefix(ARMMCExpr::VariantKind &RefKind);
   bool parseMemRegOffsetShift(ARM_AM::ShiftOpc &ShiftType,
                               unsigned &ShiftAmount);
@@ -491,6 +489,17 @@ class ARMAsmParser : public MCTargetAsmParser {
   bool parseDirectiveAlign(SMLoc L);
   bool parseDirectiveThumbSet(SMLoc L);
 
+  bool parseDirectiveSEHAllocStack(SMLoc L, bool Wide);
+  bool parseDirectiveSEHSaveRegs(SMLoc L, bool Wide);
+  bool parseDirectiveSEHSaveSP(SMLoc L);
+  bool parseDirectiveSEHSaveFRegs(SMLoc L);
+  bool parseDirectiveSEHSaveLR(SMLoc L);
+  bool parseDirectiveSEHPrologEnd(SMLoc L, bool Fragment);
+  bool parseDirectiveSEHNop(SMLoc L, bool Wide);
+  bool parseDirectiveSEHEpilogStart(SMLoc L, bool Condition);
+  bool parseDirectiveSEHEpilogEnd(SMLoc L);
+  bool parseDirectiveSEHCustom(SMLoc L);
+
   bool isMnemonicVPTPredicable(StringRef Mnemonic, StringRef ExtraToken);
   StringRef splitMnemonic(StringRef Mnemonic, StringRef ExtraToken,
                           unsigned &PredicationCode,
@@ -500,6 +509,7 @@ class ARMAsmParser : public MCTargetAsmParser {
                              StringRef FullInst, bool &CanAcceptCarrySet,
                              bool &CanAcceptPredicationCode,
                              bool &CanAcceptVPTPredicationCode);
+  bool enableArchExtFeature(StringRef Name, SMLoc &ExtLoc);
 
   void tryConvertingToTwoOperandForm(StringRef Mnemonic, bool CarrySetting,
                                      OperandVector &Operands);
@@ -724,7 +734,7 @@ public:
   void ReportNearMisses(SmallVectorImpl<NearMissInfo> &NearMisses, SMLoc IDLoc,
                         OperandVector &Operands);
 
-  void doBeforeLabelEmit(MCSymbol *Symbol) override;
+  void doBeforeLabelEmit(MCSymbol *Symbol, SMLoc IDLoc) override;
 
   void onLabelParsed(MCSymbol *Symbol) override;
 };
@@ -847,7 +857,7 @@ class ARMOperand : public MCParsedAsmOperand {
     unsigned BaseRegNum;
     // Offset is in OffsetReg or OffsetImm. If both are zero, no offset
     // was specified.
-    const MCConstantExpr *OffsetImm;  // Offset immediate value
+    const MCExpr *OffsetImm;  // Offset immediate value
     unsigned OffsetRegNum;    // Offset register num, when OffsetImm == NULL
     ARM_AM::ShiftOpc ShiftType; // Shift type for OffsetReg
     unsigned ShiftImm;        // shift for OffsetReg.
@@ -923,7 +933,7 @@ class ARMOperand : public MCParsedAsmOperand {
   };
 
 public:
-  ARMOperand(KindTy K) : MCParsedAsmOperand(), Kind(K) {}
+  ARMOperand(KindTy K) : Kind(K) {}
 
   /// getStartLoc - Get the location of the first token of this operand.
   SMLoc getStartLoc() const override { return StartLoc; }
@@ -1107,7 +1117,10 @@ public:
     else if (isGPRMem()) {
       if(!Memory.OffsetImm || Memory.OffsetRegNum) return false;
       if(Memory.BaseRegNum != ARM::PC) return false;
-      Val = Memory.OffsetImm->getValue();
+      if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm))
+        Val = CE->getValue();
+      else
+        return false;
     }
     else return false;
     return ((Val % 4) == 0) && (Val >= 0) && (Val <= 1020);
@@ -1496,9 +1509,12 @@ public:
       return false;
     // Immediate offset in range [-4095, 4095].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return (Val > -4096 && Val < 4096) ||
-           (Val == std::numeric_limits<int32_t>::min());
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return (Val > -4096 && Val < 4096) ||
+             (Val == std::numeric_limits<int32_t>::min());
+    }
+    return false;
   }
 
   bool isAlignedMemory() const {
@@ -1581,8 +1597,11 @@ public:
     if (Memory.OffsetRegNum) return true;
     // Immediate offset in range [-4095, 4095].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return Val > -4096 && Val < 4096;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return Val > -4096 && Val < 4096;
+    }
+    return false;
   }
 
   bool isAM2OffsetImm() const {
@@ -1608,11 +1627,14 @@ public:
     if (Memory.OffsetRegNum) return true;
     // Immediate offset in range [-255, 255].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    // The #-0 offset is encoded as std::numeric_limits<int32_t>::min(), and we
-    // have to check for this too.
-    return (Val > -256 && Val < 256) ||
-           Val == std::numeric_limits<int32_t>::min();
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      // The #-0 offset is encoded as std::numeric_limits<int32_t>::min(), and
+      // we have to check for this too.
+      return (Val > -256 && Val < 256) ||
+             Val == std::numeric_limits<int32_t>::min();
+    }
+    return false;
   }
 
   bool isAM3Offset() const {
@@ -1640,9 +1662,12 @@ public:
     if (Memory.OffsetRegNum) return false;
     // Immediate offset in range [-1020, 1020] and a multiple of 4.
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return (Val >= -1020 && Val <= 1020 && ((Val & 3) == 0)) ||
-      Val == std::numeric_limits<int32_t>::min();
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return (Val >= -1020 && Val <= 1020 && ((Val & 3) == 0)) ||
+             Val == std::numeric_limits<int32_t>::min();
+    }
+    return false;
   }
 
   bool isAddrMode5FP16() const {
@@ -1656,9 +1681,12 @@ public:
     if (Memory.OffsetRegNum) return false;
     // Immediate offset in range [-510, 510] and a multiple of 2.
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return (Val >= -510 && Val <= 510 && ((Val & 1) == 0)) ||
-           Val == std::numeric_limits<int32_t>::min();
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return (Val >= -510 && Val <= 510 && ((Val & 1) == 0)) ||
+             Val == std::numeric_limits<int32_t>::min();
+    }
+    return false;
   }
 
   bool isMemTBB() const {
@@ -1710,8 +1738,11 @@ public:
       return false;
     // Immediate offset, multiple of 4 in range [0, 124].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return Val >= 0 && Val <= 124 && (Val % 4) == 0;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return Val >= 0 && Val <= 124 && (Val % 4) == 0;
+    }
+    return false;
   }
 
   bool isMemThumbRIs2() const {
@@ -1720,8 +1751,11 @@ public:
       return false;
     // Immediate offset, multiple of 4 in range [0, 62].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return Val >= 0 && Val <= 62 && (Val % 2) == 0;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return Val >= 0 && Val <= 62 && (Val % 2) == 0;
+    }
+    return false;
   }
 
   bool isMemThumbRIs1() const {
@@ -1730,8 +1764,11 @@ public:
       return false;
     // Immediate offset in range [0, 31].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return Val >= 0 && Val <= 31;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return Val >= 0 && Val <= 31;
+    }
+    return false;
   }
 
   bool isMemThumbSPI() const {
@@ -1740,8 +1777,11 @@ public:
       return false;
     // Immediate offset, multiple of 4 in range [0, 1020].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return Val >= 0 && Val <= 1020 && (Val % 4) == 0;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return Val >= 0 && Val <= 1020 && (Val % 4) == 0;
+    }
+    return false;
   }
 
   bool isMemImm8s4Offset() const {
@@ -1754,11 +1794,15 @@ public:
       return false;
     // Immediate offset a multiple of 4 in range [-1020, 1020].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    // Special case, #-0 is std::numeric_limits<int32_t>::min().
-    return (Val >= -1020 && Val <= 1020 && (Val & 3) == 0) ||
-           Val == std::numeric_limits<int32_t>::min();
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      // Special case, #-0 is std::numeric_limits<int32_t>::min().
+      return (Val >= -1020 && Val <= 1020 && (Val & 3) == 0) ||
+             Val == std::numeric_limits<int32_t>::min();
+    }
+    return false;
   }
+
   bool isMemImm7s4Offset() const {
     // If we have an immediate that's not a constant, treat it as a label
     // reference needing a fixup. If it is a constant, it's something else
@@ -1771,17 +1815,24 @@ public:
       return false;
     // Immediate offset a multiple of 4 in range [-508, 508].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    // Special case, #-0 is INT32_MIN.
-    return (Val >= -508 && Val <= 508 && (Val & 3) == 0) || Val == INT32_MIN;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      // Special case, #-0 is INT32_MIN.
+      return (Val >= -508 && Val <= 508 && (Val & 3) == 0) || Val == INT32_MIN;
+    }
+    return false;
   }
+
   bool isMemImm0_1020s4Offset() const {
     if (!isGPRMem() || Memory.OffsetRegNum != 0 || Memory.Alignment != 0)
       return false;
     // Immediate offset a multiple of 4 in range [0, 1020].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return Val >= 0 && Val <= 1020 && (Val & 3) == 0;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return Val >= 0 && Val <= 1020 && (Val & 3) == 0;
+    }
+    return false;
   }
 
   bool isMemImm8Offset() const {
@@ -1791,9 +1842,12 @@ public:
     if (Memory.BaseRegNum == ARM::PC) return false;
     // Immediate offset in range [-255, 255].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return (Val == std::numeric_limits<int32_t>::min()) ||
-           (Val > -256 && Val < 256);
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return (Val == std::numeric_limits<int32_t>::min()) ||
+             (Val > -256 && Val < 256);
+    }
+    return false;
   }
 
   template<unsigned Bits, unsigned RegClassID>
@@ -1806,26 +1860,29 @@ public:
     // [-127, 127], shifted left by Bits.
 
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
 
-    // INT32_MIN is a special-case value (indicating the encoding with
-    // zero offset and the subtract bit set)
-    if (Val == INT32_MIN)
-      return true;
+      // INT32_MIN is a special-case value (indicating the encoding with
+      // zero offset and the subtract bit set)
+      if (Val == INT32_MIN)
+        return true;
 
-    unsigned Divisor = 1U << Bits;
+      unsigned Divisor = 1U << Bits;
 
-    // Check that the low bits are zero
-    if (Val % Divisor != 0)
-      return false;
+      // Check that the low bits are zero
+      if (Val % Divisor != 0)
+        return false;
 
-    // Check that the remaining offset is within range.
-    Val /= Divisor;
-    return (Val >= -127 && Val <= 127);
+      // Check that the remaining offset is within range.
+      Val /= Divisor;
+      return (Val >= -127 && Val <= 127);
+    }
+    return false;
   }
 
   template <int shift> bool isMemRegRQOffset() const {
-    if (!isMVEMem() || Memory.OffsetImm != 0 || Memory.Alignment != 0)
+    if (!isMVEMem() || Memory.OffsetImm != nullptr || Memory.Alignment != 0)
       return false;
 
     if (!ARMMCRegisterClasses[ARM::GPRnopcRegClassID].contains(
@@ -1853,20 +1910,24 @@ public:
             Memory.BaseRegNum))
       return false;
 
-    if(!Memory.OffsetImm) return true;
+    if (!Memory.OffsetImm)
+      return true;
     static_assert(shift < 56,
                   "Such that we dont shift by a value higher than 62");
-    int64_t Val = Memory.OffsetImm->getValue();
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
 
-    // The value must be a multiple of (1 << shift)
-    if ((Val & ((1U << shift) - 1)) != 0)
-      return false;
+      // The value must be a multiple of (1 << shift)
+      if ((Val & ((1U << shift) - 1)) != 0)
+        return false;
 
-    // And be in the right range, depending on the amount that it is shifted
-    // by.  Shift 0, is equal to 7 unsigned bits, the sign bit is set
-    // separately.
-    int64_t Range = (1U << (7+shift)) - 1;
-    return (Val == INT32_MIN) || (Val > -Range && Val < Range);
+      // And be in the right range, depending on the amount that it is shifted
+      // by.  Shift 0, is equal to 7 unsigned bits, the sign bit is set
+      // separately.
+      int64_t Range = (1U << (7 + shift)) - 1;
+      return (Val == INT32_MIN) || (Val > -Range && Val < Range);
+    }
+    return false;
   }
 
   bool isMemPosImm8Offset() const {
@@ -1874,8 +1935,11 @@ public:
       return false;
     // Immediate offset in range [0, 255].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return Val >= 0 && Val < 256;
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return Val >= 0 && Val < 256;
+    }
+    return false;
   }
 
   bool isMemNegImm8Offset() const {
@@ -1885,9 +1949,12 @@ public:
     if (Memory.BaseRegNum == ARM::PC) return false;
     // Immediate offset in range [-255, -1].
     if (!Memory.OffsetImm) return false;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return (Val == std::numeric_limits<int32_t>::min()) ||
-           (Val > -256 && Val < 0);
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return (Val == std::numeric_limits<int32_t>::min()) ||
+             (Val > -256 && Val < 0);
+    }
+    return false;
   }
 
   bool isMemUImm12Offset() const {
@@ -1895,8 +1962,11 @@ public:
       return false;
     // Immediate offset in range [0, 4095].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return (Val >= 0 && Val < 4096);
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return (Val >= 0 && Val < 4096);
+    }
+    return false;
   }
 
   bool isMemImm12Offset() const {
@@ -1911,9 +1981,14 @@ public:
       return false;
     // Immediate offset in range [-4095, 4095].
     if (!Memory.OffsetImm) return true;
-    int64_t Val = Memory.OffsetImm->getValue();
-    return (Val > -4096 && Val < 4096) ||
-           (Val == std::numeric_limits<int32_t>::min());
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int64_t Val = CE->getValue();
+      return (Val > -4096 && Val < 4096) ||
+             (Val == std::numeric_limits<int32_t>::min());
+    }
+    // If we have an immediate that's not a constant, treat it as a
+    // symbolic expression needing a fixup.
+    return true;
   }
 
   bool isConstPoolAsmImm() const {
@@ -2413,14 +2488,15 @@ public:
   }
 
   void addVPTPredNOperands(MCInst &Inst, unsigned N) const {
-    assert(N == 2 && "Invalid number of operands!");
+    assert(N == 3 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createImm(unsigned(getVPTPred())));
     unsigned RegNum = getVPTPred() == ARMVCC::None ? 0: ARM::P0;
     Inst.addOperand(MCOperand::createReg(RegNum));
+    Inst.addOperand(MCOperand::createReg(0));
   }
 
   void addVPTPredROperands(MCInst &Inst, unsigned N) const {
-    assert(N == 3 && "Invalid number of operands!");
+    assert(N == 4 && "Invalid number of operands!");
     addVPTPredNOperands(Inst, N-1);
     unsigned RegNum;
     if (getVPTPred() == ARMVCC::None) {
@@ -2506,17 +2582,15 @@ public:
   void addRegListOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     const SmallVectorImpl<unsigned> &RegList = getRegList();
-    for (SmallVectorImpl<unsigned>::const_iterator
-           I = RegList.begin(), E = RegList.end(); I != E; ++I)
-      Inst.addOperand(MCOperand::createReg(*I));
+    for (unsigned Reg : RegList)
+      Inst.addOperand(MCOperand::createReg(Reg));
   }
 
   void addRegListWithAPSROperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     const SmallVectorImpl<unsigned> &RegList = getRegList();
-    for (SmallVectorImpl<unsigned>::const_iterator
-           I = RegList.begin(), E = RegList.end(); I != E; ++I)
-      Inst.addOperand(MCOperand::createReg(*I));
+    for (unsigned Reg : RegList)
+      Inst.addOperand(MCOperand::createReg(Reg));
   }
 
   void addDPRRegListOperands(MCInst &Inst, unsigned N) const {
@@ -2760,7 +2834,10 @@ public:
 
     assert(isGPRMem()  && "Unknown value type!");
     assert(isa<MCConstantExpr>(Memory.OffsetImm) && "Unknown value type!");
-    Inst.addOperand(MCOperand::createImm(Memory.OffsetImm->getValue()));
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm))
+      Inst.addOperand(MCOperand::createImm(CE->getValue()));
+    else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addMemBarrierOptOperands(MCInst &Inst, unsigned N) const {
@@ -2800,8 +2877,10 @@ public:
 
   void addMemPCRelImm12Operands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
-    int32_t Imm = Memory.OffsetImm->getValue();
-    Inst.addOperand(MCOperand::createImm(Imm));
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm))
+      Inst.addOperand(MCOperand::createImm(CE->getValue()));
+    else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addAdrLabelOperands(MCInst &Inst, unsigned N) const {
@@ -2872,22 +2951,31 @@ public:
 
   void addAddrMode2Operands(MCInst &Inst, unsigned N) const {
     assert(N == 3 && "Invalid number of operands!");
-    int32_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() : 0;
+    Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
+    Inst.addOperand(MCOperand::createReg(Memory.OffsetRegNum));
     if (!Memory.OffsetRegNum) {
-      ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
-      // Special case for #-0
-      if (Val == std::numeric_limits<int32_t>::min()) Val = 0;
-      if (Val < 0) Val = -Val;
-      Val = ARM_AM::getAM2Opc(AddSub, Val, ARM_AM::no_shift);
+      if (!Memory.OffsetImm)
+        Inst.addOperand(MCOperand::createImm(0));
+      else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+        int32_t Val = CE->getValue();
+        ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
+        // Special case for #-0
+        if (Val == std::numeric_limits<int32_t>::min())
+          Val = 0;
+        if (Val < 0)
+          Val = -Val;
+        Val = ARM_AM::getAM2Opc(AddSub, Val, ARM_AM::no_shift);
+        Inst.addOperand(MCOperand::createImm(Val));
+      } else
+        Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
     } else {
       // For register offset, we encode the shift type and negation flag
       // here.
-      Val = ARM_AM::getAM2Opc(Memory.isNegative ? ARM_AM::sub : ARM_AM::add,
-                              Memory.ShiftImm, Memory.ShiftType);
+      int32_t Val =
+          ARM_AM::getAM2Opc(Memory.isNegative ? ARM_AM::sub : ARM_AM::add,
+                            Memory.ShiftImm, Memory.ShiftType);
+      Inst.addOperand(MCOperand::createImm(Val));
     }
-    Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createReg(Memory.OffsetRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
   }
 
   void addAM2OffsetImmOperands(MCInst &Inst, unsigned N) const {
@@ -2916,21 +3004,30 @@ public:
       return;
     }
 
-    int32_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() : 0;
+    Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
+    Inst.addOperand(MCOperand::createReg(Memory.OffsetRegNum));
     if (!Memory.OffsetRegNum) {
-      ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
-      // Special case for #-0
-      if (Val == std::numeric_limits<int32_t>::min()) Val = 0;
-      if (Val < 0) Val = -Val;
-      Val = ARM_AM::getAM3Opc(AddSub, Val);
+      if (!Memory.OffsetImm)
+        Inst.addOperand(MCOperand::createImm(0));
+      else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+        int32_t Val = CE->getValue();
+        ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
+        // Special case for #-0
+        if (Val == std::numeric_limits<int32_t>::min())
+          Val = 0;
+        if (Val < 0)
+          Val = -Val;
+        Val = ARM_AM::getAM3Opc(AddSub, Val);
+        Inst.addOperand(MCOperand::createImm(Val));
+      } else
+        Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
     } else {
       // For register offset, we encode the shift type and negation flag
       // here.
-      Val = ARM_AM::getAM3Opc(Memory.isNegative ? ARM_AM::sub : ARM_AM::add, 0);
+      int32_t Val =
+          ARM_AM::getAM3Opc(Memory.isNegative ? ARM_AM::sub : ARM_AM::add, 0);
+      Inst.addOperand(MCOperand::createImm(Val));
     }
-    Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createReg(Memory.OffsetRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
   }
 
   void addAM3OffsetOperands(MCInst &Inst, unsigned N) const {
@@ -2966,15 +3063,22 @@ public:
       return;
     }
 
-    // The lower two bits are always zero and as such are not encoded.
-    int32_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() / 4 : 0;
-    ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
-    // Special case for #-0
-    if (Val == std::numeric_limits<int32_t>::min()) Val = 0;
-    if (Val < 0) Val = -Val;
-    Val = ARM_AM::getAM5Opc(AddSub, Val);
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    if (!Memory.OffsetImm)
+      Inst.addOperand(MCOperand::createImm(0));
+    else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      // The lower two bits are always zero and as such are not encoded.
+      int32_t Val = CE->getValue() / 4;
+      ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
+      // Special case for #-0
+      if (Val == std::numeric_limits<int32_t>::min())
+        Val = 0;
+      if (Val < 0)
+        Val = -Val;
+      Val = ARM_AM::getAM5Opc(AddSub, Val);
+      Inst.addOperand(MCOperand::createImm(Val));
+    } else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addAddrMode5FP16Operands(MCInst &Inst, unsigned N) const {
@@ -2988,15 +3092,22 @@ public:
       return;
     }
 
-    // The lower bit is always zero and as such is not encoded.
-    int32_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() / 2 : 0;
-    ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
-    // Special case for #-0
-    if (Val == std::numeric_limits<int32_t>::min()) Val = 0;
-    if (Val < 0) Val = -Val;
-    Val = ARM_AM::getAM5FP16Opc(AddSub, Val);
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    // The lower bit is always zero and as such is not encoded.
+    if (!Memory.OffsetImm)
+      Inst.addOperand(MCOperand::createImm(0));
+    else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm)) {
+      int32_t Val = CE->getValue() / 2;
+      ARM_AM::AddrOpc AddSub = Val < 0 ? ARM_AM::sub : ARM_AM::add;
+      // Special case for #-0
+      if (Val == std::numeric_limits<int32_t>::min())
+        Val = 0;
+      if (Val < 0)
+        Val = -Val;
+      Val = ARM_AM::getAM5FP16Opc(AddSub, Val);
+      Inst.addOperand(MCOperand::createImm(Val));
+    } else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addMemImm8s4OffsetOperands(MCInst &Inst, unsigned N) const {
@@ -3010,9 +3121,8 @@ public:
       return;
     }
 
-    int64_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    addExpr(Inst, Memory.OffsetImm);
   }
 
   void addMemImm7s4OffsetOperands(MCInst &Inst, unsigned N) const {
@@ -3026,24 +3136,26 @@ public:
       return;
     }
 
-    int64_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    addExpr(Inst, Memory.OffsetImm);
   }
 
   void addMemImm0_1020s4OffsetOperands(MCInst &Inst, unsigned N) const {
     assert(N == 2 && "Invalid number of operands!");
-    // The lower two bits are always zero and as such are not encoded.
-    int32_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() / 4 : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    if (!Memory.OffsetImm)
+      Inst.addOperand(MCOperand::createImm(0));
+    else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm))
+      // The lower two bits are always zero and as such are not encoded.
+      Inst.addOperand(MCOperand::createImm(CE->getValue() / 4));
+    else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addMemImmOffsetOperands(MCInst &Inst, unsigned N) const {
     assert(N == 2 && "Invalid number of operands!");
-    int64_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    addExpr(Inst, Memory.OffsetImm);
   }
 
   void addMemRegRQOffsetOperands(MCInst &Inst, unsigned N) const {
@@ -3062,9 +3174,8 @@ public:
     }
 
     // Otherwise, it's a normal memory reg+offset.
-    int64_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    addExpr(Inst, Memory.OffsetImm);
   }
 
   void addMemImm12OffsetOperands(MCInst &Inst, unsigned N) const {
@@ -3077,9 +3188,8 @@ public:
     }
 
     // Otherwise, it's a normal memory reg+offset.
-    int64_t Val = Memory.OffsetImm ? Memory.OffsetImm->getValue() : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    addExpr(Inst, Memory.OffsetImm);
   }
 
   void addConstPoolAsmImmOperands(MCInst &Inst, unsigned N) const {
@@ -3126,30 +3236,43 @@ public:
 
   void addMemThumbRIs4Operands(MCInst &Inst, unsigned N) const {
     assert(N == 2 && "Invalid number of operands!");
-    int64_t Val = Memory.OffsetImm ? (Memory.OffsetImm->getValue() / 4) : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    if (!Memory.OffsetImm)
+      Inst.addOperand(MCOperand::createImm(0));
+    else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm))
+      // The lower two bits are always zero and as such are not encoded.
+      Inst.addOperand(MCOperand::createImm(CE->getValue() / 4));
+    else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addMemThumbRIs2Operands(MCInst &Inst, unsigned N) const {
     assert(N == 2 && "Invalid number of operands!");
-    int64_t Val = Memory.OffsetImm ? (Memory.OffsetImm->getValue() / 2) : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    if (!Memory.OffsetImm)
+      Inst.addOperand(MCOperand::createImm(0));
+    else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm))
+      Inst.addOperand(MCOperand::createImm(CE->getValue() / 2));
+    else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addMemThumbRIs1Operands(MCInst &Inst, unsigned N) const {
     assert(N == 2 && "Invalid number of operands!");
-    int64_t Val = Memory.OffsetImm ? (Memory.OffsetImm->getValue()) : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    addExpr(Inst, Memory.OffsetImm);
   }
 
   void addMemThumbSPIOperands(MCInst &Inst, unsigned N) const {
     assert(N == 2 && "Invalid number of operands!");
-    int64_t Val = Memory.OffsetImm ? (Memory.OffsetImm->getValue() / 4) : 0;
     Inst.addOperand(MCOperand::createReg(Memory.BaseRegNum));
-    Inst.addOperand(MCOperand::createImm(Val));
+    if (!Memory.OffsetImm)
+      Inst.addOperand(MCOperand::createImm(0));
+    else if (const auto *CE = dyn_cast<MCConstantExpr>(Memory.OffsetImm))
+      // The lower two bits are always zero and as such are not encoded.
+      Inst.addOperand(MCOperand::createImm(CE->getValue() / 4));
+    else
+      Inst.addOperand(MCOperand::createExpr(Memory.OffsetImm));
   }
 
   void addPostIdxImm8Operands(MCInst &Inst, unsigned N) const {
@@ -3229,16 +3352,16 @@ public:
     // regs) or q0-q4 (for 4)
     //
     // The MVE instructions taking a register range of this kind will
-    // need an operand in the QQPR or QQQQPR class, representing the
+    // need an operand in the MQQPR or MQQQQPR class, representing the
     // entire range as a unit. So we must translate into that class,
     // by finding the index of the base register in the MQPR reg
     // class, and returning the super-register at the corresponding
     // index in the target class.
 
     const MCRegisterClass *RC_in = &ARMMCRegisterClasses[ARM::MQPRRegClassID];
-    const MCRegisterClass *RC_out = (VectorList.Count == 2) ?
-      &ARMMCRegisterClasses[ARM::QQPRRegClassID] :
-      &ARMMCRegisterClasses[ARM::QQQQPRRegClassID];
+    const MCRegisterClass *RC_out =
+        (VectorList.Count == 2) ? &ARMMCRegisterClasses[ARM::MQQPRRegClassID]
+                                : &ARMMCRegisterClasses[ARM::MQQQQPRRegClassID];
 
     unsigned I, E = RC_out->getNumRegs();
     for (I = 0; I < E; I++)
@@ -3686,10 +3809,9 @@ public:
   }
 
   static std::unique_ptr<ARMOperand>
-  CreateMem(unsigned BaseRegNum, const MCConstantExpr *OffsetImm,
-            unsigned OffsetRegNum, ARM_AM::ShiftOpc ShiftType,
-            unsigned ShiftImm, unsigned Alignment, bool isNegative, SMLoc S,
-            SMLoc E, SMLoc AlignmentLoc = SMLoc()) {
+  CreateMem(unsigned BaseRegNum, const MCExpr *OffsetImm, unsigned OffsetRegNum,
+            ARM_AM::ShiftOpc ShiftType, unsigned ShiftImm, unsigned Alignment,
+            bool isNegative, SMLoc S, SMLoc E, SMLoc AlignmentLoc = SMLoc()) {
     auto Op = std::make_unique<ARMOperand>(k_Memory);
     Op->Memory.BaseRegNum = BaseRegNum;
     Op->Memory.OffsetImm = OffsetImm;
@@ -4350,8 +4472,8 @@ insertNoDuplicates(SmallVectorImpl<std::pair<unsigned, unsigned>> &Regs,
 }
 
 /// Parse a register list.
-bool ARMAsmParser::parseRegisterList(OperandVector &Operands,
-                                     bool EnforceOrder) {
+bool ARMAsmParser::parseRegisterList(OperandVector &Operands, bool EnforceOrder,
+                                     bool AllowRAAC) {
   MCAsmParser &Parser = getParser();
   if (Parser.getTok().isNot(AsmToken::LCurly))
     return TokError("Token is not a Left Curly Brace");
@@ -4364,7 +4486,8 @@ bool ARMAsmParser::parseRegisterList(OperandVector &Operands,
   int Reg = tryParseRegister();
   if (Reg == -1)
     return Error(RegLoc, "register expected");
-
+  if (!AllowRAAC && Reg == ARM::RA_AUTH_CODE)
+    return Error(RegLoc, "pseudo-register not allowed");
   // The reglist instructions have at most 16 registers, so reserve
   // space for that many.
   int EReg = 0;
@@ -4378,7 +4501,8 @@ bool ARMAsmParser::parseRegisterList(OperandVector &Operands,
     ++Reg;
   }
   const MCRegisterClass *RC;
-  if (ARMMCRegisterClasses[ARM::GPRRegClassID].contains(Reg))
+  if (Reg == ARM::RA_AUTH_CODE ||
+      ARMMCRegisterClasses[ARM::GPRRegClassID].contains(Reg))
     RC = &ARMMCRegisterClasses[ARM::GPRRegClassID];
   else if (ARMMCRegisterClasses[ARM::DPRRegClassID].contains(Reg))
     RC = &ARMMCRegisterClasses[ARM::DPRRegClassID];
@@ -4399,11 +4523,15 @@ bool ARMAsmParser::parseRegisterList(OperandVector &Operands,
   while (Parser.getTok().is(AsmToken::Comma) ||
          Parser.getTok().is(AsmToken::Minus)) {
     if (Parser.getTok().is(AsmToken::Minus)) {
+      if (Reg == ARM::RA_AUTH_CODE)
+        return Error(RegLoc, "pseudo-register not allowed");
       Parser.Lex(); // Eat the minus.
       SMLoc AfterMinusLoc = Parser.getTok().getLoc();
       int EndReg = tryParseRegister();
       if (EndReg == -1)
         return Error(AfterMinusLoc, "register expected");
+      if (EndReg == ARM::RA_AUTH_CODE)
+        return Error(AfterMinusLoc, "pseudo-register not allowed");
       // Allow Q regs and just interpret them as the two D sub-registers.
       if (ARMMCRegisterClasses[ARM::QPRRegClassID].contains(EndReg))
         EndReg = getDRegFromQReg(EndReg) + 1;
@@ -4412,7 +4540,7 @@ bool ARMAsmParser::parseRegisterList(OperandVector &Operands,
       if (Reg == EndReg)
         continue;
       // The register must be in the same register class as the first.
-      if (!RC->contains(EndReg))
+      if (!RC->contains(Reg))
         return Error(AfterMinusLoc, "invalid register in register list");
       // Ranges must go from low to high.
       if (MRI->getEncodingValue(Reg) > MRI->getEncodingValue(EndReg))
@@ -4437,13 +4565,15 @@ bool ARMAsmParser::parseRegisterList(OperandVector &Operands,
     Reg = tryParseRegister();
     if (Reg == -1)
       return Error(RegLoc, "register expected");
+    if (!AllowRAAC && Reg == ARM::RA_AUTH_CODE)
+      return Error(RegLoc, "pseudo-register not allowed");
     // Allow Q regs and just interpret them as the two D sub-registers.
     bool isQReg = false;
     if (ARMMCRegisterClasses[ARM::QPRRegClassID].contains(Reg)) {
       Reg = getDRegFromQReg(Reg);
       isQReg = true;
     }
-    if (!RC->contains(Reg) &&
+    if (Reg != ARM::RA_AUTH_CODE && !RC->contains(Reg) &&
         RC->getID() == ARMMCRegisterClasses[ARM::GPRRegClassID].getID() &&
         ARMMCRegisterClasses[ARM::GPRwithAPSRnospRegClassID].contains(Reg)) {
       // switch the register classes, as GPRwithAPSRnospRegClassID is a partial
@@ -4463,7 +4593,9 @@ bool ARMAsmParser::parseRegisterList(OperandVector &Operands,
       continue;
     }
     // The register must be in the same register class as the first.
-    if (!RC->contains(Reg))
+    if ((Reg == ARM::RA_AUTH_CODE &&
+         RC != &ARMMCRegisterClasses[ARM::GPRRegClassID]) ||
+        (Reg != ARM::RA_AUTH_CODE && !RC->contains(Reg)))
       return Error(RegLoc, "invalid register in register list");
     // In most cases, the list must be monotonically increasing. An
     // exception is CLRM, which is order-independent anyway, so
@@ -4899,7 +5031,7 @@ ARMAsmParser::parseTraceSyncBarrierOptOperand(OperandVector &Operands) {
   if (Tok.isNot(AsmToken::Identifier))
      return MatchOperand_NoMatch;
 
-  if (!Tok.getString().equals_lower("csync"))
+  if (!Tok.getString().equals_insensitive("csync"))
     return MatchOperand_NoMatch;
 
   Parser.Lex(); // Eat identifier token.
@@ -4919,7 +5051,7 @@ ARMAsmParser::parseInstSyncBarrierOptOperand(OperandVector &Operands) {
   if (Tok.is(AsmToken::Identifier)) {
     StringRef OptStr = Tok.getString();
 
-    if (OptStr.equals_lower("sy"))
+    if (OptStr.equals_insensitive("sy"))
       Opt = ARM_ISB::SY;
     else
       return MatchOperand_NoMatch;
@@ -5818,35 +5950,30 @@ bool ARMAsmParser::parseMemory(OperandVector &Operands) {
     E = Parser.getTok().getLoc();
 
     bool isNegative = getParser().getTok().is(AsmToken::Minus);
-    const MCExpr *Offset;
+    const MCExpr *Offset, *AdjustedOffset;
     if (getParser().parseExpression(Offset))
      return true;
 
-    // The expression has to be a constant. Memory references with relocations
-    // don't come through here, as they use the <label> forms of the relevant
-    // instructions.
-    const MCConstantExpr *CE = dyn_cast<MCConstantExpr>(Offset);
-    if (!CE)
-      return Error (E, "constant expression expected");
-
-    // If the constant was #-0, represent it as
-    // std::numeric_limits<int32_t>::min().
-    int32_t Val = CE->getValue();
-    if (isNegative && Val == 0)
-      CE = MCConstantExpr::create(std::numeric_limits<int32_t>::min(),
-                                  getContext());
+    if (const auto *CE = dyn_cast<MCConstantExpr>(Offset)) {
+      // If the constant was #-0, represent it as
+      // std::numeric_limits<int32_t>::min().
+      int32_t Val = CE->getValue();
+      if (isNegative && Val == 0)
+        CE = MCConstantExpr::create(std::numeric_limits<int32_t>::min(),
+                                    getContext());
+      // Don't worry about range checking the value here. That's handled by
+      // the is*() predicates.
+      AdjustedOffset = CE;
+    } else
+      AdjustedOffset = Offset;
+    Operands.push_back(ARMOperand::CreateMem(
+        BaseRegNum, AdjustedOffset, 0, ARM_AM::no_shift, 0, 0, false, S, E));
 
     // Now we should have the closing ']'
     if (Parser.getTok().isNot(AsmToken::RBrac))
       return Error(Parser.getTok().getLoc(), "']' expected");
     E = Parser.getTok().getEndLoc();
     Parser.Lex(); // Eat right bracket token.
-
-    // Don't worry about range checking the value here. That's handled by
-    // the is*() predicates.
-    Operands.push_back(ARMOperand::CreateMem(BaseRegNum, CE, 0,
-                                             ARM_AM::no_shift, 0, 0,
-                                             false, S, E));
 
     // If there's a pre-indexing writeback marker, '!', just add it as a token
     // operand.
@@ -6086,7 +6213,7 @@ bool ARMAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic) {
         return true;
       // If this is VMRS, check for the apsr_nzcv operand.
       if (Mnemonic == "vmrs" &&
-          Parser.getTok().getString().equals_lower("apsr_nzcv")) {
+          Parser.getTok().getString().equals_insensitive("apsr_nzcv")) {
         S = Parser.getTok().getLoc();
         Parser.Lex();
         Operands.push_back(ARMOperand::CreateToken("APSR_nzcv", S));
@@ -6096,7 +6223,7 @@ bool ARMAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic) {
 
     // Fall though for the Identifier case that is not a register or a
     // special name.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case AsmToken::LParen:  // parenthesized expressions like (_strcmp-4)
   case AsmToken::Integer: // things like 1f and 2b as a branch targets
@@ -6163,7 +6290,7 @@ bool ARMAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic) {
       return false;
     }
     // w/ a ':' after the '#', it's just like a plain ':'.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case AsmToken::Colon: {
     S = Parser.getTok().getLoc();
@@ -6202,6 +6329,18 @@ bool ARMAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic) {
   }
 }
 
+bool ARMAsmParser::parseImmExpr(int64_t &Out) {
+  const MCExpr *Expr = nullptr;
+  SMLoc L = getParser().getTok().getLoc();
+  if (check(getParser().parseExpression(Expr), L, "expected expression"))
+    return true;
+  const MCConstantExpr *Value = dyn_cast_or_null<MCConstantExpr>(Expr);
+  if (check(!Value, L, "expected constant expression"))
+    return true;
+  Out = Value->getValue();
+  return false;
+}
+
 // parsePrefix - Parse ARM 16-bit relocations expression prefix, i.e.
 //  :lower16: and :upper16:.
 bool ARMAsmParser::parsePrefix(ARMMCExpr::VariantKind &RefKind) {
@@ -6222,10 +6361,10 @@ bool ARMAsmParser::parsePrefix(ARMMCExpr::VariantKind &RefKind) {
   }
 
   enum {
-    COFF = (1 << MCObjectFileInfo::IsCOFF),
-    ELF = (1 << MCObjectFileInfo::IsELF),
-    MACHO = (1 << MCObjectFileInfo::IsMachO),
-    WASM = (1 << MCObjectFileInfo::IsWasm),
+    COFF = (1 << MCContext::IsCOFF),
+    ELF = (1 << MCContext::IsELF),
+    MACHO = (1 << MCContext::IsMachO),
+    WASM = (1 << MCContext::IsWasm),
   };
   static const struct PrefixEntry {
     const char *Spelling;
@@ -6248,20 +6387,23 @@ bool ARMAsmParser::parsePrefix(ARMMCExpr::VariantKind &RefKind) {
   }
 
   uint8_t CurrentFormat;
-  switch (getContext().getObjectFileInfo()->getObjectFileType()) {
-  case MCObjectFileInfo::IsMachO:
+  switch (getContext().getObjectFileType()) {
+  case MCContext::IsMachO:
     CurrentFormat = MACHO;
     break;
-  case MCObjectFileInfo::IsELF:
+  case MCContext::IsELF:
     CurrentFormat = ELF;
     break;
-  case MCObjectFileInfo::IsCOFF:
+  case MCContext::IsCOFF:
     CurrentFormat = COFF;
     break;
-  case MCObjectFileInfo::IsWasm:
+  case MCContext::IsWasm:
     CurrentFormat = WASM;
     break;
-  case MCObjectFileInfo::IsXCOFF:
+  case MCContext::IsGOFF:
+  case MCContext::IsSPIRV:
+  case MCContext::IsXCOFF:
+  case MCContext::IsDXContainer:
     llvm_unreachable("unexpected object format");
     break;
   }
@@ -6319,15 +6461,17 @@ StringRef ARMAsmParser::splitMnemonic(StringRef Mnemonic,
       Mnemonic == "vrintp" || Mnemonic == "vrintm" || Mnemonic == "hvc" ||
       Mnemonic.startswith("vsel") || Mnemonic == "vins" || Mnemonic == "vmovx" ||
       Mnemonic == "bxns"  || Mnemonic == "blxns" ||
-      Mnemonic == "vdot"  || Mnemonic == "vmmla"  ||
+      Mnemonic == "vdot"  || Mnemonic == "vmmla" ||
       Mnemonic == "vudot" || Mnemonic == "vsdot" ||
       Mnemonic == "vcmla" || Mnemonic == "vcadd" ||
       Mnemonic == "vfmal" || Mnemonic == "vfmsl" ||
-      Mnemonic == "wls" || Mnemonic == "le" || Mnemonic == "dls" ||
-      Mnemonic == "csel" || Mnemonic == "csinc" ||
+      Mnemonic == "wls"   || Mnemonic == "le"    || Mnemonic == "dls" ||
+      Mnemonic == "csel"  || Mnemonic == "csinc" ||
       Mnemonic == "csinv" || Mnemonic == "csneg" || Mnemonic == "cinc" ||
-      Mnemonic == "cinv" || Mnemonic == "cneg" || Mnemonic == "cset" ||
-      Mnemonic == "csetm")
+      Mnemonic == "cinv"  || Mnemonic == "cneg"  || Mnemonic == "cset" ||
+      Mnemonic == "csetm" ||
+      Mnemonic == "aut"   || Mnemonic == "pac" || Mnemonic == "pacbti" ||
+      Mnemonic == "bti")
     return Mnemonic;
 
   // First, split out any predication code. Ignore mnemonics we know aren't
@@ -6471,9 +6615,11 @@ void ARMAsmParser::getMnemonicAcceptInfo(StringRef Mnemonic,
       Mnemonic == "csinc" || Mnemonic == "csinv" || Mnemonic == "csneg" ||
       Mnemonic == "cinc" || Mnemonic == "cinv" || Mnemonic == "cneg" ||
       Mnemonic == "cset" || Mnemonic == "csetm" ||
-      Mnemonic.startswith("vpt") || Mnemonic.startswith("vpst") ||
       (hasCDE() && MS.isCDEInstr(Mnemonic) &&
        !MS.isITPredicableCDEInstr(Mnemonic)) ||
+      Mnemonic.startswith("vpt") || Mnemonic.startswith("vpst") ||
+      Mnemonic == "pac" || Mnemonic == "pacbti" || Mnemonic == "aut" ||
+      Mnemonic == "bti" ||
       (hasMVE() &&
        (Mnemonic.startswith("vst2") || Mnemonic.startswith("vld2") ||
         Mnemonic.startswith("vst4") || Mnemonic.startswith("vld4") ||
@@ -6992,13 +7138,12 @@ bool ARMAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
       return Error(Loc, "too many conditions on VPT instruction");
     }
     unsigned Mask = 8;
-    for (unsigned i = ITMask.size(); i != 0; --i) {
-      char pos = ITMask[i - 1];
-      if (pos != 't' && pos != 'e') {
+    for (char Pos : llvm::reverse(ITMask)) {
+      if (Pos != 't' && Pos != 'e') {
         return Error(Loc, "illegal IT block condition mask '" + ITMask + "'");
       }
       Mask >>= 1;
-      if (ITMask[i - 1] == 'e')
+      if (Pos == 'e')
         Mask |= 8;
     }
     Operands.push_back(ARMOperand::CreateITMask(Mask, Loc));
@@ -10837,9 +10982,7 @@ bool ARMAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
       return true;
     }
 
-    { // processInstruction() updates inITBlock state, we need to save it away
-      bool wasInITBlock = inITBlock();
-
+    {
       // Some instructions need post-processing to, for example, tweak which
       // encoding is selected. Loop on it while changes happen so the
       // individual transformations can chain off each other. E.g.,
@@ -10848,12 +10991,6 @@ bool ARMAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
         LLVM_DEBUG(dbgs() << "Changed to: ";
                    Inst.dump_pretty(dbgs(), MII.getName(Inst.getOpcode()));
                    dbgs() << "\n");
-
-      // Only after the instruction is fully processed, we can validate it
-      if (wasInITBlock && hasV8Ops() && isThumb() &&
-          !isV8EligibleForIT(&Inst)) {
-        Warning(IDLoc, "deprecated instruction in IT block");
-      }
     }
 
     // Only move forward at the very end so that everything in validate
@@ -10893,10 +11030,9 @@ bool ARMAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 
 /// parseDirective parses the arm specific directives
 bool ARMAsmParser::ParseDirective(AsmToken DirectiveID) {
-  const MCObjectFileInfo::Environment Format =
-    getContext().getObjectFileInfo()->getObjectFileType();
-  bool IsMachO = Format == MCObjectFileInfo::IsMachO;
-  bool IsCOFF = Format == MCObjectFileInfo::IsCOFF;
+  const MCContext::Environment Format = getContext().getObjectFileType();
+  bool IsMachO = Format == MCContext::IsMachO;
+  bool IsCOFF = Format == MCContext::IsCOFF;
 
   std::string IDVal = DirectiveID.getIdentifier().lower();
   if (IDVal == ".word")
@@ -10970,6 +11106,39 @@ bool ARMAsmParser::ParseDirective(AsmToken DirectiveID) {
       parseDirectiveTLSDescSeq(DirectiveID.getLoc());
     else
       return true;
+  } else if (IsCOFF) {
+    if (IDVal == ".seh_stackalloc")
+      parseDirectiveSEHAllocStack(DirectiveID.getLoc(), /*Wide=*/false);
+    else if (IDVal == ".seh_stackalloc_w")
+      parseDirectiveSEHAllocStack(DirectiveID.getLoc(), /*Wide=*/true);
+    else if (IDVal == ".seh_save_regs")
+      parseDirectiveSEHSaveRegs(DirectiveID.getLoc(), /*Wide=*/false);
+    else if (IDVal == ".seh_save_regs_w")
+      parseDirectiveSEHSaveRegs(DirectiveID.getLoc(), /*Wide=*/true);
+    else if (IDVal == ".seh_save_sp")
+      parseDirectiveSEHSaveSP(DirectiveID.getLoc());
+    else if (IDVal == ".seh_save_fregs")
+      parseDirectiveSEHSaveFRegs(DirectiveID.getLoc());
+    else if (IDVal == ".seh_save_lr")
+      parseDirectiveSEHSaveLR(DirectiveID.getLoc());
+    else if (IDVal == ".seh_endprologue")
+      parseDirectiveSEHPrologEnd(DirectiveID.getLoc(), /*Fragment=*/false);
+    else if (IDVal == ".seh_endprologue_fragment")
+      parseDirectiveSEHPrologEnd(DirectiveID.getLoc(), /*Fragment=*/true);
+    else if (IDVal == ".seh_nop")
+      parseDirectiveSEHNop(DirectiveID.getLoc(), /*Wide=*/false);
+    else if (IDVal == ".seh_nop_w")
+      parseDirectiveSEHNop(DirectiveID.getLoc(), /*Wide=*/true);
+    else if (IDVal == ".seh_startepilogue")
+      parseDirectiveSEHEpilogStart(DirectiveID.getLoc(), /*Condition=*/false);
+    else if (IDVal == ".seh_startepilogue_cond")
+      parseDirectiveSEHEpilogStart(DirectiveID.getLoc(), /*Condition=*/true);
+    else if (IDVal == ".seh_endepilogue")
+      parseDirectiveSEHEpilogEnd(DirectiveID.getLoc());
+    else if (IDVal == ".seh_custom")
+      parseDirectiveSEHCustom(DirectiveID.getLoc());
+    else
+      return true;
   } else
     return true;
   return false;
@@ -10993,8 +11162,7 @@ bool ARMAsmParser::parseLiteralValues(unsigned Size, SMLoc L) {
 /// parseDirectiveThumb
 ///  ::= .thumb
 bool ARMAsmParser::parseDirectiveThumb(SMLoc L) {
-  if (parseToken(AsmToken::EndOfStatement, "unexpected token in directive") ||
-      check(!hasThumb(), L, "target does not support Thumb mode"))
+  if (parseEOL() || check(!hasThumb(), L, "target does not support Thumb mode"))
     return true;
 
   if (!isThumb())
@@ -11007,8 +11175,7 @@ bool ARMAsmParser::parseDirectiveThumb(SMLoc L) {
 /// parseDirectiveARM
 ///  ::= .arm
 bool ARMAsmParser::parseDirectiveARM(SMLoc L) {
-  if (parseToken(AsmToken::EndOfStatement, "unexpected token in directive") ||
-      check(!hasARM(), L, "target does not support ARM mode"))
+  if (parseEOL() || check(!hasARM(), L, "target does not support ARM mode"))
     return true;
 
   if (isThumb())
@@ -11017,7 +11184,7 @@ bool ARMAsmParser::parseDirectiveARM(SMLoc L) {
   return false;
 }
 
-void ARMAsmParser::doBeforeLabelEmit(MCSymbol *Symbol) {
+void ARMAsmParser::doBeforeLabelEmit(MCSymbol *Symbol, SMLoc IDLoc) {
   // We need to flush the current implicit IT block on a label, because it is
   // not legal to branch into an IT block.
   flushPendingInstructions(getStreamer());
@@ -11034,8 +11201,8 @@ void ARMAsmParser::onLabelParsed(MCSymbol *Symbol) {
 ///  ::= .thumbfunc symbol_name
 bool ARMAsmParser::parseDirectiveThumbFunc(SMLoc L) {
   MCAsmParser &Parser = getParser();
-  const auto Format = getContext().getObjectFileInfo()->getObjectFileType();
-  bool IsMachO = Format == MCObjectFileInfo::IsMachO;
+  const auto Format = getContext().getObjectFileType();
+  bool IsMachO = Format == MCContext::IsMachO;
 
   // Darwin asm has (optionally) function name after .thumb_func direction
   // ELF doesn't
@@ -11047,16 +11214,20 @@ bool ARMAsmParser::parseDirectiveThumbFunc(SMLoc L) {
           Parser.getTok().getIdentifier());
       getParser().getStreamer().emitThumbFunc(Func);
       Parser.Lex();
-      if (parseToken(AsmToken::EndOfStatement,
-                     "unexpected token in '.thumb_func' directive"))
+      if (parseEOL())
         return true;
       return false;
     }
   }
 
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.thumb_func' directive"))
+  if (parseEOL())
     return true;
+
+  // .thumb_func implies .thumb
+  if (!isThumb())
+    SwitchMode();
+
+  getParser().getStreamer().emitAssemblerFlag(MCAF_Code16);
 
   NextSymbolIsThumb = true;
   return false;
@@ -11078,7 +11249,7 @@ bool ARMAsmParser::parseDirectiveSyntax(SMLoc L) {
             "'.syntax divided' arm assembly not supported") ||
       check(Mode != "unified" && Mode != "UNIFIED", L,
             "unrecognized syntax mode in .syntax directive") ||
-      parseToken(AsmToken::EndOfStatement, "unexpected token in directive"))
+      parseEOL())
     return true;
 
   // TODO tell the MC streamer the mode
@@ -11100,7 +11271,7 @@ bool ARMAsmParser::parseDirectiveCode(SMLoc L) {
   }
   Parser.Lex();
 
-  if (parseToken(AsmToken::EndOfStatement, "unexpected token in directive"))
+  if (parseEOL())
     return true;
 
   if (Val == 16) {
@@ -11131,8 +11302,7 @@ bool ARMAsmParser::parseDirectiveReq(StringRef Name, SMLoc L) {
   SMLoc SRegLoc, ERegLoc;
   if (check(ParseRegister(Reg, SRegLoc, ERegLoc), SRegLoc,
             "register name expected") ||
-      parseToken(AsmToken::EndOfStatement,
-                 "unexpected input in .req directive."))
+      parseEOL())
     return true;
 
   if (RegisterReqs.insert(std::make_pair(Name, Reg)).first->second != Reg)
@@ -11150,10 +11320,7 @@ bool ARMAsmParser::parseDirectiveUnreq(SMLoc L) {
     return Error(L, "unexpected input in .unreq directive.");
   RegisterReqs.erase(Parser.getTok().getIdentifier().lower());
   Parser.Lex(); // Eat the identifier.
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected input in '.unreq' directive"))
-    return true;
-  return false;
+  return parseEOL();
 }
 
 // After changing arch/CPU, try to put the ARM/Thumb mode back to what it was
@@ -11212,13 +11379,13 @@ bool ARMAsmParser::parseDirectiveEabiAttr(SMLoc L) {
   TagLoc = Parser.getTok().getLoc();
   if (Parser.getTok().is(AsmToken::Identifier)) {
     StringRef Name = Parser.getTok().getIdentifier();
-    Optional<unsigned> Ret =
-        ELFAttrs::attrTypeFromString(Name, ARMBuildAttrs::ARMAttributeTags);
-    if (!Ret.hasValue()) {
+    Optional<unsigned> Ret = ELFAttrs::attrTypeFromString(
+        Name, ARMBuildAttrs::getARMAttributeTags());
+    if (!Ret) {
       Error(TagLoc, "attribute name not recognised: " + Name);
       return false;
     }
-    Tag = Ret.getValue();
+    Tag = *Ret;
     Parser.Lex();
   } else {
     const MCExpr *AttrExpr;
@@ -11272,16 +11439,23 @@ bool ARMAsmParser::parseDirectiveEabiAttr(SMLoc L) {
       return true;
   }
 
+  std::string EscapedValue;
   if (IsStringValue) {
     if (Parser.getTok().isNot(AsmToken::String))
       return Error(Parser.getTok().getLoc(), "bad string constant");
 
-    StringValue = Parser.getTok().getStringContents();
-    Parser.Lex();
+    if (Tag == ARMBuildAttrs::also_compatible_with) {
+      if (Parser.parseEscapedString(EscapedValue))
+        return Error(Parser.getTok().getLoc(), "bad escaped string constant");
+
+      StringValue = EscapedValue;
+    } else {
+      StringValue = Parser.getTok().getStringContents();
+      Parser.Lex();
+    }
   }
 
-  if (Parser.parseToken(AsmToken::EndOfStatement,
-                        "unexpected token in '.eabi_attribute' directive"))
+  if (Parser.parseEOL())
     return true;
 
   if (IsIntegerValue && IsStringValue) {
@@ -11337,8 +11511,7 @@ bool ARMAsmParser::parseDirectiveFPU(SMLoc L) {
 /// parseDirectiveFnStart
 ///  ::= .fnstart
 bool ARMAsmParser::parseDirectiveFnStart(SMLoc L) {
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.fnstart' directive"))
+  if (parseEOL())
     return true;
 
   if (UC.hasFnStart()) {
@@ -11359,8 +11532,7 @@ bool ARMAsmParser::parseDirectiveFnStart(SMLoc L) {
 /// parseDirectiveFnEnd
 ///  ::= .fnend
 bool ARMAsmParser::parseDirectiveFnEnd(SMLoc L) {
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.fnend' directive"))
+  if (parseEOL())
     return true;
   // Check the ordering of unwind directives
   if (!UC.hasFnStart())
@@ -11376,8 +11548,7 @@ bool ARMAsmParser::parseDirectiveFnEnd(SMLoc L) {
 /// parseDirectiveCantUnwind
 ///  ::= .cantunwind
 bool ARMAsmParser::parseDirectiveCantUnwind(SMLoc L) {
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.cantunwind' directive"))
+  if (parseEOL())
     return true;
 
   UC.recordCantUnwind(L);
@@ -11412,8 +11583,7 @@ bool ARMAsmParser::parseDirectivePersonality(SMLoc L) {
   StringRef Name(Parser.getTok().getIdentifier());
   Parser.Lex();
 
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.personality' directive"))
+  if (parseEOL())
     return true;
 
   UC.recordPersonality(L);
@@ -11445,8 +11615,7 @@ bool ARMAsmParser::parseDirectivePersonality(SMLoc L) {
 /// parseDirectiveHandlerData
 ///  ::= .handlerdata
 bool ARMAsmParser::parseDirectiveHandlerData(SMLoc L) {
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.handlerdata' directive"))
+  if (parseEOL())
     return true;
 
   UC.recordHandlerData(L);
@@ -11544,8 +11713,7 @@ bool ARMAsmParser::parseDirectivePad(SMLoc L) {
   if (!CE)
     return Error(ExLoc, "pad offset must be an immediate");
 
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.pad' directive"))
+  if (parseEOL())
     return true;
 
   getTargetStreamer().emitPad(CE->getValue());
@@ -11566,8 +11734,7 @@ bool ARMAsmParser::parseDirectiveRegSave(SMLoc L, bool IsVector) {
   SmallVector<std::unique_ptr<MCParsedAsmOperand>, 1> Operands;
 
   // Parse the register list
-  if (parseRegisterList(Operands) ||
-      parseToken(AsmToken::EndOfStatement, "unexpected token in directive"))
+  if (parseRegisterList(Operands, true, true) || parseEOL())
     return true;
   ARMOperand &Op = (ARMOperand &)*Operands[0];
   if (!IsVector && !Op.isRegList())
@@ -11650,7 +11817,7 @@ bool ARMAsmParser::parseDirectiveInst(SMLoc Loc, char Suffix) {
 /// parseDirectiveLtorg
 ///  ::= .ltorg | .pool
 bool ARMAsmParser::parseDirectiveLtorg(SMLoc L) {
-  if (parseToken(AsmToken::EndOfStatement, "unexpected token in directive"))
+  if (parseEOL())
     return true;
   getTargetStreamer().emitCurrentConstantPool();
   return false;
@@ -11659,17 +11826,17 @@ bool ARMAsmParser::parseDirectiveLtorg(SMLoc L) {
 bool ARMAsmParser::parseDirectiveEven(SMLoc L) {
   const MCSection *Section = getStreamer().getCurrentSectionOnly();
 
-  if (parseToken(AsmToken::EndOfStatement, "unexpected token in directive"))
+  if (parseEOL())
     return true;
 
   if (!Section) {
-    getStreamer().InitSections(false);
+    getStreamer().initSections(false, getSTI());
     Section = getStreamer().getCurrentSectionOnly();
   }
 
   assert(Section && "must have section to emit alignment");
-  if (Section->UseCodeAlign())
-    getStreamer().emitCodeAlignment(2);
+  if (Section->useCodeAlign())
+    getStreamer().emitCodeAlignment(2, &getSTI());
   else
     getStreamer().emitValueToAlignment(2);
 
@@ -11684,9 +11851,7 @@ bool ARMAsmParser::parseDirectivePersonalityIndex(SMLoc L) {
 
   const MCExpr *IndexExpression;
   SMLoc IndexLoc = Parser.getTok().getLoc();
-  if (Parser.parseExpression(IndexExpression) ||
-      parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.personalityindex' directive")) {
+  if (Parser.parseExpression(IndexExpression) || parseEOL()) {
     return true;
   }
 
@@ -11787,11 +11952,10 @@ bool ARMAsmParser::parseDirectiveTLSDescSeq(SMLoc L) {
                             MCSymbolRefExpr::VK_ARM_TLSDESCSEQ, getContext());
   Lex();
 
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.tlsdescseq' directive"))
+  if (parseEOL())
     return true;
 
-  getTargetStreamer().AnnotateTLSDescriptorSequence(SRE);
+  getTargetStreamer().annotateTLSDescriptorSequence(SRE);
   return false;
 }
 
@@ -11829,8 +11993,7 @@ bool ARMAsmParser::parseDirectiveMovSP(SMLoc L) {
     Offset = CE->getValue();
   }
 
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.movsp' directive"))
+  if (parseEOL())
     return true;
 
   getTargetStreamer().emitMovSP(SPReg, Offset);
@@ -11870,8 +12033,8 @@ bool ARMAsmParser::parseDirectiveAlign(SMLoc L) {
     // '.align' is target specifically handled to mean 2**2 byte alignment.
     const MCSection *Section = getStreamer().getCurrentSectionOnly();
     assert(Section && "must have section to emit alignment");
-    if (Section->UseCodeAlign())
-      getStreamer().emitCodeAlignment(4, 0);
+    if (Section->useCodeAlign())
+      getStreamer().emitCodeAlignment(4, &getSTI(), 0);
     else
       getStreamer().emitValueToAlignment(4, 0, 1, 0);
     return false;
@@ -11897,6 +12060,175 @@ bool ARMAsmParser::parseDirectiveThumbSet(SMLoc L) {
     return true;
 
   getTargetStreamer().emitThumbSet(Sym, Value);
+  return false;
+}
+
+/// parseDirectiveSEHAllocStack
+/// ::= .seh_stackalloc
+/// ::= .seh_stackalloc_w
+bool ARMAsmParser::parseDirectiveSEHAllocStack(SMLoc L, bool Wide) {
+  int64_t Size;
+  if (parseImmExpr(Size))
+    return true;
+  getTargetStreamer().emitARMWinCFIAllocStack(Size, Wide);
+  return false;
+}
+
+/// parseDirectiveSEHSaveRegs
+/// ::= .seh_save_regs
+/// ::= .seh_save_regs_w
+bool ARMAsmParser::parseDirectiveSEHSaveRegs(SMLoc L, bool Wide) {
+  SmallVector<std::unique_ptr<MCParsedAsmOperand>, 1> Operands;
+
+  if (parseRegisterList(Operands) || parseEOL())
+    return true;
+  ARMOperand &Op = (ARMOperand &)*Operands[0];
+  if (!Op.isRegList())
+    return Error(L, ".seh_save_regs{_w} expects GPR registers");
+  const SmallVectorImpl<unsigned> &RegList = Op.getRegList();
+  uint32_t Mask = 0;
+  for (size_t i = 0; i < RegList.size(); ++i) {
+    unsigned Reg = MRI->getEncodingValue(RegList[i]);
+    if (Reg == 15) // pc -> lr
+      Reg = 14;
+    if (Reg == 13)
+      return Error(L, ".seh_save_regs{_w} can't include SP");
+    assert(Reg < 16U && "Register out of range");
+    unsigned Bit = (1u << Reg);
+    Mask |= Bit;
+  }
+  if (!Wide && (Mask & 0x1f00) != 0)
+    return Error(L,
+                 ".seh_save_regs cannot save R8-R12, needs .seh_save_regs_w");
+  getTargetStreamer().emitARMWinCFISaveRegMask(Mask, Wide);
+  return false;
+}
+
+/// parseDirectiveSEHSaveSP
+/// ::= .seh_save_sp
+bool ARMAsmParser::parseDirectiveSEHSaveSP(SMLoc L) {
+  int Reg = tryParseRegister();
+  if (Reg == -1 || !MRI->getRegClass(ARM::GPRRegClassID).contains(Reg))
+    return Error(L, "expected GPR");
+  unsigned Index = MRI->getEncodingValue(Reg);
+  if (Index > 14 || Index == 13)
+    return Error(L, "invalid register for .seh_save_sp");
+  getTargetStreamer().emitARMWinCFISaveSP(Index);
+  return false;
+}
+
+/// parseDirectiveSEHSaveFRegs
+/// ::= .seh_save_fregs
+bool ARMAsmParser::parseDirectiveSEHSaveFRegs(SMLoc L) {
+  SmallVector<std::unique_ptr<MCParsedAsmOperand>, 1> Operands;
+
+  if (parseRegisterList(Operands) || parseEOL())
+    return true;
+  ARMOperand &Op = (ARMOperand &)*Operands[0];
+  if (!Op.isDPRRegList())
+    return Error(L, ".seh_save_fregs expects DPR registers");
+  const SmallVectorImpl<unsigned> &RegList = Op.getRegList();
+  uint32_t Mask = 0;
+  for (size_t i = 0; i < RegList.size(); ++i) {
+    unsigned Reg = MRI->getEncodingValue(RegList[i]);
+    assert(Reg < 32U && "Register out of range");
+    unsigned Bit = (1u << Reg);
+    Mask |= Bit;
+  }
+
+  if (Mask == 0)
+    return Error(L, ".seh_save_fregs missing registers");
+
+  unsigned First = 0;
+  while ((Mask & 1) == 0) {
+    First++;
+    Mask >>= 1;
+  }
+  if (((Mask + 1) & Mask) != 0)
+    return Error(L,
+                 ".seh_save_fregs must take a contiguous range of registers");
+  unsigned Last = First;
+  while ((Mask & 2) != 0) {
+    Last++;
+    Mask >>= 1;
+  }
+  if (First < 16 && Last >= 16)
+    return Error(L, ".seh_save_fregs must be all d0-d15 or d16-d31");
+  getTargetStreamer().emitARMWinCFISaveFRegs(First, Last);
+  return false;
+}
+
+/// parseDirectiveSEHSaveLR
+/// ::= .seh_save_lr
+bool ARMAsmParser::parseDirectiveSEHSaveLR(SMLoc L) {
+  int64_t Offset;
+  if (parseImmExpr(Offset))
+    return true;
+  getTargetStreamer().emitARMWinCFISaveLR(Offset);
+  return false;
+}
+
+/// parseDirectiveSEHPrologEnd
+/// ::= .seh_endprologue
+/// ::= .seh_endprologue_fragment
+bool ARMAsmParser::parseDirectiveSEHPrologEnd(SMLoc L, bool Fragment) {
+  getTargetStreamer().emitARMWinCFIPrologEnd(Fragment);
+  return false;
+}
+
+/// parseDirectiveSEHNop
+/// ::= .seh_nop
+/// ::= .seh_nop_w
+bool ARMAsmParser::parseDirectiveSEHNop(SMLoc L, bool Wide) {
+  getTargetStreamer().emitARMWinCFINop(Wide);
+  return false;
+}
+
+/// parseDirectiveSEHEpilogStart
+/// ::= .seh_startepilogue
+/// ::= .seh_startepilogue_cond
+bool ARMAsmParser::parseDirectiveSEHEpilogStart(SMLoc L, bool Condition) {
+  unsigned CC = ARMCC::AL;
+  if (Condition) {
+    MCAsmParser &Parser = getParser();
+    SMLoc S = Parser.getTok().getLoc();
+    const AsmToken &Tok = Parser.getTok();
+    if (!Tok.is(AsmToken::Identifier))
+      return Error(S, ".seh_startepilogue_cond missing condition");
+    CC = ARMCondCodeFromString(Tok.getString());
+    if (CC == ~0U)
+      return Error(S, "invalid condition");
+    Parser.Lex(); // Eat the token.
+  }
+
+  getTargetStreamer().emitARMWinCFIEpilogStart(CC);
+  return false;
+}
+
+/// parseDirectiveSEHEpilogEnd
+/// ::= .seh_endepilogue
+bool ARMAsmParser::parseDirectiveSEHEpilogEnd(SMLoc L) {
+  getTargetStreamer().emitARMWinCFIEpilogEnd();
+  return false;
+}
+
+/// parseDirectiveSEHCustom
+/// ::= .seh_custom
+bool ARMAsmParser::parseDirectiveSEHCustom(SMLoc L) {
+  unsigned Opcode = 0;
+  do {
+    int64_t Byte;
+    if (parseImmExpr(Byte))
+      return true;
+    if (Byte > 0xff || Byte < 0)
+      return Error(L, "Invalid byte value in .seh_custom");
+    if (Opcode > 0x00ffffff)
+      return Error(L, "Too many bytes in .seh_custom");
+    // Store the bytes as one big endian number in Opcode. In a multi byte
+    // opcode sequence, the first byte can't be zero.
+    Opcode = (Opcode << 8) | Byte;
+  } while (parseOptionalToken(AsmToken::Comma));
+  getTargetStreamer().emitARMWinCFICustom(Opcode);
   return false;
 }
 
@@ -12118,9 +12450,7 @@ void ARMAsmParser::ReportNearMisses(SmallVectorImpl<NearMissInfo> &NearMisses,
   }
 }
 
-/// parseDirectiveArchExtension
-///   ::= .arch_extension [no]feature
-bool ARMAsmParser::parseDirectiveArchExtension(SMLoc L) {
+bool ARMAsmParser::enableArchExtFeature(StringRef Name, SMLoc &ExtLoc) {
   // FIXME: This structure should be moved inside ARMTargetParser
   // when we start to table-generate them, and we can use the ARM
   // flags below, that were generated by table-gen.
@@ -12129,48 +12459,46 @@ bool ARMAsmParser::parseDirectiveArchExtension(SMLoc L) {
     const FeatureBitset ArchCheck;
     const FeatureBitset Features;
   } Extensions[] = {
-    { ARM::AEK_CRC, {Feature_HasV8Bit}, {ARM::FeatureCRC} },
-    { ARM::AEK_CRYPTO,  {Feature_HasV8Bit},
-      {ARM::FeatureCrypto, ARM::FeatureNEON, ARM::FeatureFPARMv8} },
-    { ARM::AEK_FP, {Feature_HasV8Bit},
-      {ARM::FeatureVFP2_SP, ARM::FeatureFPARMv8} },
-    { (ARM::AEK_HWDIVTHUMB | ARM::AEK_HWDIVARM),
-      {Feature_HasV7Bit, Feature_IsNotMClassBit},
-      {ARM::FeatureHWDivThumb, ARM::FeatureHWDivARM} },
-    { ARM::AEK_MP, {Feature_HasV7Bit, Feature_IsNotMClassBit},
-      {ARM::FeatureMP} },
-    { ARM::AEK_SIMD, {Feature_HasV8Bit},
-      {ARM::FeatureNEON, ARM::FeatureVFP2_SP, ARM::FeatureFPARMv8} },
-    { ARM::AEK_SEC, {Feature_HasV6KBit}, {ARM::FeatureTrustZone} },
-    // FIXME: Only available in A-class, isel not predicated
-    { ARM::AEK_VIRT, {Feature_HasV7Bit}, {ARM::FeatureVirtualization} },
-    { ARM::AEK_FP16, {Feature_HasV8_2aBit},
-      {ARM::FeatureFPARMv8, ARM::FeatureFullFP16} },
-    { ARM::AEK_RAS, {Feature_HasV8Bit}, {ARM::FeatureRAS} },
-    { ARM::AEK_LOB, {Feature_HasV8_1MMainlineBit}, {ARM::FeatureLOB} },
-    // FIXME: Unsupported extensions.
-    { ARM::AEK_OS, {}, {} },
-    { ARM::AEK_IWMMXT, {}, {} },
-    { ARM::AEK_IWMMXT2, {}, {} },
-    { ARM::AEK_MAVERICK, {}, {} },
-    { ARM::AEK_XSCALE, {}, {} },
+      {ARM::AEK_CRC, {Feature_HasV8Bit}, {ARM::FeatureCRC}},
+      {ARM::AEK_AES,
+       {Feature_HasV8Bit},
+       {ARM::FeatureAES, ARM::FeatureNEON, ARM::FeatureFPARMv8}},
+      {ARM::AEK_SHA2,
+       {Feature_HasV8Bit},
+       {ARM::FeatureSHA2, ARM::FeatureNEON, ARM::FeatureFPARMv8}},
+      {ARM::AEK_CRYPTO,
+       {Feature_HasV8Bit},
+       {ARM::FeatureCrypto, ARM::FeatureNEON, ARM::FeatureFPARMv8}},
+      {ARM::AEK_FP,
+       {Feature_HasV8Bit},
+       {ARM::FeatureVFP2_SP, ARM::FeatureFPARMv8}},
+      {(ARM::AEK_HWDIVTHUMB | ARM::AEK_HWDIVARM),
+       {Feature_HasV7Bit, Feature_IsNotMClassBit},
+       {ARM::FeatureHWDivThumb, ARM::FeatureHWDivARM}},
+      {ARM::AEK_MP,
+       {Feature_HasV7Bit, Feature_IsNotMClassBit},
+       {ARM::FeatureMP}},
+      {ARM::AEK_SIMD,
+       {Feature_HasV8Bit},
+       {ARM::FeatureNEON, ARM::FeatureVFP2_SP, ARM::FeatureFPARMv8}},
+      {ARM::AEK_SEC, {Feature_HasV6KBit}, {ARM::FeatureTrustZone}},
+      // FIXME: Only available in A-class, isel not predicated
+      {ARM::AEK_VIRT, {Feature_HasV7Bit}, {ARM::FeatureVirtualization}},
+      {ARM::AEK_FP16,
+       {Feature_HasV8_2aBit},
+       {ARM::FeatureFPARMv8, ARM::FeatureFullFP16}},
+      {ARM::AEK_RAS, {Feature_HasV8Bit}, {ARM::FeatureRAS}},
+      {ARM::AEK_LOB, {Feature_HasV8_1MMainlineBit}, {ARM::FeatureLOB}},
+      {ARM::AEK_PACBTI, {Feature_HasV8_1MMainlineBit}, {ARM::FeaturePACBTI}},
+      // FIXME: Unsupported extensions.
+      {ARM::AEK_OS, {}, {}},
+      {ARM::AEK_IWMMXT, {}, {}},
+      {ARM::AEK_IWMMXT2, {}, {}},
+      {ARM::AEK_MAVERICK, {}, {}},
+      {ARM::AEK_XSCALE, {}, {}},
   };
-
-  MCAsmParser &Parser = getParser();
-
-  if (getLexer().isNot(AsmToken::Identifier))
-    return Error(getLexer().getLoc(), "expected architecture extension name");
-
-  StringRef Name = Parser.getTok().getString();
-  SMLoc ExtLoc = Parser.getTok().getLoc();
-  Lex();
-
-  if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.arch_extension' directive"))
-    return true;
-
   bool EnableFeature = true;
-  if (Name.startswith_lower("no")) {
+  if (Name.startswith_insensitive("no")) {
     EnableFeature = false;
     Name = Name.substr(2);
   }
@@ -12198,8 +12526,34 @@ bool ARMAsmParser::parseDirectiveArchExtension(SMLoc L) {
     }
     FeatureBitset Features = ComputeAvailableFeatures(STI.getFeatureBits());
     setAvailableFeatures(Features);
-    return false;
+    return true;
   }
+  return false;
+}
+
+/// parseDirectiveArchExtension
+///   ::= .arch_extension [no]feature
+bool ARMAsmParser::parseDirectiveArchExtension(SMLoc L) {
+
+  MCAsmParser &Parser = getParser();
+
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(getLexer().getLoc(), "expected architecture extension name");
+
+  StringRef Name = Parser.getTok().getString();
+  SMLoc ExtLoc = Parser.getTok().getLoc();
+  Lex();
+
+  if (parseEOL())
+    return true;
+
+  if (Name == "nocrypto") {
+    enableArchExtFeature("nosha2", ExtLoc);
+    enableArchExtFeature("noaes", ExtLoc);
+  }
+
+  if (enableArchExtFeature(Name, ExtLoc))
+    return false;
 
   return Error(ExtLoc, "unknown architectural extension: " + Name);
 }

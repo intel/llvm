@@ -1,14 +1,10 @@
-; RUN: llc -mtriple=aarch64--linux-gnu -mattr=+sve --asm-verbose=false < %s 2>%t | FileCheck %s
-; RUN: FileCheck --check-prefix=WARN --allow-empty %s <%t
-
-; If this check fails please read test/CodeGen/AArch64/README for instructions on how to resolve it.
-; WARN-NOT: warning
+; RUN: llc -mtriple=aarch64--linux-gnu -mattr=+sve --asm-verbose=false < %s | FileCheck %s
 
 ; 2-lane contiguous load/stores
 
 define void @test_masked_ldst_sv2i8(i8 * %base, <vscale x 2 x i1> %mask, i64 %offset) nounwind {
 ; CHECK-LABEL: test_masked_ldst_sv2i8:
-; CHECK-NEXT: ld1sb { z[[DATA:[0-9]+]].d }, p0/z, [x0, x1]
+; CHECK-NEXT: ld1b { z[[DATA:[0-9]+]].d }, p0/z, [x0, x1]
 ; CHECK-NEXT: st1b { z[[DATA]].d }, p0, [x0, x1]
 ; CHECK-NEXT: ret
   %base_i8 = getelementptr i8, i8* %base, i64 %offset
@@ -26,7 +22,7 @@ define void @test_masked_ldst_sv2i8(i8 * %base, <vscale x 2 x i1> %mask, i64 %of
 
 define void @test_masked_ldst_sv2i16(i16 * %base, <vscale x 2 x i1> %mask, i64 %offset) nounwind {
 ; CHECK-LABEL: test_masked_ldst_sv2i16:
-; CHECK-NEXT: ld1sh { z[[DATA:[0-9]+]].d }, p0/z, [x0, x1, lsl #1]
+; CHECK-NEXT: ld1h { z[[DATA:[0-9]+]].d }, p0/z, [x0, x1, lsl #1]
 ; CHECK-NEXT: st1h { z[[DATA]].d }, p0, [x0, x1, lsl #1]
 ; CHECK-NEXT: ret
   %base_i16 = getelementptr i16, i16* %base, i64 %offset
@@ -44,7 +40,7 @@ define void @test_masked_ldst_sv2i16(i16 * %base, <vscale x 2 x i1> %mask, i64 %
 
 define void @test_masked_ldst_sv2i32(i32 * %base, <vscale x 2 x i1> %mask, i64 %offset) nounwind {
 ; CHECK-LABEL: test_masked_ldst_sv2i32:
-; CHECK-NEXT: ld1sw  { z0.d }, p0/z, [x0, x1, lsl #2]
+; CHECK-NEXT: ld1w  { z0.d }, p0/z, [x0, x1, lsl #2]
 ; CHECK-NEXT: st1w  { z0.d }, p0, [x0, x1, lsl #2]
 ; CHECK-NEXT: ret
   %base_i32 = getelementptr i32, i32* %base, i64 %offset
@@ -267,7 +263,7 @@ define void @masked_trunc_store_sv2i64_to_sv2i32(<vscale x 2 x i64> %val, i32 *%
 
 define void @test_masked_ldst_sv4i8(i8 * %base, <vscale x 4 x i1> %mask, i64 %offset) nounwind {
 ; CHECK-LABEL: test_masked_ldst_sv4i8:
-; CHECK-NEXT: ld1sb { z[[DATA:[0-9]+]].s }, p0/z, [x0, x1]
+; CHECK-NEXT: ld1b { z[[DATA:[0-9]+]].s }, p0/z, [x0, x1]
 ; CHECK-NEXT: st1b { z[[DATA]].s }, p0, [x0, x1]
 ; CHECK-NEXT: ret
   %base_i8 = getelementptr i8, i8* %base, i64 %offset
@@ -285,7 +281,7 @@ define void @test_masked_ldst_sv4i8(i8 * %base, <vscale x 4 x i1> %mask, i64 %of
 
 define void @test_masked_ldst_sv4i16(i16 * %base, <vscale x 4 x i1> %mask, i64 %offset) nounwind {
 ; CHECK-LABEL: test_masked_ldst_sv4i16:
-; CHECK-NEXT: ld1sh { z[[DATA:[0-9]+]].s }, p0/z, [x0, x1, lsl #1]
+; CHECK-NEXT: ld1h { z[[DATA:[0-9]+]].s }, p0/z, [x0, x1, lsl #1]
 ; CHECK-NEXT: st1h { z[[DATA]].s }, p0, [x0, x1, lsl #1]
 ; CHECK-NEXT: ret
   %base_i16 = getelementptr i16, i16* %base, i64 %offset
@@ -447,7 +443,7 @@ define void @masked_trunc_store_sv4i32_to_sv4i16(<vscale x 4 x i32> %val, i16 *%
 
 define void @test_masked_ldst_sv8i8(i8 * %base, <vscale x 8 x i1> %mask, i64 %offset) nounwind {
 ; CHECK-LABEL: test_masked_ldst_sv8i8:
-; CHECK-NEXT: ld1sb { z[[DATA:[0-9]+]].h }, p0/z, [x0, x1]
+; CHECK-NEXT: ld1b { z[[DATA:[0-9]+]].h }, p0/z, [x0, x1]
 ; CHECK-NEXT: st1b { z[[DATA]].h }, p0, [x0, x1]
 ; CHECK-NEXT: ret
   %base_i8 = getelementptr i8, i8* %base, i64 %offset

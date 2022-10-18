@@ -136,8 +136,7 @@ define amdgpu_kernel void @test_fold_canonicalize_fma_value_f32(float addrspace(
 }
 
 ; GCN-LABEL: test_fold_canonicalize_fmad_ftz_value_f32:
-; GCN: v_mov_b32_e32 [[V:v[0-9]+]], 0x41700000
-; GCN: v_mac_f32_e32 [[V]], v{{[0-9]+}}, v{{[0-9]+$}}
+; GCN: v_mac_f32_e32 [[V:v[0-9]+]], 0x41700000, v{{[0-9]+$}}
 ; GCN-NOT: v_mul
 ; GCN-NOT: v_max
 ; GCN: {{flat|global}}_store_dword v{{.+}}, [[V]]
@@ -152,7 +151,7 @@ define amdgpu_kernel void @test_fold_canonicalize_fmad_ftz_value_f32(float addrs
 }
 
 ; GCN-LABEL: test_fold_canonicalize_fmuladd_value_f32:
-; GCN-FLUSH: v_mac_f32_e32 [[V:v[0-9]+]], v{{[0-9]+}}, v{{[0-9]+}}
+; GCN-FLUSH: v_mac_f32_e32 [[V:v[0-9]+]], 0x41700000, v{{[0-9]+}}
 ; GCN-DENORM: s_mov_b32 [[SREG:s[0-9]+]], 0x41700000
 ; GCN-DENORM: v_fma_f32 [[V:v[0-9]+]], v{{[0-9]+}}, [[SREG]], [[SREG]]
 ; GCN-NOT: v_mul
@@ -288,8 +287,7 @@ define amdgpu_kernel void @test_fold_canonicalize_fpround_value_f16_f32_flushf16
 ; VI-DAG: v_cvt_f16_f32_sdwa [[V1:v[0-9]+]], v{{[0-9]+}}
 ; VI: v_or_b32_e32 [[V:v[0-9]+]], [[V0]], [[V1]]
 ; GFX9: v_cvt_f16_f32_e32 [[V1:v[0-9]+]], v{{[0-9]+}}
-; GFX9: v_and_b32_e32 [[V0_16:v[0-9]+]], 0xffff, [[V0]]
-; GFX9: v_lshl_or_b32 [[V:v[0-9]+]], [[V1]], 16, [[V0_16]]
+; GFX9: v_pack_b32_f16 [[V:v[0-9]+]], [[V1]], [[V0]]
 ; GCN-NOT: v_mul
 ; GCN-NOT: v_max
 ; GCN: {{flat|global}}_store_dword v{{.+}}, [[V]]

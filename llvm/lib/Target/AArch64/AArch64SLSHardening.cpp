@@ -186,12 +186,16 @@ namespace {
 struct SLSBLRThunkInserter : ThunkInserter<SLSBLRThunkInserter> {
   const char *getThunkPrefix() { return SLSBLRNamePrefix; }
   bool mayUseThunk(const MachineFunction &MF) {
+    ComdatThunks &= !MF.getSubtarget<AArch64Subtarget>().hardenSlsNoComdat();
     // FIXME: This could also check if there are any BLRs in the function
     // to more accurately reflect if a thunk will be needed.
     return MF.getSubtarget<AArch64Subtarget>().hardenSlsBlr();
   }
   void insertThunks(MachineModuleInfo &MMI);
   void populateThunk(MachineFunction &MF);
+
+private:
+  bool ComdatThunks = true;
 };
 } // namespace
 
@@ -200,7 +204,7 @@ void SLSBLRThunkInserter::insertThunks(MachineModuleInfo &MMI) {
   // based on which registers are actually used in BLR instructions in this
   // function. But would that be a worthwhile optimization?
   for (auto T : SLSBLRThunks)
-    createThunkFunction(MMI, T.Name);
+    createThunkFunction(MMI, T.Name, ComdatThunks);
 }
 
 void SLSBLRThunkInserter::populateThunk(MachineFunction &MF) {
@@ -356,8 +360,8 @@ AArch64SLSHardening::ConvertBLRToBL(MachineBasicBlock &MBB,
   assert(ImpSPOpIdx != -1);
   int FirstOpIdxToRemove = std::max(ImpLROpIdx, ImpSPOpIdx);
   int SecondOpIdxToRemove = std::min(ImpLROpIdx, ImpSPOpIdx);
-  BL->RemoveOperand(FirstOpIdxToRemove);
-  BL->RemoveOperand(SecondOpIdxToRemove);
+  BL->removeOperand(FirstOpIdxToRemove);
+  BL->removeOperand(SecondOpIdxToRemove);
   // Now copy over the implicit operands from the original BLR
   BL->copyImplicitOps(MF, BLR);
   MF.moveCallSiteInfo(&BLR, BL);

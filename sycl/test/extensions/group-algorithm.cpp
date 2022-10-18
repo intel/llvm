@@ -11,13 +11,13 @@
 // RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSPIRV_1_3 %s -I . -o \
    %t13.out
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <limits>
 #include <numeric>
+#include <sycl/sycl.hpp>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 template <class Predicate> class none_of_kernel;
 
@@ -76,13 +76,14 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, plus<>(), 0, GeZero());
-  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+  test<class KernelNamePlusV>(q, input, output, ext::oneapi::plus<>(), 0,
+                              GeZero());
+  test<class KernelNameMinimumV>(q, input, output, ext::oneapi::minimum<>(),
                                  std::numeric_limits<int>::max(), IsEven());
 
 #ifdef SPIRV_1_3
-  test<class KernelName_WonwuUVPUPOTKRKIBtT>(q, input, output,
-                                             multiplies<int>(), 1, LtZero());
+  test<class KernelName_WonwuUVPUPOTKRKIBtT>(
+      q, input, output, ext::oneapi::multiplies<int>(), 1, LtZero());
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

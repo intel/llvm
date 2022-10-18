@@ -2,8 +2,6 @@
 Test basics of linux core file debugging.
 """
 
-from __future__ import division, print_function
-
 import shutil
 import struct
 import os
@@ -17,9 +15,8 @@ from lldbsuite.test import lldbutil
 class LinuxCoreTestCase(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
-    mydir = TestBase.compute_mydir(__file__)
-
     _aarch64_pid = 37688
+    _aarch64_pac_pid = 387
     _i386_pid = 32306
     _x86_64_pid = 32259
     _s390x_pid = 1045
@@ -32,41 +29,35 @@ class LinuxCoreTestCase(TestBase):
     _ppc64le_regions = 2
 
     @skipIfLLVMTargetMissing("AArch64")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_aarch64(self):
         """Test that lldb can read the process information from an aarch64 linux core file."""
         self.do_test("linux-aarch64", self._aarch64_pid,
                      self._aarch64_regions, "a.out")
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_i386(self):
         """Test that lldb can read the process information from an i386 linux core file."""
         self.do_test("linux-i386", self._i386_pid, self._i386_regions, "a.out")
 
     @skipIfLLVMTargetMissing("PowerPC")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_ppc64le(self):
         """Test that lldb can read the process information from an ppc64le linux core file."""
         self.do_test("linux-ppc64le", self._ppc64le_pid, self._ppc64le_regions,
                      "linux-ppc64le.ou")
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_x86_64(self):
         """Test that lldb can read the process information from an x86_64 linux core file."""
         self.do_test("linux-x86_64", self._x86_64_pid, self._x86_64_regions,
                      "a.out")
 
     @skipIfLLVMTargetMissing("SystemZ")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_s390x(self):
         """Test that lldb can read the process information from an s390x linux core file."""
         self.do_test("linux-s390x", self._s390x_pid, self._s390x_regions,
                      "a.out")
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_same_pid_running(self):
         """Test that we read the information from the core correctly even if we have a running
         process with the same PID around"""
@@ -94,7 +85,6 @@ class LinuxCoreTestCase(TestBase):
                      self._x86_64_regions, "a.out")
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_two_cores_same_pid(self):
         """Test that we handle the situation if we have two core files with the same PID
         around"""
@@ -115,7 +105,7 @@ class LinuxCoreTestCase(TestBase):
         error = lldb.SBError()
         F = altprocess.ReadCStringFromMemory(
             altframe.FindVariable("F").GetValueAsUnsigned(), 256, error)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
         self.assertEqual(F, "_start")
 
         # without destroying this process, run the test which opens another core file with the
@@ -126,7 +116,6 @@ class LinuxCoreTestCase(TestBase):
 
     @skipIfLLVMTargetMissing("X86")
     @skipIfWindows
-    @skipIfReproducer
     def test_read_memory(self):
         """Test that we are able to read as many bytes as available"""
         target = self.dbg.CreateTarget("linux-x86_64.out")
@@ -139,6 +128,29 @@ class LinuxCoreTestCase(TestBase):
         # read only 16 bytes without zero bytes filling
         self.assertEqual(len(bytesread), 16)
         self.dbg.DeleteTarget(target)
+
+    @skipIfLLVMTargetMissing("X86")
+    def test_write_register(self):
+        """Test that writing to register results in an error and that error
+           message is set."""
+        target = self.dbg.CreateTarget("linux-x86_64.out")
+        process = target.LoadCore("linux-x86_64.core")
+        self.assertTrue(process, PROCESS_IS_VALID)
+
+        thread = process.GetSelectedThread()
+        self.assertTrue(thread)
+
+        frame = thread.GetSelectedFrame()
+        self.assertTrue(frame)
+
+        reg_value = frame.FindRegister('eax')
+        self.assertTrue(reg_value)
+
+        error = lldb.SBError()
+        success = reg_value.SetValueFromCString('10', error)
+        self.assertFalse(success)
+        self.assertTrue(error.Fail())
+        self.assertIsNotNone(error.GetCString())
 
     @skipIfLLVMTargetMissing("X86")
     def test_FPR_SSE(self):
@@ -191,7 +203,6 @@ class LinuxCoreTestCase(TestBase):
                         substrs=["{} = {}".format(regname, value)])
 
     @skipIfLLVMTargetMissing("X86")
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_i386_sysroot(self):
         """Test that lldb can find the exe for an i386 linux core file using the sysroot."""
 
@@ -218,7 +229,6 @@ class LinuxCoreTestCase(TestBase):
 
     @skipIfLLVMTargetMissing("X86")
     @skipIfWindows
-    @skipIfReproducer  # lldb::FileSP used in typemap cannot be instrumented.
     def test_x86_64_sysroot(self):
         """Test that sysroot has more priority then local filesystem."""
 
@@ -258,6 +268,18 @@ class LinuxCoreTestCase(TestBase):
         self.dbg.DeleteTarget(target)
 
     @skipIfLLVMTargetMissing("AArch64")
+    def test_aarch64_pac(self):
+        """Test that lldb can unwind stack for AArch64 elf core file with PAC enabled."""
+
+        target = self.dbg.CreateTarget("linux-aarch64-pac.out")
+        self.assertTrue(target, VALID_TARGET)
+        process = target.LoadCore("linux-aarch64-pac.core")
+
+        self.check_all(process, self._aarch64_pac_pid, self._aarch64_regions, "a.out")
+
+        self.dbg.DeleteTarget(target)
+
+    @skipIfLLVMTargetMissing("AArch64")
     @expectedFailureAll(archs=["aarch64"], oslist=["freebsd"],
                         bugnumber="llvm.org/pr49415")
     def test_aarch64_regs(self):
@@ -291,20 +313,20 @@ class LinuxCoreTestCase(TestBase):
         values["s5"] = "5.5"
         values["s6"] = "6.5"
         values["s7"] = "7.5"
-        values["s8"] = "1.14437e-28"
+        values["s8"] = "1.14437421E-28"
         values["s30"] = "0"
-        values["s31"] = "6.40969e-10"
+        values["s31"] = "6.40969056E-10"
         values["d0"] = "0.5"
         values["d1"] = "1.5"
         values["d2"] = "2.5"
         values["d3"] = "3.5"
-        values["d4"] = "5.35161536149201e-315"
-        values["d5"] = "5.36197666906508e-315"
-        values["d6"] = "5.37233797663815e-315"
-        values["d7"] = "5.38269928421123e-315"
-        values["d8"] = "1.80107573659442e-226"
+        values["d4"] = "5.3516153614920076E-315"
+        values["d5"] = "5.3619766690650802E-315"
+        values["d6"] = "5.3723379766381528E-315"
+        values["d7"] = "5.3826992842112254E-315"
+        values["d8"] = "1.8010757365944223E-226"
         values["d30"] = "0"
-        values["d31"] = "1.39804328609529e-76"
+        values["d31"] = "1.3980432860952889E-76"
         values["fpsr"] = "0x00000000"
         values["fpcr"] = "0x00000000"
 
@@ -349,20 +371,20 @@ class LinuxCoreTestCase(TestBase):
         values["s5"] = "5.5"
         values["s6"] = "6.5"
         values["s7"] = "7.5"
-        values["s8"] = "1.14437e-28"
+        values["s8"] = "1.14437421E-28"
         values["s30"] = "0"
-        values["s31"] = "6.40969e-10"
+        values["s31"] = "6.40969056E-10"
         values["d0"] = "0.5"
         values["d1"] = "1.5"
         values["d2"] = "2.5"
         values["d3"] = "3.5"
-        values["d4"] = "5.35161536149201e-315"
-        values["d5"] = "5.36197666906508e-315"
-        values["d6"] = "5.37233797663815e-315"
-        values["d7"] = "5.38269928421123e-315"
-        values["d8"] = "1.80107573659442e-226"
+        values["d4"] = "5.3516153614920076E-315"
+        values["d5"] = "5.3619766690650802E-315"
+        values["d6"] = "5.3723379766381528E-315"
+        values["d7"] = "5.3826992842112254E-315"
+        values["d8"] = "1.8010757365944223E-226"
         values["d30"] = "0"
-        values["d31"] = "1.39804328609529e-76"
+        values["d31"] = "1.3980432860952889E-76"
         values["fpsr"] = "0x00000000"
         values["fpcr"] = "0x00000000"
         values["vg"] = "0x0000000000000004"
@@ -425,7 +447,7 @@ class LinuxCoreTestCase(TestBase):
         values["d0"] = "65536.0158538818"
         values["d1"] = "1572864.25476074"
         values["d2"] = "0"
-        values["d3"] = "25165828.0917969"
+        values["d3"] = "25165828.091796875"
         values["vg"] = "0x0000000000000004"
         values["z0"] = "{0x00 0x00 0xf0 0x40 0x00 0x00 0xf0 0x40 0x00 0x00 0xf0 0x40 0x00 0x00 0xf0 0x40 0x00 0x00 0xf0 0x40 0x00 0x00 0xf0 0x40 0x00 0x00 0xf0 0x40 0x00 0x00 0xf0 0x40}"
         values["z1"] = "{0x00 0x00 0x38 0x41 0x00 0x00 0x38 0x41 0x00 0x00 0x38 0x41 0x00 0x00 0x38 0x41 0x00 0x00 0x38 0x41 0x00 0x00 0x38 0x41 0x00 0x00 0x38 0x41 0x00 0x00 0x38 0x41}"
@@ -436,6 +458,21 @@ class LinuxCoreTestCase(TestBase):
         values["p2"] = "{0x00 0x00 0x00 0x00}"
         values["p3"] = "{0x11 0x11 0x11 0x11}"
         values["p4"] = "{0x00 0x00 0x00 0x00}"
+
+        for regname, value in values.items():
+            self.expect("register read {}".format(regname),
+                        substrs=["{} = {}".format(regname, value)])
+
+        self.expect("register read --all")
+
+    @skipIfLLVMTargetMissing("AArch64")
+    def test_aarch64_pac_regs(self):
+        # Test AArch64/Linux Pointer Authentication register read
+        target = self.dbg.CreateTarget(None)
+        self.assertTrue(target, VALID_TARGET)
+        process = target.LoadCore("linux-aarch64-pac.core")
+
+        values = {"data_mask": "0x007f00000000000", "code_mask": "0x007f00000000000"}
 
         for regname, value in values.items():
             self.expect("register read {}".format(regname),

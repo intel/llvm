@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <functional>
 
 #include "test_macros.h"
 #include "test_iterators.h"
@@ -42,7 +43,7 @@ struct for_each_test
 
 int main(int, char**)
 {
-    typedef input_iterator<int*> Iter;
+    typedef cpp17_input_iterator<int*> Iter;
     int ia[] = {0, 1, 2, 3, 4, 5};
     const unsigned s = sizeof(ia)/sizeof(ia[0]);
 

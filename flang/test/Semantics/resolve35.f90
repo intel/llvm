@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Construct names
 
 subroutine s1
@@ -78,6 +78,7 @@ subroutine s7
   do concurrent(integer::i=1:5) local(j, i) &
       !ERROR: 'j' is already declared in this scoping unit
       local_init(k, j) &
+      !WARNING: Variable 'a' with SHARED locality implicitly declared
       shared(a)
     a = j + 1
   end do

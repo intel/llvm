@@ -63,7 +63,7 @@ using namespace llvm::cflaa;
 
 CFLSteensAAResult::CFLSteensAAResult(
     std::function<const TargetLibraryInfo &(Function &F)> GetTLI)
-    : AAResultBase(), GetTLI(std::move(GetTLI)) {}
+    : GetTLI(std::move(GetTLI)) {}
 CFLSteensAAResult::CFLSteensAAResult(CFLSteensAAResult &&Arg)
     : AAResultBase(std::move(Arg)), GetTLI(std::move(Arg.GetTLI)) {}
 CFLSteensAAResult::~CFLSteensAAResult() = default;
@@ -165,7 +165,7 @@ CFLSteensAAResult::FunctionInfo::FunctionInfo(
     assert(RetVal != nullptr);
     assert(RetVal->getType()->isPointerTy());
     auto RetInfo = Sets.find(InstantiatedValue{RetVal, 0});
-    if (RetInfo.hasValue())
+    if (RetInfo)
       AddToRetParamRelations(0, RetInfo->Index);
   }
 
@@ -174,7 +174,7 @@ CFLSteensAAResult::FunctionInfo::FunctionInfo(
   for (auto &Param : Fn.args()) {
     if (Param.getType()->isPointerTy()) {
       auto ParamInfo = Sets.find(InstantiatedValue{&Param, 0});
-      if (ParamInfo.hasValue())
+      if (ParamInfo)
         AddToRetParamRelations(I + 1, ParamInfo->Index);
     }
     ++I;
@@ -216,7 +216,7 @@ CFLSteensAAResult::FunctionInfo CFLSteensAAResult::buildSetsFrom(Function *Fn) {
 
     for (unsigned I = 0, E = ValueInfo.getNumLevels(); I < E; ++I) {
       auto Src = InstantiatedValue{Val, I};
-      for (auto &Edge : ValueInfo.getNodeInfoAtLevel(I).Edges)
+      for (const auto &Edge : ValueInfo.getNodeInfoAtLevel(I).Edges)
         SetBuilder.addWith(Src, Edge.Other);
     }
   }
@@ -250,14 +250,14 @@ CFLSteensAAResult::ensureCached(Function *Fn) {
     scan(Fn);
     Iter = Cache.find(Fn);
     assert(Iter != Cache.end());
-    assert(Iter->second.hasValue());
+    assert(Iter->second);
   }
   return Iter->second;
 }
 
 const AliasSummary *CFLSteensAAResult::getAliasSummary(Function &Fn) {
   auto &FunInfo = ensureCached(&Fn);
-  if (FunInfo.hasValue())
+  if (FunInfo)
     return &FunInfo->getAliasSummary();
   else
     return nullptr;
@@ -269,7 +269,7 @@ AliasResult CFLSteensAAResult::query(const MemoryLocation &LocA,
   auto *ValB = const_cast<Value *>(LocB.Ptr);
 
   if (!ValA->getType()->isPointerTy() || !ValB->getType()->isPointerTy())
-    return NoAlias;
+    return AliasResult::NoAlias;
 
   Function *Fn = nullptr;
   Function *MaybeFnA = const_cast<Function *>(parentFunctionOfValue(ValA));
@@ -280,7 +280,7 @@ AliasResult CFLSteensAAResult::query(const MemoryLocation &LocA,
     LLVM_DEBUG(
         dbgs()
         << "CFLSteensAA: could not extract parent function information.\n");
-    return MayAlias;
+    return AliasResult::MayAlias;
   }
 
   if (MaybeFnA) {
@@ -293,16 +293,16 @@ AliasResult CFLSteensAAResult::query(const MemoryLocation &LocA,
 
   assert(Fn != nullptr);
   auto &MaybeInfo = ensureCached(Fn);
-  assert(MaybeInfo.hasValue());
+  assert(MaybeInfo);
 
   auto &Sets = MaybeInfo->getStratifiedSets();
   auto MaybeA = Sets.find(InstantiatedValue{ValA, 0});
-  if (!MaybeA.hasValue())
-    return MayAlias;
+  if (!MaybeA)
+    return AliasResult::MayAlias;
 
   auto MaybeB = Sets.find(InstantiatedValue{ValB, 0});
-  if (!MaybeB.hasValue())
-    return MayAlias;
+  if (!MaybeB)
+    return AliasResult::MayAlias;
 
   auto SetA = *MaybeA;
   auto SetB = *MaybeB;
@@ -320,14 +320,14 @@ AliasResult CFLSteensAAResult::query(const MemoryLocation &LocA,
   // - AttrEscaped do not alias globals/arguments, but they may alias
   // AttrUnknown values
   if (SetA.Index == SetB.Index)
-    return MayAlias;
+    return AliasResult::MayAlias;
   if (AttrsA.none() || AttrsB.none())
-    return NoAlias;
+    return AliasResult::NoAlias;
   if (hasUnknownOrCallerAttr(AttrsA) || hasUnknownOrCallerAttr(AttrsB))
-    return MayAlias;
+    return AliasResult::MayAlias;
   if (isGlobalOrArgAttr(AttrsA) && isGlobalOrArgAttr(AttrsB))
-    return MayAlias;
-  return NoAlias;
+    return AliasResult::MayAlias;
+  return AliasResult::NoAlias;
 }
 
 AnalysisKey CFLSteensAA::Key;

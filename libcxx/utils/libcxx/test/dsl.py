@@ -11,6 +11,7 @@ import pickle
 import pipes
 import platform
 import re
+import shutil
 import tempfile
 
 import libcxx.test.format
@@ -20,6 +21,14 @@ import lit.Test
 import lit.TestRunner
 import lit.util
 
+class ConfigurationError(Exception):
+  pass
+
+class ConfigurationCompilationError(ConfigurationError):
+  pass
+
+class ConfigurationRuntimeError(ConfigurationError):
+  pass
 
 def _memoizeExpensiveOperation(extractCacheKey):
   """
@@ -28,13 +37,34 @@ def _memoizeExpensiveOperation(extractCacheKey):
   We pickle the cache key to make sure we store an immutable representation
   of it. If we stored an object and the object was referenced elsewhere, it
   could be changed from under our feet, which would break the cache.
+
+  We also store the cache for a given function persistently across invocations
+  of Lit. This dramatically speeds up the configuration of the test suite when
+  invoking Lit repeatedly, which is important for developer workflow. However,
+  with the current implementation that does not synchronize updates to the
+  persistent cache, this also means that one should not call a memoized
+  operation from multiple threads. This should normally not be a problem
+  since Lit configuration is single-threaded.
   """
   def decorator(function):
-    cache = {}
-    def f(*args, **kwargs):
-      cacheKey = pickle.dumps(extractCacheKey(*args, **kwargs))
+    def f(config, *args, **kwargs):
+      cacheRoot = os.path.join(config.test_exec_root, '__config_cache__')
+      persistentCache = os.path.join(cacheRoot, function.__name__)
+      if not os.path.exists(cacheRoot):
+        os.makedirs(cacheRoot)
+
+      cache = {}
+      # Load a cache from a previous Lit invocation if there is one.
+      if os.path.exists(persistentCache):
+        with open(persistentCache, 'rb') as cacheFile:
+          cache = pickle.load(cacheFile)
+
+      cacheKey = pickle.dumps(extractCacheKey(config, *args, **kwargs))
       if cacheKey not in cache:
-        cache[cacheKey] = function(*args, **kwargs)
+        cache[cacheKey] = function(config, *args, **kwargs)
+        # Update the persistent cache so it knows about the new key
+        with open(persistentCache, 'wb') as cacheFile:
+          pickle.dump(cache, cacheFile)
       return cache[cacheKey]
     return f
   return decorator
@@ -57,77 +87,110 @@ def _executeScriptInternal(test, commands):
     noExecute=False,
     debug=False,
     isWindows=platform.system() == 'Windows',
+    order='smart',
     params={})
   _, tmpBase = libcxx.test.format._getTempPaths(test)
   execDir = os.path.dirname(test.getExecPath())
-  for d in (execDir, os.path.dirname(tmpBase)):
-    if not os.path.exists(d):
-      os.makedirs(d)
   res = lit.TestRunner.executeScriptInternal(test, litConfig, tmpBase, parsedCommands, execDir)
-  if isinstance(res, lit.Test.Result):
-    res = ('', '', 127, None)
-  return res
+  if isinstance(res, lit.Test.Result): # Handle failure to parse the Lit test
+    res = ('', res.output, 127, None)
+  (out, err, exitCode, timeoutInfo) = res
 
-def _makeConfigTest(config, testPrefix=''):
+  # TODO: As a temporary workaround until https://reviews.llvm.org/D81892 lands, manually
+  #       split any stderr output that is included in stdout. It shouldn't be there, but
+  #       the Lit internal shell conflates stderr and stdout.
+  conflatedErrorOutput = re.search("(# command stderr:.+$)", out, flags=re.DOTALL)
+  if conflatedErrorOutput:
+    conflatedErrorOutput = conflatedErrorOutput.group(0)
+    out = out[:-len(conflatedErrorOutput)]
+    err += conflatedErrorOutput
+
+  return (out, err, exitCode, timeoutInfo)
+
+def _makeConfigTest(config):
+  # Make sure the support directories exist, which is needed to create
+  # the temporary file %t below.
   sourceRoot = os.path.join(config.test_exec_root, '__config_src__')
   execRoot = os.path.join(config.test_exec_root, '__config_exec__')
+  for supportDir in (sourceRoot, execRoot):
+    if not os.path.exists(supportDir):
+      os.makedirs(supportDir)
+
+  # Create a dummy test suite and single dummy test inside it. As part of
+  # the Lit configuration, automatically do the equivalent of 'mkdir %T'
+  # and 'rm -r %T' to avoid cluttering the build directory.
   suite = lit.Test.TestSuite('__config__', sourceRoot, execRoot, config)
-  if not os.path.exists(sourceRoot):
-    os.makedirs(sourceRoot)
-  tmp = tempfile.NamedTemporaryFile(dir=sourceRoot, delete=False, suffix='.cpp',
-                                    prefix=testPrefix)
+  tmp = tempfile.NamedTemporaryFile(dir=sourceRoot, delete=False, suffix='.cpp')
   tmp.close()
   pathInSuite = [os.path.relpath(tmp.name, sourceRoot)]
   class TestWrapper(lit.Test.Test):
-    def __enter__(self):       return self
-    def __exit__(self, *args): os.remove(tmp.name)
+    def __enter__(self):
+      testDir, _ = libcxx.test.format._getTempPaths(self)
+      os.makedirs(testDir)
+      return self
+    def __exit__(self, *args):
+      testDir, _ = libcxx.test.format._getTempPaths(self)
+      shutil.rmtree(testDir)
+      os.remove(tmp.name)
   return TestWrapper(suite, pathInSuite, config)
 
-@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
-def sourceBuilds(config, source):
+@_memoizeExpensiveOperation(lambda c, s, f=[]: (c.substitutions, c.environment, s, f))
+def sourceBuilds(config, source, additionalFlags=[]):
   """
   Return whether the program in the given string builds successfully.
 
   This is done by compiling and linking a program that consists of the given
-  source with the %{cxx} substitution, and seeing whether that succeeds.
+  source with the %{cxx} substitution, and seeing whether that succeeds. If
+  any additional flags are passed, they are appended to the compiler invocation.
   """
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as sourceFile:
       sourceFile.write(source)
-    out, err, exitCode, timeoutInfo = _executeScriptInternal(test, ['%{build}'])
-    _executeScriptInternal(test, ['rm %t.exe'])
+    _, _, exitCode, _ = _executeScriptInternal(test, ['%{{build}} {}'.format(' '.join(additionalFlags))])
     return exitCode == 0
 
-@_memoizeExpensiveOperation(lambda c, p, args=None, testPrefix='': (c.substitutions, c.environment, p, args))
-def programOutput(config, program, args=None, testPrefix=''):
+@_memoizeExpensiveOperation(lambda c, p, args=None: (c.substitutions, c.environment, p, args))
+def programOutput(config, program, args=None):
   """
   Compiles a program for the test target, run it on the test target and return
   the output.
 
-  If the program fails to compile or run, None is returned instead. Note that
-  execution of the program is done through the %{exec} substitution, which means
-  that the program may be run on a remote host depending on what %{exec} does.
+  Note that execution of the program is done through the %{exec} substitution,
+  which means that the program may be run on a remote host depending on what
+  %{exec} does.
   """
   if args is None:
     args = []
-  with _makeConfigTest(config, testPrefix=testPrefix) as test:
+  with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as source:
       source.write(program)
-    try:
-      _, _, exitCode, _ = _executeScriptInternal(test, ['%{build}'])
-      if exitCode != 0:
-        return None
+    _, err, exitCode, _ = _executeScriptInternal(test, ['%{build}'])
+    if exitCode != 0:
+      raise ConfigurationCompilationError("Failed to build program, stderr is:\n{}".format(err))
 
-      out, err, exitCode, _ = _executeScriptInternal(test, ["%{{run}} {}".format(' '.join(args))])
-      if exitCode != 0:
-        return None
+    out, err, exitCode, _ = _executeScriptInternal(test, ["%{{run}} {}".format(' '.join(args))])
+    if exitCode != 0:
+      raise ConfigurationRuntimeError("Failed to run program, stderr is:\n{}".format(err))
 
-      actualOut = re.search("command output:\n(.+)\n$", out, flags=re.DOTALL)
-      actualOut = actualOut.group(1) if actualOut else ""
-      return actualOut
+    actualOut = re.search("# command output:\n(.+)\n$", out, flags=re.DOTALL)
+    actualOut = actualOut.group(1) if actualOut else ""
+    return actualOut
 
-    finally:
-      _executeScriptInternal(test, ['rm %t.exe'])
+@_memoizeExpensiveOperation(lambda c, p, args=None: (c.substitutions, c.environment, p, args))
+def programSucceeds(config, program, args=None):
+  """
+  Compiles a program for the test target, run it on the test target and return
+  whether it completed successfully.
+
+  Note that execution of the program is done through the %{exec} substitution,
+  which means that the program may be run on a remote host depending on what
+  %{exec} does.
+  """
+  try:
+    programOutput(config, program, args)
+  except ConfigurationRuntimeError:
+    return False
+  return True
 
 @_memoizeExpensiveOperation(lambda c, f: (c.substitutions, c.environment, f))
 def hasCompileFlag(config, flag):
@@ -143,6 +206,33 @@ def hasCompileFlag(config, flag):
     ])
     return exitCode == 0
 
+@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
+def runScriptExitCode(config, script):
+  """
+  Runs the given script as a Lit test, and returns the exit code of the execution.
+
+  The script must be a list of commands, each of which being something that
+  could appear on the right-hand-side of a `RUN:` keyword.
+  """
+  with _makeConfigTest(config) as test:
+    _, _, exitCode, _ = _executeScriptInternal(test, script)
+    return exitCode
+
+@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
+def commandOutput(config, command):
+  """
+  Runs the given script as a Lit test, and returns the output.
+  If the exit code isn't 0 an exception is raised.
+
+  The script must be a list of commands, each of which being something that
+  could appear on the right-hand-side of a `RUN:` keyword.
+  """
+  with _makeConfigTest(config) as test:
+    out, _, exitCode, _ = _executeScriptInternal(test, command)
+    if exitCode != 0:
+     raise ConfigurationRuntimeError()
+    return out
+
 @_memoizeExpensiveOperation(lambda c, l: (c.substitutions, c.environment, l))
 def hasAnyLocale(config, locales):
   """
@@ -156,22 +246,22 @@ def hasAnyLocale(config, locales):
   depending on the %{exec} substitution.
   """
   program = """
-    #include <locale.h>
-    #include <stdio.h>
-    int main(int argc, char** argv) {
-      // For debugging purposes print which locales are (not) supported.
-      for (int i = 1; i < argc; i++) {
-        if (::setlocale(LC_ALL, argv[i]) != NULL) {
-          printf("%s is supported.\\n", argv[i]);
-          return 0;
+    #include <stddef.h>
+    #if defined(_LIBCPP_HAS_NO_LOCALIZATION)
+      int main(int, char**) { return 1; }
+    #else
+      #include <locale.h>
+      int main(int argc, char** argv) {
+        for (int i = 1; i < argc; i++) {
+          if (::setlocale(LC_ALL, argv[i]) != NULL) {
+            return 0;
+          }
         }
-        printf("%s is not supported.\\n", argv[i]);
+        return 1;
       }
-      return 1;
-    }
+    #endif
   """
-  return programOutput(config, program, args=[pipes.quote(l) for l in locales],
-                       testPrefix="check_locale_" + locales[0]) is not None
+  return programSucceeds(config, program, args=[pipes.quote(l) for l in locales])
 
 @_memoizeExpensiveOperation(lambda c, flags='': (c.substitutions, c.environment, flags))
 def compilerMacros(config, flags=''):
@@ -186,12 +276,16 @@ def compilerMacros(config, flags=''):
   """
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as sourceFile:
-      # Make sure files like <__config> are included, since they can define
-      # additional macros.
-      sourceFile.write("#include <cstddef>")
-    unparsedOutput, err, exitCode, timeoutInfo = _executeScriptInternal(test, [
+      sourceFile.write("""
+      #if __has_include(<__config_site>)
+      #  include <__config_site>
+      #endif
+      """)
+    unparsedOutput, err, exitCode, _ = _executeScriptInternal(test, [
       "%{{cxx}} %s -dM -E %{{flags}} %{{compile_flags}} {}".format(flags)
     ])
+    if exitCode != 0:
+      raise ConfigurationCompilationError("Failed to retrieve compiler macros, stderr is:\n{}".format(err))
     parsedMacros = dict()
     defines = (l.strip() for l in unparsedOutput.split('\n') if l.startswith('#define '))
     for line in defines:
@@ -209,7 +303,6 @@ def featureTestMacros(config, flags=''):
   """
   allMacros = compilerMacros(config, flags)
   return {m: int(v.rstrip('LlUu')) for (m, v) in allMacros.items() if m.startswith('__cpp_')}
-
 
 def _appendToSubstitution(substitutions, key, value):
   return [(k, v + ' ' + value) if k == key else (k, v) for (k, v) in substitutions]
@@ -289,6 +382,26 @@ class AddFlag(ConfigAction):
     flag = self._getFlag(config)
     assert hasCompileFlag(config, flag), "Trying to enable flag {}, which is not supported".format(flag)
     config.substitutions = _appendToSubstitution(config.substitutions, '%{flags}', flag)
+
+  def pretty(self, config, litParams):
+    return 'add {} to %{{flags}}'.format(self._getFlag(config))
+
+
+class AddFlagIfSupported(ConfigAction):
+  """
+  This action adds the given flag to the %{flags} substitution, only if
+  the compiler supports the flag.
+
+  The flag can be a string or a callable, in which case it is called with the
+  configuration to produce the actual flag (as a string).
+  """
+  def __init__(self, flag):
+    self._getFlag = lambda config: flag(config) if callable(flag) else flag
+
+  def applyTo(self, config):
+    flag = self._getFlag(config)
+    if hasCompileFlag(config, flag):
+      config.substitutions = _appendToSubstitution(config.substitutions, '%{flags}', flag)
 
   def pretty(self, config, litParams):
     return 'add {} to %{{flags}}'.format(self._getFlag(config))
@@ -476,6 +589,13 @@ def _str_to_bool(s):
   else:
     raise ValueError("Got string '{}', which isn't a valid boolean".format(s))
 
+def _parse_parameter(s, type):
+  if type is bool and isinstance(s, str):
+    return _str_to_bool(s)
+  elif type is list and isinstance(s, str):
+    return [x.strip() for x in s.split(',') if x.strip()]
+  return type(s)
+
 
 class Parameter(object):
   """
@@ -484,7 +604,7 @@ class Parameter(object):
   Parameters are used to customize the behavior of test suites in a user
   controllable way. There are two ways of setting the value of a Parameter.
   The first one is to pass `--param <KEY>=<VALUE>` when running Lit (or
-  equivalenlty to set `litConfig.params[KEY] = VALUE` somewhere in the
+  equivalently to set `litConfig.params[KEY] = VALUE` somewhere in the
   Lit configuration files. This method will set the parameter globally for
   all test suites being run.
 
@@ -500,19 +620,8 @@ class Parameter(object):
   if some actions are not supported in the given configuration. For example,
   trying to set the compilation standard to C++23 when `-std=c++23` is not
   supported by the compiler would be an error.
-
-  One important point is that Parameters customize the behavior of the test
-  suite in a bounded way, i.e. there should be a finite set of possible choices
-  for `<VALUE>`. While this may appear to be an aggressive restriction, this
-  is actually a very important constraint that ensures that the set of
-  configurations supported by a test suite is finite. Otherwise, a test
-  suite could have an unbounded number of supported configurations, and
-  nobody wants to be stuck maintaining that. If it's not possible for an
-  option to have a finite set of possible values (e.g. the path to the
-  compiler), it can be handled in the `lit.cfg`, but it shouldn't be
-  represented with a Parameter.
   """
-  def __init__(self, name, choices, type, help, actions, default=None):
+  def __init__(self, name, type, help, actions, choices=None, default=None):
     """
     Create a Lit parameter to customize the behavior of a test suite.
 
@@ -522,15 +631,16 @@ class Parameter(object):
         when running Lit. This must be non-empty.
 
     - choices
-        A non-empty set of possible values for this parameter. This must be
-        anything that can be iterated. It is an error if the parameter is
-        given a value that is not in that set, whether explicitly or through
-        a default value.
+        An optional non-empty set of possible values for this parameter. If provided,
+        this must be anything that can be iterated. It is an error if the parameter
+        is given a value that is not in that set, whether explicitly or through a
+        default value.
 
     - type
         A callable that can be used to parse the value of the parameter given
         on the command-line. As a special case, using the type `bool` also
-        allows parsing strings with boolean-like contents.
+        allows parsing strings with boolean-like contents, and the type `list`
+        will parse a string delimited by commas into a list of the substrings.
 
     - help
         A string explaining the parameter, for documentation purposes.
@@ -553,12 +663,14 @@ class Parameter(object):
     if len(self._name) == 0:
       raise ValueError("Parameter name must not be the empty string")
 
-    self._choices = list(choices) # should be finite
-    if len(self._choices) == 0:
-      raise ValueError("Parameter '{}' must be given at least one possible value".format(self._name))
+    if choices is not None:
+      self._choices = list(choices) # should be finite
+      if len(self._choices) == 0:
+        raise ValueError("Parameter '{}' must be given at least one possible value".format(self._name))
+    else:
+      self._choices = None
 
-    self._parse = lambda x: (_str_to_bool(x) if type is bool and isinstance(x, str)
-                                             else type(x))
+    self._parse = lambda x: _parse_parameter(x, type)
     self._help = help
     self._actions = actions
     self._default = default
@@ -572,10 +684,16 @@ class Parameter(object):
     if param is None and self._default is None:
       raise ValueError("Parameter {} doesn't have a default value, but it was not specified in the Lit parameters or in the Lit config".format(self.name))
     getDefault = lambda: self._default(config) if callable(self._default) else self._default
-    value = self._parse(param) if param is not None else getDefault()
-    if value not in self._choices:
+
+    if param is not None:
+      (pretty, value) = (param, self._parse(param))
+    else:
+      value = getDefault()
+      pretty = '{} (default)'.format(value)
+
+    if self._choices and value not in self._choices:
       raise ValueError("Got value '{}' for parameter '{}', which is not in the provided set of possible choices: {}".format(value, self.name, self._choices))
-    return value
+    return (pretty, value)
 
   @property
   def name(self):
@@ -591,10 +709,12 @@ class Parameter(object):
     """
     Return the list of actions associated to this value of the parameter.
     """
-    return self._actions(self._getValue(config, litParams))
+    (_, parameterValue) = self._getValue(config, litParams)
+    return self._actions(parameterValue)
 
   def pretty(self, config, litParams):
     """
     Return a pretty representation of the parameter's name and value.
     """
-    return "{}={}".format(self.name, self._getValue(config, litParams))
+    (prettyParameterValue, _) = self._getValue(config, litParams)
+    return "{}={}".format(self.name, prettyParameterValue)

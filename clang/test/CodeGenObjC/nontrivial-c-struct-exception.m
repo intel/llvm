@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple arm64-apple-ios11 -fobjc-arc -fblocks -fobjc-runtime=ios-11.0 -fobjc-exceptions -fexceptions -debug-info-kind=line-tables-only -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple arm64-apple-ios11 -fobjc-arc -fblocks -fobjc-runtime=ios-11.0 -fobjc-exceptions -fexceptions -debug-info-kind=line-tables-only -emit-llvm -o - %s | FileCheck %s
 
 // CHECK: %[[STRUCT_STRONG:.*]] = type { i32, i8* }
 // CHECK: %[[STRUCT_WEAK:.*]] = type { i32, i8* }
@@ -44,7 +44,7 @@ void testStrongException(void) {
 // CHECK: call void @genWeak(%[[STRUCT_WEAK]]* sret(%[[STRUCT_WEAK]]) align 8 %[[AGG_TMP]])
 // CHECK: invoke void @genWeak(%[[STRUCT_WEAK]]* sret(%[[STRUCT_WEAK]]) align 8 %[[AGG_TMP1]])
 
-// CHECK: call void @calleeWeak(%[[STRUCT_WEAK]]* %[[AGG_TMP]], %[[STRUCT_WEAK]]* %[[AGG_TMP1]])
+// CHECK: call void @calleeWeak(%[[STRUCT_WEAK]]* noundef %[[AGG_TMP]], %[[STRUCT_WEAK]]* noundef %[[AGG_TMP1]])
 // CHECK: ret void
 
 // CHECK: landingpad { i8*, i32 }
@@ -53,6 +53,9 @@ void testStrongException(void) {
 // CHECK: br label
 
 // CHECK: resume
+
+// CHECK: define{{.*}} void @__destructor_8_w8({{.*}} !dbg ![[DTOR_SP:.*]] {
+// CHECK: load i8**, i8*** {{.*}}, !dbg ![[DTOR_LOC:.*]]
 
 Weak genWeak(void);
 void calleeWeak(Weak, Weak);
@@ -63,3 +66,5 @@ void testWeakException(void) {
 
 // CHECK-DAG: [[ARTIFICIAL_LOC_1]] = !DILocation(line: 0
 // CHECK-DAG: [[ARTIFICIAL_LOC_2]] = !DILocation(line: 0
+// CHECK: ![[DTOR_SP]] = distinct !DISubprogram(linkageName: "__destructor_8_w8",
+// CHECK: ![[DTOR_LOC]] = !DILocation(line: 0, scope: ![[DTOR_SP]])

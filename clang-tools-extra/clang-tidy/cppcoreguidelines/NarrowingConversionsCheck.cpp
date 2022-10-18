@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "NarrowingConversionsCheck.h"
+#include "../utils/OptionsUtils.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Type.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/ASTMatchers/ASTMatchers.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -25,15 +28,39 @@ namespace cppcoreguidelines {
 NarrowingConversionsCheck::NarrowingConversionsCheck(StringRef Name,
                                                      ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
+      WarnOnIntegerNarrowingConversion(
+          Options.get("WarnOnIntegerNarrowingConversion", true)),
+      WarnOnIntegerToFloatingPointNarrowingConversion(
+          Options.get("WarnOnIntegerToFloatingPointNarrowingConversion", true)),
       WarnOnFloatingPointNarrowingConversion(
           Options.get("WarnOnFloatingPointNarrowingConversion", true)),
+      WarnWithinTemplateInstantiation(
+          Options.get("WarnWithinTemplateInstantiation", false)),
+      WarnOnEquivalentBitWidth(Options.get("WarnOnEquivalentBitWidth", true)),
+      IgnoreConversionFromTypes(Options.get("IgnoreConversionFromTypes", "")),
       PedanticMode(Options.get("PedanticMode", false)) {}
 
 void NarrowingConversionsCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "WarnOnIntegerNarrowingConversion",
+                WarnOnIntegerNarrowingConversion);
+  Options.store(Opts, "WarnOnIntegerToFloatingPointNarrowingConversion",
+                WarnOnIntegerToFloatingPointNarrowingConversion);
   Options.store(Opts, "WarnOnFloatingPointNarrowingConversion",
                 WarnOnFloatingPointNarrowingConversion);
+  Options.store(Opts, "WarnWithinTemplateInstantiation",
+                WarnWithinTemplateInstantiation);
+  Options.store(Opts, "WarnOnEquivalentBitWidth", WarnOnEquivalentBitWidth);
+  Options.store(Opts, "IgnoreConversionFromTypes", IgnoreConversionFromTypes);
   Options.store(Opts, "PedanticMode", PedanticMode);
+}
+
+AST_MATCHER(FieldDecl, hasIntBitwidth) {
+  assert(Node.isBitField());
+  const ASTContext &Ctx = Node.getASTContext();
+  unsigned IntBitWidth = Ctx.getIntWidth(Ctx.IntTy);
+  unsigned CurrentBitWidth = Node.getBitWidthValue(Ctx);
+  return IntBitWidth == CurrentBitWidth;
 }
 
 void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
@@ -41,6 +68,65 @@ void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
   // is not integral.
   const auto IsCeilFloorCallExpr = expr(callExpr(callee(functionDecl(
       hasAnyName("::ceil", "::std::ceil", "::floor", "::std::floor")))));
+
+  // We may want to exclude other types from the checks, such as `size_type`
+  // and `difference_type`. These are often used to count elements, represented
+  // in 64 bits and assigned to `int`. Rarely are people counting >2B elements.
+  const auto IsConversionFromIgnoredType = hasType(namedDecl(
+      hasAnyName(utils::options::parseStringList(IgnoreConversionFromTypes))));
+
+  // `IsConversionFromIgnoredType` will ignore narrowing calls from those types,
+  // but not expressions that are promoted to an ignored type as a result of a
+  // binary expression with one of those types.
+  // For example, it will continue to reject:
+  // `int narrowed = int_value + container.size()`.
+  // We attempt to address common incidents of compound expressions with
+  // `IsIgnoredTypeTwoLevelsDeep`, allowing binary expressions that have one
+  // operand of the ignored types and the other operand of another integer type.
+  const auto IsIgnoredTypeTwoLevelsDeep =
+      anyOf(IsConversionFromIgnoredType,
+            binaryOperator(hasOperands(IsConversionFromIgnoredType,
+                                       hasType(isInteger()))));
+
+  // Bitfields are special. Due to integral promotion [conv.prom/5] bitfield
+  // member access expressions are frequently wrapped by an implicit cast to
+  // `int` if that type can represent all the values of the bitfield.
+  //
+  // Consider these examples:
+  //   struct SmallBitfield { unsigned int id : 4; };
+  //   x.id & 1;             (case-1)
+  //   x.id & 1u;            (case-2)
+  //   x.id << 1u;           (case-3)
+  //   (unsigned)x.id << 1;  (case-4)
+  //
+  // Due to the promotion rules, we would get a warning for case-1. It's
+  // debatable how useful this is, but the user at least has a convenient way of
+  // //fixing// it by adding the `u` unsigned-suffix to the literal as
+  // demonstrated by case-2. However, this won't work for shift operators like
+  // the one in case-3. In case of a normal binary operator, both operands
+  // contribute to the result type. However, the type of the shift expression is
+  // the promoted type of the left operand. One could still suppress this
+  // superfluous warning by explicitly casting the bitfield member access as
+  // case-4 demonstrates, but why? The compiler already knew that the value from
+  // the member access should safely fit into an `int`, why do we have this
+  // warning in the first place? So, hereby we suppress this specific scenario.
+  //
+  // Note that the bitshift operation might invoke unspecified/undefined
+  // behavior, but that's another topic, this checker is about detecting
+  // conversion-related defects.
+  //
+  // Example AST for `x.id << 1`:
+  //   BinaryOperator 'int' '<<'
+  //   |-ImplicitCastExpr 'int' <IntegralCast>
+  //   | `-ImplicitCastExpr 'unsigned int' <LValueToRValue>
+  //   |   `-MemberExpr 'unsigned int' lvalue bitfield .id
+  //   |     `-DeclRefExpr 'SmallBitfield' lvalue ParmVar 'x' 'SmallBitfield'
+  //   `-IntegerLiteral 'int' 1
+  const auto ImplicitIntWidenedBitfieldValue = implicitCastExpr(
+      hasCastKind(CK_IntegralCast), hasType(asString("int")),
+      has(castExpr(hasCastKind(CK_LValueToRValue),
+                   has(ignoringParens(memberExpr(hasDeclaration(
+                       fieldDecl(isBitField(), unless(hasIntBitwidth())))))))));
 
   // Casts:
   //   i = 0.5;
@@ -53,7 +139,14 @@ void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
                                 hasUnqualifiedDesugaredType(builtinType()))),
                             unless(hasSourceExpression(IsCeilFloorCallExpr)),
                             unless(hasParent(castExpr())),
-                            unless(isInTemplateInstantiation()))
+                            WarnWithinTemplateInstantiation
+                                ? stmt()
+                                : stmt(unless(isInTemplateInstantiation())),
+                            IgnoreConversionFromTypes.empty()
+                                ? castExpr()
+                                : castExpr(unless(hasSourceExpression(
+                                      IsIgnoredTypeTwoLevelsDeep))),
+                            unless(ImplicitIntWidenedBitfieldValue))
                             .bind("cast")),
       this);
 
@@ -65,7 +158,12 @@ void NarrowingConversionsCheck::registerMatchers(MatchFinder *Finder) {
           hasLHS(expr(hasType(hasUnqualifiedDesugaredType(builtinType())))),
           hasRHS(expr(hasType(hasUnqualifiedDesugaredType(builtinType())))),
           unless(hasRHS(IsCeilFloorCallExpr)),
-          unless(isInTemplateInstantiation()),
+          WarnWithinTemplateInstantiation
+              ? binaryOperator()
+              : binaryOperator(unless(isInTemplateInstantiation())),
+          IgnoreConversionFromTypes.empty()
+              ? binaryOperator()
+              : binaryOperator(unless(hasRHS(IsIgnoredTypeTwoLevelsDeep))),
           // The `=` case generates an implicit cast
           // which is covered by the previous matcher.
           unless(hasOperatorName("=")))
@@ -170,6 +268,22 @@ static bool isWideEnoughToHold(const ASTContext &Context,
   return ToIntegerRange.contains(IntegerConstant);
 }
 
+// Returns true iff the floating point constant can be losslessly represented
+// by an integer in the given destination type. eg. 2.0 can be accurately
+// represented by an int32_t, but neither 2^33 nor 2.001 can.
+static bool isFloatExactlyRepresentable(const ASTContext &Context,
+                                        const llvm::APFloat &FloatConstant,
+                                        const QualType &DestType) {
+  unsigned DestWidth = Context.getIntWidth(DestType);
+  bool DestSigned = DestType->isSignedIntegerOrEnumerationType();
+  llvm::APSInt Result = llvm::APSInt(DestWidth, !DestSigned);
+  bool IsExact = false;
+  bool Overflows = FloatConstant.convertToInteger(
+                       Result, llvm::APFloat::rmTowardZero, &IsExact) &
+                   llvm::APFloat::opInvalidOp;
+  return !Overflows && IsExact;
+}
+
 static llvm::SmallString<64> getValueAsString(const llvm::APSInt &Value,
                                               uint64_t HexBits) {
   llvm::SmallString<64> Str;
@@ -184,6 +298,21 @@ static llvm::SmallString<64> getValueAsString(const llvm::APSInt &Value,
     Str.append(")");
   }
   return Str;
+}
+
+bool NarrowingConversionsCheck::isWarningInhibitedByEquivalentSize(
+    const ASTContext &Context, const BuiltinType &FromType,
+    const BuiltinType &ToType) const {
+  // With this option, we don't warn on conversions that have equivalent width
+  // in bits. eg. uint32 <-> int32.
+  if (!WarnOnEquivalentBitWidth) {
+    uint64_t FromTypeSize = Context.getTypeSize(&FromType);
+    uint64_t ToTypeSize = Context.getTypeSize(&ToType);
+    if (FromTypeSize == ToTypeSize) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void NarrowingConversionsCheck::diagNarrowType(SourceLocation SourceLoc,
@@ -247,24 +376,37 @@ void NarrowingConversionsCheck::handleIntegralCast(const ASTContext &Context,
                                                    SourceLocation SourceLoc,
                                                    const Expr &Lhs,
                                                    const Expr &Rhs) {
-  const BuiltinType *ToType = getBuiltinType(Lhs);
-  // From [conv.integral]p7.3.8:
-  // Conversions to unsigned integer is well defined so no warning is issued.
-  // "The resulting value is the smallest unsigned value equal to the source
-  // value modulo 2^n where n is the number of bits used to represent the
-  // destination type."
-  if (ToType->isUnsignedInteger())
-    return;
-  const BuiltinType *FromType = getBuiltinType(Rhs);
-  llvm::APSInt IntegerConstant;
-  if (getIntegerConstantExprValue(Context, Rhs, IntegerConstant)) {
-    if (!isWideEnoughToHold(Context, IntegerConstant, *ToType))
-      diagNarrowIntegerConstantToSignedInt(SourceLoc, Lhs, Rhs, IntegerConstant,
-                                           Context.getTypeSize(FromType));
-    return;
+  if (WarnOnIntegerNarrowingConversion) {
+    const BuiltinType *ToType = getBuiltinType(Lhs);
+    // From [conv.integral]p7.3.8:
+    // Conversions to unsigned integer is well defined so no warning is issued.
+    // "The resulting value is the smallest unsigned value equal to the source
+    // value modulo 2^n where n is the number of bits used to represent the
+    // destination type."
+    if (ToType->isUnsignedInteger())
+      return;
+    const BuiltinType *FromType = getBuiltinType(Rhs);
+
+    // With this option, we don't warn on conversions that have equivalent width
+    // in bits. eg. uint32 <-> int32.
+    if (!WarnOnEquivalentBitWidth) {
+      uint64_t FromTypeSize = Context.getTypeSize(FromType);
+      uint64_t ToTypeSize = Context.getTypeSize(ToType);
+      if (FromTypeSize == ToTypeSize)
+        return;
+    }
+
+    llvm::APSInt IntegerConstant;
+    if (getIntegerConstantExprValue(Context, Rhs, IntegerConstant)) {
+      if (!isWideEnoughToHold(Context, IntegerConstant, *ToType))
+        diagNarrowIntegerConstantToSignedInt(SourceLoc, Lhs, Rhs,
+                                             IntegerConstant,
+                                             Context.getTypeSize(FromType));
+      return;
+    }
+    if (!isWideEnoughToHold(Context, *FromType, *ToType))
+      diagNarrowTypeToSignedInt(SourceLoc, Lhs, Rhs);
   }
-  if (!isWideEnoughToHold(Context, *FromType, *ToType))
-    diagNarrowTypeToSignedInt(SourceLoc, Lhs, Rhs);
 }
 
 void NarrowingConversionsCheck::handleIntegralToBoolean(
@@ -280,41 +422,42 @@ void NarrowingConversionsCheck::handleIntegralToBoolean(
 void NarrowingConversionsCheck::handleIntegralToFloating(
     const ASTContext &Context, SourceLocation SourceLoc, const Expr &Lhs,
     const Expr &Rhs) {
-  const BuiltinType *ToType = getBuiltinType(Lhs);
-  llvm::APSInt IntegerConstant;
-  if (getIntegerConstantExprValue(Context, Rhs, IntegerConstant)) {
-    if (!isWideEnoughToHold(Context, IntegerConstant, *ToType))
-      diagNarrowIntegerConstant(SourceLoc, Lhs, Rhs, IntegerConstant);
-    return;
+  if (WarnOnIntegerToFloatingPointNarrowingConversion) {
+    const BuiltinType *ToType = getBuiltinType(Lhs);
+    llvm::APSInt IntegerConstant;
+    if (getIntegerConstantExprValue(Context, Rhs, IntegerConstant)) {
+      if (!isWideEnoughToHold(Context, IntegerConstant, *ToType))
+        diagNarrowIntegerConstant(SourceLoc, Lhs, Rhs, IntegerConstant);
+      return;
+    }
+
+    const BuiltinType *FromType = getBuiltinType(Rhs);
+    if (isWarningInhibitedByEquivalentSize(Context, *FromType, *ToType))
+      return;
+    if (!isWideEnoughToHold(Context, *FromType, *ToType))
+      diagNarrowType(SourceLoc, Lhs, Rhs);
   }
-  const BuiltinType *FromType = getBuiltinType(Rhs);
-  if (!isWideEnoughToHold(Context, *FromType, *ToType))
-    diagNarrowType(SourceLoc, Lhs, Rhs);
 }
 
 void NarrowingConversionsCheck::handleFloatingToIntegral(
     const ASTContext &Context, SourceLocation SourceLoc, const Expr &Lhs,
     const Expr &Rhs) {
   llvm::APFloat FloatConstant(0.0);
+  if (getFloatingConstantExprValue(Context, Rhs, FloatConstant)) {
+    if (!isFloatExactlyRepresentable(Context, FloatConstant, Lhs.getType()))
+      return diagNarrowConstant(SourceLoc, Lhs, Rhs);
 
-  // We always warn when Rhs is non-constexpr.
-  if (!getFloatingConstantExprValue(Context, Rhs, FloatConstant))
-    return diagNarrowType(SourceLoc, Lhs, Rhs);
+    if (PedanticMode)
+      return diagConstantCast(SourceLoc, Lhs, Rhs);
 
-  QualType DestType = Lhs.getType();
-  unsigned DestWidth = Context.getIntWidth(DestType);
-  bool DestSigned = DestType->isSignedIntegerOrEnumerationType();
-  llvm::APSInt Result = llvm::APSInt(DestWidth, !DestSigned);
-  bool IsExact = false;
-  bool Overflows = FloatConstant.convertToInteger(
-                       Result, llvm::APFloat::rmTowardZero, &IsExact) &
-                   llvm::APFloat::opInvalidOp;
-  // We warn iff the constant floating point value is not exactly representable.
-  if (Overflows || !IsExact)
-    return diagNarrowConstant(SourceLoc, Lhs, Rhs);
+    return;
+  }
 
-  if (PedanticMode)
-    return diagConstantCast(SourceLoc, Lhs, Rhs);
+  const BuiltinType *FromType = getBuiltinType(Rhs);
+  const BuiltinType *ToType = getBuiltinType(Lhs);
+  if (isWarningInhibitedByEquivalentSize(Context, *FromType, *ToType))
+    return;
+  diagNarrowType(SourceLoc, Lhs, Rhs); // Assumed always lossy.
 }
 
 void NarrowingConversionsCheck::handleFloatingToBoolean(

@@ -31,6 +31,15 @@ namespace clang {
   /// Define the kind of constexpr specifier.
   enum class ConstexprSpecKind { Unspecified, Constexpr, Consteval, Constinit };
 
+  /// In an if statement, this denotes whether the the statement is
+  /// a constexpr or consteval if statement.
+  enum class IfStatementKind : unsigned {
+    Ordinary,
+    Constexpr,
+    ConstevalNonNegated,
+    ConstevalNegated
+  };
+
   /// Specifies the width of a type, e.g., short, long, or long long.
   enum class TypeSpecifierWidth { Unspecified, Short, Long, LongLong };
 
@@ -44,40 +53,44 @@ namespace clang {
     TST_unspecified,
     TST_void,
     TST_char,
-    TST_wchar,        // C++ wchar_t
-    TST_char8,        // C++20 char8_t (proposed)
-    TST_char16,       // C++11 char16_t
-    TST_char32,       // C++11 char32_t
+    TST_wchar,  // C++ wchar_t
+    TST_char8,  // C++20 char8_t (proposed)
+    TST_char16, // C++11 char16_t
+    TST_char32, // C++11 char32_t
     TST_int,
     TST_int128,
-    TST_extint,       // Extended Int types.
-    TST_half,         // OpenCL half, ARM NEON __fp16
-    TST_Float16,      // C11 extension ISO/IEC TS 18661-3
-    TST_Accum,        // ISO/IEC JTC1 SC22 WG14 N1169 Extension
+    TST_bitint,  // Bit-precise integer types.
+    TST_half,    // OpenCL half, ARM NEON __fp16
+    TST_Float16, // C11 extension ISO/IEC TS 18661-3
+    TST_Accum,   // ISO/IEC JTC1 SC22 WG14 N1169 Extension
     TST_Fract,
     TST_BFloat16,
     TST_float,
     TST_double,
     TST_float128,
-    TST_bool,         // _Bool
-    TST_decimal32,    // _Decimal32
-    TST_decimal64,    // _Decimal64
-    TST_decimal128,   // _Decimal128
+    TST_ibm128,
+    TST_bool,       // _Bool
+    TST_decimal32,  // _Decimal32
+    TST_decimal64,  // _Decimal64
+    TST_decimal128, // _Decimal128
     TST_enum,
     TST_union,
     TST_struct,
-    TST_class,        // C++ class type
-    TST_interface,    // C++ (Microsoft-specific) __interface type
-    TST_typename,     // Typedef, C++ class-name or enum name, etc.
-    TST_typeofType,
-    TST_typeofExpr,
-    TST_decltype,         // C++11 decltype
-    TST_underlyingType,   // __underlying_type for C++11
-    TST_auto,             // C++11 auto
-    TST_decltype_auto,    // C++1y decltype(auto)
-    TST_auto_type,        // __auto_type extension
-    TST_unknown_anytype,  // __unknown_anytype extension
-    TST_atomic,           // C11 _Atomic
+    TST_class,     // C++ class type
+    TST_interface, // C++ (Microsoft-specific) __interface type
+    TST_typename,  // Typedef, C++ class-name or enum name, etc.
+    TST_typeofType,        // C2x (and GNU extension) typeof(type-name)
+    TST_typeofExpr,        // C2x (and GNU extension) typeof(expression)
+    TST_typeof_unqualType, // C2x typeof_unqual(type-name)
+    TST_typeof_unqualExpr, // C2x typeof_unqual(expression)
+    TST_decltype, // C++11 decltype
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) TST_##Trait,
+#include "clang/Basic/TransformTypeTraits.def"
+    TST_auto,            // C++11 auto
+    TST_decltype_auto,   // C++1y decltype(auto)
+    TST_auto_type,       // __auto_type extension
+    TST_unknown_anytype, // __unknown_anytype extension
+    TST_atomic,          // C11 _Atomic
 #define GENERIC_IMAGE_TYPE(ImgType, Id) TST_##ImgType##_t, // OpenCL image types
 #include "clang/Basic/OpenCLImageTypes.def"
     TST_error // erroneous type
@@ -86,8 +99,8 @@ namespace clang {
   /// Structure that packs information about the type specifiers that
   /// were written in a particular type specifier sequence.
   struct WrittenBuiltinSpecs {
-    static_assert(TST_error < 1 << 6, "Type bitfield not wide enough for TST");
-    /*DeclSpec::TST*/ unsigned Type  : 6;
+    static_assert(TST_error < 1 << 7, "Type bitfield not wide enough for TST");
+    /*DeclSpec::TST*/ unsigned Type : 7;
     /*DeclSpec::TSS*/ unsigned Sign  : 2;
     /*TypeSpecifierWidth*/ unsigned Width : 2;
     unsigned ModeAttr : 1;
@@ -105,9 +118,9 @@ namespace clang {
   /// The categorization of expression values, currently following the
   /// C++11 scheme.
   enum ExprValueKind {
-    /// An r-value expression (a pr-value in the C++11 taxonomy)
+    /// A pr-value expression (in the C++11 taxonomy)
     /// produces a temporary value.
-    VK_RValue,
+    VK_PRValue,
 
     /// An l-value expression is a reference to an object with
     /// independent storage.
@@ -266,9 +279,12 @@ namespace clang {
     CC_SpirFunction, // default for OpenCL functions on SPIR target
     CC_OpenCLKernel, // inferred for OpenCL kernels
     CC_Swift,        // __attribute__((swiftcall))
+    CC_SwiftAsync,        // __attribute__((swiftasynccall))
     CC_PreserveMost, // __attribute__((preserve_most))
     CC_PreserveAll,  // __attribute__((preserve_all))
     CC_AArch64VectorCall, // __attribute__((aarch64_vector_pcs))
+    CC_AArch64SVEPCS, // __attribute__((aarch64_sve_pcs))
+    CC_AMDGPUKernelCall, // __attribute__((amdgpu_kernel))
   };
 
   /// Checks whether the given calling convention supports variadic
@@ -284,6 +300,7 @@ namespace clang {
     case CC_SpirFunction:
     case CC_OpenCLKernel:
     case CC_Swift:
+    case CC_SwiftAsync:
       return false;
     default:
       return true;
@@ -312,7 +329,7 @@ namespace clang {
     Unspecified,
     // Generally behaves like Nullable, except when used in a block parameter
     // that was imported into a swift async method. There, swift will assume
-    // that the parameter can get null even if no error occured. _Nullable
+    // that the parameter can get null even if no error occurred. _Nullable
     // parameters are assumed to only get null on error.
     NullableResult,
   };
@@ -344,7 +361,12 @@ namespace clang {
     /// This parameter (which must have pointer type) uses the special
     /// Swift context-pointer ABI treatment.  There can be at
     /// most one parameter on a given function that uses this treatment.
-    SwiftContext
+    SwiftContext,
+
+    /// This parameter (which must have pointer type) uses the special
+    /// Swift asynchronous context-pointer ABI treatment.  There can be at
+    /// most one parameter on a given function that uses this treatment.
+    SwiftAsyncContext,
   };
 
   /// Assigned inheritance model for a class in the MS C++ ABI. Must match order

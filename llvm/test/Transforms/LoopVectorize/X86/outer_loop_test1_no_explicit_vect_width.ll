@@ -42,7 +42,7 @@
 ; CHECK: br i1 %[[InnerCond]], label %[[ForInc]], label %[[InnerLoop]]
 
 ; CHECK: [[ForInc]]:
-; CHECK: %[[IndNext]] = add i64 %[[Ind]], 4
+; CHECK: %[[IndNext]] = add nuw i64 %[[Ind]], 4
 ; CHECK: %[[VecIndNext]] = add <4 x i64> %[[VecInd]], <i64 4, i64 4, i64 4, i64 4>
 ; CHECK: %[[Cmp:.*]] = icmp eq i64 %[[IndNext]], 8
 ; CHECK: br i1 %[[Cmp]], label %middle.block, label %vector.body
@@ -71,10 +71,9 @@
 ; AVX: br i1 %[[InnerCond]], label %[[ForInc]], label %[[InnerLoop]]
 
 ; AVX: [[ForInc]]:
-; AVX: %[[IndNext]] = add i64 %[[Ind]], 8
 ; AVX: %[[VecIndNext]] = add <8 x i64> %[[VecInd]], <i64 8, i64 8, i64 8, i64 8, i64 8, i64 8, i64 8, i64 8>
-; AVX: %[[Cmp:.*]] = icmp eq i64 %[[IndNext]], 8
-; AVX: br i1 %[[Cmp]], label %middle.block, label %vector.body
+; AVX: %[[IndNext]] = add nuw i64 %[[Ind]], 8
+; AVX: br i1 true, label %middle.block, label %vector.body
 
 @arr2 = external global [8 x i32], align 16
 @arr = external global [8 x [8 x i32]], align 16

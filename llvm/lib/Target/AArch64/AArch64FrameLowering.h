@@ -18,17 +18,16 @@
 
 namespace llvm {
 
-class MCCFIInstruction;
-
 class AArch64FrameLowering : public TargetFrameLowering {
 public:
   explicit AArch64FrameLowering()
       : TargetFrameLowering(StackGrowsDown, Align(16), 0, Align(16),
                             true /*StackRealignable*/) {}
 
-  void
-  emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator MBBI) const override;
+  void emitCalleeSavedFrameMoves(MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator MBBI) const;
+
+  void resetCFIToInitialState(MachineBasicBlock &MBB) const override;
 
   MachineBasicBlock::iterator
   eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
@@ -67,10 +66,11 @@ public:
   bool hasFP(const MachineFunction &MF) const override;
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
 
-  bool
-  assignCalleeSavedSpillSlots(MachineFunction &MF,
-                              const TargetRegisterInfo *TRI,
-                              std::vector<CalleeSavedInfo> &CSI) const override;
+  bool assignCalleeSavedSpillSlots(MachineFunction &MF,
+                                   const TargetRegisterInfo *TRI,
+                                   std::vector<CalleeSavedInfo> &CSI,
+                                   unsigned &MinCSFrameIndex,
+                                   unsigned &MaxCSFrameIndex) const override;
 
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS) const override;
@@ -84,7 +84,7 @@ public:
   TargetStackID::Value getStackIDForScalableVectors() const override;
 
   void processFunctionBeforeFrameFinalized(MachineFunction &MF,
-                                             RegScavenger *RS) const override;
+                                           RegScavenger *RS) const override;
 
   void
   processFunctionBeforeFrameIndicesReplaced(MachineFunction &MF,
@@ -141,13 +141,20 @@ private:
   int64_t assignSVEStackObjectOffsets(MachineFrameInfo &MF,
                                       int &MinCSFrameIndex,
                                       int &MaxCSFrameIndex) const;
-  MCCFIInstruction
-  createDefCFAExpressionFromSP(const TargetRegisterInfo &TRI,
-                               const StackOffset &OffsetFromSP) const;
-  MCCFIInstruction createCfaOffset(const TargetRegisterInfo &MRI, unsigned DwarfReg,
-                                   const StackOffset &OffsetFromDefCFA) const;
   bool shouldCombineCSRLocalStackBumpInEpilogue(MachineBasicBlock &MBB,
                                                 unsigned StackBumpBytes) const;
+  void emitCalleeSavedGPRLocations(MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator MBBI) const;
+  void emitCalleeSavedSVELocations(MachineBasicBlock &MBB,
+                                   MachineBasicBlock::iterator MBBI) const;
+  void emitCalleeSavedGPRRestores(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator MBBI) const;
+  void emitCalleeSavedSVERestores(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator MBBI) const;
+
+  /// Emit target zero call-used regs.
+  void emitZeroCallUsedRegs(BitVector RegsToZero,
+                            MachineBasicBlock &MBB) const override;
 };
 
 } // End llvm namespace

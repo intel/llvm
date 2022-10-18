@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple=x86_64-unknown-unknown -frecovery-ast -frecovery-ast-type -o - %s -fsyntax-only -verify
+// RUN: %clang_cc1 -triple=x86_64-unknown-unknown -frecovery-ast -frecovery-ast-type -o - %s -std=gnu++17 -fsyntax-only -verify
 
 namespace test0 {
 struct Indestructible {
@@ -26,7 +26,7 @@ namespace test2 {
 void foo(); // expected-note 3{{requires 0 arguments}}
 void func() {
   // verify that "field has incomplete type" diagnostic is suppressed.
-  typeof(foo(42)) var; // expected-error {{no matching function}}
+  typeof(foo(42)) var; // expected-error {{no matching function}} \
 
   // FIXME: suppress the "cannot initialize a variable" diagnostic.
   int a = foo(1); // expected-error {{no matching function}} \
@@ -101,7 +101,7 @@ void test() {
 namespace test8 {
 typedef int arr[];
 int v = arr(); // expected-error {{array types cannot be value-initialized}} \
-                  expected-error {{cannot initialize a variable of type 'int' with an rvalue of type 'test8::arr'}}
+                  expected-error {{cannot initialize a variable of type 'int' with an rvalue of type 'arr'}}
 }
 
 namespace test9 {
@@ -115,4 +115,59 @@ namespace test10 {
 int f(); // expected-note {{candidate}}
 template<typename T> const int k = f(T()); // expected-error {{no matching function}}
 static_assert(k<int> == 1, ""); // expected-note {{instantiation of}}
+}
+
+namespace test11 {
+// Verify we do not assert()-fail here.
+template <class T> void foo(T &t);
+template <typename T>
+void bar(T t) {
+  foo(t);
+}
+
+template <typename T = void *>
+struct S { // expected-note {{candidate}}
+  S(T t);  // expected-note {{candidate}}
+  ~S();
+};
+template <typename T> S(T t) -> S<void *>;
+
+void baz() {
+  bar(S(123)); // expected-error {{no matching conversion for functional-style cast from 'int' to 'S<void *>'}}
+}
+} // namespace test11
+
+namespace test12 {
+// Verify we do not crash.
+int fun(int *foo = no_such_function()); // expected-error {{undeclared identifier}}
+void crash1() { fun(); }
+void crash2() { constexpr int s = fun(); }
+} // namespace test12
+
+namespace test13 {
+enum Circular {             // expected-note {{not complete until the closing '}'}}
+  Circular_A = Circular(1), // expected-error {{'Circular' is an incomplete type}}
+};
+// Enumerators can be evaluated (they evaluate as zero, but we don't care).
+static_assert(Circular_A == 0 && Circular_A != 0, ""); // expected-error {{static assertion failed}} \
+                                                       // expected-note {{evaluates to '0 != 0'}}
+}
+
+namespace test14 {
+extern "C" void *memset(void *, int b, unsigned long) {
+  int * const c(undef()); // expected-error {{undeclared identifier}}
+  // Verify we do not crash on evaluating *c whose initializer is a NULL-type ParenListExpr!
+  memset(c, 0, *c); // crash1
+
+  b = __builtin_object_size(c, 0); // crash2
+}
+}
+
+namespace test15 {
+void f() {
+  struct {
+    void m(int (&)[undefined()]) {} // expected-error {{undeclared identifier}}
+  } S;
+  S.m(1); // no crash
+}
 }

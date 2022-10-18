@@ -43,6 +43,13 @@ def AArch64PreLegalizerCombinerHelper: GICombinerHelper<
   let AdditionalArguments = [];
 }
 
+def AArch64O0PreLegalizerCombinerHelper: GICombinerHelper<
+  "AArch64GenO0PreLegalizerCombinerHelper", [optnone_combines]> {
+  let DisableRuleOption = "aarch64O0prelegalizercombiner-disable-rule";
+  let StateClass = "AArch64O0PreLegalizerCombinerHelperState";
+  let AdditionalArguments = [];
+}
+
 // Matchdata for combines which replace a G_SHUFFLE_VECTOR with a
 // target-specific opcode.
 def shuffle_matchdata : GIDefMatchData<"ShuffleVectorPseudo">;
@@ -127,7 +134,14 @@ def adjust_icmp_imm : GICombineRule <
   (apply [{ applyAdjustICmpImmAndPred(*${root}, ${matchinfo}, B, Observer); }])
 >;
 
-def icmp_lowering : GICombineGroup<[adjust_icmp_imm]>;
+def swap_icmp_operands : GICombineRule <
+  (defs root:$root),
+  (match (wip_match_opcode G_ICMP):$root,
+          [{ return trySwapICmpOperands(*${root}, MRI); }]),
+  (apply [{ applySwapICmpOperands(*${root}, Observer); }])
+>;
+
+def icmp_lowering : GICombineGroup<[adjust_icmp_imm, swap_icmp_operands]>;
 
 def extractvecelt_pairwise_add_matchdata : GIDefMatchData<"std::tuple<unsigned, LLT, Register>">;
 def extractvecelt_pairwise_add : GICombineRule<
@@ -154,13 +168,40 @@ def build_vector_to_dup : GICombineRule<
 
 def build_vector_lowering : GICombineGroup<[build_vector_to_dup]>;
 
-def bitfield_extract_from_sext_inreg : GICombineRule<
-  (defs root:$root, build_fn_matchinfo:$info),
-  (match (wip_match_opcode G_SEXT_INREG):$root,
-    [{ return matchBitfieldExtractFromSExtInReg(*${root}, MRI, ${info}); }]),
-  (apply [{ return Helper.applyBuildFn(*${root}, ${info}); }])>;
+def lower_vector_fcmp : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_FCMP):$root,
+    [{ return lowerVectorFCMP(*${root}, MRI, B); }]),
+  (apply [{}])>;
 
-def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg]>;
+def form_truncstore_matchdata : GIDefMatchData<"Register">;
+def form_truncstore : GICombineRule<
+  (defs root:$root, form_truncstore_matchdata:$matchinfo),
+  (match (wip_match_opcode G_STORE):$root,
+          [{ return matchFormTruncstore(*${root}, MRI, ${matchinfo}); }]),
+  (apply [{ applyFormTruncstore(*${root}, MRI, B, Observer, ${matchinfo}); }])
+>;
+
+def fold_merge_to_zext : GICombineRule<
+  (defs root:$d),
+  (match (wip_match_opcode G_MERGE_VALUES):$d,
+          [{ return matchFoldMergeToZext(*${d}, MRI); }]),
+  (apply [{ applyFoldMergeToZext(*${d}, MRI, B, Observer); }])
+>;
+
+def mutate_anyext_to_zext : GICombineRule<
+  (defs root:$d),
+  (match (wip_match_opcode G_ANYEXT):$d,
+          [{ return matchMutateAnyExtToZExt(*${d}, MRI); }]),
+  (apply [{ applyMutateAnyExtToZExt(*${d}, MRI, B, Observer); }])
+>;
+
+def split_store_zero_128 : GICombineRule<
+  (defs root:$d),
+  (match (wip_match_opcode G_STORE):$d,
+          [{ return matchSplitStoreZero128(*${d}, MRI); }]),
+  (apply [{ applySplitStoreZero128(*${d}, MRI, B, Observer); }])
+>;
 
 // Post-legalization combines which should happen at all optimization levels.
 // (E.g. ones that facilitate matching for the selector) For example, matching
@@ -168,19 +209,26 @@ def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg]>;
 def AArch64PostLegalizerLoweringHelper
     : GICombinerHelper<"AArch64GenPostLegalizerLoweringHelper",
                        [shuffle_vector_lowering, vashr_vlshr_imm,
-                        icmp_lowering, build_vector_lowering]> {
+                        icmp_lowering, build_vector_lowering,
+                        lower_vector_fcmp, form_truncstore]> {
   let DisableRuleOption = "aarch64postlegalizerlowering-disable-rule";
 }
 
 // Post-legalization combines which are primarily optimizations.
 def AArch64PostLegalizerCombinerHelper
     : GICombinerHelper<"AArch64GenPostLegalizerCombinerHelper",
-                       [copy_prop, erase_undef_store, combines_for_extload,
-                        sext_trunc_sextload,
+                       [copy_prop, combines_for_extload,
+                        sext_trunc_sextload, mutate_anyext_to_zext,
                         hoist_logic_op_with_same_opcode_hands,
                         redundant_and, xor_of_and_with_same_reg,
                         extractvecelt_pairwise_add, redundant_or,
                         mul_const, redundant_sext_inreg,
-                        form_bitfield_extract]> {
+                        form_bitfield_extract, rotate_out_of_range,
+                        icmp_to_true_false_known_bits, merge_unmerge,
+                        select_combines, fold_merge_to_zext,
+                        constant_fold, identity_combines,
+                        ptr_add_immed_chain, overlapping_and,
+                        split_store_zero_128, undef_combines,
+                        select_to_minmax]> {
   let DisableRuleOption = "aarch64postlegalizercombiner-disable-rule";
 }

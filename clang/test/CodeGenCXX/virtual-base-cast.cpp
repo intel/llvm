@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -emit-llvm %s -o - -triple i686-pc-linux-gnu | FileCheck %s
-// RUN: %clang_cc1 -emit-llvm %s -o - -triple i686-pc-win32 | FileCheck -check-prefix MSVC %s
+// RUN: %clang_cc1 -no-opaque-pointers -emit-llvm %s -o - -triple i686-pc-linux-gnu | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -emit-llvm %s -o - -triple i686-pc-win32 | FileCheck -check-prefix MSVC %s
 
 struct A { int a; virtual int aa(); };
 struct B { int b; virtual int bb(); };
@@ -82,4 +82,4 @@ BB* d() { return y; }
 // MSVC:   add nsw i32 4, %[[offset]]
 // MSVC: }
 
-// CHECK: attributes [[NUW]] = { noinline nounwind{{.*}} }
+// CHECK: attributes [[NUW]] = { mustprogress noinline nounwind{{.*}} }

@@ -17,8 +17,8 @@ target triple = "x86_64-unknown-linux-gnu"
 define dso_local i32 @main() nounwind uwtable {
 ; CHECK-LABEL: main:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    movq {{.*}}(%rip), %rsi
-; CHECK-NEXT:    movq {{.*}}(%rip), %rax
+; CHECK-NEXT:    movq i(%rip), %rsi
+; CHECK-NEXT:    movq j(%rip), %rax
 ; CHECK-NEXT:    movq %rsi, %rdx
 ; CHECK-NEXT:    shrq $8, %rdx
 ; CHECK-NEXT:    movsbl %al, %ecx
@@ -32,13 +32,13 @@ define dso_local i32 @main() nounwind uwtable {
 ; CHECK-NEXT:    movzbl %al, %eax
 ; CHECK-NEXT:    movd %eax, %xmm0
 ; CHECK-NEXT:    pinsrb $1, %ecx, %xmm0
-; CHECK-NEXT:    pextrw $0, %xmm0, {{.*}}(%rip)
+; CHECK-NEXT:    pextrw $0, %xmm0, res(%rip)
 ; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    retq
 entry:
-  %0 = load <2 x i8>, <2 x i8>* @i, align 8
-  %1 = load <2 x i8>, <2 x i8>* @j, align 8
+  %0 = load <2 x i8>, ptr @i, align 8
+  %1 = load <2 x i8>, ptr @j, align 8
   %div = sdiv <2 x i8> %1, %0
-  store <2 x i8> %div, <2 x i8>* getelementptr inbounds (%union.anon, %union.anon* @res, i32 0, i32 0), align 8
+  store <2 x i8> %div, ptr @res, align 8
   ret i32 0
 }

@@ -32,6 +32,7 @@
 #include "llvm/ADT/SparseSet.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/MC/MCRegister.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include <cassert>
 #include <utility>
@@ -39,6 +40,7 @@
 namespace llvm {
 
 class MachineInstr;
+class MachineFunction;
 class MachineOperand;
 class MachineRegisterInfo;
 class raw_ostream;
@@ -132,6 +134,10 @@ public:
   /// Live in registers are the registers in the blocks live-in list and the
   /// pristine registers.
   void addLiveIns(const MachineBasicBlock &MBB);
+
+  /// Adds all live-in registers of basic block \p MBB but skips pristine
+  /// registers.
+  void addLiveInsNoPristines(const MachineBasicBlock &MBB);
 
   /// Adds all live-out registers of basic block \p MBB.
   /// Live out registers are the union of the live-in registers of the successor

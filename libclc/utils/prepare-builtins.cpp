@@ -75,6 +75,18 @@ int main(int argc, char **argv) {
   if (NamedMDNode *OCLVersion = M->getNamedMetadata("opencl.ocl.version"))
       M->eraseNamedMetadata(OCLVersion);
 
+  // wchar_size flag can cause a mismatch between libclc libraries and
+  // modules using them. Since wchar is not used by libclc we drop the flag
+  if (M->getModuleFlag("wchar_size")) {
+    SmallVector<Module::ModuleFlagEntry, 4> ModuleFlags;
+    M->getModuleFlagsMetadata(ModuleFlags);
+    M->getModuleFlagsMetadata()->clearOperands();
+    for (const Module::ModuleFlagEntry ModuleFlag : ModuleFlags)
+      if (ModuleFlag.Key->getString() != "wchar_size")
+        M->addModuleFlag(ModuleFlag.Behavior, ModuleFlag.Key->getString(),
+                         ModuleFlag.Val);
+  }
+
   // Set linkage of every external definition to linkonce_odr.
   for (Module::iterator i = M->begin(), e = M->end(); i != e; ++i) {
     if (!i->isDeclaration() && i->getLinkage() == GlobalValue::ExternalLinkage)
@@ -95,10 +107,10 @@ int main(int argc, char **argv) {
   std::error_code EC;
 #if HAVE_LLVM >= 0x0600
   std::unique_ptr<ToolOutputFile> Out(
-      new ToolOutputFile(OutputFilename, EC, sys::fs::F_None));
+      new ToolOutputFile(OutputFilename, EC, sys::fs::OF_None));
 #else
   std::unique_ptr<tool_output_file> Out(
-      new tool_output_file(OutputFilename, EC, sys::fs::F_None));
+      new tool_output_file(OutputFilename, EC, sys::fs::OF_None));
 #endif
   if (EC) {
     errs() << EC.message() << '\n';

@@ -41,8 +41,7 @@ struct CoverageMappingRecord {
 };
 
 /// A file format agnostic iterator over coverage mapping data.
-class CoverageMappingIterator
-    : public std::iterator<std::input_iterator_tag, CoverageMappingRecord> {
+class CoverageMappingIterator {
   CoverageMappingReader *Reader;
   CoverageMappingRecord Record;
   coveragemap_error ReadErr;
@@ -50,11 +49,17 @@ class CoverageMappingIterator
   void increment();
 
 public:
+  using iterator_category = std::input_iterator_tag;
+  using value_type = CoverageMappingRecord;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
   CoverageMappingIterator()
-      : Reader(nullptr), Record(), ReadErr(coveragemap_error::success) {}
+      : Reader(nullptr), ReadErr(coveragemap_error::success) {}
 
   CoverageMappingIterator(CoverageMappingReader *Reader)
-      : Reader(Reader), Record(), ReadErr(coveragemap_error::success) {
+      : Reader(Reader), ReadErr(coveragemap_error::success) {
     increment();
   }
 
@@ -174,6 +179,8 @@ public:
           FilenamesBegin(FilenamesBegin), FilenamesSize(FilenamesSize) {}
   };
 
+  using FuncRecordsStorage = std::unique_ptr<MemoryBuffer>;
+
 private:
   std::vector<std::string> Filenames;
   std::vector<ProfileMappingRecord> MappingRecords;
@@ -186,9 +193,9 @@ private:
   // Used to tie the lifetimes of coverage function records to the lifetime of
   // this BinaryCoverageReader instance. Needed to support the format change in
   // D69471, which can split up function records into multiple sections on ELF.
-  std::string FuncRecords;
+  FuncRecordsStorage FuncRecords;
 
-  BinaryCoverageReader(std::string &&FuncRecords)
+  BinaryCoverageReader(FuncRecordsStorage &&FuncRecords)
       : FuncRecords(std::move(FuncRecords)) {}
 
 public:
@@ -197,13 +204,16 @@ public:
 
   static Expected<std::vector<std::unique_ptr<BinaryCoverageReader>>>
   create(MemoryBufferRef ObjectBuffer, StringRef Arch,
-         SmallVectorImpl<std::unique_ptr<MemoryBuffer>> &ObjectFileBuffers);
+         SmallVectorImpl<std::unique_ptr<MemoryBuffer>> &ObjectFileBuffers,
+         StringRef CompilationDir = "");
 
   static Expected<std::unique_ptr<BinaryCoverageReader>>
-  createCoverageReaderFromBuffer(StringRef Coverage, std::string &&FuncRecords,
+  createCoverageReaderFromBuffer(StringRef Coverage,
+                                 FuncRecordsStorage &&FuncRecords,
                                  InstrProfSymtab &&ProfileNames,
                                  uint8_t BytesInAddress,
-                                 support::endianness Endian);
+                                 support::endianness Endian,
+                                 StringRef CompilationDir = "");
 
   Error readNextRecord(CoverageMappingRecord &Record) override;
 };
@@ -211,14 +221,17 @@ public:
 /// Reader for the raw coverage filenames.
 class RawCoverageFilenamesReader : public RawCoverageReader {
   std::vector<std::string> &Filenames;
+  StringRef CompilationDir;
 
   // Read an uncompressed sequence of filenames.
   Error readUncompressed(CovMapVersion Version, uint64_t NumFilenames);
 
 public:
   RawCoverageFilenamesReader(StringRef Data,
-                             std::vector<std::string> &Filenames)
-      : RawCoverageReader(Data), Filenames(Filenames) {}
+                             std::vector<std::string> &Filenames,
+                             StringRef CompilationDir = "")
+      : RawCoverageReader(Data), Filenames(Filenames),
+        CompilationDir(CompilationDir) {}
   RawCoverageFilenamesReader(const RawCoverageFilenamesReader &) = delete;
   RawCoverageFilenamesReader &
   operator=(const RawCoverageFilenamesReader &) = delete;

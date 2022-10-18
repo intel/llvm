@@ -29,6 +29,7 @@
 // execution, this mechanism is not used by default and only executes binaries
 // in the paths that are explicitly included by the user.
 
+#include "CompileCommands.h"
 #include "GlobalCompilationDatabase.h"
 #include "support/Logger.h"
 #include "support/Path.h"
@@ -38,12 +39,10 @@
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Driver/Types.h"
 #include "clang/Tooling/CompilationDatabase.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -51,6 +50,7 @@
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include <algorithm>
+#include <iterator>
 #include <map>
 #include <string>
 #include <vector>
@@ -164,15 +164,6 @@ extractSystemIncludesAndTarget(llvm::SmallString<128> Driver,
     return llvm::None;
   }
 
-  if (!llvm::sys::fs::exists(Driver)) {
-    elog("System include extraction: {0} does not exist.", Driver);
-    return llvm::None;
-  }
-  if (!llvm::sys::fs::can_execute(Driver)) {
-    elog("System include extraction: {0} is not executable.", Driver);
-    return llvm::None;
-  }
-
   llvm::SmallString<128> StdErrPath;
   if (auto EC = llvm::sys::fs::createTemporaryFile("system-includes", "clangd",
                                                    StdErrPath)) {
@@ -184,8 +175,7 @@ extractSystemIncludesAndTarget(llvm::SmallString<128> Driver,
   auto CleanUp = llvm::make_scope_exit(
       [&StdErrPath]() { llvm::sys::fs::remove(StdErrPath); });
 
-  llvm::Optional<llvm::StringRef> Redirects[] = {
-      {""}, {""}, llvm::StringRef(StdErrPath)};
+  llvm::Optional<llvm::StringRef> Redirects[] = {{""}, {""}, StdErrPath.str()};
 
   llvm::SmallVector<llvm::StringRef> Args = {Driver, "-E", "-x",
                                              Lang,   "-",  "-v"};
@@ -199,8 +189,7 @@ extractSystemIncludesAndTarget(llvm::SmallString<128> Driver,
 
   for (size_t I = 0, E = CommandLine.size(); I < E; ++I) {
     llvm::StringRef Arg = CommandLine[I];
-    if (llvm::any_of(FlagsToPreserve,
-                     [&Arg](llvm::StringRef S) { return S == Arg; })) {
+    if (llvm::is_contained(FlagsToPreserve, Arg)) {
       Args.push_back(Arg);
     } else {
       const auto *Found =
@@ -219,11 +208,13 @@ extractSystemIncludesAndTarget(llvm::SmallString<128> Driver,
     }
   }
 
+  std::string ErrMsg;
   if (int RC = llvm::sys::ExecuteAndWait(Driver, Args, /*Env=*/llvm::None,
-                                         Redirects)) {
+                                         Redirects, /*SecondsToWait=*/0,
+                                         /*MemoryLimit=*/0, &ErrMsg)) {
     elog("System include extraction: driver execution failed with return code: "
-         "{0}. Args: [{1}]",
-         llvm::to_string(RC), printArgv(Args));
+         "{0} - '{1}'. Args: [{2}]",
+         llvm::to_string(RC), ErrMsg, printArgv(Args));
     return llvm::None;
   }
 
@@ -247,10 +238,17 @@ extractSystemIncludesAndTarget(llvm::SmallString<128> Driver,
 tooling::CompileCommand &
 addSystemIncludes(tooling::CompileCommand &Cmd,
                   llvm::ArrayRef<std::string> SystemIncludes) {
+  std::vector<std::string> ToAppend;
   for (llvm::StringRef Include : SystemIncludes) {
     // FIXME(kadircet): This doesn't work when we have "--driver-mode=cl"
-    Cmd.CommandLine.push_back("-isystem");
-    Cmd.CommandLine.push_back(Include.str());
+    ToAppend.push_back("-isystem");
+    ToAppend.push_back(Include.str());
+  }
+  if (!ToAppend.empty()) {
+    // Just append when `--` isn't present.
+    auto InsertAt = llvm::find(Cmd.CommandLine, "--");
+    Cmd.CommandLine.insert(InsertAt, std::make_move_iterator(ToAppend.begin()),
+                           std::make_move_iterator(ToAppend.end()));
   }
   return Cmd;
 }
@@ -263,7 +261,9 @@ tooling::CompileCommand &setTarget(tooling::CompileCommand &Cmd,
       if (Arg == "-target" || Arg.startswith("--target="))
         return Cmd;
     }
-    Cmd.CommandLine.push_back("--target=" + Target);
+    // Just append when `--` isn't present.
+    auto InsertAt = llvm::find(Cmd.CommandLine, "--");
+    Cmd.CommandLine.insert(InsertAt, "--target=" + Target);
   }
   return Cmd;
 }
@@ -284,6 +284,10 @@ std::string convertGlobToRegex(llvm::StringRef Glob) {
         // Single star, accept any sequence without a slash.
         RegStream << "[^/]*";
       }
+    } else if (llvm::sys::path::is_separator(Glob[I]) &&
+               llvm::sys::path::is_separator('/') &&
+               llvm::sys::path::is_separator('\\')) {
+      RegStream << R"([/\\])"; // Accept either slash on windows.
     } else {
       RegStream << llvm::Regex::escape(Glob.substr(I, 1));
     }
@@ -301,6 +305,7 @@ llvm::Regex convertGlobsToRegex(llvm::ArrayRef<std::string> Globs) {
   for (llvm::StringRef Glob : Globs)
     RegTexts.push_back(convertGlobToRegex(Glob));
 
+  // Tempting to pass IgnoreCase, but we don't know the FS sensitivity.
   llvm::Regex Reg(llvm::join(RegTexts, "|"));
   assert(Reg.isValid(RegTexts.front()) &&
          "Created an invalid regex from globs");
@@ -336,7 +341,7 @@ public:
       auto Type = driver::types::lookupTypeForExtension(Ext);
       if (Type == driver::types::TY_INVALID) {
         elog("System include extraction: invalid file type for {0}", Ext);
-        return {};
+        return Cmd;
       }
       Lang = driver::types::getTypeName(Type);
     }

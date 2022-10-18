@@ -22,7 +22,7 @@ enum class DependencyOutputFormat { Make, NMake };
 
 /// ExtraDepKind - The kind of extra dependency file.
 enum ExtraDepKind {
-  EDK_SanitizeBlacklist,
+  EDK_SanitizeIgnorelist,
   EDK_ProfileList,
   EDK_ModuleFile,
   EDK_DepFileEntry,
@@ -39,6 +39,10 @@ public:
                                      /// problems.
   unsigned AddMissingHeaderDeps : 1; ///< Add missing headers to dependency list
   unsigned IncludeModuleFiles : 1; ///< Include module file dependencies.
+  unsigned ShowSkippedHeaderIncludes : 1; ///< With ShowHeaderIncludes, show
+                                          /// also includes that were skipped
+                                          /// due to the "include guard
+                                          /// optimization" or #pragma once.
 
   /// Destination of cl.exe style /showIncludes info.
   ShowIncludesDestination ShowIncludesDest = ShowIncludesDestination::None;
@@ -79,7 +83,8 @@ public:
 public:
   DependencyOutputOptions()
       : IncludeSystemHeaders(0), ShowHeaderIncludes(0), UsePhonyTargets(0),
-        AddMissingHeaderDeps(0), IncludeModuleFiles(0) {}
+        AddMissingHeaderDeps(0), IncludeModuleFiles(0),
+        ShowSkippedHeaderIncludes(0) {}
 };
 
 }  // end namespace clang

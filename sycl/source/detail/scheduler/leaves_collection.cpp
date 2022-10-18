@@ -11,8 +11,8 @@
 
 #include <algorithm>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // TODO merge with GraphBuilder's version of doOverlap (see graph_builder.cpp).
@@ -49,13 +49,14 @@ size_t LeavesCollection::remove(value_type Cmd) {
   return eraseHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
 }
 
-bool LeavesCollection::push_back(value_type Cmd) {
+bool LeavesCollection::push_back(value_type Cmd, EnqueueListT &ToEnqueue) {
   bool Result = false;
 
   if (isHostAccessorCmd(Cmd))
-    Result = addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd));
+    Result =
+        addHostAccessorCommand(static_cast<EmptyCommand *>(Cmd), ToEnqueue);
   else
-    Result = addGenericCommand(Cmd);
+    Result = addGenericCommand(Cmd, ToEnqueue);
 
   return Result;
 }
@@ -72,14 +73,15 @@ std::vector<LeavesCollection::value_type> LeavesCollection::toVector() const {
   return Result;
 }
 
-bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd) {
+bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
+                                              EnqueueListT &ToEnqueue) {
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
   HostAccessorCommandSingleXRefT OldCmdIt;
 
   // HACK we believe here that read accessors never overlap as it doesn't add
   // any real dependency (e.g. data copy to device) except for blocking.
-  if (Cmd->getRequirement()->MAccessMode == cl::sycl::access::mode::read)
+  if (Cmd->getRequirement()->MAccessMode == sycl::access::mode::read)
     OldCmdIt = MHostAccessorCommands.end();
   else
     OldCmdIt = std::find_if(
@@ -97,7 +99,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd) {
   //          when circular buffer is full.
   if (OldCmdIt != MHostAccessorCommands.end()) {
     // allocate dependency
-    MAllocateDependency(Cmd, *OldCmdIt, MRecord);
+    MAllocateDependency(Cmd, *OldCmdIt, MRecord, ToEnqueue);
 
     // erase the old cmd as it's tracked via dependency now
     eraseHostAccessorCommand(static_cast<EmptyCommand *>(*OldCmdIt));
@@ -109,7 +111,8 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd) {
   return true;
 }
 
-bool LeavesCollection::addGenericCommand(Command *Cmd) {
+bool LeavesCollection::addGenericCommand(Command *Cmd,
+                                         EnqueueListT &ToEnqueue) {
   if (MGenericCommands.full()) {
     Command *OldLeaf = MGenericCommands.front();
 
@@ -117,7 +120,7 @@ bool LeavesCollection::addGenericCommand(Command *Cmd) {
     if (OldLeaf == Cmd)
       return false;
 
-    MAllocateDependency(Cmd, OldLeaf, MRecord);
+    MAllocateDependency(Cmd, OldLeaf, MRecord, ToEnqueue);
   }
 
   MGenericCommands.push_back(Cmd);
@@ -142,5 +145,5 @@ size_t LeavesCollection::eraseHostAccessorCommand(EmptyCommand *Cmd) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

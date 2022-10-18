@@ -17,7 +17,7 @@
 
 #include <algorithm>
 
-#include <ctype.h>
+#include <cctype>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -124,9 +124,7 @@ ConstString EventDataBytes::GetFlavor() const {
 }
 
 void EventDataBytes::Dump(Stream *s) const {
-  size_t num_printable_chars =
-      std::count_if(m_bytes.begin(), m_bytes.end(), llvm::isPrint);
-  if (num_printable_chars == m_bytes.size())
+  if (llvm::all_of(m_bytes, llvm::isPrint))
     s->Format("\"{0}\"", m_bytes);
   else
     s->Format("{0:$[ ]@[x-2]}", llvm::make_range(
@@ -198,7 +196,7 @@ EventDataStructuredData::EventDataStructuredData(
     : EventData(), m_process_sp(process_sp), m_object_sp(object_sp),
       m_plugin_sp(plugin_sp) {}
 
-EventDataStructuredData::~EventDataStructuredData() {}
+EventDataStructuredData::~EventDataStructuredData() = default;
 
 // EventDataStructuredData member functions
 

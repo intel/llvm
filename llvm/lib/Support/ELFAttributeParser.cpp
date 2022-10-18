@@ -7,16 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/ELFAttributeParser.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Errc.h"
-#include "llvm/Support/LEB128.h"
 #include "llvm/Support/ScopedPrinter.h"
 
 using namespace llvm;
 using namespace llvm::ELFAttrs;
 
-static const EnumEntry<unsigned> tagNames[] = {
+static constexpr EnumEntry<unsigned> tagNames[] = {
     {"Tag_File", ELFAttrs::File},
     {"Tag_Section", ELFAttrs::Section},
     {"Tag_Symbol", ELFAttrs::Symbol},
@@ -55,7 +53,7 @@ Error ELFAttributeParser::stringAttribute(unsigned tag) {
   StringRef tagName =
       ELFAttrs::attrTypeAsString(tag, tagToStringMap, /*hasTagPrefix=*/false);
   StringRef desc = de.getCStrRef(cursor);
-  attributesStr.insert(std::make_pair(tag, desc));
+  setAttributeString(tag, desc);
 
   if (sw) {
     DictScope scope(*sw, "Attribute");

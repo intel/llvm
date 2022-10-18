@@ -121,9 +121,7 @@ static bool hasFeature(StringRef Feature, const LangOptions &LangOpts,
                         .Default(Target.hasFeature(Feature) ||
                                  isPlatformEnvironment(Target, Feature));
   if (!HasFeature)
-    HasFeature = std::find(LangOpts.ModuleFeatures.begin(),
-                           LangOpts.ModuleFeatures.end(),
-                           Feature) != LangOpts.ModuleFeatures.end();
+    HasFeature = llvm::is_contained(LangOpts.ModuleFeatures, Feature);
   return HasFeature;
 }
 
@@ -203,7 +201,7 @@ static void printModuleId(raw_ostream &OS, InputIter Begin, InputIter End,
       OS << ".";
 
     StringRef Name = getModuleNameFromComponent(*It);
-    if (!AllowStringLiterals || isValidIdentifier(Name))
+    if (!AllowStringLiterals || isValidAsciiIdentifier(Name))
       OS << Name;
     else {
       OS << '"';
@@ -245,9 +243,10 @@ bool Module::fullModuleNameIs(ArrayRef<StringRef> nameParts) const {
 
 Module::DirectoryName Module::getUmbrellaDir() const {
   if (Header U = getUmbrellaHeader())
-    return {"", U.Entry->getDir()};
+    return {"", "", U.Entry->getDir()};
 
-  return {UmbrellaAsWritten, Umbrella.dyn_cast<const DirectoryEntry *>()};
+  return {UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
+          Umbrella.dyn_cast<const DirectoryEntry *>()};
 }
 
 void Module::addTopHeader(const FileEntry *File) {
@@ -268,7 +267,7 @@ ArrayRef<const FileEntry *> Module::getTopHeaders(FileManager &FileMgr) {
   return llvm::makeArrayRef(TopHeaders.begin(), TopHeaders.end());
 }
 
-bool Module::directlyUses(const Module *Requested) const {
+bool Module::directlyUses(const Module *Requested) {
   auto *Top = getTopLevelModule();
 
   // A top-level module implicitly uses itself.
@@ -282,6 +281,9 @@ bool Module::directlyUses(const Module *Requested) const {
   // Anyone is allowed to use our builtin stddef.h and its accompanying module.
   if (!Requested->Parent && Requested->Name == "_Builtin_stddef_max_align_t")
     return true;
+
+  if (NoUndeclaredIncludes)
+    UndeclaredUses.insert(Requested);
 
   return false;
 }

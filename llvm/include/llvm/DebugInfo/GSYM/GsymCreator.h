@@ -12,14 +12,13 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <string>
 #include <thread>
 
+#include "llvm/ADT/AddressRanges.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/DebugInfo/GSYM/FileEntry.h"
 #include "llvm/DebugInfo/GSYM/FunctionInfo.h"
-#include "llvm/DebugInfo/GSYM/Range.h"
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
@@ -133,7 +132,7 @@ class FileWriter;
 /// of FunctionInfo objects, see "llvm/DebugInfo/GSYM/FunctionInfo.h".
 class GsymCreator {
   // Private member variables require Mutex protections
-  mutable std::recursive_mutex Mutex;
+  mutable std::mutex Mutex;
   std::vector<FunctionInfo> Funcs;
   StringTableBuilder StrTab;
   StringSet<> StringStorage;
@@ -144,10 +143,10 @@ class GsymCreator {
   AddressRanges Ranges;
   llvm::Optional<uint64_t> BaseAddress;
   bool Finalized = false;
+  bool Quiet;
 
 public:
-
-  GsymCreator();
+  GsymCreator(bool Quiet = false);
 
   /// Save a GSYM file to a stand alone file.
   ///
@@ -289,6 +288,9 @@ public:
   void setBaseAddress(uint64_t Addr) {
     BaseAddress = Addr;
   }
+
+  /// Whether the transformation should be quiet, i.e. not output warnings.
+  bool isQuiet() const { return Quiet; }
 };
 
 } // namespace gsym

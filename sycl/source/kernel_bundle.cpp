@@ -11,8 +11,8 @@
 
 #include <set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 kernel_id::kernel_id(const char *Name)
     : impl(std::make_shared<detail::kernel_id_impl>(Name)) {}
@@ -32,6 +32,10 @@ bool device_image_plain::has_kernel(const kernel_id &KernelID) const noexcept {
 bool device_image_plain::has_kernel(const kernel_id &KernelID,
                                     const device &Dev) const noexcept {
   return impl->has_kernel(KernelID, Dev);
+}
+
+pi_native_handle device_image_plain::getNative() const {
+  return impl->getNative();
 }
 
 ////////////////////////////
@@ -85,9 +89,46 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
-////////////////////////////
-///// free functions
-///////////////////////////
+bool kernel_bundle_plain::has_specialization_constant_impl(
+    const char *SpecName) const noexcept {
+  return impl->has_specialization_constant(SpecName);
+}
+
+void kernel_bundle_plain::set_specialization_constant_impl(
+    const char *SpecName, void *Value, size_t Size) noexcept {
+  impl->set_specialization_constant_raw_value(SpecName, Value, Size);
+}
+
+void kernel_bundle_plain::get_specialization_constant_impl(
+    const char *SpecName, void *Value) const noexcept {
+  impl->get_specialization_constant_raw_value(SpecName, Value);
+}
+
+bool kernel_bundle_plain::is_specialization_constant_set(
+    const char *SpecName) const noexcept {
+  return impl->is_specialization_constant_set(SpecName);
+}
+
+//////////////////////////////////
+///// sycl::detail free functions
+//////////////////////////////////
+
+const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs) {
+  auto compareDevices = [](device a, device b) {
+    return getSyclObjImpl(a) < getSyclObjImpl(b);
+  };
+  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
+      Devs.begin(), Devs.end(), compareDevices);
+  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
+                                    UniqueDeviceSet.end());
+
+  return UniqueDevices;
+}
+
+kernel_id get_kernel_id_impl(std::string KernelName) {
+  return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+}
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -110,9 +151,16 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                                                       State);
 }
 
+detail::KernelBundleImplPtr
+get_empty_interop_kernel_bundle_impl(const context &Ctx,
+                                     const std::vector<device> &Devs) {
+  return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs);
+}
+
 std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles);
+join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
+          bundle_state State) {
+  return std::make_shared<detail::kernel_bundle_impl>(Bundles, State);
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -152,7 +200,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                           "Not all devices are associated with the context or "
                           "vector of devices is empty");
 
-  bool DeviceHasRequireAspectForState = false;
+  bool DeviceHasRequireAspectForState = true;
   if (bundle_state::input == State) {
     DeviceHasRequireAspectForState =
         std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {
@@ -177,8 +225,8 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl =
         getSyclObjImpl(DeviceImage);
 
-    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ref().begin(),
-                             DeviceImageImpl->get_kernel_ids_ref().end());
+    CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                             DeviceImageImpl->get_kernel_ids_ptr()->end());
   }
 
   const bool AllKernelIDsRepresented =
@@ -238,5 +286,13 @@ std::vector<sycl::device> find_device_intersection(
 
 } // namespace detail
 
+//////////////////////////
+///// sycl free functions
+//////////////////////////
+
+std::vector<kernel_id> get_kernel_ids() {
+  return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
+}
+
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

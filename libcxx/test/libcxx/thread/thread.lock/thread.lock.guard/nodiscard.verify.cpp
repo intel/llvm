@@ -6,12 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: libcpp-has-no-threads
-
-// [[nodiscard]] on constructors isn't supported by all compilers
-// UNSUPPORTED: clang-6, clang-7, clang-8, clang-9
-// UNSUPPORTED: apple-clang-9, apple-clang-10, apple-clang-11
-// UNSUPPORTED: gcc-5
+// UNSUPPORTED: no-threads
 
 // [[nodiscard]] isn't supported in C++03 (not even as an extension)
 // UNSUPPORTED: c++03
@@ -25,8 +20,6 @@
 
 // Test that we properly apply [[nodiscard]] to lock_guard's constructors,
 // which is a libc++ extension.
-
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_NODISCARD
 
 #include <mutex>
 

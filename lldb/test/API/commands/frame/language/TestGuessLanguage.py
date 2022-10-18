@@ -12,9 +12,7 @@ from lldbsuite.test.lldbtest import *
 
 class TestFrameGuessLanguage(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
-    # If your test case doesn't stress debug info, the
+    # If your test case doesn't stress debug info, then
     # set this to true.  That way it won't be run once for
     # each debug info format.
     NO_DEBUG_INFO_TESTCASE = True
@@ -34,11 +32,7 @@ class TestFrameGuessLanguage(TestBase):
 
     def do_test(self):
         """Test GuessLanguage for C & C++."""
-        exe = self.getBuildArtifact("a.out")
-
-        # Create a target by the debugger.
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         # Now create a breakpoint in main.c at the source matching
         # "Set a breakpoint here"

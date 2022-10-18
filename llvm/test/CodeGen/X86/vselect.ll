@@ -535,8 +535,8 @@ define <2 x i64> @shrunkblend_nonvselectuse(<2 x i1> %cond, <2 x i64> %a, <2 x i
 ; SSE41-LABEL: shrunkblend_nonvselectuse:
 ; SSE41:       # %bb.0:
 ; SSE41-NEXT:    psllq $63, %xmm0
-; SSE41-NEXT:    psrad $31, %xmm0
 ; SSE41-NEXT:    blendvpd %xmm0, %xmm1, %xmm2
+; SSE41-NEXT:    psrad $31, %xmm0
 ; SSE41-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[1,1,3,3]
 ; SSE41-NEXT:    paddq %xmm2, %xmm0
 ; SSE41-NEXT:    retq
@@ -569,7 +569,7 @@ define <2 x i32> @simplify_select(i32 %x, <2 x i1> %z) {
 ; SSE2-NEXT:    movd %edi, %xmm1
 ; SSE2-NEXT:    pshufd {{.*#+}} xmm2 = xmm1[1,0,1,1]
 ; SSE2-NEXT:    por %xmm1, %xmm2
-; SSE2-NEXT:    shufps {{.*#+}} xmm1 = xmm1[0,1],xmm2[1,3]
+; SSE2-NEXT:    punpcklqdq {{.*#+}} xmm1 = xmm1[0,0]
 ; SSE2-NEXT:    shufps {{.*#+}} xmm1 = xmm1[2,0],xmm2[1,1]
 ; SSE2-NEXT:    pand %xmm0, %xmm2
 ; SSE2-NEXT:    pandn %xmm1, %xmm0
@@ -612,7 +612,7 @@ define <2 x i32> @simplify_select(i32 %x, <2 x i1> %z) {
 
 ; Test to make sure we don't try to insert a new setcc to swap the operands
 ; of select with all zeros LHS if the setcc has additional users.
-define void @vselect_allzeros_LHS_multiple_use_setcc(<4 x i32> %x, <4 x i32> %y, <4 x i32> %z, <4 x i32>* %p1, <4 x i32>* %p2) {
+define void @vselect_allzeros_LHS_multiple_use_setcc(<4 x i32> %x, <4 x i32> %y, <4 x i32> %z, ptr %p1, ptr %p2) {
 ; SSE-LABEL: vselect_allzeros_LHS_multiple_use_setcc:
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    movdqa {{.*#+}} xmm3 = [1,2,4,8]
@@ -639,18 +639,18 @@ define void @vselect_allzeros_LHS_multiple_use_setcc(<4 x i32> %x, <4 x i32> %y,
   %cond = icmp ne <4 x i32> %and, zeroinitializer
   %sel1 = select <4 x i1> %cond, <4 x i32> zeroinitializer, <4 x i32> %y
   %sel2 = select <4 x i1> %cond, <4 x i32> %z, <4 x i32> zeroinitializer
-  store <4 x i32> %sel1, <4 x i32>* %p1
-  store <4 x i32> %sel2, <4 x i32>* %p2
+  store <4 x i32> %sel1, ptr %p1
+  store <4 x i32> %sel2, ptr %p2
   ret void
 }
 
 ; This test case previously crashed after r363802, r363850, and r363856 due
 ; any_extend_vector_inreg not being handled by the X86 backend.
-define i64 @vselect_any_extend_vector_inreg_crash(<8 x i8>* %x) {
+define i64 @vselect_any_extend_vector_inreg_crash(ptr %x) {
 ; SSE-LABEL: vselect_any_extend_vector_inreg_crash:
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    movq {{.*#+}} xmm0 = mem[0],zero
-; SSE-NEXT:    pcmpeqb {{.*}}(%rip), %xmm0
+; SSE-NEXT:    pcmpeqb {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; SSE-NEXT:    movq %xmm0, %rax
 ; SSE-NEXT:    andl $1, %eax
 ; SSE-NEXT:    shlq $15, %rax
@@ -659,13 +659,13 @@ define i64 @vselect_any_extend_vector_inreg_crash(<8 x i8>* %x) {
 ; AVX-LABEL: vselect_any_extend_vector_inreg_crash:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    vmovq {{.*#+}} xmm0 = mem[0],zero
-; AVX-NEXT:    vpcmpeqb {{.*}}(%rip), %xmm0, %xmm0
+; AVX-NEXT:    vpcmpeqb {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX-NEXT:    vmovq %xmm0, %rax
 ; AVX-NEXT:    andl $1, %eax
 ; AVX-NEXT:    shlq $15, %rax
 ; AVX-NEXT:    retq
 0:
-  %1 = load <8 x i8>, <8 x i8>* %x
+  %1 = load <8 x i8>, ptr %x
   %2 = icmp eq <8 x i8> %1, <i8 49, i8 49, i8 49, i8 49, i8 49, i8 49, i8 49, i8 49>
   %3 = select <8 x i1> %2, <8 x i64> <i64 32768, i64 16384, i64 8192, i64 4096, i64 2048, i64 1024, i64 512, i64 256>, <8 x i64> zeroinitializer
   %4 = extractelement <8 x i64> %3, i32 0

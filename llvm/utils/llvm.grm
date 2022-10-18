@@ -176,6 +176,8 @@ FuncAttr      ::= noreturn
  | sanitize_thread
  | sanitize_memory
  | mustprogress
+ | nosanitize_bounds
+ | nosanitize_coverage
  ;
 
 OptFuncAttrs  ::= + _ | OptFuncAttrs FuncAttr ;

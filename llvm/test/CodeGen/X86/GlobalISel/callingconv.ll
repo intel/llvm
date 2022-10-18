@@ -32,7 +32,8 @@ define i64 @test_ret_i64() {
 define i8 @test_arg_i8(i8 %a) {
 ; X32-LABEL: test_arg_i8:
 ; X32:       # %bb.0:
-; X32-NEXT:    movb {{[0-9]+}}(%esp), %al
+; X32-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-NEXT:    # kill: def $al killed $al killed $eax
 ; X32-NEXT:    retl
 ;
 ; X64-LABEL: test_arg_i8:
@@ -46,7 +47,8 @@ define i8 @test_arg_i8(i8 %a) {
 define i16 @test_arg_i16(i16 %a) {
 ; X32-LABEL: test_arg_i16:
 ; X32:       # %bb.0:
-; X32-NEXT:    movzwl {{[0-9]+}}(%esp), %eax
+; X32-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-NEXT:    # kill: def $ax killed $ax killed $eax
 ; X32-NEXT:    retl
 ;
 ; X64-LABEL: test_arg_i16:
@@ -287,7 +289,7 @@ define <8 x i32> @test_split_return_callee(<8 x i32> %arg1, <8 x i32> %arg2) {
   ret  <8 x i32> %r
 }
 
-define void @test_indirect_call(void()* %func) {
+define void @test_indirect_call(ptr %func) {
 ; X32-LABEL: test_indirect_call:
 ; X32:       # %bb.0:
 ; X32-NEXT:    subl $12, %esp
@@ -310,7 +312,7 @@ define void @test_indirect_call(void()* %func) {
 }
 
 declare void @take_char(i8)
-define void @test_abi_exts_call(i8* %addr) {
+define void @test_abi_exts_call(ptr %addr) {
 ; X32-LABEL: test_abi_exts_call:
 ; X32:       # %bb.0:
 ; X32-NEXT:    pushl %ebx
@@ -322,7 +324,7 @@ define void @test_abi_exts_call(i8* %addr) {
 ; X32-NEXT:    .cfi_offset %esi, -12
 ; X32-NEXT:    .cfi_offset %ebx, -8
 ; X32-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X32-NEXT:    movb (%eax), %bl
+; X32-NEXT:    movzbl (%eax), %ebx
 ; X32-NEXT:    movzbl %bl, %esi
 ; X32-NEXT:    movl %esi, (%esp)
 ; X32-NEXT:    calll take_char
@@ -344,7 +346,7 @@ define void @test_abi_exts_call(i8* %addr) {
 ; X64-NEXT:    pushq %rbx
 ; X64-NEXT:    .cfi_def_cfa_offset 16
 ; X64-NEXT:    .cfi_offset %rbx, -16
-; X64-NEXT:    movb (%rdi), %al
+; X64-NEXT:    movzbl (%rdi), %eax
 ; X64-NEXT:    movzbl %al, %ebx
 ; X64-NEXT:    movl %ebx, %edi
 ; X64-NEXT:    callq take_char
@@ -355,15 +357,15 @@ define void @test_abi_exts_call(i8* %addr) {
 ; X64-NEXT:    popq %rbx
 ; X64-NEXT:    .cfi_def_cfa_offset 8
 ; X64-NEXT:    retq
-  %val = load i8, i8* %addr
+  %val = load i8, ptr %addr
   call void @take_char(i8 %val)
   call void @take_char(i8 signext %val)
   call void @take_char(i8 zeroext %val)
  ret void
 }
 
-declare void @variadic_callee(i8*, ...)
-define void @test_variadic_call_1(i8** %addr_ptr, i32* %val_ptr) {
+declare void @variadic_callee(ptr, ...)
+define void @test_variadic_call_1(ptr %addr_ptr, ptr %val_ptr) {
 ; X32-LABEL: test_variadic_call_1:
 ; X32:       # %bb.0:
 ; X32-NEXT:    subl $12, %esp
@@ -391,13 +393,13 @@ define void @test_variadic_call_1(i8** %addr_ptr, i32* %val_ptr) {
 ; X64-NEXT:    .cfi_def_cfa_offset 8
 ; X64-NEXT:    retq
 
-  %addr = load i8*, i8** %addr_ptr
-  %val = load i32, i32* %val_ptr
-  call void (i8*, ...) @variadic_callee(i8* %addr, i32 %val)
+  %addr = load ptr, ptr %addr_ptr
+  %val = load i32, ptr %val_ptr
+  call void (ptr, ...) @variadic_callee(ptr %addr, i32 %val)
   ret void
 }
 
-define void @test_variadic_call_2(i8** %addr_ptr, double* %val_ptr) {
+define void @test_variadic_call_2(ptr %addr_ptr, ptr %val_ptr) {
 ; X32-LABEL: test_variadic_call_2:
 ; X32:       # %bb.0:
 ; X32-NEXT:    subl $12, %esp
@@ -430,8 +432,8 @@ define void @test_variadic_call_2(i8** %addr_ptr, double* %val_ptr) {
 ; X64-NEXT:    .cfi_def_cfa_offset 8
 ; X64-NEXT:    retq
 
-  %addr = load i8*, i8** %addr_ptr
-  %val = load double, double* %val_ptr
-  call void (i8*, ...) @variadic_callee(i8* %addr, double %val)
+  %addr = load ptr, ptr %addr_ptr
+  %val = load double, ptr %val_ptr
+  call void (ptr, ...) @variadic_callee(ptr %addr, double %val)
   ret void
 }

@@ -15,6 +15,7 @@
 
 #include "kmp.h"
 #include "kmp_os.h"
+#include <limits>
 
 #if KMP_AFFINITY_SUPPORTED
 #if KMP_USE_HWLOC
@@ -598,91 +599,411 @@ class KMPNativeAffinity : public KMPAffinity {
 #endif /* KMP_OS_WINDOWS */
 #endif /* KMP_AFFINITY_SUPPORTED */
 
-class Address {
-public:
-  static const unsigned maxDepth = 32;
-  unsigned labels[maxDepth];
-  unsigned childNums[maxDepth];
-  unsigned depth;
-  unsigned leader;
-  Address(unsigned _depth) : depth(_depth), leader(FALSE) {}
-  Address &operator=(const Address &b) {
-    depth = b.depth;
-    for (unsigned i = 0; i < depth; i++) {
-      labels[i] = b.labels[i];
-      childNums[i] = b.childNums[i];
-    }
-    leader = FALSE;
-    return *this;
+// Describe an attribute for a level in the machine topology
+struct kmp_hw_attr_t {
+  int core_type : 8;
+  int core_eff : 8;
+  unsigned valid : 1;
+  unsigned reserved : 15;
+
+  static const int UNKNOWN_CORE_EFF = -1;
+
+  kmp_hw_attr_t()
+      : core_type(KMP_HW_CORE_TYPE_UNKNOWN), core_eff(UNKNOWN_CORE_EFF),
+        valid(0), reserved(0) {}
+  void set_core_type(kmp_hw_core_type_t type) {
+    valid = 1;
+    core_type = type;
   }
-  bool operator==(const Address &b) const {
-    if (depth != b.depth)
-      return false;
-    for (unsigned i = 0; i < depth; i++)
-      if (labels[i] != b.labels[i])
-        return false;
-    return true;
+  void set_core_eff(int eff) {
+    valid = 1;
+    core_eff = eff;
   }
-  bool isClose(const Address &b, int level) const {
-    if (depth != b.depth)
-      return false;
-    if ((unsigned)level >= depth)
+  kmp_hw_core_type_t get_core_type() const {
+    return (kmp_hw_core_type_t)core_type;
+  }
+  int get_core_eff() const { return core_eff; }
+  bool is_core_type_valid() const {
+    return core_type != KMP_HW_CORE_TYPE_UNKNOWN;
+  }
+  bool is_core_eff_valid() const { return core_eff != UNKNOWN_CORE_EFF; }
+  operator bool() const { return valid; }
+  void clear() {
+    core_type = KMP_HW_CORE_TYPE_UNKNOWN;
+    core_eff = UNKNOWN_CORE_EFF;
+    valid = 0;
+  }
+  bool contains(const kmp_hw_attr_t &other) const {
+    if (!valid && !other.valid)
       return true;
-    for (unsigned i = 0; i < (depth - level); i++)
-      if (labels[i] != b.labels[i])
-        return false;
-    return true;
+    if (valid && other.valid) {
+      if (other.is_core_type_valid()) {
+        if (!is_core_type_valid() || (get_core_type() != other.get_core_type()))
+          return false;
+      }
+      if (other.is_core_eff_valid()) {
+        if (!is_core_eff_valid() || (get_core_eff() != other.get_core_eff()))
+          return false;
+      }
+      return true;
+    }
+    return false;
   }
-  bool operator!=(const Address &b) const { return !operator==(b); }
-  void print() const {
-    unsigned i;
-    printf("Depth: %u --- ", depth);
-    for (i = 0; i < depth; i++) {
-      printf("%u ", labels[i]);
+  bool operator==(const kmp_hw_attr_t &rhs) const {
+    return (rhs.valid == valid && rhs.core_eff == core_eff &&
+            rhs.core_type == core_type);
+  }
+  bool operator!=(const kmp_hw_attr_t &rhs) const { return !operator==(rhs); }
+};
+
+class kmp_hw_thread_t {
+public:
+  static const int UNKNOWN_ID = -1;
+  static int compare_ids(const void *a, const void *b);
+  static int compare_compact(const void *a, const void *b);
+  int ids[KMP_HW_LAST];
+  int sub_ids[KMP_HW_LAST];
+  bool leader;
+  int os_id;
+  kmp_hw_attr_t attrs;
+
+  void print() const;
+  void clear() {
+    for (int i = 0; i < (int)KMP_HW_LAST; ++i)
+      ids[i] = UNKNOWN_ID;
+    leader = false;
+    attrs.clear();
+  }
+};
+
+class kmp_topology_t {
+
+  struct flags_t {
+    int uniform : 1;
+    int reserved : 31;
+  };
+
+  int depth;
+
+  // The following arrays are all 'depth' long and have been
+  // allocated to hold up to KMP_HW_LAST number of objects if
+  // needed so layers can be added without reallocation of any array
+
+  // Orderd array of the types in the topology
+  kmp_hw_t *types;
+
+  // Keep quick topology ratios, for non-uniform topologies,
+  // this ratio holds the max number of itemAs per itemB
+  // e.g., [ 4 packages | 6 cores / package | 2 threads / core ]
+  int *ratio;
+
+  // Storage containing the absolute number of each topology layer
+  int *count;
+
+  // The number of core efficiencies. This is only useful for hybrid
+  // topologies. Core efficiencies will range from 0 to num efficiencies - 1
+  int num_core_efficiencies;
+  int num_core_types;
+  kmp_hw_core_type_t core_types[KMP_HW_MAX_NUM_CORE_TYPES];
+
+  // The hardware threads array
+  // hw_threads is num_hw_threads long
+  // Each hw_thread's ids and sub_ids are depth deep
+  int num_hw_threads;
+  kmp_hw_thread_t *hw_threads;
+
+  // Equivalence hash where the key is the hardware topology item
+  // and the value is the equivalent hardware topology type in the
+  // types[] array, if the value is KMP_HW_UNKNOWN, then there is no
+  // known equivalence for the topology type
+  kmp_hw_t equivalent[KMP_HW_LAST];
+
+  // Flags describing the topology
+  flags_t flags;
+
+  // Insert a new topology layer after allocation
+  void _insert_layer(kmp_hw_t type, const int *ids);
+
+#if KMP_GROUP_AFFINITY
+  // Insert topology information about Windows Processor groups
+  void _insert_windows_proc_groups();
+#endif
+
+  // Count each item & get the num x's per y
+  // e.g., get the number of cores and the number of threads per core
+  // for each (x, y) in (KMP_HW_* , KMP_HW_*)
+  void _gather_enumeration_information();
+
+  // Remove layers that don't add information to the topology.
+  // This is done by having the layer take on the id = UNKNOWN_ID (-1)
+  void _remove_radix1_layers();
+
+  // Find out if the topology is uniform
+  void _discover_uniformity();
+
+  // Set all the sub_ids for each hardware thread
+  void _set_sub_ids();
+
+  // Set global affinity variables describing the number of threads per
+  // core, the number of packages, the number of cores per package, and
+  // the number of cores.
+  void _set_globals();
+
+  // Set the last level cache equivalent type
+  void _set_last_level_cache();
+
+  // Return the number of cores with a particular attribute, 'attr'.
+  // If 'find_all' is true, then find all cores on the machine, otherwise find
+  // all cores per the layer 'above'
+  int _get_ncores_with_attr(const kmp_hw_attr_t &attr, int above,
+                            bool find_all = false) const;
+
+public:
+  // Force use of allocate()/deallocate()
+  kmp_topology_t() = delete;
+  kmp_topology_t(const kmp_topology_t &t) = delete;
+  kmp_topology_t(kmp_topology_t &&t) = delete;
+  kmp_topology_t &operator=(const kmp_topology_t &t) = delete;
+  kmp_topology_t &operator=(kmp_topology_t &&t) = delete;
+
+  static kmp_topology_t *allocate(int nproc, int ndepth, const kmp_hw_t *types);
+  static void deallocate(kmp_topology_t *);
+
+  // Functions used in create_map() routines
+  kmp_hw_thread_t &at(int index) {
+    KMP_DEBUG_ASSERT(index >= 0 && index < num_hw_threads);
+    return hw_threads[index];
+  }
+  const kmp_hw_thread_t &at(int index) const {
+    KMP_DEBUG_ASSERT(index >= 0 && index < num_hw_threads);
+    return hw_threads[index];
+  }
+  int get_num_hw_threads() const { return num_hw_threads; }
+  void sort_ids() {
+    qsort(hw_threads, num_hw_threads, sizeof(kmp_hw_thread_t),
+          kmp_hw_thread_t::compare_ids);
+  }
+  // Check if the hardware ids are unique, if they are
+  // return true, otherwise return false
+  bool check_ids() const;
+
+  // Function to call after the create_map() routine
+  void canonicalize();
+  void canonicalize(int pkgs, int cores_per_pkg, int thr_per_core, int cores);
+
+  // Functions used after canonicalize() called
+  bool filter_hw_subset();
+  bool is_close(int hwt1, int hwt2, int level) const;
+  bool is_uniform() const { return flags.uniform; }
+  // Tell whether a type is a valid type in the topology
+  // returns KMP_HW_UNKNOWN when there is no equivalent type
+  kmp_hw_t get_equivalent_type(kmp_hw_t type) const { return equivalent[type]; }
+  // Set type1 = type2
+  void set_equivalent_type(kmp_hw_t type1, kmp_hw_t type2) {
+    KMP_DEBUG_ASSERT_VALID_HW_TYPE(type1);
+    KMP_DEBUG_ASSERT_VALID_HW_TYPE(type2);
+    kmp_hw_t real_type2 = equivalent[type2];
+    if (real_type2 == KMP_HW_UNKNOWN)
+      real_type2 = type2;
+    equivalent[type1] = real_type2;
+    // This loop is required since any of the types may have been set to
+    // be equivalent to type1.  They all must be checked and reset to type2.
+    KMP_FOREACH_HW_TYPE(type) {
+      if (equivalent[type] == type1) {
+        equivalent[type] = real_type2;
+      }
     }
   }
-};
-
-class AddrUnsPair {
-public:
-  Address first;
-  unsigned second;
-  AddrUnsPair(Address _first, unsigned _second)
-      : first(_first), second(_second) {}
-  AddrUnsPair &operator=(const AddrUnsPair &b) {
-    first = b.first;
-    second = b.second;
-    return *this;
+  // Calculate number of types corresponding to level1
+  // per types corresponding to level2 (e.g., number of threads per core)
+  int calculate_ratio(int level1, int level2) const {
+    KMP_DEBUG_ASSERT(level1 >= 0 && level1 < depth);
+    KMP_DEBUG_ASSERT(level2 >= 0 && level2 < depth);
+    int r = 1;
+    for (int level = level1; level > level2; --level)
+      r *= ratio[level];
+    return r;
   }
-  void print() const {
-    printf("first = ");
-    first.print();
-    printf(" --- second = %u", second);
+  int get_ratio(int level) const {
+    KMP_DEBUG_ASSERT(level >= 0 && level < depth);
+    return ratio[level];
   }
-  bool operator==(const AddrUnsPair &b) const {
-    if (first != b.first)
-      return false;
-    if (second != b.second)
-      return false;
-    return true;
+  int get_depth() const { return depth; };
+  kmp_hw_t get_type(int level) const {
+    KMP_DEBUG_ASSERT(level >= 0 && level < depth);
+    return types[level];
   }
-  bool operator!=(const AddrUnsPair &b) const { return !operator==(b); }
-};
-
-static int __kmp_affinity_cmp_Address_labels(const void *a, const void *b) {
-  const Address *aa = &(((const AddrUnsPair *)a)->first);
-  const Address *bb = &(((const AddrUnsPair *)b)->first);
-  unsigned depth = aa->depth;
-  unsigned i;
-  KMP_DEBUG_ASSERT(depth == bb->depth);
-  for (i = 0; i < depth; i++) {
-    if (aa->labels[i] < bb->labels[i])
+  int get_level(kmp_hw_t type) const {
+    KMP_DEBUG_ASSERT_VALID_HW_TYPE(type);
+    int eq_type = equivalent[type];
+    if (eq_type == KMP_HW_UNKNOWN)
       return -1;
-    if (aa->labels[i] > bb->labels[i])
-      return 1;
+    for (int i = 0; i < depth; ++i)
+      if (types[i] == eq_type)
+        return i;
+    return -1;
   }
-  return 0;
-}
+  int get_count(int level) const {
+    KMP_DEBUG_ASSERT(level >= 0 && level < depth);
+    return count[level];
+  }
+  // Return the total number of cores with attribute 'attr'
+  int get_ncores_with_attr(const kmp_hw_attr_t &attr) const {
+    return _get_ncores_with_attr(attr, -1, true);
+  }
+  // Return the number of cores with attribute
+  // 'attr' per topology level 'above'
+  int get_ncores_with_attr_per(const kmp_hw_attr_t &attr, int above) const {
+    return _get_ncores_with_attr(attr, above, false);
+  }
+
+#if KMP_AFFINITY_SUPPORTED
+  void sort_compact() {
+    qsort(hw_threads, num_hw_threads, sizeof(kmp_hw_thread_t),
+          kmp_hw_thread_t::compare_compact);
+  }
+#endif
+  void print(const char *env_var = "KMP_AFFINITY") const;
+  void dump() const;
+};
+extern kmp_topology_t *__kmp_topology;
+
+class kmp_hw_subset_t {
+  const static size_t MAX_ATTRS = KMP_HW_MAX_NUM_CORE_EFFS;
+
+public:
+  // Describe a machine topology item in KMP_HW_SUBSET
+  struct item_t {
+    kmp_hw_t type;
+    int num_attrs;
+    int num[MAX_ATTRS];
+    int offset[MAX_ATTRS];
+    kmp_hw_attr_t attr[MAX_ATTRS];
+  };
+  // Put parenthesis around max to avoid accidental use of Windows max macro.
+  const static int USE_ALL = (std::numeric_limits<int>::max)();
+
+private:
+  int depth;
+  int capacity;
+  item_t *items;
+  kmp_uint64 set;
+  bool absolute;
+  // The set must be able to handle up to KMP_HW_LAST number of layers
+  KMP_BUILD_ASSERT(sizeof(set) * 8 >= KMP_HW_LAST);
+  // Sorting the KMP_HW_SUBSET items to follow topology order
+  // All unknown topology types will be at the beginning of the subset
+  static int hw_subset_compare(const void *i1, const void *i2) {
+    kmp_hw_t type1 = ((const item_t *)i1)->type;
+    kmp_hw_t type2 = ((const item_t *)i2)->type;
+    int level1 = __kmp_topology->get_level(type1);
+    int level2 = __kmp_topology->get_level(type2);
+    return level1 - level2;
+  }
+
+public:
+  // Force use of allocate()/deallocate()
+  kmp_hw_subset_t() = delete;
+  kmp_hw_subset_t(const kmp_hw_subset_t &t) = delete;
+  kmp_hw_subset_t(kmp_hw_subset_t &&t) = delete;
+  kmp_hw_subset_t &operator=(const kmp_hw_subset_t &t) = delete;
+  kmp_hw_subset_t &operator=(kmp_hw_subset_t &&t) = delete;
+
+  static kmp_hw_subset_t *allocate() {
+    int initial_capacity = 5;
+    kmp_hw_subset_t *retval =
+        (kmp_hw_subset_t *)__kmp_allocate(sizeof(kmp_hw_subset_t));
+    retval->depth = 0;
+    retval->capacity = initial_capacity;
+    retval->set = 0ull;
+    retval->absolute = false;
+    retval->items = (item_t *)__kmp_allocate(sizeof(item_t) * initial_capacity);
+    return retval;
+  }
+  static void deallocate(kmp_hw_subset_t *subset) {
+    __kmp_free(subset->items);
+    __kmp_free(subset);
+  }
+  void set_absolute() { absolute = true; }
+  bool is_absolute() const { return absolute; }
+  void push_back(int num, kmp_hw_t type, int offset, kmp_hw_attr_t attr) {
+    for (int i = 0; i < depth; ++i) {
+      // Found an existing item for this layer type
+      // Add the num, offset, and attr to this item
+      if (items[i].type == type) {
+        int idx = items[i].num_attrs++;
+        if ((size_t)idx >= MAX_ATTRS)
+          return;
+        items[i].num[idx] = num;
+        items[i].offset[idx] = offset;
+        items[i].attr[idx] = attr;
+        return;
+      }
+    }
+    if (depth == capacity - 1) {
+      capacity *= 2;
+      item_t *new_items = (item_t *)__kmp_allocate(sizeof(item_t) * capacity);
+      for (int i = 0; i < depth; ++i)
+        new_items[i] = items[i];
+      __kmp_free(items);
+      items = new_items;
+    }
+    items[depth].num_attrs = 1;
+    items[depth].type = type;
+    items[depth].num[0] = num;
+    items[depth].offset[0] = offset;
+    items[depth].attr[0] = attr;
+    depth++;
+    set |= (1ull << type);
+  }
+  int get_depth() const { return depth; }
+  const item_t &at(int index) const {
+    KMP_DEBUG_ASSERT(index >= 0 && index < depth);
+    return items[index];
+  }
+  item_t &at(int index) {
+    KMP_DEBUG_ASSERT(index >= 0 && index < depth);
+    return items[index];
+  }
+  void remove(int index) {
+    KMP_DEBUG_ASSERT(index >= 0 && index < depth);
+    set &= ~(1ull << items[index].type);
+    for (int j = index + 1; j < depth; ++j) {
+      items[j - 1] = items[j];
+    }
+    depth--;
+  }
+  void sort() {
+    KMP_DEBUG_ASSERT(__kmp_topology);
+    qsort(items, depth, sizeof(item_t), hw_subset_compare);
+  }
+  bool specified(kmp_hw_t type) const { return ((set & (1ull << type)) > 0); }
+  void dump() const {
+    printf("**********************\n");
+    printf("*** kmp_hw_subset: ***\n");
+    printf("* depth: %d\n", depth);
+    printf("* items:\n");
+    for (int i = 0; i < depth; ++i) {
+      printf(" type: %s\n", __kmp_hw_get_keyword(items[i].type));
+      for (int j = 0; j < items[i].num_attrs; ++j) {
+        printf("  num: %d, offset: %d, attr: ", items[i].num[j],
+               items[i].offset[j]);
+        if (!items[i].attr[j]) {
+          printf(" (none)\n");
+        } else {
+          printf(
+              " core_type = %s, core_eff = %d\n",
+              __kmp_hw_get_core_type_string(items[i].attr[j].get_core_type()),
+              items[i].attr[j].get_core_eff());
+        }
+      }
+    }
+    printf("* set: 0x%llx\n", set);
+    printf("* absolute: %d\n", absolute);
+    printf("**********************\n");
+  }
+};
+extern kmp_hw_subset_t *__kmp_hw_subset;
 
 /* A structure for holding machine-specific hierarchy info to be computed once
    at init. This structure represents a mapping of threads to the actual machine
@@ -721,18 +1042,10 @@ public:
   kmp_uint32 *numPerLevel;
   kmp_uint32 *skipPerLevel;
 
-  void deriveLevels(AddrUnsPair *adr2os, int num_addrs) {
-    int hier_depth = adr2os[0].first.depth;
-    int level = 0;
-    for (int i = hier_depth - 1; i >= 0; --i) {
-      int max = -1;
-      for (int j = 0; j < num_addrs; ++j) {
-        int next = adr2os[j].first.childNums[i];
-        if (next > max)
-          max = next;
-      }
-      numPerLevel[level] = max + 1;
-      ++level;
+  void deriveLevels() {
+    int hier_depth = __kmp_topology->get_depth();
+    for (int i = hier_depth - 1, level = 0; i >= 0; --i, ++level) {
+      numPerLevel[level] = __kmp_topology->get_ratio(i);
     }
   }
 
@@ -747,7 +1060,7 @@ public:
     }
   }
 
-  void init(AddrUnsPair *adr2os, int num_addrs) {
+  void init(int num_addrs) {
     kmp_int8 bool_result = KMP_COMPARE_AND_STORE_ACQ8(
         &uninitialized, not_initialized, initializing);
     if (bool_result == 0) { // Wait for initialization
@@ -774,10 +1087,8 @@ public:
     }
 
     // Sort table by physical ID
-    if (adr2os) {
-      qsort(adr2os, num_addrs, sizeof(*adr2os),
-            __kmp_affinity_cmp_Address_labels);
-      deriveLevels(adr2os, num_addrs);
+    if (__kmp_topology && __kmp_topology->get_depth() > 0) {
+      deriveLevels();
     } else {
       numPerLevel[0] = maxLeaves;
       numPerLevel[1] = num_addrs / maxLeaves;

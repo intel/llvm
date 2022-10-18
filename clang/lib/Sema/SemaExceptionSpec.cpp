@@ -35,10 +35,12 @@ static const FunctionProtoType *GetUnderlyingFunction(QualType T)
   return T->getAs<FunctionProtoType>();
 }
 
-/// HACK: libstdc++ has a bug where it shadows std::swap with a member
-/// swap function then tries to call std::swap unqualified from the exception
-/// specification of that function. This function detects whether we're in
-/// such a case and turns off delay-parsing of exception specifications.
+/// HACK: 2014-11-14 libstdc++ had a bug where it shadows std::swap with a
+/// member swap function then tries to call std::swap unqualified from the
+/// exception specification of that function. This function detects whether
+/// we're in such a case and turns off delay-parsing of exception
+/// specifications. Libstdc++ 6.1 (released 2016-04-27) appears to have
+/// resolved it as side-effect of commit ddb63209a8d (2015-06-05).
 bool Sema::isLibstdcxxEagerExceptionSpecHack(const Declarator &D) {
   auto *RD = dyn_cast<CXXRecordDecl>(CurContext);
 
@@ -76,14 +78,21 @@ bool Sema::isLibstdcxxEagerExceptionSpecHack(const Declarator &D) {
       .Default(false);
 }
 
-ExprResult Sema::ActOnNoexceptSpec(SourceLocation NoexceptLoc,
-                                   Expr *NoexceptExpr,
+ExprResult Sema::ActOnNoexceptSpec(Expr *NoexceptExpr,
                                    ExceptionSpecificationType &EST) {
-  // FIXME: This is bogus, a noexcept expression is not a condition.
-  ExprResult Converted = CheckBooleanCondition(NoexceptLoc, NoexceptExpr);
+
+  if (NoexceptExpr->isTypeDependent() ||
+      NoexceptExpr->containsUnexpandedParameterPack()) {
+    EST = EST_DependentNoexcept;
+    return NoexceptExpr;
+  }
+
+  llvm::APSInt Result;
+  ExprResult Converted = CheckConvertedConstantExpression(
+      NoexceptExpr, Context.BoolTy, Result, CCEK_Noexcept);
+
   if (Converted.isInvalid()) {
     EST = EST_NoexceptFalse;
-
     // Fill in an expression of 'false' as a fixup.
     auto *BoolExpr = new (Context)
         CXXBoolLiteralExpr(false, Context.BoolTy, NoexceptExpr->getBeginLoc());
@@ -97,9 +106,6 @@ ExprResult Sema::ActOnNoexceptSpec(SourceLocation NoexceptLoc,
     return Converted;
   }
 
-  llvm::APSInt Result;
-  Converted = VerifyIntegerConstantExpression(
-      Converted.get(), &Result, diag::err_noexcept_needs_constant_expression);
   if (!Converted.isInvalid())
     EST = !Result ? EST_NoexceptFalse : EST_NoexceptTrue;
   return Converted;
@@ -336,8 +342,7 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
   if (!MissingExceptionSpecification)
     return ReturnValueOnError;
 
-  const FunctionProtoType *NewProto =
-    New->getType()->castAs<FunctionProtoType>();
+  const auto *NewProto = New->getType()->castAs<FunctionProtoType>();
 
   // The new function declaration is only missing an empty exception
   // specification "throw()". If the throw() specification came from a
@@ -347,7 +352,7 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
   // specifications.
   //
   // Likewise if the old function is a builtin.
-  if (MissingEmptyExceptionSpecification && NewProto &&
+  if (MissingEmptyExceptionSpecification &&
       (Old->getLocation().isInvalid() ||
        Context.getSourceManager().isInSystemHeader(Old->getLocation()) ||
        Old->getBuiltinID()) &&
@@ -358,8 +363,7 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
     return false;
   }
 
-  const FunctionProtoType *OldProto =
-    Old->getType()->castAs<FunctionProtoType>();
+  const auto *OldProto = Old->getType()->castAs<FunctionProtoType>();
 
   FunctionProtoType::ExceptionSpecInfo ESI = OldProto->getExceptionSpecType();
   if (ESI.Type == EST_Dynamic) {
@@ -385,9 +389,8 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
         NewProto->getExtProtoInfo().withExceptionSpec(ESI)));
   }
 
-  if (getLangOpts().MSVCCompat && ESI.Type != EST_DependentNoexcept) {
-    // Allow missing exception specifications in redeclarations as an extension.
-    DiagID = diag::ext_ms_missing_exception_specification;
+  if (getLangOpts().MSVCCompat && isDynamicExceptionSpec(ESI.Type)) {
+    DiagID = diag::ext_missing_exception_specification;
     ReturnValueOnError = false;
   } else if (New->isReplaceableGlobalAllocationFunction() &&
              ESI.Type != EST_DependentNoexcept) {
@@ -396,6 +399,10 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
     DiagID = diag::ext_missing_exception_specification;
     ReturnValueOnError = false;
   } else if (ESI.Type == EST_NoThrow) {
+    // Don't emit any warning for missing 'nothrow' in MSVC.
+    if (getLangOpts().MSVCCompat) {
+      return false;
+    }
     // Allow missing attribute 'nothrow' in redeclarations, since this is a very
     // common omission.
     DiagID = diag::ext_missing_exception_specification;
@@ -1397,6 +1404,10 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Expr::SourceLocExprClass:
   case Expr::ConceptSpecializationExprClass:
   case Expr::RequiresExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
     // These expressions can never throw.
     return CT_Cannot;
 
@@ -1446,20 +1457,26 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Stmt::OMPForSimdDirectiveClass:
   case Stmt::OMPMasterDirectiveClass:
   case Stmt::OMPMasterTaskLoopDirectiveClass:
+  case Stmt::OMPMaskedTaskLoopDirectiveClass:
   case Stmt::OMPMasterTaskLoopSimdDirectiveClass:
+  case Stmt::OMPMaskedTaskLoopSimdDirectiveClass:
   case Stmt::OMPOrderedDirectiveClass:
   case Stmt::OMPCanonicalLoopClass:
   case Stmt::OMPParallelDirectiveClass:
   case Stmt::OMPParallelForDirectiveClass:
   case Stmt::OMPParallelForSimdDirectiveClass:
   case Stmt::OMPParallelMasterDirectiveClass:
+  case Stmt::OMPParallelMaskedDirectiveClass:
   case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
+  case Stmt::OMPParallelMaskedTaskLoopDirectiveClass:
   case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
+  case Stmt::OMPParallelMaskedTaskLoopSimdDirectiveClass:
   case Stmt::OMPParallelSectionsDirectiveClass:
   case Stmt::OMPSectionDirectiveClass:
   case Stmt::OMPSectionsDirectiveClass:
   case Stmt::OMPSimdDirectiveClass:
   case Stmt::OMPTileDirectiveClass:
+  case Stmt::OMPUnrollDirectiveClass:
   case Stmt::OMPSingleDirectiveClass:
   case Stmt::OMPTargetDataDirectiveClass:
   case Stmt::OMPTargetDirectiveClass:
@@ -1488,6 +1505,13 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
   case Stmt::OMPTeamsDistributeSimdDirectiveClass:
   case Stmt::OMPInteropDirectiveClass:
   case Stmt::OMPDispatchDirectiveClass:
+  case Stmt::OMPMaskedDirectiveClass:
+  case Stmt::OMPMetaDirectiveClass:
+  case Stmt::OMPGenericLoopDirectiveClass:
+  case Stmt::OMPTeamsGenericLoopDirectiveClass:
+  case Stmt::OMPTargetTeamsGenericLoopDirectiveClass:
+  case Stmt::OMPParallelGenericLoopDirectiveClass:
+  case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
   case Stmt::ReturnStmtClass:
   case Stmt::SEHExceptStmtClass:
   case Stmt::SEHFinallyStmtClass:
@@ -1572,6 +1596,9 @@ CanThrowResult Sema::canThrow(const Stmt *S) {
     return mergeCanThrow(CT, canThrow(TS->getTryBody()));
   }
 
+  case Stmt::SYCLUniqueStableNameExprClass:
+  case Stmt::SYCLUniqueStableIdExprClass:
+    return CT_Cannot;
   case Stmt::NoStmtClass:
     llvm_unreachable("Invalid class for statement");
   }

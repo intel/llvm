@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_AST_COMPUTE_DEPENDENCE_H
-#define LLVM_CLANG_AST_COMPUTE_DEPENDENCE_H
+#ifndef LLVM_CLANG_AST_COMPUTEDEPENDENCE_H
+#define LLVM_CLANG_AST_COMPUTEDEPENDENCE_H
 
 #include "clang/AST/DependenceFlags.h"
 #include "clang/Basic/ExceptionSpecificationType.h"
@@ -30,7 +30,8 @@ class UnaryExprOrTypeTraitExpr;
 class ArraySubscriptExpr;
 class MatrixSubscriptExpr;
 class CompoundLiteralExpr;
-class CastExpr;
+class ImplicitCastExpr;
+class ExplicitCastExpr;
 class BinaryOperator;
 class ConditionalOperator;
 class BinaryConditionalOperator;
@@ -70,7 +71,9 @@ class CXXPseudoDestructorExpr;
 class OverloadExpr;
 class DependentScopeDeclRefExpr;
 class CXXConstructExpr;
+class CXXTemporaryObjectExpr;
 class CXXDefaultInitExpr;
+class CXXDefaultArgExpr;
 class LambdaExpr;
 class CXXUnresolvedConstructExpr;
 class CXXDependentScopeMemberExpr;
@@ -78,6 +81,8 @@ class MaterializeTemporaryExpr;
 class CXXFoldExpr;
 class TypeTraitExpr;
 class ConceptSpecializationExpr;
+class SYCLUniqueStableIdExpr;
+class SYCLUniqueStableNameExpr;
 class PredefinedExpr;
 class CallExpr;
 class OffsetOfExpr;
@@ -101,6 +106,10 @@ class ObjCSubscriptRefExpr;
 class ObjCIsaExpr;
 class ObjCIndirectCopyRestoreExpr;
 class ObjCMessageExpr;
+class SYCLBuiltinNumFieldsExpr;
+class SYCLBuiltinNumBasesExpr;
+class SYCLBuiltinFieldTypeExpr;
+class SYCLBuiltinBaseTypeExpr;
 
 // The following functions are called from constructors of `Expr`, so they
 // should not access anything beyond basic
@@ -112,7 +121,8 @@ ExprDependence computeDependence(UnaryExprOrTypeTraitExpr *E);
 ExprDependence computeDependence(ArraySubscriptExpr *E);
 ExprDependence computeDependence(MatrixSubscriptExpr *E);
 ExprDependence computeDependence(CompoundLiteralExpr *E);
-ExprDependence computeDependence(CastExpr *E);
+ExprDependence computeDependence(ImplicitCastExpr *E);
+ExprDependence computeDependence(ExplicitCastExpr *E);
 ExprDependence computeDependence(BinaryOperator *E);
 ExprDependence computeDependence(ConditionalOperator *E);
 ExprDependence computeDependence(BinaryConditionalOperator *E);
@@ -154,7 +164,9 @@ ExprDependence computeDependence(OverloadExpr *E, bool KnownDependent,
                                  bool KnownContainsUnexpandedParameterPack);
 ExprDependence computeDependence(DependentScopeDeclRefExpr *E);
 ExprDependence computeDependence(CXXConstructExpr *E);
+ExprDependence computeDependence(CXXTemporaryObjectExpr *E);
 ExprDependence computeDependence(CXXDefaultInitExpr *E);
+ExprDependence computeDependence(CXXDefaultArgExpr *E);
 ExprDependence computeDependence(LambdaExpr *E,
                                  bool ContainsUnexpandedParameterPack);
 ExprDependence computeDependence(CXXUnresolvedConstructExpr *E);
@@ -165,6 +177,8 @@ ExprDependence computeDependence(TypeTraitExpr *E);
 ExprDependence computeDependence(ConceptSpecializationExpr *E,
                                  bool ValueDependent);
 
+ExprDependence computeDependence(SYCLUniqueStableNameExpr *E);
+ExprDependence computeDependence(SYCLUniqueStableIdExpr *E);
 ExprDependence computeDependence(PredefinedExpr *E);
 ExprDependence computeDependence(CallExpr *E, llvm::ArrayRef<Expr *> PreArgs);
 ExprDependence computeDependence(OffsetOfExpr *E);
@@ -191,6 +205,11 @@ ExprDependence computeDependence(ObjCSubscriptRefExpr *E);
 ExprDependence computeDependence(ObjCIsaExpr *E);
 ExprDependence computeDependence(ObjCIndirectCopyRestoreExpr *E);
 ExprDependence computeDependence(ObjCMessageExpr *E);
+
+ExprDependence computeDependence(SYCLBuiltinNumFieldsExpr *E);
+ExprDependence computeDependence(SYCLBuiltinNumBasesExpr *E);
+ExprDependence computeDependence(SYCLBuiltinFieldTypeExpr *E);
+ExprDependence computeDependence(SYCLBuiltinBaseTypeExpr *E);
 
 } // namespace clang
 #endif

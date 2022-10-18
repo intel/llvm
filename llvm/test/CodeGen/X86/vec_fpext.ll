@@ -75,7 +75,7 @@ define <4 x double> @fpext_8f32_to_4f64(<8 x float> %a) {
 }
 
 ; PR11674
-define void @fpext_frommem(<2 x float>* %in, <2 x double>* %out) {
+define void @fpext_frommem(ptr %in, ptr %out) {
 ; X32-SSE-LABEL: fpext_frommem:
 ; X32-SSE:       # %bb.0: # %entry
 ; X32-SSE-NEXT:    movl {{[0-9]+}}(%esp), %eax # encoding: [0x8b,0x44,0x24,0x08]
@@ -118,13 +118,13 @@ define void @fpext_frommem(<2 x float>* %in, <2 x double>* %out) {
 ; X64-AVX512VL-NEXT:    vmovups %xmm0, (%rsi) # EVEX TO VEX Compression encoding: [0xc5,0xf8,0x11,0x06]
 ; X64-AVX512VL-NEXT:    retq # encoding: [0xc3]
 entry:
-  %0 = load <2 x float>, <2 x float>* %in, align 8
+  %0 = load <2 x float>, ptr %in, align 8
   %1 = fpext <2 x float> %0 to <2 x double>
-  store <2 x double> %1, <2 x double>* %out, align 1
+  store <2 x double> %1, ptr %out, align 1
   ret void
 }
 
-define void @fpext_frommem4(<4 x float>* %in, <4 x double>* %out) {
+define void @fpext_frommem4(ptr %in, ptr %out) {
 ; X32-SSE-LABEL: fpext_frommem4:
 ; X32-SSE:       # %bb.0: # %entry
 ; X32-SSE-NEXT:    movl {{[0-9]+}}(%esp), %eax # encoding: [0x8b,0x44,0x24,0x08]
@@ -175,13 +175,13 @@ define void @fpext_frommem4(<4 x float>* %in, <4 x double>* %out) {
 ; X64-AVX512VL-NEXT:    vzeroupper # encoding: [0xc5,0xf8,0x77]
 ; X64-AVX512VL-NEXT:    retq # encoding: [0xc3]
 entry:
-  %0 = load <4 x float>, <4 x float>* %in
+  %0 = load <4 x float>, ptr %in
   %1 = fpext <4 x float> %0 to <4 x double>
-  store <4 x double> %1, <4 x double>* %out, align 1
+  store <4 x double> %1, ptr %out, align 1
   ret void
 }
 
-define void @fpext_frommem8(<8 x float>* %in, <8 x double>* %out) {
+define void @fpext_frommem8(ptr %in, ptr %out) {
 ; X32-SSE-LABEL: fpext_frommem8:
 ; X32-SSE:       # %bb.0: # %entry
 ; X32-SSE-NEXT:    movl {{[0-9]+}}(%esp), %eax # encoding: [0x8b,0x44,0x24,0x08]
@@ -244,9 +244,9 @@ define void @fpext_frommem8(<8 x float>* %in, <8 x double>* %out) {
 ; X64-AVX512VL-NEXT:    vzeroupper # encoding: [0xc5,0xf8,0x77]
 ; X64-AVX512VL-NEXT:    retq # encoding: [0xc3]
 entry:
-  %0 = load <8 x float>, <8 x float>* %in
+  %0 = load <8 x float>, ptr %in
   %1 = fpext <8 x float> %0 to <8 x double>
-  store <8 x double> %1, <8 x double>* %out, align 1
+  store <8 x double> %1, ptr %out, align 1
   ret void
 }
 
@@ -255,42 +255,42 @@ define <2 x double> @fpext_fromconst() {
 ; X32-SSE:       # %bb.0: # %entry
 ; X32-SSE-NEXT:    movaps {{.*#+}} xmm0 = [1.0E+0,-2.0E+0]
 ; X32-SSE-NEXT:    # encoding: [0x0f,0x28,0x05,A,A,A,A]
-; X32-SSE-NEXT:    # fixup A - offset: 3, value: {{\.LCPI[0-9]+_[0-9]+}}, kind: FK_Data_4
+; X32-SSE-NEXT:    # fixup A - offset: 3, value: {{\.?LCPI[0-9]+_[0-9]+}}, kind: FK_Data_4
 ; X32-SSE-NEXT:    retl # encoding: [0xc3]
 ;
 ; X32-AVX-LABEL: fpext_fromconst:
 ; X32-AVX:       # %bb.0: # %entry
 ; X32-AVX-NEXT:    vmovaps {{.*#+}} xmm0 = [1.0E+0,-2.0E+0]
 ; X32-AVX-NEXT:    # encoding: [0xc5,0xf8,0x28,0x05,A,A,A,A]
-; X32-AVX-NEXT:    # fixup A - offset: 4, value: {{\.LCPI[0-9]+_[0-9]+}}, kind: FK_Data_4
+; X32-AVX-NEXT:    # fixup A - offset: 4, value: {{\.?LCPI[0-9]+_[0-9]+}}, kind: FK_Data_4
 ; X32-AVX-NEXT:    retl # encoding: [0xc3]
 ;
 ; X32-AVX512VL-LABEL: fpext_fromconst:
 ; X32-AVX512VL:       # %bb.0: # %entry
-; X32-AVX512VL-NEXT:    vmovaps {{\.LCPI[0-9]+_[0-9]+}}, %xmm0 # EVEX TO VEX Compression xmm0 = [1.0E+0,-2.0E+0]
+; X32-AVX512VL-NEXT:    vmovaps {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0 # EVEX TO VEX Compression xmm0 = [1.0E+0,-2.0E+0]
 ; X32-AVX512VL-NEXT:    # encoding: [0xc5,0xf8,0x28,0x05,A,A,A,A]
-; X32-AVX512VL-NEXT:    # fixup A - offset: 4, value: {{\.LCPI[0-9]+_[0-9]+}}, kind: FK_Data_4
+; X32-AVX512VL-NEXT:    # fixup A - offset: 4, value: {{\.?LCPI[0-9]+_[0-9]+}}, kind: FK_Data_4
 ; X32-AVX512VL-NEXT:    retl # encoding: [0xc3]
 ;
 ; X64-SSE-LABEL: fpext_fromconst:
 ; X64-SSE:       # %bb.0: # %entry
 ; X64-SSE-NEXT:    movaps {{.*#+}} xmm0 = [1.0E+0,-2.0E+0]
 ; X64-SSE-NEXT:    # encoding: [0x0f,0x28,0x05,A,A,A,A]
-; X64-SSE-NEXT:    # fixup A - offset: 3, value: {{\.LCPI[0-9]+_[0-9]+}}-4, kind: reloc_riprel_4byte
+; X64-SSE-NEXT:    # fixup A - offset: 3, value: {{\.?LCPI[0-9]+_[0-9]+}}-4, kind: reloc_riprel_4byte
 ; X64-SSE-NEXT:    retq # encoding: [0xc3]
 ;
 ; X64-AVX-LABEL: fpext_fromconst:
 ; X64-AVX:       # %bb.0: # %entry
 ; X64-AVX-NEXT:    vmovaps {{.*#+}} xmm0 = [1.0E+0,-2.0E+0]
 ; X64-AVX-NEXT:    # encoding: [0xc5,0xf8,0x28,0x05,A,A,A,A]
-; X64-AVX-NEXT:    # fixup A - offset: 4, value: {{\.LCPI[0-9]+_[0-9]+}}-4, kind: reloc_riprel_4byte
+; X64-AVX-NEXT:    # fixup A - offset: 4, value: {{\.?LCPI[0-9]+_[0-9]+}}-4, kind: reloc_riprel_4byte
 ; X64-AVX-NEXT:    retq # encoding: [0xc3]
 ;
 ; X64-AVX512VL-LABEL: fpext_fromconst:
 ; X64-AVX512VL:       # %bb.0: # %entry
-; X64-AVX512VL-NEXT:    vmovaps {{.*}}(%rip), %xmm0 # EVEX TO VEX Compression xmm0 = [1.0E+0,-2.0E+0]
+; X64-AVX512VL-NEXT:    vmovaps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0 # EVEX TO VEX Compression xmm0 = [1.0E+0,-2.0E+0]
 ; X64-AVX512VL-NEXT:    # encoding: [0xc5,0xf8,0x28,0x05,A,A,A,A]
-; X64-AVX512VL-NEXT:    # fixup A - offset: 4, value: {{\.LCPI[0-9]+_[0-9]+}}-4, kind: reloc_riprel_4byte
+; X64-AVX512VL-NEXT:    # fixup A - offset: 4, value: {{\.?LCPI[0-9]+_[0-9]+}}-4, kind: reloc_riprel_4byte
 ; X64-AVX512VL-NEXT:    retq # encoding: [0xc3]
 entry:
   %0  = insertelement <2 x float> undef, float 1.0, i32 0
@@ -300,7 +300,7 @@ entry:
 }
 
 ; Make sure we don't narrow a volatile load.
-define <2 x double> @PR42079(<4 x float>* %x) {
+define <2 x double> @PR42079(ptr %x) {
 ; X32-SSE-LABEL: PR42079:
 ; X32-SSE:       # %bb.0:
 ; X32-SSE-NEXT:    movl {{[0-9]+}}(%esp), %eax # encoding: [0x8b,0x44,0x24,0x04]
@@ -339,7 +339,7 @@ define <2 x double> @PR42079(<4 x float>* %x) {
 ; X64-AVX512VL-NEXT:    vmovaps (%rdi), %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf8,0x28,0x07]
 ; X64-AVX512VL-NEXT:    vcvtps2pd %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf8,0x5a,0xc0]
 ; X64-AVX512VL-NEXT:    retq # encoding: [0xc3]
-  %a = load volatile <4 x float>, <4 x float>* %x
+  %a = load volatile <4 x float>, ptr %x
   %b = shufflevector <4 x float> %a, <4 x float> %a, <2 x i32> <i32 0, i32 1>
   %c = fpext <2 x float> %b to <2 x double>
   ret <2 x double> %c

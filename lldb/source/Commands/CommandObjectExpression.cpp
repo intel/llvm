@@ -14,6 +14,7 @@
 #include "lldb/Expression/UserExpression.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Target/Language.h"
@@ -24,26 +25,9 @@
 using namespace lldb;
 using namespace lldb_private;
 
-CommandObjectExpression::CommandOptions::CommandOptions() : OptionGroup() {}
+CommandObjectExpression::CommandOptions::CommandOptions() = default;
 
 CommandObjectExpression::CommandOptions::~CommandOptions() = default;
-
-static constexpr OptionEnumValueElement g_description_verbosity_type[] = {
-    {
-        eLanguageRuntimeDescriptionDisplayVerbosityCompact,
-        "compact",
-        "Only show the description string",
-    },
-    {
-        eLanguageRuntimeDescriptionDisplayVerbosityFull,
-        "full",
-        "Show the full output, including persistent variable's name and type",
-    },
-};
-
-static constexpr OptionEnumValues DescriptionVerbosityTypes() {
-  return OptionEnumValues(g_description_verbosity_type);
-}
 
 #define LLDB_OPTIONS_expression
 #include "CommandOptions.inc"
@@ -200,10 +184,10 @@ CommandObjectExpression::CommandObjectExpression(
                        "",
                        eCommandProcessMustBePaused | eCommandTryTargetAPILock),
       IOHandlerDelegate(IOHandlerDelegate::Completion::Expression),
-      m_option_group(), m_format_options(eFormatDefault),
+      m_format_options(eFormatDefault),
       m_repl_option(LLDB_OPT_SET_1, false, "repl", 'r', "Drop into REPL", false,
                     true),
-      m_command_options(), m_expr_line_count(0), m_expr_lines() {
+      m_expr_line_count(0) {
   SetHelpLong(
       R"(
 Single and multi-line expressions:
@@ -408,6 +392,12 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
   lldb::ValueObjectSP result_valobj_sp;
   StackFrame *frame = exe_ctx.GetFramePtr();
 
+  if (m_command_options.top_level && !m_command_options.allow_jit) {
+    result.AppendErrorWithFormat(
+        "Can't disable JIT compilation for top-level expressions.\n");
+    return false;
+  }
+
   const EvaluateExpressionOptions options = GetEvalOptions(target);
   ExpressionResults success = target.EvaluateExpression(
       expr, frame, result_valobj_sp, options, &m_fixed_expression);
@@ -415,9 +405,8 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
   // We only tell you about the FixIt if we applied it.  The compiler errors
   // will suggest the FixIt if it parsed.
   if (!m_fixed_expression.empty() && target.GetEnableNotifyAboutFixIts()) {
-    if (success == eExpressionCompleted)
-      error_stream.Printf("  Fix-it applied, fixed expression was: \n    %s\n",
-                          m_fixed_expression.c_str());
+    error_stream.Printf("  Fix-it applied, fixed expression was: \n    %s\n",
+                        m_fixed_expression.c_str());
   }
 
   if (result_valobj_sp) {
@@ -434,7 +423,6 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
             result.AppendErrorWithFormat(
                 "expression cannot be used with --element-count %s\n",
                 error.AsCString(""));
-            result.SetStatus(eReturnStatusFailed);
             return false;
           }
         }
@@ -482,9 +470,6 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
 void CommandObjectExpression::IOHandlerInputComplete(IOHandler &io_handler,
                                                      std::string &line) {
   io_handler.SetIsDone(true);
-  //    StreamSP output_stream =
-  //    io_handler.GetDebugger().GetAsyncOutputStream();
-  //    StreamSP error_stream = io_handler.GetDebugger().GetAsyncErrorStream();
   StreamFileSP output_sp = io_handler.GetOutputStreamFileSP();
   StreamFileSP error_sp = io_handler.GetErrorStreamFileSP();
 
@@ -524,7 +509,7 @@ void CommandObjectExpression::GetMultilineExpression() {
                             llvm::StringRef(), // Continuation prompt
                             multiple_lines, color_prompt,
                             1, // Show line numbers starting at 1
-                            *this, nullptr));
+                            *this));
 
   StreamFileSP output_sp = io_handler_sp->GetOutputStreamFileSP();
   if (output_sp) {
@@ -655,13 +640,8 @@ bool CommandObjectExpression::DoExecute(llvm::StringRef command,
         fixed_command.append(m_fixed_expression);
       history.AppendString(fixed_command);
     }
-    // Increment statistics to record this expression evaluation success.
-    target.IncrementStats(StatisticKind::ExpressionSuccessful);
     return true;
   }
-
-  // Increment statistics to record this expression evaluation failure.
-  target.IncrementStats(StatisticKind::ExpressionFailure);
   result.SetStatus(eReturnStatusFailed);
   return false;
 }

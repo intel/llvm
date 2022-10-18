@@ -51,18 +51,15 @@ enum SymbolKind : uint16_t {
 
 #define CV_DEFINE_ENUM_CLASS_FLAGS_OPERATORS(Class)                            \
   inline Class operator|(Class a, Class b) {                                   \
-    return static_cast<Class>(                                                 \
-        static_cast<std::underlying_type<Class>::type>(a) |                    \
-        static_cast<std::underlying_type<Class>::type>(b));                    \
+    return static_cast<Class>(static_cast<std::underlying_type_t<Class>>(a) |  \
+                              static_cast<std::underlying_type_t<Class>>(b));  \
   }                                                                            \
   inline Class operator&(Class a, Class b) {                                   \
-    return static_cast<Class>(                                                 \
-        static_cast<std::underlying_type<Class>::type>(a) &                    \
-        static_cast<std::underlying_type<Class>::type>(b));                    \
+    return static_cast<Class>(static_cast<std::underlying_type_t<Class>>(a) &  \
+                              static_cast<std::underlying_type_t<Class>>(b));  \
   }                                                                            \
   inline Class operator~(Class a) {                                            \
-    return static_cast<Class>(                                                 \
-        ~static_cast<std::underlying_type<Class>::type>(a));                   \
+    return static_cast<Class>(~static_cast<std::underlying_type_t<Class>>(a)); \
   }                                                                            \
   inline Class &operator|=(Class &a, Class b) {                                \
     a = a | b;                                                                 \
@@ -123,7 +120,6 @@ enum class CPUType : uint16_t {
   ARM_XMAC = 0x66,
   ARM_WMMX = 0x67,
   ARM7 = 0x68,
-  ARM64 = 0x69,
   Omni = 0x70,
   Ia64 = 0x80,
   Ia64_2 = 0x81,
@@ -135,6 +131,10 @@ enum class CPUType : uint16_t {
   EBC = 0xe0,
   Thumb = 0xf0,
   ARMNT = 0xf4,
+  ARM64 = 0xf6,
+  HybridX86ARM64 = 0xf7,
+  ARM64EC = 0xf8,
+  ARM64X = 0xf9,
   D3D11_Shader = 0x100,
 };
 
@@ -158,6 +158,8 @@ enum SourceLanguage : uint8_t {
   JScript = 0x0e,
   MSIL = 0x0f,
   HLSL = 0x10,
+
+  Rust = 0x15,
 
   /// The DMD & Swift compilers emit 'D' and 'S', respectively, for the CV
   /// source language. Microsoft does not have enumerators for them yet.
@@ -325,6 +327,9 @@ enum class DebugSubsectionKind : uint32_t {
   MergedAssemblyInput = 0xfc,
 
   CoffSymbolRVA = 0xfd,
+
+  XfgHashType = 0xff,
+  XfgHashVirtual = 0x100,
 };
 
 /// Equivalent to CV_ptrtype_e.

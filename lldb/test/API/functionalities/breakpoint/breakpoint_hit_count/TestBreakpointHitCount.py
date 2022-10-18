@@ -13,8 +13,6 @@ class BreakpointHitCountTestCase(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @add_test_categories(['pyapi'])
     def test_breakpoint_location_hit_count(self):
         """Use Python APIs to check breakpoint hit count."""
@@ -24,10 +22,7 @@ class BreakpointHitCountTestCase(TestBase):
     def test_breakpoint_one_shot(self):
         """Check that one-shot breakpoints trigger only once."""
         self.build()
-
-        exe = self.getBuildArtifact("a.out")
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         self.runCmd("tb a")
         process = target.LaunchSimple(
@@ -44,7 +39,7 @@ class BreakpointHitCountTestCase(TestBase):
         self.assertTrue(frame0.GetFunctionName() == "a(int)" or frame0.GetFunctionName() == "int a(int)");
 
         process.Continue()
-        self.assertEqual(process.GetState(), lldb.eStateExited)
+        self.assertState(process.GetState(), lldb.eStateExited)
 
     def setUp(self):
         # Call super's setUp().
@@ -56,10 +51,7 @@ class BreakpointHitCountTestCase(TestBase):
 
     def do_test_breakpoint_location_hit_count(self):
         """Use Python APIs to check breakpoint hit count."""
-        exe = self.getBuildArtifact("a.out")
-
-        target = self.dbg.CreateTarget(exe)
-        self.assertTrue(target, VALID_TARGET)
+        target = self.createTestTarget()
 
         # Create a breakpoint in main.cpp by name 'a',
         # there should be two locations.

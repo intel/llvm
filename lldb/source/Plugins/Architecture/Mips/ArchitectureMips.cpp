@@ -16,16 +16,13 @@
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 
 using namespace lldb_private;
 using namespace lldb;
 
 LLDB_PLUGIN_DEFINE(ArchitectureMips)
-
-ConstString ArchitectureMips::GetPluginNameStatic() {
-  return ConstString("mips");
-}
 
 void ArchitectureMips::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
@@ -41,9 +38,6 @@ std::unique_ptr<Architecture> ArchitectureMips::Create(const ArchSpec &arch) {
   return arch.IsMIPS() ?
       std::unique_ptr<Architecture>(new ArchitectureMips(arch)) : nullptr;
 }
-
-ConstString ArchitectureMips::GetPluginName() { return GetPluginNameStatic(); }
-uint32_t ArchitectureMips::GetPluginVersion() { return 1; }
 
 addr_t ArchitectureMips::GetCallableLoadAddress(addr_t code_addr,
                                                 AddressClass addr_class) const {
@@ -78,7 +72,7 @@ addr_t ArchitectureMips::GetOpcodeLoadAddress(addr_t opcode_addr,
 lldb::addr_t ArchitectureMips::GetBreakableLoadAddress(lldb::addr_t addr,
                                                        Target &target) const {
 
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
+  Log *log = GetLog(LLDBLog::Breakpoints);
 
   Address resolved_addr;
 
@@ -160,7 +154,6 @@ Instruction *ArchitectureMips::GetInstructionAtAddress(
 
   InstructionList instruction_list;
   InstructionSP prev_insn;
-  bool prefer_file_cache = true; // Read from file
   uint32_t inst_to_choose = 0;
 
   Address addr = resolved_addr;
@@ -171,8 +164,7 @@ Instruction *ArchitectureMips::GetInstructionAtAddress(
     uint32_t insn_size = 0;
 
     disasm_sp->ParseInstructions(target, addr,
-                                 {Disassembler::Limit::Bytes, i * 2}, nullptr,
-                                 prefer_file_cache);
+                                 {Disassembler::Limit::Bytes, i * 2}, nullptr);
 
     uint32_t num_insns = disasm_sp->GetInstructionList().GetSize();
     if (num_insns) {

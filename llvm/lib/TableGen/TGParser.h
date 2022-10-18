@@ -36,17 +36,21 @@ namespace llvm {
     }
   };
 
-  /// RecordsEntry - Can be either a record or a foreach loop.
+  /// RecordsEntry - Holds exactly one of a Record, ForeachLoop, or
+  /// AssertionInfo.
   struct RecordsEntry {
     std::unique_ptr<Record> Rec;
     std::unique_ptr<ForeachLoop> Loop;
+    std::unique_ptr<Record::AssertionInfo> Assertion;
 
     void dump() const;
 
-    RecordsEntry() {}
+    RecordsEntry() = default;
     RecordsEntry(std::unique_ptr<Record> Rec) : Rec(std::move(Rec)) {}
     RecordsEntry(std::unique_ptr<ForeachLoop> Loop)
-      : Loop(std::move(Loop)) {}
+        : Loop(std::move(Loop)) {}
+    RecordsEntry(std::unique_ptr<Record::AssertionInfo> Assertion)
+        : Assertion(std::move(Assertion)) {}
   };
 
   /// ForeachLoop - Record the iteration state associated with a for loop.
@@ -156,10 +160,16 @@ class TGParser {
                       // exist.
   };
 
+  bool NoWarnOnUnusedTemplateArgs = false;
+  bool TrackReferenceLocs = false;
+
 public:
-  TGParser(SourceMgr &SM, ArrayRef<std::string> Macros,
-           RecordKeeper &records)
-    : Lex(SM, Macros), CurMultiClass(nullptr), Records(records) {}
+  TGParser(SourceMgr &SM, ArrayRef<std::string> Macros, RecordKeeper &records,
+           const bool NoWarnOnUnusedTemplateArgs = false,
+           const bool TrackReferenceLocs = false)
+      : Lex(SM, Macros), CurMultiClass(nullptr), Records(records),
+        NoWarnOnUnusedTemplateArgs(NoWarnOnUnusedTemplateArgs),
+        TrackReferenceLocs(TrackReferenceLocs) {}
 
   /// ParseFile - Main entrypoint for parsing a tblgen file.  These parser
   /// routines return true on error, or false on success.
@@ -191,9 +201,12 @@ public:
 
 private: // Semantic analysis methods.
   bool AddValue(Record *TheRec, SMLoc Loc, const RecordVal &RV);
+  /// Set the value of a RecordVal within the given record. If `OverrideDefLoc`
+  /// is set, the provided location overrides any existing location of the
+  /// RecordVal.
   bool SetValue(Record *TheRec, SMLoc Loc, Init *ValName,
                 ArrayRef<unsigned> BitList, Init *V,
-                bool AllowSelfAssignment = false);
+                bool AllowSelfAssignment = false, bool OverrideDefLoc = true);
   bool AddSubClass(Record *Rec, SubClassReference &SubClass);
   bool AddSubClass(RecordsEntry &Entry, SubClassReference &SubClass);
   bool AddSubMultiClass(MultiClass *CurMC,
@@ -222,7 +235,7 @@ private:  // Parser methods.
   bool ParseForeach(MultiClass *CurMultiClass);
   bool ParseIf(MultiClass *CurMultiClass);
   bool ParseIfBody(MultiClass *CurMultiClass, StringRef Kind);
-  bool ParseAssert(MultiClass *CurMultiClass, Record *CurRec);
+  bool ParseAssert(MultiClass *CurMultiClass, Record *CurRec = nullptr);
   bool ParseTopLevelLet(MultiClass *CurMultiClass);
   void ParseLetList(SmallVectorImpl<LetRecord> &Result);
 
@@ -237,7 +250,7 @@ private:  // Parser methods.
   SubClassReference ParseSubClassReference(Record *CurRec, bool isDefm);
   SubMultiClassReference ParseSubMultiClassReference(MultiClass *CurMC);
 
-  Init *ParseIDValue(Record *CurRec, StringInit *Name, SMLoc NameLoc,
+  Init *ParseIDValue(Record *CurRec, StringInit *Name, SMRange NameLoc,
                      IDParseMode Mode = ParseValueMode);
   Init *ParseSimpleValue(Record *CurRec, RecTy *ItemType = nullptr,
                          IDParseMode Mode = ParseValueMode);
@@ -258,6 +271,7 @@ private:  // Parser methods.
   RecTy *ParseType();
   Init *ParseOperation(Record *CurRec, RecTy *ItemType);
   Init *ParseOperationSubstr(Record *CurRec, RecTy *ItemType);
+  Init *ParseOperationFind(Record *CurRec, RecTy *ItemType);
   Init *ParseOperationForEachFilter(Record *CurRec, RecTy *ItemType);
   Init *ParseOperationCond(Record *CurRec, RecTy *ItemType);
   RecTy *ParseOperatorType();

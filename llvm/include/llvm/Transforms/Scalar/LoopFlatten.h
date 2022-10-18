@@ -14,17 +14,18 @@
 #define LLVM_TRANSFORMS_SCALAR_LOOPFLATTEN_H
 
 #include "llvm/Analysis/LoopAnalysisManager.h"
-#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Transforms/Scalar/LoopPassManager.h"
 
 namespace llvm {
+class LPMUpdater;
+class LoopNest;
 
 class LoopFlattenPass : public PassInfoMixin<LoopFlattenPass> {
 public:
   LoopFlattenPass() = default;
 
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  PreservedAnalyses run(LoopNest &LN, LoopAnalysisManager &LAM,
+                        LoopStandardAnalysisResults &AR, LPMUpdater &U);
 };
 
 } // end namespace llvm

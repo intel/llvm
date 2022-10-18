@@ -11,7 +11,6 @@
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/TargetTransformInfoImpl.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -21,7 +20,6 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
 #include <utility>
 
 using namespace llvm;
@@ -32,6 +30,11 @@ using namespace PatternMatch;
 static cl::opt<bool> EnableReduxCost("costmodel-reduxcost", cl::init(false),
                                      cl::Hidden,
                                      cl::desc("Recognize reduction patterns."));
+
+static cl::opt<unsigned> CacheLineSize(
+    "cache-line-size", cl::init(0), cl::Hidden,
+    cl::desc("Use this to override the target cache line size when "
+             "specified by the user."));
 
 namespace {
 /// No-op implementation of the TTI interface using the utility base
@@ -54,16 +57,17 @@ bool HardwareLoopInfo::canAnalyze(LoopInfo &LI) {
   return true;
 }
 
-IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id,
-                                                 const CallBase &CI,
-                                                 unsigned ScalarizationCost)
+IntrinsicCostAttributes::IntrinsicCostAttributes(
+    Intrinsic::ID Id, const CallBase &CI, InstructionCost ScalarizationCost,
+    bool TypeBasedOnly)
     : II(dyn_cast<IntrinsicInst>(&CI)), RetTy(CI.getType()), IID(Id),
       ScalarizationCost(ScalarizationCost) {
 
   if (const auto *FPMO = dyn_cast<FPMathOperator>(&CI))
     FMF = FPMO->getFastMathFlags();
 
-  Arguments.insert(Arguments.begin(), CI.arg_begin(), CI.arg_end());
+  if (!TypeBasedOnly)
+    Arguments.insert(Arguments.begin(), CI.arg_begin(), CI.arg_end());
   FunctionType *FTy = CI.getCalledFunction()->getFunctionType();
   ParamTys.insert(ParamTys.begin(), FTy->param_begin(), FTy->param_end());
 }
@@ -72,7 +76,7 @@ IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *RTy,
                                                  ArrayRef<Type *> Tys,
                                                  FastMathFlags Flags,
                                                  const IntrinsicInst *I,
-                                                 unsigned ScalarCost)
+                                                 InstructionCost ScalarCost)
     : II(I), RetTy(RTy), IID(Id), FMF(Flags), ScalarizationCost(ScalarCost) {
   ParamTys.insert(ParamTys.begin(), Tys.begin(), Tys.end());
 }
@@ -92,7 +96,7 @@ IntrinsicCostAttributes::IntrinsicCostAttributes(Intrinsic::ID Id, Type *RTy,
                                                  ArrayRef<Type *> Tys,
                                                  FastMathFlags Flags,
                                                  const IntrinsicInst *I,
-                                                 unsigned ScalarCost)
+                                                 InstructionCost ScalarCost)
     : II(I), RetTy(RTy), IID(Id), FMF(Flags), ScalarizationCost(ScalarCost) {
   ParamTys.insert(ParamTys.begin(), Tys.begin(), Tys.end());
   Arguments.insert(Arguments.begin(), Args.begin(), Args.end());
@@ -168,11 +172,7 @@ bool HardwareLoopInfo::isHardwareLoopCandidate(ScalarEvolution &SE,
     // Note that this block may not be the loop latch block, even if the loop
     // has a latch block.
     ExitBlock = BB;
-    TripCount = SE.getAddExpr(EC, SE.getOne(EC->getType()));
-
-    if (!EC->getType()->isPointerTy() && EC->getType() != CountType)
-      TripCount = SE.getZeroExtendExpr(TripCount, CountType);
-
+    ExitCount = EC;
     break;
   }
 
@@ -184,7 +184,7 @@ bool HardwareLoopInfo::isHardwareLoopCandidate(ScalarEvolution &SE,
 TargetTransformInfo::TargetTransformInfo(const DataLayout &DL)
     : TTIImpl(new Model<NoTTIImpl>(NoTTIImpl(DL))) {}
 
-TargetTransformInfo::~TargetTransformInfo() {}
+TargetTransformInfo::~TargetTransformInfo() = default;
 
 TargetTransformInfo::TargetTransformInfo(TargetTransformInfo &&Arg)
     : TTIImpl(std::move(Arg.TTIImpl)) {}
@@ -207,9 +207,10 @@ int TargetTransformInfo::getInlinerVectorBonusPercent() const {
   return TTIImpl->getInlinerVectorBonusPercent();
 }
 
-int TargetTransformInfo::getGEPCost(Type *PointeeType, const Value *Ptr,
-                                    ArrayRef<const Value *> Operands,
-                                    TTI::TargetCostKind CostKind) const {
+InstructionCost
+TargetTransformInfo::getGEPCost(Type *PointeeType, const Value *Ptr,
+                                ArrayRef<const Value *> Operands,
+                                TTI::TargetCostKind CostKind) const {
   return TTIImpl->getGEPCost(PointeeType, Ptr, Operands, CostKind);
 }
 
@@ -220,10 +221,10 @@ unsigned TargetTransformInfo::getEstimatedNumberOfCaseClusters(
 }
 
 InstructionCost
-TargetTransformInfo::getUserCost(const User *U,
-                                 ArrayRef<const Value *> Operands,
-                                 enum TargetCostKind CostKind) const {
-  InstructionCost Cost = TTIImpl->getUserCost(U, Operands, CostKind);
+TargetTransformInfo::getInstructionCost(const User *U,
+                                        ArrayRef<const Value *> Operands,
+                                        enum TargetCostKind CostKind) const {
+  InstructionCost Cost = TTIImpl->getInstructionCost(U, Operands, CostKind);
   assert((CostKind == TTI::TCK_RecipThroughput || Cost >= 0) &&
          "TTI should not produce negative costs!");
   return Cost;
@@ -263,8 +264,18 @@ bool TargetTransformInfo::isNoopAddrSpaceCast(unsigned FromAS,
   return TTIImpl->isNoopAddrSpaceCast(FromAS, ToAS);
 }
 
+bool TargetTransformInfo::canHaveNonUndefGlobalInitializerInAddressSpace(
+    unsigned AS) const {
+  return TTIImpl->canHaveNonUndefGlobalInitializerInAddressSpace(AS);
+}
+
 unsigned TargetTransformInfo::getAssumedAddrSpace(const Value *V) const {
   return TTIImpl->getAssumedAddrSpace(V);
+}
+
+std::pair<const Value *, unsigned>
+TargetTransformInfo::getPredicatedAddrSpace(const Value *V) const {
+  return TTIImpl->getPredicatedAddrSpace(V);
 }
 
 Value *TargetTransformInfo::rewriteIntrinsicWithAddressSpace(
@@ -284,12 +295,12 @@ bool TargetTransformInfo::isHardwareLoopProfitable(
 
 bool TargetTransformInfo::preferPredicateOverEpilogue(
     Loop *L, LoopInfo *LI, ScalarEvolution &SE, AssumptionCache &AC,
-    TargetLibraryInfo *TLI, DominatorTree *DT,
-    const LoopAccessInfo *LAI) const {
-  return TTIImpl->preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
+    TargetLibraryInfo *TLI, DominatorTree *DT, LoopVectorizationLegality *LVL,
+    InterleavedAccessInfo *IAI) const {
+  return TTIImpl->preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LVL, IAI);
 }
 
-bool TargetTransformInfo::emitGetActiveLaneMask() const {
+PredicationStyle TargetTransformInfo::emitGetActiveLaneMask() const {
   return TTIImpl->emitGetActiveLaneMask();
 }
 
@@ -317,8 +328,9 @@ Optional<Value *> TargetTransformInfo::simplifyDemandedVectorEltsIntrinsic(
 }
 
 void TargetTransformInfo::getUnrollingPreferences(
-    Loop *L, ScalarEvolution &SE, UnrollingPreferences &UP) const {
-  return TTIImpl->getUnrollingPreferences(L, SE, UP);
+    Loop *L, ScalarEvolution &SE, UnrollingPreferences &UP,
+    OptimizationRemarkEmitter *ORE) const {
+  return TTIImpl->getUnrollingPreferences(L, SE, UP, ORE);
 }
 
 void TargetTransformInfo::getPeelingPreferences(Loop *L, ScalarEvolution &SE,
@@ -343,7 +355,8 @@ bool TargetTransformInfo::isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
                                         Scale, AddrSpace, I);
 }
 
-bool TargetTransformInfo::isLSRCostLess(LSRCost &C1, LSRCost &C2) const {
+bool TargetTransformInfo::isLSRCostLess(const LSRCost &C1,
+                                        const LSRCost &C2) const {
   return TTIImpl->isLSRCostLess(C1, C2);
 }
 
@@ -391,14 +404,35 @@ bool TargetTransformInfo::isLegalNTLoad(Type *DataType, Align Alignment) const {
   return TTIImpl->isLegalNTLoad(DataType, Alignment);
 }
 
+bool TargetTransformInfo::isLegalBroadcastLoad(Type *ElementTy,
+                                               ElementCount NumElements) const {
+  return TTIImpl->isLegalBroadcastLoad(ElementTy, NumElements);
+}
+
 bool TargetTransformInfo::isLegalMaskedGather(Type *DataType,
                                               Align Alignment) const {
   return TTIImpl->isLegalMaskedGather(DataType, Alignment);
 }
 
+bool TargetTransformInfo::isLegalAltInstr(
+    VectorType *VecTy, unsigned Opcode0, unsigned Opcode1,
+    const SmallBitVector &OpcodeMask) const {
+  return TTIImpl->isLegalAltInstr(VecTy, Opcode0, Opcode1, OpcodeMask);
+}
+
 bool TargetTransformInfo::isLegalMaskedScatter(Type *DataType,
                                                Align Alignment) const {
   return TTIImpl->isLegalMaskedScatter(DataType, Alignment);
+}
+
+bool TargetTransformInfo::forceScalarizeMaskedGather(VectorType *DataType,
+                                                     Align Alignment) const {
+  return TTIImpl->forceScalarizeMaskedGather(DataType, Alignment);
+}
+
+bool TargetTransformInfo::forceScalarizeMaskedScatter(VectorType *DataType,
+                                                      Align Alignment) const {
+  return TTIImpl->forceScalarizeMaskedScatter(DataType, Alignment);
 }
 
 bool TargetTransformInfo::isLegalMaskedCompressStore(Type *DataType) const {
@@ -407,6 +441,10 @@ bool TargetTransformInfo::isLegalMaskedCompressStore(Type *DataType) const {
 
 bool TargetTransformInfo::isLegalMaskedExpandLoad(Type *DataType) const {
   return TTIImpl->isLegalMaskedExpandLoad(DataType);
+}
+
+bool TargetTransformInfo::enableOrderedReductions() const {
+  return TTIImpl->enableOrderedReductions();
 }
 
 bool TargetTransformInfo::hasDivRemOp(Type *DataType, bool IsSigned) const {
@@ -422,12 +460,11 @@ bool TargetTransformInfo::prefersVectorizedAddressing() const {
   return TTIImpl->prefersVectorizedAddressing();
 }
 
-int TargetTransformInfo::getScalingFactorCost(Type *Ty, GlobalValue *BaseGV,
-                                              int64_t BaseOffset,
-                                              bool HasBaseReg, int64_t Scale,
-                                              unsigned AddrSpace) const {
-  int Cost = TTIImpl->getScalingFactorCost(Ty, BaseGV, BaseOffset, HasBaseReg,
-                                           Scale, AddrSpace);
+InstructionCost TargetTransformInfo::getScalingFactorCost(
+    Type *Ty, GlobalValue *BaseGV, int64_t BaseOffset, bool HasBaseReg,
+    int64_t Scale, unsigned AddrSpace) const {
+  InstructionCost Cost = TTIImpl->getScalingFactorCost(
+      Ty, BaseGV, BaseOffset, HasBaseReg, Scale, AddrSpace);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -457,29 +494,42 @@ unsigned TargetTransformInfo::getRegUsageForType(Type *Ty) const {
 bool TargetTransformInfo::shouldBuildLookupTables() const {
   return TTIImpl->shouldBuildLookupTables();
 }
+
 bool TargetTransformInfo::shouldBuildLookupTablesForConstant(
     Constant *C) const {
   return TTIImpl->shouldBuildLookupTablesForConstant(C);
+}
+
+bool TargetTransformInfo::shouldBuildRelLookupTables() const {
+  return TTIImpl->shouldBuildRelLookupTables();
 }
 
 bool TargetTransformInfo::useColdCCForColdCall(Function &F) const {
   return TTIImpl->useColdCCForColdCall(F);
 }
 
-unsigned
+InstructionCost
 TargetTransformInfo::getScalarizationOverhead(VectorType *Ty,
                                               const APInt &DemandedElts,
                                               bool Insert, bool Extract) const {
   return TTIImpl->getScalarizationOverhead(Ty, DemandedElts, Insert, Extract);
 }
 
-unsigned TargetTransformInfo::getOperandsScalarizationOverhead(
+InstructionCost TargetTransformInfo::getOperandsScalarizationOverhead(
     ArrayRef<const Value *> Args, ArrayRef<Type *> Tys) const {
   return TTIImpl->getOperandsScalarizationOverhead(Args, Tys);
 }
 
 bool TargetTransformInfo::supportsEfficientVectorElementLoadStore() const {
   return TTIImpl->supportsEfficientVectorElementLoadStore();
+}
+
+bool TargetTransformInfo::supportsTailCalls() const {
+  return TTIImpl->supportsTailCalls();
+}
+
+bool TargetTransformInfo::supportsTailCallFor(const CallBase *CB) const {
+  return TTIImpl->supportsTailCallFor(CB);
 }
 
 bool TargetTransformInfo::enableAggressiveInterleaving(
@@ -522,45 +572,53 @@ bool TargetTransformInfo::haveFastSqrt(Type *Ty) const {
   return TTIImpl->haveFastSqrt(Ty);
 }
 
+bool TargetTransformInfo::isExpensiveToSpeculativelyExecute(
+    const Instruction *I) const {
+  return TTIImpl->isExpensiveToSpeculativelyExecute(I);
+}
+
 bool TargetTransformInfo::isFCmpOrdCheaperThanFCmpZero(Type *Ty) const {
   return TTIImpl->isFCmpOrdCheaperThanFCmpZero(Ty);
 }
 
-int TargetTransformInfo::getFPOpCost(Type *Ty) const {
-  int Cost = TTIImpl->getFPOpCost(Ty);
+InstructionCost TargetTransformInfo::getFPOpCost(Type *Ty) const {
+  InstructionCost Cost = TTIImpl->getFPOpCost(Ty);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getIntImmCodeSizeCost(unsigned Opcode, unsigned Idx,
-                                               const APInt &Imm,
-                                               Type *Ty) const {
-  int Cost = TTIImpl->getIntImmCodeSizeCost(Opcode, Idx, Imm, Ty);
+InstructionCost TargetTransformInfo::getIntImmCodeSizeCost(unsigned Opcode,
+                                                           unsigned Idx,
+                                                           const APInt &Imm,
+                                                           Type *Ty) const {
+  InstructionCost Cost = TTIImpl->getIntImmCodeSizeCost(Opcode, Idx, Imm, Ty);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getIntImmCost(const APInt &Imm, Type *Ty,
-                                       TTI::TargetCostKind CostKind) const {
-  int Cost = TTIImpl->getIntImmCost(Imm, Ty, CostKind);
+InstructionCost
+TargetTransformInfo::getIntImmCost(const APInt &Imm, Type *Ty,
+                                   TTI::TargetCostKind CostKind) const {
+  InstructionCost Cost = TTIImpl->getIntImmCost(Imm, Ty, CostKind);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getIntImmCostInst(unsigned Opcode, unsigned Idx,
-                                           const APInt &Imm, Type *Ty,
-                                           TTI::TargetCostKind CostKind,
-                                           Instruction *Inst) const {
-  int Cost = TTIImpl->getIntImmCostInst(Opcode, Idx, Imm, Ty, CostKind, Inst);
+InstructionCost TargetTransformInfo::getIntImmCostInst(
+    unsigned Opcode, unsigned Idx, const APInt &Imm, Type *Ty,
+    TTI::TargetCostKind CostKind, Instruction *Inst) const {
+  InstructionCost Cost =
+      TTIImpl->getIntImmCostInst(Opcode, Idx, Imm, Ty, CostKind, Inst);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int
+InstructionCost
 TargetTransformInfo::getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx,
                                          const APInt &Imm, Type *Ty,
                                          TTI::TargetCostKind CostKind) const {
-  int Cost = TTIImpl->getIntImmCostIntrin(IID, Idx, Imm, Ty, CostKind);
+  InstructionCost Cost =
+      TTIImpl->getIntImmCostIntrin(IID, Idx, Imm, Ty, CostKind);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -591,8 +649,13 @@ Optional<unsigned> TargetTransformInfo::getMaxVScale() const {
   return TTIImpl->getMaxVScale();
 }
 
-bool TargetTransformInfo::shouldMaximizeVectorBandwidth(bool OptSize) const {
-  return TTIImpl->shouldMaximizeVectorBandwidth(OptSize);
+Optional<unsigned> TargetTransformInfo::getVScaleForTuning() const {
+  return TTIImpl->getVScaleForTuning();
+}
+
+bool TargetTransformInfo::shouldMaximizeVectorBandwidth(
+    TargetTransformInfo::RegisterKind K) const {
+  return TTIImpl->shouldMaximizeVectorBandwidth(K);
 }
 
 ElementCount TargetTransformInfo::getMinimumVF(unsigned ElemWidth,
@@ -605,6 +668,11 @@ unsigned TargetTransformInfo::getMaximumVF(unsigned ElemWidth,
   return TTIImpl->getMaximumVF(ElemWidth, Opcode);
 }
 
+unsigned TargetTransformInfo::getStoreMinimumVF(unsigned VF, Type *ScalarMemTy,
+                                                Type *ScalarValTy) const {
+  return TTIImpl->getStoreMinimumVF(VF, ScalarMemTy, ScalarValTy);
+}
+
 bool TargetTransformInfo::shouldConsiderAddressTypePromotion(
     const Instruction &I, bool &AllowPromotionWithoutCommonHeader) const {
   return TTIImpl->shouldConsiderAddressTypePromotion(
@@ -612,7 +680,8 @@ bool TargetTransformInfo::shouldConsiderAddressTypePromotion(
 }
 
 unsigned TargetTransformInfo::getCacheLineSize() const {
-  return TTIImpl->getCacheLineSize();
+  return CacheLineSize.getNumOccurrences() > 0 ? CacheLineSize
+                                               : TTIImpl->getCacheLineSize();
 }
 
 llvm::Optional<unsigned>
@@ -644,20 +713,27 @@ bool TargetTransformInfo::enableWritePrefetching() const {
   return TTIImpl->enableWritePrefetching();
 }
 
+bool TargetTransformInfo::shouldPrefetchAddressSpace(unsigned AS) const {
+  return TTIImpl->shouldPrefetchAddressSpace(AS);
+}
+
 unsigned TargetTransformInfo::getMaxInterleaveFactor(unsigned VF) const {
   return TTIImpl->getMaxInterleaveFactor(VF);
 }
 
-TargetTransformInfo::OperandValueKind
-TargetTransformInfo::getOperandInfo(const Value *V,
-                                    OperandValueProperties &OpProps) {
+TargetTransformInfo::OperandValueInfo
+TargetTransformInfo::getOperandInfo(const Value *V) {
   OperandValueKind OpInfo = OK_AnyValue;
-  OpProps = OP_None;
+  OperandValueProperties OpProps = OP_None;
 
-  if (const auto *CI = dyn_cast<ConstantInt>(V)) {
-    if (CI->getValue().isPowerOf2())
-      OpProps = OP_PowerOf2;
-    return OK_UniformConstantValue;
+  if (isa<ConstantInt>(V) || isa<ConstantFP>(V)) {
+    if (const auto *CI = dyn_cast<ConstantInt>(V)) {
+      if (CI->getValue().isPowerOf2())
+        OpProps = OP_PowerOf2;
+      else if (CI->getValue().isNegatedPowerOf2())
+        OpProps = OP_NegatedPowerOf2;
+    }
+    return {OK_UniformConstantValue, OpProps};
   }
 
   // A broadcast shuffle creates a uniform value.
@@ -675,18 +751,26 @@ TargetTransformInfo::getOperandInfo(const Value *V,
     OpInfo = OK_NonUniformConstantValue;
     if (Splat) {
       OpInfo = OK_UniformConstantValue;
-      if (auto *CI = dyn_cast<ConstantInt>(Splat))
+      if (auto *CI = dyn_cast<ConstantInt>(Splat)) {
         if (CI->getValue().isPowerOf2())
           OpProps = OP_PowerOf2;
+        else if (CI->getValue().isNegatedPowerOf2())
+          OpProps = OP_NegatedPowerOf2;
+      }
     } else if (const auto *CDS = dyn_cast<ConstantDataSequential>(V)) {
-      OpProps = OP_PowerOf2;
+      bool AllPow2 = true, AllNegPow2 = true;
       for (unsigned I = 0, E = CDS->getNumElements(); I != E; ++I) {
-        if (auto *CI = dyn_cast<ConstantInt>(CDS->getElementAsConstant(I)))
-          if (CI->getValue().isPowerOf2())
+        if (auto *CI = dyn_cast<ConstantInt>(CDS->getElementAsConstant(I))) {
+          AllPow2 &= CI->getValue().isPowerOf2();
+          AllNegPow2 &= CI->getValue().isNegatedPowerOf2();
+          if (AllPow2 || AllNegPow2)
             continue;
-        OpProps = OP_None;
+        }
+        AllPow2 = AllNegPow2 = false;
         break;
       }
+      OpProps = AllPow2 ? OP_PowerOf2 : OpProps;
+      OpProps = AllNegPow2 ? OP_NegatedPowerOf2 : OpProps;
     }
   }
 
@@ -695,26 +779,27 @@ TargetTransformInfo::getOperandInfo(const Value *V,
   if (Splat && (isa<Argument>(Splat) || isa<GlobalValue>(Splat)))
     OpInfo = OK_UniformValue;
 
-  return OpInfo;
+  return {OpInfo, OpProps};
 }
 
-int TargetTransformInfo::getArithmeticInstrCost(
+InstructionCost TargetTransformInfo::getArithmeticInstrCost(
     unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
-    OperandValueKind Opd1Info,
-    OperandValueKind Opd2Info, OperandValueProperties Opd1PropInfo,
-    OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args,
-    const Instruction *CxtI) const {
-  int Cost = TTIImpl->getArithmeticInstrCost(
-      Opcode, Ty, CostKind, Opd1Info, Opd2Info, Opd1PropInfo, Opd2PropInfo,
-      Args, CxtI);
+    OperandValueInfo Op1Info, OperandValueInfo Op2Info,
+    ArrayRef<const Value *> Args, const Instruction *CxtI) const {
+  InstructionCost Cost =
+      TTIImpl->getArithmeticInstrCost(Opcode, Ty, CostKind,
+                                      Op1Info, Op2Info,
+                                      Args, CxtI);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getShuffleCost(ShuffleKind Kind, VectorType *Ty,
-                                        ArrayRef<int> Mask, int Index,
-                                        VectorType *SubTp) const {
-  int Cost = TTIImpl->getShuffleCost(Kind, Ty, Mask, Index, SubTp);
+InstructionCost TargetTransformInfo::getShuffleCost(
+    ShuffleKind Kind, VectorType *Ty, ArrayRef<int> Mask,
+    TTI::TargetCostKind CostKind, int Index, VectorType *SubTp,
+    ArrayRef<const Value *> Args) const {
+  InstructionCost Cost =
+      TTIImpl->getShuffleCost(Kind, Ty, Mask, CostKind, Index, SubTp, Args);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -763,88 +848,111 @@ TargetTransformInfo::getCastContextHint(const Instruction *I) {
   return TTI::CastContextHint::None;
 }
 
-int TargetTransformInfo::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
-                                          CastContextHint CCH,
-                                          TTI::TargetCostKind CostKind,
-                                          const Instruction *I) const {
+InstructionCost TargetTransformInfo::getCastInstrCost(
+    unsigned Opcode, Type *Dst, Type *Src, CastContextHint CCH,
+    TTI::TargetCostKind CostKind, const Instruction *I) const {
   assert((I == nullptr || I->getOpcode() == Opcode) &&
          "Opcode should reflect passed instruction.");
-  int Cost = TTIImpl->getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I);
+  InstructionCost Cost =
+      TTIImpl->getCastInstrCost(Opcode, Dst, Src, CCH, CostKind, I);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getExtractWithExtendCost(unsigned Opcode, Type *Dst,
-                                                  VectorType *VecTy,
-                                                  unsigned Index) const {
-  int Cost = TTIImpl->getExtractWithExtendCost(Opcode, Dst, VecTy, Index);
+InstructionCost TargetTransformInfo::getExtractWithExtendCost(
+    unsigned Opcode, Type *Dst, VectorType *VecTy, unsigned Index) const {
+  InstructionCost Cost =
+      TTIImpl->getExtractWithExtendCost(Opcode, Dst, VecTy, Index);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getCFInstrCost(unsigned Opcode,
-                                        TTI::TargetCostKind CostKind) const {
-  int Cost = TTIImpl->getCFInstrCost(Opcode, CostKind);
-  assert(Cost >= 0 && "TTI should not produce negative costs!");
-  return Cost;
-}
-
-int TargetTransformInfo::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
-                                            Type *CondTy,
-                                            CmpInst::Predicate VecPred,
-                                            TTI::TargetCostKind CostKind,
-                                            const Instruction *I) const {
+InstructionCost TargetTransformInfo::getCFInstrCost(
+    unsigned Opcode, TTI::TargetCostKind CostKind, const Instruction *I) const {
   assert((I == nullptr || I->getOpcode() == Opcode) &&
          "Opcode should reflect passed instruction.");
-  int Cost =
+  InstructionCost Cost = TTIImpl->getCFInstrCost(Opcode, CostKind, I);
+  assert(Cost >= 0 && "TTI should not produce negative costs!");
+  return Cost;
+}
+
+InstructionCost TargetTransformInfo::getCmpSelInstrCost(
+    unsigned Opcode, Type *ValTy, Type *CondTy, CmpInst::Predicate VecPred,
+    TTI::TargetCostKind CostKind, const Instruction *I) const {
+  assert((I == nullptr || I->getOpcode() == Opcode) &&
+         "Opcode should reflect passed instruction.");
+  InstructionCost Cost =
       TTIImpl->getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getVectorInstrCost(unsigned Opcode, Type *Val,
-                                            unsigned Index) const {
-  int Cost = TTIImpl->getVectorInstrCost(Opcode, Val, Index);
+InstructionCost TargetTransformInfo::getVectorInstrCost(unsigned Opcode,
+                                                        Type *Val,
+                                                        unsigned Index) const {
+  // FIXME: Assert that Opcode is either InsertElement or ExtractElement.
+  // This is mentioned in the interface description and respected by all
+  // callers, but never asserted upon.
+  InstructionCost Cost = TTIImpl->getVectorInstrCost(Opcode, Val, Index);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getMemoryOpCost(unsigned Opcode, Type *Src,
-                                         Align Alignment, unsigned AddressSpace,
-                                         TTI::TargetCostKind CostKind,
-                                         const Instruction *I) const {
+InstructionCost TargetTransformInfo::getVectorInstrCost(const Instruction &I,
+                                                        Type *Val,
+                                                        unsigned Index) const {
+  // FIXME: Assert that Opcode is either InsertElement or ExtractElement.
+  // This is mentioned in the interface description and respected by all
+  // callers, but never asserted upon.
+  InstructionCost Cost = TTIImpl->getVectorInstrCost(I, Val, Index);
+  assert(Cost >= 0 && "TTI should not produce negative costs!");
+  return Cost;
+}
+
+InstructionCost TargetTransformInfo::getReplicationShuffleCost(
+    Type *EltTy, int ReplicationFactor, int VF, const APInt &DemandedDstElts,
+    TTI::TargetCostKind CostKind) {
+  InstructionCost Cost = TTIImpl->getReplicationShuffleCost(
+      EltTy, ReplicationFactor, VF, DemandedDstElts, CostKind);
+  assert(Cost >= 0 && "TTI should not produce negative costs!");
+  return Cost;
+}
+
+InstructionCost TargetTransformInfo::getMemoryOpCost(
+    unsigned Opcode, Type *Src, Align Alignment, unsigned AddressSpace,
+    TTI::TargetCostKind CostKind, TTI::OperandValueInfo OpInfo,
+    const Instruction *I) const {
   assert((I == nullptr || I->getOpcode() == Opcode) &&
          "Opcode should reflect passed instruction.");
-  int Cost = TTIImpl->getMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
-                                      CostKind, I);
+  InstructionCost Cost = TTIImpl->getMemoryOpCost(
+      Opcode, Src, Alignment, AddressSpace, CostKind, OpInfo, I);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getMaskedMemoryOpCost(
+InstructionCost TargetTransformInfo::getMaskedMemoryOpCost(
     unsigned Opcode, Type *Src, Align Alignment, unsigned AddressSpace,
     TTI::TargetCostKind CostKind) const {
-  int Cost =
-      TTIImpl->getMaskedMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
-                                     CostKind);
+  InstructionCost Cost = TTIImpl->getMaskedMemoryOpCost(Opcode, Src, Alignment,
+                                                        AddressSpace, CostKind);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getGatherScatterOpCost(
+InstructionCost TargetTransformInfo::getGatherScatterOpCost(
     unsigned Opcode, Type *DataTy, const Value *Ptr, bool VariableMask,
     Align Alignment, TTI::TargetCostKind CostKind, const Instruction *I) const {
-  int Cost = TTIImpl->getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
-                                             Alignment, CostKind, I);
+  InstructionCost Cost = TTIImpl->getGatherScatterOpCost(
+      Opcode, DataTy, Ptr, VariableMask, Alignment, CostKind, I);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getInterleavedMemoryOpCost(
+InstructionCost TargetTransformInfo::getInterleavedMemoryOpCost(
     unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
     Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
     bool UseMaskForCond, bool UseMaskForGaps) const {
-  int Cost = TTIImpl->getInterleavedMemoryOpCost(
+  InstructionCost Cost = TTIImpl->getInterleavedMemoryOpCost(
       Opcode, VecTy, Factor, Indices, Alignment, AddressSpace, CostKind,
       UseMaskForCond, UseMaskForGaps);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
@@ -859,10 +967,11 @@ TargetTransformInfo::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   return Cost;
 }
 
-int TargetTransformInfo::getCallInstrCost(Function *F, Type *RetTy,
-                                          ArrayRef<Type *> Tys,
-                                          TTI::TargetCostKind CostKind) const {
-  int Cost = TTIImpl->getCallInstrCost(F, RetTy, Tys, CostKind);
+InstructionCost
+TargetTransformInfo::getCallInstrCost(Function *F, Type *RetTy,
+                                      ArrayRef<Type *> Tys,
+                                      TTI::TargetCostKind CostKind) const {
+  InstructionCost Cost = TTIImpl->getCallInstrCost(F, RetTy, Tys, CostKind);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
@@ -871,48 +980,52 @@ unsigned TargetTransformInfo::getNumberOfParts(Type *Tp) const {
   return TTIImpl->getNumberOfParts(Tp);
 }
 
-int TargetTransformInfo::getAddressComputationCost(Type *Tp,
-                                                   ScalarEvolution *SE,
-                                                   const SCEV *Ptr) const {
-  int Cost = TTIImpl->getAddressComputationCost(Tp, SE, Ptr);
+InstructionCost
+TargetTransformInfo::getAddressComputationCost(Type *Tp, ScalarEvolution *SE,
+                                               const SCEV *Ptr) const {
+  InstructionCost Cost = TTIImpl->getAddressComputationCost(Tp, SE, Ptr);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getMemcpyCost(const Instruction *I) const {
-  int Cost = TTIImpl->getMemcpyCost(I);
+InstructionCost TargetTransformInfo::getMemcpyCost(const Instruction *I) const {
+  InstructionCost Cost = TTIImpl->getMemcpyCost(I);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-int TargetTransformInfo::getArithmeticReductionCost(unsigned Opcode,
-                                                    VectorType *Ty,
-                                                    bool IsPairwiseForm,
-                                                    TTI::TargetCostKind CostKind) const {
-  int Cost = TTIImpl->getArithmeticReductionCost(Opcode, Ty, IsPairwiseForm,
-                                                 CostKind);
-  assert(Cost >= 0 && "TTI should not produce negative costs!");
-  return Cost;
-}
-
-int TargetTransformInfo::getMinMaxReductionCost(
-    VectorType *Ty, VectorType *CondTy, bool IsPairwiseForm, bool IsUnsigned,
+InstructionCost TargetTransformInfo::getArithmeticReductionCost(
+    unsigned Opcode, VectorType *Ty, Optional<FastMathFlags> FMF,
     TTI::TargetCostKind CostKind) const {
-  int Cost =
-      TTIImpl->getMinMaxReductionCost(Ty, CondTy, IsPairwiseForm, IsUnsigned,
-                                      CostKind);
+  InstructionCost Cost =
+      TTIImpl->getArithmeticReductionCost(Opcode, Ty, FMF, CostKind);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }
 
-InstructionCost TargetTransformInfo::getExtendedAddReductionCost(
-    bool IsMLA, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+InstructionCost TargetTransformInfo::getMinMaxReductionCost(
+    VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
     TTI::TargetCostKind CostKind) const {
-  return TTIImpl->getExtendedAddReductionCost(IsMLA, IsUnsigned, ResTy, Ty,
-                                              CostKind);
+  InstructionCost Cost =
+      TTIImpl->getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+  assert(Cost >= 0 && "TTI should not produce negative costs!");
+  return Cost;
 }
 
-unsigned
+InstructionCost TargetTransformInfo::getExtendedReductionCost(
+    unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *Ty,
+    Optional<FastMathFlags> FMF, TTI::TargetCostKind CostKind) const {
+  return TTIImpl->getExtendedReductionCost(Opcode, IsUnsigned, ResTy, Ty, FMF,
+                                           CostKind);
+}
+
+InstructionCost TargetTransformInfo::getMulAccReductionCost(
+    bool IsUnsigned, Type *ResTy, VectorType *Ty,
+    TTI::TargetCostKind CostKind) const {
+  return TTIImpl->getMulAccReductionCost(IsUnsigned, ResTy, Ty, CostKind);
+}
+
+InstructionCost
 TargetTransformInfo::getCostOfKeepingLiveOverCall(ArrayRef<Type *> Tys) const {
   return TTIImpl->getCostOfKeepingLiveOverCall(Tys);
 }
@@ -933,18 +1046,21 @@ Value *TargetTransformInfo::getOrCreateResultFromMemIntrinsic(
 
 Type *TargetTransformInfo::getMemcpyLoopLoweringType(
     LLVMContext &Context, Value *Length, unsigned SrcAddrSpace,
-    unsigned DestAddrSpace, unsigned SrcAlign, unsigned DestAlign) const {
+    unsigned DestAddrSpace, unsigned SrcAlign, unsigned DestAlign,
+    Optional<uint32_t> AtomicElementSize) const {
   return TTIImpl->getMemcpyLoopLoweringType(Context, Length, SrcAddrSpace,
-                                            DestAddrSpace, SrcAlign, DestAlign);
+                                            DestAddrSpace, SrcAlign, DestAlign,
+                                            AtomicElementSize);
 }
 
 void TargetTransformInfo::getMemcpyLoopResidualLoweringType(
     SmallVectorImpl<Type *> &OpsOut, LLVMContext &Context,
     unsigned RemainingBytes, unsigned SrcAddrSpace, unsigned DestAddrSpace,
-    unsigned SrcAlign, unsigned DestAlign) const {
-  TTIImpl->getMemcpyLoopResidualLoweringType(OpsOut, Context, RemainingBytes,
-                                             SrcAddrSpace, DestAddrSpace,
-                                             SrcAlign, DestAlign);
+    unsigned SrcAlign, unsigned DestAlign,
+    Optional<uint32_t> AtomicCpySize) const {
+  TTIImpl->getMemcpyLoopResidualLoweringType(
+      OpsOut, Context, RemainingBytes, SrcAddrSpace, DestAddrSpace, SrcAlign,
+      DestAlign, AtomicCpySize);
 }
 
 bool TargetTransformInfo::areInlineCompatible(const Function *Caller,
@@ -952,10 +1068,10 @@ bool TargetTransformInfo::areInlineCompatible(const Function *Caller,
   return TTIImpl->areInlineCompatible(Caller, Callee);
 }
 
-bool TargetTransformInfo::areFunctionArgsABICompatible(
+bool TargetTransformInfo::areTypesABICompatible(
     const Function *Caller, const Function *Callee,
-    SmallPtrSetImpl<Argument *> &Args) const {
-  return TTIImpl->areFunctionArgsABICompatible(Caller, Callee, Args);
+    const ArrayRef<Type *> &Types) const {
+  return TTIImpl->areTypesABICompatible(Caller, Callee, Types);
 }
 
 bool TargetTransformInfo::isIndexedLoadLegal(MemIndexedMode Mode,
@@ -993,8 +1109,12 @@ bool TargetTransformInfo::isLegalToVectorizeStoreChain(
 }
 
 bool TargetTransformInfo::isLegalToVectorizeReduction(
-    RecurrenceDescriptor RdxDesc, ElementCount VF) const {
+    const RecurrenceDescriptor &RdxDesc, ElementCount VF) const {
   return TTIImpl->isLegalToVectorizeReduction(RdxDesc, VF);
+}
+
+bool TargetTransformInfo::isElementTypeLegalForScalableVector(Type *Ty) const {
+  return TTIImpl->isElementTypeLegalForScalableVector(Ty);
 }
 
 unsigned TargetTransformInfo::getLoadVectorFactor(unsigned VF,
@@ -1021,6 +1141,11 @@ bool TargetTransformInfo::preferPredicatedReductionSelect(
   return TTIImpl->preferPredicatedReductionSelect(Opcode, Ty, Flags);
 }
 
+TargetTransformInfo::VPLegalization
+TargetTransformInfo::getVPLegalizationStrategy(const VPIntrinsic &VPI) const {
+  return TTIImpl->getVPLegalizationStrategy(VPI);
+}
+
 bool TargetTransformInfo::shouldExpandReduction(const IntrinsicInst *II) const {
   return TTIImpl->shouldExpandReduction(II);
 }
@@ -1029,359 +1154,24 @@ unsigned TargetTransformInfo::getGISelRematGlobalCost() const {
   return TTIImpl->getGISelRematGlobalCost();
 }
 
+unsigned TargetTransformInfo::getMinTripCountTailFoldingThreshold() const {
+  return TTIImpl->getMinTripCountTailFoldingThreshold();
+}
+
 bool TargetTransformInfo::supportsScalableVectors() const {
   return TTIImpl->supportsScalableVectors();
 }
 
-InstructionCost
-TargetTransformInfo::getInstructionLatency(const Instruction *I) const {
-  return TTIImpl->getInstructionLatency(I);
+bool TargetTransformInfo::enableScalableVectorization() const {
+  return TTIImpl->enableScalableVectorization();
 }
 
-static bool matchPairwiseShuffleMask(ShuffleVectorInst *SI, bool IsLeft,
-                                     unsigned Level) {
-  // We don't need a shuffle if we just want to have element 0 in position 0 of
-  // the vector.
-  if (!SI && Level == 0 && IsLeft)
-    return true;
-  else if (!SI)
-    return false;
-
-  SmallVector<int, 32> Mask(
-      cast<FixedVectorType>(SI->getType())->getNumElements(), -1);
-
-  // Build a mask of 0, 2, ... (left) or 1, 3, ... (right) depending on whether
-  // we look at the left or right side.
-  for (unsigned i = 0, e = (1 << Level), val = !IsLeft; i != e; ++i, val += 2)
-    Mask[i] = val;
-
-  ArrayRef<int> ActualMask = SI->getShuffleMask();
-  return Mask == ActualMask;
+bool TargetTransformInfo::hasActiveVectorLength(unsigned Opcode, Type *DataType,
+                                                Align Alignment) const {
+  return TTIImpl->hasActiveVectorLength(Opcode, DataType, Alignment);
 }
 
-static Optional<TTI::ReductionData> getReductionData(Instruction *I) {
-  Value *L, *R;
-  if (m_BinOp(m_Value(L), m_Value(R)).match(I))
-    return TTI::ReductionData(TTI::RK_Arithmetic, I->getOpcode(), L, R);
-  if (auto *SI = dyn_cast<SelectInst>(I)) {
-    if (m_SMin(m_Value(L), m_Value(R)).match(SI) ||
-        m_SMax(m_Value(L), m_Value(R)).match(SI) ||
-        m_OrdFMin(m_Value(L), m_Value(R)).match(SI) ||
-        m_OrdFMax(m_Value(L), m_Value(R)).match(SI) ||
-        m_UnordFMin(m_Value(L), m_Value(R)).match(SI) ||
-        m_UnordFMax(m_Value(L), m_Value(R)).match(SI)) {
-      auto *CI = cast<CmpInst>(SI->getCondition());
-      return TTI::ReductionData(TTI::RK_MinMax, CI->getOpcode(), L, R);
-    }
-    if (m_UMin(m_Value(L), m_Value(R)).match(SI) ||
-        m_UMax(m_Value(L), m_Value(R)).match(SI)) {
-      auto *CI = cast<CmpInst>(SI->getCondition());
-      return TTI::ReductionData(TTI::RK_UnsignedMinMax, CI->getOpcode(), L, R);
-    }
-  }
-  return llvm::None;
-}
-
-static TTI::ReductionKind matchPairwiseReductionAtLevel(Instruction *I,
-                                                        unsigned Level,
-                                                        unsigned NumLevels) {
-  // Match one level of pairwise operations.
-  // %rdx.shuf.0.0 = shufflevector <4 x float> %rdx, <4 x float> undef,
-  //       <4 x i32> <i32 0, i32 2 , i32 undef, i32 undef>
-  // %rdx.shuf.0.1 = shufflevector <4 x float> %rdx, <4 x float> undef,
-  //       <4 x i32> <i32 1, i32 3, i32 undef, i32 undef>
-  // %bin.rdx.0 = fadd <4 x float> %rdx.shuf.0.0, %rdx.shuf.0.1
-  if (!I)
-    return TTI::RK_None;
-
-  assert(I->getType()->isVectorTy() && "Expecting a vector type");
-
-  Optional<TTI::ReductionData> RD = getReductionData(I);
-  if (!RD)
-    return TTI::RK_None;
-
-  ShuffleVectorInst *LS = dyn_cast<ShuffleVectorInst>(RD->LHS);
-  if (!LS && Level)
-    return TTI::RK_None;
-  ShuffleVectorInst *RS = dyn_cast<ShuffleVectorInst>(RD->RHS);
-  if (!RS && Level)
-    return TTI::RK_None;
-
-  // On level 0 we can omit one shufflevector instruction.
-  if (!Level && !RS && !LS)
-    return TTI::RK_None;
-
-  // Shuffle inputs must match.
-  Value *NextLevelOpL = LS ? LS->getOperand(0) : nullptr;
-  Value *NextLevelOpR = RS ? RS->getOperand(0) : nullptr;
-  Value *NextLevelOp = nullptr;
-  if (NextLevelOpR && NextLevelOpL) {
-    // If we have two shuffles their operands must match.
-    if (NextLevelOpL != NextLevelOpR)
-      return TTI::RK_None;
-
-    NextLevelOp = NextLevelOpL;
-  } else if (Level == 0 && (NextLevelOpR || NextLevelOpL)) {
-    // On the first level we can omit the shufflevector <0, undef,...>. So the
-    // input to the other shufflevector <1, undef> must match with one of the
-    // inputs to the current binary operation.
-    // Example:
-    //  %NextLevelOpL = shufflevector %R, <1, undef ...>
-    //  %BinOp        = fadd          %NextLevelOpL, %R
-    if (NextLevelOpL && NextLevelOpL != RD->RHS)
-      return TTI::RK_None;
-    else if (NextLevelOpR && NextLevelOpR != RD->LHS)
-      return TTI::RK_None;
-
-    NextLevelOp = NextLevelOpL ? RD->RHS : RD->LHS;
-  } else
-    return TTI::RK_None;
-
-  // Check that the next levels binary operation exists and matches with the
-  // current one.
-  if (Level + 1 != NumLevels) {
-    if (!isa<Instruction>(NextLevelOp))
-      return TTI::RK_None;
-    Optional<TTI::ReductionData> NextLevelRD =
-        getReductionData(cast<Instruction>(NextLevelOp));
-    if (!NextLevelRD || !RD->hasSameData(*NextLevelRD))
-      return TTI::RK_None;
-  }
-
-  // Shuffle mask for pairwise operation must match.
-  if (matchPairwiseShuffleMask(LS, /*IsLeft=*/true, Level)) {
-    if (!matchPairwiseShuffleMask(RS, /*IsLeft=*/false, Level))
-      return TTI::RK_None;
-  } else if (matchPairwiseShuffleMask(RS, /*IsLeft=*/true, Level)) {
-    if (!matchPairwiseShuffleMask(LS, /*IsLeft=*/false, Level))
-      return TTI::RK_None;
-  } else {
-    return TTI::RK_None;
-  }
-
-  if (++Level == NumLevels)
-    return RD->Kind;
-
-  // Match next level.
-  return matchPairwiseReductionAtLevel(dyn_cast<Instruction>(NextLevelOp), Level,
-                                       NumLevels);
-}
-
-TTI::ReductionKind TTI::matchPairwiseReduction(
-  const ExtractElementInst *ReduxRoot, unsigned &Opcode, VectorType *&Ty) {
-  if (!EnableReduxCost)
-    return TTI::RK_None;
-
-  // Need to extract the first element.
-  ConstantInt *CI = dyn_cast<ConstantInt>(ReduxRoot->getOperand(1));
-  unsigned Idx = ~0u;
-  if (CI)
-    Idx = CI->getZExtValue();
-  if (Idx != 0)
-    return TTI::RK_None;
-
-  auto *RdxStart = dyn_cast<Instruction>(ReduxRoot->getOperand(0));
-  if (!RdxStart)
-    return TTI::RK_None;
-  Optional<TTI::ReductionData> RD = getReductionData(RdxStart);
-  if (!RD)
-    return TTI::RK_None;
-
-  auto *VecTy = cast<FixedVectorType>(RdxStart->getType());
-  unsigned NumVecElems = VecTy->getNumElements();
-  if (!isPowerOf2_32(NumVecElems))
-    return TTI::RK_None;
-
-  // We look for a sequence of shuffle,shuffle,add triples like the following
-  // that builds a pairwise reduction tree.
-  //
-  //  (X0, X1, X2, X3)
-  //   (X0 + X1, X2 + X3, undef, undef)
-  //    ((X0 + X1) + (X2 + X3), undef, undef, undef)
-  //
-  // %rdx.shuf.0.0 = shufflevector <4 x float> %rdx, <4 x float> undef,
-  //       <4 x i32> <i32 0, i32 2 , i32 undef, i32 undef>
-  // %rdx.shuf.0.1 = shufflevector <4 x float> %rdx, <4 x float> undef,
-  //       <4 x i32> <i32 1, i32 3, i32 undef, i32 undef>
-  // %bin.rdx.0 = fadd <4 x float> %rdx.shuf.0.0, %rdx.shuf.0.1
-  // %rdx.shuf.1.0 = shufflevector <4 x float> %bin.rdx.0, <4 x float> undef,
-  //       <4 x i32> <i32 0, i32 undef, i32 undef, i32 undef>
-  // %rdx.shuf.1.1 = shufflevector <4 x float> %bin.rdx.0, <4 x float> undef,
-  //       <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
-  // %bin.rdx8 = fadd <4 x float> %rdx.shuf.1.0, %rdx.shuf.1.1
-  // %r = extractelement <4 x float> %bin.rdx8, i32 0
-  if (matchPairwiseReductionAtLevel(RdxStart, 0, Log2_32(NumVecElems)) ==
-      TTI::RK_None)
-    return TTI::RK_None;
-
-  Opcode = RD->Opcode;
-  Ty = VecTy;
-
-  return RD->Kind;
-}
-
-static std::pair<Value *, ShuffleVectorInst *>
-getShuffleAndOtherOprd(Value *L, Value *R) {
-  ShuffleVectorInst *S = nullptr;
-
-  if ((S = dyn_cast<ShuffleVectorInst>(L)))
-    return std::make_pair(R, S);
-
-  S = dyn_cast<ShuffleVectorInst>(R);
-  return std::make_pair(L, S);
-}
-
-TTI::ReductionKind TTI::matchVectorSplittingReduction(
-  const ExtractElementInst *ReduxRoot, unsigned &Opcode, VectorType *&Ty) {
-
-  if (!EnableReduxCost)
-    return TTI::RK_None;
-
-  // Need to extract the first element.
-  ConstantInt *CI = dyn_cast<ConstantInt>(ReduxRoot->getOperand(1));
-  unsigned Idx = ~0u;
-  if (CI)
-    Idx = CI->getZExtValue();
-  if (Idx != 0)
-    return TTI::RK_None;
-
-  auto *RdxStart = dyn_cast<Instruction>(ReduxRoot->getOperand(0));
-  if (!RdxStart)
-    return TTI::RK_None;
-  Optional<TTI::ReductionData> RD = getReductionData(RdxStart);
-  if (!RD)
-    return TTI::RK_None;
-
-  auto *VecTy = cast<FixedVectorType>(ReduxRoot->getOperand(0)->getType());
-  unsigned NumVecElems = VecTy->getNumElements();
-  if (!isPowerOf2_32(NumVecElems))
-    return TTI::RK_None;
-
-  // We look for a sequence of shuffles and adds like the following matching one
-  // fadd, shuffle vector pair at a time.
-  //
-  // %rdx.shuf = shufflevector <4 x float> %rdx, <4 x float> undef,
-  //                           <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
-  // %bin.rdx = fadd <4 x float> %rdx, %rdx.shuf
-  // %rdx.shuf7 = shufflevector <4 x float> %bin.rdx, <4 x float> undef,
-  //                          <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
-  // %bin.rdx8 = fadd <4 x float> %bin.rdx, %rdx.shuf7
-  // %r = extractelement <4 x float> %bin.rdx8, i32 0
-
-  unsigned MaskStart = 1;
-  Instruction *RdxOp = RdxStart;
-  SmallVector<int, 32> ShuffleMask(NumVecElems, 0);
-  unsigned NumVecElemsRemain = NumVecElems;
-  while (NumVecElemsRemain - 1) {
-    // Check for the right reduction operation.
-    if (!RdxOp)
-      return TTI::RK_None;
-    Optional<TTI::ReductionData> RDLevel = getReductionData(RdxOp);
-    if (!RDLevel || !RDLevel->hasSameData(*RD))
-      return TTI::RK_None;
-
-    Value *NextRdxOp;
-    ShuffleVectorInst *Shuffle;
-    std::tie(NextRdxOp, Shuffle) =
-        getShuffleAndOtherOprd(RDLevel->LHS, RDLevel->RHS);
-
-    // Check the current reduction operation and the shuffle use the same value.
-    if (Shuffle == nullptr)
-      return TTI::RK_None;
-    if (Shuffle->getOperand(0) != NextRdxOp)
-      return TTI::RK_None;
-
-    // Check that shuffle masks matches.
-    for (unsigned j = 0; j != MaskStart; ++j)
-      ShuffleMask[j] = MaskStart + j;
-    // Fill the rest of the mask with -1 for undef.
-    std::fill(&ShuffleMask[MaskStart], ShuffleMask.end(), -1);
-
-    ArrayRef<int> Mask = Shuffle->getShuffleMask();
-    if (ShuffleMask != Mask)
-      return TTI::RK_None;
-
-    RdxOp = dyn_cast<Instruction>(NextRdxOp);
-    NumVecElemsRemain /= 2;
-    MaskStart *= 2;
-  }
-
-  Opcode = RD->Opcode;
-  Ty = VecTy;
-  return RD->Kind;
-}
-
-TTI::ReductionKind
-TTI::matchVectorReduction(const ExtractElementInst *Root, unsigned &Opcode,
-                          VectorType *&Ty, bool &IsPairwise) {
-  TTI::ReductionKind RdxKind = matchVectorSplittingReduction(Root, Opcode, Ty);
-  if (RdxKind != TTI::ReductionKind::RK_None) {
-    IsPairwise = false;
-    return RdxKind;
-  }
-  IsPairwise = true;
-  return matchPairwiseReduction(Root, Opcode, Ty);
-}
-
-InstructionCost
-TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
-  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
-
-  switch (I->getOpcode()) {
-  case Instruction::GetElementPtr:
-  case Instruction::Ret:
-  case Instruction::PHI:
-  case Instruction::Br:
-  case Instruction::Add:
-  case Instruction::FAdd:
-  case Instruction::Sub:
-  case Instruction::FSub:
-  case Instruction::Mul:
-  case Instruction::FMul:
-  case Instruction::UDiv:
-  case Instruction::SDiv:
-  case Instruction::FDiv:
-  case Instruction::URem:
-  case Instruction::SRem:
-  case Instruction::FRem:
-  case Instruction::Shl:
-  case Instruction::LShr:
-  case Instruction::AShr:
-  case Instruction::And:
-  case Instruction::Or:
-  case Instruction::Xor:
-  case Instruction::FNeg:
-  case Instruction::Select:
-  case Instruction::ICmp:
-  case Instruction::FCmp:
-  case Instruction::Store:
-  case Instruction::Load:
-  case Instruction::ZExt:
-  case Instruction::SExt:
-  case Instruction::FPToUI:
-  case Instruction::FPToSI:
-  case Instruction::FPExt:
-  case Instruction::PtrToInt:
-  case Instruction::IntToPtr:
-  case Instruction::SIToFP:
-  case Instruction::UIToFP:
-  case Instruction::Trunc:
-  case Instruction::FPTrunc:
-  case Instruction::BitCast:
-  case Instruction::AddrSpaceCast:
-  case Instruction::ExtractElement:
-  case Instruction::InsertElement:
-  case Instruction::ExtractValue:
-  case Instruction::ShuffleVector:
-  case Instruction::Call:
-    return getUserCost(I, CostKind);
-  default:
-    // We don't have any information on this instruction.
-    return -1;
-  }
-}
-
-TargetTransformInfo::Concept::~Concept() {}
+TargetTransformInfo::Concept::~Concept() = default;
 
 TargetIRAnalysis::TargetIRAnalysis() : TTICallback(&getDefaultTTI) {}
 
