@@ -53,6 +53,9 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
   return res + res;
 }
 
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL void __regcall SIMD_CALLEE_VOID(
+    float *A, simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION;
+
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
 class ESIMDSelector : public device_selector {
@@ -119,40 +122,46 @@ template <bool use_func_directly> bool test() {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for(
-          Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(VL)]] {
-            sub_group sg = ndi.get_sub_group();
-            group<1> g = ndi.get_group();
-            uint32_t i =
-                sg.get_group_linear_id() * VL + g.get_linear_id() * GroupSize;
-            uint32_t wi_id = i + sg.get_local_id();
-            float res = 0;
+      cgh.parallel_for(Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(
+                                  VL)]] {
+        sub_group sg = ndi.get_sub_group();
+        group<1> g = ndi.get_group();
+        uint32_t i =
+            sg.get_group_linear_id() * VL + g.get_linear_id() * GroupSize;
+        uint32_t wi_id = i + sg.get_local_id();
+        float res = 0;
 
-            if constexpr (use_invoke_simd) {
-              if constexpr (use_func_directly) {
-                // Pass SIMD callee directly to invoke_simd.
-                res = invoke_simd(sg, SIMD_CALLEE1, uniform{A}, B[wi_id],
-                                  uniform{i});
-                res += invoke_simd(sg, SIMD_CALLEE2, uniform{A}, B[wi_id],
-                                   uniform{i});
-              } else {
-                // Pass a reference to variable holding SIMD callee address.
-                typedef simd<float, VL> __regcall (*FuncType)(
-                    float *, simd<float, VL>, int);
-                FuncType SIMD_CALLEE1_PTR = SIMD_CALLEE1;
-                FuncType SIMD_CALLEE2_PTR = SIMD_CALLEE2;
-                res = invoke_simd(sg, SIMD_CALLEE1_PTR, uniform{A}, B[wi_id],
-                                  uniform{i});
-                res += invoke_simd(sg, SIMD_CALLEE2_PTR, uniform{A}, B[wi_id],
-                                   uniform{i});
-              }
-            } else {
-              res = SPMD_CALLEE(A, B[wi_id], wi_id);
-              res += SPMD_CALLEE(A, B[wi_id], wi_id);
-              res += SPMD_CALLEE(A, B[wi_id], wi_id);
-            }
-            C[wi_id] = res;
-          });
+        if constexpr (use_invoke_simd) {
+          if constexpr (use_func_directly) {
+            // Pass SIMD callee directly to invoke_simd.
+            res =
+                invoke_simd(sg, SIMD_CALLEE1, uniform{A}, B[wi_id], uniform{i});
+            res +=
+                invoke_simd(sg, SIMD_CALLEE2, uniform{A}, B[wi_id], uniform{i});
+            invoke_simd(sg, SIMD_CALLEE_VOID, uniform{A}, B[wi_id], uniform{i});
+          } else {
+            // Pass a reference to variable holding SIMD callee address.
+            typedef simd<float, VL> __regcall (*FuncType)(float *,
+                                                          simd<float, VL>, int);
+            typedef void __regcall (*FuncVoidType)(float *, simd<float, VL>,
+                                                   int);
+            FuncType SIMD_CALLEE1_PTR = SIMD_CALLEE1;
+            FuncType SIMD_CALLEE2_PTR = SIMD_CALLEE2;
+            FuncVoidType SIMD_CALLEE_VOID_PTR = SIMD_CALLEE_VOID;
+            res = invoke_simd(sg, SIMD_CALLEE1_PTR, uniform{A}, B[wi_id],
+                              uniform{i});
+            res += invoke_simd(sg, SIMD_CALLEE2_PTR, uniform{A}, B[wi_id],
+                               uniform{i});
+            invoke_simd(sg, SIMD_CALLEE_VOID_PTR, uniform{A}, B[wi_id],
+                        uniform{i});
+          }
+        } else {
+          res = SPMD_CALLEE(A, B[wi_id], wi_id);
+          res += SPMD_CALLEE(A, B[wi_id], wi_id);
+          res += SPMD_CALLEE(A, B[wi_id], wi_id);
+        }
+        C[wi_id] = res;
+      });
     });
     e.wait();
   } catch (sycl::exception const &e) {
@@ -193,4 +202,10 @@ int main() {
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
+}
+
+SYCL_EXTERNAL
+void __regcall SIMD_CALLEE_VOID(float *A, simd<float, VL> b,
+                                int i) SYCL_ESIMD_FUNCTION {
+  esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
 }
