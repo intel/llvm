@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: cuda
-
+// Temp xfail: test was merged early.
+// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
 // RUN: %t.out
 
