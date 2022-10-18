@@ -1209,7 +1209,12 @@ public:
   using reference = DataT &;
   using const_reference = const DataT &;
 
-  using iterator = typename detail::accessor_iterator<DataT, Dimensions>;
+  // When accessor is read-only, we should not be able to modify it through the
+  // iterator and therefore, effectively returning const_iterator here
+  using iterator = typename detail::accessor_iterator<
+      typename std::conditional<AccessMode == access_mode::read, const DataT,
+                                DataT>::type,
+      Dimensions>;
   using const_iterator =
       typename detail::accessor_iterator<const DataT, Dimensions>;
   using difference_type =
