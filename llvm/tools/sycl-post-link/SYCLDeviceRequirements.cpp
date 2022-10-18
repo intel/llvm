@@ -28,19 +28,19 @@ void llvm::getSYCLDeviceRequirements(
   std::vector<std::pair<std::string, const char *>> ReqdMDs = {
       {"sycl_used_aspects", "aspects"}, {"sycl_fixed_targets", "fixed_target"}};
 
-  for (const Function &F : M) {
     for (const auto &MD : ReqdMDs) {
       std::set<uint32_t> Aspects;
-      if (F.hasMetadata(MD.first)) {
-        const MDNode *MDN = F.getMetadata(MD.first);
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
-          Aspects.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
+      for (const Function &F : M) {
+        if (F.hasMetadata(MD.first)) {
+          const MDNode *MDN = F.getMetadata(MD.first);
+          for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
+            Aspects.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
+        }
       }
       // We don't need the "fixed_target" property if it's empty
       if (MD.first == "sycl_fixed_targets" && Aspects.empty())
         continue;
       Requirements[MD.second] =
           std::vector<uint32_t>(Aspects.begin(), Aspects.end());
-    }
   }
 }
