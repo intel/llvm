@@ -28,13 +28,16 @@
 // CHECK-LLVM-DAG: %"struct.sycl::_V1::detail::ItemBase.1.true" = type { %"class.sycl::_V1::range.1", %"class.sycl::_V1::id.1", %"class.sycl::_V1::id.1" }
 
 // CHECK-MLIR: gpu.module @device_functions
-// CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, %arg1: memref<?x!sycl_range_1_> {llvm.byval}, %arg2: memref<?x!sycl_range_1_> {llvm.byval}, %arg3: memref<?x!sycl_id_1_> {llvm.byval})
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
-// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
+// CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, 
+// CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> [[PARM_ATTRS:{llvm.align = 8 : i64, llvm.byval, llvm.noundef}]],  
+// CHECK-MLIR-SAME:    %arg2: memref<?x!sycl_range_1_> [[PARM_ATTRS]], 
+// CHECK-MLIR-SAME:    %arg3: memref<?x!sycl_id_1_> [[PARM_ATTRS]]) 
+// CHECK-MLIR-SAME:  kernel attributes {[[CCONV:llvm.cconv = #llvm.cconv<spir_kernelcc>]], [[LINKAGE:llvm.linkage = #llvm.linkage<weak_odr>]],
+// CHECK-MLIR-SAME:  [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* byval([[RANGE_TY]]) {{.*}}, [[RANGE_TY]]* byval([[RANGE_TY]]) {{.*}}, [[ID_TY:%"class.sycl::_V1::id.1"]]* byval([[ID_TY]]) {{.*}}) #1
-
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* byval([[RANGE_TY]]) align 8 {{.*}}, [[RANGE_TY]]* byval([[RANGE_TY]]) align 8 {{.*}}, 
+// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* byval([[ID_TY]]) align 8 {{.*}}) #1
 class kernel_1 {
  sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
 
@@ -42,8 +45,8 @@ public:
 	kernel_1(sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A) : A(A) {}
 
   void operator()(sycl::id<1> id) const {
-   A[id] = 42;
- }
+    A[id] = 42;
+  }
 };
 
 void host_1() {
@@ -60,8 +63,11 @@ void host_1() {
   }
 }
 
-// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, %arg1: memref<?x!sycl_range_1_> {llvm.byval}, %arg2: memref<?x!sycl_range_1_> {llvm.byval}, %arg3: memref<?x!sycl_id_1_> {llvm.byval})
-// CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>, [[PASSTHROUGH]]
+// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, 
+// CHECK-MLIR-SAME:     %arg1: memref<?x!sycl_range_1_> [[PARM_ATTRS]], 
+// CHECK-MLIR-SAME:     %arg2: memref<?x!sycl_range_1_> [[PARM_ATTRS]], 
+// CHECK-MLIR-SAME:     %arg3: memref<?x!sycl_id_1_> [[PARM_ATTRS]])
+// CHECK-MLIR-SAME:     kernel attributes {[[CCONV]], [[LINKAGE]], [[PASSTHROUGH]]}
 // CHECK-MLIR-NOT: gpu.func kernel
 
 // CHECK-LLVM: define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #1
