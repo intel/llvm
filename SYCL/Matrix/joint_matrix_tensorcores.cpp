@@ -1,7 +1,9 @@
+
 // REQUIRES: cuda
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=3 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
 // RUN: %t.out
 //
+// This tests the latest unified matrix extension interfaces.
 // Specifying the sm version via the --cuda-gpu-arch flag is necessary
 // for the Nvidia case.  DPC++ JIT compilation is not
 // supported for the Nvidia matrix extension, although some JIT optimizations
@@ -29,15 +31,15 @@ constexpr float bf16_eps = 0.00390625;
 // number of rows of "A" sub-matrix.
 // K: number of cols of "A"/number of rows of "B" sub-matrices.
 
-constexpr int N_THREADS_PER_MATRIX_OP =
-    32; // the number of threads per MMA subgroup is always 32 for Nvidia.
+// the number of threads per MMA subgroup is always 32 for Nvidia.
+constexpr int N_THREADS_PER_MATRIX_OP = 32;
 
-constexpr int SUB_TILES_M =
-    2; // number of submatrices per row of accumulator ("C", "D") matrices.
-constexpr int SUB_TILES_N =
-    3; // number of submatrices per col of accumulator matrices.
-constexpr int SUB_TILES_K =
-    4; // number of submatrices per col of "A"/per row of "B", matrices.
+// number of submatrices per row of accumulator ("C", "D") matrices.
+constexpr int SUB_TILES_M = 2;
+// number of submatrices per col of accumulator matrices.
+constexpr int SUB_TILES_N = 3;
+// number of submatrices per col of "A"/per row of "B", matrices.
+constexpr int SUB_TILES_K = 4;
 
 template <typename T1, typename T2, size_t M, size_t K, size_t N>
 class TypeHelper;
@@ -45,33 +47,15 @@ class TypeHelper;
 template <typename T1, typename T2, size_t M, size_t K, size_t N>
 using KernelName = class TypeHelper<T1, T2, M, K, N>;
 
-float make_fp32(uint16_t x) {
-  uint32_t y = x;
-  y = y << 16;
-  auto res = reinterpret_cast<float *>(&y);
-  return *res;
-}
-
-uint16_t make_bf16(float x) {
-  auto res = reinterpret_cast<int32_t *>(&x);
-  *res = *res >> 16;
-  return (uint16_t)*res;
-}
-
 template <size_t Big_N, size_t Big_K, typename T1, typename T2>
 T2 matrix_ref_mn(const int &m, const int &n, T1 *A, T1 *B, T2 *C) {
   T2 res = C[m * Big_N + n];
 
-  if constexpr (std::is_same<T1, uint16_t>::value) {
+  if constexpr (std::is_same<T1, bfloat16>::value) {
     for (int k = 0; k < Big_K; k++)
-      res += make_fp32(A[m * Big_K + k]) * make_fp32(B[k * Big_N + n]);
-  } else if constexpr (std::is_same<T1, bfloat16>::value) {
-    for (int k = 0; k < Big_K; k++)
-      res +=
-          make_fp32(A[m * Big_K + k].raw()) * make_fp32(B[k * Big_N + n].raw());
+      res += A[m * Big_K + k] * B[k * Big_N + n];
   } else {
     for (int k = 0; k < Big_K; k++)
-
       res +=
           static_cast<T2>(A[m * Big_K + k]) * static_cast<T2>(B[k * Big_N + n]);
   }
@@ -83,16 +67,12 @@ template <typename T1, typename T2, size_t Sub_Tiles_M, size_t Sub_Tiles_K,
           size_t Sub_Tiles_N, size_t M, size_t K, size_t N,
           typename T3 = std::remove_const_t<T1>>
 void test(queue &q) {
-
-  constexpr auto Big_M =
-      Sub_Tiles_M *
-      M; // total number of M dimension matrix elements for the "Big matrix".
-  constexpr auto Big_N =
-      Sub_Tiles_N *
-      N; // total number of N dimension matrix elements for the "Big matrix".
-  constexpr auto Big_K =
-      Sub_Tiles_K *
-      K; // total number of K dimension matrix elements for the "Big matrix".
+  // total number of M dimension matrix elements for the "Big matrix".
+  constexpr auto Big_M = Sub_Tiles_M * M;
+  // total number of N dimension matrix elements for the "Big matrix".
+  constexpr auto Big_N = Sub_Tiles_N * N;
+  // total number of K dimension matrix elements for the "Big matrix".
+  constexpr auto Big_K = Sub_Tiles_K * K;
 
   std::remove_const_t<T1> A[Big_M * Big_K];
   std::remove_const_t<T1> B[Big_K * Big_N];
@@ -104,16 +84,7 @@ void test(queue &q) {
     D[i] = 0;
   }
 
-  if constexpr (std::is_same<std::remove_const_t<T1>, uint16_t>::value) {
-    for (int i = 0; i < Big_M * Big_K; i++) {
-      A[i] = make_bf16(0.1f * (i % 10));
-    }
-
-    for (int i = 0; i < Big_K * Big_N; i++) {
-      B[i] = make_bf16(0.1f * (i % 10));
-    }
-  } else if constexpr (!std::is_same<std::remove_const_t<T1>,
-                                     bfloat16>::value) {
+  if constexpr (!std::is_same<std::remove_const_t<T1>, bfloat16>::value) {
     for (int i = 0; i < Big_M * Big_K; i++) {
       A[i] = i % 100;
     }
@@ -168,29 +139,20 @@ void test(queue &q) {
       cgh.parallel_for<KernelName<T1, T2, M, K, N>>(
           nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) {
             sub_group sg = item.get_sub_group();
-            const auto m =
-                item.get_group().get_group_id()[0]; // row id of current
-                                                    // submatrix of BIG C matrix
-            const auto n =
-                item.get_group().get_group_id()[1]; // column id of current
-                                                    // submatrix of BIG C matrix
+            // row id of current submatrix of BIG C matrix
+            const auto m = item.get_group().get_group_id()[0];
+            // column id of current submatrix of BIG C matrix
+            const auto n = item.get_group().get_group_id()[1];
 
-            joint_matrix<T3, matrix_use::a, M, K, matrix_layout::row_major>
-                sub_a;
+            joint_matrix<T3, use::a, M, K, layout::row_major> sub_a;
+            joint_matrix<T3, use::b, K, N, layout::row_major> sub_b;
+            joint_matrix<std::remove_const_t<T2>, use::accumulator, M, N> sub_c;
 
-            joint_matrix<T3, matrix_use::b, K, N, matrix_layout::row_major>
-                sub_b;
-
-            joint_matrix<std::remove_const_t<T2>, matrix_use::accumulator, M, N,
-                         matrix_layout::row_major>
-                sub_c;
-
-            joint_matrix_load(
-                sg, sub_c, accC.get_pointer() + (m * M) * Big_N + n * N, Big_N);
-
-            for (int k = 0; k < Sub_Tiles_K;
-                 k++) // row/col id of current submatrix of BIG A/B matrices
-            {
+            joint_matrix_load(sg, sub_c,
+                              accC.get_pointer() + (m * M) * Big_N + n * N,
+                              Big_N, layout::row_major);
+            // k = row/col id of current submatrix of BIG A/B matrices
+            for (int k = 0; k < Sub_Tiles_K; k++) {
               joint_matrix_load(sg, sub_a,
                                 accA.get_pointer() + (k * K) + (m * M * Big_K),
                                 Big_K);
@@ -211,8 +173,9 @@ void test(queue &q) {
 
               sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
             }
-            joint_matrix_store(
-                sg, sub_c, accD.get_pointer() + (m * M) * Big_N + n * N, Big_N);
+            joint_matrix_store(sg, sub_c,
+                               accD.get_pointer() + (m * M) * Big_N + n * N,
+                               Big_N, layout::row_major);
           });
     });
     q.wait();
@@ -292,18 +255,6 @@ int main() {
     test<double, double, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 4, 8>(Q);
     test<const double, const double, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8,
          4, 8>(Q);
-
-    // A/B bfloat16 using storage type
-    test<uint16_t, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
-    test<uint16_t, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);
-    test<uint16_t, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(Q);
-
-    test<const uint16_t, const float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16,
-         16, 16>(Q);
-    test<const uint16_t, const float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8,
-         16, 32>(Q);
-    test<const uint16_t, const float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32,
-         16, 8>(Q);
 
     test<bfloat16, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
     test<bfloat16, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);

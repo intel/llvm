@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=3 %s -o %t.out
 // RUN: %t.out
 
 #include <sycl/sycl.hpp>
@@ -30,8 +30,8 @@ template <typename T, size_t M, size_t K> void verify_wi_marray(queue q) {
            [ERR](nd_item<2> spmd_item) [[sycl::reqd_sub_group_size(SG_SZ)]] {
              auto sg = spmd_item.get_sub_group();
 
-             joint_matrix<T, use::a, M, K, layout::row_major> sub_a;
-             joint_matrix<T, use::a, M, K, layout::row_major> sub_a_2;
+             joint_matrix<T, matrix_use::a, M, K> sub_a;
+             joint_matrix<T, matrix_use::a, M, K> sub_a_2;
 
              joint_matrix_fill(sg, sub_a, -1);
              joint_matrix_fill(sg, sub_a_2, -1);

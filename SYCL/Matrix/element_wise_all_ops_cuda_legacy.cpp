@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3 %s -o %t.out
 // RUN: %t.out
 
 #include <sycl/sycl.hpp>
@@ -64,9 +64,9 @@ void matrix_verify_op(queue q, big_matrix<T2, M * nWGperDim, N * nWGperDim> &C,
 
              auto sg = spmd_item.get_sub_group();
 
-             joint_matrix<T, use::a, M, K, layout::row_major> sub_a;
-             joint_matrix<T, use::b, K, N, layout::row_major> sub_b;
-             joint_matrix<T2, use::accumulator, M, N> sub_c;
+             joint_matrix<T, matrix_use::a, M, K> sub_a;
+             joint_matrix<T, matrix_use::b, K, N> sub_b;
+             joint_matrix<T2, matrix_use::accumulator, M, N> sub_c;
 
              joint_matrix_fill(sg, sub_a, 3);
              joint_matrix_fill(sg, sub_b, 1);
@@ -104,7 +104,7 @@ void matrix_verify_op(queue q, big_matrix<T2, M * nWGperDim, N * nWGperDim> &C,
                                 accC.get_pointer() +
                                     (sg_startx * M) * (N * nWGperDim) +
                                     sg_starty / SG_SZ * N,
-                                (N * nWGperDim), layout::row_major);
+                                (N * nWGperDim));
            }); // parallel for
      }).wait();
   }
@@ -121,7 +121,7 @@ int main() {
 
   queue q;
   auto computeCapability =
-      std::stof(q.get_device().get_info<sycl::info::device::backend_version>());
+      std::stof(q.get_device().get_info<info::device::backend_version>());
   nd_range<2> r({nWGperDim, nWGperDim * SG_SZ}, {1, 1 * SG_SZ});
 
   if (computeCapability >= 7.0) {
