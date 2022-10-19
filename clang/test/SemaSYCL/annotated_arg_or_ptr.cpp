@@ -9,9 +9,9 @@ sycl::queue myQueue;
 struct MockProperty {};
 
 struct WrappedAnnotatedTypes {
-  // expected-error@+1 3{{Kernel argument of type 'sycl::ext::oneapi::experimental::annotated_arg<int, MockProperty>' cannot be nested}}
+  // expected-error@+1 3{{'sycl::ext::oneapi::experimental::annotated_arg<int, MockProperty>' cannot be a data member of a struct kernel parameter}}
   sycl::ext::oneapi::experimental::annotated_arg<int, MockProperty> AA;
-  // expected-error@+1 3{{Kernel argument of type 'sycl::ext::oneapi::experimental::annotated_ptr<int, MockProperty>' cannot be nested}}
+  // expected-error@+1 3{{'sycl::ext::oneapi::experimental::annotated_ptr<int, MockProperty>' cannot be a data member of a struct kernel parameter}}
   sycl::ext::oneapi::experimental::annotated_ptr<int, MockProperty> AP;
   sycl::accessor<int, 1, sycl::access::mode::read_write> Acc;
 };

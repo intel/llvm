@@ -1620,12 +1620,14 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     assert(isSyclSpecialType(Ty, SemaRef) &&
            "Should only be called on sycl special class types.");
 
+    // Annotated pointers and annotated arguments must be captured
+    // directly by the SYCL kernel.
     if ((isSyclType(Ty, SYCLTypeAttr::annotated_ptr) ||
          isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
          (StructFieldDepth > 0 || StructBaseDepth > 0))
       return SemaRef.Diag(Loc.getBegin(),
-                          diag::err_sycl_invalid_usage_annotated_ptr_arg)
-             << Ty;
+                          diag::err_bad_kernel_param_data_members)
+             << Ty << /*Struct*/ 1;
 
     const RecordDecl *RecD = Ty->getAsRecordDecl();
     if (IsSIMD && !isSyclAccessorType(Ty))
@@ -1750,7 +1752,8 @@ public:
   bool checkType(SourceLocation Loc, QualType Ty) {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(Loc, diag::err_bad_union_kernel_param_members) << Ty;
+      Diag.Report(Loc, diag::err_bad_kernel_param_data_members)
+          << Ty << /*Union*/ 0;
     }
     return isValid();
   }
