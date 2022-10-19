@@ -3593,7 +3593,7 @@ public:
       addParam(T, ParamKind, offsetOf(FD, FieldTy));
     } else {
       llvm_unreachable(
-          "Unexpected SYCL special class when generating Integration Header");
+          "Unexpected SYCL special class when generating integration header");
     }
     return true;
   }
