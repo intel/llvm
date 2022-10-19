@@ -298,6 +298,7 @@ void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
 }
 
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
+  Tracer t("removeMemoryObject");
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
   // objects, this is needed to guarantee that streamed data is printed and
@@ -319,9 +320,12 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
       ReadLockT Lock(MGraphLock);
+      Tracer t("removeMemoryObject::waitForRecordToFinish");
+
       waitForRecordToFinish(Record, Lock);
     }
     {
+      Tracer t("removeMemoryObject release resources");
       WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
       MGraphBuilder.decrementLeafCountersForRecord(Record);
@@ -534,9 +538,11 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
   {
+    Tracer t("deferMemObjRelease push");
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
   }
+  Tracer t("cleanupDeferredMemObjects(BlockingT::NON_BLOCKING)");
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 }
 
