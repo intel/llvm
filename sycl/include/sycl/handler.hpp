@@ -1113,7 +1113,7 @@ private:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT>
-  void parallel_for_impl(nd_range<Dims> ExecutionRange, PropertiesT Properties,
+  void parallel_for_impl(nd_range<Dims> ExecutionRange, PropertiesT,
                          _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
@@ -1363,9 +1363,8 @@ private:
                                            kernel_handler) {}
 
     template <typename KernelName, typename ElementType, typename KernelType>
-    static void
-    kernel_parallel_for_work_group_unpack(handler *Caller,
-                                          _KERNELFUNCPARAM(KernelFunc)) {}
+    static void kernel_parallel_for_work_group_unpack(handler *,
+                                                      _KERNELFUNCPARAMTYPE) {}
 
     template <typename KernelName, typename ElementType, typename KernelType>
     static void kernel_parallel_for_work_group_unpack(handler *,
