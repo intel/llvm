@@ -72,6 +72,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRSYCLTransforms
   
   LLVMSYCLLowerIR
+  LLVMPasses
 
   clangAST
   clangBasic
