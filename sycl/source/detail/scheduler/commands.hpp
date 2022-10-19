@@ -26,9 +26,9 @@
 class Tracer {
 public:
   Tracer(std::string WhatToTrace) : MWhatToTrace(WhatToTrace) {
-    std::cout << "Before " << MWhatToTrace << std::endl;
+    std::cout << "Begin " << MWhatToTrace << std::endl;
   }
-  ~Tracer() { std::cout << "After " << MWhatToTrace << std::endl; }
+  ~Tracer() { std::cout << "End " << MWhatToTrace << std::endl; }
   std::string MWhatToTrace;
 };
 
