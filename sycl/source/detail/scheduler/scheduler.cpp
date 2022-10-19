@@ -28,12 +28,14 @@ namespace detail {
 
 bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
-    Tracer t("Record->MReadLeaves isCompleted");
+    Tracer t("Record->MReadLeaves isCompleted, Cmd = " +
+             std::to_string(reinterpret_cast<long long>(Cmd)));
     if (!Cmd->getEvent()->isCompleted())
       return false;
   }
   for (Command *Cmd : Record->MWriteLeaves) {
-    Tracer t("Record->MWriteLeaves isCompleted");
+    Tracer t("Record->MWriteLeaves isCompleted, Cmd = " +
+             std::to_string(reinterpret_cast<long long>(Cmd)));
     if (!Cmd->getEvent()->isCompleted())
       return false;
   }
@@ -49,7 +51,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
     {
-      Tracer t("Record->MReadLeaves enqueueCommand");
+      Tracer t("Record->MReadLeaves enqueueCommand, Cmd = " +
+               std::to_string(reinterpret_cast<long long>(Cmd)));
 
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
@@ -61,13 +64,15 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // Capture the dependencies
     DepCommands.insert(Cmd);
 #endif
-    Tracer t("Record->MReadLeaves waitForEvent");
+    Tracer t("Record->MReadLeaves waitForEvent, Cmd = " +
+             std::to_string(reinterpret_cast<long long>(Cmd)));
 
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     {
-      Tracer t("Record->MWriteLeaves enqueueCommand");
+      Tracer t("Record->MWriteLeaves enqueueCommand, Cmd = " +
+               std::to_string(reinterpret_cast<long long>(Cmd)));
 
       EnqueueResultT Res;
       bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
@@ -78,7 +83,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     DepCommands.insert(Cmd);
 #endif
-    Tracer t("Record->MWriteLeaves waitForEvent");
+    Tracer t("Record->MWriteLeaves waitForEvent, Cmd = " +
+             std::to_string(reinterpret_cast<long long>(Cmd)));
 
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
@@ -86,7 +92,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
     {
       EnqueueResultT Res;
-      Tracer t("Record->releasecmd enqueueCommand");
+      Tracer t("Record->releasecmd enqueueCommand, ReleaseCmd = " +
+               std::to_string(reinterpret_cast<long long>(ReleaseCmd)));
       bool Enqueued =
           GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
@@ -98,7 +105,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // reported as edges
     ReleaseCmd->resolveReleaseDependencies(DepCommands);
 #endif
-    Tracer t("Record->releasecmd waitForEvent");
+    Tracer t("Record->releasecmd waitForEvent, ReleaseCmd = " +
+             std::to_string(reinterpret_cast<long long>(ReleaseCmd)));
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }

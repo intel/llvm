@@ -292,23 +292,28 @@ public:
   void operator()() const {
     auto threadId = std::this_thread::get_id();
     Tracer t("host task for thread " +
-             std::to_string(reinterpret_cast<long long>(&threadId)));
+             std::to_string(reinterpret_cast<long long>(&threadId)) +
+             " Cmd = " + std::to_string(reinterpret_cast<long long>(MThisCmd)) +
+             "EmptyCommand = " +
+             std::to_string(reinterpret_cast<long long>(MThisCmd->MEmptyCmd)));
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
-      HostTask.MQueue->reportAsyncException(EPtr);
+    {
+      Tracer t("host task, wait for events");
+      pi_result WaitResult = waitForEvents();
+      if (WaitResult != PI_SUCCESS) {
+        std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
+            std::string("Couldn't wait for host-task's dependencies"),
+            WaitResult));
+        HostTask.MQueue->reportAsyncException(EPtr);
 
-      // reset host-task's lambda and quit
-      HostTask.MHostTask.reset();
-      return;
+        // reset host-task's lambda and quit
+        HostTask.MHostTask.reset();
+        return;
+      }
     }
-
     try {
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
@@ -339,6 +344,7 @@ public:
     Scheduler &Sched = Scheduler::getInstance();
     {
       Scheduler::ReadLockT Lock(Sched.MGraphLock);
+      Tracer t("host tasl under lock");
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 

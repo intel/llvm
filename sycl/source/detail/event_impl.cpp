@@ -71,14 +71,17 @@ void event_impl::waitInternal() {
 
   if (MState == HES_Complete)
     return;
-
+  { Tracer t("try lock in waitInternal"); }
   std::unique_lock<std::mutex> lock(MMutex);
+  Tracer t("cv.wait");
   cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
+    Tracer t("setComplete try lock");
     std::unique_lock<std::mutex> lock(MMutex);
+    Tracer t2("under lock");
 #ifndef NDEBUG
     int Expected = HES_NotComplete;
     int Desired = HES_Complete;
