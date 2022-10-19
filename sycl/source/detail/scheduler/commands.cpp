@@ -31,6 +31,7 @@
 #include <cassert>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef __has_include
@@ -289,6 +290,9 @@ public:
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
+    auto threadId = std::this_thread::get_id();
+    Tracer t("host task for thread " +
+             std::to_string(reinterpret_cast<long long>(&threadId)));
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());

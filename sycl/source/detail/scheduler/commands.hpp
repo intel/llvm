@@ -23,6 +23,15 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/cg.hpp>
 
+class Tracer {
+public:
+  Tracer(std::string WhatToTrace) : MWhatToTrace(WhatToTrace) {
+    std::cout << "Before " << MWhatToTrace << std::endl;
+  }
+  ~Tracer() { std::cout << "After " << MWhatToTrace << std::endl; }
+  std::string MWhatToTrace;
+};
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {

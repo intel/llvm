@@ -28,10 +28,12 @@ namespace detail {
 
 bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
+    Tracer t("Record->MReadLeaves isCompleted");
     if (!Cmd->getEvent()->isCompleted())
       return false;
   }
   for (Command *Cmd : Record->MWriteLeaves) {
+    Tracer t("Record->MWriteLeaves isCompleted");
     if (!Cmd->getEvent()->isCompleted())
       return false;
   }
@@ -46,40 +48,57 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #endif
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.",
-                          PI_ERROR_INVALID_OPERATION);
+    {
+      Tracer t("Record->MReadLeaves enqueueCommand");
+
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+    }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Capture the dependencies
     DepCommands.insert(Cmd);
 #endif
+    Tracer t("Record->MReadLeaves waitForEvent");
+
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.",
-                          PI_ERROR_INVALID_OPERATION);
+    {
+      Tracer t("Record->MWriteLeaves enqueueCommand");
+
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+    }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     DepCommands.insert(Cmd);
 #endif
+    Tracer t("Record->MWriteLeaves waitForEvent");
+
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
-    EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw runtime_error("Enqueue process failed.",
-                          PI_ERROR_INVALID_OPERATION);
+    {
+      EnqueueResultT Res;
+      Tracer t("Record->releasecmd enqueueCommand");
+      bool Enqueued =
+          GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+    }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Report these dependencies to the Command so these dependencies can be
     // reported as edges
     ReleaseCmd->resolveReleaseDependencies(DepCommands);
 #endif
+    Tracer t("Record->releasecmd waitForEvent");
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
@@ -441,8 +460,10 @@ void Scheduler::releaseResources() {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
-  while (!isDeferredMemObjectsEmpty())
+  while (!isDeferredMemObjectsEmpty()) {
+    Tracer t("cleanupDeferredMemObjects(BlockingT::BLOCKING)");
     cleanupDeferredMemObjects(BlockingT::BLOCKING);
+  }
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {
