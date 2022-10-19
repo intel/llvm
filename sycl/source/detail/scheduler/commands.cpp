@@ -396,6 +396,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
       }
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
+        Tracer t("waitForEvents PiApiKind::piEventsWait");
+
         std::vector<RT::PiEvent> RawEvents = getPiEvents(CtxWithEvents.second);
         CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
             RawEvents.size(), RawEvents.data());
@@ -410,6 +412,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
       std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
       const detail::plugin &Plugin = Queue->getPlugin();
+      Tracer t("waitForEvents PiApiKind::piEnqueueEventsWait");
+
       Plugin.call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }

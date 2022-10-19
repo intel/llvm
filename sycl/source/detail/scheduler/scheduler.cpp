@@ -520,6 +520,8 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
       std::swap(DeferredCleanupCommands, MDeferredCleanupCommands);
     }
     for (Command *Cmd : DeferredCleanupCommands) {
+      Tracer t("cleanupCommand cmd = " +
+               std::to_string(reinterpret_cast<long long>(Cmd)));
       MGraphBuilder.cleanupCommand(Cmd);
     }
 
