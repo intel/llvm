@@ -11,11 +11,7 @@
 #ifndef MLIR_SYCL_OPS_DIALECT_H_
 #define MLIR_SYCL_OPS_DIALECT_H_
 
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/Interfaces/CastInterfaces.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
 
 namespace mlir {
 namespace sycl {
@@ -50,14 +46,5 @@ private:
 /// Include the auto-generated header file containing the declaration of the
 /// sycl dialect.
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h.inc"
-
-/// Include the header file containing the declaration of the sycl operation
-/// interfaces.
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
-
-/// Include the auto-generated header file containing the declarations of the
-/// sycl operations.
-#define GET_OP_CLASSES
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
 
 #endif // MLIR_SYCL_OPS_DIALECT_H_

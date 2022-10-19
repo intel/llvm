@@ -9,7 +9,7 @@
 #ifndef TRANSFORMS_PASSDETAIL_H_
 #define TRANSFORMS_PASSDETAIL_H_
 
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
