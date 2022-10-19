@@ -132,7 +132,8 @@ mlir::LogicalResult mlir::sycl::verifySYCLGetIDTrait(Operation *OpPtr) {
   const bool IsRetScalar = RetTy.isa<mlir::sycl::IDType>();
   // operator size_t cannot be checked the generic way.
   if (FuncName != "operator unsigned long") {
-    const auto GenericVerification = verifyGetSYCLTyOperation(Op, "ID");
+    const LogicalResult GenericVerification =
+        verifyGetSYCLTyOperation(Op, "ID");
     if (GenericVerification.failed()) {
       return GenericVerification;
     }

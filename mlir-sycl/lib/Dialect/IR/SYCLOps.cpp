@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===--- SYCLOps.cpp ------------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
@@ -39,23 +37,22 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
     return false;
   }
 
-  const auto HasArrayTrait =
+  const bool HasArrayTrait =
       Input.getElementType()
           .hasTrait<mlir::sycl::SYCLInheritanceTypeInterface<
               mlir::sycl::ArrayType>::Trait>();
-  const auto IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
+  const bool IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
   return HasArrayTrait && IsArray;
 }
 
 mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
-  // /* Available only when: (Dimensions > 0) */
+  // Available only when: (Dimensions > 0)
   // reference operator[](id<Dimensions> index) const;
 
-  // /* Available only when: (Dimensions > 1) */
+  // Available only when: (Dimensions > 1)
   // __unspecified__ operator[](size_t index) const;
 
-  // /* Available only when: (AccessMode != access_mode::atomic && Dimensions ==
-  // 1) */
+  // Available only when: (AccessMode != access_mode::atomic && Dimensions == 1)
   // reference operator[](size_t index) const;
   const auto AccessorTy = getOperand(0)
                               .getType()
