@@ -143,6 +143,10 @@ void SparseTensorEncodingAttr::print(AsmPrinter &printer) const {
   printer << "<{ dimLevelType = [ ";
   for (unsigned i = 0, e = getDimLevelType().size(); i < e; i++) {
     switch (getDimLevelType()[i]) {
+    case DimLevelType::Undef:
+      // TODO: should probably raise an error instead of printing it...
+      printer << "\"undef\"";
+      break;
     case DimLevelType::Dense:
       printer << "\"dense\"";
       break;
@@ -327,12 +331,6 @@ LogicalResult ConvertOp::verify() {
     }
   }
   return emitError("unexpected type in convert");
-}
-
-OpFoldResult ConvertOp::fold(ArrayRef<Attribute> operands) {
-  if (getType() == getSource().getType())
-    return getSource();
-  return {};
 }
 
 LogicalResult ToPointersOp::verify() {
