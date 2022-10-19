@@ -832,6 +832,16 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   return PI_SUCCESS;
 }
 
+enum ImmCmdlistMode {
+  // Immediate commandlists are not used.
+  NotUsed,
+  // One set of compute and copy immediate commandlists per queue.
+  PerQueue,
+  // One set of compute and copy immediate commandlists per host thread that
+  // accesses the queue.
+  PerThreadPerQueue
+};
+
 // Get value of immediate commandlists env var setting or -1 if unset
 // A value of 1 specifies a single set of imm cmdlists per queue.
 // A value of 2 specifies a separate set of imm cmdlists per thread per queue.
@@ -1203,11 +1213,13 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
 
   if (Device->useImmediateCommandLists()) {
     auto &ComputeQueueGroupRef = ComputeQueueGroup;
-    bool ThreadSpecificImmCmdLists = Device->useImmediateCommandLists() == 2;
+    bool ThreadSpecificImmCmdLists =
+        Device->useImmediateCommandLists() == PerThreadPerQueue;
     if (ThreadSpecificImmCmdLists) {
       // Thread id will be used to create separate imm cmdlists per thread.
       auto TID = std::this_thread::get_id();
-      std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+      std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
+                bool>
           Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
       ComputeQueueGroupRef = Result.first->second;
     }
@@ -1238,9 +1250,11 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
         auto TID = std::this_thread::get_id();
         auto &CopyQueueGroupRef = CopyQueueGroup;
         bool ThreadSpecificImmCmdLists =
-            Device->useImmediateCommandLists() == 2;
+            Device->useImmediateCommandLists() == PerThreadPerQueue;
         if (ThreadSpecificImmCmdLists) {
-          std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+          std::pair<
+              std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
+              bool>
               Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
           CopyQueueGroupRef = Result.first->second;
         }
@@ -1449,14 +1463,16 @@ pi_result _pi_context::getAvailableCommandList(
 _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
   if (Device->useImmediateCommandLists()) {
 
-    bool ThreadSpecificImmCmdLists = Device->useImmediateCommandLists() == 2;
+    bool ThreadSpecificImmCmdLists =
+        Device->useImmediateCommandLists() == PerThreadPerQueue;
 
     if (ThreadSpecificImmCmdLists) {
       // Thread id will be used to create separate imm cmdlists per thread.
       auto TID = std::this_thread::get_id();
       if (UseCopyEngine) {
-
-        std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+        std::pair<
+            std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
+            bool>
             Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
         // If an entry for this thread exists, use it.
         if (!Result.second) {
@@ -1469,7 +1485,9 @@ _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
         return CopyQueueGroupRef;
       } else {
-        std::pair<std::map<std::thread::id, pi_queue_group_t>::iterator, bool>
+        std::pair<
+            std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
+            bool>
             Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
         // If an entry for this thread exists, use it.
         if (!Result.second)
@@ -3189,6 +3207,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
 
     // intel extensions for GPU information
+  case PI_DEVICE_INFO_DEVICE_ID:
+    return ReturnValue(
+        pi_uint32{Device->ZeDeviceProperties->deviceId});
   case PI_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
@@ -6644,10 +6665,19 @@ pi_result _pi_queue::synchronize() {
   };
 
   if (Device->useImmediateCommandLists()) {
-    for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
-      syncImmCmdList(this, ImmCmdList);
-    for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
-      syncImmCmdList(this, ImmCmdList);
+    if (Device->useImmediateCommandLists() == PerThreadPerQueue) {
+      for (auto ImmCmdListGroup : ComputeQueueGroupsByTID)
+        for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
+          syncImmCmdList(this, ImmCmdList);
+      for (auto ImmCmdListGroup : CopyQueueGroupsByTID)
+        for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
+          syncImmCmdList(this, ImmCmdList);
+    } else {
+      for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
+        syncImmCmdList(this, ImmCmdList);
+      for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
+        syncImmCmdList(this, ImmCmdList);
+    }
   } else {
     for (auto &ZeQueue : ComputeQueueGroup.ZeQueues)
       if (ZeQueue)
