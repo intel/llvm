@@ -917,6 +917,9 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
+  // Keep track of the last command list used by in-order queue.
+  pi_command_list_ptr_t LastCommandList = CommandListMap.end();
+
   // Kernel is not necessarily submitted for execution during
   // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
   // list of kernels which is going to be submitted but have not been submitted
@@ -1344,6 +1347,7 @@ struct _pi_event : _pi_object {
   //
   pi_event HostVisibleEvent = {nullptr};
   bool isHostVisible() const { return this == HostVisibleEvent; }
+  bool IsDiscarded = false;
 
   // Get the host-visible event or create one and enqueue its signal.
   pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
@@ -1404,6 +1408,8 @@ struct _pi_event : _pi_object {
 
   // Reset _pi_event object.
   pi_result reset();
+
+  pi_result createZeEvent();
 };
 
 struct _pi_program : _pi_object {

@@ -33,7 +33,8 @@ extern "C" {
 static pi_result piQueueReleaseInternal(pi_queue Queue);
 static pi_result piEventReleaseInternal(pi_event Event);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
-                             bool HostVisible, pi_event *RetEvent);
+                             bool HostVisible, pi_event *RetEvent,
+                             bool IsDiscarded = false);
 }
 
 // Defined in tracing.cpp
@@ -656,18 +657,19 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
-// \param IsInternal tells if the event is internal, i.e. visible in the L0
+// \param IsDiscarded tells if the event is internal, i.e. visible in the L0
 //        plugin only.
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
-    pi_command_list_ptr_t CommandList, bool IsInternal = false,
+    pi_command_list_ptr_t CommandList, bool IsDiscarded = false,
     bool ForceHostVisible = false) {
 
   if (!ForceHostVisible)
     ForceHostVisible = DeviceEventsSetting == AllHostVisible;
-  PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
+  PI_CALL(
+      EventCreate(Queue->Context, Queue, ForceHostVisible, Event, IsDiscarded));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -693,7 +695,7 @@ inline static pi_result createEventAndAssociateQueue(
   // If the event is internal then don't increment the reference count as this
   // event will not be waited/released by SYCL RT, so it must be destroyed by
   // EventRelease in resetCommandList.
-  if (!IsInternal)
+  if (!IsDiscarded)
     PI_CALL(piEventRetain(*Event));
 
   return PI_SUCCESS;
@@ -1305,6 +1307,29 @@ pi_result _pi_context::getAvailableCommandList(
   // Immediate commandlists have been pre-allocated and are always available.
   if (Queue->Device->useImmediateCommandLists()) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
+
+    // If we have an in-order queue where some events are discarded then we need
+    // to use event to glue different immediate command lists. So, if new
+    // command list is different from the last used then create the level zero
+    // event (it is not created if event is discarded), signal it from the last
+    // immediate command list and wait for it in the new command list.
+    if (Queue->isInOrderQueue() && Queue->isDiscardEvents()) {
+      if (CommandList != Queue->LastCommandList) {
+        if (Queue->LastCommandList != Queue->CommandListMap.end() &&
+            Queue->LastCommandEvent && !Queue->LastCommandEvent->ZeEvent) {
+          PI_CALL(Queue->LastCommandEvent->createZeEvent());
+          // Create event and append signal event to the last command list.
+          ZE_CALL(zeCommandListAppendSignalEvent,
+                  (Queue->LastCommandList->first,
+                   Queue->LastCommandEvent->ZeEvent));
+          // Append barrier to new command list to wait for signalled event.
+          ZE_CALL(zeCommandListAppendBarrier,
+                  (CommandList->first, nullptr, 1,
+                   &Queue->LastCommandEvent->ZeEvent));
+        }
+      }
+    }
+
     if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
       return Res;
     return PI_SUCCESS;
@@ -1558,8 +1583,15 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
-  if (!CommandList->second.EventList.empty())
+  if (!CommandList->second.EventList.empty() &&
+      LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
+    // If new command was submitted with discarded event, then insert barrier.
+    if (this->LastCommandEvent && !this->LastCommandEvent->ZeEvent)
+      ZE_CALL(zeCommandListAppendBarrier,
+              (CommandList->first, nullptr, 0, nullptr));
+  }
+  this->LastCommandList = CommandList;
 
   if (!Device->useImmediateCommandLists()) {
     // Batch if allowed to, but don't batch if we know there are no kernels
@@ -1615,6 +1647,21 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   }
 
   if (!Device->useImmediateCommandLists()) {
+    auto CreateSpecialEvent = [&]() -> pi_result {
+      if (!CommandList->second.EventList.empty() && LastCommandEvent &&
+          !LastCommandEvent->ZeEvent) {
+        pi_event SpecialEvent;
+        PI_CALL(createEventAndAssociateQueue(
+            this, &SpecialEvent, PI_COMMAND_TYPE_USER, CommandList,
+            /* IsDiscarded */ false, /* ForceHostVisible */ false));
+        LastCommandEvent = SpecialEvent;
+        PI_CALL(piEventReleaseInternal(SpecialEvent));
+        ZE_CALL(zeCommandListAppendSignalEvent,
+                (CommandList->first, SpecialEvent->ZeEvent));
+      }
+      return PI_SUCCESS;
+    };
+
     // In this mode all inner-batch events have device visibility only,
     // and we want the last command in the batch to signal a host-visible
     // event that anybody waiting for any event in the batch will
@@ -1637,7 +1684,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         pi_event HostVisibleEvent;
         auto Res = createEventAndAssociateQueue(
             this, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
-            /* IsInternal */ false, /* ForceHostVisible */ true);
+            /* IsDiscarded */ false, /* ForceHostVisible */ true);
         if (Res)
           return Res;
 
@@ -1663,11 +1710,13 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // we check that EventList of the command list is not empty above, i.e.
         // after createEventAndAssociateQueue ref count is 2 and then +1 for
         // each event in the EventList.
-        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
+
         PI_CALL(piEventReleaseInternal(HostVisibleEvent));
 
-        // Indicate no cleanup is needed for this PI event as it is special.
-        HostVisibleEvent->CleanedUp = true;
+        // If the last event is discarded then we use this host proxy event to
+        // preserve in-order queue dependency chain, so update LastCommandEvent.
+        if (LastCommandEvent && !LastCommandEvent->ZeEvent)
+          LastCommandEvent = HostVisibleEvent;
 
         // Finally set to signal the host-visible event at the end of the
         // command-list.
@@ -1675,11 +1724,21 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // in the batch).
         ZE_CALL(zeCommandListAppendSignalEvent,
                 (CommandList->first, HostVisibleEvent->ZeEvent));
+      } else {
+        // If we didn't create a proxy event and the last command event is
+        // discarded then create special event.
+        PI_CALL(CreateSpecialEvent());
       }
+    } else {
+      // If we are not in LastCommandInBatchHostVisible and the last command
+      // event is discarded then create special event.
+      PI_CALL(CreateSpecialEvent());
     }
 
     // Close the command list and have it ready for dispatch.
     ZE_CALL(zeCommandListClose, (CommandList->first));
+    this->LastCommandList = this->CommandListMap.end();
+
     // Offload command list to the GPU for asynchronous execution
     auto ZeCommandList = CommandList->first;
     auto ZeResult = ZE_CALL_NOCHECK(
@@ -1925,8 +1984,31 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   this->ZeEventList = nullptr;
   this->PiEventList = nullptr;
 
+  if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
+    // Ensure LastCommandEvent's batch is submitted if it is differrent
+    // from the one this command is going to.
+    const auto &OpenCommandList =
+        CurQueue->eventOpenCommandList(CurQueue->LastCommandEvent);
+    if (OpenCommandList != CurQueue->CommandListMap.end() &&
+        OpenCommandList->second.isCopy(CurQueue) != UseCopyEngine) {
+
+      if (auto Res = CurQueue->executeOpenCommandList(
+              OpenCommandList->second.isCopy(CurQueue)))
+        return Res;
+      assert(CurQueue->LastCommandEvent->ZeEvent != nullptr);
+    }
+  }
+
+  // For in-order queues, every command should be executed only after the
+  // previous command has finished. The event associated with the last
+  // enqueued command is added into the waitlist to ensure in-order semantics if
+  // this event was not discarded. If it was discarded then barrier is inserted
+  // after command.
+  bool IncludeLastCommandEvent = CurQueue->LastCommandEvent != nullptr &&
+                                 CurQueue->LastCommandEvent->ZeEvent != nullptr;
+
   try {
-    if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
+    if (CurQueue->isInOrderQueue() && IncludeLastCommandEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
     } else if (EventListLength > 0) {
@@ -2018,19 +2100,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     // For in-order queues, every command should be executed only after the
     // previous command has finished. The event associated with the last
     // enqueued command is added into the waitlist to ensure in-order semantics.
-    if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
-
-      // Ensure LastCommandEvent's batch is submitted if it is differrent
-      // from the one this command is going to.
-      const auto &OpenCommandList =
-          CurQueue->eventOpenCommandList(CurQueue->LastCommandEvent);
-      if (OpenCommandList != CurQueue->CommandListMap.end() &&
-          OpenCommandList->second.isCopy(CurQueue) != UseCopyEngine) {
-
-        if (auto Res = CurQueue->executeOpenCommandList(
-                OpenCommandList->second.isCopy(CurQueue)))
-          return Res;
-      }
+    if (IncludeLastCommandEvent) {
       std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
@@ -5406,10 +5476,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   pi_result Res = createEventAndAssociateQueue(
-      Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList, IsInternal);
+      Queue, Event, PI_COMMAND_TYPE_NDRANGE_KERNEL, CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -5503,6 +5573,36 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
 //
 // Events
 //
+pi_result _pi_event::createZeEvent() {
+  size_t Index = 0;
+
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+          ZeEventPool, Index, isHostVisible(), isProfilingEnabled()))
+    return Res;
+
+  ZeStruct<ze_event_desc_t> ZeEventDesc;
+  ZeEventDesc.index = Index;
+  ZeEventDesc.wait = 0;
+
+  if (isHostVisible()) {
+    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+  } else {
+    //
+    // Set the scope to "device" for every event. This is sufficient for
+    // global device access and peer device access. If needed to be seen on
+    // the host we are doing special handling, see EventsScope options.
+    //
+    // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
+    //       used in some circumstances.
+    //
+    ZeEventDesc.signal = 0;
+  }
+
+  ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+
+  return PI_SUCCESS;
+}
+
 pi_result
 _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_EVENT);
@@ -5531,7 +5631,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     // Create a "proxy" host-visible event.
     auto Res = createEventAndAssociateQueue(
         Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
-        /* IsInternal */ false, /* ForceHostVisible */ true);
+        /* IsDiscarded */ false, /* ForceHostVisible */ true);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -5590,7 +5690,8 @@ void _pi_context::addEventToCache(pi_event Event) {
 // a host-visible pool.
 //
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
-                             bool HostVisible, pi_event *RetEvent) {
+                             bool HostVisible, pi_event *RetEvent,
+                             bool IsDiscarded) {
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
@@ -5600,34 +5701,36 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
     return PI_SUCCESS;
   }
 
-  ze_event_handle_t ZeEvent;
+  ze_event_handle_t ZeEvent = nullptr;
   ze_event_pool_handle_t ZeEventPool = {};
 
-  size_t Index = 0;
+  if (!IsDiscarded) {
+    size_t Index = 0;
 
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled))
-    return Res;
+    if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+            ZeEventPool, Index, HostVisible, ProfilingEnabled))
+      return Res;
 
-  ZeStruct<ze_event_desc_t> ZeEventDesc;
-  ZeEventDesc.index = Index;
-  ZeEventDesc.wait = 0;
+    ZeStruct<ze_event_desc_t> ZeEventDesc;
+    ZeEventDesc.index = Index;
+    ZeEventDesc.wait = 0;
 
-  if (HostVisible) {
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-  } else {
-    //
-    // Set the scope to "device" for every event. This is sufficient for
-    // global device access and peer device access. If needed to be seen on
-    // the host we are doing special handling, see EventsScope options.
-    //
-    // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
-    //       used in some circumstances.
-    //
-    ZeEventDesc.signal = 0;
+    if (HostVisible) {
+      ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+    } else {
+      //
+      // Set the scope to "device" for every event. This is sufficient for
+      // global device access and peer device access. If needed to be seen on
+      // the host we are doing special handling, see EventsScope options.
+      //
+      // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
+      //       used in some circumstances.
+      //
+      ZeEventDesc.signal = 0;
+    }
+
+    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
   }
-
-  ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
 
   try {
     PI_ASSERT(RetEvent, PI_ERROR_INVALID_VALUE);
@@ -6021,7 +6124,7 @@ static pi_result piEventReleaseInternal(pi_event Event) {
     PI_CALL(piQueueReleaseInternal(Event->Queue));
   }
 
-  if (DisableEventsCaching || !Event->OwnZeEvent) {
+  if (DisableEventsCaching || !Event->OwnZeEvent || !Event->ZeEvent) {
     delete Event;
   } else {
     Event->Context->addEventToCache(Event);
@@ -6278,10 +6381,10 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     ze_event_handle_t ZeEvent = nullptr;
     pi_event InternalEvent;
-    bool IsInternal = OutEvent == nullptr;
+    bool IsDiscarded = OutEvent == nullptr;
     pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
     auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                            CommandList, IsInternal);
+                                            CommandList, IsDiscarded);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -6344,9 +6447,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   auto insertBarrierIntoCmdList =
       [&Queue](pi_command_list_ptr_t CmdList,
                const _pi_ze_event_list_t &EventWaitList, pi_event &Event,
-               bool IsInternal) {
+               bool IsDiscarded) {
         if (auto Res = createEventAndAssociateQueue(
-                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
+                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsDiscarded))
           return Res;
         Event->WaitList = EventWaitList;
         ZE_CALL(zeCommandListAppendBarrier,
@@ -6356,7 +6459,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       };
 
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
 
   // Indicator for whether batching is allowed. This may be changed later in
@@ -6385,7 +6488,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
     // Insert the barrier into the command-list and execute.
     if (auto Res =
-            insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal))
+            insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsDiscarded))
       return Res;
 
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
@@ -6477,7 +6580,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // convergence command list. The resulting event signals the convergence of
     // all barriers.
     if (auto Res = insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList,
-                                            *Event, IsInternal))
+                                            *Event, IsDiscarded))
       return Res;
   } else {
     // If there is only a single queue we have inserted all the barriers we need
@@ -6635,10 +6738,10 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -6698,10 +6801,10 @@ static pi_result enqueueMemCopyRectHelper(
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -6957,10 +7060,10 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
 
@@ -7034,7 +7137,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
   auto Buffer = pi_cast<pi_buffer>(Mem);
 
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   ze_event_handle_t ZeEvent = nullptr;
 
@@ -7050,7 +7153,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
 
     auto Res = createEventAndAssociateQueue(
         Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-        Queue->CommandListMap.end(), IsInternal);
+        Queue->CommandListMap.end(), IsDiscarded);
     if (Res != PI_SUCCESS)
       return Res;
 
@@ -7190,7 +7293,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   {
     // Lock automatically releases when this goes out of scope.
@@ -7203,7 +7306,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
 
     auto Res = createEventAndAssociateQueue(
         Queue, Event, PI_COMMAND_TYPE_MEM_BUFFER_UNMAP,
-        Queue->CommandListMap.end(), IsInternal);
+        Queue->CommandListMap.end(), IsDiscarded);
     if (Res != PI_SUCCESS)
       return Res;
     ZeEvent = (*Event)->ZeEvent;
@@ -7381,10 +7484,10 @@ static pi_result enqueueMemImageCommandHelper(
 
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, CommandType,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -8380,10 +8483,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
@@ -8445,10 +8548,10 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
   pi_event InternalEvent;
-  bool IsInternal = OutEvent == nullptr;
+  bool IsDiscarded = OutEvent == nullptr;
   pi_event *Event = OutEvent ? OutEvent : &InternalEvent;
   auto Res = createEventAndAssociateQueue(Queue, Event, PI_COMMAND_TYPE_USER,
-                                          CommandList, IsInternal);
+                                          CommandList, IsDiscarded);
   if (Res != PI_SUCCESS)
     return Res;
   ZeEvent = (*Event)->ZeEvent;
