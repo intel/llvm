@@ -140,12 +140,12 @@ jobs:
     - name: Pack LIT
       run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
     - name: Upload toolchain
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: llvm_sycl.tar.xz
     - name: Upload LIT
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
