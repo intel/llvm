@@ -43,7 +43,7 @@ jobs:
     name: Resolve Test Matrix
     uses: ./.github/workflows/sycl_resolve_test_matrix.yml
     with:
-      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda"
+      lts_config: "ocl_x64;ocl_gen9;l0_gen9"
 
   linux_default:
     name: Linux
