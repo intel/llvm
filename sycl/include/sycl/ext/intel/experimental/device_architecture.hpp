@@ -30,6 +30,7 @@ enum class architecture {
   intel_gpu_acm_g11,
   intel_gpu_acm_g12,
   intel_gpu_pvc,
+  // Update "detail::max_architecture" below if you add new elements here!
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
   intel_gpu_9_1_9 = intel_gpu_kbl,
@@ -48,6 +49,9 @@ enum class architecture {
 } // namespace ext::intel::experimental
 
 namespace detail {
+
+static constexpr ext::intel::experimental::architecture max_architecture =
+    ext::intel::experimental::architecture::intel_gpu_pvc;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
@@ -149,34 +153,89 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PVC__ == 1);
 
+struct IsAOTForArchitectureClass {
+  // allocate an array of size == size of ext::intel::experimental::architecture
+  // enum
+  bool arr[static_cast<int>(max_architecture) + 1];
+
+  constexpr IsAOTForArchitectureClass() : arr() {
+    arr[static_cast<int>(ext::intel::experimental::architecture::x86_64)] =
+        __SYCL_TARGET_INTEL_X86_64__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_bdw)] =
+        __SYCL_TARGET_INTEL_GPU_BDW__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_skl)] =
+        __SYCL_TARGET_INTEL_GPU_SKL__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_kbl)] =
+        __SYCL_TARGET_INTEL_GPU_KBL__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_cfl)] =
+        __SYCL_TARGET_INTEL_GPU_CFL__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_apl)] =
+        __SYCL_TARGET_INTEL_GPU_APL__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_glk)] =
+        __SYCL_TARGET_INTEL_GPU_GLK__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_whl)] =
+        __SYCL_TARGET_INTEL_GPU_WHL__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_aml)] =
+        __SYCL_TARGET_INTEL_GPU_AML__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_cml)] =
+        __SYCL_TARGET_INTEL_GPU_CML__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_icllp)] =
+        __SYCL_TARGET_INTEL_GPU_ICLLP__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_ehl)] =
+        __SYCL_TARGET_INTEL_GPU_EHL__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_tgllp)] =
+        __SYCL_TARGET_INTEL_GPU_TGLLP__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_rkl)] =
+        __SYCL_TARGET_INTEL_GPU_RKL__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_adl_s)] =
+        __SYCL_TARGET_INTEL_GPU_ADL_S__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_rpl_s)] =
+        __SYCL_TARGET_INTEL_GPU_RPL_S__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_adl_p)] =
+        __SYCL_TARGET_INTEL_GPU_ADL_P__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_adl_n)] =
+        __SYCL_TARGET_INTEL_GPU_ADL_N__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_dg1)] =
+        __SYCL_TARGET_INTEL_GPU_DG1__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_acm_g10)] =
+        __SYCL_TARGET_INTEL_GPU_ACM_G10__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_acm_g11)] =
+        __SYCL_TARGET_INTEL_GPU_ACM_G11__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_acm_g12)] =
+        __SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1;
+    arr[static_cast<int>(
+        ext::intel::experimental::architecture::intel_gpu_pvc)] =
+        __SYCL_TARGET_INTEL_GPU_PVC__ == 1;
+  }
+};
+
 // One entry for each enumerator in "architecture" telling whether the AOT
 // target matches that architecture.
-static constexpr bool is_aot_for_architecture[] = {
-    (__SYCL_TARGET_INTEL_X86_64__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_BDW__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_SKL__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_KBL__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_CFL__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_APL__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_GLK__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_WHL__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_AML__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_CML__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_ICLLP__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_EHL__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_TGLLP__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_RKL__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_ADL_S__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_RPL_S__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_ADL_P__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_ADL_N__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_DG1__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_ACM_G10__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_ACM_G11__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1),
-    (__SYCL_TARGET_INTEL_GPU_PVC__ == 1)};
+static constexpr IsAOTForArchitectureClass is_aot_for_architecture;
 
-// Read the value of "is_allowable_aot_mode" via a template to defer triggering
+
+// Reads the value of "is_allowable_aot_mode" via a template to defer triggering
 // static_assert() until template instantiation time.
 template <ext::intel::experimental::architecture... Archs>
 constexpr static bool allowable_aot_mode() {
@@ -187,7 +246,7 @@ constexpr static bool allowable_aot_mode() {
 // pack.
 template <ext::intel::experimental::architecture... Archs>
 constexpr static bool device_architecture_is() {
-  return (is_aot_for_architecture[static_cast<int>(Archs)] || ...);
+  return (is_aot_for_architecture.arr[static_cast<int>(Archs)] || ...);
 }
 
 // Helper object used to implement "else_if_architecture_is" and "otherwise".
@@ -205,6 +264,7 @@ public:
       fnTrue(args...);
       return if_architecture_helper<false>{};
     } else {
+      (void)fnTrue;
       return if_architecture_helper<MakeCall>{};
     }
   }
@@ -231,6 +291,7 @@ constexpr static auto if_architecture_is(T fnTrue, Args... args) {
     fnTrue(args...);
     return detail::if_architecture_helper<false>{};
   } else {
+    (void)fnTrue;
     return detail::if_architecture_helper<true>{};
   }
 }
