@@ -3577,22 +3577,23 @@ public:
                           CurOffset + offsetOf(FD, FieldTy));
     } else if (isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-    } else {
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
       CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
       assert(InitMethod && "type must have __init method");
       const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
       assert(InitArg && "Init method must have arguments");
       QualType T = InitArg->getType();
-      if (isSyclType(FieldTy, SYCLTypeAttr::sampler)) {
-        addParam(T, SYCLIntegrationHeader::kind_sampler, offsetOf(FD, FieldTy));
-        return true;
-      }
-      // Add a default case for classes marked with sycl_special_class
-      // attribute.
-      addParam(T,
-               T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
-                                  : SYCLIntegrationHeader::kind_std_layout,
-               offsetOf(FD, FieldTy));
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          isSyclType(FieldTy, SYCLTypeAttr::sampler)
+              ? SYCLIntegrationHeader::kind_sampler
+              : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
+                                    : SYCLIntegrationHeader::kind_std_layout);
+      addParam(T, ParamKind, offsetOf(FD, FieldTy));
+    } else {
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating Integration Header");
     }
     return true;
   }
