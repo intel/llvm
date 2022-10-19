@@ -1347,33 +1347,50 @@ private:
 #endif
   }
 
-  template <typename PropertiesT> struct KernelPropertiesUnpacker {
-    template <typename KernelName, typename KernelType>
-    static void kernel_single_task_unpack(handler *, _KERNELFUNCPARAMTYPE) {}
+  template <typename... Props> struct KernelPropertiesUnpackerImpl {
+    // Just pass extra Props... as template parameters to the underlying
+    // Caller->* member functions. Don't have reflection so try to use
+    // templates as much as possible to reduce the amount of boilerplate code
+    // needed. All the type checks are expected to be done at the Caller's
+    // methods side. Note that we cannot simply forward incoming arguments as
+    // deduced types aren't always the same and we cannot rely on type deduction
+    // as we need to pass Props... explicitly.
 
-    template <typename KernelName, typename KernelType>
-    static void kernel_single_task_unpack(handler *, _KERNELFUNCPARAMTYPE,
-                                          kernel_handler) {}
+    template <typename KernelName, typename KernelType,
+              typename... kernel_handler_or_none>
+    static void kernel_single_task_unpack(handler *Caller,
+                                          _KERNELFUNCPARAM(KernelFunc),
+                                          kernel_handler_or_none... KH) {
+      Caller->kernel_single_task<KernelName, KernelType, Props...>(KernelFunc,
+                                                                   KH...);
+    }
 
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_unpack(handler *, _KERNELFUNCPARAMTYPE) {}
+    template <typename KernelName, typename ElementType, typename KernelType,
+              typename... kernel_handler_or_none>
+    static void kernel_parallel_for_unpack(handler *Caller,
+                                           _KERNELFUNCPARAM(KernelFunc),
+                                           kernel_handler_or_none... KH) {
+      Caller
+          ->kernel_parallel_for<KernelName, ElementType, KernelType, Props...>(
+              KernelFunc, KH...);
+    }
 
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_unpack(handler *, _KERNELFUNCPARAMTYPE,
-                                           kernel_handler) {}
+    template <typename KernelName, typename ElementType, typename KernelType,
+              typename... kernel_handler_or_none>
+    static void
+    kernel_parallel_for_work_group_unpack(handler *Caller,
+                                          _KERNELFUNCPARAM(KernelFunc),
+                                          kernel_handler_or_none... KH) {
+      Caller->kernel_parallel_for_work_group<KernelName, ElementType,
+                                             KernelType, Props...>(KernelFunc,
+                                                                   KH...);
+    }
+  };
 
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_work_group_unpack(handler *,
-                                                      _KERNELFUNCPARAMTYPE) {}
-
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_work_group_unpack(handler *,
-                                                      _KERNELFUNCPARAMTYPE,
-                                                      kernel_handler) {}
-
-    // This should always fail but must be dependent to avoid always failing.
-    // It is defined after the shell members to avoid that they are stripped
-    // from the class.
+  template <typename PropertiesT>
+  struct KernelPropertiesUnpacker : public KernelPropertiesUnpackerImpl<> {
+    // This should always fail but must be dependent to avoid failing even if
+    // not instantiated.
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
@@ -1381,54 +1398,8 @@ private:
 
   template <typename... Props>
   struct KernelPropertiesUnpacker<
-      ext::oneapi::experimental::detail::properties_t<Props...>> {
-    template <typename KernelName, typename KernelType>
-    static void kernel_single_task_unpack(handler *Caller,
-                                          _KERNELFUNCPARAM(KernelFunc)) {
-      Caller->kernel_single_task<KernelName, KernelType, Props...>(KernelFunc);
-    }
-
-    template <typename KernelName, typename KernelType>
-    static void kernel_single_task_unpack(handler *Caller,
-                                          _KERNELFUNCPARAM(KernelFunc),
-                                          kernel_handler KH) {
-      Caller->kernel_single_task<KernelName, KernelType, Props...>(KernelFunc,
-                                                                   KH);
-    }
-
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_unpack(handler *Caller,
-                                           _KERNELFUNCPARAM(KernelFunc)) {
-      Caller
-          ->kernel_parallel_for<KernelName, ElementType, KernelType, Props...>(
-              KernelFunc);
-    }
-
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_unpack(handler *Caller,
-                                           _KERNELFUNCPARAM(KernelFunc),
-                                           kernel_handler KH) {
-      Caller
-          ->kernel_parallel_for<KernelName, ElementType, KernelType, Props...>(
-              KernelFunc, KH);
-    }
-
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void
-    kernel_parallel_for_work_group_unpack(handler *Caller,
-                                          _KERNELFUNCPARAM(KernelFunc)) {
-      Caller->kernel_parallel_for_work_group<KernelName, ElementType,
-                                             KernelType, Props...>(KernelFunc);
-    }
-
-    template <typename KernelName, typename ElementType, typename KernelType>
-    static void kernel_parallel_for_work_group_unpack(
-        handler *Caller, _KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
-      Caller->kernel_parallel_for_work_group<KernelName, ElementType,
-                                             KernelType, Props...>(KernelFunc,
-                                                                   KH);
-    }
-  };
+      ext::oneapi::experimental::detail::properties_t<Props...>>
+      : public KernelPropertiesUnpackerImpl<Props...> {};
 
   // Wrappers for kernel_*** functions above with and without support of
   // additional kernel_handler argument.
