@@ -117,5 +117,69 @@ int main() {
   } catch (exception &e) {
   }
 
+  // ------ aspect_selectors --------
+
+  // Unrestrained selection, equivalent to default_selector.
+  device dev0 = device{aspect_selector()};
+  assert(dev0 == default_queue.get_device() &&
+         "unrestrained aspect selector should result in same device as "
+         "default_selector");
+
+  // -- Individual test runs may or may not have desired device available.
+  // Ignore any exception.
+
+  // Pass aspects in a vector.
+  try {
+    device dev1 =
+        device{aspect_selector(std::vector{aspect::cpu, aspect::image})};
+    assert(dev1.is_cpu() && "Incorrect device, expected CPU.");
+    assert(dev1.has(aspect::image) && "Device should support aspect::image.");
+  } catch (exception &e) {
+  }
+
+  // Pass aspects without a vector.
+  try {
+    device dev2 = device{aspect_selector(aspect::gpu, aspect::image)};
+    assert(dev2.is_gpu() && "Incorrect device, expected GPU.");
+    assert(dev2.has(aspect::image) && "Device should support aspect::image.");
+  } catch (exception &e) {
+  }
+
+  // Pass aspects as compile-time parameters
+  try {
+    device dev3 = device{aspect_selector<aspect::cpu, aspect::fp64>()};
+    assert(dev3.is_cpu() && "Incorrect device, expected CPU.");
+    assert(dev3.has(aspect::fp64) && "Device should support aspect::fp64.");
+  } catch (exception &e) {
+  }
+
+  // Pass aspects in an allowlist and a denylist.
+  try {
+    device dev4 = device{aspect_selector(std::vector{aspect::accelerator},
+                                         std::vector{aspect::image})};
+    assert(dev4.is_accelerator() && "Incorrect device, expected accelerator.");
+    assert(!dev4.has(aspect::image) &&
+           "Device should NOT support aspect::image.");
+  } catch (exception &e) {
+  }
+
+  // Validate errors.
+  try {
+    device dev5 = device{aspect_selector<aspect::cpu, aspect::gpu>()};
+    assert(
+        "We should not be here. No known device that is both a CPU and a GPU.");
+  } catch (exception &e) {
+    assert(e.code() == sycl::errc::runtime && "Incorrect error code.");
+  }
+
+  try {
+    device dev6 = device{
+        aspect_selector(std::vector{aspect::cpu}, std::vector{aspect::cpu})};
+    assert("We should not be here. RequireList and DenyList impossible to "
+           "fulfill.");
+  } catch (exception &e) {
+    assert(e.code() == sycl::errc::runtime && "Incorrect error code.");
+  }
+
   return 0;
 }
