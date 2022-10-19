@@ -10,6 +10,7 @@
 #define CLANG_MLIR_H
 
 #include "AffineUtils.h"
+#include "Attributes.h"
 #include "ValueCategory.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -140,8 +141,11 @@ public:
 
   /// Determine whether to use the "noundef" attribute on a parameter or
   /// function return value.
-  static bool determineNoUndef(clang::QualType QTy,
-                               const clang::CodeGen::ABIArgInfo &AI);
+  static bool determineNoUndef(clang::QualType qt,
+                               clang::CodeGen::CodeGenTypes &Types,
+                               const llvm::DataLayout &DL,
+                               const clang::CodeGen::ABIArgInfo &AI,
+                               bool CheckCoerce = true);
 };
 
 class MLIRASTConsumer : public clang::ASTConsumer {
@@ -210,7 +214,8 @@ public:
   ScopLocList &getScopLocList() { return scopLocList; }
 
   mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &FTE,
-                                                    const bool ShouldEmit,
+                                                    bool IsThunk,
+                                                    bool ShouldEmit,
                                                     bool getDeviceStub = false);
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const clang::FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
@@ -254,6 +259,15 @@ private:
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
 
+  /// Construct the IR attribute list of a function or call.
+  void constructAttributeList(const clang::CodeGen::CGFunctionInfo &FI,
+                              clang::CodeGen::CGCalleeInfo CalleeInfo,
+                              mlirclang::AttributeList &AttrList,
+                              bool AttrOnCallSite, bool IsThunk);
+
+  /// Retuns the MLIR Function type given clang's CGFunctionInfo \p FI.
+  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI);
+
   /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>
   getMLIRFunction(const std::string &mangledName,
@@ -265,7 +279,7 @@ private:
   /// in the FTE).
   mlir::FunctionOpInterface createMLIRFunction(const FunctionToEmit &FTE,
                                                std::string mangledName,
-                                               bool ShouldEmit);
+                                               bool IsThunk, bool ShouldEmit);
 
   /// Fill in \p parmDescriptors with the MLIR types of the \p FD function
   /// declaration's parameters.
@@ -286,7 +300,8 @@ private:
   /// Set the MLIR function attributes for the given \p function.
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
                                  const FunctionToEmit &FTE,
-                                 mlir::LLVM::Linkage lnk) const;
+                                 const clang::CodeGen::CGFunctionInfo &FI,
+                                 bool IsThunk, bool ShouldEmit);
 
   /// Set the MLIR function parameters attributes for the given \p function.
   void setMLIRFunctionParmsAttributes(
@@ -368,7 +383,6 @@ private:
 
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
-<<<<<<< Updated upstream
   /// Converts the \p val to the memory space \p memSpace and returns the
   /// converted value.
   mlir::Value castToMemSpace(mlir::Value val, unsigned memSpace);
@@ -376,15 +390,6 @@ private:
   /// Converts the \p val to the memory space of \p t and returns the
   /// converted value.
   mlir::Value castToMemSpaceOfType(mlir::Value val, mlir::Type targetType);
-=======
-  /// Converts the given value \p val to the given memory space \p memSpace and
-  /// returns the converted value.
-  mlir::Value castToMemSpace(mlir::Value val, unsigned memSpace,
-                             mlir::Location loc);
-
-  /// Retrieve the default memory space of the given module.
-  unsigned getDefaultMemorySpace(mlir::ModuleOp module) const;
->>>>>>> Stashed changes
 
   bool isTrivialAffineLoop(clang::ForStmt *fors,
                            mlirclang::AffineLoopDescriptor &descr);

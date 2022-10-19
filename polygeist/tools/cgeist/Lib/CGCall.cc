@@ -63,6 +63,11 @@ static void castCallerArgs(mlir::func::FuncOp callee,
                            llvm::SmallVectorImpl<mlir::Value> &args,
                            mlir::OpBuilder &b) {
   mlir::FunctionType funcTy = callee.getFunctionType();
+  llvm::dbgs() << "funcTy: " << funcTy << "\n";
+  llvm::dbgs() << "args: \n";
+  for (auto &arg : args)
+    llvm::dbgs().indent(2) << arg << "\n";
+
   assert(args.size() == funcTy.getNumInputs() &&
          "The caller arguments should have the same size as the number of "
          "callee arguments as the interface.");
@@ -93,11 +98,7 @@ ValueCategory MLIRScanner::CallHelper(
   for (auto pair : arguments) {
     ValueCategory arg = std::get<0>(pair);
     clang::Expr *a = std::get<1>(pair);
-<<<<<<< Updated upstream
 #ifdef DEBUG
-=======
-#ifdef DEBUG    
->>>>>>> Stashed changes
     if (!arg.val) {
       expr->dump();
       a->dump();
@@ -111,11 +112,7 @@ ValueCategory MLIRScanner::CallHelper(
             make_pair(dre->getDecl()->getName().str(), arg.val));
 
     if (i >= fnType.getInputs().size() || (i != 0 && a == nullptr)) {
-<<<<<<< Updated upstream
 #ifdef DEBUG
-=======
-#ifdef DEBUG      
->>>>>>> Stashed changes
       expr->dump();
       tocall.dump();
       fnType.dump();
@@ -147,8 +144,6 @@ ValueCategory MLIRScanner::CallHelper(
 
     mlir::Value val = nullptr;
     if (!isReference) {
-      llvm::dbgs() << "at line " << __LINE__ << "\n";
-
       if (isArray) {
 #ifdef DEBUG
         if (!arg.isReference) {
@@ -156,11 +151,7 @@ ValueCategory MLIRScanner::CallHelper(
           a->dump();
           llvm::errs() << " v: " << arg.val << "\n";
         }
-<<<<<<< Updated upstream
 #endif
-=======
-#endif                
->>>>>>> Stashed changes
         assert(arg.isReference);
 
         auto mt =
@@ -196,9 +187,7 @@ ValueCategory MLIRScanner::CallHelper(
                                   mt.getMemorySpace()),
             alloc);
       } else {
-        llvm::dbgs() << "at line " << __LINE__ << "\n";        
         val = arg.getValue(builder);
-
 
         if (val.getType().isa<LLVM::LLVMPointerType>() &&
             expectedType.isa<MemRefType>()) {
@@ -212,7 +201,6 @@ ValueCategory MLIRScanner::CallHelper(
         }
       }
     } else {
-      llvm::dbgs() << "at line " << __LINE__ << "\n";      
       assert(arg.isReference);
 
       expectedType = Glob.getMLIRType(
@@ -366,9 +354,6 @@ ValueCategory MLIRScanner::CallHelper(
   // Try to rescue some mismatched types.
   castCallerArgs(tocall, args, builder);
 
-  for (auto arg: args) 
-    llvm::dbgs() << "arg: " << arg << "\n";
-
   /// Try to emit SYCL operations before creating a CallOp
   mlir::Operation *op = EmitSYCLOps(expr, args);
   if (!op) {
@@ -407,6 +392,11 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
 }
 
 ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitCallExpr: ";
+    expr->dump();
+    llvm::dbgs() << "\n";
+  });
 
   auto loc = getMLIRLocation(expr->getExprLoc());
   /*
@@ -457,6 +447,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
   }
+
   if (auto *oc = dyn_cast<CXXMemberCallExpr>(expr)) {
     if (auto *lhs = dyn_cast<CXXTypeidExpr>(oc->getImplicitObjectArgument())) {
       expr->getCallee()->dump();
@@ -613,6 +604,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               /*isReference*/ false);
       }
     }
+
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -650,6 +642,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         assert(0 && "unhandled builtin addressof");
       }
     }
+
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -1573,7 +1566,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     ShouldEmit = true;
 
   FunctionToEmit F(*callee, mlirclang::getInputContext(builder));
-  auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
+  auto ToCall = cast<func::FuncOp>(
+      Glob.GetOrCreateMLIRFunction(F, false /*IsThunk*/, ShouldEmit));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
   QualType objType;
@@ -1596,8 +1590,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     assert(obj.isReference);
     args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
   }
+
   for (auto *a : expr->arguments())
     args.push_back(std::make_pair(Visit(a), a));
+
   return CallHelper(ToCall, objType, args, expr->getType(),
                     expr->isLValue() || expr->isXValue(), expr);
 }
