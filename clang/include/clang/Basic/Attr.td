@@ -3427,6 +3427,7 @@ def WorkGroupSizeHint :  InheritableAttr {
     }
   }];
   let Documentation = [WorkGroupSizeHintAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def InitPriority : InheritableAttr, TargetSpecificAttr<TargetSupportsInitPriority> {
