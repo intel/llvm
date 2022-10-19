@@ -22,24 +22,19 @@
 // LLVM-NOT: declare {{.*}} spir_func
 
 #include <sycl/sycl.hpp>
+using namespace sycl;
 
 void host_single_task(std::array<int, 1> &A) {
-  auto q = sycl::queue{};
-  sycl::device d = q.get_device();
-  std::cout << "Using " << d.get_info<sycl::info::device::name>() << "\n";
-
-  auto range = sycl::range<1>{1};
+  auto q = queue{};
+  device d = q.get_device();
+  std::cout << "Using " << d.get_info<info::device::name>() << "\n";
 
   {
-    auto buf = sycl::buffer<int, 1>{A.data(), range};
-    q.submit([&](sycl::handler &cgh) {
-      auto A = buf.get_access<sycl::access::mode::write>(cgh);
+    auto buf = buffer<int, 1>{A.data(), 1};
+    q.submit([&](handler &cgh) {
+      auto A = buf.get_access<access::mode::write>(cgh);
       cgh.single_task<class kernel_single_task>([=]() {
-#ifdef __SYCL_DEVICE_ONLY__
         A[0] = 1;
-#else
-        A[0] = 2;
-#endif
       });
     });
   }
@@ -49,6 +44,6 @@ int main() {
   std::array<int, 1> A = {0};
   A[0] = 0;
   host_single_task(A);
-
-  std::cout << "A[0]=" << A[0] << "\n";
+  assert(A[0] == 1);
+  std::cout << "Test passed" << std::endl;
 }
