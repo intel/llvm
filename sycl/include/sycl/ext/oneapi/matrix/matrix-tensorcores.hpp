@@ -172,13 +172,13 @@ get_layout_id<sycl::ext::oneapi::experimental::matrix::layout::col_major>() {
 
 template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename S,
           typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space>
+          access::address_space Space, access::decorated IsDecorated>
 void load_accumulator_layoutT(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
         sycl::sub_group> &res,
-    multi_ptr<T, Space> src, size_t stride) {
+    multi_ptr<T, Space, IsDecorated> src, size_t stride) {
   if constexpr (std::is_same_v<S, int32_t>) {
     auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
     if constexpr (NumRows == 16 && NumCols == 16) {
@@ -221,13 +221,13 @@ void load_accumulator_layoutT(
 };
 
 template <typename S, typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space>
+          access::address_space Space, access::decorated IsDecorated>
 void load_accumulator_cuda(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
         S, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
         sycl::sub_group> &res,
-    multi_ptr<T, Space> src, size_t stride,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
   switch (Layout) {
   case sycl::ext::oneapi::experimental::matrix::layout::row_major:
@@ -249,7 +249,7 @@ template <
     typename S, typename T, size_t NumRows, size_t NumCols,
     sycl::ext::oneapi::experimental::matrix::use Use,
     sycl::ext::oneapi::experimental::matrix::layout Layout,
-    access::address_space Space,
+    access::address_space Space, access::decorated IsDecorated,
     std::enable_if_t<
         Layout == sycl::ext::oneapi::experimental::matrix::layout::row_major ||
             Layout ==
@@ -258,7 +258,7 @@ template <
 void load_multiplicand_cuda(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
         S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
-    multi_ptr<T, Space> src, size_t stride) {
+    multi_ptr<T, Space, IsDecorated> src, size_t stride) {
   if constexpr (std::is_same_v<S, sycl::ext::oneapi::experimental::bfloat16>) {
     auto tileptr = reinterpret_cast<const int32_t *>(src.get());
     auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
@@ -377,13 +377,14 @@ void load_multiplicand_cuda(
 }
 
 template <sycl::ext::oneapi::experimental::matrix::layout Layout, typename T,
-          size_t NumRows, size_t NumCols, access::address_space Space>
+          size_t NumRows, size_t NumCols, access::address_space Space,
+          access::decorated IsDecorated>
 void store_layoutT(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
         sycl::sub_group> &src,
-    multi_ptr<T, Space> dst, size_t stride) {
+    multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
   if constexpr (NumRows == 16 && NumCols == 16) {
     if constexpr (std::is_same_v<T, float>) {
       __hmma_m16n16k16_st_c_f32(dst.get(),
@@ -434,13 +435,13 @@ void store_layoutT(
 }
 
 template <typename T, size_t NumRows, size_t NumCols,
-          access::address_space Space>
+          access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store_cuda(
     sycl::ext::oneapi::experimental::matrix::joint_matrix<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic,
         sycl::sub_group> &src,
-    multi_ptr<T, Space> dst, size_t stride,
+    multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
   switch (Layout) {
   case sycl::ext::oneapi::experimental::matrix::layout::row_major:
