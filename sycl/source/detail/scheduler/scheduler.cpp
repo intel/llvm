@@ -27,6 +27,8 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
+  Tracer t2("checkLeavesCompletion for record = " +
+            std::to_string(reinterpret_cast<long long>(Record)));
   for (Command *Cmd : Record->MReadLeaves) {
     Tracer t("Record->MReadLeaves isCompleted, Cmd = " +
              std::to_string(reinterpret_cast<long long>(Cmd)));
