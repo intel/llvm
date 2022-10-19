@@ -18,7 +18,8 @@ using namespace sycl;
 using namespace sycl::detail;
 using namespace sycl::ext::intel::experimental;
 
-TEST(DeviceArchitectureTest, DeviceArchitectureMultipleArchsSelected_Multiple_If) {
+TEST(DeviceArchitectureTest,
+     DeviceArchitectureMultipleArchsSelected_Multiple_If) {
   int res = 0;
   if_architecture_is<architecture::x86_64>([&]() { res++; });
   if_architecture_is<architecture::intel_gpu_pvc>([&]() { res++; });

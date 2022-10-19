@@ -234,7 +234,6 @@ struct IsAOTForArchitectureClass {
 // target matches that architecture.
 static constexpr IsAOTForArchitectureClass is_aot_for_architecture;
 
-
 // Reads the value of "is_allowable_aot_mode" via a template to defer triggering
 // static_assert() until template instantiation time.
 template <ext::intel::experimental::architecture... Archs>
