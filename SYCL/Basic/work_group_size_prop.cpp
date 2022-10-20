@@ -3,8 +3,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// Failing negative test with HIP
-// XFAIL: hip
+// Failing negative test with HIP. Temporarily disabled for CUDA.
+// XFAIL: hip, cuda
 
 #include <sycl/sycl.hpp>
 
