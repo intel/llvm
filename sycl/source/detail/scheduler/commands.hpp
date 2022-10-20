@@ -29,7 +29,10 @@ public:
     std::cout << "[" << std::this_thread::get_id() << "] Begin " << MWhatToTrace
               << std::endl;
   }
-  ~Tracer() { std::cout << "End " << MWhatToTrace << std::endl; }
+  ~Tracer() {
+    std::cout << "[" << std::this_thread::get_id() << "] End   " << MWhatToTrace
+              << std::endl;
+  }
   std::string MWhatToTrace;
 };
 

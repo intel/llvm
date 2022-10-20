@@ -90,6 +90,8 @@ void SYCLMemObjT::updateHostMemory() {
 
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.
+  std::cout << "Buffer destructor called with record = " << MRecord
+            << std::endl;
   if (MRecord)
     Scheduler::getInstance().removeMemoryObject(this);
   releaseHostMem(MShadowCopy);
@@ -157,6 +159,10 @@ void SYCLMemObjT::detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self,
   // called from queue::submit and buffer destruction could not overlap with it.
   if (MRecord && !MHostPtrProvided && DefaultAllocator)
     Scheduler::getInstance().deferMemObjRelease(Self);
+  else
+    std::cout << "detach memory object:: deferred release is not applicable "
+                 "for this buffer"
+              << std::endl;
 }
 
 } // namespace detail
