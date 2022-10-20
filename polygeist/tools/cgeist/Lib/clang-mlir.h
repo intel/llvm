@@ -148,6 +148,16 @@ public:
   /// function return value.
   static bool determineNoUndef(clang::QualType QTy,
                                const clang::CodeGen::ABIArgInfo &AI);
+
+  /// Return the argument kind for a SPIR target for the given type.
+  static clang::CodeGen::ABIArgInfo::Kind
+  classifySPIRCallArgumentType(clang::QualType QTy,
+                               const clang::ASTContext &Context);
+
+  /// Return the argument kind for a default target for the given type.
+  static clang::CodeGen::ABIArgInfo::Kind
+  classifyDefaultCallArgumentType(clang::QualType QTy,
+                                  const clang::ASTContext &Context);
 };
 
 class MLIRASTConsumer : public clang::ASTConsumer {

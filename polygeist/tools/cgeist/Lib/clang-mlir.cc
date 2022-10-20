@@ -175,6 +175,67 @@ bool CodeGenUtils::determineNoUndef(QualType qt,
   return false;
 }
 
+/// Pass transparent unions as if they were the type of the first element. Sema
+/// should ensure that all elements of the union have the same "machine type".
+static QualType useFirstFieldIfTransparentUnion(QualType Ty) {
+  if (const RecordType *UT = Ty->getAsUnionType()) {
+    const RecordDecl *UD = UT->getDecl();
+    if (UD->hasAttr<TransparentUnionAttr>()) {
+      assert(!UD->field_empty() && "sema created an empty transparent union");
+      return UD->field_begin()->getType();
+    }
+  }
+  return Ty;
+}
+
+static bool isPromotableIntegerTypeForABI(QualType Ty,
+                                          const ASTContext &Context) {
+  if (Ty->isPromotableIntegerType())
+    return true;
+
+  if (const auto *EIT = Ty->getAs<BitIntType>())
+    if (EIT->getNumBits() < Context.getTypeSize(Context.IntTy))
+      return true;
+
+  return false;
+}
+
+CodeGen::ABIArgInfo::Kind
+CodeGenUtils::classifySPIRCallArgumentType(QualType QTy,
+                                           const ASTContext &Context) {
+  QTy = useFirstFieldIfTransparentUnion(QTy);
+
+  if (isAggregateTypeForABI(QTy)) {
+    return CodeGen::ABIArgInfo::Kind::Indirect;
+  }
+
+  return classifyDefaultCallArgumentType(QTy, Context);
+}
+
+CodeGen::ABIArgInfo::Kind
+CodeGenUtils::classifyDefaultCallArgumentType(QualType QTy,
+                                              const ASTContext &Context) {
+  QTy = useFirstFieldIfTransparentUnion(QTy);
+
+  if (isAggregateTypeForABI(QTy)) {
+    return CodeGen::ABIArgInfo::Kind::Indirect;
+  }
+
+  if (const EnumType *EnumTy = QTy->getAs<EnumType>())
+    QTy = EnumTy->getDecl()->getIntegerType();
+
+  if (const auto *EIT = QTy->getAs<BitIntType>())
+    if (EIT->getNumBits() >
+        Context.getTypeSize(Context.getTargetInfo().hasInt128Type()
+                                ? Context.Int128Ty
+                                : Context.LongLongTy))
+      return CodeGen::ABIArgInfo::Kind::Indirect;
+
+  return isPromotableIntegerTypeForABI(QTy, Context)
+             ? CodeGen::ABIArgInfo::Kind::Extend
+             : CodeGen::ABIArgInfo::Kind::Indirect;
+}
+
 void CodeGenUtils::TypeAndAttrs::getTypes(
     const SmallVectorImpl<TypeAndAttrs> &descriptors,
     SmallVectorImpl<mlir::Type> &types) {
@@ -3299,25 +3360,32 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     QualType parmType = parm->getType();
     mlirclang::AttrBuilder attrBuilder(*ctx);
 
-    // SPIR ABI compliance: aggregates need to be passed indirectly as pointers
-    // (in MLIR, we pass it as MemRefs with unknown size).
-    // Note: indirect arguments are always on the stack (i.e. using alloca addr
-    // space).
-    if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
-      auto mt = mlir::MemRefType::get(-1, getMLIRType(parmType), {},
-                                      CGM.getDataLayout().getAllocaAddrSpace());
-      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal);
-      attrBuilder.addAttribute(
-          llvm::Attribute::AttrKind::Alignment,
-          CGM.getContext().getTypeAlignInChars(parmType).getQuantity());
+    if (isKernel) {
+      auto ty = getMLIRType(parmType);
+
+      const CodeGen::ABIArgInfo::Kind ArgKind =
+          CodeGenUtils::classifyDefaultCallArgumentType(parmType,
+                                                        parm->getASTContext());
 
       if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
-          CodeGenUtils::determineNoUndef(parmType,
-                                         CodeGen::ABIArgInfo::Indirect)) {
+          CodeGenUtils::determineNoUndef(parmType, ArgKind)) {
         attrBuilder.addAttribute(llvm::Attribute::AttrKind::NoUndef);
       }
 
-      CodeGenUtils::ParmDesc parmDesc(mt, attrBuilder.getAttrs());
+      // SPIR ABI compliance: aggregates need to be passed indirectly as
+      // pointers (in MLIR, we pass it as MemRefs with unknown size).
+      // Note: indirect arguments are always on the stack (i.e. using alloca
+      // addr space).
+      if (CodeGenUtils::isAggregateTypeForABI(parmType)) {
+        ty = mlir::MemRefType::get(-1, ty, {},
+                                   CGM.getDataLayout().getAllocaAddrSpace());
+        attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal);
+        attrBuilder.addAttribute(
+            llvm::Attribute::AttrKind::Alignment,
+            CGM.getContext().getTypeAlignInChars(parmType).getQuantity());
+      }
+
+      CodeGenUtils::ParmDesc parmDesc(ty, attrBuilder.getAttrs());
       parmDescriptors.push_back(parmDesc);
 
       continue;
