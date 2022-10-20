@@ -34,6 +34,7 @@ bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
              std::to_string(reinterpret_cast<long long>(Cmd)));
     if (!Cmd->getEvent()->isCompleted())
       return false;
+    std::cout << "Cmd = " << Cmd << " completed " << std::endl;
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     Tracer t("Record->MWriteLeaves isCompleted, Cmd = " +
