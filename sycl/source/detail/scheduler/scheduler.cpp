@@ -543,6 +543,7 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 }
 
 void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  std::cout << "deferMemObjRelease use count =" << MemObj.use_count();
   {
     Tracer t("deferMemObjRelease push");
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
@@ -550,6 +551,7 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
   }
   Tracer t("cleanupDeferredMemObjects(BlockingT::NON_BLOCKING)");
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+  std::cout << "deferMemObjRelease use count =" << MemObj.use_count();
 }
 
 inline bool Scheduler::isDeferredMemObjectsEmpty() {
