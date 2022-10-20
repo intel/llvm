@@ -153,14 +153,14 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Fixed `accessor`'s CTAD for `g++` host compiler. [57aabe7e]
 - Fixed a compilation issue when using multi-dimensional `accessor`'s subscript
   operator. [22e3fc56]
-- Fixed "definition with the same mangled name" error happenning when used
+- Fixed "definition with the same mangled name" error happening when used
   multiple buffer reductions in a kernel. [a0a4d721]
 - Fixed a compilation issue with SYCL math built-ins when GCC < 11.1 is used as
   a host compiler. [c786894f]
 - Fixed a compilation issue with SYCL math built-ins (such as `sycl::modf`,
   for example) not accepting pointers to `half`. [e2861665]
 - Fixed an issues with `reduction`s when MSVC is used as host compiler. [94c4b80a]
-- Fixed a compilation issue when fully specialized `sycl::span` is initalized
+- Fixed a compilation issue when fully specialized `sycl::span` is initialized
   from an array. [2b50820b]
 - Fixed a crash in Level Zero PI plugins caused by specialization constants not
   being used on device side, but present in a program. [9500875f]
@@ -169,11 +169,11 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Fixed an issue with incorrect `half` conversion on ESIMD emulator. [6143e55a]
 - Fixed a compilation issue with `abs` ESIMD function. [c72a85dd]
 - Fixed some warning coming out of SYCL headers when compiled in C++20 mode. [12ac4c36]
-- Fixed a compilation issue when using multiple bitswise shift operations
+- Fixed a compilation issue when using multiple bitwise shift operations
   in ESIMD. [40d08c23]
 - Fixed a crash in Level Zero PI plugin which occurs when the runtime tries to reset
   a command list which does not have a synchronization fence associated with it. [a61ac7a0]
-- Fixed a performance issue with excesseive streams synchronization
+- Fixed a performance issue with excessive streams synchronization
   on CUDA backend. [5352b423]
 - Fixed a compilation issue with
   `sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl::device)` free
