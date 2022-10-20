@@ -11,36 +11,29 @@
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode,
           sycl::target AccessTarget = sycl::target::device>
 void check_accessor() {
-  using IteratorDataT =
-      typename std::conditional<AccessMode == sycl::access_mode::read,
-                                const DataT, DataT>::type;
-  static_assert(
-      std::is_same_v<sycl::detail::accessor_iterator<IteratorDataT, Dimensions>,
-                     typename sycl::accessor<DataT, Dimensions, AccessMode,
-                                             AccessTarget>::iterator>);
+  using AccessorT =
+      typename sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget>;
+  static_assert(std::is_same_v<sycl::detail::accessor_iterator<
+                                   typename AccessorT::value_type, Dimensions>,
+                               typename AccessorT::iterator>);
 
-  // const_iterator should always be specialized as const DataT
-  static_assert(std::is_same_v<
-                sycl::detail::accessor_iterator<const DataT, Dimensions>,
-                typename sycl::accessor<DataT, Dimensions, AccessMode,
-                                             AccessTarget>::const_iterator>);
+  static_assert(
+      std::is_same_v<sycl::detail::accessor_iterator<
+                         const typename AccessorT::value_type, Dimensions>,
+                     typename AccessorT::const_iterator>);
 }
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
 void check_host_accessor() {
-  using IteratorDataT =
-      typename std::conditional<AccessMode == sycl::access_mode::read,
-                                const DataT, DataT>::type;
-  static_assert(
-      std::is_same_v<sycl::detail::accessor_iterator<IteratorDataT, Dimensions>,
-                     typename sycl::host_accessor<DataT, Dimensions,
-                                                  AccessMode>::iterator>);
+  using AccessorT = typename sycl::host_accessor<DataT, Dimensions, AccessMode>;
+  static_assert(std::is_same_v<sycl::detail::accessor_iterator<
+                                   typename AccessorT::value_type, Dimensions>,
+                               typename AccessorT::iterator>);
 
-  // const_iterator should always be specialized as const DataT
   static_assert(
-      std::is_same_v<sycl::detail::accessor_iterator<const DataT, Dimensions>,
-                     typename sycl::host_accessor<DataT, Dimensions,
-                                                  AccessMode>::const_iterator>);
+      std::is_same_v<sycl::detail::accessor_iterator<
+                         const typename AccessorT::value_type, Dimensions>,
+                     typename AccessorT::const_iterator>);
 }
 
 struct user_defined_t {
@@ -61,5 +54,4 @@ int main() {
   check_host_accessor<float, 3, sycl::access_mode::read_write>();
 
   return 0;
-
 }

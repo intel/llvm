@@ -1205,18 +1205,17 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
 public:
-  using value_type = DataT;
+  // 4.7.6.9.1. Interface for buffer command accessors
+  // value_type is defined as const DataT for read_only accessors, DataT
+  // otherwise
+  using value_type = typename std::conditional<AccessMode == access_mode::read,
+                                               const DataT, DataT>::type;
   using reference = DataT &;
   using const_reference = const DataT &;
 
-  // When accessor is read-only, we should not be able to modify it through the
-  // iterator and therefore, effectively returning const_iterator here
-  using iterator = typename detail::accessor_iterator<
-      typename std::conditional<AccessMode == access_mode::read, const DataT,
-                                DataT>::type,
-      Dimensions>;
+  using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
   using const_iterator =
-      typename detail::accessor_iterator<const DataT, Dimensions>;
+      typename detail::accessor_iterator<const value_type, Dimensions>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
 
