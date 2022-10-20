@@ -239,6 +239,7 @@ static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
     EventImpl->flushIfNeeded(Queue);
   }
 }
+using namespace std::chrono_literals;
 
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
@@ -290,10 +291,8 @@ public:
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
-    auto threadId = std::this_thread::get_id();
-    Tracer t("host task for thread " +
-             std::to_string(reinterpret_cast<long long>(&threadId)) +
-             " Cmd = " + std::to_string(reinterpret_cast<long long>(MThisCmd)) +
+    Tracer t("host task Cmd = " +
+             std::to_string(reinterpret_cast<long long>(MThisCmd)) +
              "EmptyCommand = " +
              std::to_string(reinterpret_cast<long long>(MThisCmd->MEmptyCmd)));
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);

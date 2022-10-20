@@ -22,6 +22,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+using namespace std::chrono_literals;
 class ThreadPool {
   std::vector<std::thread> MLaunchedThreads;
 

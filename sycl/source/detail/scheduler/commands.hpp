@@ -26,7 +26,8 @@
 class Tracer {
 public:
   Tracer(std::string WhatToTrace) : MWhatToTrace(WhatToTrace) {
-    std::cout << "Begin " << MWhatToTrace << std::endl;
+    std::cout << "[" << std::this_thread::get_id() << "] Begin " << MWhatToTrace
+              << std::endl;
   }
   ~Tracer() { std::cout << "End " << MWhatToTrace << std::endl; }
   std::string MWhatToTrace;

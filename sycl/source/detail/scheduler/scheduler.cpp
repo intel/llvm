@@ -323,7 +323,8 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
       ReadLockT Lock(MGraphLock);
-      Tracer t("removeMemoryObject::waitForRecordToFinish");
+      Tracer t("removeMemoryObject::waitForRecordToFinish for record = " +
+               std::to_string(reinterpret_cast<long long>(Record)));
 
       waitForRecordToFinish(Record, Lock);
     }
