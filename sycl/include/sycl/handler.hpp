@@ -1401,117 +1401,66 @@ private:
       ext::oneapi::experimental::detail::properties_t<Props...>>
       : public KernelPropertiesUnpackerImpl<Props...> {};
 
-  // Wrappers for kernel_*** functions above with and without support of
-  // additional kernel_handler argument.
+  // Wrappers for kernel_*** functions above supporting scenarios with and
+  // without additional kernel_handler argument.
 
   // NOTE: to support kernel_handler argument in kernel lambdas, only
   // kernel_***_wrapper functions must be called in this code
 
-  // Wrappers for kernel_single_task(...)
-
-  template <typename KernelName, typename KernelType,
-            typename PropertiesT =
-                ext::oneapi::experimental::detail::empty_properties_t>
-  std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>
-  kernel_single_task_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
+  template <typename KernelType, typename PropertiesT, bool HasKernelHandlerArg,
+            typename FuncTy>
+  void unpack(_KERNELFUNCPARAM(KernelFunc), FuncTy Lambda) {
 #ifdef __SYCL_DEVICE_ONLY__
     detail::CheckDeviceCopyable<KernelType>();
 #endif // __SYCL_DEVICE_ONLY__
-    kernel_handler KH;
     using MergedPropertiesT =
         typename detail::GetMergedKernelProperties<KernelType,
                                                    PropertiesT>::type;
-    KernelPropertiesUnpacker<MergedPropertiesT>::
-        template kernel_single_task_unpack<KernelName>(this, KernelFunc, KH);
+    using Unpacker = KernelPropertiesUnpacker<MergedPropertiesT>;
+    if constexpr (HasKernelHandlerArg) {
+      kernel_handler KH;
+      Lambda(Unpacker{}, this, KernelFunc, KH);
+    } else {
+      Lambda(Unpacker{}, this, KernelFunc);
+    }
   }
 
   template <typename KernelName, typename KernelType,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>
-  kernel_single_task_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    detail::CheckDeviceCopyable<KernelType>();
-#endif // __SYCL_DEVICE_ONLY__
-    using MergedPropertiesT =
-        typename detail::GetMergedKernelProperties<KernelType,
-                                                   PropertiesT>::type;
-    KernelPropertiesUnpacker<MergedPropertiesT>::
-        template kernel_single_task_unpack<KernelName>(this, KernelFunc);
-  }
-
-  // Wrappers for kernel_parallel_for(...)
-
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename PropertiesT =
-                ext::oneapi::experimental::detail::empty_properties_t>
-  std::enable_if_t<
-      detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
-  kernel_parallel_for_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    detail::CheckDeviceCopyable<KernelType>();
-#endif // __SYCL_DEVICE_ONLY__
-    kernel_handler KH;
-    using MergedPropertiesT =
-        typename detail::GetMergedKernelProperties<KernelType,
-                                                   PropertiesT>::type;
-    KernelPropertiesUnpacker<MergedPropertiesT>::
-        template kernel_parallel_for_unpack<KernelName, ElementType>(
-            this, KernelFunc, KH);
+  void kernel_single_task_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
+    unpack<KernelType, PropertiesT,
+           detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>(
+        KernelFunc, [&](auto Unpacker, auto... args) {
+          Unpacker.template kernel_single_task_unpack<KernelName>(args...);
+        });
   }
 
   template <typename KernelName, typename ElementType, typename KernelType,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  std::enable_if_t<
-      !detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
-  kernel_parallel_for_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    detail::CheckDeviceCopyable<KernelType>();
-#endif // __SYCL_DEVICE_ONLY__
-    using MergedPropertiesT =
-        typename detail::GetMergedKernelProperties<KernelType,
-                                                   PropertiesT>::type;
-    KernelPropertiesUnpacker<MergedPropertiesT>::
-        template kernel_parallel_for_unpack<KernelName, ElementType>(
-            this, KernelFunc);
-  }
-
-  // Wrappers for kernel_parallel_for_work_group(...)
-
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename PropertiesT =
-                ext::oneapi::experimental::detail::empty_properties_t>
-  std::enable_if_t<
-      detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
-  kernel_parallel_for_work_group_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    detail::CheckDeviceCopyable<KernelType>();
-#endif // __SYCL_DEVICE_ONLY__
-    kernel_handler KH;
-    using MergedPropertiesT =
-        typename detail::GetMergedKernelProperties<KernelType,
-                                                   PropertiesT>::type;
-    KernelPropertiesUnpacker<MergedPropertiesT>::
-        template kernel_parallel_for_work_group_unpack<KernelName, ElementType>(
-            this, KernelFunc, KH);
+  void kernel_parallel_for_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
+    unpack<KernelType, PropertiesT,
+           detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                    ElementType>::value>(
+        KernelFunc, [&](auto Unpacker, auto... args) {
+          Unpacker.template kernel_parallel_for_unpack<KernelName, ElementType>(
+              args...);
+        });
   }
 
   template <typename KernelName, typename ElementType, typename KernelType,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  std::enable_if_t<
-      !detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
-  kernel_parallel_for_work_group_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    detail::CheckDeviceCopyable<KernelType>();
-#endif // __SYCL_DEVICE_ONLY__
-    using MergedPropertiesT =
-        typename detail::GetMergedKernelProperties<KernelType,
-                                                   PropertiesT>::type;
-    KernelPropertiesUnpacker<MergedPropertiesT>::
-        template kernel_parallel_for_work_group_unpack<KernelName, ElementType>(
-            this, KernelFunc);
+  void kernel_parallel_for_work_group_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
+    unpack<KernelType, PropertiesT,
+           detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                    ElementType>::value>(
+        KernelFunc, [&](auto Unpacker, auto... args) {
+          Unpacker.template kernel_parallel_for_work_group_unpack<KernelName,
+                                                                  ElementType>(
+              args...);
+        });
   }
 
   /// Defines and invokes a SYCL kernel function as a function object type.
