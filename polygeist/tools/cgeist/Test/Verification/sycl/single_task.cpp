@@ -1,5 +1,3 @@
-// clang-format off
-
 // TODO: Investigate and remove all "Warning"s.
 // RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.out 2>&1 | FileCheck %s --implicit-check-not="{{warning|error|Error}}:"
 
