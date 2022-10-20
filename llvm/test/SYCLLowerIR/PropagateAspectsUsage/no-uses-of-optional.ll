@@ -5,7 +5,7 @@
 
 %MyStruct = type { i32 }
 
-; CHECK: dso_local spir_kernel void @kernel() {
+; CHECK: dso_local spir_kernel void @kernel()
 define dso_local spir_kernel void @kernel() {
   call spir_func void @func()
   ret void
