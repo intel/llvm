@@ -581,6 +581,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
+struct _pi_ze_event_list_t;
+
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
@@ -609,7 +611,17 @@ struct pi_command_list_info_t {
   // TODO: use this for optimizing events in the same command-list, e.g.
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
-  size_t size() const { return EventList.size(); }
+
+  // List of kernels in this command list associated with discarded events.
+  std::list<pi_kernel> Kernels;
+
+  // List of dependent events associated with discarded events in this command
+  // list.
+  std::list<_pi_ze_event_list_t> WaitLists;
+
+  size_t NumDiscardedEvents = 0;
+
+  size_t size() const { return EventList.size() + NumDiscardedEvents; }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
 
@@ -736,7 +748,9 @@ struct _pi_context : _pi_object {
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
-  pi_result decrementUnreleasedEventsInPool(pi_event Event);
+  pi_result decrementUnreleasedEventsInPool(pi_queue Queue,
+                                            ze_event_pool_handle_t ZeEventPool,
+                                            bool HostVisible);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
@@ -830,6 +844,16 @@ private:
   }
 };
 
+struct ze_event {
+  // Level Zero event handle.
+  ze_event_handle_t Handle;
+
+  // Level Zero event pool handle.
+  ze_event_pool_handle_t Pool;
+
+  bool HostVisible = false;
+};
+
 struct _pi_queue : _pi_object {
   _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
@@ -916,6 +940,40 @@ struct _pi_queue : _pi_object {
   // in-order semantics and updated with the latest event each time a new
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
+
+  // Keep track of the last command list used by in-order queue.
+  // This is needed because we need to handle the change of the command list in
+  // a specific way.
+  pi_command_list_ptr_t LastCommandList = CommandListMap.end();
+
+  // Caches of events for reuse.
+  std::vector<std::list<ze_event>> EventCaches{2};
+  auto getEventCache(bool HostVisible) {
+    return HostVisible ? &EventCaches[0] : &EventCaches[1];
+  }
+
+  // Get event from the queue's cache.
+  pi_result getEventFromCache(bool HostVisible, ze_event_handle_t *Event);
+
+  // Add event to the queue's cache.
+  void addEventToCache(ze_event Event);
+
+  // Append command to provided command list to reset the last discarded event.
+  // If we have in-order and discard_events mode we reset and reuse events in
+  // scope of the same command lists. This method allows to wait for the last
+  // discarded event, reset it and put to the cache for future reuse.
+  pi_result resetLastDiscardedEvent(pi_command_list_ptr_t);
+
+  // Append command to provided command list to signal new event.
+  // While we submit commands in scope of the same command list we can reuse
+  // events but when we switch to a different command list we currently use a
+  // new event. This method is used to signal new event from the last used
+  // command list. This new event will be waited in new command list.
+  pi_result signalEvent(pi_command_list_ptr_t);
+
+  // We store the last discarded event here. We also store additional
+  // information with it: host visibility and event pool where it was created.
+  ze_event DiscardedLastCommandEvent{nullptr, nullptr, false};
 
   // Kernel is not necessarily submitted for execution during
   // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
@@ -1310,6 +1368,14 @@ struct _pi_ze_event_list_t {
     this->Length = other.Length;
     return *this;
   }
+
+  _pi_ze_event_list_t(const _pi_ze_event_list_t &other) {
+    this->ZeEventList = other.ZeEventList;
+    this->PiEventList = other.PiEventList;
+    this->Length = other.Length;
+  }
+
+  _pi_ze_event_list_t() {}
 };
 
 struct _pi_event : _pi_object {
