@@ -133,21 +133,7 @@ def check_symbols(ref_path, target_path):
                        "?Plugin@?1???$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
                        "?Plugin@?1???$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
                        "?Plugin@?1???$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB"]
-    # Case 2:
-    # half_type.hpp:
-    #   class __SYCL_EXPORT half {
-    #     ...
-    #     constexpr half(const half &) = default;
-    #     constexpr half(half &&) = default;
-    #     ...
-    #   };
-    #
-    # For some reason MSVC creates exported symbols for the constexpr versions of those defaulted ctors
-    # although it never calls them at use point. Instead, those trivially copyable/moveable objects are
-    # memcpy/memmove'ed. We don't expect these symbols are ever referenced directly so having or not
-    # having them won't cause ABI issues.
-    ignore_symbols += ["??0half@host_half_impl@detail@_V1@sycl@@QEAA@AEBV01234@@Z",
-                       "??0half@host_half_impl@detail@_V1@sycl@@QEAA@$$QEAV01234@@Z"]
+    
     symbols = [s for s in symbols if s not in ignore_symbols]
 
     missing_symbols, new_symbols = compare_results(ref_symbols, symbols)
