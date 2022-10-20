@@ -727,7 +727,7 @@ static llvm::Optional<llvm::OptimizationLevel> optionsToOptimizationLevel() {
     return llvm::OptimizationLevel::O2;
   if (Opt3)
     return llvm::OptimizationLevel::O3;
-  // Not explicit optimization level handled by cgeist
+  // Not explicit optimization level not handled by cgeist
   return llvm::None;
 }
 
