@@ -2,10 +2,6 @@
 
 Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/llvm/compare/4043dda3...0f579bae)
 
-**TODO**
-
-- commit 2ffd50a8cf8aefec0582da0ab5908c1665dcdbb6
-
 ## New features
 
 ### SYCL Compiler
@@ -103,7 +99,8 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
   operations. [65c3ea29]
 - Optimized some memory transfers. [92d35cd1]
 - Enabled event caching in Level Zero PI plugin. [a41b33c3]
-- Optimized some reductions for discrete GPUs. [c22a5d3f]
+- Optimized some reductions with `parallel_for` accepting `sycl::range`
+  for discrete GPUs. [c22a5d3f]
 - Improved performance of event synchronization on CUDA backend. [c4f326aa]
 - Added ability to use descendent devices of context members within that
   context. Not supported with OpenCL backend yet. [a0c8c503] [78a483c7]
@@ -174,7 +171,8 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
 - Fixed some warning coming out of SYCL headers when compiled in C++20 mode. [12ac4c36]
 - Fixed a compilation issue when using multiple bitswise shift operations
   in ESIMD. [40d08c23]
-- Fixed a crash in Level Zero PI plugin. [a61ac7a0]
+- Fixed a crash in Level Zero PI plugin which occurs when the runtime tries to reset
+  a command list which does not have a synchronization fence associated with it. [a61ac7a0]
 - Fixed a performance issue with excesseive streams synchronization
   on CUDA backend. [5352b423]
 - Fixed a compilation issue with
