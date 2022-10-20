@@ -90,9 +90,8 @@ supports.
 
 |2
 |fpga_simulator_selector added.
-|===
 
-|2
+|3
 |SYCL 2020 selector variants `fpga_selector_v`, `fpga_simulator_selector_v`, and
 `fpga_emulator_selector_v` added.  Old selectors `fpga_selector`,
 `fpga_simulator_selector`, and `fpga_emulator_selector` deprecated.
