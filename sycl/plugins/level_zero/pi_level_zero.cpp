@@ -1306,16 +1306,9 @@ pi_result resetCommandLists(pi_queue Queue) {
 pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, pi_command_list_ptr_t &CommandList, bool UseCopyEngine,
     bool AllowBatching, ze_command_queue_handle_t *ForcedCmdQueue) {
-  // Immediate commandlists have been pre-allocated and are always available.
-  if (Queue->Device->useImmediateCommandLists()) {
-    CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
-    if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
-      return Res;
-    return PI_SUCCESS;
-  }
     
   // This is a hack. TODO: Proper CommandList allocation per Executable Graph.
-  if( Queue->Properties & PI_QUEUE_LAZY_EXECUTION ) {
+  if( Queue->Properties & PI_EXT_ONEAPI_QUEUE_LAZY_EXECUTION ) {
     // TODO: Create new Command List.
     if(Queue->LazyCommandListMap.empty()) {
       const bool UseCopyEngine = false;
@@ -1344,11 +1337,19 @@ pi_result _pi_context::getAvailableCommandList(
           ZeCommandList, {ZeFence, false, ZeCommandQueue, QueueGroupOrdinal}));
 
       Queue->insertActiveBarriers(CommandList, UseCopyEngine);
-      // 
+      //
       CommandList->second.ZeFenceInUse = true;
     } else {
         CommandList = Queue->LazyCommandListMap.begin();
     }
+    return PI_SUCCESS;
+  }
+    
+  // Immediate commandlists have been pre-allocated and are always available.
+  if (Queue->Device->useImmediateCommandLists()) {
+    CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
+    if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
+      return Res;
     return PI_SUCCESS;
   }
 
@@ -1583,7 +1584,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
   // When executing a Graph, defer execution
-  if( this->Properties & PI_QUEUE_LAZY_EXECUTION ) return PI_SUCCESS;
+  if( this->Properties & PI_EXT_ONEAPI_QUEUE_LAZY_EXECUTION ) return PI_SUCCESS;
     
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
@@ -3550,7 +3551,8 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
                              PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
                              PI_QUEUE_ON_DEVICE_DEFAULT |
-                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)),
+                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS |
+                             PI_EXT_ONEAPI_QUEUE_LAZY_EXECUTION)),
             PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -3824,7 +3826,7 @@ pi_result piQueueFinish(pi_queue Queue) {
 // Flushing cross-queue dependencies is covered by createAndRetainPiZeEventList,
 // so this can be left as a no-op.
 pi_result piQueueFlush(pi_queue Queue) {
-  if( Queue->Properties & PI_QUEUE_LAZY_EXECUTION ) {
+  if( Queue->Properties & PI_EXT_ONEAPI_QUEUE_LAZY_EXECUTION ) {
     pi_command_list_ptr_t CommandList{};
     // TODO: 
     CommandList = Queue->LazyCommandListMap.begin();
