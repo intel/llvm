@@ -22,6 +22,29 @@ class platform;
 namespace ext {
 namespace intel {
 
+namespace detail {
+// Scores a device by platform name. Uses const char * for the platform name to
+// avoid repeated string copying.
+inline int SelectDeviceByPlatform(const char *required_platform_name,
+                                  const device &device) {
+  const platform &pf = device.get_platform();
+  const std::string &platform_name = pf.get_info<sycl::info::platform::name>();
+  if (platform_name == required_platform_name) {
+    return 10000;
+  }
+  return -1;
+}
+
+// Enables an environment variable required by the FPGA simulator.
+inline void EnableFPGASimulator() {
+#ifdef _WIN32
+  _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
+#else
+  setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1", 0);
+#endif
+}
+} // namespace detail
+
 class platform_selector : public device_selector {
 private:
   std::string device_platform_name;
@@ -31,13 +54,7 @@ public:
       : device_platform_name(platform_name) {}
 
   int operator()(const device &device) const override {
-    const platform &pf = device.get_platform();
-    const std::string &platform_name =
-        pf.get_info<sycl::info::platform::name>();
-    if (platform_name == device_platform_name) {
-      return 10000;
-    }
-    return -1;
+    return detail::SelectDeviceByPlatform(device_platform_name.c_str(), device);
   }
 };
 
@@ -46,25 +63,44 @@ static constexpr auto EMULATION_PLATFORM_NAME =
 static constexpr auto HARDWARE_PLATFORM_NAME =
     "Intel(R) FPGA SDK for OpenCL(TM)";
 
-class fpga_selector : public platform_selector {
+int fpga_selector_v(const device &device) {
+  return detail::SelectDeviceByPlatform(HARDWARE_PLATFORM_NAME, device);
+}
+
+int fpga_emulator_selector_v(const device &device) {
+  return detail::SelectDeviceByPlatform(EMULATION_PLATFORM_NAME, device);
+}
+
+int fpga_simulator_selector_v(const device &device) {
+  static bool IsFirstCall = true;
+  if (IsFirstCall) {
+    detail::EnableFPGASimulator();
+    IsFirstCall = false;
+  }
+  return fpga_emulator_selector_v(device);
+}
+
+class __SYCL2020_DEPRECATED(
+    "Use the callable sycl::ext::intel::fpga_selector_v instead.") fpga_selector
+    : public platform_selector {
 public:
   fpga_selector() : platform_selector(HARDWARE_PLATFORM_NAME) {}
 };
 
-class fpga_emulator_selector : public platform_selector {
+class __SYCL2020_DEPRECATED(
+    "Use the callable sycl::ext::intel::fpga_emulator_selector_v instead.")
+    fpga_emulator_selector : public platform_selector {
 public:
   fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME) {}
 };
 
-class fpga_simulator_selector : public fpga_selector {
+class __SYCL2020_DEPRECATED(
+    "Use the callable sycl::ext::intel::fpga_simulator_selector_v instead.")
+    fpga_simulator_selector : public fpga_selector {
 public:
   fpga_simulator_selector() {
     // Tell the runtime to use a simulator device rather than hardware
-#ifdef _WIN32
-    _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
-#else
-    setenv("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1", 0);
-#endif
+    detail::EnableFPGASimulator();
   }
 };
 
