@@ -179,5 +179,5 @@ mlir::LogicalResult mlir::sycl::verifySYCLGetRangeTrait(Operation *Op) {
 
 mlir::LogicalResult mlir::sycl::verifySYCLGetGroupTrait(Operation *Op) {
   return verifyGetSYCLTyOperation(cast<mlir::sycl::SYCLMethodOpInterface>(Op),
-                                  "range");
+                                  "group");
 }
