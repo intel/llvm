@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "llvm/ADT/TypeSwitch.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
 #define DEBUG_TYPE "CGExpr"

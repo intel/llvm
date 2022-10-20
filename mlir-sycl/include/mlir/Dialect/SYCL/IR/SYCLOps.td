@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===--- SYCLOps.td -------------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.

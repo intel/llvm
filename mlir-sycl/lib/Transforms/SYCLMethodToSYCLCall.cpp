@@ -14,8 +14,7 @@
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "PassDetail.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"

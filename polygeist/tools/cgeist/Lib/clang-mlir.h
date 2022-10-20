@@ -19,7 +19,6 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
@@ -42,6 +41,12 @@
 #include "clang/AST/Mangle.h"
 
 extern llvm::cl::opt<std::string> PrefixABI;
+
+namespace mlir {
+namespace sycl {
+class SYCLMethodOpInterface;
+} // namespace sycl
+} // namespace mlir
 
 struct LoopContext {
   mlir::Value keepRunning;
