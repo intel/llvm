@@ -21,9 +21,17 @@ TEST(HasExtensionID, HasExtensionCallsCorrectPluginMethods) {
   sycl::platform Plt = Mock.getPlatform();
   sycl::device Dev = Plt.get_devices()[0];
 
-  bool PlatformHasExtension = opencl::has_extension(Plt, "cl_khr_subgroups");
-  EXPECT_TRUE(PlatformHasExtension);
+  bool PlatformHasSubgroups = opencl::has_extension(Plt, "cl_khr_subgroups");
+  EXPECT_TRUE(PlatformHasSubgroups);
 
-  bool DeviceHasExtension = opencl::has_extension(Dev, "cl_khr_fp64");
-  EXPECT_TRUE(DeviceHasExtension);
+  bool DeviceHasFP64 = opencl::has_extension(Dev, "cl_khr_fp64");
+  EXPECT_TRUE(DeviceHasFP64);
+
+  bool PlatformNotHasErroneousExtension =
+      opencl::has_extension(Plt, "test_for_unknown_platform_extension");
+  EXPECT_FALSE(PlatformNotHasErroneousExtension);
+
+  bool DeviceNotHasErroneousExtension =
+      opencl::has_extension(Dev, "test_for_unknown_device_extension");
+  EXPECT_FALSE(DeviceNotHasErroneousExtension);
 }
