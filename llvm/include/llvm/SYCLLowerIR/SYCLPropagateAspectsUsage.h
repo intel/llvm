@@ -18,13 +18,16 @@
 namespace llvm {
 
 struct SPAUOptions {
-  SmallVector<std::string, 8> Targets;
+  SmallVector<StringRef, 8> Targets;
 };
 
 class SYCLPropagateAspectsUsagePass
     : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
-  SYCLPropagateAspectsUsagePass(SPAUOptions Opts = {}) : Opts(Opts){};
+  SYCLPropagateAspectsUsagePass(StringRef Opts = {}) {
+    this->Opts = parseOpts(Opts);
+  };
+  SPAUOptions parseOpts(StringRef Params);
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:

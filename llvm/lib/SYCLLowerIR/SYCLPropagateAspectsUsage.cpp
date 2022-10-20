@@ -359,18 +359,9 @@ bool isEntryPoint(const Function &F) {
   return F.hasFnAttribute("sycl-module-id") && !isSpirvSyclBuiltin(F.getName());
 }
 
-unsigned getAspectId(std::string Aspect) {
-#define __SYCL_ASPECT(ASPECT, ID)                                              \
-  if (Aspect == #ASPECT) {                                                     \
-    return ID;                                                                 \
-  }
-#include <sycl/info/aspects.def>
-#undef __SYCL_ASPECT
-  return INT_MAX;
-}
-
 void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
-                           const SmallVector<std::string, 8> &Targets) {
+                           const SmallVector<StringRef, 8> &Targets,
+                           AspectValueToNameMapTy &AspectValues) {
   if (EntryPoints.empty())
     return;
 
@@ -379,9 +370,12 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
 
   for (const auto &Target : Targets) {
     if (!Target.empty()) {
-      auto ConstIntTarget =
-          ConstantInt::getSigned(Type::getInt32Ty(C), getAspectId(Target));
-      TargetsMD.push_back(ConstantAsMetadata::get(ConstIntTarget));
+      auto AspectIt = AspectValues.find(Target);
+      if (AspectIt != AspectValues.end()) {
+        auto ConstIntTarget =
+            ConstantInt::getSigned(Type::getInt32Ty(C), AspectIt->second);
+        TargetsMD.push_back(ConstantAsMetadata::get(ConstIntTarget));
+      }
     }
   }
 
@@ -410,7 +404,9 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   return FunctionToAspects;
 }
 
-SPAUOptions parseOpts(std::string Params) {
+} // anonymous namespace
+
+SPAUOptions SYCLPropagateAspectsUsagePass::parseOpts(StringRef Params) {
   SPAUOptions Result;
   if (!Params.empty()) {
     size_t Pos = 0, SeparatorPos = 0;
@@ -423,8 +419,6 @@ SPAUOptions parseOpts(std::string Params) {
   }
   return Result;
 }
-
-} // anonymous namespace
 
 PreservedAnalyses
 SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
@@ -458,7 +452,7 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   // FIXME: check and diagnose if a function uses an aspect which was not
   // declared through [[sycl::device_has()]] attribute
 
-  setSyclFixedTargetsMD(EntryPoints, Opts.Targets);
+  setSyclFixedTargetsMD(EntryPoints, Opts.Targets, AspectValues);
 
   return PreservedAnalyses::all();
 }
