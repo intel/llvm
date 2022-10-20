@@ -70,7 +70,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
   ${LLVM_MAIN_SRC_DIR}/projects/vc-intrinsics/GenXIntrinsics/include
   ${LLVM_BINARY_DIR}/projects/vc-intrinsics/GenXIntrinsics/include
-  ${SYCL_INCLUDE_DIR}/sycl
 
   DEPENDS
   intrinsics_gen

@@ -14,7 +14,6 @@
 #define LLVM_SYCL_PROPAGATE_ASPECTS_USAGE_H
 
 #include "llvm/IR/PassManager.h"
-#include "llvm/Support/CommandLine.h"
 
 namespace llvm {
 
