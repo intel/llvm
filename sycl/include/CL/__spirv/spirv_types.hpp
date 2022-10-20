@@ -180,7 +180,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 // Arbitrary precision integer type
-template <int Bits> using ap_int = _ExtInt(Bits);
+template <int Bits> using ap_int = _BitInt(Bits);
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
