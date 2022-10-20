@@ -1385,12 +1385,18 @@ private:
       ext::oneapi::experimental::detail::properties_t<Props...>>
       : public KernelPropertiesUnpackerImpl<Props...> {};
 
-  // Wrappers for kernel_*** functions above supporting scenarios with and
-  // without additional kernel_handler argument.
-
-  // NOTE: to support kernel_handler argument in kernel lambdas, only
-  // kernel_***_wrapper functions must be called in this code
-
+  // Helper function to
+  //
+  //   * Make use of the KernelPropertiesUnpacker above
+  //   * Decide if we need an extra kernel_handler parameter
+  //
+  // The interface uses a \p Lambda callback to propagate that information back
+  // to the caller as we need the caller to communicate:
+  //
+  //   * Name of the method to call
+  //   * Provide explicit template type parameters for the call
+  //
+  // Couldn't think of a better way to achieve both.
   template <typename KernelType, typename PropertiesT, bool HasKernelHandlerArg,
             typename FuncTy>
   void unpack(_KERNELFUNCPARAM(KernelFunc), FuncTy Lambda) {
@@ -1408,6 +1414,9 @@ private:
       Lambda(Unpacker{}, this, KernelFunc);
     }
   }
+
+  // NOTE: to support kernel_handler argument in kernel lambdas, only
+  // kernel_***_wrapper functions must be called in this code
 
   template <typename KernelName, typename KernelType,
             typename PropertiesT =
