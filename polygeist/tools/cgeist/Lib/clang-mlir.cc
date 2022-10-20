@@ -69,6 +69,9 @@ static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
 
+cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
+                                   cl::desc("Generate all SYCL functions"));
+
 constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 
 /******************************************************************************/

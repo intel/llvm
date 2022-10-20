@@ -19,6 +19,8 @@ using namespace clang;
 using namespace mlir;
 using namespace mlir::arith;
 
+extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
+
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
   auto base = Visit(expr->getBase());
@@ -839,7 +841,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   std::string mangledName = MLIRScanner::getMangledFuncName(
       cast<FunctionDecl>(*ctorDecl), Glob.getCGM());
   mangledName = (PrefixABI + mangledName);
-  if (isSupportedFunctions(mangledName))
+  if (GenerateAllSYCLFuncs || isSupportedFunctions(mangledName))
     ShouldEmit = true;
 
   FunctionToEmit F(*ctorDecl, mlirclang::getInputContext(builder));
