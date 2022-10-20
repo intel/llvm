@@ -21,6 +21,25 @@ newFuncRoot:
   %temp = alloca i32, align 4
   br label %fallthru
 
+; CHECK-LABEL: fallthru
+; CHECK-LLVM: %"ascastB$val41" = alloca i32, i64 %div.3
+fallthru:                          ; preds = %newFuncRoot
+  %"$stacksave37" = call spir_func i8* @llvm.stacksave()
+  %S.ul.GEP.1_fetch.194 = load i32, i32 addrspace(4)* %S.ul.GEP.1.value, align 1
+  %int_sext39 = sext i32 %S.ul.GEP.1_fetch.194 to i64
+  %rel.39 = icmp sgt i32 0, %S.ul.GEP.1_fetch.194
+  %slct.13 = select i1 %rel.39, i32 0, i32 %S.ul.GEP.1_fetch.194
+  %int_sext40 = sext i32 %slct.13 to i64
+  %mul.11 = mul nsw i64 %int_sext40, 4
+  %div.3 = sdiv i64 %mul.11, 4
+  %"ascastB$val41" = alloca i32, i64 %div.3, align 4
+  store i64 1, i64* %"var$102", align 1
+  store i32 %S.ul.GEP.1_fetch.194, i32* %temp, align 1
+  store i32 1, i32* %"var$103", align 1
+  %"ascastB$val_fetch.197" = load i32, i32* %temp, align 1
+  %rel.40 = icmp slt i32 %"ascastB$val_fetch.197", 1
+  br i1 %rel.40, label %bb270, label %bb269.preheader
+
 ; CHECK-LABEL: bb269
 ; CHECK-LLVM: %1 = getelementptr inbounds i32, ptr %"ascastB$val41", i64 %0
 bb269:                                            ; preds = %bb269.preheader, %bb269
@@ -92,24 +111,6 @@ loop_body328:                                     ; preds = %loop_test327
 
 loop_exit329:                                     ; preds = %loop_test327
   ret void
-; CHECK-LABEL: fallthru
-; CHECK-LLVM: %"ascastB$val41" = alloca i32, i64 %div.3
-fallthru:                          ; preds = %newFuncRoot
-  %"$stacksave37" = call spir_func i8* @llvm.stacksave()
-  %S.ul.GEP.1_fetch.194 = load i32, i32 addrspace(4)* %S.ul.GEP.1.value, align 1
-  %int_sext39 = sext i32 %S.ul.GEP.1_fetch.194 to i64
-  %rel.39 = icmp sgt i32 0, %S.ul.GEP.1_fetch.194
-  %slct.13 = select i1 %rel.39, i32 0, i32 %S.ul.GEP.1_fetch.194
-  %int_sext40 = sext i32 %slct.13 to i64
-  %mul.11 = mul nsw i64 %int_sext40, 4
-  %div.3 = sdiv i64 %mul.11, 4
-  %"ascastB$val41" = alloca i32, i64 %div.3, align 4
-  store i64 1, i64* %"var$102", align 1
-  store i32 %S.ul.GEP.1_fetch.194, i32* %temp, align 1
-  store i32 1, i32* %"var$103", align 1
-  %"ascastB$val_fetch.197" = load i32, i32* %temp, align 1
-  %rel.40 = icmp slt i32 %"ascastB$val_fetch.197", 1
-  br i1 %rel.40, label %bb270, label %bb269.preheader
 
 bb269.preheader:                                  ; preds = %fallthru
   br label %bb269
