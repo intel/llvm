@@ -268,6 +268,7 @@ endif()
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target(sycl-compiler
   DEPENDS append-file
+          cgeist
           clang
           clang-offload-wrapper
           clang-offload-bundler
@@ -340,6 +341,7 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
      boost_mp11-headers
+     cgeist
      clang
      clang-offload-wrapper
      clang-offload-bundler
