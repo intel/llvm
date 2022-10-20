@@ -1352,45 +1352,29 @@ private:
     // Caller->* member functions. Don't have reflection so try to use
     // templates as much as possible to reduce the amount of boilerplate code
     // needed. All the type checks are expected to be done at the Caller's
-    // methods side. Note that we cannot simply forward incoming arguments as
-    // deduced types aren't always the same and we cannot rely on type deduction
-    // as we need to pass Props... explicitly.
+    // methods side.
 
-    template <typename KernelName, typename KernelType,
-              typename... kernel_handler_or_none>
-    static void kernel_single_task_unpack(handler *Caller,
-                                          _KERNELFUNCPARAM(KernelFunc),
-                                          kernel_handler_or_none... KH) {
-      Caller->kernel_single_task<KernelName, KernelType, Props...>(KernelFunc,
-                                                                   KH...);
+    template <typename... TypesToForward, typename... ArgsTy>
+    static void kernel_single_task_unpack(handler *h, ArgsTy... Args) {
+      h->kernel_single_task<TypesToForward..., Props...>(Args...);
     }
 
-    template <typename KernelName, typename ElementType, typename KernelType,
-              typename... kernel_handler_or_none>
-    static void kernel_parallel_for_unpack(handler *Caller,
-                                           _KERNELFUNCPARAM(KernelFunc),
-                                           kernel_handler_or_none... KH) {
-      Caller
-          ->kernel_parallel_for<KernelName, ElementType, KernelType, Props...>(
-              KernelFunc, KH...);
+    template <typename... TypesToForward, typename... ArgsTy>
+    static void kernel_parallel_for_unpack(handler *h, ArgsTy... Args) {
+      h->kernel_parallel_for<TypesToForward..., Props...>(Args...);
     }
 
-    template <typename KernelName, typename ElementType, typename KernelType,
-              typename... kernel_handler_or_none>
-    static void
-    kernel_parallel_for_work_group_unpack(handler *Caller,
-                                          _KERNELFUNCPARAM(KernelFunc),
-                                          kernel_handler_or_none... KH) {
-      Caller->kernel_parallel_for_work_group<KernelName, ElementType,
-                                             KernelType, Props...>(KernelFunc,
-                                                                   KH...);
+    template <typename... TypesToForward, typename... ArgsTy>
+    static void kernel_parallel_for_work_group_unpack(handler *h,
+                                                      ArgsTy... Args) {
+      h->kernel_parallel_for_work_group<TypesToForward..., Props...>(Args...);
     }
   };
 
   template <typename PropertiesT>
   struct KernelPropertiesUnpacker : public KernelPropertiesUnpackerImpl<> {
-    // This should always fail but must be dependent to avoid failing even if
-    // not instantiated.
+    // This should always fail outside the specialization below but must be
+    // dependent to avoid failing even if not instantiated.
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
@@ -1432,7 +1416,8 @@ private:
     unpack<KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
-          Unpacker.template kernel_single_task_unpack<KernelName>(args...);
+          Unpacker.template kernel_single_task_unpack<KernelName, KernelType>(
+              args...);
         });
   }
 
@@ -1444,8 +1429,8 @@ private:
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
-          Unpacker.template kernel_parallel_for_unpack<KernelName, ElementType>(
-              args...);
+          Unpacker.template kernel_parallel_for_unpack<KernelName, ElementType,
+                                                       KernelType>(args...);
         });
   }
 
@@ -1457,9 +1442,8 @@ private:
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
-          Unpacker.template kernel_parallel_for_work_group_unpack<KernelName,
-                                                                  ElementType>(
-              args...);
+          Unpacker.template kernel_parallel_for_work_group_unpack<
+              KernelName, ElementType, KernelType>(args...);
         });
   }
 
