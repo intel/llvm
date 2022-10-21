@@ -15,6 +15,8 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
+  // If that would ever become possible, event_impl::getNative needs to be
+  // updated too.
   assert(!Impl->is_host() && "Cannot get the backend for host.");
   return Impl->getPlugin().getBackend();
 }
