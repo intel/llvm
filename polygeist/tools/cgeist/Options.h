@@ -16,6 +16,39 @@
 #include "llvm/Support/CommandLine.h"
 #include <string>
 
+/// Class to pass options to a compilation tool.
+class ArgumentList {
+public:
+  /// Add argument.
+  ///
+  /// The element stored will not be owned by this.
+  void push_back(llvm::StringRef Arg) { Args.push_back(Arg.data()); }
+
+  /// Add argument and ensure it will be valid before this passer's destruction.
+  ///
+  /// The element stored will be owned by this.
+  template <typename... ArgTy> void emplace_back(ArgTy &&...Args) {
+    // Store as a string
+    std::string Buffer;
+    llvm::raw_string_ostream Stream(Buffer);
+    (Stream << ... << Args);
+    Storage.push_back(Stream.str());
+    push_back(Storage.back());
+  }
+
+  /// Return the underling argument list.
+  ///
+  /// The return value of this operation could be invalidated by subsequent
+  /// calls to push_back() or emplace_back().
+  llvm::ArrayRef<const char *> getArguments() const { return Args; }
+
+private:
+  /// Helper storage.
+  llvm::SmallVector<std::string> Storage;
+  /// List of arguments
+  llvm::SmallVector<const char *> Args;
+};
+
 static llvm::cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static llvm::cl::opt<bool>
