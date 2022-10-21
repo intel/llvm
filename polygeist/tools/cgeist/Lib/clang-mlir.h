@@ -266,7 +266,8 @@ private:
                               bool AttrOnCallSite, bool IsThunk);
 
   /// Retuns the MLIR Function type given clang's CGFunctionInfo \p FI.
-  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI);
+  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
+                                     const clang::FunctionDecl &FD);
 
   /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>

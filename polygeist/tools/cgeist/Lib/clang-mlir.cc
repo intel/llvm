@@ -567,7 +567,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
 
   if (ShowAST)
     llvm::dbgs() << "Emitting fn: " << function.getName() << "\n"
-                 << "\tfunctionDecl:" << *FD << "\n";
+                 << "\tfunctionDecl:" << *FD << "\n"
+                 << "function:" << function << "\n";
 
   initSupportedFunctions();
   // This is needed, as GPUFuncOps are already created with an entry block.
@@ -3574,7 +3575,7 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     if (ArrayStruct)
       mlirType = getMLIRType(CGM.getContext().getLValueReferenceType(parmType));
 
-#if 0
+#if 1
     llvm::dbgs() << __LINE__ << "\n";
     llvm::dbgs() << "parmType: ";
     parmType.dump();
@@ -3747,7 +3748,8 @@ void ClangToLLVMArgMapping::construct(const ASTContext &Context,
 } // namespace
 
 mlir::FunctionType
-MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI) {
+MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
+                                 const clang::FunctionDecl &FD) {
   mlir::OpBuilder builder(module->getContext());
 
   // Compute result type.
@@ -3834,13 +3836,27 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI) {
   }
 #endif
 
+  // This assumption can be false ?
+  assert(FD.getNumParams() == FI.getNumRequiredArgs());
+
   // Add in all of the required arguments.
   unsigned ArgNo = 0;
   CodeGen::CGFunctionInfo::const_arg_iterator it = FI.arg_begin(),
                                               ie = it + FI.getNumRequiredArgs();
   for (; it != ie; ++it, ++ArgNo) {
+    // Note: 'ArgTy' is the type of the parameter after it as been decayed to
+    // abide by the ABI rules while 'DeclaredArgTy' is the original type of the
+    // parameter in the function declaration.
+    // In order to avoid premature loss of information (e.g. array dimensions)
+    // we want to use the original parameter type here.
+    const QualType &DeclArgTy = FD.getParamDecl(ArgNo)->getType();
     const QualType &ArgTy = it->type;
     const CodeGen::ABIArgInfo &ArgInfo = it->info;
+
+    // Sanity check: ensure the original type matches the ABI type.
+    assert(DeclArgTy == ArgTy ||
+           (isa<DecayedType>(DeclArgTy) &&
+            cast<DecayedType>(DeclArgTy)->getDecayedType() == ArgTy));
 
 #if 0
     // TODO
@@ -3860,7 +3876,18 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI) {
     llvm::dbgs() << "ArgTy: ";
     ArgTy.dump();
     llvm::dbgs() << "\n";
+    llvm::dbgs() << "DeclArgTy: ";
+    DeclArgTy.dump();
+    llvm::dbgs() << "\n";
 #endif
+
+    auto getMLIRArgType = [this](const QualType &QT) {
+      bool IsRef = false;
+      mlir::Type ArgTy = getMLIRType(QT, &IsRef);
+      if (IsRef)
+        ArgTy = getMLIRType(CGM.getContext().getLValueReferenceType(QT));
+      return ArgTy;
+    };
 
     switch (ArgInfo.getKind()) {
     case CodeGen::ABIArgInfo::Ignore:
@@ -3871,37 +3898,25 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI) {
       assert(NumIRArgs == 1);
       llvm::dbgs() << "line " << __LINE__ << "\n";
       // indirect arguments are always on the stack, which is alloca addr space.
-      bool ArrayStruct = false;
-      mlir::Type argType = getMLIRType(ArgTy, &ArrayStruct);
-      if (ArrayStruct)
-        argType = getMLIRType(CGM.getContext().getLValueReferenceType(ArgTy));
-
+      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
       ArgTypes[FirstIRArg] = mlir::MemRefType::get(
-          -1, argType, {}, CGM.getDataLayout().getAllocaAddrSpace());
+          -1, MLIRArgTy, {}, CGM.getDataLayout().getAllocaAddrSpace());
       break;
     }
     case CodeGen::ABIArgInfo::IndirectAliased: {
       assert(NumIRArgs == 1);
       llvm::dbgs() << "line " << __LINE__ << "\n";
-      bool ArrayStruct = false;
-      mlir::Type argType = getMLIRType(ArgTy, &ArrayStruct);
-      if (ArrayStruct)
-        argType = getMLIRType(CGM.getContext().getLValueReferenceType(ArgTy));
-
+      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
       ArgTypes[FirstIRArg] = mlir::MemRefType::get(
-          -1, argType, {}, ArgInfo.getIndirectAddrSpace());
+          -1, MLIRArgTy, {}, ArgInfo.getIndirectAddrSpace());
       break;
     }
     case CodeGen::ABIArgInfo::Extend:
     case CodeGen::ABIArgInfo::Direct: {
       // Fast-isel and the optimizer generally like scalar values better than
       // FCAs, so we flatten them if this is safe to do for this argument.
-      bool ArrayStruct = false;
-      mlir::Type argType = getMLIRType(ArgTy, &ArrayStruct);
-      if (ArrayStruct)
-        argType = getMLIRType(CGM.getContext().getLValueReferenceType(ArgTy));
-
-      auto st = argType.dyn_cast<mlir::LLVM::LLVMStructType>();
+      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
+      auto st = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
       if (st && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened()) {
         assert(NumIRArgs == st.getBody().size());
         for (unsigned i = 0, e = st.getBody().size(); i != e; ++i)
@@ -3912,7 +3927,7 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI) {
         llvm::dbgs() << "line " << __LINE__ << "\n";
         llvm::dbgs() << "argType: " << argType << "\n";
 #endif
-        ArgTypes[FirstIRArg] = argType;
+        ArgTypes[FirstIRArg] = MLIRArgTy;
       }
       break;
     }
@@ -3951,7 +3966,7 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
 
   const CodeGen::CGFunctionInfo &FI =
       CGM.getTypes().arrangeGlobalDeclaration(GD);
-  mlir::FunctionType funcTy = getFunctionType(FI);
+  mlir::FunctionType funcTy = getFunctionType(FI, FD);
 #endif
 #if 1
   SmallVector<CodeGenUtils::ParmDesc, 4> parmDescriptors;
