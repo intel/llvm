@@ -341,9 +341,6 @@ public:
       MThisCmd->MEvent->setComplete();
 
       Scheduler::enqueueUnblockedCommands(CmdsToEnqueue, ToCleanUp);
-
-      for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
     }
     Sched.cleanupCommands(ToCleanUp);
   }
