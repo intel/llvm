@@ -66,12 +66,12 @@ extension's APIs the implementation supports.
 
 == Overview
 
-The extension allows to get `sycl::buffer` via  `sycl::accessor`. The new `get_buffer()`
+The extension allows to get `sycl::buffer` via  `sycl::accessor`. The new `ext_oneapi_get_buffer()`
 member function could be called for any accessor, regardless of whether it is a placeholder.
 However, it can only be called from host code, not from within the kernel.
 
 NOTE: This would allow to write code like this (on the host):
-host_accessor ha{acc.get_buffer()};
+host_accessor ha{acc.ext_oneapi_get_buffer()};
 
 == Synopsis
 
@@ -87,7 +87,7 @@ class accessor {
 public:
   /* ... */
   template <typename AllocatorT>
-  buffer<dataT, dimension, AllocatorT> get_buffer() const;
+  buffer<dataT, dimension, AllocatorT> ext_oneapi_get_buffer() const;
   /* ... */
 };
 ----
