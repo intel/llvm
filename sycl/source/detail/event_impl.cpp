@@ -375,12 +375,6 @@ pi_native_handle event_impl::getNative() {
     MIsInitialized = true;
     auto TempContext = MContext.get()->getHandleRef();
     Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
-    // See an assert in sycl::detail::getImplBackend.
-    assert(!MHostEvent && "Can't get native event from a host event!");
-    assert(!isDiscarded() && "Can't ask getNative of a discarded event!");
-    // Wouldn't be true if MHostEvent could be true.
-    assert(MState == HES_Complete && "Expected to have a completed event!");
-    Plugin.call<PiApiKind::piEventSetStatus>(MEvent, PI_EVENT_COMPLETE);
   }
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());

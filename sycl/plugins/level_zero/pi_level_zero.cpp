@@ -5650,7 +5650,10 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   pi_result Result = EventCreate(Context, nullptr, true, RetEvent);
   (*RetEvent)->RefCountExternal++;
-  return Result;
+  if (Result != PI_SUCCESS)
+    return Result;
+  ZE_CALL(zeEventHostSignal, ((*RetEvent)->ZeEvent));
+  return PI_SUCCESS;
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -5964,12 +5967,9 @@ pi_result piEventSetCallback(pi_event Event, pi_int32 CommandExecCallbackType,
 }
 
 pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
-  if (ExecutionStatus == PI_EVENT_COMPLETE)
-    zeEventHostSignal(Event->ZeEvent);
-  else
-    // We don't expect this path ever to be executed when called from SYCL RT.
-    die("piEventSetStatus: with anything but PI_EVENT_COMPLETE is "
-        "unsupported!");
+  (void)Event;
+  (void)ExecutionStatus;
+  die("piEventSetStatus: deprecated, to be removed");
   return PI_SUCCESS;
 }
 
