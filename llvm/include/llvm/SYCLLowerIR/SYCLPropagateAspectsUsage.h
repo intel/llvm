@@ -18,14 +18,14 @@
 namespace llvm {
 
 struct SPAUOptions {
-  SmallVector<StringRef, 8> Targets;
+  SmallVector<StringRef, 8> TargetFixedAspects;
 };
 
 class SYCLPropagateAspectsUsagePass
     : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
   SYCLPropagateAspectsUsagePass(StringRef Opts = {}) {
-    this->Opts = parseOpts(Opts);
+     Opts.split(this->Opts.TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   };
   SPAUOptions parseOpts(StringRef Params);
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);

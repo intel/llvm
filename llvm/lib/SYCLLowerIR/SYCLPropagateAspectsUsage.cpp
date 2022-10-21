@@ -408,15 +408,7 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
 
 SPAUOptions SYCLPropagateAspectsUsagePass::parseOpts(StringRef Params) {
   SPAUOptions Result;
-  if (!Params.empty()) {
-    size_t Pos = 0, SeparatorPos = 0;
-    while (SeparatorPos != Params.npos) {
-      SeparatorPos = Params.find(",", Pos);
-      auto Target = Params.substr(Pos, SeparatorPos - Pos);
-      Result.Targets.push_back(Target);
-      Pos = SeparatorPos + 1;
-    }
-  }
+  Params.split(Result.TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   return Result;
 }
 
@@ -452,7 +444,7 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   // FIXME: check and diagnose if a function uses an aspect which was not
   // declared through [[sycl::device_has()]] attribute
 
-  setSyclFixedTargetsMD(EntryPoints, Opts.Targets, AspectValues);
+  setSyclFixedTargetsMD(EntryPoints, Opts.TargetFixedAspects, AspectValues);
 
   return PreservedAnalyses::all();
 }
