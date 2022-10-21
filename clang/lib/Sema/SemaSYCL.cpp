@@ -976,6 +976,27 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   return KernelParamTy.getUnqualifiedType();
 }
 
+static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
+  for (auto *MD : Rec->methods()) {
+    if (MD->getOverloadedOperator() == OO_Call)
+      return MD;
+  }
+  return nullptr;
+}
+
+// Fetch the associated call operator of the kernel object
+// (of either the lambda or the function object).
+CXXMethodDecl *IsCallOperatorDefined(const CXXRecordDecl *KernelObjType) {
+  CXXMethodDecl *CallOperator = nullptr;
+  if (!KernelObjType)
+    return CallOperator;
+  if (KernelObjType->isLambda())
+    CallOperator = KernelObjType->getLambdaCallOperator();
+  else
+    CallOperator = getOperatorParens(KernelObjType);
+  return CallOperator;
+}
+
 /// Creates a kernel parameter descriptor
 /// \param Src  field declaration to construct name from
 /// \param Ty   the desired parameter type
@@ -2399,30 +2420,9 @@ public:
   }
 };
 
-static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (auto *MD : Rec->methods()) {
-    if (MD->getOverloadedOperator() == OO_Call)
-      return MD;
-  }
-  return nullptr;
-}
-
 static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
   const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
-}
-
-// Fetch the associated call operator of the kernel object
-// (of either the lambda or the function object).
-static bool IsCallOperatorDefined(const CXXRecordDecl *KernelObjType) {
-  const CXXMethodDecl *CallOperator = nullptr;
-  if (!KernelObjType)
-    return false;
-  if (KernelObjType->isLambda())
-    CallOperator = KernelObjType->getLambdaCallOperator();
-  else
-    CallOperator = getOperatorParens(KernelObjType);
-  return (CallOperator != nullptr);
 }
 
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
@@ -2509,11 +2509,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // (of either the lambda or the function object).
     CXXRecordDecl *KernelObj =
         GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-    CXXMethodDecl *WGLambdaFn = nullptr;
-    if (KernelObj->isLambda())
-      WGLambdaFn = KernelObj->getLambdaCallOperator();
-    else
-      WGLambdaFn = getOperatorParens(KernelObj);
+    CXXMethodDecl *WGLambdaFn = IsCallOperatorDefined(KernelObj);
+
     assert(WGLambdaFn && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
     // NOTE: In case of parallel_for_work_item the marker call itself is
@@ -3467,11 +3464,11 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   if (!LangOpts.SYCLIsDevice)
     return;
 
-  const CXXRecordDecl *KernelObj =
+  CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  bool IsKernelTypeValid = IsCallOperatorDefined(KernelObj);
-  if (!IsKernelTypeValid) {
+  CXXMethodDecl *CallOperator = IsCallOperatorDefined(KernelObj);
+  if (!CallOperator) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
