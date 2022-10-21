@@ -110,11 +110,13 @@ inline __SYCL_ALWAYS_INLINE
 #endif
 }
 
-// These marray math function implementations use vectorizations of
+// The marray math function implementations use vectorizations of
 // size two as a simple general optimization. A more complex implementation
 // using larger vectorizations for large marray sizes is possible; however more
 // testing is required in order to ascertain the performance implications for
 // all backends.
+// sycl::native::tanh is only implemented on nvptx backend so far. For other
+// backends we revert to the sycl::tanh impl.
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<std::is_same<T, half>::value ||
                                                  std::is_same<T, float>::value,
@@ -157,6 +159,8 @@ inline __SYCL_ALWAYS_INLINE
 #endif
 }
 
+// sycl::native::exp2 (using half) is only implemented on nvptx backend so far.
+// For other backends we revert to the sycl::exp2 impl.
 template <size_t N>
 inline __SYCL_ALWAYS_INLINE sycl::marray<half, N>
 exp2(sycl::marray<half, N> x) __NOEXC {
