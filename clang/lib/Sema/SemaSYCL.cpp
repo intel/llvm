@@ -2416,6 +2416,8 @@ static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
 // (of either the lambda or the function object).
 static bool IsCallOperatorDefined(const CXXRecordDecl *KernelObjType) {
   const CXXMethodDecl *CallOperator = nullptr;
+  if (!KernelObjType)
+    return false;
   if (KernelObjType->isLambda())
     CallOperator = KernelObjType->getLambdaCallOperator();
   else
@@ -3469,7 +3471,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
   bool IsKernelTypeValid = IsCallOperatorDefined(KernelObj);
-  if (!KernelObj || !IsKernelTypeValid) {
+  if (!IsKernelTypeValid) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
