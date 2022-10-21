@@ -1,4 +1,4 @@
-= sycl_ext_accessor_get_buffer
+= sycl_ext_oneapi_accessor_get_buffer
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
