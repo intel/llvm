@@ -167,7 +167,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 // Initializer for ArrayOfPointers[1]
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
 // CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
@@ -177,7 +177,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_StructAccArray parameters
 // CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
@@ -289,7 +289,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 // Initializer for StructWithPointersArray[1]
 // CHECK: CXXConstructExpr {{.*}} 'StructWithPointers':'StructWithPointers' 'void (const StructWithPointers &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
@@ -300,10 +300,10 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_Array_Ptrs_2D parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D 'void (__wrapper_class, __wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers_2D '__wrapper_class'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
 
@@ -327,8 +327,8 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[0][1]
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
@@ -341,8 +341,8 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[0][2]
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
@@ -355,8 +355,8 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 2
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 2
 
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
 
@@ -371,8 +371,8 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[1][1]
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
@@ -385,8 +385,8 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[1][2]
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
@@ -399,8 +399,8 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 2
+// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 2
 
 // Initializer for ArrayOfPointers
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
@@ -413,7 +413,7 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 0
+// CHECK-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers[1]
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
@@ -424,4 +424,4 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 'unsigned long' 1
+// CHECK-NEXT: IntegerLiteral {{.*}} 1

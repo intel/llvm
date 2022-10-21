@@ -17,7 +17,7 @@ namespace llvm {
 class Module;
 class StringRef;
 
-std::map<StringRef, std::vector<uint32_t>>
-getSYCLDeviceRequirements(const Module &M);
+void getSYCLDeviceRequirements(
+    const Module &M, std::map<StringRef, std::vector<uint32_t>> &Requirements);
 
 } // namespace llvm
