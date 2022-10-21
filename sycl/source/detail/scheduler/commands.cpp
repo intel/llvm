@@ -272,6 +272,7 @@ class DispatchHostTask {
         std::vector<RT::PiEvent> RawEvents =
             MThisCmd->getPiEvents(PluginWithEvents.second);
         try {
+          Tracer t("piEventsWait");
           PluginWithEvents.first->call<PiApiKind::piEventsWait>(
               RawEvents.size(), RawEvents.data());
         } catch (const sycl::exception &E) {

@@ -2612,19 +2612,26 @@ pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
       return PI_ERROR_INVALID_EVENT;
     }
 
+    std::cout << "before auto context = event_list[0]->get_context()"
+              << std::endl;
     auto context = event_list[0]->get_context();
+    std::cout << "after auto context = event_list[0]->get_context()"
+              << std::endl;
+
     ScopedContext active(context);
 
     auto waitFunc = [context](pi_event event) -> pi_result {
       if (!event) {
         return PI_ERROR_INVALID_EVENT;
       }
-
+      std::cout << "before event->get_context() != context" << std::endl;
       if (event->get_context() != context) {
         return PI_ERROR_INVALID_CONTEXT;
       }
-
-      return event->wait();
+      std::cout << "after event->get_context() != context" << std::endl;
+      auto result = event->wait();
+      std::cout << "auto result = event->wait()" << std::endl;
+      return result;
     };
     return forLatestEvents(event_list, num_events, waitFunc);
   } catch (pi_result err) {
