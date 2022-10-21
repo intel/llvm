@@ -408,7 +408,8 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
 
 SPAUOptions SYCLPropagateAspectsUsagePass::parseOpts(StringRef Params) {
   SPAUOptions Result;
-  Params.split(Result.TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  Params.split(Result.TargetFixedAspects, ',', /*MaxSplit=*/-1,
+               /*KeepEmpty=*/false);
   return Result;
 }
 

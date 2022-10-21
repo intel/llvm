@@ -25,7 +25,8 @@ class SYCLPropagateAspectsUsagePass
     : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
   SYCLPropagateAspectsUsagePass(StringRef Opts = {}) {
-     Opts.split(this->Opts.TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    Opts.split(this->Opts.TargetFixedAspects, ',', /*MaxSplit=*/-1,
+               /*KeepEmpty=*/false);
   };
   SPAUOptions parseOpts(StringRef Params);
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
