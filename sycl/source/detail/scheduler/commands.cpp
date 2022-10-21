@@ -217,9 +217,12 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     const QueueImplPtr &WorkerQueue = getWorkerQueue();
     // MWorkerQueue in command is always not null. So check if
     // EventImpl->getWorkerQueue != nullptr is implicit.
-    if (EventImpl->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->isInOrder() && !isHostTask())
-      continue;
+    {
+      Tracer t("EventImpl->getWorkerQueue() == WorkerQueue");
+      if (EventImpl->getWorkerQueue() == WorkerQueue &&
+          WorkerQueue->isInOrder() && !isHostTask())
+        continue;
+    }
 
     RetPiEvents.push_back(EventImpl->getHandleRef());
   }
@@ -249,9 +252,13 @@ class DispatchHostTask {
     std::map<const detail::plugin *, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
-    for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      const detail::plugin &Plugin = Event->getPlugin();
-      RequiredEventsPerPlugin[&Plugin].push_back(Event);
+    {
+      Tracer t(
+          "for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents)");
+      for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
+        const detail::plugin &Plugin = Event->getPlugin();
+        RequiredEventsPerPlugin[&Plugin].push_back(Event);
+      }
     }
 
     // wait for dependency device events
@@ -259,27 +266,34 @@ class DispatchHostTask {
     // 'sleep' until all of dependency events are complete. We need a bit more
     // sophisticated waiting mechanism to allow to utilize this thread for any
     // other available job and resume once all required events are ready.
-    for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-      std::vector<RT::PiEvent> RawEvents =
-          MThisCmd->getPiEvents(PluginWithEvents.second);
-      try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
-      } catch (const sycl::exception &E) {
-        CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-        HostTask.MQueue->reportAsyncException(std::current_exception());
-        return (pi_result)E.get_cl_code();
-      } catch (...) {
-        CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-        HostTask.MQueue->reportAsyncException(std::current_exception());
-        return PI_ERROR_UNKNOWN;
+    {
+      Tracer t("for (auto &PluginWithEvents : RequiredEventsPerPlugin)");
+      for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
+        std::vector<RT::PiEvent> RawEvents =
+            MThisCmd->getPiEvents(PluginWithEvents.second);
+        try {
+          PluginWithEvents.first->call<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
+        } catch (const sycl::exception &E) {
+          CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+          HostTask.MQueue->reportAsyncException(std::current_exception());
+          return (pi_result)E.get_cl_code();
+        } catch (...) {
+          CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+          HostTask.MQueue->reportAsyncException(std::current_exception());
+          return PI_ERROR_UNKNOWN;
+        }
       }
     }
 
-    // Wait for dependency host events.
-    // Host events can't throw exceptions so don't try to catch it.
-    for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
-      Event->waitInternal();
+    {
+      Tracer t("for (const EventImplPtr &Event : "
+               "MThisCmd->MPreparedHostDepsEvents)");
+      // Wait for dependency host events.
+      // Host events can't throw exceptions so don't try to catch it.
+      for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
+        Event->waitInternal();
+      }
     }
 
     return PI_SUCCESS;
