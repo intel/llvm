@@ -257,8 +257,7 @@ public:
 
   bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
 
-  void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self,
-                          bool DefaultAllocator) const;
+  void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self) const;
 
 protected:
   // An allocateMem helper that determines which host ptr to use
