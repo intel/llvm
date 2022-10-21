@@ -157,12 +157,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         CleanUp();
         std::rethrow_exception(std::current_exception());
       }
-
-      // If there are no memory dependencies decouple and free the command.
-      // Though, dismiss ownership of native kernel command group as it's
-      // resources may be in use by backend and synchronization point here is
-      // at native kernel execution finish.
-      CleanUp();
     }
   }
   cleanupCommands(ToCleanUp);

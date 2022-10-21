@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/device_binary_image.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>

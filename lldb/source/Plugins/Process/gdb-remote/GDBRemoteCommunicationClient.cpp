@@ -55,7 +55,7 @@ llvm::raw_ostream &process_gdb_remote::operator<<(llvm::raw_ostream &os,
 
 // GDBRemoteCommunicationClient constructor
 GDBRemoteCommunicationClient::GDBRemoteCommunicationClient()
-    : GDBRemoteClientBase("gdb-remote.client", "gdb-remote.client.rx_packet"),
+    : GDBRemoteClientBase("gdb-remote.client"),
 
       m_supports_qProcessInfoPID(true), m_supports_qfProcessInfo(true),
       m_supports_qUserName(true), m_supports_qGroupName(true),
@@ -179,6 +179,12 @@ bool GDBRemoteCommunicationClient::GetQXferSigInfoReadSupported() {
     GetRemoteQSupported();
   }
   return m_supports_qXfer_siginfo_read == eLazyBoolYes;
+}
+
+bool GDBRemoteCommunicationClient::GetMultiprocessSupported() {
+  if (m_supports_memory_tagging == eLazyBoolCalculate)
+    GetRemoteQSupported();
+  return m_supports_multiprocess == eLazyBoolYes;
 }
 
 uint64_t GDBRemoteCommunicationClient::GetRemoteMaxPacketSize() {
@@ -1514,7 +1520,7 @@ Status GDBRemoteCommunicationClient::Detach(bool keep_stopped,
     }
   }
 
-  if (m_supports_multiprocess) {
+  if (GetMultiprocessSupported()) {
     // Some servers (e.g. qemu) require specifying the PID even if only a single
     // process is running.
     if (pid == LLDB_INVALID_PROCESS_ID)
@@ -2200,12 +2206,13 @@ bool GDBRemoteCommunicationClient::GetCurrentProcessInfo(bool allow_lazy) {
             ++num_keys_decoded;
           }
         } else if (name.equals("binary-addresses")) {
-          addr_t addr;
-          while (!value.empty()) {
-            llvm::StringRef addr_str;
-            std::tie(addr_str, value) = value.split(',');
-            if (!addr_str.getAsInteger(16, addr))
-              m_binary_addresses.push_back(addr);
+          m_binary_addresses.clear();
+          ++num_keys_decoded;
+          for (llvm::StringRef x : llvm::split(value, ',')) {
+            addr_t vmaddr;
+            x.consume_front("0x");
+            if (llvm::to_integer(x, vmaddr, 16))
+              m_binary_addresses.push_back(vmaddr);
           }
         }
       }
@@ -3968,7 +3975,7 @@ GDBRemoteCommunicationClient::ReadExtFeature(llvm::StringRef object,
     // last chunk
     case ('l'):
       active = false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
     // more chunks
     case ('m'):

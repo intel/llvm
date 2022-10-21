@@ -5785,12 +5785,11 @@ private:
                                   /*SupportsMapper=*/true, &MapperQualifierLoc,
                                   &MapperIdInfo),
         MapType(MapType), MapTypeIsImplicit(MapTypeIsImplicit), MapLoc(MapLoc) {
-    assert(llvm::array_lengthof(MapTypeModifiers) == MapModifiers.size() &&
+    assert(std::size(MapTypeModifiers) == MapModifiers.size() &&
            "Unexpected number of map type modifiers.");
     llvm::copy(MapModifiers, std::begin(MapTypeModifiers));
 
-    assert(llvm::array_lengthof(MapTypeModifiersLoc) ==
-               MapModifiersLoc.size() &&
+    assert(std::size(MapTypeModifiersLoc) == MapModifiersLoc.size() &&
            "Unexpected number of map type modifier locations.");
     llvm::copy(MapModifiersLoc, std::begin(MapTypeModifiersLoc));
   }
@@ -6707,12 +6706,11 @@ class OMPToClause final : public OMPMappableExprListClause<OMPToClause>,
       : OMPMappableExprListClause(llvm::omp::OMPC_to, Locs, Sizes,
                                   /*SupportsMapper=*/true, &MapperQualifierLoc,
                                   &MapperIdInfo) {
-    assert(llvm::array_lengthof(MotionModifiers) == TheMotionModifiers.size() &&
+    assert(std::size(MotionModifiers) == TheMotionModifiers.size() &&
            "Unexpected number of motion modifiers.");
     llvm::copy(TheMotionModifiers, std::begin(MotionModifiers));
 
-    assert(llvm::array_lengthof(MotionModifiersLoc) ==
-               TheMotionModifiersLoc.size() &&
+    assert(std::size(MotionModifiersLoc) == TheMotionModifiersLoc.size() &&
            "Unexpected number of motion modifier locations.");
     llvm::copy(TheMotionModifiersLoc, std::begin(MotionModifiersLoc));
   }
@@ -6909,12 +6907,11 @@ class OMPFromClause final
       : OMPMappableExprListClause(llvm::omp::OMPC_from, Locs, Sizes,
                                   /*SupportsMapper=*/true, &MapperQualifierLoc,
                                   &MapperIdInfo) {
-    assert(llvm::array_lengthof(MotionModifiers) == TheMotionModifiers.size() &&
+    assert(std::size(MotionModifiers) == TheMotionModifiers.size() &&
            "Unexpected number of motion modifiers.");
     llvm::copy(TheMotionModifiers, std::begin(MotionModifiers));
 
-    assert(llvm::array_lengthof(MotionModifiersLoc) ==
-               TheMotionModifiersLoc.size() &&
+    assert(std::size(MotionModifiersLoc) == TheMotionModifiersLoc.size() &&
            "Unexpected number of motion modifier locations.");
     llvm::copy(TheMotionModifiersLoc, std::begin(MotionModifiersLoc));
   }
@@ -7763,16 +7760,14 @@ public:
   ///
   /// \param C AST context.
   /// \param InteropVar The interop variable.
-  /// \param PrefExprs The list of preference expressions.
-  /// \param IsTarget Uses the 'target' interop-type.
-  /// \param IsTargetSync Uses the 'targetsync' interop-type.
+  /// \param InteropInfo The interop-type and prefer_type list.
   /// \param StartLoc Starting location of the clause.
   /// \param LParenLoc Location of '('.
   /// \param VarLoc Location of the interop variable.
   /// \param EndLoc Ending location of the clause.
   static OMPInitClause *Create(const ASTContext &C, Expr *InteropVar,
-                               ArrayRef<Expr *> PrefExprs, bool IsTarget,
-                               bool IsTargetSync, SourceLocation StartLoc,
+                               OMPInteropInfo &InteropInfo,
+                               SourceLocation StartLoc,
                                SourceLocation LParenLoc, SourceLocation VarLoc,
                                SourceLocation EndLoc);
 

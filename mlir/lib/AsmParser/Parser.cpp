@@ -55,7 +55,7 @@ Parser::parseCommaSeparatedList(Delimiter delimiter,
   case Delimiter::OptionalParen:
     if (getToken().isNot(Token::l_paren))
       return success();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Delimiter::Paren:
     if (parseToken(Token::l_paren, "expected '('" + contextMessage))
       return failure();
@@ -67,7 +67,7 @@ Parser::parseCommaSeparatedList(Delimiter delimiter,
     // Check for absent list.
     if (getToken().isNot(Token::less))
       return success();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Delimiter::LessGreater:
     if (parseToken(Token::less, "expected '<'" + contextMessage))
       return success();
@@ -78,7 +78,7 @@ Parser::parseCommaSeparatedList(Delimiter delimiter,
   case Delimiter::OptionalSquare:
     if (getToken().isNot(Token::l_square))
       return success();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Delimiter::Square:
     if (parseToken(Token::l_square, "expected '['" + contextMessage))
       return failure();
@@ -89,7 +89,7 @@ Parser::parseCommaSeparatedList(Delimiter delimiter,
   case Delimiter::OptionalBraces:
     if (getToken().isNot(Token::l_brace))
       return success();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Delimiter::Braces:
     if (parseToken(Token::l_brace, "expected '{'" + contextMessage))
       return failure();
@@ -242,7 +242,8 @@ OptionalParseResult Parser::parseOptionalInteger(APInt &result) {
   if (consumeIf(Token::kw_false)) {
     result = false;
     return success();
-  } else if (consumeIf(Token::kw_true)) {
+  }
+  if (consumeIf(Token::kw_true)) {
     result = true;
     return success();
   }
@@ -801,7 +802,7 @@ ParseResult OperationParser::finalize() {
     return failure();
 
   // Verify that the parsed operations are valid.
-  if (failed(verify(topLevelOp)))
+  if (state.config.shouldVerifyAfterParse() && failed(verify(topLevelOp)))
     return failure();
 
   // If we are populating the parser state, finalize the top-level operation.
@@ -2342,6 +2343,14 @@ public:
   StringRef getKey() const final { return key; }
 
   InFlightDiagnostic emitError() const final { return p.emitError(keyLoc); }
+
+  AsmResourceEntryKind getKind() const final {
+    if (value.isAny(Token::kw_true, Token::kw_false))
+      return AsmResourceEntryKind::Bool;
+    return value.getSpelling().startswith("\"0x")
+               ? AsmResourceEntryKind::Blob
+               : AsmResourceEntryKind::String;
+  }
 
   FailureOr<bool> parseAsBool() const final {
     if (value.is(Token::kw_true))

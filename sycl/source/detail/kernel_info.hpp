@@ -105,6 +105,9 @@ get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
   return sycl::range<3>(Result[0], Result[1], Result[2]);
 }
 
+// TODO: This is used by a deprecated version of
+// info::kernel_device_specific::max_sub_group_size taking an input paramter.
+// This should be removed when the deprecated info query is removed.
 template <typename Param>
 uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
                                                     RT::PiDevice Device,
@@ -174,6 +177,13 @@ inline uint32_t get_kernel_device_specific_info_host<
 template <>
 inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::max_num_sub_groups>(const sycl::device &) {
+  throw invalid_object_error("This instance of kernel is a host instance",
+                             PI_ERROR_INVALID_KERNEL);
+}
+
+template <>
+inline uint32_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::max_sub_group_size>(const sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
                              PI_ERROR_INVALID_KERNEL);
 }

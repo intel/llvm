@@ -153,14 +153,12 @@ struct element_type_traits<T, std::enable_if_t<is_vectorizable_v<T>>> {
 
 // ------------------- Useful meta-functions and declarations
 
+template <class T> using __raw_t = typename element_type_traits<T>::RawT;
 template <class T>
-using __raw_t = typename __ESIMD_DNS::element_type_traits<T>::RawT;
-template <class T>
-using __cpp_t = typename __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
+using __cpp_t = typename element_type_traits<T>::EnclosingCppT;
 
 template <class T, int N>
-using __raw_vec_t =
-    vector_type_t<typename __ESIMD_DNS::element_type_traits<T>::RawT, N>;
+using __raw_vec_t = vector_type_t<typename element_type_traits<T>::RawT, N>;
 
 // Note: using RawVecT in comparison result type calculation does *not* mean
 // the comparison is actually performed on the raw types.
@@ -601,22 +599,6 @@ vector_comparison_op_traits<Op, WrapperT, N>::impl(__raw_vec_t<WrapperT, N> X,
   return convert_vector<vector_element_type_t<__cmp_t<WrapperT, N>>, T1, N>(
       vector_comparison_op_default<Op, T1, N>(X1, Y1));
 }
-
-// Proxy class to access bit representation of a wrapper type both on host and
-// device. Declared as friend to the wrapper types (e.g. sycl::half).
-// Specific type traits implementations (scalar_conversion_traits) can use
-// concrete wrapper type specializations of the static functions in this class
-// to access private fields in the wrapper type (e.g. sycl::half).
-// TODO add this functionality to sycl type implementation? With C++20,
-// std::bit_cast should be a good replacement.
-class WrapperElementTypeProxy {
-public:
-  template <class WrapperT>
-  static inline __raw_t<WrapperT> bitcast_to_raw_scalar(WrapperT Val);
-
-  template <class WrapperT>
-  static inline WrapperT bitcast_to_wrapper_scalar(__raw_t<WrapperT> Val);
-};
 
 // "Generic" version of std::is_floating_point_v which returns "true" also for
 // the wrapper floating-point types such as sycl::half.

@@ -429,8 +429,25 @@ pi_result hip_piEventRetain(pi_event event);
 
 /// \endcond
 
+void _pi_queue::compute_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                          pi_uint32 stream_i) {
+  if (barrier_event_ && !compute_applied_barrier_[stream_i]) {
+    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
+    compute_applied_barrier_[stream_i] = true;
+  }
+}
+
+void _pi_queue::transfer_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                           pi_uint32 stream_i) {
+  if (barrier_event_ && !transfer_applied_barrier_[stream_i]) {
+    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
+    transfer_applied_barrier_[stream_i] = true;
+  }
+}
+
 hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
   pi_uint32 stream_i;
+  pi_uint32 token;
   while (true) {
     if (num_compute_streams_ < compute_streams_.size()) {
       // the check above is for performance - so as not to lock mutex every time
@@ -442,39 +459,45 @@ hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
             &compute_streams_[num_compute_streams_++], flags_));
       }
     }
-    stream_i = compute_stream_idx_++;
+    token = compute_stream_idx_++;
+    stream_i = token % compute_streams_.size();
     // if a stream has been reused before it was next selected round-robin
     // fashion, we want to delay its next use and instead select another one
     // that is more likely to have completed all the enqueued work.
-    if (delay_compute_[stream_i % compute_streams_.size()]) {
-      delay_compute_[stream_i % compute_streams_.size()] = false;
+    if (delay_compute_[stream_i]) {
+      delay_compute_[stream_i] = false;
     } else {
       break;
     }
   }
   if (stream_token) {
-    *stream_token = stream_i;
+    *stream_token = token;
   }
-  return compute_streams_[stream_i % compute_streams_.size()];
+  hipStream_t res = compute_streams_[stream_i];
+  compute_stream_wait_for_barrier_if_needed(res, stream_i);
+  return res;
 }
 
 hipStream_t _pi_queue::get_next_compute_stream(
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     _pi_stream_guard &guard, pi_uint32 *stream_token) {
   for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
-    pi_uint32 token = event_wait_list[i]->get_stream_token();
+    pi_uint32 token = event_wait_list[i]->get_compute_stream_token();
     if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
       std::unique_lock<std::mutex> compute_sync_guard(
           compute_stream_sync_mutex_);
       // redo the check after lock to avoid data races on
       // last_sync_compute_streams_
       if (can_reuse_stream(token)) {
-        delay_compute_[token % delay_compute_.size()] = true;
+        pi_uint32 stream_i = token % delay_compute_.size();
+        delay_compute_[stream_i] = true;
         if (stream_token) {
           *stream_token = token;
         }
         guard = _pi_stream_guard{std::move(compute_sync_guard)};
-        return event_wait_list[i]->get_stream();
+        hipStream_t res = event_wait_list[i]->get_stream();
+        compute_stream_wait_for_barrier_if_needed(res, stream_i);
+        return res;
       }
     }
   }
@@ -496,7 +519,10 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
           &transfer_streams_[num_transfer_streams_++], flags_));
     }
   }
-  return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
+  pi_uint32 stream_i = transfer_stream_idx_++ % transfer_streams_.size();
+  hipStream_t res = transfer_streams_[stream_i];
+  transfer_stream_wait_for_barrier_if_needed(res, stream_i);
+  return res;
 }
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
@@ -1779,10 +1805,21 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                        props.arch.hasSharedInt64Atomics);
   }
 
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    size_t FreeMemory = 0;
+    size_t TotalMemory = 0;
+    sycl::detail::pi::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
+                                    hipSuccess,
+                                "failed hipMemGetInfo() API.");
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   FreeMemory);
+  }
+
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_DEVICE_INFO_DEVICE_ID:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -2407,7 +2444,7 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
 
-    command_queue->sync_streams([&result](hipStream_t s) {
+    command_queue->sync_streams<true>([&result](hipStream_t s) {
       result = PI_CHECK_ERROR(hipStreamSynchronize(s));
     });
 
@@ -3696,26 +3733,60 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     return PI_ERROR_INVALID_QUEUE;
   }
 
+  pi_result result;
+
   try {
     ScopedContext active(command_queue->get_context());
-
-    if (event_wait_list) {
-      auto result =
-          forLatestEvents(event_wait_list, num_events_in_wait_list,
-                          [command_queue](pi_event event) -> pi_result {
-                            return enqueueEventWait(command_queue, event);
-                          });
-
-      if (result != PI_SUCCESS) {
-        return result;
+    pi_uint32 stream_token;
+    _pi_stream_guard guard;
+    hipStream_t hipStream = command_queue->get_next_compute_stream(
+        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+    {
+      std::lock_guard(command_queue->barrier_mutex_);
+      if (command_queue->barrier_event_ == nullptr) {
+        PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_event_));
       }
+      if (num_events_in_wait_list == 0) { //  wait on all work
+        if (command_queue->barrier_tmp_event_ == nullptr) {
+          PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_tmp_event_));
+        }
+        command_queue->sync_streams(
+            [hipStream,
+             tmp_event = command_queue->barrier_tmp_event_](hipStream_t s) {
+              if (hipStream != s) {
+                PI_CHECK_ERROR(hipEventRecord(tmp_event, s));
+                PI_CHECK_ERROR(hipStreamWaitEvent(hipStream, tmp_event, 0));
+              }
+            });
+      } else { // wait just on given events
+        forLatestEvents(event_wait_list, num_events_in_wait_list,
+                        [hipStream](pi_event event) -> pi_result {
+                          if (event->get_queue()->has_been_synchronized(
+                                  event->get_compute_stream_token())) {
+                            return PI_SUCCESS;
+                          } else {
+                            return PI_CHECK_ERROR(
+                                hipStreamWaitEvent(hipStream, event->get(), 0));
+                          }
+                        });
+      }
+
+      result = PI_CHECK_ERROR(
+          hipEventRecord(command_queue->barrier_event_, hipStream));
+      for (unsigned int i = 0;
+           i < command_queue->compute_applied_barrier_.size(); i++) {
+        command_queue->compute_applied_barrier_[i] = false;
+      }
+      for (unsigned int i = 0;
+           i < command_queue->transfer_applied_barrier_.size(); i++) {
+        command_queue->transfer_applied_barrier_[i] = false;
+      }
+    }
+    if (result != PI_SUCCESS) {
+      return result;
     }
 
     if (event) {
-      pi_uint32 stream_token;
-      _pi_stream_guard guard;
-      hipStream_t hipStream = command_queue->get_next_compute_stream(
-          num_events_in_wait_list, event_wait_list, guard, &stream_token);
       *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
                                       hipStream, stream_token);
       (*event)->start();

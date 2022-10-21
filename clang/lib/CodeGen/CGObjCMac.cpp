@@ -1171,7 +1171,7 @@ public:
   static ProtocolMethodLists get(const ObjCProtocolDecl *PD) {
     ProtocolMethodLists result;
 
-    for (auto MD : PD->methods()) {
+    for (auto *MD : PD->methods()) {
       size_t index = (2 * size_t(MD->isOptional()))
                    + (size_t(MD->isClassMethod()));
       result.Methods[index].push_back(MD);
@@ -2145,7 +2145,8 @@ CGObjCCommonMac::EmitMessageSend(CodeGen::CodeGenFunction &CGF,
   if (!IsSuper)
     Arg0 = CGF.Builder.CreateBitCast(Arg0, ObjCTypes.ObjectPtrTy);
   ActualArgs.add(RValue::get(Arg0), Arg0Ty);
-  ActualArgs.add(RValue::get(SelValue), selTy);
+  if (!Method || !Method->isDirectMethod())
+    ActualArgs.add(RValue::get(SelValue), selTy);
   ActualArgs.addFrom(CallArgs);
 
   // If we're calling a method, use the formal signature.
@@ -3454,7 +3455,7 @@ static bool hasWeakMember(QualType type) {
   }
 
   if (auto recType = type->getAs<RecordType>()) {
-    for (auto field : recType->getDecl()->fields()) {
+    for (auto *field : recType->getDecl()->fields()) {
       if (hasWeakMember(field->getType()))
         return true;
     }
@@ -4103,6 +4104,9 @@ void CGObjCCommonMac::GenerateDirectMethodPrologue(
 
   // only synthesize _cmd if it's referenced
   if (OMD->getCmdDecl()->isUsed()) {
+    // `_cmd` is not a parameter to direct methods, so storage must be
+    // explicitly declared for it.
+    CGF.EmitVarDecl(*OMD->getCmdDecl());
     Builder.CreateStore(GetSelector(CGF, OMD),
                         CGF.GetAddrOfLocalVar(OMD->getCmdDecl()));
   }

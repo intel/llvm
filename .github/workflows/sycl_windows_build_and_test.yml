@@ -23,7 +23,7 @@ jobs:
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         path: src
         fetch-depth: 1
@@ -78,7 +78,7 @@ jobs:
       shell: bash
       run: cmake --build build --target deploy-sycl-toolchain
     - name: Upload toolchain
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
         path: install/**/*

@@ -552,7 +552,7 @@ private:
     // inlined so that we shouldn't specialize it.
     if (Metrics.notDuplicatable || !Metrics.NumInsts.isValid() ||
         (!ForceFunctionSpecialization &&
-         *Metrics.NumInsts.getValue() < SmallFunctionThreshold)) {
+         Metrics.NumInsts < SmallFunctionThreshold)) {
       InstructionCost C{};
       C.setInvalid();
       return C;
@@ -573,7 +573,8 @@ private:
     if (!I)
       return std::numeric_limits<unsigned>::min();
 
-    auto Cost = TTI.getUserCost(U, TargetTransformInfo::TCK_SizeAndLatency);
+    InstructionCost Cost =
+        TTI.getInstructionCost(U, TargetTransformInfo::TCK_SizeAndLatency);
 
     // Traverse recursively if there are more uses.
     // TODO: Any other instructions to be added here?

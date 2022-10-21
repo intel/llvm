@@ -72,13 +72,13 @@ void event_impl::waitInternal() {
   if (MState == HES_Complete)
     return;
 
-  std::unique_lock lock(MMutex);
+  std::unique_lock<std::mutex> lock(MMutex);
   cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
-    std::unique_lock lock(MMutex);
+    std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
     int Expected = HES_NotComplete;
     int Desired = HES_Complete;
@@ -342,10 +342,16 @@ event_impl::get_info<info::event::command_execution_status>() {
   if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
-  if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::command_execution_status>(
-        this->getHandleRef(), this->getPlugin());
+  if (!MHostEvent) {
+    // Command is enqueued and PiEvent is ready
+    if (MEvent)
+      return get_event_info<info::event::command_execution_status>(
+          this->getHandleRef(), this->getPlugin());
+    // Command is blocked and not enqueued, PiEvent is not assigned yet
+    else if (MCommand)
+      return sycl::info::event_command_status::submitted;
   }
+
   return MHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;

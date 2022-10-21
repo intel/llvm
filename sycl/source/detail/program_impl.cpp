@@ -13,6 +13,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/property_list.hpp>
 
@@ -294,6 +295,12 @@ void program_impl::link(std::string LinkOptions) {
     if (!LinkOpts) {
       LinkOpts = LinkOptions.c_str();
     }
+
+    // Plugin resets MProgram with a new pi_program as a result of the call to "piProgramLink".
+    // Thus, we need to release MProgram before the call to piProgramLink.
+    if (MProgram != nullptr)
+      Plugin.call<PiApiKind::piProgramRelease>(MProgram);
+    
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
         /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
@@ -504,29 +511,6 @@ void program_impl::create_pi_program_with_kernel_name(
   MProgram = PM.createPIProgram(Img, get_context(), {FirstDevice});
 }
 
-template <>
-uint32_t program_impl::get_info<info::program::reference_count>() const {
-  if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance",
-                               PI_ERROR_INVALID_PROGRAM);
-  }
-  pi_uint32 Result;
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(MProgram,
-                                           PI_PROGRAM_INFO_REFERENCE_COUNT,
-                                           sizeof(pi_uint32), &Result, nullptr);
-  return Result;
-}
-
-template <> context program_impl::get_info<info::program::context>() const {
-  return get_context();
-}
-
-template <>
-std::vector<device> program_impl::get_info<info::program::devices>() const {
-  return get_devices();
-}
-
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
@@ -542,9 +526,9 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
                                         RT::PiProgram NativePrg) const {
   // iterate via all specialization constants the program's image depends on,
   // and set each to current runtime value (if any)
-  const pi::DeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();
+  const RTDeviceBinaryImage::PropertyRange &SCRange = Img.getSpecConstants();
   ContextImplPtr Ctx = getSyclObjImpl(get_context());
-  using SCItTy = pi::DeviceBinaryImage::PropertyRange::ConstIterator;
+  using SCItTy = RTDeviceBinaryImage::PropertyRange::ConstIterator;
 
   auto LockGuard = Ctx->getKernelProgramCache().acquireCachedPrograms();
   NativePrg = NativePrg ? NativePrg : getHandleRef();
@@ -556,24 +540,22 @@ void program_impl::flush_spec_constants(const RTDeviceBinaryImage &Img,
       continue;
     const spec_constant_impl &SC = SCEntry->second;
     assert(SC.isSet() && "uninitialized spec constant");
-    pi::ByteArray Descriptors = pi::DeviceBinaryProperty(*SCIt).asByteArray();
-    // First 8 bytes are consumed by size of the property
-    assert(Descriptors.size() > 8 && "Unexpected property size");
-    // Expected layout is vector of 3-component tuples (flattened into a vector
-    // of scalars), where each tuple consists of: ID of a scalar spec constant,
-    // (which might be a member of the composite); offset, which is used to
-    // calculate location of scalar member within the composite or zero for
-    // scalar spec constants; size of a spec constant
-    assert(((Descriptors.size() - 8) / sizeof(std::uint32_t)) % 3 == 0 &&
-           "unexpected layout of composite spec const descriptors");
-    auto *It = reinterpret_cast<const std::uint32_t *>(&Descriptors[8]);
-    auto *End = reinterpret_cast<const std::uint32_t *>(&Descriptors[0] +
-                                                        Descriptors.size());
-    while (It != End) {
+    ByteArray Descriptors = DeviceBinaryProperty(*SCIt).asByteArray();
+
+    // First 8 bytes are consumed by the size of the property.
+    Descriptors.dropBytes(8);
+
+    // Expected layout is vector of 3-component tuples (flattened into a
+    // vector of scalars), where each tuple consists of: ID of a scalar spec
+    // constant, (which might be a member of the composite); offset, which
+    // is used to calculate location of scalar member within the composite
+    // or zero for scalar spec constants; size of a spec constant.
+    while (!Descriptors.empty()) {
+      auto [Id, Offset, Size] =
+          Descriptors.consume<uint32_t, uint32_t, uint32_t>();
+
       Ctx->getPlugin().call<PiApiKind::piextProgramSetSpecializationConstant>(
-          NativePrg, /* ID */ It[0], /* Size */ It[2],
-          SC.getValuePtr() + /* Offset */ It[1]);
-      It += 3;
+          NativePrg, Id, Size, SC.getValuePtr() + Offset);
     }
   }
 }
