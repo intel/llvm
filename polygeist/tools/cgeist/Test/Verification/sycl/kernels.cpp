@@ -36,8 +36,8 @@
 // CHECK-MLIR-SAME:  [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* byval([[RANGE_TY]]) align 8 {{.*}}, [[RANGE_TY]]* byval([[RANGE_TY]]) align 8 {{.*}}, 
-// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* byval([[ID_TY]]) align 8 {{.*}}) #1
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, [[RANGE_TY]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, 
+// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) align 8 {{.*}}) #1
 class kernel_1 {
  sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
 

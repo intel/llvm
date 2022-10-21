@@ -11,4 +11,12 @@
 
 include "mlir/Pass/PassBase.td"
 
+def SYCLMethodToSYCLCall : Pass<"sycl-method-to-sycl-call", "ModuleOp"> {
+  let summary = "Convert SYCLMethodOpInterface instances to SYCLCallOps";
+  let description = [{
+    Replace SYCLMethodOpInterface instances by SYCLCallOps.
+  }];
+  let constructor = "mlir::sycl::createSYCLMethodToSYCLCallPass()";
+}
+
 #endif // MLIR_DIALECT_SYCL_TRANSFORMS_PASSES

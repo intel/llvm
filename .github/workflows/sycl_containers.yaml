@@ -6,7 +6,7 @@ on:
     - cron: '0 0 1,15 * *'
   push:
     branches:
-      - sycl-mlir
+      - sycl
     paths:
       - 'devops/containers/**'
       - 'devops/dependencies.json'
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Build and Push Container
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Build and Push Container
@@ -70,7 +70,7 @@ jobs:
     needs: base_image_ubuntu2004
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Get dependencies configuration
@@ -108,7 +108,7 @@ jobs:
     needs: base_image_ubuntu2004
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
       - name: Get dependencies configuration

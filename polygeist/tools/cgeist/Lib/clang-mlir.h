@@ -20,7 +20,6 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
@@ -43,6 +42,12 @@
 #include "clang/AST/Mangle.h"
 
 extern llvm::cl::opt<std::string> PrefixABI;
+
+namespace mlir {
+namespace sycl {
+class SYCLMethodOpInterface;
+} // namespace sycl
+} // namespace mlir
 
 struct LoopContext {
   mlir::Value keepRunning;
@@ -109,10 +114,10 @@ public:
   class TypeAndAttrs {
   public:
     mlir::Type type;
-    mlir::NamedAttrList attrs;
+    std::vector<mlir::NamedAttribute> attrs;
 
     TypeAndAttrs(mlir::Type type) : type(type), attrs() {}
-    TypeAndAttrs(mlir::Type type, mlir::NamedAttrList attrs)
+    TypeAndAttrs(mlir::Type type, std::vector<mlir::NamedAttribute> attrs)
         : type(type), attrs(attrs) {}
 
     // Collect the types of the given \p descriptors in \p types.
@@ -120,9 +125,9 @@ public:
                          llvm::SmallVectorImpl<mlir::Type> &types);
 
     // Collect the attributes of the given \p descriptors in \p attrs.
-    static void
-    getAttributes(const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
-                  llvm::SmallVectorImpl<mlir::NamedAttrList> &attrs);
+    static void getAttributes(
+        const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
+        llvm::SmallVectorImpl<std::vector<mlir::NamedAttribute>> &attrs);
   };
 
   using ParmDesc = TypeAndAttrs;
@@ -141,11 +146,8 @@ public:
 
   /// Determine whether to use the "noundef" attribute on a parameter or
   /// function return value.
-  static bool determineNoUndef(clang::QualType qt,
-                               clang::CodeGen::CodeGenTypes &Types,
-                               const llvm::DataLayout &DL,
-                               const clang::CodeGen::ABIArgInfo &AI,
-                               bool CheckCoerce = true);
+  static bool determineNoUndef(clang::QualType QTy,
+                               const clang::CodeGen::ABIArgInfo &AI);
 };
 
 class MLIRASTConsumer : public clang::ASTConsumer {
@@ -258,12 +260,6 @@ private:
 
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
-
-  /// Construct the IR attribute list of a function or call.
-  void constructAttributeList(const clang::CodeGen::CGFunctionInfo &FI,
-                              clang::CodeGen::CGCalleeInfo CalleeInfo,
-                              mlirclang::AttributeList &AttrList,
-                              bool AttrOnCallSite, bool IsThunk);
 
   /// Retuns the MLIR Function type given clang's CGFunctionInfo \p FI.
   mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,

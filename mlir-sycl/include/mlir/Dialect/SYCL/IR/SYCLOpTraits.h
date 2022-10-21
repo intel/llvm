@@ -1,6 +1,4 @@
-// Copyright (C) Intel
-
-//===--- SYCLOpInterfaces.h -----------------------------------------------===//
+//===--- SYCLOpTraits.h ---------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,20 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_SYCL_OPS_INTERFACES_H_
-#define MLIR_SYCL_OPS_INTERFACES_H_
+#ifndef MLIR_SYCL_OPS_TRAITS_H_
+#define MLIR_SYCL_OPS_TRAITS_H_
 
-#include <type_traits>
-
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
-
-#include "mlir/Dialect/SYCL/IR/SYCLOpInterfaces.h.inc"
+#include "mlir/IR/OpDefinition.h"
 
 namespace mlir {
 namespace sycl {
-template <typename T>
-using isSYCLMethod = std::is_base_of<SYCLMethodOpInterface::Trait<T>, T>;
-
 LogicalResult verifySYCLGetIDTrait(Operation *Op);
 LogicalResult verifySYCLGetComponentTrait(Operation *Op);
 LogicalResult verifySYCLGetRangeTrait(Operation *Op);
@@ -76,4 +67,4 @@ public:
 } // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_SYCL_OPS_INTERFACES_H_
+#endif // MLIR_SYCL_OPS_TRAITS_H_

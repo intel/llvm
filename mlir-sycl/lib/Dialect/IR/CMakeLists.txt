@@ -27,6 +27,8 @@ else()
 endif()
 
 add_mlir_dialect_library(MLIRSYCLDialect
+  SYCLTraits.cpp
+  SYCLOps.cpp
   SYCLOpsDialect.cpp
   SYCLOpsTypes.cpp
   SYCLOpsAlias.cpp

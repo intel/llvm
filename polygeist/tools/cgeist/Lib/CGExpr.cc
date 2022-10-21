@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "llvm/ADT/TypeSwitch.h"
 
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 
 #define DEBUG_TYPE "CGExpr"
@@ -17,6 +18,8 @@
 using namespace clang;
 using namespace mlir;
 using namespace mlir::arith;
+
+extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
 
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
@@ -838,7 +841,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   std::string mangledName = MLIRScanner::getMangledFuncName(
       cast<FunctionDecl>(*ctorDecl), Glob.getCGM());
   mangledName = (PrefixABI + mangledName);
-  if (isSupportedFunctions(mangledName))
+  if (GenerateAllSYCLFuncs || isSupportedFunctions(mangledName))
     ShouldEmit = true;
 
   FunctionToEmit F(*ctorDecl, mlirclang::getInputContext(builder));

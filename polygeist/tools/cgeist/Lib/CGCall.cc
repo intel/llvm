@@ -21,6 +21,8 @@ using namespace mlir::arith;
 using namespace mlir::func;
 using namespace mlirclang;
 
+extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
+
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
 /// callee arg type. We only deal with the cast where src and dst have the same
 /// shape size and elem type, and just the first shape differs: src has -1 and
@@ -1562,7 +1564,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   std::string mangledName =
       MLIRScanner::getMangledFuncName(*callee, Glob.getCGM());
-  if (isSupportedFunctions(mangledName))
+  if (GenerateAllSYCLFuncs || isSupportedFunctions(mangledName))
     ShouldEmit = true;
 
   FunctionToEmit F(*callee, mlirclang::getInputContext(builder));

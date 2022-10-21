@@ -22,38 +22,6 @@ namespace mlirclang {
 static constexpr StringLiteral passThroughAttrName = "passthrough";
 
 //===----------------------------------------------------------------------===//
-// AttributeList Method Implementations
-//===----------------------------------------------------------------------===//
-
-AttributeList &
-AttributeList::addAttrs(const AttrBuilder &FnAttrB, const AttrBuilder &RetAttrB,
-                        llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
-  return addFnAttrs(FnAttrB).addRetAttrs(RetAttrB).addParmAttrs(Attrs);
-}
-
-AttributeList &AttributeList::addFnAttrs(const AttrBuilder &B) {
-  FnAttrs.append(B.getAttrs());
-  return *this;
-}
-
-AttributeList &AttributeList::addRetAttrs(const AttrBuilder &B) {
-  RetAttrs.append(B.getAttrs());
-  return *this;
-}
-
-AttributeList &
-AttributeList::addParmAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
-  ParmAttrs.reserve(Attrs.size());
-  llvm::append_range(ParmAttrs, Attrs);
-  return *this;
-}
-
-mlir::NamedAttrList AttributeList::getParmAttrs(unsigned Index) const {
-  assert(Index < ParmAttrs.size() && "Index out of range");
-  return ParmAttrs[Index];
-}
-
-//===----------------------------------------------------------------------===//
 // AttrBuilder Method Implementations
 //===----------------------------------------------------------------------===//
 
@@ -75,11 +43,8 @@ AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind kind,
 
   switch (kind) {
   case AttrKind::Alignment:
-    LLVM_FALLTHROUGH;
-  case AttrKind::StackAlignment:
     assert(val <= llvm::Value::MaximumAlignment && "Alignment too large");
     LLVM_FALLTHROUGH;
-
   case AttrKind::Dereferenceable:
     LLVM_FALLTHROUGH;
   case AttrKind::DereferenceableOrNull: {
@@ -129,18 +94,6 @@ AttrBuilder &AttrBuilder::addPassThroughAttribute(mlir::Attribute attr) {
   });
 
   return addAttribute(passThrough);
-}
-
-AttrBuilder &AttrBuilder::removeAttribute(llvm::StringRef attrName) {
-  attrs.erase(attrName);
-  return *this;
-}
-
-AttrBuilder &AttrBuilder::removeAttribute(llvm::Attribute::AttrKind kind) {
-  assert((unsigned)kind < llvm::Attribute::EndAttrKinds &&
-         "Attribute out of range!");
-  StringRef attrName = llvm::Attribute::getNameFromAttrKind(kind);
-  return removeAttribute(attrName);
 }
 
 bool AttrBuilder::contains(StringRef attrName) const {

@@ -15,56 +15,6 @@
 
 namespace mlirclang {
 
-class AttrBuilder;
-
-/// \class
-/// This class holds the attributes for a function, its return value, and
-/// its parameters. You access the attributes for each of them via an index into
-/// the AttributeList object. The function attributes are at index
-/// `AttributeList::FunctionIndex', the return value is at index
-/// `AttributeList::ReturnIndex', and the attributes for the parameters start at
-/// index `AttributeList::FirstArgIndex'.
-class AttributeList {
-public:
-  AttributeList() = default;
-
-  //===--------------------------------------------------------------------===//
-  // AttributeList Mutation
-  //===--------------------------------------------------------------------===//
-
-  /// Add function. return value, and parameters attributes to the list.
-  AttributeList &addAttrs(const AttrBuilder &FnAttrB,
-                          const AttrBuilder &RetAttrB,
-                          llvm::ArrayRef<mlir::NamedAttrList> Attrs);
-
-  /// Add function attributes to the list.
-  AttributeList &addFnAttrs(const AttrBuilder &B);
-
-  /// Add return value attributes to the list.
-  AttributeList &addRetAttrs(const AttrBuilder &B);
-
-  /// Add parameters attributes to the list.
-  AttributeList &addParmAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs);
-
-  /// The function attributes are returned.
-  mlir::NamedAttrList getFnAttrs() const { return FnAttrs; }
-
-  /// The attributes for the ret value are returned.
-  mlir::NamedAttrList getRetAttrs() const { return RetAttrs; }
-
-  /// The attributes for the parameters are returned.
-  mlir::ArrayRef<mlir::NamedAttrList> getParmAttrs() const { return ParmAttrs; }
-
-  /// The attributes for the parameter at the given index are returned.
-  mlir::NamedAttrList getParmAttrs(unsigned Index) const;
-
-private:
-  /// The attributes that we are managing.
-  mlir::NamedAttrList FnAttrs;
-  mlir::NamedAttrList RetAttrs;
-  llvm::SmallVector<mlir::NamedAttrList, 8> ParmAttrs;
-};
-
 /// \class
 /// Facilitates the construction of LLVM dialect attributes for a particular
 /// argument, parameter, function, or return value.
@@ -100,10 +50,6 @@ public:
   /// attribute.
   AttrBuilder &addPassThroughAttribute(mlir::Attribute attr);
 
-  /// Remove an attribute from the builder (if present).
-  AttrBuilder &removeAttribute(llvm::StringRef attrName);
-  AttrBuilder &removeAttribute(llvm::Attribute::AttrKind kind);
-
   /// Return true if the builder contains the specified attribute.
   bool contains(llvm::StringRef attrName) const;
   bool contains(llvm::Attribute::AttrKind kind) const;
@@ -125,8 +71,6 @@ public:
   /// Returns the attributes contained in the builder.
   llvm::ArrayRef<mlir::NamedAttribute> getAttrs() const { return attrs; }
 
-  mlir::MLIRContext &getContext() const { return ctx; }
-
 private:
   /// Retrieve the "passthrough" named attribute if present, create it with an
   /// empty list otherwise.
@@ -147,6 +91,6 @@ private:
   mlir::NamedAttrList attrs;
 };
 
-} // end namespace mlirclang
+} // namespace mlirclang
 
 #endif // CGEIST_ATTRIBUTES_H

@@ -35,8 +35,8 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h.inc"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
@@ -50,10 +50,12 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/WithColor.h"
 #include <fstream>
 
 #include "Options.h"
@@ -638,6 +640,7 @@ static int finalize(mlir::MLIRContext &context,
     if (!EmitOpenMPIR) {
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
+      pm3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
       pm3.addPass(polygeist::createConvertToLLVMABIPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
@@ -714,6 +717,48 @@ static int createAndExecutePassPipeline(
   return 0;
 }
 
+static llvm::Optional<llvm::OptimizationLevel> optionsToOptimizationLevel() {
+  if (Opt0)
+    return llvm::OptimizationLevel::O0;
+  if (Opt1)
+    return llvm::OptimizationLevel::O1;
+  if (Opt2)
+    return llvm::OptimizationLevel::O2;
+  if (Opt3)
+    return llvm::OptimizationLevel::O3;
+  // Not explicit optimization level not handled by cgeist
+  return llvm::None;
+}
+
+/// Run optimization pipeline in LLVM module.
+///
+/// Just run default pipelines for now.
+static void runOptimizationPipeline(llvm::Module &module) {
+  const llvm::Optional<llvm::OptimizationLevel> optLevel =
+      optionsToOptimizationLevel();
+  if (!optLevel || optLevel->getSpeedupLevel() == 0) {
+    // No optimizations should be run in this case.
+    return;
+  }
+
+  llvm::LoopAnalysisManager LAM;
+  llvm::FunctionAnalysisManager FAM;
+  llvm::CGSCCAnalysisManager CGAM;
+  llvm::ModuleAnalysisManager MAM;
+
+  llvm::PassBuilder PB;
+
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(*optLevel);
+
+  MPM.run(module, MAM);
+}
+
 // Lower the MLIR in the given module, compile the generated LLVM IR.
 static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
                          StringRef moduleId, mlir::MLIRContext &context,
@@ -756,6 +801,11 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
     llvmModule->setDataLayout(DL);
     llvmModule->setTargetTriple(triple.getTriple());
     LLVM_DEBUG(dbgs() << "*** Translated MLIR to LLVM IR successfully ***\n");
+
+    if (emitBC || EmitLLVM) {
+      // Not needed when emitting binary for now; will be handled by the driver.
+      runOptimizationPipeline(*llvmModule);
+    }
 
     if (emitBC) {
       assert(Output != "-" && "Expecting output file");
@@ -805,6 +855,26 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
   return 0;
 }
 
+static void setMLIROptLevel(llvm::StringRef Arg) {
+  switch (Arg[2]) {
+  case '0':
+    Opt0 = true;
+    break;
+  case '1':
+    Opt1 = true;
+    break;
+  case '2':
+    Opt2 = true;
+    break;
+  case '3':
+    Opt3 = true;
+    break;
+  default:
+    llvm::WithColor::warning()
+        << "Optimization level " << Arg << " not handled by cgeist\n";
+  }
+}
+
 // Split the input arguments into 2 sets (LinkageOpts, MLIROpts).
 static bool splitCommandLineOptions(int argc, char **argv,
                                     SmallVector<const char *> &LinkageArgs,
@@ -838,6 +908,9 @@ static bool splitCommandLineOptions(int argc, char **argv,
       } else if (ref == "-fsycl-is-device") {
         syclKernelsOnly = true;
         MLIRArgs.push_back(argv[i]);
+      } else if (ref.startswith("-O")) {
+        setMLIROptLevel(argv[i]);
+        LinkageArgs.push_back(argv[i]);
       } else if (ref == "-g")
         LinkageArgs.push_back(argv[i]);
       else

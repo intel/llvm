@@ -868,6 +868,12 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
                            .addAttribute(llvm::Attribute::Nest));
     }
 
+    if (auto attr = func.getArgAttrOfType<UnitAttr>(argIdx, "llvm.noundef")) {
+      // llvm.noundef can be added to any argument type.
+      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                           .addAttribute(llvm::Attribute::NoUndef));
+    }
+
     mapValue(mlirArg, &llvmArg);
     argIdx++;
   }
