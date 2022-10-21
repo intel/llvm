@@ -254,7 +254,6 @@ public:
     }
   }
 };
-
 } // namespace detail
 
 namespace ext::intel::experimental {
