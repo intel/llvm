@@ -77,7 +77,7 @@ int fpga_simulator_selector_v(const device &device) {
     detail::EnableFPGASimulator();
     IsFirstCall = false;
   }
-  return fpga_emulator_selector_v(device);
+  return fpga_selector_v(device);
 }
 
 class __SYCL2020_DEPRECATED(

@@ -127,7 +127,7 @@ TEST(FPGADeviceSelectorsTest, FPGASimulatorSelectorTest) {
   sycl::unittest::PiMock Mock;
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piPlatformGetInfo>(
-      RedefTemplatedWrapper<EMULATION_PLATFORM_NAME>::redefinedPlatformGetInfo);
+      RedefTemplatedWrapper<HARDWARE_PLATFORM_NAME>::redefinedPlatformGetInfo);
   sycl::platform Plt = Mock.getPlatform();
   sycl::context Ctx{Plt.get_devices()};
 
@@ -140,8 +140,8 @@ TEST(FPGADeviceSelectorsTest, FPGASimulatorSelectorTest) {
   EXPECT_EQ(std::string(ReadEnv), "1") << "Environment value was not 1";
 
   try {
-    sycl::queue FPGAQueue{Ctx, sycl::ext::intel::fpga_selector_v};
-    FAIL() << "Unexpectedly selected non-emulator device.";
+    sycl::queue EmuFPGAQueue{Ctx, sycl::ext::intel::fpga_emulator_selector_v};
+    FAIL() << "Unexpectedly selected emulator device.";
   } catch (sycl::exception &E) {
     EXPECT_EQ(E.code(), sycl::make_error_code(sycl::errc::runtime))
         << "Unexpected exception errc.";
