@@ -23,6 +23,12 @@ TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_If) {
   ASSERT_TRUE(res);
 }
 
+TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_If_Negative) {
+  bool res = false;
+  if_architecture_is<architecture::intel_gpu_pvc>([&]() { res = true; });
+  ASSERT_FALSE(res);
+}
+
 TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_Else_If) {
   bool res = false;
   if_architecture_is<architecture::intel_gpu_dg1>([]() {

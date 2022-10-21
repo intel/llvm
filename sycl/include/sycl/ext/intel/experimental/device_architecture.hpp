@@ -154,78 +154,57 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_PVC__ == 1);
 
 struct IsAOTForArchitectureClass {
-  // allocate an array of size == size of ext::intel::experimental::architecture
-  // enum
+  // Allocate an array of size == size of ext::intel::experimental::architecture
+  // enum.
   bool arr[static_cast<int>(max_architecture) + 1];
 
+  using arch = ext::intel::experimental::architecture;
+
   constexpr IsAOTForArchitectureClass() : arr() {
-    arr[static_cast<int>(ext::intel::experimental::architecture::x86_64)] =
-        __SYCL_TARGET_INTEL_X86_64__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_bdw)] =
+    arr[static_cast<int>(arch::x86_64)] = __SYCL_TARGET_INTEL_X86_64__ == 1;
+    arr[static_cast<int>(arch::intel_gpu_bdw)] =
         __SYCL_TARGET_INTEL_GPU_BDW__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_skl)] =
+    arr[static_cast<int>(arch::intel_gpu_skl)] =
         __SYCL_TARGET_INTEL_GPU_SKL__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_kbl)] =
+    arr[static_cast<int>(arch::intel_gpu_kbl)] =
         __SYCL_TARGET_INTEL_GPU_KBL__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_cfl)] =
+    arr[static_cast<int>(arch::intel_gpu_cfl)] =
         __SYCL_TARGET_INTEL_GPU_CFL__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_apl)] =
+    arr[static_cast<int>(arch::intel_gpu_apl)] =
         __SYCL_TARGET_INTEL_GPU_APL__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_glk)] =
+    arr[static_cast<int>(arch::intel_gpu_glk)] =
         __SYCL_TARGET_INTEL_GPU_GLK__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_whl)] =
+    arr[static_cast<int>(arch::intel_gpu_whl)] =
         __SYCL_TARGET_INTEL_GPU_WHL__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_aml)] =
+    arr[static_cast<int>(arch::intel_gpu_aml)] =
         __SYCL_TARGET_INTEL_GPU_AML__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_cml)] =
+    arr[static_cast<int>(arch::intel_gpu_cml)] =
         __SYCL_TARGET_INTEL_GPU_CML__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_icllp)] =
+    arr[static_cast<int>(arch::intel_gpu_icllp)] =
         __SYCL_TARGET_INTEL_GPU_ICLLP__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_ehl)] =
+    arr[static_cast<int>(arch::intel_gpu_ehl)] =
         __SYCL_TARGET_INTEL_GPU_EHL__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_tgllp)] =
+    arr[static_cast<int>(arch::intel_gpu_tgllp)] =
         __SYCL_TARGET_INTEL_GPU_TGLLP__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_rkl)] =
+    arr[static_cast<int>(arch::intel_gpu_rkl)] =
         __SYCL_TARGET_INTEL_GPU_RKL__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_adl_s)] =
+    arr[static_cast<int>(arch::intel_gpu_adl_s)] =
         __SYCL_TARGET_INTEL_GPU_ADL_S__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_rpl_s)] =
+    arr[static_cast<int>(arch::intel_gpu_rpl_s)] =
         __SYCL_TARGET_INTEL_GPU_RPL_S__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_adl_p)] =
+    arr[static_cast<int>(arch::intel_gpu_adl_p)] =
         __SYCL_TARGET_INTEL_GPU_ADL_P__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_adl_n)] =
+    arr[static_cast<int>(arch::intel_gpu_adl_n)] =
         __SYCL_TARGET_INTEL_GPU_ADL_N__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_dg1)] =
+    arr[static_cast<int>(arch::intel_gpu_dg1)] =
         __SYCL_TARGET_INTEL_GPU_DG1__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_acm_g10)] =
+    arr[static_cast<int>(arch::intel_gpu_acm_g10)] =
         __SYCL_TARGET_INTEL_GPU_ACM_G10__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_acm_g11)] =
+    arr[static_cast<int>(arch::intel_gpu_acm_g11)] =
         __SYCL_TARGET_INTEL_GPU_ACM_G11__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_acm_g12)] =
+    arr[static_cast<int>(arch::intel_gpu_acm_g12)] =
         __SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1;
-    arr[static_cast<int>(
-        ext::intel::experimental::architecture::intel_gpu_pvc)] =
+    arr[static_cast<int>(arch::intel_gpu_pvc)] =
         __SYCL_TARGET_INTEL_GPU_PVC__ == 1;
   }
 };
@@ -296,6 +275,5 @@ constexpr static auto if_architecture_is(T fnTrue, Args... args) {
 }
 
 } // namespace ext::intel::experimental
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
