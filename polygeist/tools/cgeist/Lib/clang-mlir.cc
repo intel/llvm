@@ -3467,7 +3467,6 @@ void ClangToLLVMArgMapping::construct(const ASTContext &Context,
   for (CodeGen::CGFunctionInfo::const_arg_iterator I = FI.arg_begin();
        ArgNo < NumArgs; ++I, ++ArgNo) {
     assert(I != FI.arg_end());
-    QualType ArgType = I->type;
     const CodeGen::ABIArgInfo &AI = I->info;
     // Collect data about IR arguments corresponding to Clang argument ArgNo.
     auto &IRArgs = ArgInfo[ArgNo];
@@ -3498,14 +3497,9 @@ void ClangToLLVMArgMapping::construct(const ASTContext &Context,
       IRArgs.NumberOfArgs = 0;
       break;
     case CodeGen::ABIArgInfo::CoerceAndExpand:
-      assert(false && "TODO");
-      // IRArgs.NumberOfArgs =
-      //   AI.getCoerceAndExpandTypeSequence().size();
-      break;
     case CodeGen::ABIArgInfo::Expand:
-      assert(false && "TODO");
-      // IRArgs.NumberOfArgs = getExpansionSize(ArgType, Context);
-      break;
+    default:
+      llvm_unreachable("not implemented");
     }
 
     if (IRArgs.NumberOfArgs > 0) {
@@ -3585,6 +3579,7 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
 
   case CodeGen::ABIArgInfo::Extend:
     llvm::dbgs() << "RetInfo: ABIArgInfo::Extend\n";
+    LLVM_FALLTHROUGH;
   case CodeGen::ABIArgInfo::Direct:
     llvm::dbgs() << "RetInfo: ABIArgInfo::Direct\n";
     ResultType =
@@ -3694,6 +3689,7 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
     switch (ArgInfo.getKind()) {
     case CodeGen::ABIArgInfo::Ignore:
       llvm::dbgs() << "ArgInfo: ABIArgInfo::Ignore\n";
+      LLVM_FALLTHROUGH;
     case CodeGen::ABIArgInfo::InAlloca:
       llvm::dbgs() << "ArgInfo: ABIArgInfo::InAlloca\n";
       assert(NumIRArgs == 0);
@@ -3719,6 +3715,7 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
     }
     case CodeGen::ABIArgInfo::Extend:
       llvm::dbgs() << "ArgInfo: ABIArgInfo::Extend\n";
+      LLVM_FALLTHROUGH;
     case CodeGen::ABIArgInfo::Direct: {
       llvm::dbgs() << "ArgInfo: ABIArgInfo::Direct\n";
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);

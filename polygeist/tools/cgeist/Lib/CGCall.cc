@@ -98,6 +98,7 @@ ValueCategory MLIRScanner::CallHelper(
   std::map<std::string, mlir::Value> mapFuncOperands;
 
   for (auto pair : arguments) {
+
     ValueCategory arg = std::get<0>(pair);
     clang::Expr *a = std::get<1>(pair);
 #ifdef DEBUG
@@ -190,7 +191,6 @@ ValueCategory MLIRScanner::CallHelper(
             alloc);
       } else {
         val = arg.getValue(builder);
-
         if (val.getType().isa<LLVM::LLVMPointerType>() &&
             expectedType.isa<MemRefType>()) {
           val = builder.create<polygeist::Pointer2MemrefOp>(loc, expectedType,

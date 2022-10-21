@@ -91,6 +91,6 @@ private:
   mlir::NamedAttrList attrs;
 };
 
-} // namespace mlirclang
+} // end namespace mlirclang
 
 #endif // CGEIST_ATTRIBUTES_H

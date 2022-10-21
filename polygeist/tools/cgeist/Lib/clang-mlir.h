@@ -107,6 +107,7 @@ private:
   const clang::FunctionDecl &funcDecl;
   const FunctionContext funcContext;
 };
+
 class CodeGenUtils {
 public:
   /// This class groups the type and attributes of a value (e.g. a parameter or

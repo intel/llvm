@@ -54,7 +54,7 @@ void host_1() {
   auto range = sycl::range<1>{1};
 
   {
-    auto buf = sycl::buffer<int, 1>{nullptr, range};    
+    auto buf = sycl::buffer<int, 1>{nullptr, range};
     q.submit([&](sycl::handler &cgh) {
       auto A = buf.get_access<sycl::access::mode::read_write>(cgh);
       auto ker =  kernel_1{A};
@@ -76,7 +76,7 @@ void host_2() {
   auto q = sycl::queue{};
   auto range = sycl::range<1>{1};
 
-  {  
+  {
     auto buf = sycl::buffer<int, 1>{nullptr, range};
     q.submit([&](sycl::handler &cgh) {
       auto A = buf.get_access<sycl::access::mode::read_write>(cgh);
