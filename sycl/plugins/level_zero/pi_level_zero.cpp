@@ -5800,10 +5800,8 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
     Event->CleanedUp = true;
   }
 
-  // We've reset event data members above, now cleanup resources.
-  if (AssociatedKernel) {
+  auto ReleaseIndirectMem = [](pi_kernel Kernel) {
     if (IndirectAccessTrackingEnabled) {
-      auto Kernel = AssociatedKernel;
       // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
       // kernel execution has finished. This is the place where we need to
       // release memory allocations. If kernel is not in use (not submitted by
@@ -5824,6 +5822,11 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
         Kernel->MemAllocs.clear();
       }
     }
+  };
+
+  // We've reset event data members above, now cleanup resources.
+  if (AssociatedKernel) {
+    ReleaseIndirectMem(AssociatedKernel);
     PI_CALL(piKernelRelease(AssociatedKernel));
   }
 
@@ -5879,8 +5882,10 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
         }
       }
     }
-    if (DepEventKernel)
-      PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
+    if (DepEventKernel) {
+      ReleaseIndirectMem(DepEventKernel);
+      PI_CALL(piKernelRelease(DepEventKernel));
+    }
     PI_CALL(piEventReleaseInternal(DepEvent));
   }
 
