@@ -66,7 +66,7 @@ extension's APIs the implementation supports.
 
 == Overview
 
-The extension allows to get `sycl::buffer` via  `sycl::accessor. The new `get_buffer()`
+The extension allows to get `sycl::buffer` via  `sycl::accessor`. The new `get_buffer()`
 member function could be called for any accessor, regardless of whether it is a placeholder.
 However, it can only be called from host code, not from within the kernel.
 
