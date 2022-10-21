@@ -3565,8 +3565,22 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   // Check if the alias exists. If it doesn't, then get or create the global.
   if (CGM.getItaniumVTableContext().isRelativeLayout())
     VTable = CGM.getModule().getNamedAlias(VTableName);
-  if (!VTable)
-    VTable = CGM.getModule().getOrInsertGlobal(VTableName, CGM.Int8PtrTy);
+  if (!VTable) {
+    auto GVTy = VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo
+                    ? CGM.Int8Ty->getPointerTo(/*addrspace =*/1)
+                    : CGM.Int8PtrTy;
+    if (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo) {
+      VTable = CGM.getModule().getOrInsertGlobal(VTableName, GVTy, [&] {
+        return new llvm::GlobalVariable(
+            CGM.getModule(), GVTy, false, llvm::GlobalVariable::ExternalLinkage,
+            nullptr, VTableName, nullptr,
+            llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
+            llvm::Optional<unsigned>(/*addrspace =*/1));
+      });
+    } else {
+      VTable = CGM.getModule().getOrInsertGlobal(VTableName, CGM.Int8PtrTy);
+    }
+  }
 
   CGM.setDSOLocal(cast<llvm::GlobalValue>(VTable->stripPointerCasts()));
 
@@ -3583,10 +3597,16 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
-    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8PtrTy, VTable,
-                                                          Two);
+    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(
+        VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo
+            ? CGM.Int8Ty->getPointerTo(/*addrspace =*/1)
+            : CGM.Int8PtrTy,
+        VTable, Two);
   }
-  VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.Int8PtrTy);
+  VTable = llvm::ConstantExpr::getBitCast(
+      VTable, VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo
+                  ? CGM.Int8Ty->getPointerTo(/*addrspace =*/1)
+                  : CGM.Int8PtrTy);
 
   Fields.push_back(VTable);
 }
