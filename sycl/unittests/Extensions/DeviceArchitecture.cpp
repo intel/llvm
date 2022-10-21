@@ -17,19 +17,19 @@ using namespace sycl;
 using namespace sycl::detail;
 using namespace sycl::ext::intel::experimental;
 
-TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_If) {
+TEST(DeviceArchitectureTest, DeviceArchitecture_If) {
   bool res = false;
   if_architecture_is<architecture::intel_gpu_skl>([&]() { res = true; });
   ASSERT_TRUE(res);
 }
 
-TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_If_Negative) {
+TEST(DeviceArchitectureTest, DeviceArchitecture_If_Negative) {
   bool res = false;
   if_architecture_is<architecture::intel_gpu_pvc>([&]() { res = true; });
   ASSERT_FALSE(res);
 }
 
-TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_Else_If) {
+TEST(DeviceArchitectureTest, DeviceArchitecture_Else_If) {
   bool res = false;
   if_architecture_is<architecture::intel_gpu_dg1>([]() {
   }).else_if_architecture_is<architecture::intel_gpu_skl>([&]() {
@@ -38,7 +38,7 @@ TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_Else_If) {
   ASSERT_TRUE(res);
 }
 
-TEST(DeviceArchitectureTest, DeviceArchitectureOneArchSelected_Otherwise) {
+TEST(DeviceArchitectureTest, DeviceArchitecture_Otherwise) {
   bool res = false;
   if_architecture_is<architecture::intel_gpu_dg1>([]() {
   }).else_if_architecture_is<architecture::intel_gpu_pvc>([&]() {
