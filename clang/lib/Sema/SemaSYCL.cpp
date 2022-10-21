@@ -2412,9 +2412,15 @@ static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
 }
 
-static bool isSYCLKernelDefinedAsAFunctor(const CXXRecordDecl *KernelObjType) {
-  const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
-  return (OpParens != nullptr);
+// Fetch the associated call operator of the kernel object
+// (of either the lambda or the function object).
+static bool IsCallOperatorDefined(const CXXRecordDecl *KernelObjType) {
+  const CXXMethodDecl *CallOperator = nullptr;
+  if (KernelObjType->isLambda())
+    CallOperator = KernelObjType->getLambdaCallOperator();
+  else
+    CallOperator = getOperatorParens(KernelObjType);
+  return (CallOperator != nullptr);
 }
 
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
@@ -3462,8 +3468,8 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  bool IsKernelAValidFunctor = isSYCLKernelDefinedAsAFunctor(KernelObj);
-  if (!KernelObj || !IsKernelAValidFunctor) {
+  bool IsKernelTypeValid = IsCallOperatorDefined(KernelObj);
+  if (!KernelObj || !IsKernelTypeValid) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
