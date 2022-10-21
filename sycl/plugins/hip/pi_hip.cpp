@@ -1964,6 +1964,8 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
     }
 
     *retcontext = piContextPtr.release();
+    std::cout << "hip_piContextCreate with " << *retcontext << std::endl;
+
   } catch (pi_result err) {
     errcode_ret = err;
   } catch (...) {
@@ -1979,6 +1981,7 @@ pi_result hip_piContextRelease(pi_context ctxt) {
   if (ctxt->decrement_reference_count() > 0) {
     return PI_SUCCESS;
   }
+  std::cout << "hip_piContextRelease with " << ctxt << std::endl;
   ctxt->invoke_extended_deleters();
 
   std::unique_ptr<_pi_context> context{ctxt};
@@ -2617,7 +2620,7 @@ pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
     auto context = event_list[0]->get_context();
     std::cout << "after auto context = event_list[0]->get_context()"
               << std::endl;
-
+    std::cout << "ScopedContext with " << context << std::endl;
     ScopedContext active(context);
 
     auto waitFunc = [context](pi_event event) -> pi_result {
