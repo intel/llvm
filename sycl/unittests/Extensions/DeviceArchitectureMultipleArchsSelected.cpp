@@ -31,5 +31,5 @@ TEST(DeviceArchitectureTest, DeviceArchitectureMultipleArchsSelected_Else_If) {
   if_architecture_is<architecture::x86_64>([&]() {
     res = 1;
   }).else_if_architecture_is<architecture::intel_gpu_pvc>([&]() { res = 2; });
-  ASSERT_EQ(res, 1);
+  ASSERT_EQ(res, 2);
 }
