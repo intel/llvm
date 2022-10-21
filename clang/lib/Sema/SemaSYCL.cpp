@@ -1549,6 +1549,14 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
   bool IsSIMD = false;
+  // Keeps track of whether we are currently handling fields inside a struct.
+  // Fields of kernel functor or direct kernel captures will have a depth 0.
+  int StructFieldDepth = 0;
+  // Initialize with -1 so that fields of a base class of the kernel functor
+  // has depth 0. Visitor method enterStruct increments this to 0 when the base
+  // class is entered.
+  int StructBaseDepth = -1;
+
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
@@ -1633,6 +1641,16 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool checkSyclSpecialType(QualType Ty, SourceRange Loc) {
     assert(isSyclSpecialType(Ty, SemaRef) &&
            "Should only be called on sycl special class types.");
+
+    // Annotated pointers and annotated arguments must be captured
+    // directly by the SYCL kernel.
+    if ((isSyclType(Ty, SYCLTypeAttr::annotated_ptr) ||
+         isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
+         (StructFieldDepth > 0 || StructBaseDepth > 0))
+      return SemaRef.Diag(Loc.getBegin(),
+                          diag::err_bad_kernel_param_data_members)
+             << Ty << /*Struct*/ 1;
+
     const RecordDecl *RecD = Ty->getAsRecordDecl();
     if (IsSIMD && !isSyclAccessorType(Ty))
       return SemaRef.Diag(Loc.getBegin(),
@@ -1715,6 +1733,28 @@ public:
     IsInvalid = true;
     return isValid();
   }
+
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
+    ++StructFieldDepth;
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
+    --StructFieldDepth;
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                   QualType FieldTy) final {
+    ++StructBaseDepth;
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                   QualType FieldTy) final {
+    --StructBaseDepth;
+    return true;
+  }
 };
 
 // A type to check the validity of accessing accessor/sampler/stream
@@ -1734,7 +1774,8 @@ public:
   bool checkType(SourceLocation Loc, QualType Ty) {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(Loc, diag::err_bad_union_kernel_param_members) << Ty;
+      Diag.Report(Loc, diag::err_bad_kernel_param_data_members)
+          << Ty << /*Union*/ 0;
     }
     return isValid();
   }
@@ -3575,17 +3616,25 @@ public:
 
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::stream)) {
+      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
+      CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+      assert(InitMethod && "type must have __init method");
+      const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
+      assert(InitArg && "Init method must have arguments");
+      QualType T = InitArg->getType();
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          isSyclType(FieldTy, SYCLTypeAttr::sampler)
+              ? SYCLIntegrationHeader::kind_sampler
+              : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
+                                    : SYCLIntegrationHeader::kind_std_layout);
+      addParam(T, ParamKind, offsetOf(FD, FieldTy));
     } else {
-      if (getMethodByName(ClassTy, FinalizeMethodName))
-        addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-      else {
-        CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
-        assert(InitMethod && "type must have __init method");
-        const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
-        assert(SamplerArg && "Init method must have arguments");
-        addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
-                 offsetOf(FD, FieldTy));
-      }
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating integration header");
     }
     return true;
   }
