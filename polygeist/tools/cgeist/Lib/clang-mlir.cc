@@ -3506,6 +3506,7 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     const clang::FunctionDecl &FD,
     SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) {
   assert(parmDescriptors.empty() && "Expecting 'parmDescriptors' to be empty");
+  llvm::dbgs() << "\n--Entering createMLIRParameterDescriptors--\n";
 
   bool isMethodDecl = isa<CXXMethodDecl>(FD);
   bool isMethodInstance = isMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
@@ -3533,6 +3534,10 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     });
     assert((mlirThisType.isa<LLVM::LLVMPointerType, MemRefType>()) &&
            "Unexpected type");
+
+    llvm::dbgs() << "Adding this type to function parameters: ";
+    thisType.dump();
+    llvm::dbgs().indent(2) << "mlir type: " << mlirThisType << "\n";
 
     parmDescriptors.push_back(mlirThisType);
   }
@@ -3576,11 +3581,10 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
       mlirType = getMLIRType(CGM.getContext().getLValueReferenceType(parmType));
 
 #if 1
-    llvm::dbgs() << __LINE__ << "\n";
+    llvm::dbgs() << "Processing parameter\n";
     llvm::dbgs() << "parmType: ";
     parmType.dump();
-    llvm::dbgs() << "\n";
-    llvm::dbgs() << "mlirType: " << mlirType << "\n";
+    llvm::dbgs().indent(2) << "mlir type: " << mlirType << "\n";
 #endif
 
     parmDescriptors.push_back(mlirType);
@@ -3595,6 +3599,8 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
             .cast<MemRefType>();
     assert(mt.getShape().size() == 2);
     parmDescriptors.push_back(mt);
+    llvm::dbgs() << "Adding parameter for array return\n";
+    llvm::dbgs().indent(2) << "mlir type: " << mt << "\n";
   }
 }
 
@@ -3750,24 +3756,40 @@ void ClangToLLVMArgMapping::construct(const ASTContext &Context,
 mlir::FunctionType
 MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
                                  const clang::FunctionDecl &FD) {
-  mlir::OpBuilder builder(module->getContext());
+  llvm::dbgs() << "\n--Entering getFunctionType--\n";
+
+  const bool isMethodDecl = isa<CXXMethodDecl>(FD);
+  const bool isMethodInstance =
+      isMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
+  bool isArrayReturn = false;
+  getMLIRType(FD.getReturnType(), &isArrayReturn);
+
+  if (isMethodInstance)
+    llvm::dbgs() << "isMethodInstance = true\n";
+  if (isArrayReturn)
+    llvm::dbgs() << "isArrayReturn = true\n";
 
   // Compute result type.
-  mlir::Type resultType;
   const CodeGen::ABIArgInfo &retAI = FI.getReturnInfo();
   ClangToLLVMArgMapping IRFunctionArgs(CGM.getContext(), FI, true);
+  mlir::OpBuilder builder(module->getContext());
+  llvm::dbgs() << "Processing return value\n";
 
+  mlir::Type resultType;
   switch (retAI.getKind()) {
   case CodeGen::ABIArgInfo::Expand:
   case CodeGen::ABIArgInfo::IndirectAliased:
     llvm_unreachable("Invalid ABI kind for return argument");
 
   case CodeGen::ABIArgInfo::Extend:
+    llvm::dbgs() << "RetInfo: ABIArgInfo::Extend\n";
   case CodeGen::ABIArgInfo::Direct:
+    llvm::dbgs() << "RetInfo: ABIArgInfo::Direct\n";
     resultType = getMLIRType(FI.getReturnType());
     break;
 
   case CodeGen::ABIArgInfo::InAlloca:
+    llvm::dbgs() << "RetInfo: ABIArgInfo::InAlloca\n";
     if (retAI.getInAllocaSRet()) {
       // sret things on win32 aren't void, they return the sret pointer.
       QualType ret = FI.getReturnType();
@@ -3780,6 +3802,7 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
     break;
 
   case CodeGen::ABIArgInfo::Indirect:
+    llvm::dbgs() << "RetInfo: ABIArgInfo::Indirect\n";
     // HACK: remove once we can handle function returning a struct.
     {
       QualType ret = FI.getReturnType();
@@ -3789,10 +3812,12 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
       break;
     }
   case CodeGen::ABIArgInfo::Ignore:
+    llvm::dbgs() << "RetInfo: ABIArgInfo::Ignore\n";
     resultType = builder.getNoneType();
     break;
 
   case CodeGen::ABIArgInfo::CoerceAndExpand:
+    llvm::dbgs() << "RefInfo: ABIArgInfo::CoerceAndExpand\n";
     assert(false && "TODO");
     break;
   }
@@ -3818,6 +3843,7 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
   // TODO
   // Add type for sret argument.
   if (IRFunctionArgs.hasSRetArg()) {
+    assert(isArrayReturn);
     QualType Ret = FI.getReturnType();
     mlir::Type Ty = getMLIRType(Ret);
     unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
@@ -3836,8 +3862,20 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
   }
 #endif
 
+  if (isMethodInstance) {
+    // The declared function type does not contain the this pointer, while the
+    // FI argument type does.
+    assert(FD.getNumParams() == FI.getNumRequiredArgs() - 1);
+    // This means that the fir
+  } else
+    assert(FD.getNumParams() == FI.getNumRequiredArgs());
+
+  llvm::dbgs() << "FD.getNumParams(): " << FD.getNumParams() << "\n";
+  llvm::dbgs() << "FI.getNumRequiredArgs(): " << FI.getNumRequiredArgs()
+               << "\n";
+
   // This assumption can be false ?
-  assert(FD.getNumParams() == FI.getNumRequiredArgs());
+  //  assert(FD.getNumParams() == FI.getNumRequiredArgs());
 
   // Add in all of the required arguments.
   unsigned ArgNo = 0;
@@ -3849,14 +3887,32 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
     // parameter in the function declaration.
     // In order to avoid premature loss of information (e.g. array dimensions)
     // we want to use the original parameter type here.
-    const QualType &DeclArgTy = FD.getParamDecl(ArgNo)->getType();
+
     const QualType &ArgTy = it->type;
     const CodeGen::ABIArgInfo &ArgInfo = it->info;
 
-    // Sanity check: ensure the original type matches the ABI type.
-    assert(DeclArgTy == ArgTy ||
-           (isa<DecayedType>(DeclArgTy) &&
-            cast<DecayedType>(DeclArgTy)->getDecayedType() == ArgTy));
+    auto getDeclArgTy = [&](int32_t ArgNo, const QualType &ABIArgTy) {
+      if (isMethodInstance) // account for the fact the 'this' type is not
+        ArgNo--;            // present in the function declaration.
+      const QualType &DeclArgTy =
+          (ArgNo == -1) ? ABIArgTy : FD.getParamDecl(ArgNo)->getType();
+
+      llvm::dbgs() << "ABIArgTy: ";
+      ABIArgTy.dump();
+      llvm::dbgs() << "DeclArgTy: ";
+      DeclArgTy.dump();
+
+      return DeclArgTy;
+    };
+
+    auto getMLIRArgType = [this](const QualType &QT) {
+      bool IsRef = false;
+      mlir::Type ArgTy = getMLIRType(QT, &IsRef);
+      if (IsRef)
+        ArgTy = getMLIRType(CGM.getContext().getLValueReferenceType(QT));
+      llvm::dbgs().indent(2) << "mlir type: " << ArgTy << "\n";
+      return ArgTy;
+    };
 
 #if 0
     // TODO
@@ -3870,33 +3926,23 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
     std::tie(FirstIRArg, NumIRArgs) = IRFunctionArgs.getIRArgs(ArgNo);
 
 #if 1
-    llvm::dbgs() << "ArgNo = " << ArgNo << "\n";
-    llvm::dbgs() << "FirstIRArg = " << FirstIRArg << "\n";
-    llvm::dbgs() << "NumIRArgs = " << NumIRArgs << "\n";
-    llvm::dbgs() << "ArgTy: ";
-    ArgTy.dump();
-    llvm::dbgs() << "\n";
-    llvm::dbgs() << "DeclArgTy: ";
-    DeclArgTy.dump();
-    llvm::dbgs() << "\n";
+    llvm::dbgs() << "\nProcessing Arg " << ArgNo
+                 << ", FirstIRArg = " << FirstIRArg
+                 << ", NumIRArgs = " << NumIRArgs << "\n";
 #endif
 
-    auto getMLIRArgType = [this](const QualType &QT) {
-      bool IsRef = false;
-      mlir::Type ArgTy = getMLIRType(QT, &IsRef);
-      if (IsRef)
-        ArgTy = getMLIRType(CGM.getContext().getLValueReferenceType(QT));
-      return ArgTy;
-    };
+    const QualType &DeclArgTy = getDeclArgTy(ArgNo, ArgTy);
 
     switch (ArgInfo.getKind()) {
     case CodeGen::ABIArgInfo::Ignore:
+      llvm::dbgs() << "ArgInfo: ABIArgInfo::Ignore\n";
     case CodeGen::ABIArgInfo::InAlloca:
+      llvm::dbgs() << "ArgInfo: ABIArgInfo::InAlloca\n";
       assert(NumIRArgs == 0);
       break;
     case CodeGen::ABIArgInfo::Indirect: {
+      llvm::dbgs() << "ArgInfo: ABIArgInfo::Indirect\n";
       assert(NumIRArgs == 1);
-      llvm::dbgs() << "line " << __LINE__ << "\n";
       // indirect arguments are always on the stack, which is alloca addr space.
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
       ArgTypes[FirstIRArg] = mlir::MemRefType::get(
@@ -3904,29 +3950,30 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
       break;
     }
     case CodeGen::ABIArgInfo::IndirectAliased: {
+      llvm::dbgs() << "ArgInfo: ABIArgInfo::IndirectAliased\n";
       assert(NumIRArgs == 1);
-      llvm::dbgs() << "line " << __LINE__ << "\n";
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
       ArgTypes[FirstIRArg] = mlir::MemRefType::get(
           -1, MLIRArgTy, {}, ArgInfo.getIndirectAddrSpace());
       break;
     }
     case CodeGen::ABIArgInfo::Extend:
+      llvm::dbgs() << "ArgInfo: ABIArgInfo::Extend\n";
     case CodeGen::ABIArgInfo::Direct: {
+      llvm::dbgs() << "ArgInfo: ABIArgInfo::Direct\n";
+      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
+#if 0
       // Fast-isel and the optimizer generally like scalar values better than
       // FCAs, so we flatten them if this is safe to do for this argument.
-      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
       auto st = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
       if (st && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened()) {
         assert(NumIRArgs == st.getBody().size());
         for (unsigned i = 0, e = st.getBody().size(); i != e; ++i)
           ArgTypes[FirstIRArg + i] = st.getBody()[i];
-      } else {
-        assert(NumIRArgs == 1);
-#if 0
-        llvm::dbgs() << "line " << __LINE__ << "\n";
-        llvm::dbgs() << "argType: " << argType << "\n";
+      } else
 #endif
+      {
+        assert(NumIRArgs == 1);
         ArgTypes[FirstIRArg] = MLIRArgTy;
       }
       break;
@@ -3980,11 +4027,12 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
 
   auto funcTy1 = builder.getFunctionType(parmTypes, retTypes);
+
+  llvm::dbgs() << "New funcTy: " << funcTy << "\n";
+  llvm::dbgs() << "Old funcTy1: " << funcTy1 << "\n";
   if (funcTy != funcTy1) {
     llvm::dbgs() << "BINGO - types are different for " << mangledName
                  << "!!!\n";
-    llvm::dbgs() << "New funcTy: " << funcTy << "\n";
-    llvm::dbgs() << "Old funcTy1: " << funcTy1 << "\n";
   }
   if (UseOldFunctionType)
     funcTy = funcTy1;
@@ -5567,8 +5615,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
-      // Reset the ID tables if we are reusing the SourceManager and parsing
-      // regular files.
+      // Reset the ID tables if we are reusing the
+      // SourceManager and parsing regular files.
       if (Clang->hasSourceManager() && !Act.isModelParsingAction())
         Clang->getSourceManager().clearIDTables();
       if (Act.BeginSourceFile(*Clang, FIF)) {
