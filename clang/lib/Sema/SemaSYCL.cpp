@@ -986,7 +986,8 @@ static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
 
 // Fetch the associated call operator of the kernel object
 // (of either the lambda or the function object).
-CXXMethodDecl *IsCallOperatorDefined(const CXXRecordDecl *KernelObjType) {
+CXXMethodDecl *
+GetCallOperatorOfKernelObject(const CXXRecordDecl *KernelObjType) {
   CXXMethodDecl *CallOperator = nullptr;
   if (!KernelObjType)
     return CallOperator;
@@ -2509,7 +2510,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // (of either the lambda or the function object).
     CXXRecordDecl *KernelObj =
         GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-    CXXMethodDecl *WGLambdaFn = IsCallOperatorDefined(KernelObj);
+    CXXMethodDecl *WGLambdaFn = GetCallOperatorOfKernelObject(KernelObj);
 
     assert(WGLambdaFn && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
@@ -3467,8 +3468,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  CXXMethodDecl *CallOperator = IsCallOperatorDefined(KernelObj);
-  if (!CallOperator) {
+  if (!GetCallOperatorOfKernelObject(KernelObj)) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
