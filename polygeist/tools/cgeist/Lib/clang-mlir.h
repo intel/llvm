@@ -496,7 +496,8 @@ public:
   ValueCategory
   CallHelper(mlir::func::FuncOp tocall, clang::QualType objType,
              clang::ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
-             clang::QualType retType, bool retReference, clang::Expr *expr);
+             clang::QualType retType, bool retReference, clang::Expr *expr,
+             const clang::FunctionDecl *callee);
 
   std::pair<ValueCategory, bool>
   EmitClangBuiltinCallExpr(clang::CallExpr *expr);

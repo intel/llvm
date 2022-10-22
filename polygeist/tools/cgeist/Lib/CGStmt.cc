@@ -1150,6 +1150,10 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
                               stmt->getRetValue()->isXValue())
                      << "\n";
       }
+      if (auto postMemRef = postTy.dyn_cast<MemRefType>())
+        if (postMemRef.getMemorySpaceAsInt() !=
+            val.getType().cast<MemRefType>().getMemorySpaceAsInt())
+          val = castToMemSpace(val, postMemRef.getMemorySpaceAsInt());
       assert(postTy == val.getType());
       builder.create<mlir::memref::StoreOp>(loc, val, returnVal);
     }

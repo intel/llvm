@@ -375,7 +375,16 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  const bool isKernel = FD->hasAttr<SYCLKernelAttr>();
+  GlobalDecl GD;
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
+  else
+    GD = GlobalDecl(FD);
+  const CodeGen::CGFunctionInfo &FI =
+      Glob.getCGM().getTypes().arrangeGlobalDeclaration(GD);
+  auto FuncInfos = FI.arguments();
 
   for (ParmVarDecl *parm : FD->parameters()) {
     assert(i != function.getNumArguments());
@@ -389,14 +398,16 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     else
       Glob.getMLIRType(parmType, &isArray);
 
-    if (!isArray &&
-        isa<clang::ReferenceType>(parmType->getUnqualifiedDesugaredType()))
-      isArray = true;
+    bool isReference = isArray || isa<clang::ReferenceType>(
+                                      parmType->getUnqualifiedDesugaredType());
+    isReference |=
+        (FuncInfos[i].info.getKind() == CodeGen::ABIArgInfo::Indirect ||
+         FuncInfos[i].info.getKind() == CodeGen::ABIArgInfo::IndirectAliased);
 
     mlir::Value val = function.getArgument(i);
     assert(val && "Expecting a valid value");
 
-    if (isArray || (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)))
+    if (isReference)
       params.emplace(parm, ValueCategory(val, /*isReference*/ true));
     else {
       mlir::Value alloc =
@@ -3699,8 +3710,18 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
       assert(NumIRArgs == 1);
       // indirect arguments are always on the stack, which is alloca addr space.
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
-      ArgTypes[FirstIRArg] = mlir::MemRefType::get(
-          -1, MLIRArgTy, {}, CGM.getDataLayout().getAllocaAddrSpace());
+      bool IsSYCLType = mlir::sycl::isSYCLType(MLIRArgTy);
+      if (auto ST = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>()) {
+        IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
+          return mlir::sycl::isSYCLType(Element);
+        });
+      }
+      if (IsSYCLType)
+        ArgTypes[FirstIRArg] = mlir::MemRefType::get(
+            -1, MLIRArgTy, {}, CGM.getDataLayout().getAllocaAddrSpace());
+      else
+        ArgTypes[FirstIRArg] = LLVM::LLVMPointerType::get(
+            MLIRArgTy, CGM.getDataLayout().getAllocaAddrSpace());
       llvm::dbgs().indent(2) << "mlir type: " << ArgTypes[FirstIRArg] << "\n";
       break;
     }
