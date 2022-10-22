@@ -206,7 +206,7 @@ def SYCLCallOp : SYCL_Op<"call", []> {
 // accessor.subscript OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def SYCLAccessorSubscriptIndex : AnyTypeOf<[IndexType, SYCL_IDType]>;
+def SYCLAccessorSubscriptIndex : AnyTypeOf<[IndexType, IDMemRef]>;
 
 def SYCLAccessorSubscriptOp
     : SYCLMethodOpInterfaceImpl<"accessor.subscript", "AccessorType",

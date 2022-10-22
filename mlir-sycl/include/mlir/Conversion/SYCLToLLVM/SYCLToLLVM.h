@@ -26,9 +26,6 @@ void populateSYCLToLLVMTypeConversion(LLVMTypeConverter &typeConverter);
 void populateSYCLToLLVMConversionPatterns(LLVMTypeConverter &typeConverter,
                                           RewritePatternSet &patterns);
 
-/// Return true if the given \p type is a SYCL type.
-bool isSYCLType(Type type);
-
 } // namespace sycl
 } // namespace mlir
 

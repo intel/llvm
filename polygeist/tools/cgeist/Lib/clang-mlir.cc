@@ -4314,16 +4314,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
       if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-        for (auto Element : ST.getBody()) {
-          if (Element.isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                          mlir::sycl::RangeType,
-                          mlir::sycl::AccessorImplDeviceType,
-                          mlir::sycl::ArrayType, mlir::sycl::ItemType,
-                          mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-                          mlir::sycl::GroupType>()) {
-            InnerSYCL = true;
-          }
-        }
+        InnerSYCL = any_of(ST.getBody(), [](auto Element) {
+          return mlir::sycl::isSYCLType(Element);
+        });
       }
 
       if (!InnerSYCL)
