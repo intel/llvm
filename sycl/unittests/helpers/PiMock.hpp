@@ -52,14 +52,14 @@ namespace detail = sycl::detail;
 namespace RT = detail::pi;
 
 /// The macro below defines a proxy functions for each PI API call.
-/// This proxy function calls all the functions regestered in CallBefore*
+/// This proxy function calls all the functions registered in CallBefore*
 /// function pointer array, then calls Original function, then calls functions
 /// registered in CallAfter* array.
 ///
 /// If a function from CallBefore* returns a non-PI_SUCCESS return code the
 /// proxy function bails out.
 
-/// Number of functions that can be regestered as CallBefore and CallAfter
+/// Number of functions that can be registered as CallBefore and CallAfter
 inline constexpr size_t CallStackSize = 16;
 #define _PI_API(api)                                                           \
                                                                                \

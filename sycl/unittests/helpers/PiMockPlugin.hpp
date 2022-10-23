@@ -16,7 +16,7 @@
 #include <atomic>
 #include <cstring>
 
-// Helpers for dymmy handles
+// Helpers for dummy handles
 
 struct DummyHandleT {
   DummyHandleT(size_t DataSize = 0)
