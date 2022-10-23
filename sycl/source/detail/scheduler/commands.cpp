@@ -413,8 +413,8 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
-      MType(Type) {
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MEnqueueStatus(MEvent->getEnqueueStatus()) {
   MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
@@ -710,42 +710,22 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
-  // Exit if already enqueued
-  if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
-    return true;
-
-  // If the command is blocked from enqueueing
-  if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
-    // Exit if enqueue type is not blocking
-    if (!Blocking) {
-      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
-      return false;
-    }
-    static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
-    if (ThrowOnBlock)
-      throw sycl::runtime_error(
-          std::string("Waiting for blocked command. Block reason: ") +
-              std::string(getBlockReason()),
-          PI_ERROR_INVALID_OPERATION);
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Scoped trace event notifier that emits a barrier begin and barrier end
-    // event, which models the barrier while enqueuing along with the blocked
-    // reason, as determined by the scheduler
-    std::string Info = "enqueue.barrier[";
-    Info += std::string(getBlockReason()) + "]";
-    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-#endif
-
-    // Wait if blocking
-    while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
-      ;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-#endif
-  }
+  assert(!isEnqueueBlocked());
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
+
+  bool HasIncompletedHostDeps = false;
+  for (const EventImplPtr &Event : MPreparedHostDepsEvents)
+    if (Event->get_info<info::event::command_execution_status>() !=
+        info::event_command_status::complete) {
+      if (!HasIncompletedHostDeps)
+        EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
+      HasIncompletedHostDeps = true;
+      EnqueueResult.MBlockingEvents.push_back(Event);
+    }
+
+  if (HasIncompletedHostDeps)
+    return false;
 
   // Exit if the command is already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)

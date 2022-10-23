@@ -17,33 +17,41 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-static Command *getCommand(const EventImplPtr &Event) {
+Command *Scheduler::GraphProcessor::getCommand(const EventImplPtr &Event) {
   return (Command *)Event->getCommand();
 }
 
-void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
-                                             ReadLockT &GraphReadLock,
-                                             std::vector<Command *> &ToCleanUp,
-                                             bool LockTheLock) {
-  Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates sycl::event explicitly or the
-  // event has been waited on by another thread
-  if (!Cmd)
-    return;
+std::vector<EventImplPtr>
+Scheduler::GraphProcessor::collectEventsForRecToFinish(MemObjRecord *Record) {
+  std::vector<EventImplPtr> DepEvents;
 
-  EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, BLOCKING);
-  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-    // TODO: Reschedule commands.
-    throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Will contain the list of dependencies for the Release Command
+  std::set<Command *> DepCommands;
+#endif
+  for (Command *Cmd : Record->MReadLeaves) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    DepCommands.insert(Cmd);
+#endif
+    DepEvents.push_back(Cmd->getEvent());
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    DepCommands.insert(Cmd);
+#endif
+    DepEvents.push_back(Cmd->getEvent());
+  }
 
-  assert(Cmd->getEvent() == Event);
-
-  GraphReadLock.unlock();
-  Event->waitInternal();
-
-  if (LockTheLock)
-    GraphReadLock.lock();
+  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
+    Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    // Report these dependencies to the Command so these dependencies can be
+    // reported as edges
+    ReleaseCmd->resolveReleaseDependencies(DepCommands);
+#endif
+    DepEvents.push_back(ReleaseCmd->getEvent());
+  }
+  return DepEvents;
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(
@@ -60,11 +68,10 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
-  for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
+  for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents())
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
       if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
         return false;
-  }
 
   // Recursively enqueue all the implicit + explicit host dependencies and
   // exit immediately if any of the commands cannot be enqueued.
@@ -72,10 +79,15 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // this command will wait till host task completion by waitInternal call on
   // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
   // completion stage and eliminate this event waiting in enqueue.
-  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
+  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents())
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
       if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
         return false;
+
+  if (Cmd->isEnqueueBlocked()) {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    EnqueueResult.MBlockingEvents.push_back(Cmd->getEvent());
+    return false;
   }
 
   // Only graph read lock is to be held here.

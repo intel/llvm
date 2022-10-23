@@ -380,7 +380,7 @@ public:
   /// corresponding function of device API.
   ///
   /// \param Event is a pointer to event to wait on.
-  void waitForEvent(EventImplPtr Event);
+  void waitForEvent(const EventImplPtr &Event);
 
   /// Removes buffer from the graph.
   ///
@@ -742,6 +742,10 @@ protected:
                              std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true);
 
+    // Collect events for all command that access the memory object
+    static std::vector<EventImplPtr>
+    collectEventsForRecToFinish(MemObjRecord *Record);
+
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
@@ -753,6 +757,10 @@ protected:
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
                                BlockingT Blocking = NON_BLOCKING);
+
+    /// Retruns a command associated with the Event
+    /// \param an event the function returns a command for
+    static Command *getCommand(const EventImplPtr &Event);
   };
 
   /// This function waits on all of the graph leaves which somehow use the

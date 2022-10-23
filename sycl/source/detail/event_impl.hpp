@@ -33,6 +33,28 @@ using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
 using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
+class Command;
+
+struct EnqueueResultT {
+  enum ResultT {
+    SyclEnqueueReady,
+    SyclEnqueueSuccess,
+    SyclEnqueueBlocked,
+    SyclEnqueueFailed
+  };
+  EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
+                 pi_int32 ErrCode = PI_SUCCESS)
+      : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
+  /// Indicates the result of enqueueing.
+  ResultT MResult;
+  /// Pointer to the command which failed to enqueue.
+  Command *MCmd;
+  /// Error code which is set when enqueueing fails.
+  pi_int32 MErrCode;
+  /// Events of commands that block enqueue
+  std::vector<EventImplPtr> MBlockingEvents;
+};
+
 class event_impl {
 public:
   enum HostEventState : int {
@@ -113,6 +135,8 @@ public:
 
   /// Waits for the event with respect to device type.
   void waitInternal();
+
+  void waitStateChange();
 
   /// Marks this event as completed.
   void setComplete();
@@ -234,6 +258,10 @@ public:
   /// state.
   bool isInitialized() const noexcept { return MIsInitialized; }
 
+  std::atomic<EnqueueResultT::ResultT> &getEnqueueStatus() {
+    return MEnqueueStatus;
+  }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -279,6 +307,9 @@ private:
 
   std::mutex MMutex;
   std::condition_variable cv;
+
+  /// Describes the status of the command.
+  std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
   friend std::vector<RT::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

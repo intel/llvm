@@ -46,25 +46,6 @@ class EmptyCommand;
 
 enum BlockingT { NON_BLOCKING = 0, BLOCKING };
 
-/// Result of command enqueueing.
-struct EnqueueResultT {
-  enum ResultT {
-    SyclEnqueueReady,
-    SyclEnqueueSuccess,
-    SyclEnqueueBlocked,
-    SyclEnqueueFailed
-  };
-  EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
-                 pi_int32 ErrCode = PI_SUCCESS)
-      : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
-  /// Indicates the result of enqueueing.
-  ResultT MResult;
-  /// Pointer to the command which failed to enqueue.
-  Command *MCmd;
-  /// Error code which is set when enqueueing fails.
-  pi_int32 MErrCode;
-};
-
 /// Dependency between two commands.
 struct DepDesc {
   DepDesc(Command *DepCommand, const Requirement *Req,
@@ -288,7 +269,7 @@ public:
   BlockReason MBlockReason;
 
   /// Describes the status of the command.
-  std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
+  std::atomic<EnqueueResultT::ResultT> &MEnqueueStatus;
 
   // All member variable defined here  are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION

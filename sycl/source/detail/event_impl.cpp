@@ -76,6 +76,38 @@ void event_impl::waitInternal() {
   cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 
+void event_impl::waitStateChange() {
+  // If the command enqueued we can wait for its event completion directly
+  if (getEnqueueStatus() == EnqueueResultT::SyclEnqueueSuccess) {
+    waitInternal();
+  }
+  // Otherwise wait until unblocked and move further(we will enqueue it
+  // during the next attempt)
+  else {
+    const static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+/* #ifdef XPTI_ENABLE_INSTRUMENTATION */
+/*     // Scoped trace event notifier that emits a barrier begin and barrier end */
+/*     // event, which models the barrier while enqueuing along with the blocked */
+/*     // reason, as determined by the scheduler */
+/*     std::string Info = "enqueue.barrier["; */
+/*     Info += std::string(getBlockReason()) + "]"; */
+/*     emitInstrumentation(xpti::trace_barrier_begin, Info.c_str()); */
+/* #endif */
+
+    while (getEnqueueStatus() == EnqueueResultT::SyclEnqueueBlocked) {
+      if (ThrowOnBlock)
+        throw sycl::runtime_error(
+            std::string("Waiting for blocked command. Block reason: "),
+            PI_ERROR_INVALID_OPERATION);
+      std::this_thread::yield();
+    }
+/* #ifdef XPTI_ENABLE_INSTRUMENTATION */
+/*     emitInstrumentation(xpti::trace_barrier_end, Info.c_str()); */
+/* #endif */
+  }
+  // TODO: Handle other statuses?
+}
+
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
     std::unique_lock<std::mutex> lock(MMutex);
