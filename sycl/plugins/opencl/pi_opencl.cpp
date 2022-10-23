@@ -503,8 +503,10 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                            pi_context, pi_device,
+                                           bool UseImmCmdList,
                                            bool ownNativeHandle,
                                            pi_queue *piQueue) {
+  (void)UseImmCmdList;
   (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);

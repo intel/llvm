@@ -168,6 +168,70 @@ static pi_result mapError(ze_result_t ZeResult) {
 // This will count the calls to Level-Zero
 static std::map<const char *, int> *ZeCallCount = nullptr;
 
+#if 1
+static int ZECallArgumentNumber;
+static std::vector<std::string> ZECallArguments;
+char ZECAS[1024];
+static void GetParams(std::string& Parms) {
+  size_t start;
+  size_t end = 0;
+  ZECallArguments.clear();
+  while ((start = Parms.find_first_not_of(',', end)) != std::string::npos) {
+    end = Parms.find(',', start);
+    ZECallArguments.push_back(Parms.substr(start, end - start));
+  }
+}
+template <typename T> static void GetArg(T p) {
+  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
+  strcat(ZECAS, "=");
+  std::ostringstream Value;
+  Value << p;
+  strcat(ZECAS, Value.str().c_str());
+  ++ZECallArgumentNumber;
+}
+template <> void GetArg<std::nullptr_t>(std::nullptr_t) {
+  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
+  strcat(ZECAS, "=nullptr");
+  ++ZECallArgumentNumber;
+}
+template <> void GetArg<char*>(char* p) {
+  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
+  strcat(ZECAS, "=");
+  if (p) {
+    std::ostringstream Value;
+    Value << (void*)p;
+    strcat(ZECAS, Value.str().c_str());
+  }
+  else {
+    strcat(ZECAS, "nullptr");
+  }
+  ++ZECallArgumentNumber;
+}
+template <typename T> static void GetArgs1(T p) { GetArg(p); }
+template <typename T, class... Types>
+static void GetArgs1(T p, Types... args) {
+  GetArg(p);
+  strcat(ZECAS, ",");
+  GetArgs1(args...);
+}
+template <class... Types> static void GetArgs(Types... args) {
+  sprintf(ZECAS, "(");
+  ZECallArgumentNumber = 0;
+  GetArgs1(args...);
+  strcat(ZECAS, ")");
+}
+
+// Trace a call to Level-Zero RT
+#define ZE_CALL(ZeName, ZeArgs)                                                \
+  {                                                                            \
+    ze_result_t ZeResult = ZeName ZeArgs;                                      \
+    std::string s = #ZeArgs;                                                   \
+    GetParams(s);                                                              \
+    GetArgs ZeArgs;                                                            \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, ZECAS, true))         \
+      return mapError(Result);                                                 \
+  }
+#else
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -175,6 +239,7 @@ static std::map<const char *, int> *ZeCallCount = nullptr;
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return mapError(Result);                                                 \
   }
+#endif
 
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
@@ -1175,6 +1240,10 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(PiQueueProperties) {
 
+  // Set the type of commandlists the queue will use.
+  UsingImmCmdLists = Device->useImmediateCommandLists();
+  zePrint("Queue %p ImmCmdList mode = %d\n", this, UsingImmCmdLists);
+
   // Compute group initialization.
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
@@ -1196,7 +1265,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
       // Create space to hold immediate commandlists corresponding to the
       // ZeQueues
-      if (Device->useImmediateCommandLists()) {
+      if (UsingImmCmdLists) {
         ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
             ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
@@ -1222,7 +1291,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       CopyQueueGroup.NextIndex = CopyQueueGroup.LowerIndex;
       // Create space to hold immediate commandlists corresponding to the
       // ZeQueues
-      if (Device->useImmediateCommandLists()) {
+      if (UsingImmCmdLists) {
         CopyQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
@@ -1303,7 +1372,7 @@ pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, pi_command_list_ptr_t &CommandList, bool UseCopyEngine,
     bool AllowBatching, ze_command_queue_handle_t *ForcedCmdQueue) {
   // Immediate commandlists have been pre-allocated and are always available.
-  if (Queue->Device->useImmediateCommandLists()) {
+  if (Queue->UsingImmCmdLists) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
     if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
       return Res;
@@ -1561,7 +1630,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   if (!CommandList->second.EventList.empty())
     this->LastCommandEvent = CommandList->second.EventList.back();
 
-  if (!Device->useImmediateCommandLists()) {
+  if (!UsingImmCmdLists) {
     // Batch if allowed to, but don't batch if we know there are no kernels
     // from this queue that are currently executing.  This is intended to get
     // kernels started as soon as possible when there are no kernels from this
@@ -1614,7 +1683,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     CaptureIndirectAccesses();
   }
 
-  if (!Device->useImmediateCommandLists()) {
+  if (!UsingImmCmdLists) {
     // In this mode all inner-batch events have device visibility only,
     // and we want the last command in the batch to signal a host-visible
     // event that anybody waiting for any event in the batch will
@@ -1697,7 +1766,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
   // Check global control to make every command blocking for debugging.
   if (IsBlocking || (ZeSerialize & ZeSerializeBlock) != 0) {
-    if (Device->useImmediateCommandLists()) {
+    if (UsingImmCmdLists) {
       synchronize();
     } else {
       // Wait until command lists attached to the command queue are executed.
@@ -1846,7 +1915,7 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
 pi_command_list_ptr_t _pi_queue::eventOpenCommandList(pi_event Event) {
   using IsCopy = bool;
 
-  if (Device->useImmediateCommandLists()) {
+  if (UsingImmCmdLists) {
     // When using immediate commandlists there are no open command lists.
     return CommandListMap.end();
   }
@@ -3554,7 +3623,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
                                 uint32_t RepeatCount) -> pi_result {
       pi_command_list_ptr_t CommandList;
       while (RepeatCount--) {
-        if (Q->Device->useImmediateCommandLists()) {
+        if (Q->UsingImmCmdLists) {
           CommandList = Q->getQueueGroup(UseCopyEngine).getImmCmdList();
         } else {
           // Heuristically create some number of regular command-list to reuse.
@@ -3723,7 +3792,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   // Wait until command lists attached to the command queue are executed.
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  if (Queue->Device->useImmediateCommandLists()) {
+  if (Queue->UsingImmCmdLists) {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<pi_shared_mutex> Lock(Queue->Mutex);
 
@@ -3791,17 +3860,41 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
+
+  zePrint("piextQueueGetNativeHandle(Queue=%p)\n", Queue);
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
-  auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-  // Extract the Level Zero compute queue handle from the given PI queue
-  *ZeQueue = Queue->ComputeQueueGroup.ZeQueues[0];
+  if (Queue->UsingImmCmdLists) {
+    zePrint("The queue uses immediate cmdlists\n");
+    auto ZeCmdList = pi_cast<ze_command_list_handle_t *>(NativeHandle);
+    // Extract the Level Zero command list handle from the given PI queue
+    *ZeCmdList = Queue->ComputeQueueGroup.ImmCmdLists[0]->first;
+    zePrint("piextQueueGetNativeHandle returning %p\n", *ZeCmdList);
+
+  } else {
+    zePrint("The queue uses standard cmdlists\n");
+    auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
+    // Extract the Level Zero compute queue handle from the given PI queue
+    *ZeQueue = Queue->ComputeQueueGroup.ZeQueues[0];
+    zePrint("piextQueueGetNativeHandle returning %p\n", *ZeQueue);
+  }
   return PI_SUCCESS;
+}
+
+void _pi_queue::pi_queue_group_t::setImmCmdList(
+    ze_command_list_handle_t ZeCommandList) {
+  ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+      1,
+      Queue->CommandListMap
+          .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
+              ZeCommandList, {nullptr, true, nullptr, 0}})
+          .first);
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
                                            pi_context Context, pi_device Device,
+                                           bool UseImmCmdList,
                                            bool OwnNativeHandle,
                                            pi_queue *Queue) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
@@ -3809,16 +3902,33 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
-  // Assume this is the "0" index queue in the compute command-group.
-  std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
+  zePrint("piextQueueCreateWithNativeHandle(NativeHandle=%p, Context=%p, "
+          "Device=%p, UseImmCmdList=%d, OwnNativeHandle=%d, Queue=%p\n",
+          NativeHandle, Context, Device, UseImmCmdList, OwnNativeHandle, Queue);
+  if (/*UseImmCmdList ||*/ Device->useImmediateCommandLists()) {
+    zePrint("piextQueueCreateWithNativeHandle using immediate commandlists\n");
+    std::vector<ze_command_queue_handle_t> ComputeQueues;
+    std::vector<ze_command_queue_handle_t> CopyQueues;
 
-  // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue. Currently we will send
-  // all commands to the "ZeQueue".
-  std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
-  *Queue =
-      new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
+    *Queue = new _pi_queue(ComputeQueues, CopyQueues, Context, Device,
+                           OwnNativeHandle);
+    (*Queue)->setImmCmdList(pi_cast<ze_command_list_handle_t>(NativeHandle));
+  } else {
+    zePrint("piextQueueCreateWithNativeHandle using standard commandlists\n");
+    auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+    // Assume this is the "0" index queue in the compute command-group.
+    std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
+
+    // TODO: see what we can do to correctly initialize PI queue for
+    // compute vs. copy Level-Zero queue. Currently we will send
+    // all commands to the "ZeQueue".
+    std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
+
+    *Queue = new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device,
+                           OwnNativeHandle);
+  }
+  //(*Queue)->UsingImmCmdLists = UseImmCmdList;
+
   return PI_SUCCESS;
 }
 
@@ -5429,8 +5539,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   if (IndirectAccessTrackingEnabled)
     Queue->KernelsToBeSubmitted.push_back(Kernel);
 
-  if (Queue->Device->useImmediateCommandLists() &&
-      IndirectAccessTrackingEnabled) {
+  if (Queue->UsingImmCmdLists && IndirectAccessTrackingEnabled) {
     // If using immediate commandlists then gathering of indirect
     // references and appending to the queue (which means submission)
     // must be done together.
@@ -6410,7 +6519,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
   // Get command lists for each command queue.
   std::vector<pi_command_list_ptr_t> CmdLists;
-  if (Queue->Device->useImmediateCommandLists()) {
+  if (Queue->UsingImmCmdLists) {
     // If immediate command lists are being used, each will act as their own
     // queue, so we must insert a barrier into each.
     CmdLists.reserve(Queue->CommandListMap.size());
@@ -6579,7 +6688,7 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  if (Device->useImmediateCommandLists()) {
+  if (UsingImmCmdLists) {
     for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
       syncImmCmdList(this, ImmCmdList);
     for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)

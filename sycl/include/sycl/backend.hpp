@@ -208,8 +208,9 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
-                               const device *TargetDevice, bool KeepOwnership,
-                               const async_handler &Handler, backend Backend);
+                               const device *TargetDevice, bool UseImmCmdList,
+                               bool KeepOwnership, const async_handler &Handler,
+                               backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,

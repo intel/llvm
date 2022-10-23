@@ -52,9 +52,11 @@
 // 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS queue property.
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
+// 10.15 Added new bool argument to piextQueueCreateWithNativeHandle to select
+// between standard and immediate commandlists
 
 #define _PI_H_VERSION_MAJOR 10
-#define _PI_H_VERSION_MINOR 14
+#define _PI_H_VERSION_MINOR 15
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1132,12 +1134,14 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 /// \param device is the PI device associated with the native device used when
 ///   creating the native queue. This parameter is optional but some backends
 ///   may fail to create the right PI queue if omitted.
+/// \param UseImmCmdList indicates whether the created queue should use a
+///        level_zero immediate commandlist.
 /// \param pluginOwnsNativeHandle Indicates whether the created PI object
 ///        should take ownership of the native handle.
 /// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
-    bool pluginOwnsNativeHandle, pi_queue *queue);
+    bool UseImmCmdList, bool pluginOwnsNativeHandle, pi_queue *queue);
 
 //
 // Memory
