@@ -3791,13 +3791,35 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
+  zePrint("piextQueueGetNativeHandle(Queue=%p)\n", Queue);
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<pi_shared_mutex> lock(Queue->Mutex);
 
-  auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
-  // Extract the Level Zero compute queue handle from the given PI queue
-  *ZeQueue = Queue->ComputeQueueGroup.ZeQueues[0];
+  if (Queue->Device->useImmediateCommandLists()) {
+    zePrint("The queue uses immediate cmdlists\n");
+    auto ZeCmdList = pi_cast<ze_command_list_handle_t *>(NativeHandle);
+    // Extract the Level Zero command list handle from the given PI queue
+    *ZeCmdList = Queue->ComputeQueueGroup.ImmCmdLists[0]->first;
+    zePrint("piextQueueGetNativeHandle returning %p\n", *ZeCmdList);
+
+  } else {
+    zePrint("The queue uses standard cmdlists\n");
+    auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
+    // Extract the Level Zero compute queue handle from the given PI queue
+    *ZeQueue = Queue->ComputeQueueGroup.ZeQueues[0];
+    zePrint("piextQueueGetNativeHandle returning %p\n", *ZeQueue);
+  }
   return PI_SUCCESS;
+}
+
+void _pi_queue::pi_queue_group_t::setImmCmdList(
+    ze_command_list_handle_t ZeCommandList) {
+  ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+      1,
+      Queue->CommandListMap
+          .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
+              ZeCommandList, {nullptr, true, nullptr, 0}})
+          .first);
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
@@ -3809,16 +3831,32 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
-  // Assume this is the "0" index queue in the compute command-group.
-  std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
+  zePrint("piextQueueCreateWithNativeHandle(NativeHandle=%p, Context=%p, "
+          "Device=%p, OwnNativeHandle=%d, Queue=%p\n",
+          NativeHandle, Context, Device, OwnNativeHandle, Queue);
+  if (Device->useImmediateCommandLists()) {
+    zePrint("piextQueueCreateWithNativeHandle using immediate commandlists\n");
+    std::vector<ze_command_queue_handle_t> ComputeQueues;
+    std::vector<ze_command_queue_handle_t> CopyQueues;
 
-  // TODO: see what we can do to correctly initialize PI queue for
-  // compute vs. copy Level-Zero queue. Currently we will send
-  // all commands to the "ZeQueue".
-  std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
-  *Queue =
-      new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device, OwnNativeHandle);
+    *Queue = new _pi_queue(ComputeQueues, CopyQueues, Context, Device,
+                           OwnNativeHandle);
+    (*Queue)->setImmCmdList(pi_cast<ze_command_list_handle_t>(NativeHandle));
+  } else {
+    zePrint("piextQueueCreateWithNativeHandle using standard commandlists\n");
+    auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
+    // Assume this is the "0" index queue in the compute command-group.
+    std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
+
+    // TODO: see what we can do to correctly initialize PI queue for
+    // compute vs. copy Level-Zero queue. Currently we will send
+    // all commands to the "ZeQueue".
+    std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
+
+    *Queue = new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device,
+                           OwnNativeHandle);
+  }
+
   return PI_SUCCESS;
 }
 

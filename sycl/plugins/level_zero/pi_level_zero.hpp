@@ -872,6 +872,9 @@ struct _pi_queue : _pi_object {
     // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
+    // This function sets an immediate commandlist from the interop interface.
+    void setImmCmdList(ze_command_list_handle_t);
+
     // This function returns the next immediate commandlist to use.
     pi_command_list_ptr_t &getImmCmdList();
 
@@ -931,6 +934,12 @@ struct _pi_queue : _pi_object {
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeCommandQueue;
+
+  // When queue is constructed for interop, an immediate commandlist has already
+  // been created and only needs to be stored in the queue object.
+  void setImmCmdList(ze_command_list_handle_t ImmCmdList) {
+    ComputeQueueGroup.setImmCmdList(ImmCmdList);
+  }
 
   // Map of all command lists used in this queue.
   pi_command_list_map_t CommandListMap;
