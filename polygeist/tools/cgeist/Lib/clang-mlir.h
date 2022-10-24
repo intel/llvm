@@ -178,6 +178,8 @@ private:
   bool error;
   ScopLocList scopLocList;
   LowerToInfo LTInfo;
+  std::map<const clang::FunctionDecl *, const clang::CodeGen::CGFunctionInfo *>
+      CGFunctionInfos;
 
 public:
   static constexpr llvm::StringLiteral DeviceModuleName{"device_functions"};
@@ -237,6 +239,9 @@ public:
   GetOrCreateGlobal(const clang::ValueDecl *VD, std::string prefix,
                     bool tryInit = true,
                     FunctionContext funcContext = FunctionContext::Host);
+
+  const clang::CodeGen::CGFunctionInfo &
+  GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);
 
   void run();
 

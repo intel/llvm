@@ -15,13 +15,10 @@
 #include "utils.h"
 
 #include "clang/AST/ASTContext.h"
-//#include "clang/AST/DeclCXX.h"
-//#include "clang/AST/DeclObjC.h"
-//#include "clang/AST/Expr.h"
-#include "clang/AST/RecordLayout.h"
+//#include "clang/AST/RecordLayout.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 
-#include "clang/../../lib/CodeGen/CGRecordLayout.h"
+//#include "clang/../../lib/CodeGen/CGRecordLayout.h"
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/../../lib/CodeGen/TargetInfo.h"
 
@@ -32,7 +29,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
-#include "mlir/Target/LLVMIR/TypeToLLVM.h"
+//#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -893,6 +890,22 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
   }
   qt->dump();
   assert(0 && "unhandled type");
+}
+
+mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty, bool IsAlloc) {
+  bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
+  if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>()) {
+    IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
+      return mlir::sycl::isSYCLType(Element);
+    });
+  }
+
+  if (IsSYCLType)
+    return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {},
+                                 CGM.getDataLayout().getAllocaAddrSpace());
+
+  return LLVM::LLVMPointerType::get(Ty,
+                                    CGM.getDataLayout().getAllocaAddrSpace());
 }
 
 const clang::CodeGen::CGFunctionInfo &

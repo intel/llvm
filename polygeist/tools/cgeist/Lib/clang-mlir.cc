@@ -354,16 +354,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  GlobalDecl GD;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
-  else
-    GD = GlobalDecl(FD);
-  const clang::CodeGen::CGFunctionInfo &FI =
-      Glob.getCGM().getTypes().arrangeGlobalDeclaration(GD);
-  auto FuncInfos = FI.arguments();
+  const clang::CodeGen::CGFunctionInfo &FI = Glob.GetOrCreateCGFunctionInfo(FD);
+  auto FIArgs = FI.arguments();
 
   for (ParmVarDecl *parm : FD->parameters()) {
     assert(i != function.getNumArguments());
@@ -381,8 +373,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     bool isReference = isArray || isa<clang::ReferenceType>(
                                       parmType->getUnqualifiedDesugaredType());
     isReference |=
-        (FuncInfos[i].info.getKind() == clang::CodeGen::ABIArgInfo::Indirect ||
-         FuncInfos[i].info.getKind() ==
+        (FIArgs[i].info.getKind() == clang::CodeGen::ABIArgInfo::Indirect ||
+         FIArgs[i].info.getKind() ==
              clang::CodeGen::ABIArgInfo::IndirectAliased);
 
     mlir::Value val = function.getArgument(i);
@@ -3033,6 +3025,23 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
   return function;
 }
 
+const clang::CodeGen::CGFunctionInfo &
+MLIRASTConsumer::GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
+  auto result = CGFunctionInfos.find(FD);
+  if (result != CGFunctionInfos.end())
+    return *result->second;
+
+  GlobalDecl GD;
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
+  else
+    GD = GlobalDecl(FD);
+  CGFunctionInfos[FD] = &CGM.getTypes().arrangeGlobalDeclaration(GD);
+  return *CGFunctionInfos[FD];
+}
+
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     FunctionToEmit &FTE = functionsToEmit.front();
@@ -3398,16 +3407,7 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   Location loc = getMLIRLocation(FD.getLocation());
   mlir::OpBuilder Builder(module->getContext());
 
-  GlobalDecl GD;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(&FD))
-    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(&FD))
-    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
-  else
-    GD = GlobalDecl(&FD);
-
-  const clang::CodeGen::CGFunctionInfo &FI =
-      CGM.getTypes().arrangeGlobalDeclaration(GD);
+  const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
   mlir::FunctionType funcTy = getTypes().getFunctionType(FI, FD);
 
   SmallVector<CodeGenUtils::ParmDesc, 4> parmDescriptors;

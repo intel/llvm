@@ -76,6 +76,8 @@ public:
   mlir::Type getMLIRType(clang::QualType QT, bool *ImplicitRef = nullptr,
                          bool AllowMerge = true);
 
+  mlir::Type getPointerOrMemRefType(mlir::Type Ty, bool IsAlloca = false);
+
   const clang::CodeGen::CGFunctionInfo &
   arrangeGlobalDeclaration(clang::GlobalDecl GD);
 };
