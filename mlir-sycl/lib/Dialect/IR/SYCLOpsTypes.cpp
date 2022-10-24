@@ -285,6 +285,70 @@ unsigned int mlir::sycl::RangeType::getDimension() const {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// NDRange Operations
+////////////////////////////////////////////////////////////////////////////////
+
+mlir::sycl::NdRangeType
+mlir::sycl::NdRangeType::get(MLIRContext *Context, unsigned int Dimension,
+                             llvm::SmallVector<mlir::Type, 4> Body) {
+  return Base::get(Context, Dimension, Body);
+}
+
+mlir::Type mlir::sycl::NdRangeType::parseType(mlir::DialectAsmParser &Parser) {
+  if (mlir::failed(Parser.parseLess())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseLSquare())) {
+    return nullptr;
+  }
+
+  unsigned int Dim;
+  if (Parser.parseInteger<unsigned int>(Dim)) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseRSquare())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseComma())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseLParen())) {
+    return nullptr;
+  }
+
+  mlir::SmallVector<Type, 4> Subtypes;
+  do {
+    mlir::Type Type;
+    if (mlir::failed(Parser.parseType(Type))) {
+      return nullptr;
+    }
+    Subtypes.push_back(Type);
+  } while (succeeded(Parser.parseOptionalComma()));
+
+  if (mlir::failed(Parser.parseRParen())) {
+    return nullptr;
+  }
+
+  if (mlir::failed(Parser.parseGreater())) {
+    return nullptr;
+  }
+
+  return mlir::sycl::NdRangeType::get(Parser.getContext(), Dim, Subtypes);
+}
+
+unsigned int mlir::sycl::NdRangeType::getDimension() const {
+  return getImpl()->Dimension;
+}
+
+llvm::ArrayRef<mlir::Type> mlir::sycl::NdRangeType::getBody() const {
+  return getImpl()->Body;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // AccessorImplDeviceType Operations
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -142,6 +142,32 @@ struct RangeTypeStorage : public TypeStorage {
   unsigned int Dimension;
 };
 
+struct NdRangeTypeStorage : public TypeStorage {
+  using KeyTy = std::tuple<unsigned int, llvm::SmallVector<mlir::Type, 4>>;
+
+  NdRangeTypeStorage(const KeyTy &Key)
+      : Dimension(std::get<0>(Key)), Body(std::get<1>(Key)) {}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{Dimension, Body};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(std::get<0>(Key), std::get<1>(Key));
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static NdRangeTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                       const KeyTy &Key) {
+    return new (Allocator.allocate<NdRangeTypeStorage>())
+        NdRangeTypeStorage(Key);
+  }
+
+  unsigned int Dimension;
+  llvm::SmallVector<mlir::Type, 4> Body;
+};
+
 struct AccessorImplDeviceStorage : public TypeStorage {
   using KeyTy = std::tuple<unsigned int, llvm::SmallVector<mlir::Type, 4>>;
 
@@ -377,6 +403,22 @@ public:
   static mlir::Type parseType(mlir::DialectAsmParser &Parser);
 
   unsigned int getDimension() const;
+};
+
+class NdRangeType
+    : public Type::TypeBase<NdRangeType, Type, detail::NdRangeTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::NdRangeType get(MLIRContext *Context,
+                                     unsigned int Dimension,
+                                     llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
+  unsigned int getDimension() const;
+  llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
 class AccessorImplDeviceType
