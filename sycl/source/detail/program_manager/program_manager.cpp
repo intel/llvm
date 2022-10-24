@@ -419,7 +419,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   if (isDoubleGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-    CompileOpts += "-ze-opt-large-register-file";
+    // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
+    // is fixed
+    CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
 }
 

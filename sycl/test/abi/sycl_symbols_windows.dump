@@ -412,9 +412,7 @@
 ??0gpu_selector@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0gpu_selector@_V1@sycl@@QEAA@AEBV012@@Z
 ??0gpu_selector@_V1@sycl@@QEAA@XZ
-??0half@host_half_impl@detail@_V1@sycl@@QEAA@$$QEAV01234@@Z
 ??0half@host_half_impl@detail@_V1@sycl@@QEAA@AEBM@Z
-??0half@host_half_impl@detail@_V1@sycl@@QEAA@AEBV01234@@Z
 ??0half@host_half_impl@detail@_V1@sycl@@QEAA@G@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@00_N@Z
 ??0handler@_V1@sycl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_N@Z
@@ -916,6 +914,8 @@
 ?hasUserDataPtr@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?has_context@exception@_V1@sycl@@QEBA_NXZ
 ?has_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?has_extension@opencl@_V1@sycl@@YA_NAEBVdevice@23@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?has_extension@opencl@_V1@sycl@@YA_NAEBVplatform@23@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?has_extension@platform@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?has_kernel@device_image_plain@detail@_V1@sycl@@QEBA_NAEBVkernel_id@34@@Z
 ?has_kernel@device_image_plain@detail@_V1@sycl@@QEBA_NAEBVkernel_id@34@AEBVdevice@34@@Z

@@ -3616,17 +3616,25 @@ public:
 
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::stream)) {
+      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
+      CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+      assert(InitMethod && "type must have __init method");
+      const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
+      assert(InitArg && "Init method must have arguments");
+      QualType T = InitArg->getType();
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          isSyclType(FieldTy, SYCLTypeAttr::sampler)
+              ? SYCLIntegrationHeader::kind_sampler
+              : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
+                                    : SYCLIntegrationHeader::kind_std_layout);
+      addParam(T, ParamKind, offsetOf(FD, FieldTy));
     } else {
-      if (getMethodByName(ClassTy, FinalizeMethodName))
-        addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-      else {
-        CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
-        assert(InitMethod && "type must have __init method");
-        const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
-        assert(SamplerArg && "Init method must have arguments");
-        addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
-                 offsetOf(FD, FieldTy));
-      }
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating integration header");
     }
     return true;
   }
