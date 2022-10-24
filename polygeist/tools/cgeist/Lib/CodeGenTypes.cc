@@ -392,12 +392,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       assert(!subRef);
       innerLLVM |= ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                           LLVM::LLVMArrayType>();
-      innerSYCL |=
-          ty.isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                 mlir::sycl::NdRangeType, mlir::sycl::RangeType,
-                 mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
-                 mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-                 mlir::sycl::NdItemType, mlir::sycl::GroupType>();
+      innerSYCL |= isSYCLType(ty);
       types.push_back(ty);
     }
 
