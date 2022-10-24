@@ -36,7 +36,7 @@ inline int selectDeviceByPlatform(const char *required_platform_name,
 }
 
 // Enables an environment variable required by the FPGA simulator.
-inline void EnableFPGASimulator() {
+inline void enableFPGASimulator() {
 #ifdef _WIN32
   _putenv_s("CL_CONTEXT_MPSIM_DEVICE_INTELFPGA", "1");
 #else
@@ -74,7 +74,7 @@ int fpga_emulator_selector_v(const device &device) {
 int fpga_simulator_selector_v(const device &device) {
   static bool IsFirstCall = true;
   if (IsFirstCall) {
-    detail::EnableFPGASimulator();
+    detail::enableFPGASimulator();
     IsFirstCall = false;
   }
   return fpga_selector_v(device);
@@ -100,7 +100,7 @@ class __SYCL2020_DEPRECATED(
 public:
   fpga_simulator_selector() {
     // Tell the runtime to use a simulator device rather than hardware
-    detail::EnableFPGASimulator();
+    detail::enableFPGASimulator();
   }
 };
 
