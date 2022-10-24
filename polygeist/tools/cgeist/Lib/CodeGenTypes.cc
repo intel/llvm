@@ -45,21 +45,6 @@ static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
                                cl::desc("Use memrefs when possible"));
 
 /******************************************************************************/
-/*            Flags affecting code generation of function types.              */
-/******************************************************************************/
-
-// Note: cgeist does not allow flattening struct function parameters. Need to
-// revisit.
-constexpr bool AllowStructFlattening = false;
-
-// Note: cgeist does not allow returning a struct via the parameter list. Need
-// to revisit.
-constexpr bool AllowSRet = false;
-
-// Note: cgesit does not allow returning 'inalloca'. Need to revisit.
-constexpr bool AllowInAllocaRet = false;
-
-/******************************************************************************/
 /*                            Helper Functions                                */
 /******************************************************************************/
 
@@ -82,147 +67,6 @@ getConstantArrayShapeAndElemType(const clang::QualType &ty,
 
 namespace mlirclang {
 namespace CodeGen {
-
-namespace {
-
-/// Encapsulates information about the way function arguments from
-/// CGFunctionInfo should be passed to actual LLVM IR function.
-class ClangToLLVMArgMapping {
-  static const unsigned InvalidIndex = ~0U;
-  unsigned InallocaArgNo;
-  unsigned SRetArgNo;
-  unsigned TotalIRArgs;
-
-  /// Arguments of LLVM IR function corresponding to single Clang argument.
-  struct IRArgs {
-    unsigned PaddingArgIndex;
-    // Argument is expanded to IR arguments at positions
-    // [FirstArgIndex, FirstArgIndex + NumberOfArgs).
-    unsigned FirstArgIndex;
-    unsigned NumberOfArgs;
-
-    IRArgs()
-        : PaddingArgIndex(InvalidIndex), FirstArgIndex(InvalidIndex),
-          NumberOfArgs(0) {}
-  };
-
-  llvm::SmallVector<IRArgs, 8> ArgInfo;
-
-public:
-  ClangToLLVMArgMapping(const clang::ASTContext &Context,
-                        const clang::CodeGen::CGFunctionInfo &FI,
-                        bool OnlyRequiredArgs = false)
-      : InallocaArgNo(InvalidIndex), SRetArgNo(InvalidIndex), TotalIRArgs(0),
-        ArgInfo(OnlyRequiredArgs ? FI.getNumRequiredArgs() : FI.arg_size()) {
-    construct(Context, FI, OnlyRequiredArgs);
-  }
-
-  bool hasInallocaArg() const { return InallocaArgNo != InvalidIndex; }
-  unsigned getInallocaArgNo() const {
-    assert(hasInallocaArg());
-    return InallocaArgNo;
-  }
-
-  bool hasSRetArg() const { return SRetArgNo != InvalidIndex; }
-  unsigned getSRetArgNo() const {
-    assert(hasSRetArg());
-    return SRetArgNo;
-  }
-
-  unsigned totalIRArgs() const { return TotalIRArgs; }
-
-  bool hasPaddingArg(unsigned ArgNo) const {
-    assert(ArgNo < ArgInfo.size());
-    return ArgInfo[ArgNo].PaddingArgIndex != InvalidIndex;
-  }
-  unsigned getPaddingArgNo(unsigned ArgNo) const {
-    assert(hasPaddingArg(ArgNo));
-    return ArgInfo[ArgNo].PaddingArgIndex;
-  }
-
-  /// Returns index of first IR argument corresponding to ArgNo, and their
-  /// quantity.
-  std::pair<unsigned, unsigned> getIRArgs(unsigned ArgNo) const {
-    assert(ArgNo < ArgInfo.size());
-    return std::make_pair(ArgInfo[ArgNo].FirstArgIndex,
-                          ArgInfo[ArgNo].NumberOfArgs);
-  }
-
-private:
-  void construct(const clang::ASTContext &Context,
-                 const clang::CodeGen::CGFunctionInfo &FI,
-                 bool OnlyRequiredArgs);
-};
-
-void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
-                                      const clang::CodeGen::CGFunctionInfo &FI,
-                                      bool OnlyRequiredArgs) {
-  unsigned IRArgNo = 0;
-  bool SwapThisWithSRet = false;
-  const clang::CodeGen::ABIArgInfo &RetAI = FI.getReturnInfo();
-
-  if (AllowSRet && RetAI.getKind() == clang::CodeGen::ABIArgInfo::Indirect) {
-    SwapThisWithSRet = RetAI.isSRetAfterThis();
-    SRetArgNo = SwapThisWithSRet ? 1 : IRArgNo++;
-  }
-
-  unsigned ArgNo = 0;
-  unsigned NumArgs = OnlyRequiredArgs ? FI.getNumRequiredArgs() : FI.arg_size();
-  for (clang::CodeGen::CGFunctionInfo::const_arg_iterator I = FI.arg_begin();
-       ArgNo < NumArgs; ++I, ++ArgNo) {
-    assert(I != FI.arg_end());
-    const clang::CodeGen::ABIArgInfo &AI = I->info;
-    // Collect data about IR arguments corresponding to Clang argument ArgNo.
-    auto &IRArgs = ArgInfo[ArgNo];
-
-    if (AI.getPaddingType())
-      IRArgs.PaddingArgIndex = IRArgNo++;
-
-    switch (AI.getKind()) {
-    case clang::CodeGen::ABIArgInfo::Extend:
-    case clang::CodeGen::ABIArgInfo::Direct: {
-      // FIXME: handle sseregparm someday...
-      llvm::StructType *STy = dyn_cast<llvm::StructType>(AI.getCoerceToType());
-      if (AllowStructFlattening && AI.isDirect() && AI.getCanBeFlattened() &&
-          STy) {
-        IRArgs.NumberOfArgs = STy->getNumElements();
-      } else {
-        IRArgs.NumberOfArgs = 1;
-      }
-      break;
-    }
-    case clang::CodeGen::ABIArgInfo::Indirect:
-    case clang::CodeGen::ABIArgInfo::IndirectAliased:
-      IRArgs.NumberOfArgs = 1;
-      break;
-    case clang::CodeGen::ABIArgInfo::Ignore:
-    case clang::CodeGen::ABIArgInfo::InAlloca:
-      // ignore and inalloca doesn't have matching LLVM parameters.
-      IRArgs.NumberOfArgs = 0;
-      break;
-    case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
-    case clang::CodeGen::ABIArgInfo::Expand:
-      llvm_unreachable("not implemented");
-    }
-
-    if (IRArgs.NumberOfArgs > 0) {
-      IRArgs.FirstArgIndex = IRArgNo;
-      IRArgNo += IRArgs.NumberOfArgs;
-    }
-
-    // Skip over the sret parameter when it comes second.  We already handled it
-    // above.
-    if (IRArgNo == 1 && SwapThisWithSRet)
-      IRArgNo++;
-  }
-  assert(ArgNo == ArgInfo.size());
-
-  if (AllowInAllocaRet && FI.usesInAlloca())
-    InallocaArgNo = IRArgNo++;
-
-  TotalIRArgs = IRArgNo;
-}
-} // namespace
 
 CodeGenTypes::CodeGenTypes(clang::CodeGen::CodeGenModule &CGM,
                            mlir::OwningOpRef<mlir::ModuleOp> &Module)
@@ -392,7 +236,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       assert(!subRef);
       innerLLVM |= ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                           LLVM::LLVMArrayType>();
-      innerSYCL |= isSYCLType(ty);
+      innerSYCL |= mlir::sycl::isSYCLType(ty);
       types.push_back(ty);
     }
 
@@ -536,8 +380,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
       if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>())
-        InnerSYCL |= any_of(ST.getBody(),
-                            [](auto Element) { return isSYCLType(Element); });
+        InnerSYCL |= any_of(ST.getBody(), [](auto Element) {
+          return mlir::sycl::isSYCLType(Element);
+        });
 
       if (!InnerSYCL)
         return LLVM::LLVMPointerType::get(
