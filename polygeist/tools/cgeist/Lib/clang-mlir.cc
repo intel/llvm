@@ -3712,12 +3712,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       assert(!subRef);
       innerLLVM |= ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                           LLVM::LLVMArrayType>();
-      innerSYCL |=
-          ty.isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                 mlir::sycl::NdRangeType, mlir::sycl::RangeType,
-                 mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
-                 mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-                 mlir::sycl::NdItemType, mlir::sycl::GroupType>();
+      innerSYCL |= isSYCLType(ty);
       types.push_back(ty);
     }
 
@@ -3860,18 +3855,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       // a llvm pointer that contains custom aggregate types. We could create
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
-      if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-        for (auto Element : ST.getBody()) {
-          if (Element.isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                          mlir::sycl::RangeType, mlir::sycl::NdRangeType,
-                          mlir::sycl::AccessorImplDeviceType,
-                          mlir::sycl::ArrayType, mlir::sycl::ItemType,
-                          mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-                          mlir::sycl::GroupType>()) {
-            InnerSYCL = true;
-          }
-        }
-      }
+      if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>())
+        InnerSYCL |= any_of(ST.getBody(),
+                            [](auto Element) { return isSYCLType(Element); });
 
       if (!InnerSYCL)
         return LLVM::LLVMPointerType::get(
