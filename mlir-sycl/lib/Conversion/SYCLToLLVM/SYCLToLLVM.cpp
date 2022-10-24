@@ -201,6 +201,14 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
                             converter);
 }
 
+/// Converts SYCL nd_range type to LLVM type.
+static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
+                                         LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::nd_range." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
+}
+
 //===----------------------------------------------------------------------===//
 // CallPattern - Converts `sycl.call` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -386,6 +394,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::RangeType type) {
     return convertRangeType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::NdRangeType type) {
+    return convertNdRangeType(type, typeConverter);
   });
 }
 

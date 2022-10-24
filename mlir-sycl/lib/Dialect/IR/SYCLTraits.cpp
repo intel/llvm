@@ -27,6 +27,7 @@ static unsigned getDimensions(mlir::Type Type) {
       .Case<mlir::sycl::IDType>(GetDimension)
       .Case<mlir::sycl::ItemType>(GetDimension)
       .Case<mlir::sycl::NdItemType>(GetDimension)
+      .Case<mlir::sycl::NdRangeType>(GetDimension)
       .Case<mlir::sycl::GroupType>(GetDimension)
       .Default(
           [](auto) -> unsigned { llvm_unreachable("Invalid input type"); });

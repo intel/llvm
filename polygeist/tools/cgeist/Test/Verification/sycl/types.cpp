@@ -24,6 +24,8 @@
 // CHECK: !sycl_item_2_0_ = !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl.range<2>, !sycl.id<2>)>)>
 // CHECK: !sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>)>, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl.range<1>, !sycl.id<1>)>)>, !sycl.group<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>)>
 // CHECK: !sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl.range<2>, !sycl.id<2>, !sycl.id<2>)>)>, !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl.range<2>, !sycl.id<2>)>)>, !sycl.group<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>)>
+// CHECK: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
+// CHECK: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
 // CHECK: !sycl_range_1_ = !sycl.range<1>
 // CHECK: !sycl_range_2_ = !sycl.range<2>
 
@@ -54,6 +56,14 @@ SYCL_EXTERNAL void range_1(sycl::range<1> range) {}
 // CHECK: func.func @_Z7range_2N4sycl3_V15rangeILi2EEE(%arg0: memref<?x!sycl_range_2_>)
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
 SYCL_EXTERNAL void range_2(sycl::range<2> range) {}
+
+// CHECK: func.func @_Z10nd_range_1N4sycl3_V18nd_rangeILi1EEE(%arg0: memref<?x!sycl_nd_range_1_>)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+SYCL_EXTERNAL void nd_range_1(sycl::nd_range<1> nd_range) {}
+
+// CHECK: func @_Z10nd_range_2N4sycl3_V18nd_rangeILi2EEE(%arg0: memref<?x!sycl_nd_range_2_>)
+// CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}
+SYCL_EXTERNAL void nd_range_2(sycl::nd_range<2> nd_range) {}
 
 // CHECK: func.func @_Z5arr_1N4sycl3_V16detail5arrayILi1EEE(%arg0: memref<?x!sycl_array_1_>)
 // CHECK-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]}

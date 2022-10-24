@@ -76,6 +76,7 @@ def SYCL_IDType : DialectType<SYCL_Dialect, CPred<"$_self.isa<IDType>()">, "sycl
 def SYCL_AccessorCommonType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorCommonType>()">, "sycl::accessor_common type">;
 def SYCL_AccessorType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorType>()">, "sycl::accessor type">;
 def SYCL_RangeType : DialectType<SYCL_Dialect, CPred<"$_self.isa<RangeType>()">, "sycl::range type">;
+def SYCL_NdRangeType : DialectType<SYCL_Dialect, CPred<"$_self.isa<NdRangeType>()">, "sycl::nd_range type">;
 def SYCL_AccessorImplType : DialectType<SYCL_Dialect, CPred<"$_self.isa<AccessorImplDeviceType>()">, "sycl::accessor_impl_device type">;
 def SYCL_ArrayType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ArrayType>()">, "sycl::array type">;
 def SYCL_ItemType : DialectType<SYCL_Dialect, CPred<"$_self.isa<ItemType>()">, "sycl::item type">;
@@ -87,6 +88,7 @@ def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def AccessorCommonMemRef : MemRefOf<[SYCL_AccessorCommonType]>;
 def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
+def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
 def AccessorImplMemRef : MemRefOf<[SYCL_AccessorImplType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
 def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
@@ -99,6 +101,7 @@ def SYCLMemref : AnyTypeOf<[
   AccessorCommonMemRef,
   AccessorMemRef,
   RangeMemRef,
+  NDRangeMemRef,
   AccessorImplMemRef,
   ArrayMemRef,
   ItemMemRef,

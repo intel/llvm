@@ -57,6 +57,22 @@ func.func @_Z7range_2N2cl4sycl5rangeILi2EEE(%arg0: !sycl.range<2>) attributes {l
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// ND_RANGE
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>
+!sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>
+
+// CHECK: func @_Z10nd_range_1N4sycl3_V18nd_rangeILi1EEE(%arg0: !sycl_nd_range_1_)
+func.func @_Z10nd_range_1N4sycl3_V18nd_rangeILi1EEE(%arg0: !sycl.nd_range<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+// CHECK: func @_Z10nd_range_2N4sycl3_V18nd_rangeILi2EEE(%arg0: !sycl_nd_range_2_)
+func.func @_Z10nd_range_2N4sycl3_V18nd_rangeILi2EEE(%arg0: !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // ARRAY
 ////////////////////////////////////////////////////////////////////////////////
 
