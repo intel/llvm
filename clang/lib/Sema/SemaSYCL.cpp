@@ -2508,7 +2508,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     // Fetch the kernel object and the associated call operator
     // (of either the lambda or the function object).
-    CXXRecordDecl *KernelObj =
+    const CXXRecordDecl *KernelObj =
         GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
     CXXMethodDecl *WGLambdaFn = GetCallOperatorOfKernelObject(KernelObj);
 
@@ -3042,7 +3042,7 @@ public:
 static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
   if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
     return false;
-  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  const QualType FunctorTy = GetSYCLKernelObjectType(FD);
   QualType TmplArgTy = calculateKernelNameType(SemaRef.Context, FD);
   return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
 }
@@ -3465,7 +3465,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   if (!LangOpts.SYCLIsDevice)
     return;
 
-  CXXRecordDecl *KernelObj =
+  const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
   if (!GetCallOperatorOfKernelObject(KernelObj)) {

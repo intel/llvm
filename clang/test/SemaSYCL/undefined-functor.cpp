@@ -12,6 +12,18 @@ struct StructDefined {
   int x;
 };
 
+class FunctorWithCallOpDeclared {
+  int x;
+  public:
+  void operator()() const {}
+};
+
+class FunctorWithCallOpDefined {
+  int x;
+  public:
+  void operator()() const {};
+};
+
 int main() {
   
   q.submit([&](sycl::handler &cgh) {
@@ -25,6 +37,14 @@ int main() {
     // expected-error@#KernelSingleTask {{kernel parameter must be a lambda or function object}}
     // expected-note@+1 {{in instantiation of function template specialization}}
     cgh.single_task(StructDefined{});
+  });
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.single_task(FunctorWithCallOpDeclared{});
+  });
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.single_task(FunctorWithCallOpDefined{});
   });
 
 }
