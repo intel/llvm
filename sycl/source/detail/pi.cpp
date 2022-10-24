@@ -412,39 +412,6 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       }
       continue;
     }
-    backend *BE = SYCLConfig<SYCL_BE>::get();
-    // Use OpenCL as the default interoperability plugin.
-    // This will go away when we make backend interoperability selection
-    // explicit in SYCL-2020.
-    backend InteropBE = BE ? *BE : backend::opencl;
-
-    if (InteropBE == backend::opencl &&
-        PluginNames[I].first.find("opencl") != std::string::npos) {
-      // Use the OpenCL plugin as the GlobalPlugin
-      GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
-    } else if (InteropBE == backend::ext_oneapi_cuda &&
-               PluginNames[I].first.find("cuda") != std::string::npos) {
-      // Use the CUDA plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_oneapi_cuda, Library);
-    } else if (InteropBE == backend::ext_oneapi_hip &&
-               PluginNames[I].first.find("hip") != std::string::npos) {
-      // Use the HIP plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
-                                              backend::ext_oneapi_hip, Library);
-    } else if (InteropBE == backend::ext_oneapi_level_zero &&
-               PluginNames[I].first.find("level_zero") != std::string::npos) {
-      // Use the LEVEL_ZERO plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_oneapi_level_zero, Library);
-    } else if (InteropBE == backend::ext_intel_esimd_emulator &&
-               PluginNames[I].first.find("esimd_emulator") !=
-                   std::string::npos) {
-      // Use the ESIMD_EMULATOR plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_intel_esimd_emulator, Library);
-    }
     plugin &NewPlugin = Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))

@@ -62,13 +62,6 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
     detail::force_type(deviceType, forced_type);
     auto thePlatforms = platform::get_platforms();
     for (const auto &plt : thePlatforms) {
-      // If SYCL_BE is set then skip platforms which doesn't have specified
-      // backend.
-      backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
-      if (ForcedBackend)
-        if (!detail::getSyclObjImpl(plt)->is_host() &&
-            plt.get_backend() != *ForcedBackend)
-          continue;
       // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
       // with the filter specification.
       backend platformBackend = plt.get_backend();
