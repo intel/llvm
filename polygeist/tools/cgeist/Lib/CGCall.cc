@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===--- CGCall.cc - Encapsulate calling convention details ---------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -66,14 +64,16 @@ static void castCallerArgs(mlir::func::FuncOp callee,
                            llvm::SmallVectorImpl<mlir::Value> &args,
                            mlir::OpBuilder &b) {
   mlir::FunctionType funcTy = callee.getFunctionType();
-  llvm::dbgs() << "funcTy: " << funcTy << "\n";
-  llvm::dbgs() << "args: \n";
-  for (auto &arg : args)
-    llvm::dbgs().indent(2) << arg << "\n";
-
   assert(args.size() == funcTy.getNumInputs() &&
          "The caller arguments should have the same size as the number of "
          "callee arguments as the interface.");
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "funcTy: " << funcTy << "\n";
+    llvm::dbgs() << "args: \n";
+    for (const mlir::Value &arg : args)
+      llvm::dbgs().indent(2) << arg << "\n";
+  });
 
   for (unsigned i = 0; i < args.size(); ++i) {
     mlir::Type calleeArgType = funcTy.getInput(i);
@@ -114,12 +114,13 @@ ValueCategory MLIRScanner::CallHelper(
 
     ValueCategory arg = std::get<0>(pair);
     clang::Expr *a = std::get<1>(pair);
-#ifdef DEBUG
-    if (!arg.val) {
-      expr->dump();
-      a->dump();
-    }
-#endif
+
+    LLVM_DEBUG({
+      if (!arg.val) {
+        expr->dump();
+        a->dump();
+      }
+    });
     assert(arg.val && "expect not null");
 
     if (auto *ice = dyn_cast_or_null<ImplicitCastExpr>(a))
@@ -128,15 +129,14 @@ ValueCategory MLIRScanner::CallHelper(
             make_pair(dre->getDecl()->getName().str(), arg.val));
 
     if (i >= fnType.getInputs().size() || (i != 0 && a == nullptr)) {
-#ifdef DEBUG
-      expr->dump();
-      tocall.dump();
-      fnType.dump();
-      for (auto a : arguments) {
-        std::get<1>(a)->dump();
-      }
-#endif
-      assert(0 && "too many arguments in calls");
+      LLVM_DEBUG({
+        expr->dump();
+        tocall.dump();
+        fnType.dump();
+        for (auto a : arguments)
+          std::get<1>(a)->dump();
+      });
+      assert(false && "too many arguments in calls");
     }
 
     bool isReference =
@@ -144,13 +144,15 @@ ValueCategory MLIRScanner::CallHelper(
 
     bool isArray = false;
     QualType aType = (i == 0 && a == nullptr) ? objType : a->getType();
-    llvm::dbgs() << "aType: " << aType << "\n";
-    llvm::dbgs() << "aType addrspace: "
-                 << Glob.getCGM().getContext().getTargetAddressSpace(aType)
-                 << "\n";
-
     auto expectedType = Glob.getMLIRType(aType, &isArray);
-    llvm::dbgs() << "expectedType: " << expectedType << "\n";
+
+    LLVM_DEBUG({
+      llvm::dbgs() << "aType: " << aType << "\n";
+      llvm::dbgs() << "aType addrspace: "
+                   << Glob.getCGM().getContext().getTargetAddressSpace(aType)
+                   << "\n";
+      llvm::dbgs() << "expectedType: " << expectedType << "\n";
+    });
 
     if (auto PT = arg.val.getType().dyn_cast<LLVM::LLVMPointerType>()) {
       if (PT.getAddressSpace() == 5)
@@ -161,24 +163,27 @@ ValueCategory MLIRScanner::CallHelper(
     mlir::Value val = nullptr;
     if (!isReference) {
       if (isArray) {
-#ifdef DEBUG
-        if (!arg.isReference) {
-          expr->dump();
-          a->dump();
-          llvm::errs() << " v: " << arg.val << "\n";
-        }
-#endif
+        LLVM_DEBUG({
+          if (!arg.isReference) {
+            expr->dump();
+            a->dump();
+            llvm::errs() << " v: " << arg.val << "\n";
+          }
+        });
         assert(arg.isReference);
 
         auto mt =
             Glob.getMLIRType(
                     Glob.getCGM().getContext().getLValueReferenceType(aType))
                 .cast<MemRefType>();
-        llvm::dbgs() << "at line " << __LINE__ << "\n";
-        llvm::dbgs() << "mt: " << mt << "\n";
-        llvm::dbgs() << "getLValueReferenceType(aType): "
-                     << Glob.getCGM().getContext().getLValueReferenceType(aType)
-                     << "\n";
+
+        LLVM_DEBUG({
+          llvm::dbgs() << "mt: " << mt << "\n";
+          llvm::dbgs() << "getLValueReferenceType(aType): "
+                       << Glob.getCGM().getContext().getLValueReferenceType(
+                              aType)
+                       << "\n";
+        });
 
         auto shape = std::vector<int64_t>(mt.getShape());
         assert(shape.size() == 2);

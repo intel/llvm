@@ -1,4 +1,4 @@
-//===---- TargetInfo.cpp - Encapsulate target details -----------*- C++ -*-===//
+//===---- TargetInfo.cc - Encapsulate target details -----------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// These classes wrap the information about a call or function
-// definition used to handle ABI compliancy.
+// These classes wrap the information about a call or function definition used
+// to handle ABI compliancy.
 //
 //===----------------------------------------------------------------------===//
 
@@ -392,4 +392,4 @@ void CommonSPIRABIInfo::setCCs() {
   RuntimeCC = llvm::CallingConv::SPIR_FUNC;
 }
 
-} // namespace mlirclang
+} // end namespace mlirclang

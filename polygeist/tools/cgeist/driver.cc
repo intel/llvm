@@ -1076,7 +1076,7 @@ int main(int argc, char **argv) {
     eraseHostCode(*module);
     module.get()->setAttr(mlir::gpu::GPUDialect::getContainerModuleAttrName(),
                           Builder.getUnitAttr());
-  } else if (!deviceModule.body().empty())
+  } else
     deviceModule.erase();
 
   LLVM_DEBUG({

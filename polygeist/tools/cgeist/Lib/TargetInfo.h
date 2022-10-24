@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// These classes wrap the information about a call or function
-// definition used to handle ABI compliancy.
+// These classes wrap the information about a call or function definition used
+// to handle ABI compliancy.
 //
 //===----------------------------------------------------------------------===//
 
@@ -55,6 +55,6 @@ private:
   void setCCs();
 };
 
-} // namespace mlirclang
+} // end namespace mlirclang
 
 #endif // CGEIST_LIB_CODEGEN_TARGETINFO_H
