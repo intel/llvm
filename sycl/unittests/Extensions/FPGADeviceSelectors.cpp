@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/fpga_device_selector.hpp>
+#include <sycl/sycl.hpp>
 
 #include <detail/config.hpp>
 #include <helpers/PiMock.hpp>
@@ -43,9 +43,11 @@ template <const char PlatformName[]> struct RedefTemplatedWrapper {
   }
 };
 
-static pi_result redefinedDeviceGetInfo(
-    pi_device device, pi_device_info param_name, size_t param_value_size,
-    void *param_value, size_t *param_value_size_ret) {
+static pi_result redefinedDeviceGetInfo(pi_device device,
+                                        pi_device_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret) {
   constexpr char MockDeviceName[] = "Mock FPGA device";
   switch (param_name) {
   case PI_DEVICE_INFO_TYPE: {
@@ -159,7 +161,6 @@ TEST(FPGADeviceSelectorsTest, NegativeFPGASelectorTest) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
   sycl::context Ctx{Plt.get_devices()};
-
 
   try {
     sycl::queue FPGAQueue{Ctx, sycl::ext::intel::fpga_selector_v};
