@@ -27,11 +27,9 @@ namespace detail {
 // Scores a device by platform name.
 inline int selectDeviceByPlatform(std::string_view required_platform_name,
                                   const device &device) {
-  const platform &pf = device.get_platform();
-  std::string platform_name = pf.get_info<sycl::info::platform::name>();
-  if (platform_name == required_platform_name) {
+  if (device.get_platform().get_info<sycl::info::platform::name>() ==
+      required_platform_name)
     return 10000;
-  }
   return -1;
 }
 
@@ -54,7 +52,7 @@ public:
       : device_platform_name(platform_name) {}
 
   int operator()(const device &device) const override {
-    return detail::selectDeviceByPlatform(device_platform_name.c_str(), device);
+    return detail::selectDeviceByPlatform(device_platform_name, device);
   }
 };
 
