@@ -11,6 +11,25 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 
+namespace clang {
+class QualType;
+class RecordType;
+
+namespace CodeGen {
+class CodeGenModule;
+}
+} // namespace clang
+
+namespace mlirclang {
+namespace CodeGen {
+class CodeGenTypes;
+}
+} // namespace mlirclang
+
+namespace mlir {
+class Type;
+}
+
 namespace llvm {
 class Type;
 }
@@ -21,6 +40,10 @@ llvm::Type *anonymize(llvm::Type *T);
 bool isRecursiveStruct(llvm::Type *T, llvm::Type *Meta,
                        llvm::SmallPtrSetImpl<llvm::Type *> &seen);
 
+mlir::Type getSYCLType(const clang::RecordType *RT,
+                       mlirclang::CodeGen::CodeGenTypes &CGT);
+llvm::Type *getLLVMType(clang::QualType QT, clang::CodeGen::CodeGenModule &CGM);
+
 } // namespace mlirclang
 
-#endif
+#endif // MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H

@@ -30,6 +30,7 @@ add_clang_executable(cgeist
   Lib/CGCall.cc
   Lib/CGExpr.cc
   Lib/CGStmt.cc
+  Lib/CodeGenTypes.cc  
   Lib/IfScope.cc
   Lib/pragmaHandler.cc
   Lib/TargetInfo.cc  
