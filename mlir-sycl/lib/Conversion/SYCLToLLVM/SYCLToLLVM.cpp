@@ -408,12 +408,3 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<CastPattern>(typeConverter);
   patterns.add<ConstructorPattern>(typeConverter);
 }
-
-bool mlir::sycl::isSYCLType(Type type) {
-  return type.isa<mlir::sycl::IDType, mlir::sycl::AccessorCommonType,
-                  mlir::sycl::AccessorType, mlir::sycl::RangeType,
-                  mlir::sycl::NdRangeType, mlir::sycl::AccessorImplDeviceType,
-                  mlir::sycl::ArrayType, mlir::sycl::ItemType,
-                  mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-                  mlir::sycl::GroupType>();
-}

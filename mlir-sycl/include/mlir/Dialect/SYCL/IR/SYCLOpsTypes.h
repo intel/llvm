@@ -502,6 +502,16 @@ public:
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
 
+/// Return true if the given \p Ty is a SYCL type.
+inline bool isSYCLType(Type Ty) {
+  return Ty.isa<mlir::sycl::ArrayType, mlir::sycl::IDType,
+                mlir::sycl::AccessorCommonType, mlir::sycl::AccessorType,
+                mlir::sycl::RangeType, mlir::sycl::NdRangeType,
+                mlir::sycl::AccessorImplDeviceType, mlir::sycl::ItemType,
+                mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
+                mlir::sycl::GroupType>();
+}
+
 } // namespace sycl
 } // namespace mlir
 
