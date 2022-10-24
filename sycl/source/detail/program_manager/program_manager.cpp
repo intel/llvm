@@ -1264,10 +1264,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       StrToKSIdMap &KSIdMap = m_KernelSets[M];
       auto KSIdIt = KSIdMap.find(EntriesB->name);
       if (KSIdIt != KSIdMap.end()) {
-        for (_pi_offload_entry EntriesIt = EntriesB + 1; EntriesIt != EntriesE;
-             ++EntriesIt)
-          assert(KSIdMap[EntriesIt->name] == KSIdIt->second &&
-                 "Kernel sets are not disjoint");
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
 

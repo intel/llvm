@@ -5141,12 +5141,6 @@ class OffloadingActionBuilder final {
         };
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
-          // When a generic target "spir64" is used with other AOT targets
-          // we use fallback libraries.
-          if (TC->getTriple().getSubArch() == llvm::Triple::NoSubArch)
-            needLibs = DeviceLinkerInputs.size() > 1;
-          else
-            needLibs = true;
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);
@@ -5170,8 +5164,7 @@ class OffloadingActionBuilder final {
           continue;
         };
       }
-      if (needLibs &&
-          TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+      if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
           TargetOpt && DeviceOpt) {
 
         auto checkBF = [=](std::string &Dev) {
@@ -5179,6 +5172,7 @@ class OffloadingActionBuilder final {
           return std::regex_match(Dev, BFFs);
         };
 
+        needLibs = true;
         std::string Params{DeviceOpt};
         size_t DevicesPos = Params.find("-device ");
         useNative = false;
