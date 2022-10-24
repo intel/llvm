@@ -469,10 +469,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
     for (const DepDesc &Dep : Deps)
       Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
   }
-  {
-    WriteLockT Lock = acquireWriteLock();
-    cleanupCommands(ToCleanUp);
-  }
+  cleanupCommands(ToCleanUp);
 }
 
 } // namespace detail
