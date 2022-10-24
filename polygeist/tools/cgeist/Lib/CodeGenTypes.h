@@ -14,24 +14,20 @@
 #define CGEIST_LIB_CODEGEN_CODEGENTYPES_H
 
 #include "clang/Basic/ABI.h"
-#include "clang/CodeGen/CGFunctionInfo.h"
+//#include "clang/CodeGen/CGFunctionInfo.h"
 
-#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+//#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/OwningOpRef.h"
 
-namespace mlir {
-class FunctionType;
-class ModuleOp;
-class Type;
-} // namespace mlir
+#include <map>
 
 namespace clang {
 class ASTContext;
 template <typename> class CanQual;
 class CodeGenOptions;
+class FunctionDecl;
 class QualType;
 class RecordType;
-// class TargetInfo;
 class Type;
 typedef CanQual<Type> CanQualType;
 class GlobalDecl;
@@ -39,10 +35,20 @@ class GlobalDecl;
 namespace CodeGen {
 class ABIInfo;
 class CGCXXABI;
-// class CGRecordLayout;
+class CGFunctionInfo;
 class CodeGenModule;
 } // namespace CodeGen
 } // namespace clang
+
+namespace mlir {
+class FunctionType;
+class ModuleOp;
+class Type;
+
+namespace LLVM {
+class LLVMStructType;
+}
+} // namespace mlir
 
 namespace mlirclang {
 namespace CodeGen {

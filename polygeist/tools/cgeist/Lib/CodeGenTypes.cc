@@ -15,10 +15,8 @@
 #include "utils.h"
 
 #include "clang/AST/ASTContext.h"
-//#include "clang/AST/RecordLayout.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 
-//#include "clang/../../lib/CodeGen/CGRecordLayout.h"
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/../../lib/CodeGen/TargetInfo.h"
 
@@ -27,12 +25,8 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
-//#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
