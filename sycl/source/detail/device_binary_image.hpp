@@ -10,6 +10,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
+#include <atomic>
 #include <cstring>
 #include <memory>
 
@@ -130,9 +131,9 @@ public:
 
 public:
   RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
-      : Bin(nullptr), ModuleHandle(ModuleHandle) {}
+      : Bin(nullptr), ModuleHandle(ModuleHandle), ImageID{++ImageIDCounter} {}
   RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
-      : ModuleHandle(ModuleHandle) {
+      : ModuleHandle(ModuleHandle), ImageID{++ImageIDCounter} {
     init(Bin);
   }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
@@ -220,6 +221,8 @@ public:
     return DeviceRequirements;
   }
 
+  uint32_t getImageID() const { return ImageID; }
+
 protected:
   void init(pi_device_binary Bin);
   pi_device_binary get() const { return Bin; }
@@ -237,6 +240,10 @@ protected:
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
+
+  // Counter variable for picking unique IDs for each device image.
+  static std::atomic<uint32_t> ImageIDCounter;
+  const uint32_t ImageID;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
