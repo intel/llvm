@@ -248,9 +248,9 @@ for.end:                                           ; preds = %for.cond
 ; CHECK-SPIRV: Function
 ; CHECK-SPIRV: Label
 ; CHECK-SPIRV: Branch [[#Header:]]
-; CHECK-SPIRV: Label [[#Return:]]
-; CHECK-SPIRV: LoopMerge [[#Return]] [[#Header]] 257 1
+; CHECK-SPIRV: LoopMerge [[#Return:]] [[#Header]] 257 1
 ; CHECK-SPIRV: BranchConditional [[#]] [[#Return]] [[#Header]]
+; CHECK-SPIRV: Label [[#Return]]
 ; Function Attrs: noinline nounwind optnone
 define spir_func void @unroll_full() {
   br label %2
