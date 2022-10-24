@@ -95,16 +95,8 @@ ValueCategory MLIRScanner::CallHelper(
     const FunctionDecl *callee) {
   SmallVector<mlir::Value, 4> args;
   auto fnType = tocall.getFunctionType();
-  GlobalDecl GD;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(callee))
-    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(callee))
-    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
-  else
-    GD = GlobalDecl(callee);
-  const CodeGen::CGFunctionInfo &FI =
-      Glob.getCGM().getTypes().arrangeGlobalDeclaration(GD);
-  auto FuncInfos = FI.arguments();
+  const CodeGen::CGFunctionInfo &FI = Glob.GetOrCreateCGFunctionInfo(callee);
+  auto FIArgs = FI.arguments();
 
   size_t i = 0;
   // map from declaration name to mlir::value
@@ -208,9 +200,8 @@ ValueCategory MLIRScanner::CallHelper(
                                   mt.getMemorySpace()),
             alloc);
       } else {
-        if (FuncInfos[i].info.getKind() == CodeGen::ABIArgInfo::Indirect ||
-            FuncInfos[i].info.getKind() ==
-                CodeGen::ABIArgInfo::IndirectAliased) {
+        if (FIArgs[i].info.getKind() == CodeGen::ABIArgInfo::Indirect ||
+            FIArgs[i].info.getKind() == CodeGen::ABIArgInfo::IndirectAliased) {
           OpBuilder abuilder(builder.getContext());
           abuilder.setInsertionPointToStart(allocationScope);
           auto Ty = arg.getValue(builder).getType();

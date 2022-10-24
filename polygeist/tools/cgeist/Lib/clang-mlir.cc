@@ -375,16 +375,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  GlobalDecl GD;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
-  else
-    GD = GlobalDecl(FD);
-  const CodeGen::CGFunctionInfo &FI =
-      Glob.getCGM().getTypes().arrangeGlobalDeclaration(GD);
-  auto FuncInfos = FI.arguments();
+  const CodeGen::CGFunctionInfo &FI = Glob.GetOrCreateCGFunctionInfo(FD);
+  auto FIArgs = FI.arguments();
 
   for (ParmVarDecl *parm : FD->parameters()) {
     assert(i != function.getNumArguments());
@@ -401,8 +393,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     bool isReference = isArray || isa<clang::ReferenceType>(
                                       parmType->getUnqualifiedDesugaredType());
     isReference |=
-        (FuncInfos[i].info.getKind() == CodeGen::ABIArgInfo::Indirect ||
-         FuncInfos[i].info.getKind() == CodeGen::ABIArgInfo::IndirectAliased);
+        (FIArgs[i].info.getKind() == CodeGen::ABIArgInfo::Indirect ||
+         FIArgs[i].info.getKind() == CodeGen::ABIArgInfo::IndirectAliased);
 
     mlir::Value val = function.getArgument(i);
     assert(val && "Expecting a valid value");
@@ -3039,6 +3031,23 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
   return function;
 }
 
+const CodeGen::CGFunctionInfo &
+MLIRASTConsumer::GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
+  auto result = CGFunctionInfos.find(FD);
+  if (result != CGFunctionInfos.end())
+    return *result->second;
+
+  GlobalDecl GD;
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
+  else
+    GD = GlobalDecl(FD);
+  CGFunctionInfos[FD] = &CGM.getTypes().arrangeGlobalDeclaration(GD);
+  return *CGFunctionInfos[FD];
+}
+
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     FunctionToEmit &FTE = functionsToEmit.front();
@@ -3806,16 +3815,7 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   mlir::OpBuilder Builder(module->getContext());
 
 #if 1
-  GlobalDecl GD;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(&FD))
-    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(&FD))
-    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
-  else
-    GD = GlobalDecl(&FD);
-
-  const CodeGen::CGFunctionInfo &FI =
-      CGM.getTypes().arrangeGlobalDeclaration(GD);
+  const CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
   mlir::FunctionType funcTy = getFunctionType(FI, FD);
 #endif
 #if 1
@@ -4189,12 +4189,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       assert(!subRef);
       innerLLVM |= ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                           LLVM::LLVMArrayType>();
-      innerSYCL |=
-          ty.isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                 mlir::sycl::NdRangeType, mlir::sycl::RangeType,
-                 mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
-                 mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-                 mlir::sycl::NdItemType, mlir::sycl::GroupType>();
+      innerSYCL |= isSYCLType(ty);
       types.push_back(ty);
     }
 
