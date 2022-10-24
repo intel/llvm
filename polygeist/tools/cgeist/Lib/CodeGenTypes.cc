@@ -195,8 +195,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
           TypeName == "group") {
         return getSYCLType(RT, *this);
       }
-      llvm::errs() << "Warning: SYCL type '" << ST->getName()
-                   << "' has not been converted to SYCL MLIR\n";
+      // No need special handling for types that doesn't have record declaration
+      // name.
+      if (TypeName != "")
+        llvm::errs() << "Warning: SYCL type '" << ST->getName()
+                     << "' has not been converted to SYCL MLIR\n";
     }
 
     auto CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
