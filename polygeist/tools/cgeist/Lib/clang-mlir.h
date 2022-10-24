@@ -259,6 +259,8 @@ public:
 
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 
+  mlir::Type getPointerOrMemRefType(mlir::Type Ty, bool IsAlloca = false);
+
 private:
   /// Returns the LLVM linkage type of the given function declaration \p FD.
   llvm::GlobalValue::LinkageTypes

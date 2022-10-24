@@ -3543,6 +3543,23 @@ void ClangToLLVMArgMapping::construct(const ASTContext &Context,
 }
 } // namespace
 
+mlir::Type MLIRASTConsumer::getPointerOrMemRefType(mlir::Type Ty,
+                                                   bool IsAlloc) {
+  bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
+  if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>()) {
+    IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
+      return mlir::sycl::isSYCLType(Element);
+    });
+  }
+
+  if (IsSYCLType)
+    return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {},
+                                 CGM.getDataLayout().getAllocaAddrSpace());
+
+  return LLVM::LLVMPointerType::get(Ty,
+                                    CGM.getDataLayout().getAllocaAddrSpace());
+}
+
 mlir::FunctionType
 MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
                                  const clang::FunctionDecl &FD) {
@@ -3721,18 +3738,7 @@ MLIRASTConsumer::getFunctionType(const CodeGen::CGFunctionInfo &FI,
       assert(NumIRArgs == 1);
       // indirect arguments are always on the stack, which is alloca addr space.
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
-      bool IsSYCLType = mlir::sycl::isSYCLType(MLIRArgTy);
-      if (auto ST = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-        IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
-          return mlir::sycl::isSYCLType(Element);
-        });
-      }
-      if (IsSYCLType)
-        ArgTypes[FirstIRArg] = mlir::MemRefType::get(
-            -1, MLIRArgTy, {}, CGM.getDataLayout().getAllocaAddrSpace());
-      else
-        ArgTypes[FirstIRArg] = LLVM::LLVMPointerType::get(
-            MLIRArgTy, CGM.getDataLayout().getAllocaAddrSpace());
+      ArgTypes[FirstIRArg] = getPointerOrMemRefType(MLIRArgTy);
       llvm::dbgs().indent(2) << "mlir type: " << ArgTypes[FirstIRArg] << "\n";
       break;
     }

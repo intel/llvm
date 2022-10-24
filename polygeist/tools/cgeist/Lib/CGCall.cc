@@ -204,24 +204,16 @@ ValueCategory MLIRScanner::CallHelper(
             FIArgs[i].info.getKind() == CodeGen::ABIArgInfo::IndirectAliased) {
           OpBuilder abuilder(builder.getContext());
           abuilder.setInsertionPointToStart(allocationScope);
-          auto Ty = arg.getValue(builder).getType();
-          bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
-          if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-            IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
-              return mlir::sycl::isSYCLType(Element);
-            });
-          }
-          if (IsSYCLType) {
-            auto mr = mlir::MemRefType::get(1, arg.getValue(builder).getType());
-            val = abuilder.create<mlir::memref::AllocaOp>(loc, mr);
+          auto Ty = Glob.getPointerOrMemRefType(arg.getValue(builder).getType(),
+                                                /*IsAlloc*/ true);
+          if (auto MemRefTy = Ty.dyn_cast<mlir::MemRefType>()) {
+            val = abuilder.create<mlir::memref::AllocaOp>(loc, MemRefTy);
             val = abuilder.create<mlir::memref::CastOp>(
                 loc, mlir::MemRefType::get(-1, arg.getValue(builder).getType()),
                 val);
           } else {
-            auto ptrTy = LLVM::LLVMPointerType::get(Ty);
             val = abuilder.create<mlir::LLVM::AllocaOp>(
-                loc, ptrTy, abuilder.create<arith::ConstantIntOp>(loc, 1, 64),
-                0);
+                loc, Ty, abuilder.create<arith::ConstantIntOp>(loc, 1, 64), 0);
           }
           ValueCategory(val, /*isRef*/ true)
               .store(builder, arg.getValue(builder));
