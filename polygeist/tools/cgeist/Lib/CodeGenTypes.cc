@@ -617,26 +617,5 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
   assert(0 && "unhandled type");
 }
 
-mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty, bool IsAlloc) {
-  bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
-  if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-    IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
-      return mlir::sycl::isSYCLType(Element);
-    });
-  }
-
-  if (IsSYCLType)
-    return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {},
-                                 CGM.getDataLayout().getAllocaAddrSpace());
-
-  return LLVM::LLVMPointerType::get(Ty,
-                                    CGM.getDataLayout().getAllocaAddrSpace());
-}
-
-const clang::CodeGen::CGFunctionInfo &
-CodeGenTypes::arrangeGlobalDeclaration(clang::GlobalDecl GD) {
-  return CGM.getTypes().arrangeGlobalDeclaration(GD);
-}
-
 } // namespace CodeGen
 } // namespace mlirclang
