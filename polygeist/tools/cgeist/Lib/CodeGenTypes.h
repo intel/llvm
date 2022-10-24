@@ -13,11 +13,8 @@
 #ifndef CGEIST_LIB_CODEGEN_CODEGENTYPES_H
 #define CGEIST_LIB_CODEGEN_CODEGENTYPES_H
 
-#include "clang/Basic/ABI.h"
-//#include "clang/CodeGen/CGFunctionInfo.h"
-
-//#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "clang/Basic/ABI.h"
 
 #include <map>
 
