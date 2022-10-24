@@ -58,7 +58,8 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
         val = builder.create<IndexCastOp>(
             loc, mlir::IndexType::get(builder.getContext()), val);
         descr.setName(cast<VarDecl>(declRefStmt->getDecl()));
-        descr.setType(getMLIRType(declRefStmt->getDecl()->getType()));
+        descr.setType(
+            Glob.getTypes().getMLIRType(declRefStmt->getDecl()->getType()));
         if (descr.getForwardMode())
           descr.setLowerBound(val);
         else {
@@ -479,7 +480,8 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *fors) {
   std::map<VarDecl *, ValueCategory> prevInduction;
   for (auto zp : zip(inds, fors->counters())) {
     auto idx = builder.create<IndexCastOp>(
-        loc, getMLIRType(fors->getIterationVariable()->getType()),
+        loc,
+        Glob.getTypes().getMLIRType(fors->getIterationVariable()->getType()),
         std::get<0>(zp));
     VarDecl *name =
         cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
@@ -491,12 +493,13 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *fors) {
 
     bool LLVMABI = false;
     bool isArray = false;
-    if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                             name->getType()))
+    if (Glob.getTypes()
+            .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+                name->getType()))
             .isa<mlir::LLVM::LLVMPointerType>())
       LLVMABI = true;
     else
-      Glob.getMLIRType(name->getType(), &isArray);
+      Glob.getTypes().getMLIRType(name->getType(), &isArray);
 
     auto allocop = createAllocOp(idx.getType(), name, /*memtype*/ 0,
                                  /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
@@ -555,14 +558,15 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
         bool LLVMABI = false;
         bool isArray = false;
         mlir::Type ty;
-        if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                                 name->getType()))
+        if (Glob.getTypes()
+                .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+                    name->getType()))
                 .isa<mlir::LLVM::LLVMPointerType>()) {
           LLVMABI = true;
           bool undef;
-          ty = Glob.getMLIRType(name->getType(), &undef);
+          ty = Glob.getTypes().getMLIRType(name->getType(), &undef);
         } else
-          ty = Glob.getMLIRType(name->getType(), &isArray);
+          ty = Glob.getTypes().getMLIRType(name->getType(), &isArray);
 
         auto allocop = createAllocOp(ty, name, /*memtype*/ 0,
                                      /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
@@ -649,7 +653,8 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   std::map<VarDecl *, ValueCategory> prevInduction;
   for (auto zp : zip(inds, fors->counters())) {
     auto idx = builder.create<IndexCastOp>(
-        loc, getMLIRType(fors->getIterationVariable()->getType()),
+        loc,
+        Glob.getTypes().getMLIRType(fors->getIterationVariable()->getType()),
         std::get<0>(zp));
     VarDecl *name =
         cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
@@ -661,12 +666,13 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
     bool LLVMABI = false;
     bool isArray = false;
-    if (Glob.getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
-                             name->getType()))
+    if (Glob.getTypes()
+            .getMLIRType(Glob.getCGM().getContext().getLValueReferenceType(
+                name->getType()))
             .isa<mlir::LLVM::LLVMPointerType>())
       LLVMABI = true;
     else
-      Glob.getMLIRType(name->getType(), &isArray);
+      Glob.getTypes().getMLIRType(name->getType(), &isArray);
 
     auto allocop = createAllocOp(idx.getType(), name, /*memtype*/ 0,
                                  /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
@@ -992,6 +998,12 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
 }
 
 ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitDeclStmt: ";
+    decl->dump();
+    llvm::dbgs() << "\n";
+  });
+
   IfScope scope(*this);
   for (auto *sub : decl->decls()) {
     if (auto *vd = dyn_cast<VarDecl>(sub)) {
@@ -1084,7 +1096,8 @@ ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *stmt) {
 ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
   IfScope scope(*this);
   bool isArrayReturn = false;
-  Glob.getMLIRType(EmittingFunctionDecl->getReturnType(), &isArrayReturn);
+  Glob.getTypes().getMLIRType(EmittingFunctionDecl->getReturnType(),
+                              &isArrayReturn);
 
   if (isArrayReturn) {
     auto rv = Visit(stmt->getRetValue());

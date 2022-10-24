@@ -10,7 +10,10 @@
 #define CLANG_MLIR_H
 
 #include "AffineUtils.h"
+#include "Attributes.h"
+#include "CodeGenTypes.h"
 #include "ValueCategory.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -23,11 +26,13 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
-#include "mlir/Target/LLVMIR/TypeFromLLVM.h"
-#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "polygeist/Ops.h"
 #include "pragmaHandler.h"
+
+#include "clang/../../lib/CodeGen/CGRecordLayout.h"
+#include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/Mangle.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
@@ -36,10 +41,6 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/CommandLine.h"
 
-#include "clang/../../lib/CodeGen/CGRecordLayout.h"
-#include "clang/../../lib/CodeGen/CodeGenModule.h"
-#include "clang/AST/Mangle.h"
-
 extern llvm::cl::opt<std::string> PrefixABI;
 
 namespace mlir {
@@ -47,6 +48,12 @@ namespace sycl {
 class SYCLMethodOpInterface;
 } // namespace sycl
 } // namespace mlir
+
+namespace mlirclang {
+namespace CodeGen {
+class CodeGenTypes;
+} // namespace CodeGen
+} // namespace mlirclang
 
 struct LoopContext {
   mlir::Value keepRunning;
@@ -160,20 +167,16 @@ private:
   std::map<std::string, mlir::FunctionOpInterface> &deviceFunctions;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
-  std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
   std::deque<FunctionToEmit> functionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
   clang::CodeGen::CodeGenModule CGM;
+  mlirclang::CodeGen::CodeGenTypes CGTypes;
   bool error;
   ScopLocList scopLocList;
   LowerToInfo LTInfo;
-
-  /// The stateful type translator (contains named structs).
-  mlir::LLVM::TypeFromLLVMIRTranslator typeTranslator;
-  mlir::LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
 
 public:
   static constexpr llvm::StringLiteral DeviceModuleName{"device_functions"};
@@ -193,23 +196,20 @@ public:
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), deviceFunctions(deviceFunctions),
-        llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), typeCache(),
+        llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions),
         functionsToEmit(), module(module), SM(SM), lcontext(),
         llvmMod(moduleId, lcontext),
         CGM(astContext, &SM.getFileManager().getVirtualFileSystem(),
             PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false), scopLocList(), LTInfo(),
-        typeTranslator(*module->getContext()), reverseTypeTranslator(lcontext) {
+        CGTypes(CGM, module), error(false), scopLocList(), LTInfo() {
     addPragmaScopHandlers(PP, scopLocList);
     addPragmaEndScopHandlers(PP, scopLocList);
     addPragmaLowerToHandlers(PP, LTInfo);
   }
 
   clang::CodeGen::CodeGenModule &getCGM() { return CGM; }
-  mlir::LLVM::TypeFromLLVMIRTranslator &getTypeTranslator() {
-    return typeTranslator;
-  }
+  mlirclang::CodeGen::CodeGenTypes &getTypes() { return CGTypes; }
   std::map<std::string, mlir::func::FuncOp> &getFunctions() {
     return functions;
   }
@@ -243,12 +243,6 @@ public:
   bool HandleTopLevelDecl(clang::DeclGroupRef dg) override;
 
   void HandleDeclContext(clang::DeclContext *DC);
-
-  // JLE_QUEL::TODO: Possibly create a SYCLTypeCache
-  mlir::Type getMLIRType(clang::QualType t, bool *implicitRef = nullptr,
-                         bool allowMerge = true);
-  mlir::Type getSYCLType(const clang::RecordType *RT);
-  llvm::Type *getLLVMType(clang::QualType t);
 
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 
@@ -291,8 +285,7 @@ private:
 
   /// Set the MLIR function attributes for the given \p function.
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
-                                 const FunctionToEmit &FTE,
-                                 mlir::LLVM::Linkage lnk) const;
+                                 const FunctionToEmit &FTE, bool ShouldEmit);
 
   /// Set the MLIR function parameters attributes for the given \p function.
   void setMLIRFunctionParmsAttributes(
@@ -357,9 +350,6 @@ private:
   }
 
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
-
-  llvm::Type *getLLVMType(clang::QualType t);
-  mlir::Type getMLIRType(clang::QualType t);
 
   mlir::Value getTypeSize(clang::QualType t);
   mlir::Value getTypeAlign(clang::QualType t);
@@ -427,7 +417,7 @@ public:
 
   mlir::OpBuilder &getBuilder() { return builder; };
   std::vector<LoopContext> &getLoops() { return loops; }
-  mlir::Location getLoc() { return loc; }
+  mlir::Location getLoc() const { return loc; }
 
   mlir::Value getConstantIndex(int x);
 
