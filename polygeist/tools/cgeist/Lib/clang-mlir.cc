@@ -3408,9 +3408,8 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   setMLIRFunctionParmsAttributes(function, parmDescriptors);
   setMLIRFunctionResultAttributes(function, resDescriptors);
 
-  /// Inject the MLIR function created in either the device
-  /// module or in the host module, depending on the calling
-  /// context.
+  /// Inject the MLIR function created in either the device module or in the
+  /// host module, depending on the calling context.
   switch (FTE.getContext()) {
   case FunctionContext::Host:
     module->push_back(function);
