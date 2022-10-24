@@ -540,11 +540,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       // a llvm pointer that contains custom aggregate types. We could create
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
-      if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-        InnerSYCL = any_of(ST.getBody(), [](auto Element) {
-          return mlir::sycl::isSYCLType(Element);
-        });
-      }
+      if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>())
+        InnerSYCL |= any_of(ST.getBody(),
+                            [](auto Element) { return isSYCLType(Element); });
 
       if (!InnerSYCL)
         return LLVM::LLVMPointerType::get(
