@@ -25,10 +25,10 @@ namespace intel {
 namespace detail {
 // Scores a device by platform name. Uses const char * for the platform name to
 // avoid repeated string copying.
-inline int SelectDeviceByPlatform(const char *required_platform_name,
+inline int selectDeviceByPlatform(const char *required_platform_name,
                                   const device &device) {
   const platform &pf = device.get_platform();
-  const std::string &platform_name = pf.get_info<sycl::info::platform::name>();
+  std::string platform_name = pf.get_info<sycl::info::platform::name>();
   if (platform_name == required_platform_name) {
     return 10000;
   }
@@ -54,7 +54,7 @@ public:
       : device_platform_name(platform_name) {}
 
   int operator()(const device &device) const override {
-    return detail::SelectDeviceByPlatform(device_platform_name.c_str(), device);
+    return detail::selectDeviceByPlatform(device_platform_name.c_str(), device);
   }
 };
 
@@ -64,11 +64,11 @@ static constexpr auto HARDWARE_PLATFORM_NAME =
     "Intel(R) FPGA SDK for OpenCL(TM)";
 
 int fpga_selector_v(const device &device) {
-  return detail::SelectDeviceByPlatform(HARDWARE_PLATFORM_NAME, device);
+  return detail::selectDeviceByPlatform(HARDWARE_PLATFORM_NAME, device);
 }
 
 int fpga_emulator_selector_v(const device &device) {
-  return detail::SelectDeviceByPlatform(EMULATION_PLATFORM_NAME, device);
+  return detail::selectDeviceByPlatform(EMULATION_PLATFORM_NAME, device);
 }
 
 int fpga_simulator_selector_v(const device &device) {
