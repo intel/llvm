@@ -34,7 +34,6 @@ class CodeGenModule;
 } // namespace clang
 
 namespace mlir {
-class FunctionType;
 class ModuleOp;
 class Type;
 
