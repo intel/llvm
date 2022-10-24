@@ -917,6 +917,13 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
                            .addAttribute(llvm::Attribute::Nest));
     }
 
+    if (auto attr = func.getArgAttrOfType<UnitAttr>(
+            argIdx, LLVMDialect::getNoUndefAttrName())) {
+      // llvm.noundef can be added to any argument type.
+      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                           .addAttribute(llvm::Attribute::NoUndef));
+    }
+
     mapValue(mlirArg, &llvmArg);
     argIdx++;
   }
@@ -977,7 +984,7 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     addRuntimePreemptionSpecifier(function.getDsoLocal(), llvmFunc);
 
     if (function->getAttrOfType<UnitAttr>(LLVMDialect::getReadnoneAttrName()))
-      llvmFunc->addFnAttr(llvm::Attribute::ReadNone);
+      llvmFunc->setDoesNotAccessMemory();
 
     // Forward the pass-through attributes to LLVM.
     if (failed(forwardPassthroughAttributes(
