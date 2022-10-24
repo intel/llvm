@@ -3329,9 +3329,11 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     assert((mlirThisType.isa<LLVM::LLVMPointerType, MemRefType>()) &&
            "Unexpected type");
 
-    llvm::dbgs() << "Adding this type to function parameters: ";
-    thisType.dump();
-    llvm::dbgs().indent(2) << "mlir type: " << mlirThisType << "\n";
+    LLVM_DEBUG({
+      llvm::dbgs() << "Adding this type to function parameters: ";
+      thisType.dump();
+      llvm::dbgs().indent(2) << "mlir type: " << mlirThisType << "\n";
+    });
 
     parmDescriptors.push_back(mlirThisType);
   }
@@ -3374,12 +3376,12 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
       mlirType = getTypes().getMLIRType(
           CGM.getContext().getLValueReferenceType(parmType));
 
-#if 1
-    llvm::dbgs() << "Processing parameter\n";
-    llvm::dbgs() << "parmType: ";
-    parmType.dump();
-    llvm::dbgs().indent(2) << "mlir type: " << mlirType << "\n";
-#endif
+    LLVM_DEBUG({
+      llvm::dbgs() << "Processing parameter\n";
+      llvm::dbgs() << "parmType: ";
+      parmType.dump();
+      llvm::dbgs().indent(2) << "mlir type: " << mlirType << "\n";
+    });
 
     parmDescriptors.push_back(mlirType);
   }
@@ -3394,8 +3396,10 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
                   .cast<MemRefType>();
     assert(mt.getShape().size() == 2);
     parmDescriptors.push_back(mt);
-    llvm::dbgs() << "Adding parameter for array return\n";
-    llvm::dbgs().indent(2) << "mlir type: " << mt << "\n";
+    LLVM_DEBUG({
+      llvm::dbgs() << "Adding parameter for array return\n";
+      llvm::dbgs().indent(2) << "mlir type: " << mt << "\n";
+    });
   }
 }
 

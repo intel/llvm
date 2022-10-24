@@ -167,7 +167,6 @@ private:
   std::map<std::string, mlir::FunctionOpInterface> &deviceFunctions;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
-  //  std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
   std::deque<FunctionToEmit> functionsToEmit;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   clang::SourceManager &SM;
