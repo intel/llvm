@@ -2363,6 +2363,9 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     llvm_unreachable("not implemented");
   } else if (auto RT = mt.getElementType().dyn_cast<mlir::sycl::RangeType>()) {
     llvm_unreachable("not implemented");
+  } else if (auto RT =
+                 mt.getElementType().dyn_cast<mlir::sycl::NdRangeType>()) {
+    llvm_unreachable("not implemented");
   } else if (auto RT = mt.getElementType().dyn_cast<mlir::sycl::ItemType>()) {
     assert(fnum < RT.getBody().size() && "ERROR");
 
@@ -3660,7 +3663,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     const auto *RD = RT->getAsRecordDecl();
     if (mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext())) {
       const auto TypeName = RD->getName();
-      if (TypeName == "range" || TypeName == "array" || TypeName == "id" ||
+      if (TypeName == "range" || TypeName == "nd_range" ||
+          TypeName == "array" || TypeName == "id" ||
           TypeName == "accessor_common" || TypeName == "accessor" ||
           TypeName == "AccessorImplDevice" || TypeName == "item" ||
           TypeName == "ItemBase" || TypeName == "nd_item" ||
@@ -3710,10 +3714,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                           LLVM::LLVMArrayType>();
       innerSYCL |=
           ty.isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                 mlir::sycl::RangeType, mlir::sycl::AccessorImplDeviceType,
-                 mlir::sycl::ArrayType, mlir::sycl::ItemType,
-                 mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-                 mlir::sycl::GroupType>();
+                 mlir::sycl::NdRangeType, mlir::sycl::RangeType,
+                 mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
+                 mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
+                 mlir::sycl::NdItemType, mlir::sycl::GroupType>();
       types.push_back(ty);
     }
 
@@ -3859,7 +3863,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>()) {
         for (auto Element : ST.getBody()) {
           if (Element.isa<mlir::sycl::IDType, mlir::sycl::AccessorType,
-                          mlir::sycl::RangeType,
+                          mlir::sycl::RangeType, mlir::sycl::NdRangeType,
                           mlir::sycl::AccessorImplDeviceType,
                           mlir::sycl::ArrayType, mlir::sycl::ItemType,
                           mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
@@ -3954,6 +3958,11 @@ mlir::Type MLIRASTConsumer::getSYCLType(const clang::RecordType *RT) {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
       return mlir::sycl::RangeType::get(module->getContext(), Dim);
+    }
+    if (CTS->getName() == "nd_range") {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::NdRangeType::get(module->getContext(), Dim, Body);
     }
     if (CTS->getName() == "array") {
       const auto Dim =
