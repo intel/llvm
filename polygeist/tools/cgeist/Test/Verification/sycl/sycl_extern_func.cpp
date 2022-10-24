@@ -1,14 +1,3 @@
-// Copyright (C) Intel
-
-//===--- sycl_extern_func.cpp ---------------------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
-// clang-format off
 // RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -o - 2> /dev/null | FileCheck %s --check-prefix=CHECK-MLIR
 // RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
