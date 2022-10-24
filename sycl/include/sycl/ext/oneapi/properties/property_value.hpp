@@ -19,8 +19,7 @@ namespace experimental {
 namespace detail {
 
 // Base class for property values with a single non-type value
-template <typename T, typename = void>
-struct SingleNontypePropertyValueBase {};
+template <typename T, typename = void> struct SingleNontypePropertyValueBase {};
 
 template <typename T>
 struct SingleNontypePropertyValueBase<T, std::enable_if_t<HasValue<T>::value>> {
@@ -28,12 +27,10 @@ struct SingleNontypePropertyValueBase<T, std::enable_if_t<HasValue<T>::value>> {
 };
 
 // Helper base class for property_value.
-template <typename... Ts>
-struct PropertyValueBase {};
+template <typename... Ts> struct PropertyValueBase {};
 
 template <typename T>
-struct PropertyValueBase<T>
-    : public detail::SingleNontypePropertyValueBase<T> {
+struct PropertyValueBase<T> : public detail::SingleNontypePropertyValueBase<T> {
   using value_t = T;
 };
 

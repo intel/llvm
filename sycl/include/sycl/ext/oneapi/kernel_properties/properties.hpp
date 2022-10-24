@@ -189,8 +189,7 @@ template <>
 struct IsCompileTimeProperty<work_group_size_hint_key> : std::true_type {};
 template <>
 struct IsCompileTimeProperty<sub_group_size_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<device_has_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<device_has_key> : std::true_type {};
 
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
