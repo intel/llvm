@@ -12,6 +12,7 @@
 #include <sycl/device_selector.hpp>
 
 #include <string>
+#include <string_view>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -23,9 +24,8 @@ namespace ext {
 namespace intel {
 
 namespace detail {
-// Scores a device by platform name. Uses const char * for the platform name to
-// avoid repeated string copying.
-inline int selectDeviceByPlatform(const char *required_platform_name,
+// Scores a device by platform name.
+inline int selectDeviceByPlatform(std::string_view required_platform_name,
                                   const device &device) {
   const platform &pf = device.get_platform();
   std::string platform_name = pf.get_info<sycl::info::platform::name>();
