@@ -72,9 +72,6 @@ public:
   clang::CodeGen::CGCXXABI &getCXXABI() const { return TheCXXABI; }
   const clang::CodeGenOptions &getCodeGenOpts() const;
 
-  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
-                                     const clang::FunctionDecl &FD);
-
   // TODO: Possibly create a SYCLTypeCache
   mlir::Type getMLIRType(clang::QualType QT, bool *ImplicitRef = nullptr,
                          bool AllowMerge = true);

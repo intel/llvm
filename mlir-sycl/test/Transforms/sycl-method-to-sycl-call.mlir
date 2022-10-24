@@ -7,11 +7,11 @@
 !sycl_item_1_1_ = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl.range<1>, !sycl.id<1>, !sycl.id<1>)>)>
 !sycl_range_2_ = !sycl.range<2>
 
-// CHECK-LABEL: func.func @accessor_subscript_operator(%arg0: memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, %arg1: memref<?x!sycl_id_2_>) -> memref<?xi32, 4> {
-// CHECK-NEXT: %0 = sycl.call(%arg0, %arg1) {Function = @"operator[]", MangledName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, Type = @accessor} : (memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
+// CHECK-LABEL: func.func @accessor_subscript_operator(%arg0: memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, %arg1: !sycl_id_2_) -> memref<?xi32, 4> {
+// CHECK-NEXT: %0 = sycl.call(%arg0, %arg1) {Function = @"operator[]", MangledName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, Type = @accessor} : (memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, !sycl_id_2_) -> memref<?xi32, 4>
 
-func.func @accessor_subscript_operator(%arg0: memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, %arg1: memref<?x!sycl_id_2_>) -> memref<?xi32, 4> {
-  %0 = sycl.accessor.subscript %arg0[%arg1] {BaseType = memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
+func.func @accessor_subscript_operator(%arg0: memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, %arg1: !sycl_id_2_) -> memref<?xi32, 4> {
+  %0 = sycl.accessor.subscript %arg0[%arg1] {BaseType = memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_read_write_global_buffer, 4>, !sycl_id_2_) -> memref<?xi32, 4>
   return %0 : memref<?xi32, 4>
 }
 

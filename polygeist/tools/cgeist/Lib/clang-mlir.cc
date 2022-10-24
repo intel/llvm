@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang-mlir.h"
+#include "Attributes.h"
 #include "TypeUtils.h"
 #include "utils.h"
 
@@ -61,10 +62,6 @@ cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
 static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
-
-static cl::opt<bool>
-    UseOldFunctionType("old-func-type", cl::init(false),
-                       cl::desc("Use old way to compute the function type"));
 
 cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
                                    cl::desc("Generate all SYCL functions"));
@@ -354,8 +351,7 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  const clang::CodeGen::CGFunctionInfo &FI = Glob.GetOrCreateCGFunctionInfo(FD);
-  auto FIArgs = FI.arguments();
+  const bool isKernel = FD->hasAttr<SYCLKernelAttr>();
 
   for (ParmVarDecl *parm : FD->parameters()) {
     assert(i != function.getNumArguments());
@@ -372,15 +368,12 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
 
     bool isReference = isArray || isa<clang::ReferenceType>(
                                       parmType->getUnqualifiedDesugaredType());
-    isReference |=
-        (FIArgs[i].info.getKind() == clang::CodeGen::ABIArgInfo::Indirect ||
-         FIArgs[i].info.getKind() ==
-             clang::CodeGen::ABIArgInfo::IndirectAliased);
 
     mlir::Value val = function.getArgument(i);
     assert(val && "Expecting a valid value");
 
-    if (isReference)
+    if (isReference ||
+        (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)))
       params.emplace(parm, ValueCategory(val, /*isReference*/ true));
     else {
       mlir::Value alloc =
@@ -394,9 +387,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
   if (FD->hasAttr<CUDAGlobalAttr>() && Glob.getCGM().getLangOpts().CUDA &&
       !Glob.getCGM().getLangOpts().CUDAIsDevice) {
     FunctionToEmit FTE(*FD);
-    auto deviceStub = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(
-        FTE, false /* IsThink*/, true /* ShouldEmit*/,
-        /* getDeviceStub */ true));
+    auto deviceStub = cast<func::FuncOp>(
+        Glob.GetOrCreateMLIRFunction(FTE, true /* ShouldEmit*/,
+                                     /* getDeviceStub */ true));
 
     builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
     builder.create<ReturnOp>(loc);
@@ -2973,8 +2966,8 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 }
 
 mlir::FunctionOpInterface
-MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
-                                         bool ShouldEmit, bool getDeviceStub) {
+MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
+                                         bool getDeviceStub) {
   assert(FTE.getDecl().getTemplatedKind() !=
              FunctionDecl::TemplatedKind::TK_FunctionTemplate &&
          FTE.getDecl().getTemplatedKind() !=
@@ -2998,7 +2991,7 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
 
   // Create the MLIR function and set its various attributes.
   FunctionOpInterface function =
-      createMLIRFunction(FTE, mangledName, IsThunk, ShouldEmit);
+      createMLIRFunction(FTE, mangledName, ShouldEmit);
   checkFunctionParent(function, FTE.getContext(), module);
 
   // Decide whether the MLIR function should be emitted.
@@ -3023,23 +3016,6 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
   }
 
   return function;
-}
-
-const clang::CodeGen::CGFunctionInfo &
-MLIRASTConsumer::GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
-  auto result = CGFunctionInfos.find(FD);
-  if (result != CGFunctionInfos.end())
-    return *result->second;
-
-  GlobalDecl GD;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
-  else
-    GD = GlobalDecl(FD);
-  CGFunctionInfos[FD] = &CGM.getTypes().arrangeGlobalDeclaration(GD);
-  return *CGFunctionInfos[FD];
 }
 
 void MLIRASTConsumer::run() {
@@ -3073,8 +3049,8 @@ void MLIRASTConsumer::run() {
 
     done.insert(doneKey);
     MLIRScanner ms(*this, module, LTInfo);
-    FunctionOpInterface function = GetOrCreateMLIRFunction(
-        FTE, false /* IsThunk */, true /* ShouldEmit */);
+    FunctionOpInterface function =
+        GetOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
     ms.init(function, FTE);
 
     LLVM_DEBUG({
@@ -3329,9 +3305,11 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     assert((mlirThisType.isa<LLVM::LLVMPointerType, MemRefType>()) &&
            "Unexpected type");
 
-    llvm::dbgs() << "Adding this type to function parameters: ";
-    thisType.dump();
-    llvm::dbgs().indent(2) << "mlir type: " << mlirThisType << "\n";
+    LLVM_DEBUG({
+      llvm::dbgs() << "Adding this type to function parameters: ";
+      thisType.dump();
+      llvm::dbgs().indent(2) << "mlir type: " << mlirThisType << "\n";
+    });
 
     parmDescriptors.push_back(mlirThisType);
   }
@@ -3374,12 +3352,12 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
       mlirType = getTypes().getMLIRType(
           CGM.getContext().getLValueReferenceType(parmType));
 
-#if 1
-    llvm::dbgs() << "Processing parameter\n";
-    llvm::dbgs() << "parmType: ";
-    parmType.dump();
-    llvm::dbgs().indent(2) << "mlir type: " << mlirType << "\n";
-#endif
+    LLVM_DEBUG({
+      llvm::dbgs() << "Processing parameter\n";
+      llvm::dbgs() << "parmType: ";
+      parmType.dump();
+      llvm::dbgs().indent(2) << "mlir type: " << mlirType << "\n";
+    });
 
     parmDescriptors.push_back(mlirType);
   }
@@ -3394,21 +3372,19 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
                   .cast<MemRefType>();
     assert(mt.getShape().size() == 2);
     parmDescriptors.push_back(mt);
-    llvm::dbgs() << "Adding parameter for array return\n";
-    llvm::dbgs().indent(2) << "mlir type: " << mt << "\n";
+    LLVM_DEBUG({
+      llvm::dbgs() << "Adding parameter for array return\n";
+      llvm::dbgs().indent(2) << "mlir type: " << mt << "\n";
+    });
   }
 }
 
 mlir::FunctionOpInterface
 MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
-                                    std::string mangledName, bool IsThunk,
-                                    bool ShouldEmit) {
+                                    std::string mangledName, bool ShouldEmit) {
   const FunctionDecl &FD = FTE.getDecl();
   Location loc = getMLIRLocation(FD.getLocation());
   mlir::OpBuilder Builder(module->getContext());
-
-  const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
-  mlir::FunctionType funcTy = getTypes().getFunctionType(FI, FD);
 
   SmallVector<CodeGenUtils::ParmDesc, 4> parmDescriptors;
   createMLIRParameterDescriptors(FD, parmDescriptors);
@@ -3416,34 +3392,19 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   SmallVector<CodeGenUtils::ResultDesc, 4> resDescriptors;
   createMLIRResultDescriptors(FD, resDescriptors);
 
-  // TODO: remove once we are happy with the new way to compute the function
-  // type.
-  if (UseOldFunctionType) {
-    SmallVector<mlir::Type, 4> parmTypes, retTypes;
-    CodeGenUtils::ParmDesc::getTypes(parmDescriptors, parmTypes);
-    CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
+  SmallVector<mlir::Type, 4> parmTypes, retTypes;
+  CodeGenUtils::ParmDesc::getTypes(parmDescriptors, parmTypes);
+  CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
 
-    auto funcTy1 = Builder.getFunctionType(parmTypes, retTypes);
-
-    LLVM_DEBUG({
-      llvm::dbgs() << "New funcTy: " << funcTy << "\n";
-      llvm::dbgs() << "Old funcTy1: " << funcTy1 << "\n";
-      if (funcTy != funcTy1) {
-        llvm::dbgs() << "Function types are different for " << mangledName
-                     << "\n";
-      }
-    });
-
-    funcTy = funcTy1;
-  }
+  auto funcType = Builder.getFunctionType(parmTypes, retTypes);
 
   mlir::FunctionOpInterface function =
       FD.hasAttr<SYCLKernelAttr>()
-          ? Builder.create<gpu::GPUFuncOp>(loc, mangledName, funcTy)
-          : Builder.create<func::FuncOp>(loc, mangledName, funcTy);
+          ? Builder.create<gpu::GPUFuncOp>(loc, mangledName, funcType)
+          : Builder.create<func::FuncOp>(loc, mangledName, funcType);
 
   setMLIRFunctionVisibility(function, FTE, ShouldEmit);
-  setMLIRFunctionAttributes(function, FTE, FI, IsThunk, ShouldEmit);
+  setMLIRFunctionAttributes(function, FTE, ShouldEmit);
   setMLIRFunctionParmsAttributes(function, parmDescriptors);
   setMLIRFunctionResultAttributes(function, resDescriptors);
 
@@ -3502,7 +3463,7 @@ void MLIRASTConsumer::setMLIRFunctionVisibility(
 
 void MLIRASTConsumer::setMLIRFunctionAttributes(
     mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
-    const clang::CodeGen::CGFunctionInfo &FI, bool IsThunk, bool ShouldEmit) {
+    bool ShouldEmit) {
   using Attribute = llvm::Attribute;
 
   const FunctionDecl &FD = FTE.getDecl();
@@ -3651,8 +3612,7 @@ public:
 mlir::FunctionOpInterface
 MLIRScanner::EmitDirectCallee(const FunctionDecl *FD, FunctionContext Context) {
   FunctionToEmit FTE(*FD, Context);
-  return Glob.GetOrCreateMLIRFunction(FTE, false /* IsThunk */,
-                                      true /* ShouldEmit */);
+  return Glob.GetOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
 }
 
 mlir::Location MLIRScanner::getMLIRLocation(clang::SourceLocation loc) {
@@ -3927,8 +3887,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
-      // Reset the ID tables if we are reusing the
-      // SourceManager and parsing regular files.
+      // Reset the ID tables if we are reusing the SourceManager and parsing
+      // regular files.
       if (Clang->hasSourceManager() && !Act.isModelParsingAction())
         Clang->getSourceManager().clearIDTables();
       if (Act.BeginSourceFile(*Clang, FIF)) {

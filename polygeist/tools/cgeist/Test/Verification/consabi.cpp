@@ -14,12 +14,14 @@ QStream ilaunch_kernel(QStream x) {
   return x;
 }
 
-// CHECK:   func @_Z14ilaunch_kernel7QStream(%arg0: !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> !llvm.struct<(struct<(f64, f64)>, i32)> attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @_Z14ilaunch_kernel7QStream(%arg0: !llvm.struct<(struct<(f64, f64)>, i32)>) -> !llvm.struct<(struct<(f64, f64)>, i32)> attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(f64, f64)>, i32)> : (i64) -> !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
-// CHECK-NEXT:     call @_ZN7QStreamC1EOS_(%0, %arg0) : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> ()
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
-// CHECK-NEXT:     return %1 : !llvm.struct<(struct<(f64, f64)>, i32)>
+// CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(f64, f64)>, i32)> : (i64) -> !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
+// CHECK-NEXT:     llvm.store %arg0, %1 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
+// CHECK-NEXT:     call @_ZN7QStreamC1EOS_(%0, %1) : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) -> ()
+// CHECK-NEXT:     %2 = llvm.load %0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
+// CHECK-NEXT:     return %2 : !llvm.struct<(struct<(f64, f64)>, i32)>
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @_ZN7QStreamC1EOS_(%arg0: !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, %arg1: !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %0 = llvm.bitcast %arg1 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
