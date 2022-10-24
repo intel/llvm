@@ -14,6 +14,7 @@
 #include <sycl/detail/generic_type_lists.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/half_type.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #include <limits>
 
@@ -288,10 +289,11 @@ struct convert_data_type_impl<T, B, enable_if_t<is_vgentype<T>::value, T>> {
 template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
-// Try to get pointer_t, otherwise T
+// Try to get pointer_t (legacy) or pointer, otherwise T
 template <typename T> class TryToGetPointerT {
   static T check(...);
   template <typename A> static typename A::pointer_t check(const A &);
+  template <typename A> static typename A::pointer check(const A &);
 
 public:
   using type = decltype(check(T()));
@@ -299,10 +301,11 @@ public:
       std::is_pointer<T>::value || !std::is_same<T, type>::value;
 };
 
-// Try to get element_type, otherwise T
+// Try to get element_type or value_type, otherwise T
 template <typename T> class TryToGetElementType {
   static T check(...);
   template <typename A> static typename A::element_type check(const A &);
+  template <typename A> static typename A::value_type check(const A &);
 
 public:
   using type = decltype(check(T()));
@@ -335,17 +338,49 @@ public:
   using type = decltype(check(T()));
 };
 
+template <typename To> struct PointerConverter {
+  template <typename From> static To Convert(From *t) {
+    return reinterpret_cast<To>(t);
+  }
+
+  template <typename From> static To Convert(From &t) {
+    // TODO find the better way to get the pointer to underlying data from vec
+    // class
+    return reinterpret_cast<To>(t.get());
+  }
+};
+
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct PointerConverter<multi_ptr<ElementType, Space, DecorateAddress>> {
+  template <typename From>
+  static multi_ptr<ElementType, Space, DecorateAddress> Convert(From *t) {
+    return address_space_cast<Space, DecorateAddress>(
+        reinterpret_cast<remove_decoration_t<From *>>(t));
+  }
+
+  template <typename From>
+  static multi_ptr<ElementType, Space, DecorateAddress> Convert(From &t) {
+    return address_space_cast<Space, DecorateAddress>(
+        reinterpret_cast<remove_decoration_t<decltype(t.get())>>(t.get()));
+  }
+
+  template <typename From>
+  static multi_ptr<ElementType, Space, DecorateAddress>
+  Convert(multi_ptr<ElementType, Space, DecorateAddress> &t) {
+    return t;
+  }
+};
+
 template <
     typename To, typename From,
     typename = typename detail::enable_if_t<TryToGetPointerT<From>::value>>
 To ConvertNonVectorType(From &t) {
-  // TODO find the better way to get the pointer to underlying data from vec
-  // class
-  return reinterpret_cast<To>(t.get());
+  return PointerConverter<To>::Convert(t);
 }
 
 template <typename To, typename From> To ConvertNonVectorType(From *t) {
-  return reinterpret_cast<To>(t);
+  return PointerConverter<To>::Convert(t);
 }
 
 template <typename To, typename From>
@@ -353,6 +388,25 @@ typename detail::enable_if_t<!TryToGetPointerT<From>::value, To>
 ConvertNonVectorType(From &t) {
   return static_cast<To>(t);
 }
+
+template <typename T, typename = void> struct mptr_or_vec_elem_type {
+  using type = typename T::element_type;
+};
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+struct mptr_or_vec_elem_type<
+    multi_ptr<ElementType, Space, IsDecorated>,
+    std::enable_if_t<IsDecorated == access::decorated::no ||
+                     IsDecorated == access::decorated::yes>> {
+  using type = typename multi_ptr<ElementType, Space, IsDecorated>::value_type;
+};
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+struct mptr_or_vec_elem_type<const multi_ptr<ElementType, Space, IsDecorated>>
+    : mptr_or_vec_elem_type<multi_ptr<ElementType, Space, IsDecorated>> {};
+
+template <typename T>
+using mptr_or_vec_elem_type_t = typename mptr_or_vec_elem_type<T>::type;
 
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
@@ -409,9 +463,9 @@ struct select_cl_vector_or_scalar_or_ptr<
       // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
       // class with _Float16 DataType, which is not expected there
       // So, leave vector<half, N> as-is
-      vec<conditional_t<std::is_same<typename T::element_type, half>::value,
-                        typename T::element_type,
-                        select_cl_scalar_t<typename T::element_type>>,
+      vec<conditional_t<std::is_same<mptr_or_vec_elem_type_t<T>, half>::value,
+                        mptr_or_vec_elem_type_t<T>,
+                        select_cl_scalar_t<mptr_or_vec_elem_type_t<T>>>,
           T::size()>;
 };
 
@@ -461,8 +515,8 @@ struct select_cl_mptr_or_vector_or_scalar_or_ptr<
     T, typename detail::enable_if_t<is_genptr<T>::value &&
                                     !std::is_pointer<T>::value>> {
   using type = multi_ptr<typename select_cl_vector_or_scalar_or_ptr<
-                             type_helper<typename T::element_type>>::type,
-                         T::address_space>;
+                             type_helper<mptr_or_vec_elem_type_t<T>>>::type,
+                         T::address_space, access::decorated::yes>;
 };
 
 template <typename T>

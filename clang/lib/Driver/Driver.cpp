@@ -5894,7 +5894,15 @@ class OffloadingActionBuilder final {
               }
               SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
             } else {
-              SYCLTargetInfoList.emplace_back(*TCIt, GpuArchList[I].second);
+              const char *OffloadArch = nullptr;
+              for (auto &A : GpuArchList) {
+                if (TT == A.first) {
+                  OffloadArch = A.second;
+                  break;
+                }
+              }
+              assert(OffloadArch && "Failed to find matching arch.");
+              SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
               ++I;
             }
           }

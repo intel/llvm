@@ -1302,11 +1302,13 @@ def SYCLType: InheritableAttr {
                            ["accessor", "local_accessor", "spec_constant",
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
-                            "private_memory", "aspect"],
+                            "private_memory", "aspect", "annotated_ptr", "annotated_arg",
+                            "stream", "sampler"],
                            ["accessor", "local_accessor", "spec_constant",
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
-                            "private_memory", "aspect"]>];
+                            "private_memory", "aspect", "annotated_ptr", "annotated_arg",
+                            "stream", "sampler"]>];
   // Only used internally by SYCL implementation
   let Documentation = [InternalOnly];
 }
@@ -1603,6 +1605,20 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
     if (ValueQType->isIntegralOrEnumerationType() ||
         ValueQType->isFloatingType())
       return Value.getAsString(Context, ValueQType);
+    if (ValueQType->isArrayType() &&
+        (ValueQType->getArrayElementTypeNoTypeQual()->isCharType() ||
+         ValueQType->getArrayElementTypeNoTypeQual()
+                   ->isIntegralOrEnumerationType())) {
+      SmallString<10> StrBuffer;
+      for (unsigned I = 0; I < Value.getArraySize(); ++I) {
+        const APValue &ArrayElem = Value.getArrayInitializedElt(I);
+        char C = static_cast<char>(ArrayElem.getInt().getExtValue());
+        if (C == 0)
+          break;
+        StrBuffer += C;
+      }
+      return std::string(StrBuffer);
+    }
     return None;
   }
 
@@ -1627,6 +1643,33 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       IntegerVal->getValue().toString(IntegerStrBuffer, 10,
                                       ValueE->getType()->isSignedIntegerType());
       return std::string(IntegerStrBuffer);
+    }
+    if (const auto *InitListE = dyn_cast<InitListExpr>(ValueE)) {
+      if (InitListE->isStringLiteralInit()) {
+        const Expr *StringInitE = InitListE->getInit(0)->IgnoreParenImpCasts();
+        return getValidAttributeValueAsString(StringInitE, Context);
+      }
+
+      SmallString<10> StrBuffer;
+      for (const auto *InitE : InitListE->inits()) {
+        const Expr *InitNoImpCastE = InitE->IgnoreParenImpCasts();
+        char C = 0;
+        if (const auto *CharacterVal =
+              dyn_cast<CharacterLiteral>(InitNoImpCastE))
+          C = static_cast<char>(CharacterVal->getValue());
+        else if (const auto *IntegerVal =
+              dyn_cast<IntegerLiteral>(InitNoImpCastE))
+          C = static_cast<char>(IntegerVal->getValue().getSExtValue());
+        else
+          return None;
+
+        // Null terminator will end the string reading.
+        if (C == 0)
+          break;
+
+        StrBuffer += C;
+      }
+      return std::string(StrBuffer);
     }
 
     const auto *ValueCE = dyn_cast<ConstantExpr>(ValueE);
