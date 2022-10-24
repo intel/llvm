@@ -22,7 +22,7 @@ tests.
 cmake -G Ninja \
         -DTEST_SUITE_SUBDIRS=SYCL \
         -DTEST_SUITE_LIT=<path/to/llvm-lit> \
-        -DCHECK_SYCL_ALL="opencl:cpu,acc,gpu,host;level_zero:gpu,host" \
+        -DCHECK_SYCL_ALL="opencl:cpu,acc,gpu;level_zero:gpu" \
         -DCMAKE_CXX_COMPILER=<path/to/clang++> \
         -DSYCL_EXTRA_TESTS_SRC=<path/to/more/lit/tests/sources>
         ..

@@ -19,7 +19,7 @@ on testing scope.
    or taken prebuilt from [releases](https://github.com/intel/llvm/releases).
  - LIT tools (llvm-lit, llvm-size). They are not available at prebuilts above,
    but can be built in compiler project (e.g. with "ninja check").
- - Target runtime(s) to execute tests on devices other than host. See
+ - Target runtime(s) to execute tests on devices. See
    [installation instructions](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
 
 # Build and run tests
@@ -40,7 +40,7 @@ With compiler tools available in the PATH:
 cmake \
  -DCMAKE_CXX_COMPILER=clang++ \
  -DTEST_SUITE_SUBDIRS=SYCL \
- -DCHECK_SYCL_ALL="opencl:host" \
+ -DCHECK_SYCL_ALL="opencl:cpu" \
  ..
 
 # Build and Run
@@ -56,7 +56,7 @@ cmake \
  -DCMAKE_CXX_COMPILER=clang++ \
  -DTEST_SUITE_SUBDIRS=SYCL \
  -DSYCL_BE="opencl" \
- -DSYCL_TARGET_DEVICES="host" \
+ -DSYCL_TARGET_DEVICES="cpu" \
  ..
 
 # Build and Run
@@ -96,7 +96,7 @@ list of configurations. Each configuration includes backend separated
 from comma-separated list of target devices with colon. Example:
 
 ```
--DCHECK_SYCL_ALL="opencl:cpu,host;ext_oneapi_level_zero:gpu,host;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
+-DCHECK_SYCL_ALL="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
 ```
 
 ***SYCL_BE*** - SYCL backend to be used for testing. Supported values are:
@@ -108,11 +108,10 @@ from comma-separated list of target devices with colon. Example:
 
 
 ***SYCL_TARGET_DEVICES*** - comma separated list of target devices for testing.
-Default value is cpu,gpu,acc,host. Supported values are:
+Default value is cpu,gpu,acc. Supported values are:
  - **cpu**  - CPU device available in OpenCL backend only;
  - **gpu**  - GPU device available in OpenCL, Level Zero, CUDA, and HIP backends;
  - **acc**  - FPGA emulator device available in OpenCL backend only;
- - **host** - SYCL Host device available with all backends.
 
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
 interoperability tests require OpenCL ICD loader to be linked with. For such
@@ -157,7 +156,7 @@ If UNSUPPORTED:sycl-ls specified, test will run only if sycl-ls tool is
 unavailable.
 
  * **windows**, **linux** - host OS;
- * **cpu**, **gpu**, **host**, **accelerator** - target device;
+ * **cpu**, **gpu**, **accelerator** - target device;
  * **cuda**, **hip**, **opencl**, **level_zero**, **esimd_emulator** - target
      backend;
  * **sycl-ls** - sycl-ls tool availability;
@@ -182,8 +181,7 @@ Following options can be passed to llvm-lit tool through --param option to
 configure specific single test execution in the command line:
 
  * **dpcpp_compiler** - full path to dpcpp compiler;
- * **target_device** - comma-separated list of target devices (cpu, gpu, acc,
-   host);
+ * **target_device** - comma-separated list of target devices (cpu, gpu, acc);
  * **sycl_be** - SYCL backend to be used (opencl, ext_oneapi_level_zero,
    ext_oneapi_cuda, ext_oneapi_hip, ext_oneapi_intel_emulator);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
@@ -220,7 +218,7 @@ configure specific single test execution in the command line:
 Example:
 
 ```
-llvm-lit --param target_devices=host,gpu --param sycl_be=ext_oneapi_level_zero \
+llvm-lit --param target_devices=gpu --param sycl_be=ext_oneapi_level_zero \
          --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
          SYCL/External/RSBench
 ```
