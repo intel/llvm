@@ -20,13 +20,9 @@
 
 namespace clang {
 class ASTContext;
-template <typename> class CanQual;
 class CodeGenOptions;
-class FunctionDecl;
 class QualType;
 class RecordType;
-class Type;
-typedef CanQual<Type> CanQualType;
 class GlobalDecl;
 
 namespace CodeGen {
