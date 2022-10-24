@@ -547,6 +547,7 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
   if (queue_ != nullptr) {
     hip_piQueueRetain(queue_);
   }
+  std::cout << "_pi_event:: hip_piContextRetain" << std::endl;
   hip_piContextRetain(context_);
 }
 
@@ -554,6 +555,8 @@ _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
     hip_piQueueRelease(queue_);
   }
+  std::cout << "~_pi_event:: hip_piContextRelease" << std::endl;
+
   hip_piContextRelease(context_);
 }
 
@@ -685,10 +688,14 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 _pi_program::_pi_program(pi_context ctxt)
     : module_{nullptr}, binary_{},
       binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
+  std::cout << "pi_program:: hip_piContextRetain" << std::endl;
   hip_piContextRetain(context_);
 }
 
-_pi_program::~_pi_program() { hip_piContextRelease(context_); }
+_pi_program::~_pi_program() {
+  std::cout << "~pi_program:: hip_piContextRelease" << std::endl;
+  hip_piContextRelease(context_);
+}
 
 pi_result _pi_program::set_binary(const char *source, size_t length) {
   assert((binary_ == nullptr && binarySizeInBytes_ == 0) &&
@@ -1895,7 +1902,6 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
                                                  const void *private_info,
                                                  size_t cb, void *user_data),
                               void *user_data, pi_context *retcontext) {
-
   assert(devices != nullptr);
   // TODO: How to implement context callback?
   assert(pfn_notify == nullptr);
@@ -1977,8 +1983,9 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
 pi_result hip_piContextRelease(pi_context ctxt) {
 
   assert(ctxt != nullptr);
-
-  if (ctxt->decrement_reference_count() > 0) {
+  auto count = ctxt->decrement_reference_count();
+  std::cout << "hip_piContextRelease count = " << count << std::endl;
+  if (count > 0) {
     return PI_SUCCESS;
   }
   std::cout << "hip_piContextRelease with " << ctxt << std::endl;
