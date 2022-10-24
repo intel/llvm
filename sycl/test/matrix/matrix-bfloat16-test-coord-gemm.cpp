@@ -100,11 +100,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                                    sg_starty / SG_SZ * TN * 2,
                                N * 2, layout::packed_b);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
-           }
-           joint_matrix_store(sg, sub_c,
-                              accC.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, layout::row_major);
+           } 
            // Element wise operation
            auto tCData = sub_c.get_wi_data();
 
