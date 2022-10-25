@@ -83,15 +83,15 @@ inline constexpr size_t CallStackSize = 16;
     return Ret;                                                                \
   }                                                                            \
                                                                                \
-  /* A helper structure for instantiating proxy functions for a given */       \
+  /* A helper function for instantiating proxy functions for a given */        \
   /* PI API signature */                                                       \
-  template <class RetT_, class... ArgsT_> class ConverterT_##api {             \
-  public:                                                                      \
-    ConverterT_##api(RetT_ (*Func)(ArgsT_...)){};                              \
-    constexpr static RetT_ (*Func)(ArgsT_...) =                                \
+  template <class RetT_, class... ArgsT_>                                      \
+  int ConverterT_##api(RetT_ (*FuncArg)(ArgsT_...)) {                          \
+    [[maybe_unused]] constexpr static RetT_ (*Func)(ArgsT_...) =               \
         proxy_mock_##api<RetT_, ArgsT_...>;                                    \
-  };                                                                           \
-  inline ConverterT_##api Anchor_##api{decltype(&::api)(0x0)};                 \
+    return 42;                                                                 \
+  }                                                                            \
+  inline int Anchor_##api = ConverterT_##api(decltype (&::api)(0x0));          \
                                                                                \
   /*Overrides a plugin PI function with a given one */                         \
   template <detail::PiApiKind PiApiOffset>                                     \
