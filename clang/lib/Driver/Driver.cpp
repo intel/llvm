@@ -5141,6 +5141,9 @@ class OffloadingActionBuilder final {
         };
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
+          // spir64 target is actually JIT compilation, so we defer selection of
+          // bfloat16 libraries to runtime. For AOT we need libraries.
+          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);
@@ -5164,26 +5167,29 @@ class OffloadingActionBuilder final {
           continue;
         };
       }
-      if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-          TargetOpt && DeviceOpt) {
+      useNative = false;
+      if (needLibs)
+        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+            TargetOpt && DeviceOpt) {
 
-        auto checkBF = [=](std::string &Dev) {
-          static const std::regex BFFs("pvc.*|ats.*");
-          return std::regex_match(Dev, BFFs);
-        };
+          auto checkBF = [=](std::string &Dev) {
+            static const std::regex BFFs("pvc.*|ats.*");
+            return std::regex_match(Dev, BFFs);
+          };
 
-        needLibs = true;
-        std::string Params{DeviceOpt};
-        size_t DevicesPos = Params.find("-device ");
-        useNative = false;
-        if (DevicesPos != std::string::npos) {
-          useNative = true;
-          std::istringstream Devices(Params.substr(DevicesPos + 8));
-          for (std::string S; std::getline(Devices, S, ',');) {
-            useNative &= checkBF(S);
+          needLibs = true;
+          std::string Params{DeviceOpt};
+          size_t DevicesPos = Params.find("-device ");
+          useNative = false;
+          if (DevicesPos != std::string::npos) {
+            useNative = true;
+            std::istringstream Devices(Params.substr(DevicesPos + 8));
+            for (std::string S; std::getline(Devices, S, ',');) {
+              useNative &= checkBF(S);
+            }
           }
         }
-      }
+
       return needLibs;
     }
 
