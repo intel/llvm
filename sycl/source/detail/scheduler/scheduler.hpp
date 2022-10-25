@@ -469,7 +469,7 @@ protected:
     // It is a deadlock on UNIX in implementation of lock and lock_shared, if
     // try_lock in the loop above will be executed, so using a single lock here
 #endif // _WIN32
-    return std::move(Lock);
+    return Lock;
   }
 
   /// Provides shared access to std::shared_timed_mutex object with deadlock
