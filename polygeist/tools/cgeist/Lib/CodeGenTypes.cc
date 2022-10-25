@@ -234,6 +234,31 @@ const CodeGenOptions &CodeGenTypes::getCodeGenOpts() const {
   return CGM.getCodeGenOpts();
 }
 
+static llvm::raw_ostream &
+operator<<(llvm::raw_ostream &os, clang::CodeGen::ABIArgInfo::Kind &ArgInfo) {
+  os << "ABIArgInfo::";
+  switch (ArgInfo) {
+  case clang::CodeGen::ABIArgInfo::Direct:
+    return os << "Direct";
+  case clang::CodeGen::ABIArgInfo::Extend:
+    return os << "Extend";
+  case clang::CodeGen::ABIArgInfo::Indirect:
+    return os << "Indirect";
+  case clang::CodeGen::ABIArgInfo::IndirectAliased:
+    return os << "IndirectAliased";
+  case clang::CodeGen::ABIArgInfo::Ignore:
+    return os << "Ignore";
+  case clang::CodeGen::ABIArgInfo::Expand:
+    return os << "Expand";
+  case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
+    return os << "CoerceAndExpand";
+  case clang::CodeGen::ABIArgInfo::InAlloca:
+    return os << "InAlloca";
+  }
+  llvm_unreachable("Invalid ABI kind");
+  return os;
+}
+
 mlir::FunctionType
 CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
                               const clang::FunctionDecl &FD) {
@@ -289,36 +314,32 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   LLVM_DEBUG(llvm::dbgs() << "Processing return value\n");
 
   mlir::Type ResultType;
-  switch (RetAI.getKind()) {
+  clang::CodeGen::ABIArgInfo::Kind Kind = RetAI.getKind();
+  LLVM_DEBUG(llvm::dbgs() << "RetInfo: " << Kind << "\n");
+  switch (Kind) {
   case clang::CodeGen::ABIArgInfo::Expand:
   case clang::CodeGen::ABIArgInfo::IndirectAliased:
     llvm_unreachable("Invalid ABI kind for return argument");
 
   case clang::CodeGen::ABIArgInfo::Extend:
-    LLVM_DEBUG(llvm::dbgs() << "RetInfo: ABIArgInfo::Extend\n");
-    LLVM_FALLTHROUGH;
   case clang::CodeGen::ABIArgInfo::Direct:
-    LLVM_DEBUG(llvm::dbgs() << "RetInfo: ABIArgInfo::Direct\n");
     ResultType =
         IsArrayReturn ? Builder.getNoneType() : getMLIRType(FI.getReturnType());
     break;
 
   case clang::CodeGen::ABIArgInfo::InAlloca:
-    LLVM_DEBUG(llvm::dbgs() << "RetInfo: ABIArgInfo::InAlloca\n");
     if (RetAI.getInAllocaSRet()) {
       // sret things on win32 aren't void, they return the sret pointer.
       QualType Ret = FI.getReturnType();
       mlir::Type Ty = getMLIRType(Ret);
       unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
       ResultType = getPointerOrMemRefType(Ty, AddressSpace);
-      ResultType = mlir::MemRefType::get(-1, Ty, {}, AddressSpace);
     } else {
       ResultType = Builder.getNoneType();
     }
     break;
 
   case clang::CodeGen::ABIArgInfo::Indirect:
-    LLVM_DEBUG(llvm::dbgs() << "RetInfo: ABIArgInfo::Indirect\n");
     if (!AllowSRet) {
       // HACK: remove once we can handle function returning a struct.
       QualType Ret = FI.getReturnType();
@@ -326,12 +347,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       break;
     }
   case clang::CodeGen::ABIArgInfo::Ignore:
-    LLVM_DEBUG(llvm::dbgs() << "RetInfo: ABIArgInfo::Ignore\n");
     ResultType = Builder.getNoneType();
     break;
 
   case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
-    LLVM_DEBUG(llvm::dbgs() << "RefInfo: ABIArgInfo::CoerceAndExpand\n");
     llvm_unreachable("not implemented");
     break;
   }
@@ -401,16 +420,14 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     // (e.g. extent of array dimensions) we want to use the original type.
     const QualType &DeclArgTy = getDeclArgTy(ArgNo, ArgTy);
 
-    switch (ArgInfo.getKind()) {
+    clang::CodeGen::ABIArgInfo::Kind Kind = ArgInfo.getKind();
+    LLVM_DEBUG(llvm::dbgs() << "ArgInfo: " << Kind << "\n");
+    switch (Kind) {
     case clang::CodeGen::ABIArgInfo::Ignore:
-      LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::Ignore\n");
-      LLVM_FALLTHROUGH;
     case clang::CodeGen::ABIArgInfo::InAlloca:
-      LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::InAlloca\n");
       assert(NumIRArgs == 0);
       break;
     case clang::CodeGen::ABIArgInfo::Indirect: {
-      LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::Indirect\n");
       assert(NumIRArgs == 1);
       // indirect arguments are always on the stack, which is alloca addr space.
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
@@ -421,7 +438,6 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       break;
     }
     case clang::CodeGen::ABIArgInfo::IndirectAliased: {
-      LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::IndirectAliased\n");
       assert(NumIRArgs == 1);
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
       ArgTypes[FirstIRArg] =
@@ -431,10 +447,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       break;
     }
     case clang::CodeGen::ABIArgInfo::Extend:
-      LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::Extend\n");
-      LLVM_FALLTHROUGH;
     case clang::CodeGen::ABIArgInfo::Direct: {
-      LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::Direct\n");
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
 
       // Fast-isel and the optimizer generally like
@@ -792,9 +805,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
       if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>())
-        InnerSYCL |= any_of(ST.getBody(), [](auto Element) {
-          return mlir::sycl::isSYCLType(Element);
-        });
+        InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
       if (!InnerSYCL)
         return LLVM::LLVMPointerType::get(
@@ -875,11 +886,8 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 unsigned AddressSpace,
                                                 bool IsAlloc) {
   bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
-  if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>()) {
-    IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
-      return mlir::sycl::isSYCLType(Element);
-    });
-  }
+  if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>())
+    IsSYCLType |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
   if (IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {}, AddressSpace);

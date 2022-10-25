@@ -3300,7 +3300,8 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     const clang::FunctionDecl &FD,
     SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) {
   assert(parmDescriptors.empty() && "Expecting 'parmDescriptors' to be empty");
-  llvm::dbgs() << "\n-- Entering createMLIRParameterDescriptors --\n";
+  LLVM_DEBUG(
+      llvm::dbgs() << "\n-- Entering createMLIRParameterDescriptors --\n");
 
   bool isMethodDecl = isa<CXXMethodDecl>(FD);
   bool isMethodInstance = isMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
