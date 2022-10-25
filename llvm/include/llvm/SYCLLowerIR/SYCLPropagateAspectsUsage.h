@@ -24,8 +24,8 @@ struct SPAUOptions {
 class SYCLPropagateAspectsUsagePass
     : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
-  SYCLPropagateAspectsUsagePass(StringRef Opts = {}) {
-    Opts.split(this->Opts.TargetFixedAspects, ',', /*MaxSplit=*/-1,
+  SYCLPropagateAspectsUsagePass(StringRef OptionsString = {}) {
+    OptionsString.split(this->Opts.TargetFixedAspects, ',', /*MaxSplit=*/-1,
                /*KeepEmpty=*/false);
   };
   SPAUOptions parseOpts(StringRef Params);
