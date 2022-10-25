@@ -101,6 +101,36 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
   keep(r.size());
 }
 
+// CHECK-MLIR-LABEL: func.func @_Z25nd_range_get_global_rangeN4sycl3_V18nd_rangeILi2EEE(%{{.*}}: !sycl_nd_range_2_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR: %{{.*}} = "sycl.nd_range.get_global_range"(%{{.*}}) {BaseType = memref<?x!sycl_nd_range_2_, 4>, FunctionName = @get_global_range, MangledFunctionName = @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv, TypeName = @nd_range} : (memref<?x!sycl_nd_range_2_, 4>) -> !sycl_range_2_
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z25nd_range_get_global_rangeN4sycl3_V18nd_rangeILi2EEE(%"class.sycl::_V1::nd_range.2" %{{.*}}) #0 {
+// CHECK-LLVM: %{{.*}} = call %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* %{{.*}})
+
+SYCL_EXTERNAL void nd_range_get_global_range(sycl::nd_range<2> nd_range) {
+  keep(nd_range.get_global_range());
+}
+
+// CHECK-MLIR-LABEL: func.func @_Z24nd_range_get_local_rangeN4sycl3_V18nd_rangeILi2EEE(%{{.*}}: !sycl_nd_range_2_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR: %{{.*}} = "sycl.nd_range.get_local_range"(%{{.*}}) {BaseType = memref<?x!sycl_nd_range_2_, 4>, FunctionName = @get_local_range, MangledFunctionName = @_ZNK4sycl3_V18nd_rangeILi2EE15get_local_rangeEv, TypeName = @nd_range} : (memref<?x!sycl_nd_range_2_, 4>) -> !sycl_range_2_
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z24nd_range_get_local_rangeN4sycl3_V18nd_rangeILi2EEE(%"class.sycl::_V1::nd_range.2" %{{.*}}) #0 {
+// CHECK-LLVM: %{{.*}} = call %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE15get_local_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* %{{.*}})
+
+SYCL_EXTERNAL void nd_range_get_local_range(sycl::nd_range<2> nd_range) {
+  keep(nd_range.get_local_range());
+}
+
+// CHECK-MLIR-LABEL: func.func @_Z24nd_range_get_group_rangeN4sycl3_V18nd_rangeILi2EEE(%{{.*}}: !sycl_nd_range_2_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR: %{{.*}} = "sycl.nd_range.get_group_range"(%{{.*}}) {BaseType = memref<?x!sycl_nd_range_2_, 4>, FunctionName = @get_group_range, MangledFunctionName = @_ZNK4sycl3_V18nd_rangeILi2EE15get_group_rangeEv, TypeName = @nd_range} : (memref<?x!sycl_nd_range_2_, 4>) -> !sycl_range_2_
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z24nd_range_get_group_rangeN4sycl3_V18nd_rangeILi2EEE(%"class.sycl::_V1::nd_range.2" %{{.*}}) #0 {
+// CHECK-LLVM: %{{.*}} = call %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE15get_group_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* %{{.*}})
+
+SYCL_EXTERNAL void nd_range_get_group_range(sycl::nd_range<2> nd_range) {
+  keep(nd_range.get_group_range());
+}
+
 // CHECK-MLIR-LABEL: func.func @_Z8id_get_0N4sycl3_V12idILi1EEEi(%arg0: !sycl_id_1_, %arg1: i32) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-MLIR: %{{.*}} = "sycl.id.get"(%{{.*}}, %arg1) {BaseType = memref<?x!sycl_array_1_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi1EE3getEi, TypeName = @array} : (memref<?x!sycl_id_1_, 4>, i32) -> i64
 
@@ -359,6 +389,16 @@ SYCL_EXTERNAL void nd_item_get_local_range_0(sycl::nd_item<1> nd_item) {
 
 SYCL_EXTERNAL void nd_item_get_local_range_1(sycl::nd_item<1> nd_item, int dimension) {
   keep(nd_item.get_local_range(dimension));
+}
+
+// CHECK-MLIR-LABEL: func.func @_Z20nd_item_get_nd_rangeN4sycl3_V17nd_itemILi1EEE(%{{.*}}: !sycl_nd_item_1_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR: %{{.*}} = "sycl.nd_item.get_nd_range"(%{{.*}}) {BaseType = memref<?x!sycl_nd_item_1_, 4>, FunctionName = @get_nd_range, MangledFunctionName = @_ZNK4sycl3_V17nd_itemILi1EE12get_nd_rangeEv, TypeName = @nd_item} : (memref<?x!sycl_nd_item_1_, 4>) -> !sycl_nd_range_1_
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z20nd_item_get_nd_rangeN4sycl3_V17nd_itemILi1EEE(%"class.sycl::_V1::nd_item.1" %{{.*}}) #0 {
+// CHECK-LLVM: %{{.*}} = call %"class.sycl::_V1::nd_range.1" @_ZNK4sycl3_V17nd_itemILi1EE12get_nd_rangeEv(%"class.sycl::_V1::nd_item.1" addrspace(4)* %{{.*}})
+
+SYCL_EXTERNAL void nd_item_get_nd_range(sycl::nd_item<1> nd_item) {
+  keep(nd_item.get_nd_range());
 }
 
 // CHECK-MLIR-LABEL: func.func @_Z20group_get_group_id_0N4sycl3_V15groupILi1EEE(%arg0: !sycl_group_1_) attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
