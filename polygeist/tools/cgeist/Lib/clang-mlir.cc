@@ -3685,50 +3685,30 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   const char *binary = Argv0; // CudaLower ? "clang++" : "clang";
   const std::unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
-  std::vector<const char *> Argv;
+  ArgumentList Argv;
   Argv.push_back(binary);
-  for (auto a : filenames) {
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+  for (const auto &filename : filenames) {
+    Argv.push_back(filename);
   }
   if (FOpenMP)
     Argv.push_back("-fopenmp");
   if (TargetTripleOpt != "") {
-    char *chars = (char *)malloc(TargetTripleOpt.length() + 1);
-    memcpy(chars, TargetTripleOpt.data(), TargetTripleOpt.length());
-    chars[TargetTripleOpt.length()] = 0;
     Argv.push_back("-target");
-    Argv.push_back(chars);
+    Argv.push_back(TargetTripleOpt);
   }
   if (McpuOpt != "") {
-    auto a = "-mcpu=" + McpuOpt;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.emplace_back("-mcpu=", McpuOpt);
   }
   if (Standard != "") {
-    auto a = "-std=" + Standard;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.emplace_back("-std=", Standard);
   }
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
-    char *chars = (char *)malloc(ResourceDir.length() + 1);
-    memcpy(chars, ResourceDir.data(), ResourceDir.length());
-    chars[ResourceDir.length()] = 0;
-    Argv.push_back(chars);
+    Argv.push_back(ResourceDir);
   }
   if (SysRoot != "") {
     Argv.push_back("--sysroot");
-    char *chars = (char *)malloc(SysRoot.length() + 1);
-    memcpy(chars, SysRoot.data(), SysRoot.length());
-    chars[SysRoot.length()] = 0;
-    Argv.push_back(chars);
+    Argv.push_back(SysRoot);
   }
   if (Verbose) {
     Argv.push_back("-v");
@@ -3740,47 +3720,24 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     Argv.push_back("-nocudalib");
   }
   if (CUDAGPUArch != "") {
-    auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.emplace_back("--cuda-gpu-arch=", CUDAGPUArch);
   }
   if (CUDAPath != "") {
-    auto a = "--cuda-path=" + CUDAPath;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.emplace_back("--cuda-path=", CUDAPath);
   }
   if (MArch != "") {
-    auto a = "-march=" + MArch;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.emplace_back("-march=", MArch);
   }
-  for (auto a : includeDirs) {
+  for (const auto &dir : includeDirs) {
     Argv.push_back("-I");
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.push_back(dir);
   }
-  for (auto a : defines) {
-    char *chars = (char *)malloc(a.length() + 3);
-    chars[0] = '-';
-    chars[1] = 'D';
-    memcpy(chars + 2, a.data(), a.length());
-    chars[2 + a.length()] = 0;
-    Argv.push_back(chars);
+  for (const auto &define : defines) {
+    Argv.emplace_back("-D", define);
   }
-  for (auto a : Includes) {
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
+  for (const auto &include : Includes) {
     Argv.push_back("-include");
-    Argv.push_back(chars);
+    Argv.push_back(include);
   }
 
   Argv.push_back("-emit-ast");
@@ -3791,8 +3748,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   std::unique_ptr<Compilation> compilation;
 
   if (InputCommandArgs.empty()) {
-    compilation.reset(std::move(
-        driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv))));
+    compilation.reset(driver->BuildCompilation(Argv.getArguments()));
 
     JobList &Jobs = compilation->getJobs();
     if (Jobs.size() < 1)
