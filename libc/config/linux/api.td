@@ -149,6 +149,7 @@ def StringAPI : PublicAPI<"string.h"> {
 def StdIOAPI : PublicAPI<"stdio.h"> {
   let Macros = [
     SimpleMacroDef<"stderr", "stderr">,
+    SimpleMacroDef<"stdin", "stdin">,
     SimpleMacroDef<"stdout", "stdout">,
     SimpleMacroDef<"_IOFBF", "0">,
     SimpleMacroDef<"_IOLBF", "1">,
@@ -171,7 +172,7 @@ def StdlibAPI : PublicAPI<"stdlib.h"> {
 }
 
 def TimeAPI : PublicAPI<"time.h"> {
-  let Types = ["time_t", "struct tm", "struct timespec", "clockid_t",];
+  let Types = ["clock_t", "time_t", "struct tm", "struct timespec", "clockid_t",];
 }
 
 def ErrnoAPI : PublicAPI<"errno.h"> {
@@ -274,6 +275,10 @@ def SysRandomAPI : PublicAPI<"sys/random.h"> {
   let Types = ["size_t", "ssize_t"];
 }
 
+def SysSelectAPI : PublicAPI<"sys/select.h"> {
+  let Types = ["fd_set", "sigset_t", "suseconds_t", "time_t", "struct timespec", "struct timeval"];
+}
+
 def SysResourceAPI : PublicAPI<"sys/resource.h"> {
   let Types = ["rlim_t", "struct rlimit"];
 }
@@ -289,6 +294,13 @@ def SysWaitAPI : PublicAPI<"sys/wait.h"> {
 
 def SysSendfileAPI : PublicAPI<"sys/sendfile.h"> {
   let Types = ["off_t", "size_t", "ssize_t"];
+}
+
+def SysTypesAPI : PublicAPI<"sys/types.h"> {
+  let Types = ["blkcnt_t", "blksize_t", "clockid_t", "dev_t", "gid_t", "ino_t",
+               "mode_t", "nlink_t", "off_t", "pid_t", "pthread_attr_t", "pthread_key_t",
+               "pthread_mutex_t", "pthread_mutexattr_t", "pthread_once_t", "pthread_t",
+               "size_t", "ssize_t", "suseconds_t", "time_t", "uid_t"];
 }
 
 def SysUtsNameAPI : PublicAPI<"sys/utsname.h"> {

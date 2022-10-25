@@ -2847,16 +2847,40 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
         return replaceOperand(SI, 0, A);
     }
 
-    // (c && a)  || (!c && b) --> sel c, a, b
-    // (!c && a) ||  (c && b) --> sel c, b, a
-    Value *C1, *C2;
-    if (match(CondVal, m_LogicalAnd(m_Value(C1), m_Value(A))) &&
-        match(TrueVal, m_One()) &&
-        match(FalseVal, m_LogicalAnd(m_Value(C2), m_Value(B)))) {
-      if (match(C2, m_Not(m_Specific(C1)))) // first case
-        return SelectInst::Create(C1, A, B);
-      else if (match(C1, m_Not(m_Specific(C2)))) // second case
-        return SelectInst::Create(C2, B, A);
+    if (match(TrueVal, m_One())) {
+      Value *C;
+
+      // (C && A) || (!C && B) --> sel C, A, B
+      // (A && C) || (!C && B) --> sel C, A, B
+      // (C && A) || (B && !C) --> sel C, A, B
+      // (A && C) || (B && !C) --> sel C, A, B (may require freeze)
+      if (match(FalseVal, m_c_LogicalAnd(m_Not(m_Value(C)), m_Value(B))) &&
+          match(CondVal, m_c_LogicalAnd(m_Specific(C), m_Value(A)))) {
+        auto *SelCond = dyn_cast<SelectInst>(CondVal);
+        auto *SelFVal = dyn_cast<SelectInst>(FalseVal);
+        bool MayNeedFreeze = SelCond && SelFVal &&
+                             match(SelFVal->getTrueValue(),
+                                   m_Not(m_Specific(SelCond->getTrueValue())));
+        if (MayNeedFreeze)
+          C = Builder.CreateFreeze(C);
+        return SelectInst::Create(C, A, B);
+      }
+
+      // (!C && A) || (C && B) --> sel C, B, A
+      // (A && !C) || (C && B) --> sel C, B, A
+      // (!C && A) || (B && C) --> sel C, B, A
+      // (A && !C) || (B && C) --> sel C, B, A (may require freeze)
+      if (match(CondVal, m_c_LogicalAnd(m_Not(m_Value(C)), m_Value(A))) &&
+          match(FalseVal, m_c_LogicalAnd(m_Specific(C), m_Value(B)))) {
+        auto *SelCond = dyn_cast<SelectInst>(CondVal);
+        auto *SelFVal = dyn_cast<SelectInst>(FalseVal);
+        bool MayNeedFreeze = SelCond && SelFVal &&
+                             match(SelCond->getTrueValue(),
+                                   m_Not(m_Specific(SelFVal->getTrueValue())));
+        if (MayNeedFreeze)
+          C = Builder.CreateFreeze(C);
+        return SelectInst::Create(C, B, A);
+      }
     }
   }
 

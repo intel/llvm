@@ -773,7 +773,7 @@ namespace llvm {
     STRICT_CVTPS2PH,
     STRICT_CVTPH2PS,
 
-    // WARNING: Only add nodes here if they are stric FP nodes. Non-memory and
+    // WARNING: Only add nodes here if they are strict FP nodes. Non-memory and
     // non-strict FP nodes should be above FIRST_TARGET_STRICTFP_OPCODE.
 
     // Compare and swap.
@@ -868,6 +868,12 @@ namespace llvm {
     AESDECWIDE128KL,
     AESENCWIDE256KL,
     AESDECWIDE256KL,
+
+    /// Compare and Add if Condition is Met. Compare value in operand 2 with
+    /// value in memory of operand 1. If condition of operand 4 is met, add value
+    /// operand 3 to m32 and write new value in operand 1. Operand 2 is
+    /// always updated with the original value from operand 1.
+    CMPCCXADD,
 
     // Save xmm argument registers to the stack, according to %al. An operator
     // is needed so that this can be expanded with control flow.
@@ -1157,6 +1163,14 @@ namespace llvm {
     SDValue SimplifyMultipleUseDemandedBitsForTargetNode(
         SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
         SelectionDAG &DAG, unsigned Depth) const override;
+
+    bool isGuaranteedNotToBeUndefOrPoisonForTargetNode(
+        SDValue Op, const APInt &DemandedElts, const SelectionDAG &DAG,
+        bool PoisonOnly, unsigned Depth) const override;
+
+    bool canCreateUndefOrPoisonForTargetNode(
+        SDValue Op, const APInt &DemandedElts, const SelectionDAG &DAG,
+        bool PoisonOnly, bool ConsiderFlags, unsigned Depth) const override;
 
     bool isSplatValueForTargetNode(SDValue Op, const APInt &DemandedElts,
                                    APInt &UndefElts,

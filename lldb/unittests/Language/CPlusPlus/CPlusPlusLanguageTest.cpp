@@ -52,6 +52,13 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
       {"llvm::Optional<llvm::MCFixupKind>::operator*() const &",
        "llvm::Optional<llvm::MCFixupKind>", "operator*", "()", "const &",
        "llvm::Optional<llvm::MCFixupKind>::operator*"},
+      {"auto std::__1::ranges::__begin::__fn::operator()[abi:v160000]<char "
+       "const, 18ul>(char const (&) [18ul]) const",
+       "std::__1::ranges::__begin::__fn",
+       "operator()[abi:v160000]<char const, 18ul>", "(char const (&) [18ul])",
+       "const",
+       "std::__1::ranges::__begin::__fn::operator()[abi:v160000]<char const, "
+       "18ul>"},
       // Internal classes
       {"operator<<(Cls, Cls)::Subclass::function()",
        "operator<<(Cls, Cls)::Subclass", "function", "()", "",
@@ -116,6 +123,12 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
        "const volatile &&", "llvm::Optional<llvm::MCFixupKind>::operator*"},
       {"void foo<Dummy<char [10]>>()", "", "foo<Dummy<char [10]>>", "()", "",
        "foo<Dummy<char [10]>>"},
+      {"void foo<Bar<Bar<int>[10]>>()", "", "foo<Bar<Bar<int>[10]>>", "()", "",
+       "foo<Bar<Bar<int>[10]>>"},
+      {"void foo<Bar[10]>()", "", "foo<Bar[10]>", "()", "",
+       "foo<Bar[10]>"},
+      {"void foo<Bar[]>()", "", "foo<Bar[]>", "()", "",
+       "foo<Bar[]>"},
 
       // auto return type
       {"auto std::test_return_auto<int>() const", "std",

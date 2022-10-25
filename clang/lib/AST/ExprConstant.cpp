@@ -56,6 +56,7 @@
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/SaveAndRestore.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstring>
 #include <functional>
@@ -659,6 +660,19 @@ namespace {
   private:
     CallStackFrame &Frame;
     const LValue *OldThis;
+  };
+
+  // A shorthand time trace scope struct, prints source range, for example
+  // {"name":"EvaluateAsRValue","args":{"detail":"<test.cc:8:21, col:25>"}}}
+  class ExprTimeTraceScope {
+  public:
+    ExprTimeTraceScope(const Expr *E, const ASTContext &Ctx, StringRef Name)
+        : TimeScope(Name, [E, &Ctx] {
+            return E->getSourceRange().printToString(Ctx.getSourceManager());
+          }) {}
+
+  private:
+    llvm::TimeTraceScope TimeScope;
   };
 }
 
@@ -15135,6 +15149,7 @@ bool Expr::EvaluateAsRValue(EvalResult &Result, const ASTContext &Ctx,
                             bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateAsRValue");
   EvalInfo Info(Ctx, Result, EvalInfo::EM_IgnoreSideEffects);
   Info.InConstantContext = InConstantContext;
   return ::EvaluateAsRValue(this, Result, Ctx, Info);
@@ -15144,6 +15159,7 @@ bool Expr::EvaluateAsBooleanCondition(bool &Result, const ASTContext &Ctx,
                                       bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateAsBooleanCondition");
   EvalResult Scratch;
   return EvaluateAsRValue(Scratch, Ctx, InConstantContext) &&
          HandleConversionToBool(Scratch.Val, Result);
@@ -15154,6 +15170,7 @@ bool Expr::EvaluateAsInt(EvalResult &Result, const ASTContext &Ctx,
                          bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateAsInt");
   EvalInfo Info(Ctx, Result, EvalInfo::EM_IgnoreSideEffects);
   Info.InConstantContext = InConstantContext;
   return ::EvaluateAsInt(this, Result, Ctx, AllowSideEffects, Info);
@@ -15164,6 +15181,7 @@ bool Expr::EvaluateAsFixedPoint(EvalResult &Result, const ASTContext &Ctx,
                                 bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateAsFixedPoint");
   EvalInfo Info(Ctx, Result, EvalInfo::EM_IgnoreSideEffects);
   Info.InConstantContext = InConstantContext;
   return ::EvaluateAsFixedPoint(this, Result, Ctx, AllowSideEffects, Info);
@@ -15178,6 +15196,7 @@ bool Expr::EvaluateAsFloat(APFloat &Result, const ASTContext &Ctx,
   if (!getType()->isRealFloatingType())
     return false;
 
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateAsFloat");
   EvalResult ExprResult;
   if (!EvaluateAsRValue(ExprResult, Ctx, InConstantContext) ||
       !ExprResult.Val.isFloat() ||
@@ -15193,6 +15212,7 @@ bool Expr::EvaluateAsLValue(EvalResult &Result, const ASTContext &Ctx,
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateAsLValue");
   EvalInfo Info(Ctx, Result, EvalInfo::EM_ConstantFold);
   Info.InConstantContext = InConstantContext;
   LValue LV;
@@ -15237,6 +15257,7 @@ bool Expr::EvaluateAsConstantExpr(EvalResult &Result, const ASTContext &Ctx,
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateAsConstantExpr");
   EvalInfo::EvaluationMode EM = EvalInfo::EM_ConstantExpression;
   EvalInfo Info(Ctx, Result, EM);
   Info.InConstantContext = true;
@@ -15288,6 +15309,13 @@ bool Expr::EvaluateAsInitializer(APValue &Value, const ASTContext &Ctx,
                                  bool IsConstantInitialization) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
+
+  llvm::TimeTraceScope TimeScope("EvaluateAsInitializer", [&] {
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    VD->printQualifiedName(OS);
+    return Name;
+  });
 
   // FIXME: Evaluating initializers for large array and record types can cause
   // performance problems. Only do so in C++11 for now.
@@ -15377,6 +15405,7 @@ APSInt Expr::EvaluateKnownConstInt(const ASTContext &Ctx,
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateKnownConstInt");
   EvalResult EVResult;
   EVResult.Diag = Diag;
   EvalInfo Info(Ctx, EVResult, EvalInfo::EM_IgnoreSideEffects);
@@ -15395,6 +15424,7 @@ APSInt Expr::EvaluateKnownConstIntCheckOverflow(
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateKnownConstIntCheckOverflow");
   EvalResult EVResult;
   EVResult.Diag = Diag;
   EvalInfo Info(Ctx, EVResult, EvalInfo::EM_IgnoreSideEffects);
@@ -15413,6 +15443,7 @@ void Expr::EvaluateForOverflow(const ASTContext &Ctx) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
+  ExprTimeTraceScope TimeScope(this, Ctx, "EvaluateForOverflow");
   bool IsConst;
   EvalResult EVResult;
   if (!FastEvaluateAsRValue(this, EVResult, Ctx, IsConst)) {
@@ -15909,6 +15940,8 @@ bool Expr::isIntegerConstantExpr(const ASTContext &Ctx,
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
+  ExprTimeTraceScope TimeScope(this, Ctx, "isIntegerConstantExpr");
+
   if (Ctx.getLangOpts().CPlusPlus11)
     return EvaluateCPlusPlus11IntegralConstantExpr(Ctx, this, nullptr, Loc);
 
@@ -16001,6 +16034,14 @@ bool Expr::EvaluateWithSubstitution(APValue &Value, ASTContext &Ctx,
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
+  llvm::TimeTraceScope TimeScope("EvaluateWithSubstitution", [&] {
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    Callee->getNameForDiagnostic(OS, Ctx.getPrintingPolicy(),
+                                 /*Qualified=*/true);
+    return Name;
+  });
+
   Expr::EvalStatus Status;
   EvalInfo Info(Ctx, Status, EvalInfo::EM_ConstantExpressionUnevaluated);
   Info.InConstantContext = true;
@@ -16064,6 +16105,14 @@ bool Expr::isPotentialConstantExpr(const FunctionDecl *FD,
   // ASTs which we build for dependent expressions.
   if (FD->isDependentContext())
     return true;
+
+  llvm::TimeTraceScope TimeScope("isPotentialConstantExpr", [&] {
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    FD->getNameForDiagnostic(OS, FD->getASTContext().getPrintingPolicy(),
+                             /*Qualified=*/true);
+    return Name;
+  });
 
   Expr::EvalStatus Status;
   Status.Diag = &Diags;

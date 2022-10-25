@@ -1987,8 +1987,8 @@ static RISCVFPRndMode::RoundingMode matchRoundingOp(unsigned Opc) {
 // VP_FROUNDEVEN and VP_FROUNDTOZERO by converting to the integer domain and
 // back. Taking care to avoid converting values that are nan or already correct.
 static SDValue
-lowerFTRUNC_FCEIL_FFLOOR_FROUND(SDValue Op, SelectionDAG &DAG,
-                                const RISCVSubtarget &Subtarget) {
+lowerVectorFTRUNC_FCEIL_FFLOOR_FROUND(SDValue Op, SelectionDAG &DAG,
+                                      const RISCVSubtarget &Subtarget) {
   MVT VT = Op.getSimpleValueType();
   assert(VT.isVector() && "Unexpected type");
 
@@ -3713,7 +3713,7 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::FFLOOR:
   case ISD::FROUND:
   case ISD::FROUNDEVEN:
-    return lowerFTRUNC_FCEIL_FFLOOR_FROUND(Op, DAG, Subtarget);
+    return lowerVectorFTRUNC_FCEIL_FFLOOR_FROUND(Op, DAG, Subtarget);
   case ISD::VECREDUCE_ADD:
   case ISD::VECREDUCE_UMAX:
   case ISD::VECREDUCE_SMAX:
@@ -4050,7 +4050,7 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::VP_FROUND:
   case ISD::VP_FROUNDEVEN:
   case ISD::VP_FROUNDTOZERO:
-    return lowerFTRUNC_FCEIL_FFLOOR_FROUND(Op, DAG, Subtarget);
+    return lowerVectorFTRUNC_FCEIL_FFLOOR_FROUND(Op, DAG, Subtarget);
   }
 }
 
@@ -6520,7 +6520,7 @@ SDValue RISCVTargetLowering::lowerFixedLengthVectorSelectToRVV(
       convertToScalableVector(ContainerVT, Op.getOperand(2), DAG, Subtarget);
 
   SDLoc DL(Op);
-  auto [Mask, VL] = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget);
+  SDValue VL = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget).second;
 
   SDValue Select =
       DAG.getNode(RISCVISD::VSELECT_VL, DL, ContainerVT, CC, Op1, Op2, VL);

@@ -3,6 +3,7 @@
 
 include "mlir/IR/OpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Dialect/LLVMIR/LLVMAttrDefs.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 
 // Operations that correspond to LLVM intrinsics. With MLIR operation set being
@@ -122,7 +123,7 @@ class LLVM_LifetimeBaseOp<string opName> : LLVM_ZeroResultIntrOp<opName> {
                             moduleTranslation.lookupValue(op.getPtr())});
   }];
 
-  let assemblyFormat = "$size `,` $ptr attr-dict `:` type($ptr)";
+  let assemblyFormat = "$size `,` $ptr attr-dict `:` qualified(type($ptr))";
 }
 
 def LLVM_LifetimeStartOp : LLVM_LifetimeBaseOp<"lifetime.start"> {
@@ -226,6 +227,47 @@ def LLVM_CoroFreeOp : LLVM_IntrOp<"coro.free", [], [], [], 1> {
 def LLVM_CoroResumeOp : LLVM_IntrOp<"coro.resume", [], [], [], 0> {
   let arguments = (ins LLVM_i8Ptr:$handle);
   let assemblyFormat = "$handle attr-dict";
+}
+
+//
+// Debug function intrinsics.
+//
+
+class LLVM_DbgIntrOp<string name> : LLVM_Op<name> {
+  let llvmBuilder = [{
+    llvm::Module *module = builder.GetInsertBlock()->getModule();
+    llvm::LLVMContext &ctx = module->getContext();
+    llvm::Function *fn =
+      llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::}]
+       # !subst(".", "_", name) # [{);
+    builder.CreateCall(fn, {
+        llvm::MetadataAsValue::get(ctx,
+            llvm::ValueAsMetadata::get(moduleTranslation.lookupValue(opInst.getOperand(0)))),
+        llvm::MetadataAsValue::get(ctx, moduleTranslation.translateDebugInfo($varInfo)),
+        llvm::MetadataAsValue::get(ctx, llvm::DIExpression::get(ctx, llvm::None)),
+      });
+  }];
+}
+
+def LLVM_DbgAddrOp : LLVM_DbgIntrOp<"dbg.addr"> {
+  let summary = "Describe the current address of a local debug info variable.";
+  let arguments = (ins LLVM_AnyPointer:$addr, LLVM_DILocalVariableAttr:$varInfo);
+
+  let assemblyFormat = "qualified($varInfo) `=` $addr `:` type($addr) attr-dict";
+}
+
+def LLVM_DbgDeclareOp : LLVM_DbgIntrOp<"dbg.declare"> {
+  let summary = "Declare the address of a local debug info variable.";
+  let arguments = (ins LLVM_AnyPointer:$addr, LLVM_DILocalVariableAttr:$varInfo);
+
+  let assemblyFormat = "qualified($varInfo) `=` $addr `:` type($addr) attr-dict";
+}
+
+def LLVM_DbgValueOp : LLVM_DbgIntrOp<"dbg.value"> {
+  let summary = "Describe the current value of a local debug info variable.";
+  let arguments = (ins LLVM_Type:$value, LLVM_DILocalVariableAttr:$varInfo);
+
+  let assemblyFormat = "qualified($varInfo) `=` $value `:` type($value) attr-dict";
 }
 
 //

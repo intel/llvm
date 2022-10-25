@@ -1139,6 +1139,10 @@ ModuleTranslation::translateLoc(Location loc, llvm::DILocalScope *scope) {
   return debugTranslation->translateLoc(loc, scope);
 }
 
+llvm::Metadata *ModuleTranslation::translateDebugInfo(LLVM::DINodeAttr attr) {
+  return debugTranslation->translate(attr);
+}
+
 llvm::NamedMDNode *
 ModuleTranslation::getOrInsertNamedModuleMetadata(StringRef name) {
   return llvmModule->getOrInsertNamedMetadata(name);
@@ -1189,8 +1193,10 @@ prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
 std::unique_ptr<llvm::Module>
 mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
                               StringRef name) {
-  if (!satisfiesLLVMModule(module))
+  if (!satisfiesLLVMModule(module)) {
+    module->emitOpError("can not be translated to an LLVMIR module");
     return nullptr;
+  }
 
   std::unique_ptr<llvm::Module> llvmModule =
       prepareLLVMModule(module, llvmContext, name);

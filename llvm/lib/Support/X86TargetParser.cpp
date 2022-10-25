@@ -578,10 +578,12 @@ constexpr FeatureBitset ImpliedFeaturesXOP = FeatureFMA4;
 // AMX Features
 constexpr FeatureBitset ImpliedFeaturesAMX_TILE = {};
 constexpr FeatureBitset ImpliedFeaturesAMX_BF16 = FeatureAMX_TILE;
+constexpr FeatureBitset ImpliedFeaturesAMX_FP16 = FeatureAMX_TILE;
 constexpr FeatureBitset ImpliedFeaturesAMX_INT8 = FeatureAMX_TILE;
 constexpr FeatureBitset ImpliedFeaturesHRESET = {};
 
 constexpr FeatureBitset ImpliedFeaturesPREFETCHI = {};
+constexpr FeatureBitset ImpliedFeaturesCMPCCXADD = {};
 constexpr FeatureBitset ImpliedFeaturesAVX512FP16 =
     FeatureAVX512BW | FeatureAVX512DQ | FeatureAVX512VL;
 // Key Locker Features

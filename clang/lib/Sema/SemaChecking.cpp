@@ -5051,6 +5051,7 @@ bool Sema::CheckX86BuiltinTileArguments(unsigned BuiltinID, CallExpr *TheCall) {
   case X86::BI__builtin_ia32_tdpbusd:
   case X86::BI__builtin_ia32_tdpbuud:
   case X86::BI__builtin_ia32_tdpbf16ps:
+  case X86::BI__builtin_ia32_tdpfp16ps:
     return CheckX86BuiltinTileRangeAndDuplicate(TheCall, {0, 1, 2});
   }
 }
@@ -5435,6 +5436,10 @@ bool Sema::CheckX86BuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case X86::BI__builtin_ia32_reducesh_mask:
     i = 4; l = 0; u = 255;
     break;
+  case X86::BI__builtin_ia32_cmpccxadd32:
+  case X86::BI__builtin_ia32_cmpccxadd64:
+    i = 3; l = 0; u = 15;
+    break;
   }
 
   // Note that we don't force a hard error on the range check here, allowing
@@ -5782,7 +5787,7 @@ static void CheckNonNullArguments(Sema &S,
   for (unsigned ArgIndex = 0, ArgIndexEnd = NonNullArgs.size();
        ArgIndex != ArgIndexEnd; ++ArgIndex) {
     if (NonNullArgs[ArgIndex])
-      CheckNonNullArgument(S, Args[ArgIndex], CallSiteLoc);
+      CheckNonNullArgument(S, Args[ArgIndex], Args[ArgIndex]->getExprLoc());
   }
 }
 

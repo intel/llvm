@@ -2271,8 +2271,8 @@ SDValue DAGCombiner::foldBinOpIntoSelect(SDNode *BO) {
   // or X, (select Cond, -1, 0) --> select Cond, -1, X
   bool CanFoldNonConst =
       (BinOpcode == ISD::AND || BinOpcode == ISD::OR) &&
-      (isNullOrNullSplat(CT) || isAllOnesOrAllOnesSplat(CT)) &&
-      (isNullOrNullSplat(CF) || isAllOnesOrAllOnesSplat(CF));
+      ((isNullOrNullSplat(CT) && isAllOnesOrAllOnesSplat(CF)) ||
+       (isNullOrNullSplat(CF) && isAllOnesOrAllOnesSplat(CT)));
 
   SDValue CBO = BO->getOperand(SelOpNo ^ 1);
   if (!CanFoldNonConst &&
@@ -2280,23 +2280,41 @@ SDValue DAGCombiner::foldBinOpIntoSelect(SDNode *BO) {
       !DAG.isConstantFPBuildVectorOrConstantFP(CBO))
     return SDValue();
 
-  // We have a select-of-constants followed by a binary operator with a
-  // constant. Eliminate the binop by pulling the constant math into the select.
-  // Example: add (select Cond, CT, CF), CBO --> select Cond, CT + CBO, CF + CBO
   SDLoc DL(Sel);
-  SDValue NewCT = SelOpNo ? DAG.getNode(BinOpcode, DL, VT, CBO, CT)
-                          : DAG.getNode(BinOpcode, DL, VT, CT, CBO);
-  if (!CanFoldNonConst && !NewCT.isUndef() &&
-      !isConstantOrConstantVector(NewCT, true) &&
-      !DAG.isConstantFPBuildVectorOrConstantFP(NewCT))
-    return SDValue();
+  SDValue NewCT, NewCF;
 
-  SDValue NewCF = SelOpNo ? DAG.getNode(BinOpcode, DL, VT, CBO, CF)
-                          : DAG.getNode(BinOpcode, DL, VT, CF, CBO);
-  if (!CanFoldNonConst && !NewCF.isUndef() &&
-      !isConstantOrConstantVector(NewCF, true) &&
-      !DAG.isConstantFPBuildVectorOrConstantFP(NewCF))
-    return SDValue();
+  if (CanFoldNonConst) {
+    // If CBO is an opaque constant, we can't rely on getNode to constant fold.
+    if ((BinOpcode == ISD::AND && isNullOrNullSplat(CT)) ||
+        (BinOpcode == ISD::OR && isAllOnesOrAllOnesSplat(CT)))
+      NewCT = CT;
+    else
+      NewCT = CBO;
+
+    if ((BinOpcode == ISD::AND && isNullOrNullSplat(CF)) ||
+        (BinOpcode == ISD::OR && isAllOnesOrAllOnesSplat(CF)))
+      NewCF = CF;
+    else
+      NewCF = CBO;
+  } else {
+    // We have a select-of-constants followed by a binary operator with a
+    // constant. Eliminate the binop by pulling the constant math into the
+    // select. Example: add (select Cond, CT, CF), CBO --> select Cond, CT +
+    // CBO, CF + CBO
+    NewCT = SelOpNo ? DAG.getNode(BinOpcode, DL, VT, CBO, CT)
+                    : DAG.getNode(BinOpcode, DL, VT, CT, CBO);
+    if (!CanFoldNonConst && !NewCT.isUndef() &&
+        !isConstantOrConstantVector(NewCT, true) &&
+        !DAG.isConstantFPBuildVectorOrConstantFP(NewCT))
+      return SDValue();
+
+    NewCF = SelOpNo ? DAG.getNode(BinOpcode, DL, VT, CBO, CF)
+                    : DAG.getNode(BinOpcode, DL, VT, CF, CBO);
+    if (!CanFoldNonConst && !NewCF.isUndef() &&
+        !isConstantOrConstantVector(NewCF, true) &&
+        !DAG.isConstantFPBuildVectorOrConstantFP(NewCF))
+      return SDValue();
+  }
 
   SDValue SelectOp = DAG.getSelect(DL, VT, Sel.getOperand(0), NewCT, NewCF);
   SelectOp->setFlags(BO->getFlags());
@@ -10074,6 +10092,21 @@ SDValue DAGCombiner::visitABS(SDNode *N) {
   if (SDValue ABD = combineABSToABD(N, DAG, TLI))
     return ABD;
 
+  // fold (abs (sign_extend_inreg x)) -> (zero_extend (abs (truncate x)))
+  // iff zero_extend/truncate are free.
+  if (N0.getOpcode() == ISD::SIGN_EXTEND_INREG) {
+    EVT ExtVT = cast<VTSDNode>(N0.getOperand(1))->getVT();
+    if (TLI.isTruncateFree(VT, ExtVT) && TLI.isZExtFree(ExtVT, VT) &&
+        TLI.isTypeDesirableForOp(ISD::ABS, ExtVT) &&
+        hasOperation(ISD::ABS, ExtVT)) {
+      SDLoc DL(N);
+      return DAG.getNode(
+          ISD::ZERO_EXTEND, DL, VT,
+          DAG.getNode(ISD::ABS, DL, ExtVT,
+                      DAG.getNode(ISD::TRUNCATE, DL, ExtVT, N0.getOperand(0))));
+    }
+  }
+
   return SDValue();
 }
 
@@ -14161,7 +14194,8 @@ SDValue DAGCombiner::visitFREEZE(SDNode *N) {
                                   /*ConsiderFlags*/ false) &&
       N0->getNumValues() == 1 && N0->hasOneUse()) {
     SDValue MaybePoisonOperand;
-    for (SDValue Op : N0->ops()) {
+    SmallVector<SDValue> Ops(N0->op_begin(), N0->op_end());
+    for (SDValue Op : Ops) {
       if (DAG.isGuaranteedNotToBeUndefOrPoison(Op, /*PoisonOnly*/ false,
                                                /*Depth*/ 1))
         continue;
@@ -23470,51 +23504,54 @@ SDValue DAGCombiner::visitVECTOR_SHUFFLE(SDNode *N) {
 }
 
 SDValue DAGCombiner::visitSCALAR_TO_VECTOR(SDNode *N) {
-  SDValue InVal = N->getOperand(0);
+  SDValue Scalar = N->getOperand(0);
   EVT VT = N->getValueType(0);
+  if (!VT.isFixedLengthVector())
+    return SDValue();
 
   // Replace a SCALAR_TO_VECTOR(EXTRACT_VECTOR_ELT(V,C0)) pattern
   // with a VECTOR_SHUFFLE and possible truncate.
-  if (InVal.getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
-      VT.isFixedLengthVector() &&
-      InVal->getOperand(0).getValueType().isFixedLengthVector()) {
-    SDValue InVec = InVal->getOperand(0);
-    SDValue EltNo = InVal->getOperand(1);
-    auto InVecT = InVec.getValueType();
-    if (ConstantSDNode *C0 = dyn_cast<ConstantSDNode>(EltNo)) {
-      SmallVector<int, 8> NewMask(InVecT.getVectorNumElements(), -1);
-      int Elt = C0->getZExtValue();
-      NewMask[0] = Elt;
-      // If we have an implict truncate do truncate here as long as it's legal.
-      // if it's not legal, this should
-      if (VT.getScalarType() != InVal.getValueType() &&
-          InVal.getValueType().isScalarInteger() &&
-          isTypeLegal(VT.getScalarType())) {
-        SDValue Val =
-            DAG.getNode(ISD::TRUNCATE, SDLoc(InVal), VT.getScalarType(), InVal);
-        return DAG.getNode(ISD::SCALAR_TO_VECTOR, SDLoc(N), VT, Val);
-      }
-      if (VT.getScalarType() == InVecT.getScalarType() &&
-          VT.getVectorNumElements() <= InVecT.getVectorNumElements()) {
-        SDValue LegalShuffle =
-          TLI.buildLegalVectorShuffle(InVecT, SDLoc(N), InVec,
-                                      DAG.getUNDEF(InVecT), NewMask, DAG);
-        if (LegalShuffle) {
-          // If the initial vector is the correct size this shuffle is a
-          // valid result.
-          if (VT == InVecT)
-            return LegalShuffle;
-          // If not we must truncate the vector.
-          if (VT.getVectorNumElements() != InVecT.getVectorNumElements()) {
-            SDValue ZeroIdx = DAG.getVectorIdxConstant(0, SDLoc(N));
-            EVT SubVT = EVT::getVectorVT(*DAG.getContext(),
-                                         InVecT.getVectorElementType(),
-                                         VT.getVectorNumElements());
-            return DAG.getNode(ISD::EXTRACT_SUBVECTOR, SDLoc(N), SubVT,
-                               LegalShuffle, ZeroIdx);
-          }
-        }
-      }
+  if (Scalar.getOpcode() != ISD::EXTRACT_VECTOR_ELT ||
+      !Scalar.getOperand(0).getValueType().isFixedLengthVector())
+    return SDValue();
+
+  // If we have an implicit truncate, truncate here if it is legal.
+  if (VT.getScalarType() != Scalar.getValueType() &&
+      Scalar.getValueType().isScalarInteger() &&
+      isTypeLegal(VT.getScalarType())) {
+    SDValue Val =
+        DAG.getNode(ISD::TRUNCATE, SDLoc(Scalar), VT.getScalarType(), Scalar);
+    return DAG.getNode(ISD::SCALAR_TO_VECTOR, SDLoc(N), VT, Val);
+  }
+
+  auto *ExtIndexC = dyn_cast<ConstantSDNode>(Scalar.getOperand(1));
+  if (!ExtIndexC)
+    return SDValue();
+
+  SDValue SrcVec = Scalar.getOperand(0);
+  EVT SrcVT = SrcVec.getValueType();
+  unsigned SrcNumElts = SrcVT.getVectorNumElements();
+  unsigned VTNumElts = VT.getVectorNumElements();
+  if (VT.getScalarType() == SrcVT.getScalarType() && VTNumElts <= SrcNumElts) {
+    // Create a shuffle equivalent for scalar-to-vector: {ExtIndex, -1, -1, ...}
+    SmallVector<int, 8> Mask(SrcNumElts, -1);
+    Mask[0] = ExtIndexC->getZExtValue();
+    SDValue LegalShuffle = TLI.buildLegalVectorShuffle(
+        SrcVT, SDLoc(N), SrcVec, DAG.getUNDEF(SrcVT), Mask, DAG);
+    if (!LegalShuffle)
+      return SDValue();
+
+    // If the initial vector is the same size, the shuffle is the result.
+    if (VT == SrcVT)
+      return LegalShuffle;
+
+    // If not, shorten the shuffled vector.
+    if (VTNumElts != SrcNumElts) {
+      SDValue ZeroIdx = DAG.getVectorIdxConstant(0, SDLoc(N));
+      EVT SubVT = EVT::getVectorVT(*DAG.getContext(),
+                                   SrcVT.getVectorElementType(), VTNumElts);
+      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, SDLoc(N), SubVT, LegalShuffle,
+                         ZeroIdx);
     }
   }
 

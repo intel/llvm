@@ -921,17 +921,20 @@ private:
                                : PassEntityBy::BoxChar,
                    entity, characteristics);
     } else {
-      // Pass as fir.ref unless it's by VALUE and BIND(C)
+      // Pass as fir.ref unless it's by VALUE and BIND(C). Also pass-by-value
+      // for numerical/logical scalar without OPTIONAL so that the behavior is
+      // consistent with gfortran/nvfortran.
+      // TODO: pass-by-value for derived type is not supported yet
       mlir::Type passType = fir::ReferenceType::get(type);
       PassEntityBy passBy = PassEntityBy::BaseAddress;
       Property prop = Property::BaseAddress;
       if (isValueAttr) {
-        if (isBindC) {
+        if (isBindC || (!type.isa<fir::SequenceType>() &&
+                        !obj.attrs.test(Attrs::Optional) &&
+                        dynamicType.category() !=
+                            Fortran::common::TypeCategory::Derived)) {
           passBy = PassEntityBy::Value;
           prop = Property::Value;
-          if (type.isa<fir::SequenceType>())
-            fir::emitFatalError(
-                loc, "array with VALUE attribute is not interoperable");
           if (fir::isa_builtin_cptr_type(type)) {
             auto recTy = type.dyn_cast<fir::RecordType>();
             mlir::Type fieldTy = recTy.getTypeList()[0].second;
