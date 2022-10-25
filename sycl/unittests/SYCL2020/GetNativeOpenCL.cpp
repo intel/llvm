@@ -86,18 +86,16 @@ TEST(GetNative, GetNativeHandle) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
 
-  Mock.redefineBefore<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  Mock.redefineBefore<detail::PiApiKind::piContextRetain>(
-      redefinedContextRetain);
-  Mock.redefineBefore<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
-  Mock.redefineBefore<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefineBefore<detail::PiApiKind::piProgramRetain>(
-      redefinedProgramRetain);
-  Mock.redefineBefore<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
-  Mock.redefineBefore<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
+  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
+  Mock.redefine<detail::PiApiKind::piContextRetain>(redefinedContextRetain);
+  Mock.redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+  Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
+  Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
+  Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
 
   context Context(Plt);

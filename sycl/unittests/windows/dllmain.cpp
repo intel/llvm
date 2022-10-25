@@ -38,7 +38,7 @@ TEST(Windows, DllMainCall) {
 #ifdef _WIN32
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
+  Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 
   // Teardown calls are only expected on sycl.dll library unload, not when
   // process gets terminated.

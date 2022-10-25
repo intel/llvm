@@ -54,8 +54,7 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfo);
+    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   }
 
 protected:
