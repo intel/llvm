@@ -131,9 +131,9 @@ public:
 
 public:
   RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
-      : Bin(nullptr), ModuleHandle(ModuleHandle), ImageID{++ImageIDCounter} {}
+      : Bin(nullptr), ModuleHandle(ModuleHandle) {}
   RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
-      : ModuleHandle(ModuleHandle), ImageID{++ImageIDCounter} {
+      : ModuleHandle(ModuleHandle) {
     init(Bin);
   }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
@@ -221,7 +221,10 @@ public:
     return DeviceRequirements;
   }
 
-  uint32_t getImageID() const { return ImageID; }
+  std::uintptr_t getImageID() const {
+    assert(Bin && "Image ID is not available without a binary image.");
+    return reinterpret_cast<std::uintptr_t>(Bin);
+  }
 
 protected:
   void init(pi_device_binary Bin);
@@ -240,10 +243,6 @@ protected:
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
-
-  // Counter variable for picking unique IDs for each device image.
-  static std::atomic<uint32_t> ImageIDCounter;
-  const uint32_t ImageID;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary

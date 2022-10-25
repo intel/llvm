@@ -209,10 +209,6 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   Bin = nullptr;
 }
 
-// Initialize the image ID counter.
-std::atomic<uint32_t> RTDeviceBinaryImage::ImageIDCounter =
-    std::atomic<uint32_t>(0);
-
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
