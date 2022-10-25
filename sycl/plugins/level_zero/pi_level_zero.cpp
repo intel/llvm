@@ -5632,7 +5632,10 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   pi_result Result = EventCreate(Context, nullptr, true, RetEvent);
   (*RetEvent)->RefCountExternal++;
-  return Result;
+  if (Result != PI_SUCCESS)
+    return Result;
+  ZE_CALL(zeEventHostSignal, ((*RetEvent)->ZeEvent));
+  return PI_SUCCESS;
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
