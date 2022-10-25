@@ -113,6 +113,7 @@ private:
   const clang::FunctionDecl &funcDecl;
   const FunctionContext funcContext;
 };
+
 class CodeGenUtils {
 public:
   /// This class groups the type and attributes of a value (e.g. a parameter or
@@ -120,10 +121,10 @@ public:
   class TypeAndAttrs {
   public:
     mlir::Type type;
-    mlir::NamedAttrList attrs;
+    std::vector<mlir::NamedAttribute> attrs;
 
     TypeAndAttrs(mlir::Type type) : type(type), attrs() {}
-    TypeAndAttrs(mlir::Type type, mlir::NamedAttrList attrs)
+    TypeAndAttrs(mlir::Type type, std::vector<mlir::NamedAttribute> attrs)
         : type(type), attrs(attrs) {}
 
     // Collect the types of the given \p descriptors in \p types.
@@ -179,6 +180,8 @@ private:
   bool error;
   ScopLocList scopLocList;
   LowerToInfo LTInfo;
+  std::map<const clang::FunctionDecl *, const clang::CodeGen::CGFunctionInfo *>
+      CGFunctionInfos;
 
 public:
   static constexpr llvm::StringLiteral DeviceModuleName{"device_functions"};
@@ -218,8 +221,8 @@ public:
   ScopLocList &getScopLocList() { return scopLocList; }
 
   mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &FTE,
-                                                    bool IsThunk,
-                                                    bool ShouldEmit,
+                                                    const bool IsThunk,
+                                                    const bool ShouldEmit,
                                                     bool getDeviceStub = false);
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const clang::FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
@@ -239,6 +242,9 @@ public:
                     bool tryInit = true,
                     FunctionContext funcContext = FunctionContext::Host);
 
+  const clang::CodeGen::CGFunctionInfo &
+  GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);
+
   void run();
 
   void HandleTranslationUnit(clang::ASTContext &Context) override;
@@ -256,16 +262,6 @@ private:
 
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
-
-  /// Construct the IR attribute list of a function or call.
-  void constructAttributeList(const clang::CodeGen::CGFunctionInfo &FI,
-                              clang::CodeGen::CGCalleeInfo CalleeInfo,
-                              mlirclang::AttributeList &AttrList,
-                              bool AttrOnCallSite, bool IsThunk);
-
-  /// Retuns the MLIR Function type given clang's CGFunctionInfo \p FI.
-  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
-                                     const clang::FunctionDecl &FD);
 
   /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>
@@ -494,7 +490,8 @@ public:
   ValueCategory
   CallHelper(mlir::func::FuncOp tocall, clang::QualType objType,
              clang::ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
-             clang::QualType retType, bool retReference, clang::Expr *expr);
+             clang::QualType retType, bool retReference, clang::Expr *expr,
+             const clang::FunctionDecl *callee);
 
   std::pair<ValueCategory, bool>
   EmitClangBuiltinCallExpr(clang::CallExpr *expr);

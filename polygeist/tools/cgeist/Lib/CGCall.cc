@@ -70,11 +70,6 @@ static void castCallerArgs(mlir::func::FuncOp callee,
                            llvm::SmallVectorImpl<mlir::Value> &args,
                            mlir::OpBuilder &b) {
   mlir::FunctionType funcTy = callee.getFunctionType();
-  llvm::dbgs() << "funcTy: " << funcTy << "\n";
-  llvm::dbgs() << "args: \n";
-  for (auto &arg : args)
-    llvm::dbgs().indent(2) << arg << "\n";
-
   assert(args.size() == funcTy.getNumInputs() &&
          "The caller arguments should have the same size as the number of "
          "callee arguments as the interface.");
@@ -95,6 +90,7 @@ static void castCallerArgs(mlir::func::FuncOp callee,
 
     if (calleeArgType.isa<MemRefType>())
       args[i] = castCallerMemRefArg(args[i], calleeArgType, b);
+    assert(calleeArgType == args[i].getType() && "Callsite argument mismatch");
   }
 }
 
@@ -105,15 +101,20 @@ static void castCallerArgs(mlir::func::FuncOp callee,
 ValueCategory MLIRScanner::CallHelper(
     mlir::func::FuncOp tocall, QualType objType,
     ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
-    QualType retType, bool retReference, clang::Expr *expr) {
+    QualType retType, bool retReference, clang::Expr *expr,
+    const FunctionDecl *callee) {
   SmallVector<mlir::Value, 4> args;
   auto fnType = tocall.getFunctionType();
+  const clang::CodeGen::CGFunctionInfo &FI =
+      Glob.GetOrCreateCGFunctionInfo(callee);
+  auto FIArgs = FI.arguments();
 
   size_t i = 0;
   // map from declaration name to mlir::value
   std::map<std::string, mlir::Value> mapFuncOperands;
 
   for (auto pair : arguments) {
+
     ValueCategory arg = std::get<0>(pair);
     clang::Expr *a = std::get<1>(pair);
 
@@ -211,7 +212,28 @@ ValueCategory MLIRScanner::CallHelper(
                                   mt.getMemorySpace()),
             alloc);
       } else {
-        val = arg.getValue(builder);
+        if (FIArgs[i].info.getKind() == clang::CodeGen::ABIArgInfo::Indirect ||
+            FIArgs[i].info.getKind() ==
+                clang::CodeGen::ABIArgInfo::IndirectAliased) {
+          OpBuilder abuilder(builder.getContext());
+          abuilder.setInsertionPointToStart(allocationScope);
+          auto Ty = Glob.getTypes().getPointerOrMemRefType(
+              arg.getValue(builder).getType(),
+              Glob.getCGM().getDataLayout().getAllocaAddrSpace(),
+              /*IsAlloc*/ true);
+          if (auto MemRefTy = Ty.dyn_cast<mlir::MemRefType>()) {
+            val = abuilder.create<mlir::memref::AllocaOp>(loc, MemRefTy);
+            val = abuilder.create<mlir::memref::CastOp>(
+                loc, mlir::MemRefType::get(-1, arg.getValue(builder).getType()),
+                val);
+          } else {
+            val = abuilder.create<mlir::LLVM::AllocaOp>(
+                loc, Ty, abuilder.create<arith::ConstantIntOp>(loc, 1, 64), 0);
+          }
+          ValueCategory(val, /*isRef*/ true)
+              .store(builder, arg.getValue(builder));
+        } else
+          val = arg.getValue(builder);
 
         if (val.getType().isa<LLVM::LLVMPointerType>() &&
             expectedType.isa<MemRefType>()) {
@@ -270,7 +292,6 @@ ValueCategory MLIRScanner::CallHelper(
 
   mlir::Value alloc;
   if (isArrayReturn) {
-    llvm::dbgs() << "at line " << __LINE__ << "\n";
     auto mt =
         Glob.getTypes()
             .getMLIRType(
@@ -1619,7 +1640,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   FunctionToEmit F(*callee, mlirclang::getInputContext(builder));
   auto ToCall = cast<func::FuncOp>(
-      Glob.GetOrCreateMLIRFunction(F, false /*IsThunk*/, ShouldEmit));
+      Glob.GetOrCreateMLIRFunction(F, false /*IsThunk */, ShouldEmit));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
   QualType objType;
@@ -1647,5 +1668,5 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     args.push_back(std::make_pair(Visit(a), a));
 
   return CallHelper(ToCall, objType, args, expr->getType(),
-                    expr->isLValue() || expr->isXValue(), expr);
+                    expr->isLValue() || expr->isXValue(), expr, callee);
 }
