@@ -271,26 +271,12 @@ elif config.sycl_be == "ext_oneapi_hip" and config.hip_platform == "NVIDIA":
 else:
     arch_flag = ""
 
-# Add an extra include directory which points to a fake sycl/sycl.hpp (which just points to CL/sycl.hpp)
-# location to workaround compiler versions which do not provide this header
-check_sycl_hpp_file='sycl_hpp_include.cpp'
-with open(check_sycl_hpp_file, 'w') as fp:
-    fp.write('#include <sycl/sycl.hpp>\n')
-    fp.write('int main() {}')
-
-extra_sycl_include = ""
-sycl_hpp_available = subprocess.getstatusoutput(config.dpcpp_compiler + ' -fsycl  ' + check_sycl_hpp_file + ' ' + ("/c" if cl_options else "-c"))
-if sycl_hpp_available[0] != 0:
-    lit_config.note('Simple include of sycl/sycl.hpp failed with output: ' + sycl_hpp_available[1] + 
-                    '\nUsing fake sycl/sycl.hpp (which just points to CL/sycl.hpp)')
-    extra_sycl_include = " " + ("/I" if cl_options else "-I") + config.extra_include
-
 if lit_config.params.get('compatibility_testing', False):
     config.substitutions.append( ('%clangxx', ' true ') )
     config.substitutions.append( ('%clang', ' true ') )
 else:
-    config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags + ' ' + arch_flag + extra_sycl_include) )
-    config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags + extra_sycl_include) )
+    config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags + ' ' + arch_flag) )
+    config.substitutions.append( ('%clang', ' ' + config.dpcpp_compiler + ' ' + config.c_flags) )
 
 config.substitutions.append( ('%threads_lib', config.sycl_threads_lib) )
 
