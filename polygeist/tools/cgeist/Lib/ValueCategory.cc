@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ValueCategory.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -57,9 +57,9 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   auto loc = builder.getUnknownLoc();
   if (auto pt = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
-      if (pt.getElementType() == p2m.source().getType())
-        toStore = p2m.source();
-      else if (auto nt = p2m.source().getDefiningOp<LLVM::NullOp>()) {
+      if (pt.getElementType() == p2m.getSource().getType())
+        toStore = p2m.getSource();
+      else if (auto nt = p2m.getSource().getDefiningOp<LLVM::NullOp>()) {
         if (pt.getElementType().isa<LLVM::LLVMPointerType>())
           toStore =
               builder.create<LLVM::NullOp>(nt.getLoc(), pt.getElementType());

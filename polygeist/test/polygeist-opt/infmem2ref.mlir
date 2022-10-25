@@ -107,26 +107,26 @@ module {
 // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
 // CHECK-NEXT:     %true = arith.constant true
 // CHECK-NEXT:     %false = arith.constant false
-// CHECK-NEXT:     %0 = memref.alloca() : memref<i1>
-// CHECK-NEXT:     memref.store %true, %0[] : memref<i1>
+// CHECK-NEXT:     %alloca = memref.alloca() : memref<i1>
+// CHECK-NEXT:     memref.store %true, %alloca[] : memref<i1>
 // CHECK-NEXT:     scf.execute_region {
 // CHECK-NEXT:       cf.br ^bb1(%c0_i32 : i32)
-// CHECK-NEXT:     ^bb1(%1: i32):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:       %2 = arith.cmpi slt, %1, %c2_i32 : i32
-// CHECK-NEXT:       %3 = memref.load %0[] : memref<i1>
-// CHECK-NEXT:       %4 = arith.andi %2, %3 : i1
-// CHECK-NEXT:       cf.cond_br %4, ^bb2, ^bb3
+// CHECK-NEXT:     ^bb1(%0: i32):  // 2 preds: ^bb0, ^bb2
+// CHECK-NEXT:       %1 = arith.cmpi slt, %0, %c2_i32 : i32
+// CHECK-NEXT:       %2 = memref.load %alloca[] : memref<i1>
+// CHECK-NEXT:       %3 = arith.andi %1, %2 : i1
+// CHECK-NEXT:       cf.cond_br %3, ^bb2, ^bb3
 // CHECK-NEXT:     ^bb2:  // pred: ^bb1
 // CHECK-NEXT:       scf.if %true {
-// CHECK-NEXT:         %7 = arith.cmpi eq, %1, %c1_i32 : i32
-// CHECK-NEXT:         scf.if %7 {
-// CHECK-NEXT:           func.call @overwrite(%0) : (memref<i1>) -> ()
+// CHECK-NEXT:         %6 = arith.cmpi eq, %0, %c1_i32 : i32
+// CHECK-NEXT:         scf.if %6 {
+// CHECK-NEXT:           func.call @overwrite(%alloca) : (memref<i1>) -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %5 = memref.load %0[] : memref<i1>
-// CHECK-NEXT:       func.call @use(%5) : (i1) -> ()
-// CHECK-NEXT:       %6 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:       cf.br ^bb1(%6 : i32)
+// CHECK-NEXT:       %4 = memref.load %alloca[] : memref<i1>
+// CHECK-NEXT:       func.call @use(%4) : (i1) -> ()
+// CHECK-NEXT:       %5 = arith.addi %0, %c1_i32 : i32
+// CHECK-NEXT:       cf.br ^bb1(%5 : i32)
 // CHECK-NEXT:     ^bb3:  // pred: ^bb1
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }

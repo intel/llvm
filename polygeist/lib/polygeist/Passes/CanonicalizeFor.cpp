@@ -1,14 +1,14 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -1150,11 +1150,11 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       rewriter.replaceOpWithNewOp<ConditionOp>(term, term.getCondition(),
                                                condArgs);
 
-      SmallVector<unsigned> indices;
+      llvm::BitVector indices(afterB->getNumArguments());
       for (int i = m.size() - 1; i >= 0; i--) {
         assert(m[i].first.getType() == m[i].second.getType());
         m[i].first.replaceAllUsesWith(m[i].second);
-        indices.push_back(m[i].first.getArgNumber());
+        indices.set(m[i].first.getArgNumber());
       }
       afterB->eraseArguments(indices);
 
@@ -1490,8 +1490,11 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
 
     condOps.append(newOps.begin(), newOps.end());
 
+    llvm::BitVector eraseIndices(op.getAfter().front().getNumArguments());
+    for (unsigned i : toErase)
+      eraseIndices.set(i);
     rewriter.updateRootInPlace(
-        term, [&] { op.getAfter().front().eraseArguments(toErase); });
+        term, [&] { op.getAfter().front().eraseArguments(eraseIndices); });
     rewriter.setInsertionPoint(term);
     rewriter.replaceOpWithNewOp<ConditionOp>(term, term.getCondition(),
                                              condOps);
@@ -1649,7 +1652,7 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
                                 PatternRewriter &rewriter) const override {
     auto term = cast<scf::ConditionOp>(op.getBefore().front().getTerminator());
     SmallVector<Value, 4> conds;
-    SmallVector<unsigned, 4> eraseArgs;
+    llvm::BitVector eraseArgs(op.getAfter().front().getArguments().size());
     SmallVector<unsigned, 4> keepArgs;
     SmallVector<Type, 4> tys;
     unsigned i = 0;
@@ -1663,13 +1666,13 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
       auto afarg = std::get<1>(pair);
       auto res = std::get<2>(pair);
       if (afarg.use_empty() && res.use_empty()) {
-        eraseArgs.push_back((unsigned)i);
+        eraseArgs.set((unsigned)i);
       } else if (valueOffsets.find(arg.getAsOpaquePointer()) !=
                  valueOffsets.end()) {
         resultOffsets[i] = valueOffsets[arg.getAsOpaquePointer()];
         afarg.replaceAllUsesWith(
             resultArgs[valueOffsets[arg.getAsOpaquePointer()]]);
-        eraseArgs.push_back((unsigned)i);
+        eraseArgs.set((unsigned)i);
       } else {
         valueOffsets[arg.getAsOpaquePointer()] = keepArgs.size();
         resultOffsets[i] = keepArgs.size();
@@ -1682,7 +1685,7 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
     }
     assert(i == op.getAfter().front().getArguments().size());
 
-    if (eraseArgs.size() != 0) {
+    if (!eraseArgs.none()) {
 
       rewriter.setInsertionPoint(term);
       rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.getCondition(),

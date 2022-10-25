@@ -24,9 +24,9 @@ void kernel_deriche() {
 // CHECK-NEXT:   }
 // CHECK:   func @kernel_deriche()
 // CHECK-NEXT:     %c32_i32 = arith.constant 32 : i32
-// CHECK-NEXT:     %0 = memref.alloca() : memref<1xi32>
-// CHECK-NEXT:     %1 = memref.cast %0 : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:     affine.store %c32_i32, %0[0] : memref<1xi32>
-// CHECK-NEXT:     call @sub0(%1) : (memref<?xi32>) -> ()
+// CHECK-NEXT:     %alloca = memref.alloca() : memref<1xi32>
+// CHECK-NEXT:     %cast = memref.cast %alloca : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:     affine.store %c32_i32, %alloca[0] : memref<1xi32>
+// CHECK-NEXT:     call @sub0(%cast) : (memref<?xi32>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

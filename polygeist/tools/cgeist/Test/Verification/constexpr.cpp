@@ -14,13 +14,13 @@ int foo() {
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c14 = arith.constant 14 : index
-// CHECK-NEXT:     %0 = memref.alloca() : memref<14xi32>
+// CHECK-NEXT:     %alloca = memref.alloca() : memref<14xi32>
 // CHECK-NEXT:     scf.for %arg0 = %c0 to %c14 step %c1 {
-// CHECK-NEXT:       %3 = arith.index_cast %arg0 : index to i32
-// CHECK-NEXT:       memref.store %3, %0[%arg0] : memref<14xi32>
+// CHECK-NEXT:       %1 = arith.index_cast %arg0 : index to i32
+// CHECK-NEXT:       memref.store %1, %alloca[%arg0] : memref<14xi32>
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %1 = memref.cast %0 : memref<14xi32> to memref<?xi32>
-// CHECK-NEXT:     %2 = call @_Z3sumPi(%1) : (memref<?xi32>) -> i32
-// CHECK-NEXT:     return %2 : i32
+// CHECK-NEXT:     %cast = memref.cast %alloca : memref<14xi32> to memref<?xi32>
+// CHECK-NEXT:     %0 = call @_Z3sumPi(%cast) : (memref<?xi32>) -> i32
+// CHECK-NEXT:     return %0 : i32
 // CHECK-NEXT:   }
 

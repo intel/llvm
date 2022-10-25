@@ -13,11 +13,11 @@ void create_matrix(float *m, int size) {
 // CHECK-NEXT:     %0 = arith.muli %arg1, %c2_i32 : i32
 // CHECK-NEXT:     %1 = arith.addi %0, %c1_i32 : i32
 // CHECK-NEXT:     %2 = arith.index_cast %1 : i32 to index
-// CHECK-NEXT:     %3 = memref.alloca(%2) : memref<?xf32>
-// CHECK-NEXT:     %4 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     affine.store %cst, %3[symbol(%4)] : memref<?xf32>
-// CHECK-NEXT:     %[[i5:.+]] = affine.load %3[0] : memref<?xf32>
+// CHECK-NEXT:     %alloca = memref.alloca(%2) : memref<?xf32>
+// CHECK-NEXT:     %3 = arith.index_cast %arg1 : i32 to index
+// CHECK-NEXT:     affine.store %cst, %alloca[symbol(%3)] : memref<?xf32>
+// CHECK-NEXT:     %[[i5:.+]] = affine.load %alloca[0] : memref<?xf32>
 // CHECK-NEXT:     %[[i6:.+]] = arith.addf %[[i5]], %cst : f32
-// CHECK-NEXT:     affine.store %[[i6]], %arg0[symbol(%4)] : memref<?xf32>
+// CHECK-NEXT:     affine.store %[[i6]], %arg0[symbol(%3)] : memref<?xf32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

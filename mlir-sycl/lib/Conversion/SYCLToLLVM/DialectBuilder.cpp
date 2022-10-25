@@ -115,8 +115,7 @@ LLVM::BitcastOp LLVMBuilder::genBitcast(Type type, Value val) const {
 LLVM::ExtractValueOp
 LLVMBuilder::genExtractValue(Type type, Value container,
                              ArrayRef<int64_t> position) const {
-  return create<LLVM::ExtractValueOp>(type, container,
-                                      getI64ArrayAttr(position));
+  return create<LLVM::ExtractValueOp>(type, container, position);
 }
 
 LLVM::CallOp LLVMBuilder::genCall(FlatSymbolRefAttr funcSym, TypeRange resTypes,

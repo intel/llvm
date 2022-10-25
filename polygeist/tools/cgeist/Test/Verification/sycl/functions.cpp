@@ -533,12 +533,12 @@ SYCL_EXTERNAL void group_get_local_linear_range(sycl::group<1> group) {
 
 // CHECK-MLIR: func.func @_Z8method_2N4sycl3_V14itemILi2ELb1EEE(%arg0: !sycl_item_2_1_)
 // CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
-// CHECK-MLIR-NEXT: %0 = memref.alloca() : memref<1x!sycl_item_2_1_>
-// CHECK-MLIR-NEXT: affine.store %arg0, %0[0] : memref<1x!sycl_item_2_1_>
-// CHECK-MLIR-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_item_2_1_>) -> !llvm.ptr<!sycl_item_2_1_>
-// CHECK-MLIR-NEXT: %2 = llvm.addrspacecast %1 : !llvm.ptr<!sycl_item_2_1_> to !llvm.ptr<!sycl_item_2_1_, 4>
-// CHECK-MLIR-NEXT: %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<!sycl_item_2_1_, 4>) -> memref<?x!sycl_item_2_1_, 4>
-// CHECK-MLIR-NEXT: %4 = sycl.call(%3, %3) {Function = @"operator==", MangledName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, Type = @item} : (memref<?x!sycl_item_2_1_, 4>, memref<?x!sycl_item_2_1_, 4>) -> i8
+// CHECK-MLIR-NEXT: %alloca = memref.alloca() : memref<1x!sycl_item_2_1_>
+// CHECK-MLIR-NEXT: affine.store %arg0, %alloca[0] : memref<1x!sycl_item_2_1_>
+// CHECK-MLIR-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_item_2_1_>) -> !llvm.ptr<!sycl_item_2_1_>
+// CHECK-MLIR-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_item_2_1_> to !llvm.ptr<!sycl_item_2_1_, 4>
+// CHECK-MLIR-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_item_2_1_, 4>) -> memref<?x!sycl_item_2_1_, 4>
+// CHECK-MLIR-NEXT: %3 = sycl.call(%2, %2) {Function = @"operator==", MangledName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, Type = @item} : (memref<?x!sycl_item_2_1_, 4>, memref<?x!sycl_item_2_1_, 4>) -> i8
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
@@ -556,17 +556,17 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
 
 // CHECK-MLIR: func.func @_Z4op_1N4sycl3_V12idILi2EEES2_(%arg0: !sycl_id_2_, %arg1: !sycl_id_2_)
 // CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
-// CHECK-MLIR-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-MLIR-NEXT: %1 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-MLIR-NEXT: affine.store %arg0, %1[0] : memref<1x!sycl_id_2_>
-// CHECK-MLIR-NEXT: affine.store %arg1, %0[0] : memref<1x!sycl_id_2_>
-// CHECK-MLIR-NEXT: %2 = "polygeist.memref2pointer"(%1) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-MLIR-NEXT: %3 = llvm.addrspacecast %2 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %4 = "polygeist.pointer2memref"(%3) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %5 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-MLIR-NEXT: %6 = llvm.addrspacecast %5 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %7 = "polygeist.pointer2memref"(%6) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %8 = sycl.call(%4, %7) {Function = @"operator==", MangledName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i8
+// CHECK-MLIR-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-MLIR-NEXT: %alloca_0 = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-MLIR-NEXT: affine.store %arg0, %alloca_0[0] : memref<1x!sycl_id_2_>
+// CHECK-MLIR-NEXT: affine.store %arg1, %alloca[0] : memref<1x!sycl_id_2_>
+// CHECK-MLIR-NEXT: %0 = "polygeist.memref2pointer"(%alloca_0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-MLIR-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %3 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-MLIR-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %6 = sycl.call(%2, %5) {Function = @"operator==", MangledName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i8
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
@@ -589,15 +589,15 @@ SYCL_EXTERNAL void op_1(sycl::id<2> a, sycl::id<2> b) {
 // CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-MLIR-NEXT: %c1_i32 = arith.constant 1 : i32
 // CHECK-MLIR-NEXT: %c0_i32 = arith.constant 0 : i32
-// CHECK-MLIR-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-MLIR-NEXT: affine.store %arg0, %0[0] : memref<1x!sycl_id_2_>
-// CHECK-MLIR-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-MLIR-NEXT: %2 = llvm.addrspacecast %1 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %4 = "sycl.id.get"(%3, %c0_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (memref<?x!sycl_id_2_, 4>, i32) -> i64
-// CHECK-MLIR-NEXT: %5 = "sycl.id.get"(%3, %c1_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (memref<?x!sycl_id_2_, 4>, i32) -> i64
-// CHECK-MLIR-NEXT: %6 = arith.addi %4, %5 : i64
-// CHECK-MLIR-NEXT: %7 = sycl.call(%6) {Function = @abs, MangledName = @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_} : (i64) -> i64
+// CHECK-MLIR-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-MLIR-NEXT: affine.store %arg0, %alloca[0] : memref<1x!sycl_id_2_>
+// CHECK-MLIR-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-MLIR-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-MLIR-NEXT: %3 = "sycl.id.get"(%2, %c0_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (memref<?x!sycl_id_2_, 4>, i32) -> i64
+// CHECK-MLIR-NEXT: %4 = "sycl.id.get"(%2, %c1_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (memref<?x!sycl_id_2_, 4>, i32) -> i64
+// CHECK-MLIR-NEXT: %5 = arith.addi %3, %4 : i64
+// CHECK-MLIR-NEXT: %6 = sycl.call(%5) {Function = @abs, MangledName = @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_} : (i64) -> i64
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 

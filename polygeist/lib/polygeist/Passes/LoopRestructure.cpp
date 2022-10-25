@@ -300,11 +300,11 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               ifOp.getElseRegion().getBlocks().splice(
                   ifOp.getElseRegion().getBlocks().end(), region.getBlocks(),
                   Succs[1 - j]);
-              SmallVector<unsigned, 4> idx;
+              llvm::BitVector idx(Succs[1 - j]->getNumArguments());
               for (size_t i = 0; i < Succs[1 - j]->getNumArguments(); ++i) {
                 Succs[1 - j]->getArgument(i).replaceAllUsesWith(
                     condBr.getFalseOperand(i));
-                idx.push_back(i);
+                idx.set(i);
               }
               Succs[1 - j]->eraseArguments(idx);
               assert(!ifOp.getElseRegion().getBlocks().empty());
@@ -320,11 +320,11 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               ifOp.getThenRegion().getBlocks().splice(
                   ifOp.getThenRegion().getBlocks().end(), region.getBlocks(),
                   Succs[1 - j]);
-              SmallVector<unsigned, 4> idx;
+              llvm::BitVector idx(Succs[1 - j]->getNumArguments());
               for (size_t i = 0; i < Succs[1 - j]->getNumArguments(); ++i) {
                 Succs[1 - j]->getArgument(i).replaceAllUsesWith(
                     condBr.getTrueOperand(i));
-                idx.push_back(i);
+                idx.set(i);
               }
               Succs[1 - j]->eraseArguments(idx);
               assert(!ifOp.getElseRegion().getBlocks().empty());

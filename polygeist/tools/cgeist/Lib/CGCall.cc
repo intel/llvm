@@ -686,7 +686,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         mlir::Value V = getLLVM(expr->getArg(0));
         mlir::Value Fabs;
         if (V.getType().isa<mlir::FloatType>())
-          Fabs = builder.create<math::AbsOp>(loc, V);
+          Fabs = builder.create<math::AbsFOp>(loc, V);
         else {
           auto zero = builder.create<arith::ConstantIntOp>(
               loc, 0, V.getType().cast<mlir::IntegerType>().getWidth());
@@ -779,7 +779,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         // x != NaN via the ordered compare in either case.
         mlir::Value V = getLLVM(expr->getArg(0));
         auto Ty = V.getType().cast<mlir::FloatType>();
-        mlir::Value Fabs = builder.create<math::AbsOp>(loc, V);
+        mlir::Value Fabs = builder.create<math::AbsFOp>(loc, V);
         auto Infinity = builder.create<ConstantFloatOp>(
             loc, APFloat::getInf(Ty.getFloatSemantics()), Ty);
         auto Pred = (sr->getDecl()->getName() == "__builtin_isinf" ||
@@ -810,7 +810,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         auto Ty = V.getType().cast<mlir::FloatType>();
         mlir::Value Eq = builder.create<CmpFOp>(loc, CmpFPredicate::OEQ, V, V);
 
-        mlir::Value Abs = builder.create<math::AbsOp>(loc, V);
+        mlir::Value Abs = builder.create<math::AbsFOp>(loc, V);
         auto Infinity = builder.create<ConstantFloatOp>(
             loc, APFloat::getInf(Ty.getFloatSemantics()), Ty);
         mlir::Value IsLessThanInf =
@@ -1096,7 +1096,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             auto idx = counts[T.getAsOpaquePointer()]++;
             auto aop = allocateBuffer(idx, T);
             args.push_back(aop.getResult());
-            ops.emplace_back(aop.getResult(), toptr.source());
+            ops.emplace_back(aop.getResult(), toptr.getSource());
           } else
             args.push_back(v);
         }
@@ -1107,7 +1107,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               loc, lop, pair.second,
               std::vector<mlir::Value>({getConstantIndex(0)}));
         }
-        return ValueCategory(called.getResult(0), /*isReference*/ false);
+        return ValueCategory(called.getResult(), /*isReference*/ false);
       }
     }
 
@@ -1542,7 +1542,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         if (callee) {
           auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
           called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args)
-                       .getResult(0);
+                       .getResult();
         } else {
           args.insert(args.begin(), getLLVM(expr->getCallee()));
           SmallVector<mlir::Type> RTs = {typeTranslator.translateType(
@@ -1550,7 +1550,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           if (RTs[0].isa<LLVM::LLVMVoidType>())
             RTs.clear();
           called =
-              builder.create<mlir::LLVM::CallOp>(loc, RTs, args).getResult(0);
+              builder.create<mlir::LLVM::CallOp>(loc, RTs, args).getResult();
         }
         return ValueCategory(called, /*isReference*/ expr->isLValue() ||
                                          expr->isXValue());
@@ -1567,7 +1567,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     if (callee) {
       auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
       called =
-          builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args).getResult(0);
+          builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args).getResult();
     } else {
       args.insert(args.begin(), getLLVM(expr->getCallee()));
       auto CT = expr->getType();
@@ -1584,7 +1584,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       assert(RTs[0] == ft.getReturnType());
       if (RTs[0].isa<LLVM::LLVMVoidType>())
         RTs.clear();
-      called = builder.create<mlir::LLVM::CallOp>(loc, RTs, args).getResult(0);
+      called = builder.create<mlir::LLVM::CallOp>(loc, RTs, args).getResult();
     }
     if (isReference) {
       if (!(called.getType().isa<LLVM::LLVMPointerType>() ||
@@ -1594,6 +1594,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         llvm::errs() << " call: " << called << "\n";
       }
     }
+    if (!called)
+      return nullptr;
     return ValueCategory(called, isReference);
   }
 

@@ -26,7 +26,7 @@ module {
 }
 
 // CHECK:   func.func @mixed(%arg0: !llvm.ptr<memref<2xf32>>)
-// CHECK-NEXT:     %0 = memref.alloc() : memref<2xf32>
-// CHECK-NEXT:     llvm.store %0, %arg0 : !llvm.ptr<memref<2xf32>>
+// CHECK-NEXT:     %alloc = memref.alloc() : memref<2xf32>
+// CHECK-NEXT:     llvm.store %alloc, %arg0 : !llvm.ptr<memref<2xf32>>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

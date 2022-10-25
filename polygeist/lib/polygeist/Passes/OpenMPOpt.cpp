@@ -11,7 +11,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 
 using namespace mlir;
 using namespace mlir::func;

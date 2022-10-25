@@ -61,7 +61,7 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
-    ::mlir::Value getViewSource() { return source(); }
+    ::mlir::Value getViewSource() { return getSource(); }
   }];
 }
 
@@ -91,7 +91,7 @@ def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
   let hasCanonicalizer = 1;
   
   let extraClassDeclaration = [{
-    ::mlir::Value getViewSource() { return source(); }
+    ::mlir::Value getViewSource() { return getSource(); }
   }];
 }
 
@@ -107,7 +107,7 @@ def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
   let hasCanonicalizer = 1;
   
   let extraClassDeclaration = [{
-    ::mlir::Value getViewSource() { return source(); }
+    ::mlir::Value getViewSource() { return getSource(); }
   }];
 }
 

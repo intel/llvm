@@ -12,7 +12,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
-#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -57,18 +57,18 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
   LogicalResult
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    assert(subViewOp.source().getType().isa<MemRefType>() &&
+    assert(subViewOp.getSource().getType().isa<MemRefType>() &&
            "Source operand should be a memref type");
     assert(subViewOp.getType().isa<MemRefType>() &&
            "Result should be a memref type");
 
-    auto sourceMemRefType = subViewOp.source().getType().cast<MemRefType>();
+    auto sourceMemRefType = subViewOp.getSource().getType().cast<MemRefType>();
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
 
     auto loc = subViewOp.getLoc();
-    MemRefDescriptor targetMemRef(transformed.source());
+    MemRefDescriptor targetMemRef(transformed.getSource());
     Value prev = targetMemRef.alignedPtr(rewriter, loc);
-    Value idxs[] = {transformed.index()};
+    Value idxs[] = {transformed.getIndex()};
 
     SmallVector<Value, 4> sizes, strides;
     if (sourceMemRefType.getRank() != viewMemRefType.getRank()) {
@@ -169,7 +169,7 @@ private:
             any_of(memTypes, [=](Type t) { return resElemType == t; })) &&
            "The requested result memref element type is illegal");
 
-    Type indexType = transformed.index().getType();
+    Type indexType = transformed.getIndex().getType();
     Value zero = rewriter.create<LLVM::ConstantOp>(
         op.getLoc(), indexType, rewriter.getIntegerAttr(indexType, 0));
     indices.push_back(zero);
@@ -196,7 +196,7 @@ private:
       }
     }
 
-    indices.push_back(transformed.index());
+    indices.push_back(transformed.getIndex());
   }
 };
 
@@ -211,8 +211,8 @@ struct Memref2PointerOpLowering
 
     // MemRefDescriptor sourceMemRef(operands.front());
     MemRefDescriptor targetMemRef(
-        transformed
-            .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
+        transformed.getSource()); // MemRefDescriptor::undef(rewriter, loc,
+                                  // targetDescTy);
 
     // Offset.
     Value baseOffset = targetMemRef.offset(rewriter, loc);
@@ -243,7 +243,7 @@ struct Pointer2MemrefOpLowering
     auto convertedType = getTypeConverter()->convertType(op.getType());
     assert(convertedType && "unexpected failure in memref type conversion");
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
-    assert(adaptor.source()
+    assert(adaptor.getSource()
                    .getType()
                    .cast<LLVM::LLVMPointerType>()
                    .getAddressSpace() ==
@@ -251,7 +251,7 @@ struct Pointer2MemrefOpLowering
            "Expecting Pointer2MemrefOp source and result types to have the "
            "same address space");
     auto ptr = rewriter.create<LLVM::BitcastOp>(
-        op.getLoc(), descr.getElementPtrType(), adaptor.source());
+        op.getLoc(), descr.getElementPtrType(), adaptor.getSource());
 
     // Extract all strides and offsets and verify they are static.
     int64_t offset;
@@ -294,7 +294,7 @@ struct StreamToTokenOpLowering
   matchAndRewrite(StreamToTokenOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Value v[] = {transformed.source()};
+    Value v[] = {transformed.getSource()};
     rewriter.replaceOp(op, v);
     return success();
   }
@@ -307,7 +307,7 @@ struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
   matchAndRewrite(TypeSizeOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Type NT = op.sourceAttr().getValue();
+    Type NT = op.getSourceAttr().getValue();
     if (auto T = getTypeConverter()->convertType(NT)) {
       NT = T;
     }
@@ -322,7 +322,7 @@ struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
       return success();
     }
 
-    if (NT != op.sourceAttr().getValue() || type != op.getType()) {
+    if (NT != op.getSourceAttr().getValue() || type != op.getType()) {
       rewriter.replaceOpWithNewOp<TypeSizeOp>(op, type, NT);
       return success();
     }
@@ -337,7 +337,7 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
   matchAndRewrite(TypeAlignOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Type NT = op.sourceAttr().getValue();
+    Type NT = op.getSourceAttr().getValue();
     if (auto T = getTypeConverter()->convertType(NT)) {
       NT = T;
     }
@@ -352,7 +352,7 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
       return success();
     }
 
-    if (NT != op.sourceAttr().getValue() || type != op.getType()) {
+    if (NT != op.getSourceAttr().getValue() || type != op.getType()) {
       rewriter.replaceOpWithNewOp<TypeAlignOp>(op, type, NT);
       return success();
     }
@@ -480,12 +480,12 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
     // Make sure that all constants will be inside the outlined async function
     // to reduce the number of function arguments.
-    Region &funcReg = execute.body();
+    Region &funcReg = execute.getRegion();
 
     // Collect all outlined function inputs.
     SetVector<mlir::Value> functionInputs;
 
-    getUsedValuesDefinedAbove(execute.body(), funcReg, functionInputs);
+    getUsedValuesDefinedAbove(execute.getRegion(), funcReg, functionInputs);
     SmallVector<Value> toErase;
     for (auto a : functionInputs) {
       Operation *op = a.getDefiningOp();
@@ -579,7 +579,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
       // Clone all operations from the execute operation body into the outlined
       // function body.
-      for (Operation &op : execute.body().front().without_terminator())
+      for (Operation &op : execute.getBody()->without_terminator())
         rewriter.clone(op, valueMapping);
 
       rewriter.create<LLVM::ReturnOp>(execute.getLoc(), ValueRange());
@@ -623,7 +623,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
             loc, LLVM::LLVMPointerType::get(ST),
             rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
-                .getResult(0));
+                .getResult());
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
@@ -641,9 +641,9 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       }
       vals.push_back(
           rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func));
-      for (auto dep : execute.dependencies()) {
+      for (auto dep : execute.getDependencies()) {
         auto ctx = dep.getDefiningOp<polygeist::StreamToTokenOp>();
-        vals.push_back(ctx.source());
+        vals.push_back(ctx.getSource());
       }
       assert(vals.size() == 3);
 
@@ -687,7 +687,7 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
   matchAndRewrite(LLVM::ReturnOp op, LLVM::ReturnOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto replacement =
-        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArgs());
+        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArg());
     replacement->setAttrs(adaptor.getAttributes());
     return success();
   }
@@ -791,7 +791,7 @@ struct ConvertPolygeistToLLVMPass
       populateFuncToLLVMConversionPatterns(converter, patterns);
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
-      arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
+      arith::populateArithToLLVMConversionPatterns(converter, patterns);
 
       converter.addConversion([&](async::TokenType type) { return type; });
 

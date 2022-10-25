@@ -12,7 +12,7 @@
 #include "utils.h"
 
 #include "mlir/Conversion/SYCLToLLVM/SYCLFuncRegistry.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -787,7 +787,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto gv =
           Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str(),
                                  /*tryInit*/ false);
-      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.type(),
+      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.getType(),
                                                 gv.first.getName());
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
@@ -2852,8 +2852,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
 
   mlir::OpBuilder builder(module->getContext());
   if (funcContext == FunctionContext::SYCLDevice)
-    builder.setInsertionPointToStart(
-        &(getDeviceModule(*module).body().front()));
+    builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
   else
     builder.setInsertionPointToStart(module->getBody());
 
@@ -2903,7 +2902,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
       // the GPU module, else the block will go at the forefront of the main
       // module.
       if (funcContext == FunctionContext::SYCLDevice) {
-        B->moveBefore(&(getDeviceModule(*module).body().front()));
+        B->moveBefore(getDeviceModule(*module).getBody());
         ms.getBuilder().setInsertionPointToStart(B);
       } else
         ms.setEntryAndAllocBlock(B);
@@ -2936,7 +2935,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
         init->dump();
         llvm::errs() << " warning not initializing global: " << name << "\n";
       } else {
-        globalOp.initial_valueAttr(initial_value);
+        globalOp.setInitialValueAttr(initial_value);
       }
       delete B;
     }
@@ -3329,7 +3328,8 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
       auto mt = mlir::MemRefType::get(-1, getTypes().getMLIRType(parmType), {},
                                       CGM.getDataLayout().getAllocaAddrSpace());
-      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal);
+      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal,
+                               getTypes().getMLIRType(parmType));
       attrBuilder.addAttribute(
           llvm::Attribute::AttrKind::Alignment,
           CGM.getContext().getTypeAlignInChars(parmType).getQuantity());

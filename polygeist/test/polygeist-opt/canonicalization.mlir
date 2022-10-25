@@ -3,9 +3,9 @@
 // -----
 
 // CHECK:  func.func @main(%arg0: index) -> memref<1000xi32> {
-// CHECK:    %0 = memref.alloca() : memref<2x1000xi32>
-// CHECK:    %1 = "polygeist.subindex"(%0, %arg0) : (memref<2x1000xi32>, index) -> memref<1000xi32>
-// CHECK:    return %1 : memref<1000xi32>
+// CHECK:    %alloca = memref.alloca() : memref<2x1000xi32>
+// CHECK:    %0 = "polygeist.subindex"(%alloca, %arg0) : (memref<2x1000xi32>, index) -> memref<1000xi32>
+// CHECK:    return %0 : memref<1000xi32>
 // CHECK:  }
 func.func @main(%arg0 : index) -> memref<1000xi32> {
   %c0 = arith.constant 0 : index

@@ -59,24 +59,24 @@ module {
 // CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr<i8>
 // CHECK-DAG:       %[[i1:.+]] = memref.alloca() : memref<2xi8>
 // CHECK-DAG:       %[[i2:.+]] = memref.alloca() : memref<2xi8>
-// CHECK-NEXT:       %3 = memref.alloca() : memref<i1>
+// CHECK-NEXT:       %alloca_1 = memref.alloca() : memref<i1>
 // CHECK-NEXT:       scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
 // CHECK-NEXT:         memref.store %c1_i8, %[[i1]][%arg1] : memref<2xi8>
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.while : () -> () {
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:           %5 = memref.load %[[i1]][%arg1] : memref<2xi8>
-// CHECK-NEXT:           %6 = arith.cmpi ne, %5, %c0_i8 : i8
-// CHECK-NEXT:           %7 = arith.cmpi eq, %arg1, %c0 : index
-// CHECK-NEXT:           scf.if %7 {
-// CHECK-NEXT:             memref.store %6, %3[] : memref<i1>
+// CHECK-NEXT:           %2 = memref.load %[[i1]][%arg1] : memref<2xi8>
+// CHECK-NEXT:           %3 = arith.cmpi ne, %2, %c0_i8 : i8
+// CHECK-NEXT:           %4 = arith.cmpi eq, %arg1, %c0 : index
+// CHECK-NEXT:           scf.if %4 {
+// CHECK-NEXT:             memref.store %3, %alloca_1[] : memref<i1>
 // CHECK-NEXT:           }
-// CHECK-NEXT:           memref.store %5, %[[i2]][%arg1] : memref<2xi8>
-// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:           memref.store %2, %[[i2]][%arg1] : memref<2xi8>
+// CHECK-NEXT:            scf.yield
 // CHECK-NEXT:         }
-// CHECK-NEXT:         %4 = memref.load %3[] : memref<i1>
-// CHECK-NEXT:         scf.condition(%4)
+// CHECK-NEXT:         %1 = memref.load %alloca_1[] : memref<i1>
+// CHECK-NEXT:         scf.condition(%1)
 // CHECK-NEXT:       } do {
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
 // CHECK-NEXT:           llvm.store %c0_i8, %0 : !llvm.ptr<i8>
@@ -89,9 +89,9 @@ module {
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:         %4 = memref.load %[[i2]][%arg1] : memref<2xi8>
-// CHECK-NEXT:         %5 = arith.cmpi ne, %4, %c0_i8 : i8
-// CHECK-NEXT:         scf.if %5 {
+// CHECK-NEXT:         %1 = memref.load %[[i2]][%arg1] : memref<2xi8>
+// CHECK-NEXT:         %2 = arith.cmpi ne, %1, %c0_i8 : i8
+// CHECK-NEXT:         scf.if %2 {
 // CHECK-NEXT:           func.call @print() : () -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield

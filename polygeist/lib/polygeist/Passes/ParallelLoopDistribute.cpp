@@ -12,8 +12,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
@@ -27,7 +27,7 @@
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 
 #include <deque>
 
@@ -800,7 +800,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
   DataLayout DLI(mod);
   auto addToAllocations = [&](Value v, SmallVector<Value> &allocations) {
     if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
-      allocations.push_back(cl.memref());
+      allocations.push_back(cl.getMemref());
     } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
       allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
           rewriter, v, iterCounts, true, &DLI));
@@ -1675,8 +1675,8 @@ bool isEquivalent(Value a, Value b) {
     return false;
   if (auto sa = a.getDefiningOp<polygeist::SubIndexOp>()) {
     if (auto sb = b.getDefiningOp<polygeist::SubIndexOp>()) {
-      return isEquivalent(sa.source(), sb.source()) &&
-             isEquivalent(sa.index(), sb.index());
+      return isEquivalent(sa.getSource(), sb.getSource()) &&
+             isEquivalent(sa.getIndex(), sb.getIndex());
     }
   }
   return false;
@@ -1709,7 +1709,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
       bool usesMustStore = false;
       for (auto user : res.getUsers()) {
         if (auto storeOp = dyn_cast<memref::StoreOp>(user)) {
-          if (storeOp.memref() == res) {
+          if (storeOp.getMemref() == res) {
             usesMustStore = true;
             break;
           }
@@ -1719,14 +1719,14 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           }
           for (auto nex = op->getNextNode(); nex != storeOp;
                nex = nex->getNextNode()) {
-            if (!mayReadFrom(nex, storeOp.memref()))
+            if (!mayReadFrom(nex, storeOp.getMemref()))
               continue;
             usesMustStore = true;
             break;
           }
           // TODO check that memref operands are recomputable at this location
-          SmallVector<Value> todo = {storeOp.memref()};
-          for (auto ind : storeOp.indices())
+          SmallVector<Value> todo = {storeOp.getMemref()};
+          for (auto ind : storeOp.getIndices())
             todo.push_back(ind);
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
@@ -1755,9 +1755,9 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           if (!usesMustStore) {
             Value val = std::get<1>(tup);
             if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
-              if (isEquivalent(cl.memref(), storeOp.memref()) &&
+              if (isEquivalent(cl.getMemref(), storeOp.getMemref()) &&
                   cl->getBlock() == storeOp->getBlock() &&
-                  llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                  llvm::all_of(llvm::zip(cl.getIndices(), storeOp.getIndices()),
                                [](std::tuple<Value, Value> t) {
                                  return isEquivalent(std::get<0>(t),
                                                      std::get<1>(t));
@@ -1765,7 +1765,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
                 bool same = true;
                 for (Operation *op = cl->getNextNode(); op != storeOp;
                      op = op->getNextNode()) {
-                  if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
+                  if (mayWriteTo(op, cl.getMemref(), /*ignoreBarrier*/ true)) {
                     same = false;
                     break;
                   }
@@ -1776,9 +1776,9 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             }
             val = std::get<2>(tup);
             if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
-              if (isEquivalent(cl.memref(), storeOp.memref()) &&
+              if (isEquivalent(cl.getMemref(), storeOp.getMemref()) &&
                   cl->getBlock() == storeOp->getBlock() &&
-                  llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                  llvm::all_of(llvm::zip(cl.getIndices(), storeOp.getIndices()),
                                [](std::tuple<Value, Value> t) {
                                  return isEquivalent(std::get<0>(t),
                                                      std::get<1>(t));
@@ -1786,7 +1786,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
                 bool same = true;
                 for (Operation *op = cl->getNextNode(); op != storeOp;
                      op = op->getNextNode()) {
-                  if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
+                  if (mayWriteTo(op, cl.getMemref(), /*ignoreBarrier*/ true)) {
                     same = false;
                     break;
                   }
@@ -1825,8 +1825,8 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             continue;
           BlockAndValueMapping map;
           SetVector<Operation *> seen;
-          SmallVector<Value> todo = {storeOp.memref()};
-          for (auto ind : storeOp.indices())
+          SmallVector<Value> todo = {storeOp.getMemref()};
+          for (auto ind : storeOp.getIndices())
             todo.push_back(ind);
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
@@ -1851,11 +1851,11 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             rewriter.clone(*op, map);
           }
           SmallVector<Value> inds;
-          for (auto ind : storeOp.indices())
+          for (auto ind : storeOp.getIndices())
             inds.push_back(map.lookupOrDefault(ind));
           // Only erase during the else, since we need that there
           rewriter.create<memref::StoreOp>(
-              storeOp.getLoc(), val, map.lookupOrDefault(storeOp.memref()),
+              storeOp.getLoc(), val, map.lookupOrDefault(storeOp.getMemref()),
               inds);
         }
       } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
@@ -1884,8 +1884,8 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           }
           BlockAndValueMapping map;
           SetVector<Operation *> seen;
-          SmallVector<Value> todo = {storeOp.memref()};
-          for (auto ind : storeOp.indices())
+          SmallVector<Value> todo = {storeOp.getMemref()};
+          for (auto ind : storeOp.getIndices())
             todo.push_back(ind);
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
@@ -1911,11 +1911,11 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             rewriter.clone(*op, map);
           }
           SmallVector<Value> inds;
-          for (auto ind : storeOp.indices())
+          for (auto ind : storeOp.getIndices())
             inds.push_back(map.lookupOrDefault(ind));
 
           rewriter.replaceOpWithNewOp<memref::StoreOp>(
-              storeOp, val, map.lookupOrDefault(storeOp.memref()), inds);
+              storeOp, val, map.lookupOrDefault(storeOp.getMemref()), inds);
         }
       } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
         rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
@@ -2044,8 +2044,8 @@ struct LowerCacheLoad : public OpRewritePattern<polygeist::CacheLoad> {
 
   LogicalResult matchAndRewrite(polygeist::CacheLoad op,
                                 PatternRewriter &rewriter) const override {
-    auto memrefLoad =
-        rewriter.create<memref::LoadOp>(op.getLoc(), op.memref(), op.indices());
+    auto memrefLoad = rewriter.create<memref::LoadOp>(
+        op.getLoc(), op.getMemref(), op.getIndices());
     rewriter.replaceOp(op, memrefLoad.getResult());
     return success();
   }
