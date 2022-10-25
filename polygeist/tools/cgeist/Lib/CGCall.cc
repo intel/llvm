@@ -1638,8 +1638,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     ShouldEmit = true;
 
   FunctionToEmit F(*callee, mlirclang::getInputContext(builder));
-  auto ToCall = cast<func::FuncOp>(
-      Glob.GetOrCreateMLIRFunction(F, false /*IsThunk*/, ShouldEmit));
+  auto ToCall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
   QualType objType;

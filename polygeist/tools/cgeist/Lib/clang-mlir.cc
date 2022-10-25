@@ -394,9 +394,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
   if (FD->hasAttr<CUDAGlobalAttr>() && Glob.getCGM().getLangOpts().CUDA &&
       !Glob.getCGM().getLangOpts().CUDAIsDevice) {
     FunctionToEmit FTE(*FD);
-    auto deviceStub = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(
-        FTE, false /* IsThink*/, true /* ShouldEmit*/,
-        /* getDeviceStub */ true));
+    auto deviceStub = cast<func::FuncOp>(
+        Glob.GetOrCreateMLIRFunction(FTE, true /* ShouldEmit*/,
+                                     /* getDeviceStub */ true));
 
     builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
     builder.create<ReturnOp>(loc);
@@ -2973,8 +2973,8 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 }
 
 mlir::FunctionOpInterface
-MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
-                                         bool ShouldEmit, bool getDeviceStub) {
+MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
+                                         bool getDeviceStub) {
   assert(FTE.getDecl().getTemplatedKind() !=
              FunctionDecl::TemplatedKind::TK_FunctionTemplate &&
          FTE.getDecl().getTemplatedKind() !=
@@ -2998,7 +2998,7 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
 
   // Create the MLIR function and set its various attributes.
   FunctionOpInterface function =
-      createMLIRFunction(FTE, mangledName, IsThunk, ShouldEmit);
+      createMLIRFunction(FTE, mangledName, ShouldEmit);
   checkFunctionParent(function, FTE.getContext(), module);
 
   // Decide whether the MLIR function should be emitted.
@@ -3038,7 +3038,7 @@ MLIRASTConsumer::GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
     GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
   else
     GD = GlobalDecl(FD);
-  CGFunctionInfos[FD] = &CGM.getTypes().arrangeGlobalDeclaration(GD);
+  CGFunctionInfos[FD] = &getTypes().arrangeGlobalDeclaration(GD);
   return *CGFunctionInfos[FD];
 }
 
@@ -3073,8 +3073,8 @@ void MLIRASTConsumer::run() {
 
     done.insert(doneKey);
     MLIRScanner ms(*this, module, LTInfo);
-    FunctionOpInterface function = GetOrCreateMLIRFunction(
-        FTE, false /* IsThunk */, true /* ShouldEmit */);
+    FunctionOpInterface function =
+        GetOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
     ms.init(function, FTE);
 
     LLVM_DEBUG({
@@ -3405,8 +3405,7 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
 
 mlir::FunctionOpInterface
 MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
-                                    std::string mangledName, bool IsThunk,
-                                    bool ShouldEmit) {
+                                    std::string mangledName, bool ShouldEmit) {
   const FunctionDecl &FD = FTE.getDecl();
   Location loc = getMLIRLocation(FD.getLocation());
   mlir::OpBuilder Builder(module->getContext());
@@ -3427,18 +3426,18 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
     CodeGenUtils::ParmDesc::getTypes(parmDescriptors, parmTypes);
     CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
 
-    auto funcTy1 = Builder.getFunctionType(parmTypes, retTypes);
+    auto oldFuncTy = Builder.getFunctionType(parmTypes, retTypes);
 
     LLVM_DEBUG({
       llvm::dbgs() << "New funcTy: " << funcTy << "\n";
-      llvm::dbgs() << "Old funcTy1: " << funcTy1 << "\n";
-      if (funcTy != funcTy1) {
+      llvm::dbgs() << "Old funcTy: " << oldFuncTy << "\n";
+      if (funcTy != oldFuncTy) {
         llvm::dbgs() << "Function types are different for " << mangledName
                      << "\n";
       }
     });
 
-    funcTy = funcTy1;
+    funcTy = oldFuncTy;
   }
 
   mlir::FunctionOpInterface function =
@@ -3447,13 +3446,12 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
           : Builder.create<func::FuncOp>(loc, mangledName, funcTy);
 
   setMLIRFunctionVisibility(function, FTE, ShouldEmit);
-  setMLIRFunctionAttributes(function, FTE, FI, IsThunk, ShouldEmit);
+  setMLIRFunctionAttributes(function, FTE, ShouldEmit);
   setMLIRFunctionParmsAttributes(function, parmDescriptors);
   setMLIRFunctionResultAttributes(function, resDescriptors);
 
-  /// Inject the MLIR function created in either the device
-  /// module or in the host module, depending on the calling
-  /// context.
+  /// Inject the MLIR function created in either the device module or in the
+  /// host module, depending on the calling context.
   switch (FTE.getContext()) {
   case FunctionContext::Host:
     module->push_back(function);
@@ -3506,7 +3504,7 @@ void MLIRASTConsumer::setMLIRFunctionVisibility(
 
 void MLIRASTConsumer::setMLIRFunctionAttributes(
     mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
-    const clang::CodeGen::CGFunctionInfo &FI, bool IsThunk, bool ShouldEmit) {
+    bool ShouldEmit) {
   using Attribute = llvm::Attribute;
 
   const FunctionDecl &FD = FTE.getDecl();
@@ -3655,8 +3653,7 @@ public:
 mlir::FunctionOpInterface
 MLIRScanner::EmitDirectCallee(const FunctionDecl *FD, FunctionContext Context) {
   FunctionToEmit FTE(*FD, Context);
-  return Glob.GetOrCreateMLIRFunction(FTE, false /* IsThunk */,
-                                      true /* ShouldEmit */);
+  return Glob.GetOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
 }
 
 mlir::Location MLIRScanner::getMLIRLocation(clang::SourceLocation loc) {
@@ -3931,8 +3928,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
-      // Reset the ID tables if we are reusing the
-      // SourceManager and parsing regular files.
+      // Reset the ID tables if we are reusing the SourceManager and parsing
+      // regular files.
       if (Clang->hasSourceManager() && !Act.isModelParsingAction())
         Clang->getSourceManager().clearIDTables();
       if (Act.BeginSourceFile(*Clang, FIF)) {

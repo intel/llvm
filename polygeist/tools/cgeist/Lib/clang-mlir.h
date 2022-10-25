@@ -218,8 +218,7 @@ public:
   ScopLocList &getScopLocList() { return scopLocList; }
 
   mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &FTE,
-                                                    bool IsThunk,
-                                                    bool ShouldEmit,
+                                                    const bool ShouldEmit,
                                                     bool getDeviceStub = false);
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const clang::FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
@@ -260,7 +259,7 @@ private:
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
 
-  /// Retuns the MLIR Function type given clang's CGFunctionInfo \p FI.
+  /// Returns the MLIR Function type given clang's CGFunctionInfo \p FI.
   mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
                                      const clang::FunctionDecl &FD);
 
@@ -275,7 +274,7 @@ private:
   /// in the FTE).
   mlir::FunctionOpInterface createMLIRFunction(const FunctionToEmit &FTE,
                                                std::string mangledName,
-                                               bool IsThunk, bool ShouldEmit);
+                                               bool ShouldEmit);
 
   /// Fill in \p parmDescriptors with the MLIR types of the \p FD function
   /// declaration's parameters.
@@ -295,9 +294,7 @@ private:
 
   /// Set the MLIR function attributes for the given \p function.
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
-                                 const FunctionToEmit &FTE,
-                                 const clang::CodeGen::CGFunctionInfo &FI,
-                                 bool IsThunk, bool ShouldEmit);
+                                 const FunctionToEmit &FTE, bool ShouldEmit);
 
   /// Set the MLIR function parameters attributes for the given \p function.
   void setMLIRFunctionParmsAttributes(
