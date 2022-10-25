@@ -1756,10 +1756,6 @@ public:
         KernelFunc);
   }
 
-// "if constexpr" simplifies implementation/increases readability in comparison
-// with SFINAE-based approach.
-#if __cplusplus >= 201703L
-
   /// Defines and invokes a SYCL kernel function for the specified nd_range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -1982,7 +1978,6 @@ public:
       });
     } // end while (NWorkItems > 1)
   }
-#endif // __cplusplus >= 201703L
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
   /// encoding the body of each work-group to launch.
