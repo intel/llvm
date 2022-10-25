@@ -378,7 +378,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     mlir::Type Ty = getMLIRType(Ret);
     unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
     ArgTypes[IRFunctionArgs.getSRetArgNo()] =
-        mlir::MemRefType::get(-1, Ty, {}, AddressSpace);
+        getPointerOrMemRefType(Ty, AddressSpace);
   }
 
   // Add type for inalloca argument.
@@ -899,11 +899,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
 mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 unsigned AddressSpace,
                                                 bool IsAlloc) {
+  auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>();
+
   bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
-  if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>())
+  if (ST)
     IsSYCLType |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
-  if (IsSYCLType)
+  if (!ST || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {}, AddressSpace);
 
   return LLVM::LLVMPointerType::get(Ty, AddressSpace);
