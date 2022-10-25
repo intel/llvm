@@ -386,10 +386,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     llvm_unreachable("not implemented");
     auto ArgStruct = FI.getArgStruct();
     assert(ArgStruct);
-    //  auto Ty = LLVM::LLVMStructType::getLiteral(TheModule->getContext(),
-    //  ArgTys);
-    // ArgTypes[IRFunctionArgs.getInallocaArgNo()] =
-    //  mlir::MemRefType::get(-1, Ty, {}, 0);
+    // ArgTypes[IRFunctionArgs.getInallocaArgNo()] = ArgStruct->getPointerTo();
   }
 
   // Add in all of the required arguments.
