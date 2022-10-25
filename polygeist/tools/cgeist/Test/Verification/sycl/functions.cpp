@@ -565,7 +565,7 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
 // CHECK-LLVM-LABEL: define spir_func void @_Z4op_1N4sycl3_V12idILi2EEES2_(%"class.sycl::_V1::id.2"* %0, %"class.sycl::_V1::id.2"* %1) #0 {
 // CHECK-LLVM-NEXT: %3 = addrspacecast %"class.sycl::_V1::id.2"* %0 to %"class.sycl::_V1::id.2" addrspace(4)*
 // CHECK-LLVM-NEXT: %4 = addrspacecast %"class.sycl::_V1::id.2"* %1 to %"class.sycl::_V1::id.2" addrspace(4)*
-// CHECK-LLVM-NEXT: %5 = call i8 @_ZNK4sycl3_V12idILi2EEeqERKS2_(%"class.sycl::_V1::id.2" addrspace(4)* %3, %"class.sycl::_V1::id.2" addrspace(4):* %4)
+// CHECK-LLVM-NEXT: %5 = call i8 @_ZNK4sycl3_V12idILi2EEeqERKS2_(%"class.sycl::_V1::id.2" addrspace(4)* %3, %"class.sycl::_V1::id.2" addrspace(4)* %4)
 // CHECK-LLVM-NEXT: ret void
 // CHECK-LLVM-NEXT: }
 
