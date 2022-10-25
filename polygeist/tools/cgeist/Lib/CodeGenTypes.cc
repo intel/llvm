@@ -163,7 +163,7 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
 
   if (AllowSRet && RetAI.getKind() == clang::CodeGen::ABIArgInfo::Indirect) {
     SwapThisWithSRet = RetAI.isSRetAfterThis();
-    SRetArgNo = SwapThisWithSRet ? 1 : ++IRArgNo;
+    SRetArgNo = SwapThisWithSRet ? 1 : IRArgNo++;
   }
 
   unsigned ArgNo = 0;
@@ -176,7 +176,7 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
     auto &IRArgs = ArgInfo[ArgNo];
 
     if (AI.getPaddingType())
-      IRArgs.PaddingArgIndex = ++IRArgNo;
+      IRArgs.PaddingArgIndex = IRArgNo++;
 
     switch (AI.getKind()) {
     case clang::CodeGen::ABIArgInfo::Extend:
@@ -213,12 +213,12 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
     // Skip over the sret parameter when it comes second.  We already handled it
     // above.
     if (IRArgNo == 1 && SwapThisWithSRet)
-      ++IRArgNo;
+      IRArgNo++;
   }
   assert(ArgNo == ArgInfo.size());
 
   if (AllowInAllocaRet && FI.usesInAlloca())
-    InallocaArgNo = ++IRArgNo;
+    InallocaArgNo = IRArgNo++;
 
   TotalIRArgs = IRArgNo;
 }
@@ -256,7 +256,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   // given the index of the parameter and the decayed type of the parameter.
   auto getDeclArgTy = [&](int32_t ArgNo, const QualType &ABIArgTy) {
     if (IsMethodInstance) // account for the fact the 'this' type is not
-      --ArgNo;            // present in the function declaration.
+      ArgNo--;            // present in the function declaration.
     const QualType &DeclArgTy =
         (ArgNo == -1) ? ABIArgTy : FD.getParamDecl(ArgNo)->getType();
 
@@ -310,7 +310,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       QualType Ret = FI.getReturnType();
       mlir::Type Ty = getMLIRType(Ret);
       unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
-      ResultType = getPointerOrMemRefType(Ty, /*IsAlloc*/ false, AddressSpace);
+      ResultType = mlir::MemRefType::get(-1, Ty, {}, AddressSpace);
     } else {
       ResultType = Builder.getNoneType();
     }
@@ -331,7 +331,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 
   case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
     LLVM_DEBUG(llvm::dbgs() << "RefInfo: ABIArgInfo::CoerceAndExpand\n");
-    llvm_unreachable("not implemented");
+    assert(false && "TODO");
     break;
   }
 
@@ -344,11 +344,25 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   LLVM_DEBUG(llvm::dbgs() << "NumArgs = " << NumArgs << "\n");
 
   // Add type for sret argument.
-  assert((!AllowSRet || !IRFunctionArgs.hasSRetArg()) && "not implemented");
+  if (AllowSRet && IRFunctionArgs.hasSRetArg()) {
+    assert(false && "TODO");
+    QualType Ret = FI.getReturnType();
+    mlir::Type Ty = getMLIRType(Ret);
+    unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
+    ArgTypes[IRFunctionArgs.getSRetArgNo()] =
+        mlir::MemRefType::get(-1, Ty, {}, AddressSpace);
+  }
 
   // Add type for inalloca argument.
-  assert((!AllowInAllocaRet || !IRFunctionArgs.hasInallocaArg()) &&
-         "not implemented");
+  if (AllowInAllocaRet && IRFunctionArgs.hasInallocaArg()) {
+    assert(false && "TODO");
+    auto ArgStruct = FI.getArgStruct();
+    assert(ArgStruct);
+    //  auto Ty = LLVM::LLVMStructType::getLiteral(TheModule->getContext(),
+    //  ArgTys);
+    // ArgTypes[IRFunctionArgs.getInallocaArgNo()] =
+    //  mlir::MemRefType::get(-1, Ty, {}, 0);
+  }
 
   // Add in all of the required arguments.
   unsigned ArgNo = 0;
@@ -364,9 +378,13 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     // TODO: Currently cgeist does not handle inserting paddings. Need to
     // revisit.
     bool InsertPadding = false;
+
     // Insert a padding type to ensure proper alignment.
-    assert((!InsertPadding || !IRFunctionArgs.hasPaddingArg(ArgNo)) &&
-           "not implemented");
+    if (InsertPadding && IRFunctionArgs.hasPaddingArg(ArgNo)) {
+      assert(false && "TODO");
+      // ArgTypes[IRFunctionArgs.getPaddingArgNo(ArgNo)] =
+      //     ArgInfo.getPaddingType();
+    }
 
     unsigned FirstIRArg, NumIRArgs;
     std::tie(FirstIRArg, NumIRArgs) = IRFunctionArgs.getIRArgs(ArgNo);
@@ -377,7 +395,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
                    << ", NumIRArgs = " << NumIRArgs << "\n";
     });
 
-    // Note: 'DeclArgTy' is the original type of the parameter in the
+    // Note: 'DeclaredArgTy' is the original type of the parameter in the
     // function declaration. In order to avoid premature loss of information
     // (e.g. extent of array dimensions) we want to use the original type.
     const QualType &DeclArgTy = getDeclArgTy(ArgNo, ArgTy);
@@ -393,9 +411,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     case clang::CodeGen::ABIArgInfo::Indirect: {
       LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::Indirect\n");
       assert(NumIRArgs == 1);
-      // Indirect arguments are always on the stack, which is alloca addr space.
+      // indirect arguments are always on the stack, which is alloca addr space.
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
-      ArgTypes[FirstIRArg] = getPointerOrMemRefType(MLIRArgTy);
+      ArgTypes[FirstIRArg] = getPointerOrMemRefType(
+          MLIRArgTy, CGM.getDataLayout().getAllocaAddrSpace());
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "mlir type: " << ArgTypes[FirstIRArg] << "\n");
       break;
@@ -404,7 +423,8 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::IndirectAliased\n");
       assert(NumIRArgs == 1);
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
-      ArgTypes[FirstIRArg] = getPointerOrMemRefType(MLIRArgTy);
+      ArgTypes[FirstIRArg] =
+          getPointerOrMemRefType(MLIRArgTy, ArgInfo.getIndirectAddrSpace());
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "mlir type: " << ArgTypes[FirstIRArg] << "\n");
       break;
@@ -415,6 +435,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     case clang::CodeGen::ABIArgInfo::Direct: {
       LLVM_DEBUG(llvm::dbgs() << "ArgInfo: ABIArgInfo::Direct\n");
       mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
+
+      // Note: cgeist does not flatten structs, so we disable it. Need to
+      // revisit.
+      bool AllowStructFlattening = false;
 
       // Fast-isel and the optimizer generally like
       // scalar values better than FCAs, so we flatten them if this is safe to
@@ -434,8 +458,11 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       break;
     }
     case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
+      assert(false && "TODO");
+      break;
     case clang::CodeGen::ABIArgInfo::Expand:
-      llvm_unreachable("not implemented");
+      assert(false && "TODO");
+      break;
     }
   }
 
@@ -767,10 +794,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       // a llvm pointer that contains custom aggregate types. We could create
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
-      if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>())
-        InnerSYCL |= any_of(ST.getBody(), [](auto Element) {
+      if (auto ST = subType.dyn_cast<mlir::LLVM::LLVMStructType>()) {
+        InnerSYCL = any_of(ST.getBody(), [](auto Element) {
           return mlir::sycl::isSYCLType(Element);
         });
+      }
 
       if (!InnerSYCL)
         return LLVM::LLVMPointerType::get(
@@ -843,9 +871,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
   assert(0 && "unhandled type");
 }
 
-mlir::Type
-CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty, bool IsAlloc,
-                                     Optional<unsigned> AddressSpace) {
+// Note: In principle we should always create a memref here because we want to
+// avoid lowering the abstraction level at this point in the compilation flow.
+// However, cgeist treats type inconsistently, it expects memref for SYCL types
+// and pointers for every other struct type.
+mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
+                                                unsigned AddressSpace,
+                                                bool IsAlloc) {
   bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
   if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>()) {
     IsSYCLType |= any_of(ST.getBody(), [](auto Element) {
@@ -853,13 +885,10 @@ CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty, bool IsAlloc,
     });
   }
 
-  unsigned AddrSpace = AddressSpace.hasValue()
-                           ? AddressSpace.getValue()
-                           : CGM.getDataLayout().getAllocaAddrSpace();
   if (IsSYCLType)
-    return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {}, AddrSpace);
+    return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {}, AddressSpace);
 
-  return LLVM::LLVMPointerType::get(Ty, AddrSpace);
+  return LLVM::LLVMPointerType::get(Ty, AddressSpace);
 }
 
 const clang::CodeGen::CGFunctionInfo &

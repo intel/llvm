@@ -219,6 +219,7 @@ ValueCategory MLIRScanner::CallHelper(
           abuilder.setInsertionPointToStart(allocationScope);
           auto Ty = Glob.getTypes().getPointerOrMemRefType(
               arg.getValue(builder).getType(),
+              Glob.getCGM().getDataLayout().getAllocaAddrSpace(),
               /*IsAlloc*/ true);
           if (auto MemRefTy = Ty.dyn_cast<mlir::MemRefType>()) {
             val = abuilder.create<mlir::memref::AllocaOp>(loc, MemRefTy);
