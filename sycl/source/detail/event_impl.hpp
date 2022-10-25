@@ -262,6 +262,11 @@ public:
     return MEnqueueStatus;
   }
 
+  void setProducesEvent(bool ProducesPIEvent) {
+    MProducesPIEvent = ProducesPIEvent;
+
+  }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -310,6 +315,9 @@ private:
 
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
+
+
+  bool MProducesPIEvent = true;
 
   friend std::vector<RT::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

@@ -712,6 +712,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
   assert(!isEnqueueBlocked());
 
+  MEvent->setProducesEvent(producesPiEvent());
+
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
 
   bool HasIncompletedHostDeps = false;
@@ -724,8 +726,11 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
       EnqueueResult.MBlockingEvents.push_back(Event);
     }
 
-  if (HasIncompletedHostDeps)
+  if (HasIncompletedHostDeps) {
+    std::cout << "HasIncompletedHostDeps = " << HasIncompletedHostDeps
+              << std::endl;
     return false;
+  }
 
   // Exit if the command is already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)

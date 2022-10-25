@@ -374,7 +374,7 @@ event_impl::get_info<info::event::command_execution_status>() {
   if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
-  if (!MHostEvent) {
+  if (!MHostEvent && MProducesPIEvent) {
     // Command is enqueued and PiEvent is ready
     if (MEvent)
       return get_event_info<info::event::command_execution_status>(
