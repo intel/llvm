@@ -208,6 +208,11 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
     case clang::CodeGen::ABIArgInfo::Direct: {
       // FIXME: handle sseregparm someday...
       llvm::StructType *STy = dyn_cast<llvm::StructType>(AI.getCoerceToType());
+
+      if (AI.isDirect() && AI.getCanBeFlattened() && STy)
+        llvm::errs() << "Warning: struct should be flattened but MLIR codegen "
+                        "cannot yet handle it. Needs to be fixed.";
+
       if (AllowStructFlattening && AI.isDirect() && AI.getCanBeFlattened() &&
           STy) {
         IRArgs.NumberOfArgs = STy->getNumElements();
@@ -279,10 +284,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 
   // This lambda function returns the declared type of a function parameter when
   // given the index of the parameter and the decayed type of the parameter.
-  auto getDeclArgTy = [&](int32_t ArgNo, const QualType &ABIArgTy) {
+  auto getDeclArgTy = [&](int32_t ArgNo, QualType ABIArgTy) {
     if (IsMethodInstance) // account for the fact the 'this' type is not
       ArgNo--;            // present in the function declaration.
-    const QualType &DeclArgTy =
+    const QualType DeclArgTy =
         (ArgNo == -1) ? ABIArgTy : FD.getParamDecl(ArgNo)->getType();
 
     LLVM_DEBUG({
@@ -297,7 +302,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 
   // This lambda function returns the MLIR type corresponding to the given clang
   // type.
-  auto getMLIRArgType = [this](const QualType &QT) {
+  auto getMLIRArgType = [this](QualType QT) {
     bool IsRef = false;
     mlir::Type ArgTy = getMLIRType(QT, &IsRef);
     if (IsRef)
@@ -342,6 +347,9 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   case clang::CodeGen::ABIArgInfo::Indirect:
     if (!AllowSRet) {
       // HACK: remove once we can handle function returning a struct.
+      llvm::errs() << "Warning: function should return its value indirectly "
+                      "(as an extra reference parameter). This is not yet "
+                      "handled by the MLIR codegen\n";
       QualType Ret = FI.getReturnType();
       ResultType = getMLIRType(Ret);
       break;
@@ -391,7 +399,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       ie = it + FI.getNumRequiredArgs();
   for (; it != ie; ++it, ++ArgNo) {
     // Note: 'ArgTy' is the type of the parameter after it as been decayed to
-    // abide by the ABI rules.
+    // abide to the ABI rules.
     const QualType &ArgTy = it->type;
     const clang::CodeGen::ABIArgInfo &ArgInfo = it->info;
 
@@ -403,7 +411,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     if (InsertPadding && IRFunctionArgs.hasPaddingArg(ArgNo)) {
       llvm_unreachable("not implemented");
       // ArgTypes[IRFunctionArgs.getPaddingArgNo(ArgNo)] =
-      //     ArgInfo.getPaddingType();
+      //    ArgInfo.getPaddingType();
     }
 
     unsigned FirstIRArg, NumIRArgs;
@@ -418,10 +426,11 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     // Note: 'DeclArgTy' is the original type of the parameter in the
     // function declaration. In order to avoid premature loss of information
     // (e.g. extent of array dimensions) we want to use the original type.
-    const QualType &DeclArgTy = getDeclArgTy(ArgNo, ArgTy);
+    const QualType DeclArgTy = getDeclArgTy(ArgNo, ArgTy);
 
     clang::CodeGen::ABIArgInfo::Kind Kind = ArgInfo.getKind();
     LLVM_DEBUG(llvm::dbgs() << "ArgInfo: " << Kind << "\n");
+
     switch (Kind) {
     case clang::CodeGen::ABIArgInfo::Ignore:
     case clang::CodeGen::ABIArgInfo::InAlloca:
@@ -454,6 +463,11 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       // scalar values better than FCAs, so we flatten them if this is safe to
       // do for this argument.
       auto st = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
+
+      if (st && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
+        llvm::errs() << "Warning: struct should be flattened but MLIR codegen "
+                        "cannot yet handle it. Needs to be fixed.";
+
       if (AllowStructFlattening && st && ArgInfo.isDirect() &&
           ArgInfo.getCanBeFlattened()) {
         assert(NumIRArgs == st.getBody().size());
