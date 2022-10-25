@@ -303,8 +303,9 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWaitCustom);
-  Mock.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
+  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(
+      redefinedEventsWaitCustom);
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCustom);
 
   {
