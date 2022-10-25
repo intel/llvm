@@ -1546,10 +1546,14 @@ void TextNodeDumper::VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
 
 void TextNodeDumper::VisitUsingType(const UsingType *T) {
   dumpDeclRef(T->getFoundDecl());
+  if (!T->typeMatchesDecl())
+    OS << " divergent";
 }
 
 void TextNodeDumper::VisitTypedefType(const TypedefType *T) {
   dumpDeclRef(T->getDecl());
+  if (!T->typeMatchesDecl())
+    OS << " divergent";
 }
 
 void TextNodeDumper::VisitUnaryTransformType(const UnaryTransformType *T) {

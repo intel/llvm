@@ -616,11 +616,11 @@ define <2 x i64> @test20(<2 x i64> %A) {
 define i32 @PR20079(i32 %a) {
 ; CHECK-LABEL: @PR20079(
 ; CHECK-NEXT:    [[ADD:%.*]] = add i32 [[A:%.*]], -1
-; CHECK-NEXT:    [[MUL:%.*]] = mul nsw i32 [[ADD]], ptrtoint (i32* @g to i32)
+; CHECK-NEXT:    [[MUL:%.*]] = mul nsw i32 [[ADD]], ptrtoint (ptr @g to i32)
 ; CHECK-NEXT:    ret i32 [[MUL]]
 ;
   %add = add i32 %a, -1
-  %mul = mul nsw i32 %add, ptrtoint (i32* @g to i32)
+  %mul = mul nsw i32 %add, ptrtoint (ptr @g to i32)
   ret i32 %mul
 }
 
@@ -944,10 +944,10 @@ define i64 @test30(i32 %A, i32 %B) {
 @PR22087 = external global i32
 define i32 @test31(i32 %V) {
 ; CHECK-LABEL: @test31(
-; CHECK-NEXT:    [[MUL:%.*]] = shl i32 [[V:%.*]], zext (i1 icmp ne (i32* inttoptr (i64 1 to i32*), i32* @PR22087) to i32)
+; CHECK-NEXT:    [[MUL:%.*]] = shl i32 [[V:%.*]], zext (i1 icmp ne (ptr inttoptr (i64 1 to ptr), ptr @PR22087) to i32)
 ; CHECK-NEXT:    ret i32 [[MUL]]
 ;
-  %mul = mul i32 %V, shl (i32 1, i32 zext (i1 icmp ne (i32* inttoptr (i64 1 to i32*), i32* @PR22087) to i32))
+  %mul = mul i32 %V, shl (i32 1, i32 zext (i1 icmp ne (ptr inttoptr (i64 1 to ptr), ptr @PR22087) to i32))
   ret i32 %mul
 }
 
@@ -1060,11 +1060,11 @@ define i64 @test_mul_canonicalize_neg_is_not_undone(i64 %L1) {
 ; Check we do not undo the canonicalization of 0 - (X * Y), if Y is a constant
 ; expr.
 ; CHECK-LABEL: @test_mul_canonicalize_neg_is_not_undone(
-; CHECK-NEXT:    [[TMP1:%.*]] = mul i64 [[L1:%.*]], ptrtoint (i32* @X to i64)
+; CHECK-NEXT:    [[TMP1:%.*]] = mul i64 [[L1:%.*]], ptrtoint (ptr @X to i64)
 ; CHECK-NEXT:    [[B4:%.*]] = sub i64 0, [[TMP1]]
 ; CHECK-NEXT:    ret i64 [[B4]]
 ;
-  %v1 = ptrtoint i32* @X to i64
+  %v1 = ptrtoint ptr @X to i64
   %B8 = sub i64 0, %v1
   %B4 = mul i64 %B8, %L1
   ret i64 %B4
@@ -1484,8 +1484,9 @@ define i32 @mulnot_extrause(i32 %a0) {
 
 define i32 @zext_negpow2(i8 %x) {
 ; CHECK-LABEL: @zext_negpow2(
-; CHECK-NEXT:    [[ZX:%.*]] = zext i8 [[X:%.*]] to i32
-; CHECK-NEXT:    [[R:%.*]] = mul i32 [[ZX]], -16777216
+; CHECK-NEXT:    [[X_NEG:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[X_NEG_Z:%.*]] = zext i8 [[X_NEG]] to i32
+; CHECK-NEXT:    [[R:%.*]] = shl nuw i32 [[X_NEG_Z]], 24
 ; CHECK-NEXT:    ret i32 [[R]]
 ;
   %zx = zext i8 %x to i32
@@ -1493,16 +1494,21 @@ define i32 @zext_negpow2(i8 %x) {
   ret i32 %r
 }
 
+; splat constant
+
 define <2 x i14> @zext_negpow2_vec(<2 x i5> %x) {
 ; CHECK-LABEL: @zext_negpow2_vec(
-; CHECK-NEXT:    [[ZX:%.*]] = zext <2 x i5> [[X:%.*]] to <2 x i14>
-; CHECK-NEXT:    [[R:%.*]] = mul <2 x i14> [[ZX]], <i14 -2048, i14 -2048>
+; CHECK-NEXT:    [[X_NEG:%.*]] = sub <2 x i5> zeroinitializer, [[X:%.*]]
+; CHECK-NEXT:    [[X_NEG_Z:%.*]] = zext <2 x i5> [[X_NEG]] to <2 x i14>
+; CHECK-NEXT:    [[R:%.*]] = shl <2 x i14> [[X_NEG_Z]], <i14 11, i14 11>
 ; CHECK-NEXT:    ret <2 x i14> [[R]]
 ;
   %zx = zext <2 x i5> %x to <2 x i14>
   %r = mul <2 x i14> %zx, <i14 -2048, i14 -2048> ; -1 << 11
   ret <2 x i14> %r
 }
+
+; negative test - mul must be big enough to cover bitwidth diff
 
 define i32 @zext_negpow2_too_small(i8 %x) {
 ; CHECK-LABEL: @zext_negpow2_too_small(
@@ -1517,8 +1523,9 @@ define i32 @zext_negpow2_too_small(i8 %x) {
 
 define i16 @sext_negpow2(i9 %x) {
 ; CHECK-LABEL: @sext_negpow2(
-; CHECK-NEXT:    [[SX:%.*]] = sext i9 [[X:%.*]] to i16
-; CHECK-NEXT:    [[R:%.*]] = mul i16 [[SX]], -1024
+; CHECK-NEXT:    [[X_NEG:%.*]] = sub i9 0, [[X:%.*]]
+; CHECK-NEXT:    [[X_NEG_Z:%.*]] = zext i9 [[X_NEG]] to i16
+; CHECK-NEXT:    [[R:%.*]] = shl i16 [[X_NEG_Z]], 10
 ; CHECK-NEXT:    ret i16 [[R]]
 ;
   %sx = sext i9 %x to i16
@@ -1526,16 +1533,21 @@ define i16 @sext_negpow2(i9 %x) {
   ret i16 %r
 }
 
+; splat constant with poison element(s)
+
 define <2 x i16> @sext_negpow2_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @sext_negpow2_vec(
-; CHECK-NEXT:    [[SX:%.*]] = sext <2 x i8> [[X:%.*]] to <2 x i16>
-; CHECK-NEXT:    [[R:%.*]] = mul <2 x i16> [[SX]], <i16 -256, i16 poison>
+; CHECK-NEXT:    [[X_NEG:%.*]] = sub <2 x i8> zeroinitializer, [[X:%.*]]
+; CHECK-NEXT:    [[X_NEG_Z:%.*]] = zext <2 x i8> [[X_NEG]] to <2 x i16>
+; CHECK-NEXT:    [[R:%.*]] = shl nuw <2 x i16> [[X_NEG_Z]], <i16 8, i16 8>
 ; CHECK-NEXT:    ret <2 x i16> [[R]]
 ;
   %sx = sext <2 x i8> %x to <2 x i16>
   %r = mul <2 x i16> %sx, <i16 -256, i16 poison> ; -1 << 8
   ret <2 x i16> %r
 }
+
+; negative test - mul must be big enough to cover bitwidth diff
 
 define <2 x i16> @sext_negpow2_too_small_vec(<2 x i8> %x) {
 ; CHECK-LABEL: @sext_negpow2_too_small_vec(
@@ -1547,6 +1559,8 @@ define <2 x i16> @sext_negpow2_too_small_vec(<2 x i8> %x) {
   %r = mul <2 x i16> %sx, <i16 -128, i16 poison> ; -1 << 7
   ret <2 x i16> %r
 }
+
+; negative test - too many uses
 
 define i32 @zext_negpow2_use(i8 %x) {
 ; CHECK-LABEL: @zext_negpow2_use(

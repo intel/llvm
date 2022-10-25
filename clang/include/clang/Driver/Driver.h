@@ -797,6 +797,14 @@ private:
   /// targets.
   mutable llvm::StringMap<StringRef> SYCLUniqueIDList;
 
+  /// Vector of Macros that need to be added to the Host compilation in a
+  /// SYCL based offloading scenario.  These macros are gathered during
+  /// construction of the device compilations.
+  mutable std::vector<std::string> SYCLTargetMacroArgs;
+
+  /// Return the typical executable name for the specified driver \p Mode.
+  static const char *getExecutableForDriverMode(DriverMode Mode);
+
 public:
   /// GetReleaseVersion - Parse (([0-9]+)(.([0-9]+)(.([0-9]+)?))?)? and
   /// return the grouped values as integers. Numbers which are not
@@ -863,6 +871,17 @@ public:
   /// createAppendedFooterInput - Create new source file.
   void createAppendedFooterInput(Action *&Input, Compilation &C,
                                  const llvm::opt::ArgList &Args) const;
+
+  /// addSYCLTargetMacroArg - Add the given macro to the vector of args to be
+  /// added to the host compilation step.
+  void addSYCLTargetMacroArg(const llvm::opt::ArgList &Args,
+                             StringRef Macro) const {
+    SYCLTargetMacroArgs.push_back(Args.MakeArgString(Macro));
+  }
+  /// getSYCLTargetMacroArgs - return the previously gathered macro target args.
+  llvm::ArrayRef<std::string> getSYCLTargetMacroArgs() const {
+    return SYCLTargetMacroArgs;
+  }
 
   /// setSYCLUniqueID - set the Unique ID that is used for all FE invocations
   /// when performing compilations for SYCL.

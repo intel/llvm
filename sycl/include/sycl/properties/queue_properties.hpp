@@ -58,19 +58,6 @@ class use_default_stream
 class queue;
 
 // Queue property trait specializations
-template <> struct is_property<property::queue::in_order> : std::true_type {};
-template <>
-struct is_property<property::queue::enable_profiling> : std::true_type {};
-template <>
-struct is_property<ext::oneapi::property::queue::discard_events>
-    : std::true_type {};
-template <>
-struct is_property<property::queue::cuda::use_default_stream> : std::true_type {
-};
-template <>
-struct is_property<ext::oneapi::cuda::property::queue::use_default_stream>
-    : std::true_type {};
-
 template <>
 struct is_property_of<property::queue::in_order, queue> : std::true_type {};
 template <>

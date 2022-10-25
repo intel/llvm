@@ -34,10 +34,20 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
                                         size_t param_value_size,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
+  constexpr char MockPlatformName[] = "Mock platform";
   constexpr char MockSupportedExtensions[] =
       "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
       "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
   switch (param_name) {
+  case PI_PLATFORM_INFO_NAME: {
+    if (param_value) {
+      assert(param_value_size == sizeof(MockPlatformName));
+      std::memcpy(param_value, MockPlatformName, sizeof(MockPlatformName));
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(MockPlatformName);
+    return PI_SUCCESS;
+  }
   case PI_PLATFORM_INFO_EXTENSIONS: {
     if (param_value) {
       assert(param_value_size == sizeof(MockSupportedExtensions));
