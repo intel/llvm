@@ -280,6 +280,69 @@ def SYCLRangeSizeOp
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// nd_range.get_global_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNdRangeGetGlobalRange
+    : SYCLMethodOpInterfaceImpl<"nd_range.get_global_range", "NdRangeType",
+                                ["get_global_range"], [NoSideEffect]> {
+  let summary = "Call to nd_range::get_global_range";
+  let description = [{
+    This operation represents a call to the nd_range::get_global_range function.
+  }];
+
+  let arguments = (ins NDRangeMemRef:$ND,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCL_RangeType:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_range.get_local_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNdRangeGetLocalRange
+    : SYCLMethodOpInterfaceImpl<"nd_range.get_local_range", "NdRangeType",
+                                ["get_local_range"], [NoSideEffect]> {
+  let summary = "Call to nd_range::get_local_range";
+  let description = [{
+    This operation represents a call to the nd_range::get_local_range function.
+  }];
+
+  let arguments = (ins NDRangeMemRef:$ND,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCL_RangeType:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_range.get_group_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNdRangeGetGroupRange
+    : SYCLMethodOpInterfaceImpl<"nd_range.get_group_range", "NdRangeType",
+                                ["get_group_range"], [NoSideEffect]> {
+  let summary = "Call to nd_range::get_group_range";
+  let description = [{
+    This operation represents a call to the nd_range::get_group_range function.
+  }];
+
+  let arguments = (ins NDRangeMemRef:$ND,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCL_RangeType:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // id.get OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -564,6 +627,27 @@ def SYCLNDItemGetLocalRangeOp
                        FlatSymbolRefAttr:$TypeName);
 
   let results = (outs SYCLGetRangeResult:$Res);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nd_item.get_local_range OPERATION
+////////////////////////////////////////////////////////////////////////////////
+
+def SYCLNDItemGetNdRangeOp
+    : SYCLMethodOpInterfaceImpl<"nd_item.get_nd_range", "NdItemType",
+                                ["get_nd_range"], [NoSideEffect]> {
+  let summary = "Call to nd_item::get_nd_range";
+  let description = [{
+    This operation represents a call to the nd_item::get_nd_range function.
+  }];
+
+  let arguments = (ins NDItemMemRef:$NDItem,
+                       TypeAttr:$BaseType,
+                       FlatSymbolRefAttr:$FunctionName,
+                       FlatSymbolRefAttr:$MangledFunctionName,
+                       FlatSymbolRefAttr:$TypeName);
+
+  let results = (outs SYCL_NdRangeType:$Res);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -150,7 +150,7 @@ static int emitBinary(const char *Argv0, const char *filename,
   const char *binary = Argv0;
   const unique_ptr<Driver> driver(new Driver(binary, TargetTriple, Diags));
   driver->CC1Main = &ExecuteCC1Tool;
-  std::vector<const char *> Argv;
+  ArgumentList Argv;
   Argv.push_back(Argv0);
   // Argv.push_back("-x");
   // Argv.push_back("ir");
@@ -159,27 +159,16 @@ static int emitBinary(const char *Argv0, const char *filename,
     Argv.push_back("-fopenmp");
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
-    char *chars = (char *)malloc(ResourceDir.length() + 1);
-    memcpy(chars, ResourceDir.data(), ResourceDir.length());
-    chars[ResourceDir.length()] = 0;
-    Argv.push_back(chars);
+    Argv.push_back(ResourceDir);
   }
   if (Verbose) {
     Argv.push_back("-v");
   }
   if (CUDAGPUArch != "") {
-    auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.emplace_back("--cuda-gpu-arch=", CUDAGPUArch);
   }
   if (CUDAPath != "") {
-    auto a = "--cuda-path=" + CUDAPath;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.emplace_back("--cuda-path=", CUDAPath);
   }
   if (Opt0) {
     Argv.push_back("-O0");
@@ -195,16 +184,13 @@ static int emitBinary(const char *Argv0, const char *filename,
   }
   if (Output != "") {
     Argv.push_back("-o");
-    char *chars = (char *)malloc(Output.length() + 1);
-    memcpy(chars, Output.data(), Output.length());
-    chars[Output.length()] = 0;
-    Argv.push_back(chars);
+    Argv.push_back(Output);
   }
   for (const auto *arg : LinkArgs)
     Argv.push_back(arg);
 
   const unique_ptr<Compilation> compilation(
-      driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
+      driver->BuildCompilation(Argv.getArguments()));
 
   if (ResourceDir != "")
     driver->ResourceDir = ResourceDir;

@@ -1146,14 +1146,6 @@ MLIRScanner::EmitSYCLOps(const clang::Expr *Expr,
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
         if (!RD->getName().empty())
           OptFuncType = RD->getName();
-      if (!OptFuncType) {
-        /// JLE_QUEL::TODO
-        /// Handle case where we can't get the parent because the callee is not
-        /// a member function
-        llvm::errs()
-            << "Warning: generating sycl call op from unqualified function '"
-            << Func->getNameAsString() << "'\n";
-      }
 
       auto OptRetType = llvm::Optional<mlir::Type>{llvm::None};
       const mlir::Type RetType =
