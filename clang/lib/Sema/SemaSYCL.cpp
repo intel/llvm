@@ -3451,7 +3451,7 @@ public:
   }
 };
 
-void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
+void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
                                ArrayRef<const Expr *> Args) {
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
