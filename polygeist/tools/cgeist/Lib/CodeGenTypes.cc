@@ -195,7 +195,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
           TypeName == "group") {
         return getSYCLType(RT, *this);
       }
-      // No need special handling for types that doesn't have record declaration
+      // No need special handling for types that don't have record declaration
       // name.
       if (TypeName != "")
         llvm::errs() << "Warning: SYCL type '" << ST->getName()
