@@ -63,6 +63,31 @@ constexpr bool AllowInAllocaRet = false;
 /*                            Helper Functions                                */
 /******************************************************************************/
 
+static llvm::raw_ostream &
+operator<<(llvm::raw_ostream &os, clang::CodeGen::ABIArgInfo::Kind &ArgInfo) {
+  os << "ABIArgInfo::";
+  switch (ArgInfo) {
+  case clang::CodeGen::ABIArgInfo::Direct:
+    return os << "Direct";
+  case clang::CodeGen::ABIArgInfo::Extend:
+    return os << "Extend";
+  case clang::CodeGen::ABIArgInfo::Indirect:
+    return os << "Indirect";
+  case clang::CodeGen::ABIArgInfo::IndirectAliased:
+    return os << "IndirectAliased";
+  case clang::CodeGen::ABIArgInfo::Ignore:
+    return os << "Ignore";
+  case clang::CodeGen::ABIArgInfo::Expand:
+    return os << "Expand";
+  case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
+    return os << "CoerceAndExpand";
+  case clang::CodeGen::ABIArgInfo::InAlloca:
+    return os << "InAlloca";
+  }
+  llvm_unreachable("Invalid ABI kind");
+  return os;
+}
+
 /// Iteratively get the size of each dim of the given ConstantArrayType inst.
 static void
 getConstantArrayShapeAndElemType(const clang::QualType &ty,
@@ -232,31 +257,6 @@ CodeGenTypes::CodeGenTypes(clang::CodeGen::CodeGenModule &CGM,
 
 const CodeGenOptions &CodeGenTypes::getCodeGenOpts() const {
   return CGM.getCodeGenOpts();
-}
-
-static llvm::raw_ostream &
-operator<<(llvm::raw_ostream &os, clang::CodeGen::ABIArgInfo::Kind &ArgInfo) {
-  os << "ABIArgInfo::";
-  switch (ArgInfo) {
-  case clang::CodeGen::ABIArgInfo::Direct:
-    return os << "Direct";
-  case clang::CodeGen::ABIArgInfo::Extend:
-    return os << "Extend";
-  case clang::CodeGen::ABIArgInfo::Indirect:
-    return os << "Indirect";
-  case clang::CodeGen::ABIArgInfo::IndirectAliased:
-    return os << "IndirectAliased";
-  case clang::CodeGen::ABIArgInfo::Ignore:
-    return os << "Ignore";
-  case clang::CodeGen::ABIArgInfo::Expand:
-    return os << "Expand";
-  case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
-    return os << "CoerceAndExpand";
-  case clang::CodeGen::ABIArgInfo::InAlloca:
-    return os << "InAlloca";
-  }
-  llvm_unreachable("Invalid ABI kind");
-  return os;
 }
 
 mlir::FunctionType
