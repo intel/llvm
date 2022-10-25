@@ -62,13 +62,11 @@ public:
 
   cl_int enqueueImp() override { return MRetVal; }
 
-  MOCK_METHOD3(enqueue,
-               bool(sycl::detail::EnqueueResultT &, sycl::detail::BlockingT,
-                    std::vector<sycl::detail::Command *> &));
+  MOCK_METHOD2(enqueue, bool(sycl::detail::EnqueueResultT &,
+                             std::vector<sycl::detail::Command *> &));
   bool enqueueOrigin(sycl::detail::EnqueueResultT &EnqueueResult,
-                     sycl::detail::BlockingT Blocking,
                      std::vector<sycl::detail::Command *> &ToCleanUp) {
-    return sycl::detail::Command::enqueue(EnqueueResult, Blocking, ToCleanUp);
+    return sycl::detail::Command::enqueue(EnqueueResult, ToCleanUp);
   }
 
   cl_int MRetVal = CL_SUCCESS;

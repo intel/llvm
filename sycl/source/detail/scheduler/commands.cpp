@@ -708,7 +708,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+bool Command::enqueue(EnqueueResultT &EnqueueResult,
                       std::vector<Command *> &ToCleanUp) {
   assert(!isEnqueueBlocked());
 

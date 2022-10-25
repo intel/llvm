@@ -103,7 +103,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // on completion of C and starts cleanup process. This thread is still in the
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
-  return Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  return Cmd->enqueue(EnqueueResult, ToCleanUp);
 }
 
 } // namespace detail
