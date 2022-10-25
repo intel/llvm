@@ -686,14 +686,6 @@ public:
 
   RedOutVar &getUserRedVar() { return MRedOut; }
 
-  static inline result_type *getOutPointer(result_type *OutPtr) {
-    return OutPtr;
-  }
-  template <class AccessorType>
-  static inline result_type *getOutPointer(const AccessorType &OutAcc) {
-    return OutAcc.get_pointer().get();
-  }
-
 private:
   // Array reduction is performed element-wise to avoid stack growth, hence
   // 1-dimensional always.
@@ -895,7 +887,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
       for (size_t E = 0; E < NElements; ++E) {
         Reducer.getElement(E) = GroupSum[E];
       }
-      Reducer.template atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.template atomic_combine(&Out[0]);
     }
   });
   return Reduction::is_usm || Redu.initializeToIdentity();
@@ -947,12 +939,11 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
         RedElem = reduce_over_group(Group, RedElem, BOp);
         if (LID == 0) {
           if (NWorkGroups == 1) {
-            auto &OutElem = Reduction::getOutPointer(Out)[E];
             // Can avoid using partial sum and write the final result
             // immediately.
             if (IsUpdateOfUserVar)
-              RedElem = BOp(RedElem, OutElem);
-            OutElem = RedElem;
+              RedElem = BOp(RedElem, Out[E]);
+            Out[E] = RedElem;
           } else {
             PartialSums[NDId.get_group_linear_id() * NElements + E] =
                 Reducer.getElement(E);
@@ -978,7 +969,6 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements.
         for (int E = 0; E < NElements; ++E) {
-          auto &OutElem = Reduction::getOutPointer(Out)[E];
           auto LocalSum = Reducer.getIdentity();
           for (size_t I = LID; I < NWorkGroups; I += WGSize)
             LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
@@ -986,8 +976,8 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
 
           if (LID == 0) {
             if (IsUpdateOfUserVar)
-              Result = BOp(Result, OutElem);
-            OutElem = Result;
+              Result = BOp(Result, Out[E]);
+            Out[E] = Result;
           }
         }
       }
@@ -1071,10 +1061,9 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       if (LID == 0) {
         auto V = BOp(LocalReds[0], LocalReds[WGSize]);
         if (NWorkGroups == 1 && IsUpdateOfUserVar)
-          V = BOp(V, Reduction::getOutPointer(Out)[E]);
+          V = BOp(V, Out[E]);
         // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
-        Reduction::getOutPointer(
-            PartialSums)[NDId.get_group_linear_id() * NElements + E] = V;
+        PartialSums[NDId.get_group_linear_id() * NElements + E] = V;
       }
     }
 
@@ -1095,9 +1084,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       for (int E = 0; E < NElements; ++E) {
         auto LocalSum = Identity;
         for (size_t I = LID; I < NWorkGroups; I += WGSize)
-          LocalSum =
-              BOp(LocalSum,
-                  Reduction::getOutPointer(PartialSums)[I * NElements + E]);
+          LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
 
         LocalReds[LID] = LocalSum;
         if (LID == 0)
@@ -1116,8 +1103,8 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
         if (LID == 0) {
           auto V = BOp(LocalReds[0], LocalReds[WGSize]);
           if (IsUpdateOfUserVar)
-            V = BOp(V, Reduction::getOutPointer(Out)[E]);
-          Reduction::getOutPointer(Out)[E] = V;
+            V = BOp(V, Out[E]);
+          Out[E] = V;
         }
       }
     }
@@ -1189,7 +1176,7 @@ void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
           reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
     }
     if (NDIt.get_local_linear_id() == 0)
-      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.atomic_combine(&Out[0]);
   });
 }
 
@@ -1270,7 +1257,7 @@ void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
     }
 
     if (LID == 0) {
-      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.atomic_combine(&Out[0]);
     }
   });
 }
@@ -1316,8 +1303,8 @@ void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
       PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
-          PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
-        Reduction::getOutPointer(Out)[WGID * NElements + E] = PSum;
+          PSum = BOp(Out[E], PSum);
+        Out[WGID * NElements + E] = PSum;
       }
     }
   });
@@ -1397,8 +1384,8 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
         typename Reduction::result_type PSum =
             IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
         if (IsUpdateOfUserVar)
-          PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = PSum;
+          PSum = BOp(Out[0], PSum);
+        Out[GrID * NElements + E] = PSum;
       }
 
       // Ensure item 0 is finished with LocalReds before next iteration
@@ -1448,8 +1435,8 @@ void reduAuxCGFuncFastReduceImpl(handler &CGH, bool UniformWG,
       PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
-          PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
-        Reduction::getOutPointer(Out)[WGID * NElements + E] = PSum;
+          PSum = BOp(Out[E], PSum);
+        Out[WGID * NElements + E] = PSum;
       }
     }
   });
@@ -1525,8 +1512,8 @@ void reduAuxCGFuncNoFastReduceNorAtomicImpl(handler &CGH, bool UniformPow2WG,
         typename Reduction::result_type PSum =
             UniformPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
         if (IsUpdateOfUserVar)
-          PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = PSum;
+          PSum = BOp(Out[0], PSum);
+        Out[GrID * NElements + E] = PSum;
       }
 
       // Ensure item 0 is finished with LocalReds before next iteration
@@ -1748,24 +1735,20 @@ void writeReduSumsToOutAccs(
   // Add the initial value of user's variable to the final result.
   if (IsOneWG)
     std::tie(std::get<Is>(LocalAccs)[0]...) = std::make_tuple(std::get<Is>(
-        BOPs)(std::get<Is>(LocalAccs)[0],
-              IsInitializeToIdentity[Is]
-                  ? std::get<Is>(IdentityVals)
-                  : std::tuple_element_t<Is, std::tuple<Reductions...>>::
-                        getOutPointer(std::get<Is>(OutAccs))[0])...);
+        BOPs)(std::get<Is>(LocalAccs)[0], IsInitializeToIdentity[Is]
+                                              ? std::get<Is>(IdentityVals)
+                                              : std::get<Is>(OutAccs)[0])...);
 
   if (Pow2WG) {
     // The partial sums for the work-group are stored in 0-th elements of local
     // accessors. Simply write those sums to output accessors.
-    std::tie(std::tuple_element_t<Is, std::tuple<Reductions...>>::getOutPointer(
-        std::get<Is>(OutAccs))[OutAccIndex]...) =
+    std::tie(std::get<Is>(OutAccs)[OutAccIndex]...) =
         std::make_tuple(std::get<Is>(LocalAccs)[0]...);
   } else {
     // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
     // elements. Combine them into final partial sums and write to output
     // accessors.
-    std::tie(std::tuple_element_t<Is, std::tuple<Reductions...>>::getOutPointer(
-        std::get<Is>(OutAccs))[OutAccIndex]...) =
+    std::tie(std::get<Is>(OutAccs)[OutAccIndex]...) =
         std::make_tuple(std::get<Is>(BOPs)(std::get<Is>(LocalAccs)[0],
                                            std::get<Is>(LocalAccs)[WGSize])...);
   }
@@ -1932,23 +1915,21 @@ void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
     if (LID == 0) {
       if (IsOneWG) {
         LocalReds[0] =
-            BOp(LocalReds[0], IsInitializeToIdentity
-                                  ? Identity
-                                  : Reduction::getOutPointer(Out)[E]);
+            BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E]);
       }
 
       size_t GrID = NDIt.get_group_linear_id();
-      if (Pow2WG) {
-        // The partial sums for the work-group are stored in 0-th elements of
-        // local accessors. Simply write those sums to output accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = LocalReds[0];
-      } else {
-        // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
-        // elements. Combine them into final partial sums and write to output
-        // accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] =
-            BOp(LocalReds[0], LocalReds[WGSize]);
-      }
+      Out[GrID * NElements + E] =
+          Pow2WG ?
+                 // The partial sums for the work-group are stored in 0-th
+                 // elements of local accessors. Simply write those sums to
+                 // output accessors.
+              LocalReds[0]
+                 :
+                 // Each of local accessors keeps two partial sums: in 0-th
+                 // and WGsize-th elements. Combine them into final partial
+                 // sums and write to output accessors.
+              BOp(LocalReds[0], LocalReds[WGSize]);
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
@@ -2090,7 +2071,7 @@ void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
     }
 
     if (NDIt.get_local_linear_id() == 0) {
-      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.atomic_combine(&Out[0]);
     }
   });
 }
@@ -2199,23 +2180,21 @@ void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
     if (LID == 0) {
       if (IsOneWG) {
         LocalReds[0] =
-            BOp(LocalReds[0], IsInitializeToIdentity
-                                  ? Identity
-                                  : Reduction::getOutPointer(Out)[E]);
+            BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E]);
       }
 
       size_t GrID = NDIt.get_group_linear_id();
-      if (UniformPow2WG) {
-        // The partial sums for the work-group are stored in 0-th elements of
-        // local accessors. Simply write those sums to output accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = LocalReds[0];
-      } else {
-        // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
-        // elements. Combine them into final partial sums and write to output
-        // accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] =
-            BOp(LocalReds[0], LocalReds[WGSize]);
-      }
+      Out[GrID * NElements + E] =
+          UniformPow2WG ?
+                        // The partial sums for the work-group are stored in
+                        // 0-th elements of local accessors. Simply write those
+                        // sums to output accessors.
+              LocalReds[0]
+                        :
+                        // Each of local accessors keeps two partial sums: in
+                        // 0-th and WGsize-th elements. Combine them into final
+                        // partial sums and write to output accessors.
+              BOp(LocalReds[0], LocalReds[WGSize]);
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
