@@ -230,10 +230,6 @@ public:
     try {
       return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
-      {
-        std::lock_guard<std::mutex> Lock(MMutex);
-        MExceptions.PushBack(std::current_exception());
-      }
       return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
                                       PostProcess);
     }
