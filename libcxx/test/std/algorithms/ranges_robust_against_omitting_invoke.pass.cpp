@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <algorithm>
 //
@@ -117,7 +116,7 @@ constexpr bool test_all() {
   test(std::ranges::is_heap, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::is_heap_until, in, &Foo::binary_pred, &Bar::val);
   std::ranges::clamp(b, a, c, &Foo::binary_pred, &Bar::val);
-  //test(std::ranges::is_permutation, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
+  test(std::ranges::is_permutation, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::for_each, in, &Foo::unary_pred, &Bar::val);
   std::ranges::for_each_n(in.begin(), count, &Foo::unary_pred, &Bar::val);
   // `copy`, `copy_n` and `copy_backward` have neither a projection nor a predicate.

@@ -57,11 +57,9 @@ const static uint32_t g_default_packet_timeout_sec = 0; // not specified
 #endif
 
 // GDBRemoteCommunicationServerCommon constructor
-GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon(
-    const char *comm_name, const char *listener_name)
-    : GDBRemoteCommunicationServer(comm_name, listener_name),
-      m_process_launch_info(), m_process_launch_error(), m_proc_infos(),
-      m_proc_infos_index(0) {
+GDBRemoteCommunicationServerCommon::GDBRemoteCommunicationServerCommon()
+    : GDBRemoteCommunicationServer(), m_process_launch_info(),
+      m_process_launch_error(), m_proc_infos(), m_proc_infos_index(0) {
   RegisterMemberFunctionHandler(StringExtractorGDBRemote::eServerPacketType_A,
                                 &GDBRemoteCommunicationServerCommon::Handle_A);
   RegisterMemberFunctionHandler(
@@ -304,7 +302,7 @@ GDBRemoteCommunicationServerCommon::Handle_qHostInfo(
     response.PutChar(';');
   }
 #endif // #if defined(__APPLE__)
-
+  // coverity[unsigned_compare]
   if (g_default_packet_timeout_sec > 0)
     response.Printf("default_packet_timeout:%u;", g_default_packet_timeout_sec);
 
@@ -774,7 +772,7 @@ template <typename T, typename U>
 static void fill_clamp(T &dest, U src, typename T::value_type fallback) {
   static_assert(std::is_unsigned<typename T::value_type>::value,
                 "Destination type must be unsigned.");
-  using UU = typename std::make_unsigned<U>::type;
+  using UU = std::make_unsigned_t<U>;
   constexpr auto T_max = std::numeric_limits<typename T::value_type>::max();
   dest = src >= 0 && static_cast<UU>(src) <= T_max ? src : fallback;
 }

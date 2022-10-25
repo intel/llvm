@@ -5,7 +5,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
@@ -30,10 +30,10 @@
 ; CHECK-SPIRV: InBoundsPtrAccessChain [[#GenericStorCalssPtrTy:]] [[#GEP4:]]
 ; CHECK-SPIRV: ExtInst [[#TypeInt32Id]] [[#]] [[#ExtInstSetId:]] printf [[#GEP4]]
 
-; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPc(i8* {{.*}}
-; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS1c(i8 addrspace(1)* {{.*}}
-; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS3c(i8 addrspace(3)* {{.*}}
-; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS4c(i8 addrspace(4)* {{.*}}
+; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPc(ptr {{.*}}
+; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS1c(ptr addrspace(1) {{.*}}
+; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS3c(ptr addrspace(3) {{.*}}
+; CHECK-LLVM: call spir_func i32 @_Z18__spirv_ocl_printfPU3AS4c(ptr addrspace(4) {{.*}}
 
 ; ModuleID = 'non-constant-printf'
 target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"

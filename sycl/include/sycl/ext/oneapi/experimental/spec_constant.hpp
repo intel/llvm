@@ -33,7 +33,8 @@ class spec_const_error : public compile_program_error {
 template <typename T, typename ID = T>
 class __SYCL2020_DEPRECATED(
     "Specialization constats extension is deprecated, use SYCL 2020"
-    " specialization constants instead") spec_constant {
+    " specialization constants instead")
+    __SYCL_TYPE(spec_constant) spec_constant {
 public:
   spec_constant() {}
 

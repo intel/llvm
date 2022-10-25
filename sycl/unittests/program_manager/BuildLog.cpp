@@ -12,7 +12,6 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -48,37 +47,10 @@ static pi_result redefinedProgramGetBuildInfo(
   return PI_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfo(pi_device device,
-                                        pi_device_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_NAME) {
-    const std::string name = "Test Device";
-    if (param_value_size_ret) {
-      *param_value_size_ret = name.size();
-    }
-    if (param_value) {
-      auto *val = static_cast<char *>(param_value);
-      strcpy(val, name.data());
-    }
-  }
-  if (param_name == PI_DEVICE_INFO_COMPILER_AVAILABLE) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = sizeof(cl_bool);
-    }
-    if (param_value) {
-      auto *val = static_cast<cl_bool *>(param_value);
-      *val = 1;
-    }
-  }
-  return PI_SUCCESS;
-}
-
 static void setupCommonTestAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramGetBuildInfo>(redefinedProgramGetBuildInfo);
-  Mock.redefine<PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+  Mock.redefineBefore<PiApiKind::piProgramGetBuildInfo>(
+      redefinedProgramGetBuildInfo);
 }
 
 TEST(BuildLog, OutputNothingOnLevel1) {
@@ -87,23 +59,11 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   ScopedEnvVar var(WarningLevelEnvVar, "1",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
-  }
-
-  const sycl::device Dev = Plt.get_devices()[0];
-  if (!Dev.has(sycl::aspect::online_compiler)) {
-    GTEST_SKIP_("Test is not supported on this device due to missing support "
-                "for sycl::aspect::online_compiler");
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupCommonTestAPIs(Mock);
 
+  const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
@@ -125,23 +85,11 @@ TEST(BuildLog, OutputLogOnLevel2) {
   ScopedEnvVar var(WarningLevelEnvVar, "2",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::platform Plt{sycl::default_selector()};
-  // TODO make sure unsupported platform is never selected
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    GTEST_SKIP_("Test is not supported on this platform");
-  }
-
-  const sycl::device Dev = Plt.get_devices()[0];
-  if (!Dev.has(sycl::aspect::online_compiler)) {
-    GTEST_SKIP_("Test is not supported on this device due to missing support "
-                "for sycl::aspect::online_compiler");
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   setupCommonTestAPIs(Mock);
 
+  const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 

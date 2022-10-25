@@ -9,8 +9,8 @@
 #include "mlir/Dialect/Linalg/Transforms/TilingInterfaceImpl.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -50,7 +50,7 @@ static LogicalResult inlinePayload(OpBuilder &b, LinalgOp linalgOp,
   map.map(body->getArguments(), argValues);
   for (auto &op : body->without_terminator()) {
     if (auto indexOp = dyn_cast<IndexOp>(&op)) {
-      map.map(indexOp.getResult(), ivs[indexOp.dim()]);
+      map.map(indexOp.getResult(), ivs[indexOp.getDim()]);
       continue;
     }
     b.clone(op, map);
@@ -58,11 +58,11 @@ static LogicalResult inlinePayload(OpBuilder &b, LinalgOp linalgOp,
 
   Operation *terminator = body->getTerminator();
   Location loc = terminator->getLoc();
-  for (auto operand : llvm::enumerate(terminator->getOperands())) {
+  for (const auto &operand : llvm::enumerate(terminator->getOperands())) {
     Value toStore = map.lookupOrDefault(operand.value());
     OpOperand *storeInto = linalgOp.getOutputOperand(operand.index());
     auto indices = getIndicesForAccess(
-        b, loc, linalgOp.getTiedIndexingMap(storeInto), ivs);
+        b, loc, linalgOp.getMatchingIndexingMap(storeInto), ivs);
     b.create<memref::StoreOp>(loc, toStore,
                               linalgOp.getOutputOperand(operand.index())->get(),
                               indices);
@@ -90,11 +90,13 @@ struct LinalgOpTilingInterface
   }
 
   /// Return the loop iterator type.
-  SmallVector<StringRef> getLoopIteratorTypes(Operation *op) const {
+  SmallVector<utils::IteratorType> getLoopIteratorTypes(Operation *op) const {
     LinalgOpTy concreteOp = cast<LinalgOpTy>(op);
     return llvm::to_vector(
         llvm::map_range(concreteOp.iterator_types(), [](Attribute strAttr) {
-          return strAttr.cast<StringAttr>().getValue();
+          return utils::symbolizeIteratorType(
+                     strAttr.cast<StringAttr>().getValue())
+              .value();
         }));
   }
 
@@ -118,10 +120,9 @@ struct LinalgOpTilingInterface
 
   // Instantiate the tiled implementation of the operation.
   SmallVector<Operation *>
-  getTiledImplementation(Operation *op, OpBuilder &b, ValueRange dest,
+  getTiledImplementation(Operation *op, OpBuilder &b,
                          ArrayRef<OpFoldResult> offsets,
-                         ArrayRef<OpFoldResult> sizes,
-                         bool tileDestOperands) const {
+                         ArrayRef<OpFoldResult> sizes) const {
     // Leave the `sizeBounds` value empty. That is only needed when the `sizes`
     // specified could lead to out of bounds accesses.
     Location loc = op->getLoc();
@@ -161,24 +162,19 @@ struct LinalgOpTilingInterface
         }));
 
     OpOperand *outOperand = linalgOp.getOutputOperand(resultNumber);
-    Value sliceOpResult =
-        makeTiledShape(b, loc, outOperand->get(), sizes,
-                       linalgOp.getTiedIndexingMap(outOperand), offsets,
-                       /*ubs*/ {}, subShapeSizes, true);
-    auto sliceOp = sliceOpResult.getDefiningOp<tensor::ExtractSliceOp>();
-    if (!sliceOp)
-      return failure();
-    resultOffsets = sliceOp.getMixedOffsets();
-    resultSizes = sliceOp.getMixedSizes();
+    SliceParameters sliceParams = computeSliceParameters(
+        b, loc, outOperand->get(), sizes,
+        linalgOp.getMatchingIndexingMap(outOperand), offsets,
+        /*ubs*/ {}, subShapeSizes, true);
+    resultOffsets = sliceParams.offsets;
+    resultSizes = sliceParams.sizes;
     return success();
   }
 
   FailureOr<Value> generateResultTileValue(Operation *op, OpBuilder &b,
                                            unsigned resultNumber,
-                                           ValueRange dest,
                                            ArrayRef<OpFoldResult> offsets,
-                                           ArrayRef<OpFoldResult> sizes,
-                                           bool tileDestOperands) const {
+                                           ArrayRef<OpFoldResult> sizes) const {
     auto linalgOp = cast<LinalgOp>(op);
 
     // Check that the indexing map used for the output is a projected
@@ -186,7 +182,7 @@ struct LinalgOpTilingInterface
     // map the offsets and sizes from the result to iteration space tiles
     // (filling in full extent for dimensions not used to access the result).
     AffineMap indexingMap =
-        linalgOp.getTiedIndexingMapForResult(op->getResult(resultNumber));
+        linalgOp.getIndexingMapMatchingResult(op->getResult(resultNumber));
     if (!indexingMap.isProjectedPermutation()) {
       return op->emitOpError(
           "unhandled tiled implementation generation when result is not "
@@ -213,7 +209,7 @@ struct LinalgOpTilingInterface
     }
 
     SmallVector<Operation *> tiledOp = tilingInterfaceOp.getTiledImplementation(
-        b, dest, iterationTileOffsets, iterationTileSizes, tileDestOperands);
+        b, iterationTileOffsets, iterationTileSizes);
     if (tiledOp.size() != 1)
       return op->emitOpError("failed to generate tiled implementation");
 
@@ -242,7 +238,7 @@ struct LinalgOpTilingInterface
         continue;
       }
       SmallVector<Value> indices = getIndicesForAccess(
-          builder, linalgOpLoc, linalgOp.getTiedIndexingMap(operand), ivs);
+          builder, linalgOpLoc, linalgOp.getMatchingIndexingMap(operand), ivs);
       Value load =
           builder.create<memref::LoadOp>(linalgOpLoc, operand->get(), indices);
       indexedValues.push_back(load);
@@ -263,8 +259,7 @@ static void registerOne(MLIRContext *ctx) {
 /// Variadic helper function.
 template <typename... OpTypes>
 static void registerAll(MLIRContext *ctx) {
-  // FIXME: In c++17 this can be simplified by using 'fold expressions'.
-  (void)std::initializer_list<int>{0, (registerOne<OpTypes>(ctx), 0)...};
+  (registerOne<OpTypes>(ctx), ...);
 }
 
 #define GET_OP_LIST

@@ -40,6 +40,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -66,16 +67,16 @@ using namespace llvm::opt;
 
 static void renderRpassOptions(const ArgList &Args, ArgStringList &CmdArgs) {
   if (const Arg *A = Args.getLastArg(options::OPT_Rpass_EQ))
-    CmdArgs.push_back(Args.MakeArgString(Twine("--plugin-opt=-pass-remarks=") +
+    CmdArgs.push_back(Args.MakeArgString(Twine("-plugin-opt=-pass-remarks=") +
                                          A->getValue()));
 
   if (const Arg *A = Args.getLastArg(options::OPT_Rpass_missed_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=-pass-remarks-missed=") + A->getValue()));
+        Twine("-plugin-opt=-pass-remarks-missed=") + A->getValue()));
 
   if (const Arg *A = Args.getLastArg(options::OPT_Rpass_analysis_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=-pass-remarks-analysis=") + A->getValue()));
+        Twine("-plugin-opt=-pass-remarks-analysis=") + A->getValue()));
 }
 
 static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
@@ -96,28 +97,28 @@ static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
   assert(!F.empty() && "Cannot determine remarks output name.");
   // Append "opt.ld.<format>" to the end of the file name.
   CmdArgs.push_back(
-      Args.MakeArgString(Twine("--plugin-opt=opt-remarks-filename=") + F +
+      Args.MakeArgString(Twine("-plugin-opt=opt-remarks-filename=") + F +
                          Twine(".opt.ld.") + Format));
 
   if (const Arg *A =
           Args.getLastArg(options::OPT_foptimization_record_passes_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=opt-remarks-passes=") + A->getValue()));
+        Twine("-plugin-opt=opt-remarks-passes=") + A->getValue()));
 
   CmdArgs.push_back(Args.MakeArgString(
-      Twine("--plugin-opt=opt-remarks-format=") + Format.data()));
+      Twine("-plugin-opt=opt-remarks-format=") + Format.data()));
 }
 
 static void renderRemarksHotnessOptions(const ArgList &Args,
                                         ArgStringList &CmdArgs) {
   if (Args.hasFlag(options::OPT_fdiagnostics_show_hotness,
                    options::OPT_fno_diagnostics_show_hotness, false))
-    CmdArgs.push_back("--plugin-opt=opt-remarks-with-hotness");
+    CmdArgs.push_back("-plugin-opt=opt-remarks-with-hotness");
 
   if (const Arg *A =
           Args.getLastArg(options::OPT_fdiagnostics_hotness_threshold_EQ))
     CmdArgs.push_back(Args.MakeArgString(
-        Twine("--plugin-opt=opt-remarks-hotness-threshold=") + A->getValue()));
+        Twine("-plugin-opt=opt-remarks-hotness-threshold=") + A->getValue()));
 }
 
 void tools::addPathIfExists(const Driver &D, const Twine &Path,
@@ -293,7 +294,7 @@ void tools::addLinkerCompressDebugSectionsOption(
   // argument.
   if (const Arg *A = Args.getLastArg(options::OPT_gz_EQ)) {
     StringRef V = A->getValue();
-    if (V == "none" || V == "zlib")
+    if (V == "none" || V == "zlib" || V == "zstd")
       CmdArgs.push_back(Args.MakeArgString("--compress-debug-sections=" + V));
     else
       TC.getDriver().Diag(diag::err_drv_unsupported_option_argument)
@@ -510,7 +511,8 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
 
     SmallString<1024> Plugin;
     llvm::sys::path::native(
-        Twine(D.Dir) + "/../lib" CLANG_LIBDIR_SUFFIX "/LLVMgold" + Suffix,
+        Twine(D.Dir) + "/../" CLANG_INSTALL_LIBDIR_BASENAME "/LLVMgold" +
+            Suffix,
         Plugin);
     CmdArgs.push_back(Args.MakeArgString(Plugin));
   }
@@ -632,11 +634,24 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                                          Path));
   }
 
+  // This controls whether or not we perform JustMyCode instrumentation.
+  if (Args.hasFlag(options::OPT_fjmc, options::OPT_fno_jmc, false)) {
+    if (ToolChain.getEffectiveTriple().isOSBinFormatELF())
+      CmdArgs.push_back("-plugin-opt=-enable-jmc-instrument");
+    else
+      D.Diag(clang::diag::warn_drv_fjmc_for_elf_only);
+  }
+
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
   if (!StatsFile.empty())
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-plugin-opt=stats-file=") + StatsFile));
+
+  // Setup crash diagnostics dir.
+  if (Arg *A = Args.getLastArg(options::OPT_fcrash_diagnostics_dir))
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("-plugin-opt=-crash-diagnostics-dir=") + A->getValue()));
 
   addX86AlignBranchArgs(D, Args, CmdArgs, /*IsLTO=*/true);
 
@@ -666,7 +681,7 @@ void tools::addOpenMPRuntimeSpecificRPath(const ToolChain &TC,
     // runtime
     SmallString<256> DefaultLibPath =
         llvm::sys::path::parent_path(TC.getDriver().Dir);
-    llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
+    llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
     CmdArgs.push_back("-rpath");
     CmdArgs.push_back(Args.MakeArgString(DefaultLibPath));
   }
@@ -679,7 +694,7 @@ void tools::addOpenMPRuntimeLibraryPath(const ToolChain &TC,
   // runtime.
   SmallString<256> DefaultLibPath =
       llvm::sys::path::parent_path(TC.getDriver().Dir);
-  llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
+  llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
   CmdArgs.push_back(Args.MakeArgString("-L" + DefaultLibPath));
 }
 
@@ -1109,6 +1124,15 @@ bool tools::areOptimizationsEnabled(const ArgList &Args) {
   return false;
 }
 
+bool tools::isDependentLibAdded(const ArgList &Args, StringRef Lib) {
+  // Check if given Lib is added via --dependent-lib
+  SmallString<64> DepLib("--dependent-lib=");
+  DepLib += Lib;
+  return llvm::any_of(
+      Args.getAllArgValues(options::OPT_Xclang),
+      [&DepLib](StringRef Option) { return Option.equals(DepLib); });
+}
+
 const char *tools::SplitDebugName(const JobAction &JA, const ArgList &Args,
                                   const InputInfo &Input,
                                   const InputInfo &Output) {
@@ -1206,6 +1230,24 @@ Arg *tools::getLastProfileSampleUseArg(const ArgList &Args) {
 
   return Args.getLastArg(options::OPT_fprofile_sample_use_EQ,
                          options::OPT_fauto_profile_EQ);
+}
+
+const char *tools::RelocationModelName(llvm::Reloc::Model Model) {
+  switch (Model) {
+  case llvm::Reloc::Static:
+    return "static";
+  case llvm::Reloc::PIC_:
+    return "pic";
+  case llvm::Reloc::DynamicNoPIC:
+    return "dynamic-no-pic";
+  case llvm::Reloc::ROPI:
+    return "ropi";
+  case llvm::Reloc::RWPI:
+    return "rwpi";
+  case llvm::Reloc::ROPI_RWPI:
+    return "ropi-rwpi";
+  }
+  llvm_unreachable("Unknown Reloc::Model kind");
 }
 
 /// Parses the various -fpic/-fPIC/-fpie/-fPIE arguments.  Then,
@@ -1518,7 +1560,7 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
   // Targets that don't use unwind libraries.
   if ((TC.getTriple().isAndroid() && UNW == ToolChain::UNW_Libgcc) ||
       TC.getTriple().isOSIAMCU() || TC.getTriple().isOSBinFormatWasm() ||
-      UNW == ToolChain::UNW_None)
+      TC.getTriple().isWindowsMSVCEnvironment() || UNW == ToolChain::UNW_None)
     return;
 
   LibGccType LGT = getLibGccType(TC, D, Args);
@@ -1591,9 +1633,10 @@ void tools::AddRunTimeLibs(const ToolChain &TC, const Driver &D,
     if (TC.getTriple().isKnownWindowsMSVCEnvironment()) {
       // Issue error diagnostic if libgcc is explicitly specified
       // through command line as --rtlib option argument.
-      if (Args.hasArg(options::OPT_rtlib_EQ)) {
+      Arg *A = Args.getLastArg(options::OPT_rtlib_EQ);
+      if (A && A->getValue() != StringRef("platform")) {
         TC.getDriver().Diag(diag::err_drv_unsupported_rtlib_for_platform)
-            << Args.getLastArg(options::OPT_rtlib_EQ)->getValue() << "MSVC";
+            << A->getValue() << "MSVC";
       }
     } else
       AddLibgcc(TC, D, CmdArgs, Args);
@@ -1800,85 +1843,99 @@ bool tools::GetSDLFromOffloadArchive(
     return false;
 
   bool FoundAOB = false;
-  SmallVector<std::string, 2> AOBFileNames;
   std::string ArchiveOfBundles;
-  for (auto LPath : LibraryPaths) {
-    ArchiveOfBundles.clear();
 
-    llvm::Triple Triple(D.getTargetTriple());
-    bool IsMSVC = Triple.isWindowsMSVCEnvironment();
-    for (auto Prefix : {"/libdevice/", "/"}) {
-      if (IsMSVC)
-        AOBFileNames.push_back(Twine(LPath + Prefix + Lib + ".lib").str());
-      AOBFileNames.push_back(Twine(LPath + Prefix + "lib" + Lib + ".a").str());
-    }
-
-    for (auto AOB : AOBFileNames) {
-      if (llvm::sys::fs::exists(AOB)) {
-        ArchiveOfBundles = AOB;
-        FoundAOB = true;
-        break;
+  llvm::Triple Triple(D.getTargetTriple());
+  bool IsMSVC = Triple.isWindowsMSVCEnvironment();
+  auto Ext = IsMSVC ? ".lib" : ".a";
+  if (!Lib.startswith(":") && llvm::sys::fs::exists(Lib)) {
+    ArchiveOfBundles = Lib;
+    FoundAOB = true;
+  } else {
+    for (auto LPath : LibraryPaths) {
+      ArchiveOfBundles.clear();
+      SmallVector<std::string, 2> AOBFileNames;
+      auto LibFile =
+          (Lib.startswith(":") ? Lib.drop_front()
+                               : IsMSVC ? Lib + Ext : "lib" + Lib + Ext)
+              .str();
+      for (auto Prefix : {"/libdevice/", "/"}) {
+        auto AOB = Twine(LPath + Prefix + LibFile).str();
+        if (llvm::sys::fs::exists(AOB)) {
+          ArchiveOfBundles = AOB;
+          FoundAOB = true;
+          break;
+        }
       }
+      if (FoundAOB)
+        break;
     }
-
-    if (!FoundAOB)
-      continue;
-
-    StringRef Prefix = isBitCodeSDL ? "libbc-" : "lib";
-    std::string OutputLib = D.GetTemporaryPath(
-        Twine(Prefix + Lib + "-" + Arch + "-" + Target).str(), "a");
-
-    C.addTempFile(C.getArgs().MakeArgString(OutputLib));
-
-    ArgStringList CmdArgs;
-    SmallString<128> DeviceTriple;
-    DeviceTriple += Action::GetOffloadKindName(JA.getOffloadingDeviceKind());
-    DeviceTriple += '-';
-    std::string NormalizedTriple = T.getToolChain().getTriple().normalize();
-    DeviceTriple += NormalizedTriple;
-    if (!Target.empty()) {
-      DeviceTriple += '-';
-      DeviceTriple += Target;
-    }
-
-    std::string UnbundleArg("-unbundle");
-    std::string TypeArg("-type=a");
-    std::string InputArg("-input=" + ArchiveOfBundles);
-    std::string OffloadArg("-targets=" + std::string(DeviceTriple));
-    std::string OutputArg("-output=" + OutputLib);
-
-    const char *UBProgram = DriverArgs.MakeArgString(
-        T.getToolChain().GetProgramPath("clang-offload-bundler"));
-
-    ArgStringList UBArgs;
-    UBArgs.push_back(C.getArgs().MakeArgString(UnbundleArg));
-    UBArgs.push_back(C.getArgs().MakeArgString(TypeArg));
-    UBArgs.push_back(C.getArgs().MakeArgString(InputArg));
-    UBArgs.push_back(C.getArgs().MakeArgString(OffloadArg));
-    UBArgs.push_back(C.getArgs().MakeArgString(OutputArg));
-
-    // Add this flag to not exit from clang-offload-bundler if no compatible
-    // code object is found in heterogenous archive library.
-    std::string AdditionalArgs("-allow-missing-bundles");
-    UBArgs.push_back(C.getArgs().MakeArgString(AdditionalArgs));
-
-    // Add this flag to treat hip and hipv4 offload kinds as compatible with
-    // openmp offload kind while extracting code objects from a heterogenous
-    // archive library. Vice versa is also considered compatible.
-    std::string HipCompatibleArgs("-hip-openmp-compatible");
-    UBArgs.push_back(C.getArgs().MakeArgString(HipCompatibleArgs));
-
-    C.addCommand(std::make_unique<Command>(
-        JA, T, ResponseFileSupport::AtFileCurCP(), UBProgram, UBArgs, Inputs,
-        InputInfo(&JA, C.getArgs().MakeArgString(OutputLib))));
-    if (postClangLink)
-      CC1Args.push_back("-mlink-builtin-bitcode");
-
-    CC1Args.push_back(DriverArgs.MakeArgString(OutputLib));
-    break;
   }
 
-  return FoundAOB;
+  if (!FoundAOB)
+    return false;
+
+  llvm::file_magic Magic;
+  auto EC = llvm::identify_magic(ArchiveOfBundles, Magic);
+  if (EC || Magic != llvm::file_magic::archive)
+    return false;
+
+  StringRef Prefix = isBitCodeSDL ? "libbc-" : "lib";
+  std::string OutputLib =
+      D.GetTemporaryPath(Twine(Prefix + llvm::sys::path::filename(Lib) + "-" +
+                               Arch + "-" + Target)
+                             .str(),
+                         "a");
+
+  C.addTempFile(C.getArgs().MakeArgString(OutputLib));
+
+  ArgStringList CmdArgs;
+  SmallString<128> DeviceTriple;
+  DeviceTriple += Action::GetOffloadKindName(JA.getOffloadingDeviceKind());
+  DeviceTriple += '-';
+  std::string NormalizedTriple = T.getToolChain().getTriple().normalize();
+  DeviceTriple += NormalizedTriple;
+  if (!Target.empty()) {
+    DeviceTriple += '-';
+    DeviceTriple += Target;
+  }
+
+  std::string UnbundleArg("-unbundle");
+  std::string TypeArg("-type=a");
+  std::string InputArg("-input=" + ArchiveOfBundles);
+  std::string OffloadArg("-targets=" + std::string(DeviceTriple));
+  std::string OutputArg("-output=" + OutputLib);
+
+  const char *UBProgram = DriverArgs.MakeArgString(
+      T.getToolChain().GetProgramPath("clang-offload-bundler"));
+
+  ArgStringList UBArgs;
+  UBArgs.push_back(C.getArgs().MakeArgString(UnbundleArg));
+  UBArgs.push_back(C.getArgs().MakeArgString(TypeArg));
+  UBArgs.push_back(C.getArgs().MakeArgString(InputArg));
+  UBArgs.push_back(C.getArgs().MakeArgString(OffloadArg));
+  UBArgs.push_back(C.getArgs().MakeArgString(OutputArg));
+
+  // Add this flag to not exit from clang-offload-bundler if no compatible
+  // code object is found in heterogenous archive library.
+  std::string AdditionalArgs("-allow-missing-bundles");
+  UBArgs.push_back(C.getArgs().MakeArgString(AdditionalArgs));
+
+  // Add this flag to treat hip and hipv4 offload kinds as compatible with
+  // openmp offload kind while extracting code objects from a heterogenous
+  // archive library. Vice versa is also considered compatible.
+  std::string HipCompatibleArgs("-hip-openmp-compatible");
+  UBArgs.push_back(C.getArgs().MakeArgString(HipCompatibleArgs));
+
+  C.addCommand(std::make_unique<Command>(
+      JA, T, ResponseFileSupport::AtFileCurCP(), UBProgram, UBArgs, Inputs,
+      InputInfo(&JA, C.getArgs().MakeArgString(OutputLib))));
+  if (postClangLink)
+    CC1Args.push_back("-mlink-builtin-bitcode");
+
+  CC1Args.push_back(DriverArgs.MakeArgString(OutputLib));
+
+  return true;
 }
 
 // Wrapper function used by driver for adding SDLs during link phase.
@@ -1955,7 +2012,7 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
 
   // Add path to lib-debug folders
   SmallString<256> DefaultLibPath = llvm::sys::path::parent_path(D.Dir);
-  llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
+  llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
   LibraryPaths.emplace_back(DefaultLibPath.c_str());
 
   // Build list of Static Device Libraries SDLs specified by -l option
@@ -1966,6 +2023,22 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
     if (!HostOnlyArchives->contains(SDLName)) {
       SDLNames.insert(SDLName);
     }
+  }
+
+  for (auto Input : DriverArgs.getAllArgValues(options::OPT_INPUT)) {
+    auto FileName = StringRef(Input);
+    // Clang treats any unknown file types as archives and passes them to the
+    // linker. Files with extension 'lib' are classified as TY_Object by clang
+    // but they are usually archives. It is OK if the file is not really an
+    // archive since GetSDLFromOffloadArchive will check the magic of the file
+    // and only unbundle it if it is really an archive.
+    const StringRef LibFileExt = ".lib";
+    if (!llvm::sys::path::has_extension(FileName) ||
+        types::lookupTypeForExtension(
+            llvm::sys::path::extension(FileName).drop_front()) ==
+            types::TY_INVALID ||
+        llvm::sys::path::extension(FileName) == LibFileExt)
+      SDLNames.insert(Input);
   }
 
   // The search stops as soon as an SDL file is found. The driver then provides
@@ -2084,7 +2157,7 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
 
   // Add path to clang lib / lib64 folder.
   SmallString<256> DefaultLibPath = llvm::sys::path::parent_path(D.Dir);
-  llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
+  llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
   LibraryPaths.emplace_back(DefaultLibPath.c_str());
 
   // Add user defined library paths from LIBRARY_PATH.
@@ -2149,7 +2222,7 @@ void tools::addHIPRuntimeLibArgs(const ToolChain &TC,
     TC.AddHIPRuntimeLibArgs(Args, CmdArgs);
   } else {
     // Claim "no HIP libraries" arguments if any
-    for (auto Arg : Args.filtered(options::OPT_no_hip_rt)) {
+    for (auto *Arg : Args.filtered(options::OPT_no_hip_rt)) {
       Arg->claim();
     }
   }

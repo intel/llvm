@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
@@ -30,35 +29,23 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
 
 class EventDestructionTest : public ::testing::Test {
 public:
-  EventDestructionTest() : Plt{default_selector()} {}
+  EventDestructionTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      std::cout << "This test is only supported on OpenCL backend\n";
-      std::cout << "Current platform is "
-                << Plt.get_info<sycl::info::platform::name>();
-      return;
-    }
-
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
-    Mock->redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+    Mock.redefineBefore<detail::PiApiKind::piEventRelease>(
+        redefinedEventRelease);
+    Mock.redefineBefore<detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
   }
 
 protected:
-  std::unique_ptr<unittest::PiMock> Mock;
-  platform Plt;
+  unittest::PiMock Mock;
+  sycl::platform Plt;
 };
 
 // Test that events are destructed in correct time
 TEST_F(EventDestructionTest, EventDestruction) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::default_selector{}};
 
@@ -133,9 +120,6 @@ TEST_F(EventDestructionTest, EventDestruction) {
 
 // Test for event::get_wait_list
 TEST_F(EventDestructionTest, GetWaitList) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
   ReleaseCounter = 0;
   sycl::context Context{Plt};
   sycl::queue Queue{Context, sycl::default_selector{}};

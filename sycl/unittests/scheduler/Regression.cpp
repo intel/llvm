@@ -9,7 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 
 using namespace sycl;
@@ -56,16 +55,9 @@ static pi_result redefinedEnqueueNativeKernel(
 }
 
 TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<detail::PiApiKind::piEnqueueNativeKernel>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueNativeKernel>(
       redefinedEnqueueNativeKernel);
 
   auto Kernel = []() { std::cout << "Blablabla"; };
@@ -91,7 +83,7 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
       /*Type*/ detail::CG::RunOnHostIntel)};
 
   context Ctx{Plt};
-  queue Queue{Ctx, Selector};
+  queue Queue{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
 
   detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImpl};

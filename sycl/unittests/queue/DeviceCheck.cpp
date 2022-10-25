@@ -68,8 +68,8 @@ pi_result redefinedDevicePartition(
     pi_device device, const pi_device_partition_property *properties,
     pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
   if (out_devices) {
-    for (pi_uint32 I = 0; I < num_devices; ++I) {
-      out_devices[I] = reinterpret_cast<pi_device>(1);
+    for (size_t I = 0; I < num_devices; ++I) {
+      out_devices[I] = reinterpret_cast<pi_device>(1000 + I);
     }
   }
   if (out_num_devices)
@@ -96,26 +96,26 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       EnableDefaultContextsName, "1",
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "The test is not supported on host, skipping" << std::endl;
-    GTEST_SKIP();
-  }
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
   PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  // Create default context normally to avoid issues during its release, which
-  // takes plase after Mock is destroyed.
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
-  unittest::PiMock Mock{Plt};
-  Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-  Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piDevicePartition>(redefinedDevicePartition);
-  Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
-  Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-  Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
+  Mock.redefineBefore<detail::PiApiKind::piContextCreate>(
+      redefinedContextCreate);
+  Mock.redefineBefore<detail::PiApiKind::piContextRelease>(
+      redefinedContextRelease);
+  Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfo);
+  Mock.redefineBefore<detail::PiApiKind::piDevicePartition>(
+      redefinedDevicePartition);
+  Mock.redefineBefore<detail::PiApiKind::piDeviceRelease>(
+      redefinedDeviceRelease);
+  Mock.redefineBefore<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+  Mock.redefineBefore<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  Mock.redefineBefore<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
 
   // Device is a member of the context.
   {

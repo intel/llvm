@@ -1,16 +1,16 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv -spirv-ext=+SPV_INTEL_variable_length_array
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
 
-; CHECK-LLVM: phi i8* [ [[savedstack:%.*]], {{.*}} ], [ [[savedstack_us:%.*]], {{.*}} ]
+; CHECK-LLVM: phi ptr [ [[savedstack:%.*]], {{.*}} ], [ [[savedstack_us:%.*]], {{.*}} ]
 
 ; CHECK-LLVM: BB.{{[0-9]+}}:
-; CHECK-LLVM: [[savedstack]] = call i8* @llvm.stacksave()
+; CHECK-LLVM: [[savedstack]] = call ptr @llvm.stacksave()
 
 ; CHECK-LLVM: BB.{{[0-9]+}}:
-; CHECK-LLVM: [[savedstack_us]] = call i8* @llvm.stacksave()
+; CHECK-LLVM: [[savedstack_us]] = call ptr @llvm.stacksave()
 
 ; ModuleID = 's.bc'
 source_filename = "llvm-link"
