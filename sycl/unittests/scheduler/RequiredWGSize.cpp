@@ -66,9 +66,9 @@ static void reset() {
 static void performChecks() {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
+  Mock.redefine<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunch);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
+  Mock.redefine<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
       redefinedKernelGetGroupInfo);
 
   const sycl::device Dev = Plt.get_devices()[0];
