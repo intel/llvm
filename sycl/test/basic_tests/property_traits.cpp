@@ -107,12 +107,6 @@ int main() {
       accessor<sycl::half, 2, access_mode::write, target::host_buffer,
                access::placeholder::false_t>);
 
-  // Image-accessor is_property_of
-  CHECK_IS_PROPERTY_OF(
-      property::no_init,
-      image_accessor<unsigned long, 2, access_mode::read, target::host_buffer,
-                     access::placeholder::true_t>);
-
   // Host-accessor is_property_of
   CHECK_IS_PROPERTY_OF(property::no_init,
                        host_accessor<unsigned long, 2, access_mode::read>);
