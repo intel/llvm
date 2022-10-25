@@ -94,9 +94,6 @@ static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
     return std::memory_order_acq_rel;
   case memory_order::seq_cst:
     return std::memory_order_seq_cst;
-  default:
-    assert(false && "Unhandled case");
-    return std::memory_order_acq_rel;
   }
 }
 #endif // __SYCL_DEVICE_ONLY__

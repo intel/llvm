@@ -47,6 +47,7 @@ public:
   void flush(const EventImplPtr &LeadEvent);
 
   // Enqueue task to copy stream buffer to the host and print the contents
+  // Remove during next ABI breaking window
   void flush();
 
   size_t get_size() const;
