@@ -12,13 +12,13 @@ struct StructDefined {
   int x;
 };
 
-class FunctorWithCallOpDeclared {
+class FunctorWithCallOpDefined {
   int x;
   public:
   void operator()() const {}
 };
 
-class FunctorWithCallOpDefined {
+class FunctorWithCallOpDeclared {
   int x;
   public:
   void operator()() const {};
