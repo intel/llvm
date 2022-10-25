@@ -3127,8 +3127,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
     // intel extensions for GPU information
   case PI_DEVICE_INFO_DEVICE_ID:
-    return ReturnValue(
-        pi_uint32{Device->ZeDeviceProperties->deviceId});
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties->deviceId});
   case PI_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
@@ -4335,7 +4334,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     // represent the buffer in this context) copy the data to a newly
     // created device allocation.
     char *ZeHandleDst;
-    PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only));
+    PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Device));
 
     // zeCommandListAppendMemoryCopy must not be called from simultaneous
     // threads with the same command list handle, so we need exclusive lock.
@@ -8767,7 +8766,10 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
   // launch is always on a specific device.
   if (!Device)
     Device = LastDeviceWithValidAllocation;
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+  // If the device is still not selected then use the first one in
+  // the context of the buffer.
+  if (!Device)
+    Device = Context->Devices[0];
 
   auto &Allocation = Allocations[Device];
 
