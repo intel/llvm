@@ -25,8 +25,6 @@ struct KernelFunctor {
 
 int main() {
   KernelFunctor f;
-  launchInlineASMTest(
-      f, /* sg size */ true,
-      /* exception string*/ "unexpected NEWLINE, expecting LANGLE");
+  launchInlineASMTest(f, /* sg size */ true, /* exception expected */ true);
   return 0;
 }

@@ -25,7 +25,6 @@ struct KernelFunctor {
 
 int main() {
   KernelFunctor f;
-  launchInlineASMTest(f, /* sg size */ true,
-                      /* exception string*/ "invalid execution size");
+  launchInlineASMTest(f, /* sg size */ true, /* exception expected */ true);
   return 0;
 }

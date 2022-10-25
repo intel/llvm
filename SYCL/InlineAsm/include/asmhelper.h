@@ -118,22 +118,17 @@ bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
 /// \returns false if test wasn't launched (i.e.was skipped) and true otherwise
 template <typename F>
 bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true,
-                         std::string exception_string = "") {
+                         bool exception_expected = false) {
   bool result = false;
   try {
     result = launchInlineASMTestImpl(f, requires_particular_sg_size);
   } catch (sycl::exception &e) {
     std::string what = e.what();
-    if (!exception_string.empty()) {
-      if (what.find(exception_string) != std::string::npos) {
-        std::cout << "Caught expected exception: " << what << std::endl;
-      } else {
-        std::cout << "Failed to catch expected exception: " << exception_string
-                  << std::endl;
-        throw e;
-      }
+    if (exception_expected &&
+        what.find("PI_ERROR_BUILD_PROGRAM_FAILURE") != std::string::npos) {
+      std::cout << "Caught expected exception: " << what << std::endl;
     } else {
-      std::cout << "Caught unexpected exception: " << std::endl;
+      std::cout << "Caught unexpected exception." << std::endl;
       throw e;
     }
   }

@@ -25,7 +25,6 @@ struct KernelFunctor {
 
 int main() {
   KernelFunctor f;
-  launchInlineASMTest(f, /* sg size */ true,
-                      /* exception string*/ "P3: undefined predicate variable");
+  launchInlineASMTest(f, /* sg size */ true, /* exception expected */ true);
   return 0;
 }
