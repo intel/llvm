@@ -54,7 +54,7 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
       MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
-  if (!Platform->MAlwaysRootDevice) {
+  if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice),
