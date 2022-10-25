@@ -163,5 +163,8 @@ TEST(PiMockTest, RedefineBeforeAPI) {
                       /*pi_queue_properties=*/0, &Queue);
 
   EXPECT_TRUE(GpiQueueCreateRedefineCalledBefore)
-      << "The additional function is not called after the original one";
+      << "The additional function is not called before the original one";
+
+  EXPECT_TRUE(nullptr == Queue) << "Queue is expected to be non-initialized as "
+                                   "the original function should not be called";
 }
