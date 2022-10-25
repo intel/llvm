@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -503,14 +504,7 @@ public:
 };
 
 /// Return true if the given \p Ty is a SYCL type.
-inline bool isSYCLType(Type Ty) {
-  return Ty.isa<mlir::sycl::ArrayType, mlir::sycl::IDType,
-                mlir::sycl::AccessorCommonType, mlir::sycl::AccessorType,
-                mlir::sycl::RangeType, mlir::sycl::NdRangeType,
-                mlir::sycl::AccessorImplDeviceType, mlir::sycl::ItemType,
-                mlir::sycl::ItemBaseType, mlir::sycl::NdItemType,
-                mlir::sycl::GroupType>();
-}
+inline bool isSYCLType(Type Ty) { return isa<SYCLDialect>(Ty.getDialect()); }
 
 } // namespace sycl
 } // namespace mlir
