@@ -110,7 +110,8 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+    Mock.redefineBefore<detail::PiApiKind::piKernelGetInfo>(
+        redefinedKernelGetInfo);
   }
 
 protected:

@@ -5115,19 +5115,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
-
-    // Add any predefined macros associated with intel_gpu* type targets
-    // passed in with -fsycl-targets
-    if (RawTriple.isSPIR() &&
-        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-      StringRef Device = JA.getOffloadingArch();
-      if (!Device.empty())
-        CmdArgs.push_back(Args.MakeArgString(
-            Twine("-D") + SYCL::gen::getGenDeviceMacro(Device)));
-    }
-    if (RawTriple.isSPIR() &&
-        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-      CmdArgs.push_back("-D__SYCL_TARGET_INTEL_X86_64__");
   }
 
   if (IsSYCL) {
@@ -5212,6 +5199,35 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back("-D_DLL");
         }
       }
+    }
+    // Add any predefined macros associated with intel_gpu* type targets
+    // passed in with -fsycl-targets
+    // TODO: Macros are populated during device compilations and saved for
+    // addition to the host compilation. There is no dependence connection
+    // between device and host where we should be able to use the offloading
+    // arch to add the macro to the host compile.
+    auto addTargetMacros = [&](const llvm::Triple &Triple) {
+      if (!Triple.isSPIR())
+        return;
+      SmallString<64> Macro;
+      if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        StringRef Device = JA.getOffloadingArch();
+        if (!Device.empty()) {
+          Macro = "-D";
+          Macro += SYCL::gen::getGenDeviceMacro(Device);
+        }
+      } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+        Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
+      if (Macro.size()) {
+        CmdArgs.push_back(Args.MakeArgString(Macro));
+        D.addSYCLTargetMacroArg(Args, Macro);
+      }
+    };
+    if (IsSYCLOffloadDevice)
+      addTargetMacros(RawTriple);
+    else {
+      for (auto &Macro : D.getSYCLTargetMacroArgs())
+        CmdArgs.push_back(Args.MakeArgString(Macro));
     }
   }
 

@@ -125,8 +125,6 @@ template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
 
 // Accessor property trait specializations
-template <> struct is_property<property::noinit> : std::true_type {};
-template <> struct is_property<property::no_init> : std::true_type {};
 template <>
 struct is_property<ext::oneapi::property::no_offset> : std::true_type {};
 template <>

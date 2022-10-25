@@ -30,7 +30,7 @@ TEST(PiInteropTest, CheckRetain) {
 
   // The queue construction should not call to piQueueRetain. Instead
   // piQueueCreate should return the "retained" queue.
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  Mock.redefineBefore<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
   queue Q{Ctx, default_selector()};
   EXPECT_TRUE(QueueRetainCalled == 0);
 
