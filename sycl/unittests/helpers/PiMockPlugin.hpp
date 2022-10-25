@@ -406,7 +406,7 @@ inline pi_result
 mock_piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
                           pi_buffer_create_type buffer_create_type,
                           void *buffer_create_info, pi_mem *ret_mem) {
-  // Create a sub buf without memory as we will reuse parant's one
+  // Create a sub buf without memory as we will reuse parent's one
   *ret_mem = createDummyHandle<pi_mem>(/*size=*/0);
 
   auto parentDummyHandle = reinterpret_cast<DummyHandlePtrT>(buffer);
