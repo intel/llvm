@@ -30,6 +30,7 @@ add_clang_executable(cgeist
   Lib/CGCall.cc
   Lib/CGExpr.cc
   Lib/CGStmt.cc
+  Lib/CodeGenTypes.cc  
   Lib/IfScope.cc
   Lib/pragmaHandler.cc
   Lib/TargetInfo.cc  
@@ -71,8 +72,10 @@ target_link_libraries(cgeist PRIVATE
   MLIROpenMPToLLVM
   MLIROpenMPToLLVMIRTranslation
   MLIRSYCLToLLVM
+  MLIRSYCLTransforms
   
   LLVMSYCLLowerIR
+  LLVMPasses
 
   clangAST
   clangBasic

@@ -33,6 +33,10 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
     OS << "sycl_range_" << Range.getDimension();
     return AliasResult::FinalAlias;
   }
+  if (const auto NdRange = Type.dyn_cast<mlir::sycl::NdRangeType>()) {
+    OS << "sycl_nd_range_" << NdRange.getDimension();
+    return AliasResult::FinalAlias;
+  }
   if (const auto AccDev = Type.dyn_cast<mlir::sycl::AccessorImplDeviceType>()) {
     OS << "sycl_accessor_impl_device_" << AccDev.getDimension();
     return AliasResult::FinalAlias;

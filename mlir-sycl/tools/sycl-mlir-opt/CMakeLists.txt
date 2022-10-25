@@ -2,6 +2,7 @@ set(LIBS
   MLIRMlirOptMain
   MLIRSYCLDialect
   MLIRSYCLToLLVM
+  MLIRSYCLTransforms
 )
 
 add_mlir_tool(sycl-mlir-opt

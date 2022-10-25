@@ -1,14 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
-//===--- kernels.cpp ------------------------------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
-// clang-format off
 // RUN: clang++ -fsycl -fsycl-device-only -emit-mlir %s -o - 2> /dev/null| FileCheck %s --check-prefix=CHECK-MLIR
 // RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -36,8 +25,8 @@
 // CHECK-MLIR-SAME:  [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR-NOT: gpu.func kernel
 
-// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* byval([[RANGE_TY]]) align 8 {{.*}}, [[RANGE_TY]]* byval([[RANGE_TY]]) align 8 {{.*}}, 
-// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* byval([[ID_TY]]) align 8 {{.*}}) #1
+// CHECK-LLVM: define weak_odr spir_kernel void @_ZTS8kernel_1(i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, [[RANGE_TY]]* noundef byval([[RANGE_TY]]) align 8 {{.*}}, 
+// CHECK-LLVM-SAME:  [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) align 8 {{.*}}) #1
 class kernel_1 {
  sycl::accessor<sycl::cl_int, 1, sycl::access::mode::read_write> A;
 

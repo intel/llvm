@@ -5,10 +5,12 @@
 // CHECK: llvm.func @test_id(%arg0: !llvm.[[ID_1:struct<"class.sycl::_V1::id.*", \(]][[ARRAY_1]][[SUFFIX:\)>]], %arg1: !llvm.[[ID_1]][[ARRAY_1]][[SUFFIX]])
 // CHECK: llvm.func @test_range.1(%arg0: !llvm.[[RANGE_1:struct<"class.sycl::_V1::range.*", \(]][[ARRAY_1]][[SUFFIX]])
 // CHECK: llvm.func @test_range.2(%arg0: !llvm.[[RANGE_2:struct<"class.sycl::_V1::range.*", \(]][[ARRAY_2]][[SUFFIX]])
+// CHECK: llvm.func @test_nd_range.1(%arg0: !llvm.[[ND_RANGE_1:struct<"class.sycl::_V1::nd_range.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]]) {
+// CHECK: llvm.func @test_nd_range.2(%arg0: !llvm.[[ND_RANGE_2:struct<"class.sycl::_V1::nd_range.*", \(]][[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[ID_2:struct<"class.sycl::_V1::id.*", \(]][[ARRAY_2]][[SUFFIX]][[SUFFIX]]) {
 // CHECK: llvm.func @test_accessorImplDevice(%arg0: !llvm.[[ACCESSORIMPLDEVICE_1:struct<"class.sycl::_V1::detail::AccessorImplDevice.*", \(]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_accessor_common(%arg0: !llvm.[[ACCESSOR_COMMON:struct<"class.sycl::_V1::detail::accessor_common", \(i8\)>]])
 // CHECK: llvm.func @test_accessor.1(%arg0: !llvm.[[ACCESSOR_1:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>)>)
-// CHECK: llvm.func @test_accessor.2(%arg0: !llvm.[[ACCESSOR_2:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_2:struct<"class.sycl::_V1::detail::AccessorImplDevice.*", \(]][[ID_2:struct<"class.sycl::_V1::id.*", \(]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>)>)
+// CHECK: llvm.func @test_accessor.2(%arg0: !llvm.[[ACCESSOR_2:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_2:struct<"class.sycl::_V1::detail::AccessorImplDevice.*", \(]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>)>)
 // CHECK: llvm.func @test_item_base.true(%arg0: !llvm.[[ITEM_BASE_1_TRUE:struct<"struct.sycl::_V1::detail::ItemBase.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_item_base.false(%arg0: !llvm.[[ITEM_BASE_1_FALSE:struct<"struct.sycl::_V1::detail::ItemBase.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]])
 // CHECK: llvm.func @test_item.true(%arg0: !llvm.[[ITEM_1_TRUE:struct<"class.sycl::_V1::item.*", \(]][[ITEM_BASE_1_TRUE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]][[SUFFIX]])
@@ -30,6 +32,12 @@ module {
     return
   }
   func.func @test_range.2(%arg0: !sycl.range<2>) {
+    return
+  }
+  func.func @test_nd_range.1(%arg0: !sycl.nd_range<[1], (!sycl.range<1>, !sycl.range<1>, !sycl.id<1>)>) {
+    return
+  }
+  func.func @test_nd_range.2(%arg0: !sycl.nd_range<[2], (!sycl.range<2>, !sycl.range<2>, !sycl.id<2>)>) {
     return
   }
   func.func @test_accessorImplDevice(%arg0: !sycl.accessor_impl_device<[1], (!sycl.id<1>, !sycl.range<1>, !sycl.range<1>)>) {

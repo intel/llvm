@@ -48,7 +48,7 @@ jobs:
     needs: ubuntu2004_build_test
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: sycl_linux_default
         path: devops/

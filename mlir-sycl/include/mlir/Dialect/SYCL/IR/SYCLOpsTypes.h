@@ -1,5 +1,3 @@
-// Copyright (C) Codeplay Software Limited
-
 //===--- SYCLOpsTypes.h ---------------------------------------------------===//
 //
 // MLIR-SYCL is under the Apache License v2.0 with LLVM Exceptions.
@@ -12,6 +10,8 @@
 #define MLIR_SYCL_OPS_TYPES_H_
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -141,6 +141,32 @@ struct RangeTypeStorage : public TypeStorage {
   }
 
   unsigned int Dimension;
+};
+
+struct NdRangeTypeStorage : public TypeStorage {
+  using KeyTy = std::tuple<unsigned int, llvm::SmallVector<mlir::Type, 4>>;
+
+  NdRangeTypeStorage(const KeyTy &Key)
+      : Dimension(std::get<0>(Key)), Body(std::get<1>(Key)) {}
+
+  bool operator==(const KeyTy &Key) const {
+    return Key == KeyTy{Dimension, Body};
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &Key) {
+    return llvm::hash_combine(std::get<0>(Key), std::get<1>(Key));
+  }
+
+  static KeyTy getKey(const KeyTy &Key) { return KeyTy{Key}; }
+
+  static NdRangeTypeStorage *construct(TypeStorageAllocator &Allocator,
+                                       const KeyTy &Key) {
+    return new (Allocator.allocate<NdRangeTypeStorage>())
+        NdRangeTypeStorage(Key);
+  }
+
+  unsigned int Dimension;
+  llvm::SmallVector<mlir::Type, 4> Body;
 };
 
 struct AccessorImplDeviceStorage : public TypeStorage {
@@ -380,6 +406,22 @@ public:
   unsigned int getDimension() const;
 };
 
+class NdRangeType
+    : public Type::TypeBase<NdRangeType, Type, detail::NdRangeTypeStorage,
+                            mlir::MemRefElementTypeInterface::Trait,
+                            mlir::LLVM::PointerElementTypeInterface::Trait> {
+public:
+  using Base::Base;
+
+  static mlir::sycl::NdRangeType get(MLIRContext *Context,
+                                     unsigned int Dimension,
+                                     llvm::SmallVector<mlir::Type, 4> Body);
+  static mlir::Type parseType(mlir::DialectAsmParser &Parser);
+
+  unsigned int getDimension() const;
+  llvm::ArrayRef<mlir::Type> getBody() const;
+};
+
 class AccessorImplDeviceType
     : public Type::TypeBase<AccessorImplDeviceType, Type,
                             detail::AccessorImplDeviceStorage,
@@ -460,6 +502,9 @@ public:
   unsigned int getDimension() const;
   llvm::ArrayRef<mlir::Type> getBody() const;
 };
+
+/// Return true if the given \p Ty is a SYCL type.
+inline bool isSYCLType(Type Ty) { return isa<SYCLDialect>(Ty.getDialect()); }
 
 } // namespace sycl
 } // namespace mlir

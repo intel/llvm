@@ -16,8 +16,7 @@
 #include "mlir/Conversion/SYCLToLLVM/DialectBuilder.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOpsTypes.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -200,6 +199,14 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
                                        LLVMTypeConverter &converter) {
   return convertRangeOrIDTy(type.getDimension(), "class.sycl::_V1::range",
                             converter);
+}
+
+/// Converts SYCL nd_range type to LLVM type.
+static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
+                                         LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::nd_range." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -388,6 +395,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::RangeType type) {
     return convertRangeType(type, typeConverter);
   });
+  typeConverter.addConversion([&](sycl::NdRangeType type) {
+    return convertNdRangeType(type, typeConverter);
+  });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(
@@ -397,12 +407,4 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
   patterns.add<CallPattern>(typeConverter);
   patterns.add<CastPattern>(typeConverter);
   patterns.add<ConstructorPattern>(typeConverter);
-}
-
-bool mlir::sycl::isSYCLType(Type type) {
-  return type.isa<mlir::sycl::IDType, mlir::sycl::AccessorCommonType,
-                  mlir::sycl::AccessorType, mlir::sycl::RangeType,
-                  mlir::sycl::AccessorImplDeviceType, mlir::sycl::ArrayType,
-                  mlir::sycl::ItemType, mlir::sycl::ItemBaseType,
-                  mlir::sycl::NdItemType, mlir::sycl::GroupType>();
 }
