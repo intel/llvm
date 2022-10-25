@@ -2376,12 +2376,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     return getTypeInfo(cast<UsingType>(T)->desugar().getTypePtr());
 
   case Type::Typedef: {
-    const TypedefNameDecl *Typedef = cast<TypedefType>(T)->getDecl();
-    TypeInfo Info = getTypeInfo(Typedef->getUnderlyingType().getTypePtr());
+    const auto *TT = cast<TypedefType>(T);
+    TypeInfo Info = getTypeInfo(TT->desugar().getTypePtr());
     // If the typedef has an aligned attribute on it, it overrides any computed
     // alignment we have.  This violates the GCC documentation (which says that
     // attribute(aligned) can only round up) but matches its implementation.
-    if (unsigned AttrAlign = Typedef->getMaxAlignment()) {
+    if (unsigned AttrAlign = TT->getDecl()->getMaxAlignment()) {
       Align = AttrAlign;
       AlignRequirement = AlignRequirementKind::RequiredByTypedef;
     } else {
@@ -4650,34 +4650,60 @@ QualType ASTContext::getTypeDeclTypeSlow(const TypeDecl *Decl) const {
 /// specified typedef name decl.
 QualType ASTContext::getTypedefType(const TypedefNameDecl *Decl,
                                     QualType Underlying) const {
-  if (Decl->TypeForDecl) return QualType(Decl->TypeForDecl, 0);
+  if (!Decl->TypeForDecl) {
+    if (Underlying.isNull())
+      Underlying = Decl->getUnderlyingType();
+    auto *NewType = new (*this, TypeAlignment) TypedefType(
+        Type::Typedef, Decl, QualType(), getCanonicalType(Underlying));
+    Decl->TypeForDecl = NewType;
+    Types.push_back(NewType);
+    return QualType(NewType, 0);
+  }
+  if (Underlying.isNull() || Decl->getUnderlyingType() == Underlying)
+    return QualType(Decl->TypeForDecl, 0);
+  assert(hasSameType(Decl->getUnderlyingType(), Underlying));
 
-  if (Underlying.isNull())
-    Underlying = Decl->getUnderlyingType();
-  QualType Canonical = getCanonicalType(Underlying);
-  auto *newType = new (*this, TypeAlignment)
-      TypedefType(Type::Typedef, Decl, Underlying, Canonical);
-  Decl->TypeForDecl = newType;
-  Types.push_back(newType);
-  return QualType(newType, 0);
+  llvm::FoldingSetNodeID ID;
+  TypedefType::Profile(ID, Decl, Underlying);
+
+  void *InsertPos = nullptr;
+  if (TypedefType *T = TypedefTypes.FindNodeOrInsertPos(ID, InsertPos)) {
+    assert(!T->typeMatchesDecl() &&
+           "non-divergent case should be handled with TypeDecl");
+    return QualType(T, 0);
+  }
+
+  void *Mem =
+      Allocate(TypedefType::totalSizeToAlloc<QualType>(true), TypeAlignment);
+  auto *NewType = new (Mem) TypedefType(Type::Typedef, Decl, Underlying,
+                                        getCanonicalType(Underlying));
+  TypedefTypes.InsertNode(NewType, InsertPos);
+  Types.push_back(NewType);
+  return QualType(NewType, 0);
 }
 
 QualType ASTContext::getUsingType(const UsingShadowDecl *Found,
                                   QualType Underlying) const {
   llvm::FoldingSetNodeID ID;
-  UsingType::Profile(ID, Found);
+  UsingType::Profile(ID, Found, Underlying);
 
   void *InsertPos = nullptr;
-  UsingType *T = UsingTypes.FindNodeOrInsertPos(ID, InsertPos);
-  if (T)
+  if (UsingType *T = UsingTypes.FindNodeOrInsertPos(ID, InsertPos))
     return QualType(T, 0);
 
-  assert(!Underlying.hasLocalQualifiers());
-  assert(Underlying == getTypeDeclType(cast<TypeDecl>(Found->getTargetDecl())));
-  QualType Canon = Underlying.getCanonicalType();
+  const Type *TypeForDecl =
+      cast<TypeDecl>(Found->getTargetDecl())->getTypeForDecl();
 
-  UsingType *NewType =
-      new (*this, TypeAlignment) UsingType(Found, Underlying, Canon);
+  assert(!Underlying.hasLocalQualifiers());
+  QualType Canon = Underlying->getCanonicalTypeInternal();
+  assert(TypeForDecl->getCanonicalTypeInternal() == Canon);
+
+  if (Underlying.getTypePtr() == TypeForDecl)
+    Underlying = QualType();
+  void *Mem =
+      Allocate(UsingType::totalSizeToAlloc<QualType>(!Underlying.isNull()),
+               TypeAlignment);
+  UsingType *NewType = new (Mem) UsingType(Found, Underlying, Canon);
   Types.push_back(NewType);
   UsingTypes.InsertNode(NewType, InsertPos);
   return QualType(NewType, 0);
@@ -5593,30 +5619,31 @@ QualType ASTContext::getObjCInterfaceType(const ObjCInterfaceDecl *Decl,
 /// multiple declarations that refer to "typeof(x)" all contain different
 /// DeclRefExpr's. This doesn't effect the type checker, since it operates
 /// on canonical type's (which are always unique).
-QualType ASTContext::getTypeOfExprType(Expr *tofExpr) const {
+QualType ASTContext::getTypeOfExprType(Expr *tofExpr, TypeOfKind Kind) const {
   TypeOfExprType *toe;
   if (tofExpr->isTypeDependent()) {
     llvm::FoldingSetNodeID ID;
-    DependentTypeOfExprType::Profile(ID, *this, tofExpr);
+    DependentTypeOfExprType::Profile(ID, *this, tofExpr,
+                                     Kind == TypeOfKind::Unqualified);
 
     void *InsertPos = nullptr;
-    DependentTypeOfExprType *Canon
-      = DependentTypeOfExprTypes.FindNodeOrInsertPos(ID, InsertPos);
+    DependentTypeOfExprType *Canon =
+        DependentTypeOfExprTypes.FindNodeOrInsertPos(ID, InsertPos);
     if (Canon) {
       // We already have a "canonical" version of an identical, dependent
       // typeof(expr) type. Use that as our canonical type.
-      toe = new (*this, TypeAlignment) TypeOfExprType(tofExpr,
-                                          QualType((TypeOfExprType*)Canon, 0));
+      toe = new (*this, TypeAlignment)
+          TypeOfExprType(tofExpr, Kind, QualType((TypeOfExprType *)Canon, 0));
     } else {
       // Build a new, canonical typeof(expr) type.
-      Canon
-        = new (*this, TypeAlignment) DependentTypeOfExprType(*this, tofExpr);
+      Canon = new (*this, TypeAlignment)
+          DependentTypeOfExprType(*this, tofExpr, Kind);
       DependentTypeOfExprTypes.InsertNode(Canon, InsertPos);
       toe = Canon;
     }
   } else {
     QualType Canonical = getCanonicalType(tofExpr->getType());
-    toe = new (*this, TypeAlignment) TypeOfExprType(tofExpr, Canonical);
+    toe = new (*this, TypeAlignment) TypeOfExprType(tofExpr, Kind, Canonical);
   }
   Types.push_back(toe);
   return QualType(toe, 0);
@@ -5627,9 +5654,10 @@ QualType ASTContext::getTypeOfExprType(Expr *tofExpr) const {
 /// memory savings. Since typeof(t) is fairly uncommon, space shouldn't be
 /// an issue. This doesn't affect the type checker, since it operates
 /// on canonical types (which are always unique).
-QualType ASTContext::getTypeOfType(QualType tofType) const {
+QualType ASTContext::getTypeOfType(QualType tofType, TypeOfKind Kind) const {
   QualType Canonical = getCanonicalType(tofType);
-  auto *tot = new (*this, TypeAlignment) TypeOfType(tofType, Canonical);
+  auto *tot =
+      new (*this, TypeAlignment) TypeOfType(tofType, Canonical, Kind);
   Types.push_back(tot);
   return QualType(tot, 0);
 }
@@ -12977,7 +13005,15 @@ static QualType getCommonSugarTypeNode(ASTContext &Ctx, const Type *X,
     return Ctx.getTypedefType(CD, Ctx.getQualifiedType(Underlying));
   }
   case Type::TypeOf:
-    return Ctx.getTypeOfType(Ctx.getQualifiedType(Underlying));
+    // The common sugar between two typeof expressions, where one is
+    // potentially a typeof_unqual and the other is not, we unify to the
+    // qualified type as that retains the most information along with the type.
+    // We only return a typeof_unqual type when both types are unqual types.
+    return Ctx.getTypeOfType(Ctx.getQualifiedType(Underlying),
+                             cast<TypeOfType>(X)->isUnqual() &&
+                                     cast<TypeOfType>(Y)->isUnqual()
+                                 ? TypeOfKind::Unqualified
+                                 : TypeOfKind::Qualified);
   case Type::TypeOfExpr:
     return QualType();
 
@@ -13286,7 +13322,7 @@ QualType ASTContext::getCorrespondingSignedFixedPointType(QualType Ty) const {
 ParsedTargetAttr
 ASTContext::filterFunctionTargetAttrs(const TargetAttr *TD) const {
   assert(TD != nullptr);
-  ParsedTargetAttr ParsedAttr = TD->parse();
+  ParsedTargetAttr ParsedAttr = Target->parseTargetAttr(TD->getFeaturesStr());
 
   llvm::erase_if(ParsedAttr.Features, [&](const std::string &Feat) {
     return !Target->isValidFeatureName(StringRef{Feat}.substr(1));
@@ -13320,9 +13356,8 @@ void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
         Target->getTargetOpts().FeaturesAsWritten.begin(),
         Target->getTargetOpts().FeaturesAsWritten.end());
 
-    if (ParsedAttr.Architecture != "" &&
-        Target->isValidCPUName(ParsedAttr.Architecture))
-      TargetCPU = ParsedAttr.Architecture;
+    if (ParsedAttr.CPU != "" && Target->isValidCPUName(ParsedAttr.CPU))
+      TargetCPU = ParsedAttr.CPU;
 
     // Now populate the feature map, first with the TargetCPU which is either
     // the default or a new one from the target attribute string. Then we'll use

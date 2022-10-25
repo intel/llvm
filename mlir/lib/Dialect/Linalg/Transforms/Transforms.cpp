@@ -13,7 +13,7 @@
 
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -172,7 +172,7 @@ static FailureOr<Value> padOperandToSmallestStaticBoundingBox(
     OpBuilder &b, linalg::LinalgOp opToPad, OpOperand *opOperand,
     ArrayRef<int64_t> paddingDimensions, ArrayRef<Attribute> paddingValues,
     ArrayRef<bool> packPaddings) {
-  AffineMap indexingMap = opToPad.getTiedIndexingMap(opOperand);
+  AffineMap indexingMap = opToPad.getMatchingIndexingMap(opOperand);
   ArrayRef<int64_t> shape = opToPad.getShape(opOperand);
 
   // Collect the shape dimension that are a function of the `paddingDimensions`.
@@ -630,7 +630,7 @@ static SmallVector<StringRef> getNParallelLoopsAttrs(unsigned nParallelLoops) {
   return SmallVector<StringRef>(nParallelLoops, getParallelIteratorTypeName());
 }
 
-/// Rewrite a tensor::PadOp into a sequence of InitTensorOp, FillOp (to
+/// Rewrite a tensor::PadOp into a sequence of EmptyOp, FillOp (to
 /// initialize with pad_val) and GenericOp (to copy contents).
 LogicalResult
 PadOpTransformationPattern::matchAndRewrite(tensor::PadOp padOp,
@@ -661,13 +661,13 @@ PadOpTransformationPattern::matchAndRewrite(tensor::PadOp padOp,
   Location loc = padOp.getLoc();
   SmallVector<Value> indices(resultShapedType.getRank(),
                              rewriter.create<arith::ConstantIndexOp>(loc, 0));
-  Value initTensor = rewriter.create<InitTensorOp>(
+  Value emptyTensor = rewriter.create<tensor::EmptyOp>(
       loc, resultShapedType.getShape(), resultShapedType.getElementType());
 
   // Initialize tensor with the pad value
   Value tmpTensor = rewriter
                         .create<linalg::FillOp>(loc, ValueRange{padValue},
-                                                ValueRange{initTensor})
+                                                ValueRange{emptyTensor})
                         .result();
 
   // Copy original contents into new tensor
@@ -725,8 +725,7 @@ GeneralizePadOpPattern::matchAndRewrite(tensor::PadOp padOp,
   };
 
   auto resultType = padOp.getResultType();
-  // Compute size of InitTensorOp. Any combination of static/dynamic is
-  // supported.
+  // Compute size of EmptyOp. Any combination of static/dynamic is supported.
   SmallVector<Value> dynSizes;
   SmallVector<int64_t> staticSizes;
   for (unsigned dim = 0; dim < resultType.getRank(); ++dim) {
@@ -744,9 +743,9 @@ GeneralizePadOpPattern::matchAndRewrite(tensor::PadOp padOp,
   }
 
   // Init tensor and fill it with padding.
-  Value init = rewriter.create<InitTensorOp>(
-      padOp.getLoc(), dynSizes, staticSizes, resultType.getElementType());
-  Value fill = createFillOrGenerateOp(rewriter, padOp, init, dynSizes);
+  Value emptyTensor = rewriter.create<tensor::EmptyOp>(
+      padOp.getLoc(), staticSizes, resultType.getElementType(), dynSizes);
+  Value fill = createFillOrGenerateOp(rewriter, padOp, emptyTensor, dynSizes);
 
   // Try optimize the copy of source.
   if (optimizeCopyFn && optimizeCopyFn(rewriter, padOp, fill).succeeded())

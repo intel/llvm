@@ -72,6 +72,11 @@
 // RUN: %clang_cl -### -fsycl-device-only -fno-sycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-LAMBDA
 // CHECK-NOT-LAMBDA: "-fno-sycl-unnamed-lambda"
 
+// -fsycl-force-inline-kernel-lambda
+// RUN: %clangxx -### -fsycl-device-only -fno-sycl-force-inline-kernel-lambda  %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// RUN: %clang_cl -### -fsycl-device-only -fno-sycl-force-inline-kernel-lambda  %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// CHECK-NOT-INLINE: "-fno-sycl-force-inline-kernel-lambda"
+
 /// -fsycl-device-only triple checks
 // RUN: %clang -fsycl-device-only -target x86_64-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-64 %s
@@ -144,3 +149,8 @@
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 
 // DEFAULT_STD: "-sycl-std=2020"
+
+/// Verify correct match of offload arch with multiple sycl targets
+// RUN: %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_86 -c -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=MULTIPLE_TARGETS
+// MULTIPLE_TARGETS: offload, "device-sycl (nvptx64-nvidia-cuda:sm_86)"
+// MULTIPLE_TARGETS: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)"

@@ -164,13 +164,21 @@ static void traceDeviceSelector(const std::string &DeviceType) {
   bool ShouldTrace = false;
   ShouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
   if (ShouldTrace) {
-    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType << std::endl;
+    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType
+              << std::endl;
   }
 }
 
 __SYCL_EXPORT int default_selector_v(const device &dev) {
   // The default selector doesn't reject any devices.
   int Score = 0;
+
+  // we give the esimd_emulator device a score of zero to prevent it from being
+  // chosen among other devices. The same thing is done for gpu_selector_v
+  // below.
+  if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
+    return 0;
+  }
 
   traceDeviceSelector("info::device_type::automatic");
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
@@ -196,6 +204,10 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
 
 __SYCL_EXPORT int gpu_selector_v(const device &dev) {
   int Score = detail::REJECT_DEVICE_SCORE;
+
+  if (dev.get_backend() == backend::ext_intel_esimd_emulator) {
+    return 0;
+  }
 
   traceDeviceSelector("info::device_type::gpu");
   if (dev.is_gpu()) {
@@ -233,6 +245,31 @@ int host_selector::operator()(const device &dev) const {
   std::ignore = dev;
   traceDeviceSelector("info::device_type::host");
   return detail::REJECT_DEVICE_SCORE;
+}
+
+__SYCL_EXPORT detail::DSelectorInvocableType
+aspect_selector(const std::vector<aspect> &RequireList,
+                const std::vector<aspect> &DenyList /* ={} */) {
+  return [=](const sycl::device &Dev) {
+    auto DevHas = [&](const aspect &Asp) -> bool { return Dev.has(Asp); };
+
+    // All aspects from require list are required.
+    if (!std::all_of(RequireList.begin(), RequireList.end(), DevHas))
+      return detail::REJECT_DEVICE_SCORE;
+
+    // No aspect from deny list is allowed
+    if (std::any_of(DenyList.begin(), DenyList.end(), DevHas))
+      return detail::REJECT_DEVICE_SCORE;
+
+    if (RequireList.size() > 0) {
+      return 1000 + detail::getDevicePreference(Dev);
+    } else {
+      // No required aspects specified.
+      // SYCL 2020 4.6.1.1 "If no aspects are passed in, the generated selector
+      // behaves like default_selector."
+      return default_selector_v(Dev);
+    }
+  };
 }
 
 // -------------- SYCL 1.2.1

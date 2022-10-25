@@ -30,20 +30,23 @@ namespace detail {
 /// implementation classes. It is needed to detect the reduction classes.
 class reduction_impl_base {};
 
+/// Predicate returning true if a type is a reduction.
+template <typename T> struct IsReduction {
+  static constexpr bool value =
+      std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
+};
+
 /// Predicate returning true if all template type parameters except the last one
 /// are reductions.
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
   static constexpr bool value =
-      std::is_base_of<reduction_impl_base,
-                      std::remove_reference_t<FirstT>>::value &&
-      AreAllButLastReductions<RestT...>::value;
+      IsReduction<FirstT>::value && AreAllButLastReductions<RestT...>::value;
 };
 
 /// Helper specialization of AreAllButLastReductions for one element only.
 /// Returns true if the template parameter is not a reduction.
 template <typename T> struct AreAllButLastReductions<T> {
-  static constexpr bool value =
-      !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
+  static constexpr bool value = !IsReduction<T>::value;
 };
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
@@ -247,16 +250,16 @@ private:
   void atomic_combine_impl(T *ReduVarPtr, AtomicFunctor Functor) const {
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
-      auto AtomicRef =
-          sycl::atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(),
-                           Space>(multi_ptr<T, Space>(ReduVarPtr)[E]);
+      auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
+                                        getMemoryScope<Space>(), Space>(
+          address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
       Functor(AtomicRef, reducer->getElement(E));
     }
   }
 
   template <class _T, access::address_space Space, class BinaryOp>
   static constexpr bool BasicCheck =
-      std::is_same<typename remove_AS<_T>::type, Ty>::value &&
+      std::is_same<remove_decoration_t<_T>, Ty>::value &&
       (Space == access::address_space::global_space ||
        Space == access::address_space::local_space);
 
@@ -298,7 +301,7 @@ public:
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, _T>::value &&
+  enable_if_t<std::is_same<remove_decoration_t<_T>, _T>::value &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitAND<_T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
@@ -856,11 +859,12 @@ namespace main_krn {
 template <class KernelName> struct RangeFastAtomics;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                    const range<Dims> &Range,
                                    const nd_range<1> &NDRange,
-                                   Reduction &Redu) {
+                                   PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   auto GroupSum = Reduction::getReadWriteLocalAcc(NElements, CGH);
@@ -868,7 +872,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                        KernelName>;
   size_t NWorkGroups = NDRange.get_group_range().size();
   size_t PerGroup = Range.size() / NWorkGroups;
-  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+  CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
@@ -902,10 +906,12 @@ namespace main_krn {
 template <class KernelName, class NWorkGroupsFinished> struct RangeFastReduce;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
                                   const range<Dims> &Range,
-                                  const nd_range<1> &NDRange, Reduction &Redu) {
+                                  const nd_range<1> &NDRange,
+                                  PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = NDRange.get_local_range().size();
   size_t NWorkGroups = NDRange.get_group_range().size();
@@ -925,7 +931,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
     using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
                                          KernelName, decltype(NWorkGroupsFinished)>;
     size_t PerGroup = Range.size() / NWorkGroups;
-    CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+    CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
       // Call user's functions. Reducer.MValue gets initialized there.
       typename Reduction::reducer_type Reducer;
       reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
@@ -1006,10 +1012,12 @@ namespace main_krn {
 template <class KernelName> struct RangeBasic;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
                              const range<Dims> &Range,
-                             const nd_range<1> &NDRange, Reduction &Redu) {
+                             const nd_range<1> &NDRange, PropertiesT Properties,
+                             Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = NDRange.get_local_range().size();
   size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1031,7 +1039,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::RangeBasic, KernelName>;
   size_t PerGroup = Range.size() / NWorkGroups;
-  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+  CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(Identity, BOp);
     reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
@@ -1119,10 +1127,12 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
 
 /// Returns "true" if the result has to be saved to user's variable by
 /// reduSaveFinalResultToUserMem.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
-                        uint32_t NumConcurrentWorkGroups, Reduction &Redu) {
+                        uint32_t NumConcurrentWorkGroups,
+                        PropertiesT Properties, Reduction &Redu) {
   size_t NWorkItems = Range.size();
   size_t WGSize = std::min(NWorkItems, MaxWGSize);
   size_t NWorkGroups = NWorkItems / WGSize;
@@ -1135,13 +1145,13 @@ bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
 
   if constexpr (Reduction::has_fast_reduce)
     return reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range,
-                                                    NDRange, Redu);
+                                                    NDRange, Properties, Redu);
   else if constexpr (Reduction::has_fast_atomics)
     return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
-                                                     NDRange, Redu);
+                                                     NDRange, Properties, Redu);
   else
     return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                               Redu);
+                                               Properties, Redu);
 }
 
 namespace reduction {
@@ -1158,16 +1168,17 @@ template <class KernelName> struct NDRangeBothFastReduceAndAtomics;
 ///
 /// Briefly: calls user's lambda, reduce() + atomic, INT +
 /// ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
                                                   KernelType KernelFunc,
                                                   const nd_range<Dims> &Range,
+                                                  PropertiesT Properties,
                                                   Reduction &, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   using Name = __sycl_reduction_kernel<
       reduction::main_krn::NDRangeBothFastReduceAndAtomics, KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -1195,12 +1206,13 @@ template <class KernelName> struct NDRangeFastAtomicsOnly;
 /// user's reduction variable.
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
                                          KernelType KernelFunc,
                                          const nd_range<Dims> &Range,
-                                         Reduction &, AccTy Out) {
+                                         PropertiesT Properties, Reduction &,
+                                         AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
 
@@ -1214,7 +1226,7 @@ void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeFastAtomicsOnly,
                               KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -1276,11 +1288,12 @@ template <class KernelName> struct NDRangeFastReduceOnly;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, reduce(), FP + ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
                                         const nd_range<Dims> &Range,
-                                        Reduction &Redu, AccTy Out) {
+                                        PropertiesT Properties, Reduction &Redu,
+                                        AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserVar =
@@ -1289,7 +1302,7 @@ void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeFastReduceOnly,
                               KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -1323,11 +1336,12 @@ template <class KernelName> struct NDRangeBasic;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
                                KernelType KernelFunc,
-                               const nd_range<Dims> &Range, Reduction &Redu,
+                               const nd_range<Dims> &Range,
+                               PropertiesT Properties, Reduction &Redu,
                                AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
@@ -1346,7 +1360,7 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeBasic, KernelName>;
   auto BOp = Redu.getBinaryOperation();
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(ReduIdentity, BOp);
     KernelFunc(NDIt, Reducer);
@@ -1969,9 +1983,9 @@ template <class KernelName, class Accessor> struct NDRangeMulti;
 } // namespace main_krn
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims,
-          typename... Reductions, size_t... Is>
+          typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
-                     const nd_range<Dims> &Range,
+                     const nd_range<Dims> &Range, PropertiesT Properties,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = Range.get_local_range().size();
@@ -2010,7 +2024,7 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
 
     using Name = __sycl_reduction_kernel<reduction::main_krn::NDRangeMulti,
                                          KernelName, decltype(OutAccsTuple)>;
-    CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+    CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
       // Pass all reductions to user's lambda in the same order as supplied
       // Each reducer initializes its own storage
       auto ReduIndices = std::index_sequence_for<Reductions...>();
@@ -2050,9 +2064,11 @@ template <class KernelName> struct NDRangeAtomic64;
 
 // Specialization for devices with the atomic64 aspect, which guarantees 64 bit
 // floating point support for atomic reduction operation.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
-                        const nd_range<Dims> &Range, Reduction &Redu) {
+                        const nd_range<Dims> &Range, PropertiesT Properties,
+                        Reduction &Redu) {
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   static_assert(
       Reduction::has_float64_atomics,
@@ -2060,7 +2076,7 @@ void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
   size_t NElements = Reduction::num_elements;
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeAtomic64, KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -2229,9 +2245,11 @@ void reduAuxCGFuncImplArray(
    ...);
 }
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 void reduCGFunc(handler &CGH, KernelType KernelFunc,
-                const nd_range<Dims> &Range, Reduction &Redu) {
+                const nd_range<Dims> &Range, PropertiesT Properties,
+                Reduction &Redu) {
   size_t WGSize = Range.get_local_range().size();
   auto Out = [&]() {
     if constexpr (Reduction::has_fast_atomics) {
@@ -2257,19 +2275,19 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
   if constexpr (Reduction::has_fast_reduce) {
     if constexpr (Reduction::has_fast_atomics) {
       reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu, Out);
     } else {
       reduCGFuncForNDRangeFastReduceOnly<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu, Out);
     }
   } else {
     bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
     if constexpr (Reduction::has_fast_atomics) {
       reduCGFuncForNDRangeFastAtomicsOnly<KernelName, KernelType>(
-          CGH, IsPow2WG, KernelFunc, Range, Redu, Out);
+          CGH, IsPow2WG, KernelFunc, Range, Properties, Redu, Out);
     } else {
       reduCGFuncForNDRangeBasic<KernelName, KernelType>(
-          CGH, IsPow2WG, KernelFunc, Range, Redu, Out);
+          CGH, IsPow2WG, KernelFunc, Range, Properties, Redu, Out);
     }
   }
 }

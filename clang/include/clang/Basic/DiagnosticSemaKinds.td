@@ -598,6 +598,8 @@ def warn_cxx17_compat_using_decl_class_member_enumerator : Warning<
   "with C++ standards before C++20">, InGroup<CXXPre20Compat>, DefaultIgnore;
 def err_using_enum_is_dependent : Error<
   "using-enum cannot name a dependent type">;
+def err_using_enum_not_enum : Error<
+  "%0 is not an enumerated type">;
 def err_ambiguous_inherited_constructor : Error<
   "constructor of %0 inherited from multiple base class subobjects">;
 def note_ambiguous_inherited_constructor_using : Note<
@@ -3090,7 +3092,7 @@ def warn_unsupported_branch_protection_spec : Warning<
   "unsupported branch protection specification '%0'">, InGroup<BranchProtection>;
 
 def warn_unsupported_target_attribute
-    : Warning<"%select{unsupported|duplicate|unknown}0%select{| architecture|"
+    : Warning<"%select{unsupported|duplicate|unknown}0%select{| CPU|"
               " tune CPU}1 '%2' in the '%select{target|target_clones}3' "
               "attribute string; '%select{target|target_clones}3' "
               "attribute ignored">,
@@ -5483,6 +5485,12 @@ def err_typename_refers_to_using_value_decl : Error<
   "%0 in %1">;
 def note_using_value_decl_missing_typename : Note<
   "add 'typename' to treat this using declaration as a type">;
+def warn_cxx17_compat_implicit_typename : Warning<"use of implicit 'typename' is "
+  "incompatible with C++ standards before C++20">, InGroup<CXX20Compat>,
+  DefaultIgnore;
+def ext_implicit_typename : ExtWarn<"missing 'typename' prior to dependent "
+  "type name %0%1; implicit 'typename' is a C++20 extension">,
+  InGroup<CXX20>;
 
 def err_template_kw_refers_to_non_template : Error<
   "%0%select{| following the 'template' keyword}1 "
@@ -6575,7 +6583,8 @@ def err_sizeof_alignof_function_type : Error<
 def err_openmp_default_simd_align_expr : Error<
   "invalid application of '__builtin_omp_required_simd_align' to an expression, only type is allowed">;
 def err_sizeof_alignof_typeof_bitfield : Error<
-  "invalid application of '%select{sizeof|alignof|typeof}0' to bit-field">;
+  "invalid application of '%select{sizeof|alignof|typeof|typeof_unqual}0' to "
+  "bit-field">;
 def err_alignof_member_of_incomplete_type : Error<
   "invalid application of 'alignof' to a field of a class still being defined">;
 def err_vecstep_non_scalar_vector_type : Error<
@@ -9146,6 +9155,11 @@ def err_operator_overload_needs_class_or_enum : Error<
   "or enumeration type">;
 
 def err_operator_overload_variadic : Error<"overloaded %0 cannot be variadic">;
+def ext_operator_overload_static : ExtWarn<
+  "declaring overloaded %0 as 'static' is a C++2b extension">,
+  InGroup<CXXPre2bCompat>, DefaultIgnore;
+def err_call_operator_overload_static : ExtWarn<
+  "declaring overloaded %0 as 'static' is a C++2b extension">, InGroup<CXX2b>;
 def err_operator_overload_static : Error<
   "overloaded %0 cannot be a static member function">;
 def err_operator_overload_default_arg : Error<
@@ -10376,8 +10390,8 @@ def warn_opencl_generic_address_space_arg : Warning<
   "passing non-generic address space pointer to %0"
   " may cause dynamic conversion affecting performance">,
   InGroup<Conversion>, DefaultIgnore;
-def err_bad_union_kernel_param_members : Error<
-  "%0 cannot be used inside a union kernel parameter">;
+def err_bad_kernel_param_data_members : Error<
+  "%0 cannot be a data member of a %select{union|struct}1 kernel parameter">;
 
 // OpenCL v2.0 s6.13.6 -- Builtin Pipe Functions
 def err_opencl_builtin_pipe_first_arg : Error<
@@ -11873,6 +11887,9 @@ def err_sycl_add_ir_attribute_invalid_value : Error<
 def err_sycl_add_ir_attribute_invalid_filter : Error<
   "initializer list in the first argument of %0 must contain only string "
   "literals">;
+def warn_sycl_old_and_new_kernel_attributes : Warning<
+  "kernel has both attribute %0 and kernel properties; conflicting properties "
+  "are ignored">, InGroup<IgnoredAttributes>;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<

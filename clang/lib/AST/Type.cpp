@@ -3440,25 +3440,34 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
 }
 
 TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D,
-                         QualType underlying, QualType can)
-    : Type(tc, can, toSemanticDependence(underlying->getDependence())),
+                         QualType Underlying, QualType can)
+    : Type(tc, can, toSemanticDependence(can->getDependence())),
       Decl(const_cast<TypedefNameDecl *>(D)) {
   assert(!isa<TypedefType>(can) && "Invalid canonical type");
+  TypedefBits.hasTypeDifferentFromDecl = !Underlying.isNull();
+  if (!typeMatchesDecl())
+    *getTrailingObjects<QualType>() = Underlying;
 }
 
 QualType TypedefType::desugar() const {
-  return getDecl()->getUnderlyingType();
+  return typeMatchesDecl() ? Decl->getUnderlyingType()
+                           : *getTrailingObjects<QualType>();
 }
 
 UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
                      QualType Canon)
-    : Type(Using, Canon, toSemanticDependence(Underlying->getDependence())),
+    : Type(Using, Canon, toSemanticDependence(Canon->getDependence())),
       Found(const_cast<UsingShadowDecl *>(Found)) {
-  assert(Underlying == getUnderlyingType());
+  UsingBits.hasTypeDifferentFromDecl = !Underlying.isNull();
+  if (!typeMatchesDecl())
+    *getTrailingObjects<QualType>() = Underlying;
 }
 
 QualType UsingType::getUnderlyingType() const {
-  return QualType(cast<TypeDecl>(Found->getTargetDecl())->getTypeForDecl(), 0);
+  return typeMatchesDecl()
+             ? QualType(
+                   cast<TypeDecl>(Found->getTargetDecl())->getTypeForDecl(), 0)
+             : *getTrailingObjects<QualType>();
 }
 
 QualType MacroQualifiedType::desugar() const { return getUnderlyingType(); }
@@ -3475,27 +3484,37 @@ QualType MacroQualifiedType::getModifiedType() const {
   return Inner;
 }
 
-TypeOfExprType::TypeOfExprType(Expr *E, QualType can)
-    : Type(TypeOfExpr, can,
+TypeOfExprType::TypeOfExprType(Expr *E, TypeOfKind Kind, QualType Can)
+    : Type(TypeOfExpr,
+           // We have to protect against 'Can' being invalid through its
+           // default argument.
+           Kind == TypeOfKind::Unqualified && !Can.isNull()
+               ? Can.getAtomicUnqualifiedType()
+               : Can,
            toTypeDependence(E->getDependence()) |
                (E->getType()->getDependence() &
                 TypeDependence::VariablyModified)),
-      TOExpr(E) {}
+      TOExpr(E) {
+  TypeOfBits.IsUnqual = Kind == TypeOfKind::Unqualified;
+}
 
 bool TypeOfExprType::isSugared() const {
   return !TOExpr->isTypeDependent();
 }
 
 QualType TypeOfExprType::desugar() const {
-  if (isSugared())
-    return getUnderlyingExpr()->getType();
-
+  if (isSugared()) {
+    QualType QT = getUnderlyingExpr()->getType();
+    return isUnqual() ? QT.getAtomicUnqualifiedType() : QT;
+  }
   return QualType(this, 0);
 }
 
 void DependentTypeOfExprType::Profile(llvm::FoldingSetNodeID &ID,
-                                      const ASTContext &Context, Expr *E) {
+                                      const ASTContext &Context, Expr *E,
+                                      bool IsUnqual) {
   E->Profile(ID, Context, true);
+  ID.AddBoolean(IsUnqual);
 }
 
 DecltypeType::DecltypeType(Expr *E, QualType underlyingType, QualType can)
