@@ -61,8 +61,10 @@ type of bfloat16 support (all native support or all fallback support).
 There is a similar limitation when AOT compiling for one Intel GPU device and
 running on a different Intel GPU device. In this case, the compiler chooses
 either fallback or native bfloat16 support according to the device(s) specified
-on the command line. If the fallback library had been chosen at AOT compilation
-time, then the binary will run on all Intel GPU devices. If however, the native
+on the command line. If the fallback library was chosen at AOT compilation
+time, then the binary will run on all Intel GPU devices but you will not
+get the performance benefit of native support even when running on a new
+Intel GPU that has native support. If however, the native
 bfloat16 library had been chosen at AOT compilation time then the binary
 will run only on Intel GPU devices that have native bfloat16 support.
 ====
