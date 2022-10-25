@@ -45,7 +45,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NATIVE
 
-// test that an AOT-CPU + AOT-Gen9-win compilation uses fallback + native libs
+// test that an AOT-CPU + AOT-Gen9 compilation uses fallback + native libs
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
 

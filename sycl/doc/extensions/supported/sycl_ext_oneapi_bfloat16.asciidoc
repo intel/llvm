@@ -44,6 +44,28 @@ This extension is written against the SYCL 2020 specification, Revision 5.
 == Status
 
 This extension is implemented and fully supported by DPC++.
+[NOTE]
+====
+The DPC++ compiler has the following limitation when using this extension
+in conjunction with ahead-of-time (AOT) compilation with the `-fsycl-targets`
+compiler option.  When doing AOT compilation for an Intel GPU device via
+`-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device ..."`,
+the compiler chooses either fallback or native support for bfloat16 according
+to the device(s) specified in `...`.  Native support is used only if all of
+these devices have native bfloat16 support.  As a result, AOT compiling for
+multiple Intel GPU devices could result in the lower performance fallback
+support even when running on a GPU that has native support.  Therefore, the
+recommendation is to use AOT only when all Intel GPU devices have the same
+type of bfloat16 support (all native support or all fallback support).
+
+There is a similar limitation when AOT compiling for one Intel GPU device and
+running on a different Intel GPU device. In this case, the compiler chooses
+either fallback or native bfloat16 support according to the device(s) specified
+on the command line. If the fallback library had been chosen at AOT compilation
+time, then the binary will run on all Intel GPU devices. If however, the native
+bfloat16 library had been chosen at AOT compilation time then the binary
+will run only on Intel GPU devices that have native bfloat16 support.
+====
 
 
 == Overview
