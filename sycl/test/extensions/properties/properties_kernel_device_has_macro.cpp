@@ -38,6 +38,12 @@ void Func2() {}
 // TODO: Check that SYCL_EXTERNAL when the attributes are correctly attached to
 //       device functions with external linkage.
 
+// Due to a current restriction on attribute lists not being applicable after a
+// __attribute__ specifier, SYCL_EXT_ONEAPI_FUNCTION_PROPERTY cannot currently
+// be used after SYCL_EXTERNAL.
+// TODO: Add test for SYCL_EXT_ONEAPI_FUNCTION_PROPERTY after SYCL_EXTERNAL when
+//       the above restriction is loosened.
+
 int main() {
   queue Q;
   Q.single_task([]() {
