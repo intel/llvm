@@ -1573,18 +1573,6 @@ reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   });
 }
 
-/// For the given 'Reductions' types pack and indices enumerating only
-/// the reductions for which a local accessors are needed, this function creates
-/// those local accessors and returns a tuple consisting of them.
-template <typename... Reductions, size_t... Is>
-auto createReduLocalAccs(size_t Size, handler &CGH,
-                         std::index_sequence<Is...>) {
-  return makeReduTupleT(
-      local_accessor<typename std::tuple_element_t<
-                         Is, std::tuple<Reductions...>>::result_type,
-                     1>{Size, CGH}...);
-}
-
 /// For the given 'Reductions' types pack and indices enumerating them this
 /// function either creates new temporary accessors for partial sums (if IsOneWG
 /// is false) or returns user's accessor/USM-pointer if (IsOneWG is true).
@@ -1597,95 +1585,6 @@ auto createReduOutAccs(size_t NWorkGroups, handler &CGH,
           NWorkGroups *
               std::tuple_element_t<Is, std::tuple<Reductions...>>::num_elements,
           CGH)...);
-}
-
-/// For the given 'Reductions' types pack and indices enumerating them this
-/// function returns accessors to buffers holding partial sums generated in the
-/// previous kernel invocation.
-template <typename... Reductions, size_t... Is>
-auto getReadAccsToPreviousPartialReds(handler &CGH,
-                                      std::tuple<Reductions...> &ReduTuple,
-                                      std::index_sequence<Is...>) {
-  return makeReduTupleT(
-      std::get<Is>(ReduTuple).getReadAccToPreviousPartialReds(CGH)...);
-}
-
-template <typename... Reductions, size_t... Is>
-ReduTupleT<typename Reductions::result_type...>
-getReduIdentities(std::tuple<Reductions...> &ReduTuple,
-                  std::index_sequence<Is...>) {
-  return {std::get<Is>(ReduTuple).getIdentity()...};
-}
-
-template <typename... Reductions, size_t... Is>
-ReduTupleT<typename Reductions::binary_operation...>
-getReduBOPs(std::tuple<Reductions...> &ReduTuple, std::index_sequence<Is...>) {
-  return {std::get<Is>(ReduTuple).getBinaryOperation()...};
-}
-
-template <typename... Reductions, size_t... Is>
-std::array<bool, sizeof...(Reductions)>
-getInitToIdentityProperties(std::tuple<Reductions...> &ReduTuple,
-                            std::index_sequence<Is...>) {
-  return {std::get<Is>(ReduTuple).initializeToIdentity()...};
-}
-
-template <typename... Reductions, size_t... Is>
-std::tuple<typename Reductions::reducer_type...>
-createReducers(ReduTupleT<typename Reductions::result_type...> Identities,
-               ReduTupleT<typename Reductions::binary_operation...> BOPsTuple,
-               std::index_sequence<Is...>) {
-  return {typename Reductions::reducer_type{std::get<Is>(Identities),
-                                            std::get<Is>(BOPsTuple)}...};
-}
-
-template <typename KernelType, int Dims, typename... ReducerT, size_t... Is>
-void callReduUserKernelFunc(KernelType KernelFunc, nd_item<Dims> NDIt,
-                            std::tuple<ReducerT...> &Reducers,
-                            std::index_sequence<Is...>) {
-  KernelFunc(NDIt, std::get<Is>(Reducers)...);
-}
-
-template <typename... LocalAccT, typename... ReducerT, typename... ResultT,
-          size_t... Is>
-void initReduLocalAccs(bool Pow2WG, size_t LID, size_t WGSize,
-                       ReduTupleT<LocalAccT...> LocalAccs,
-                       const std::tuple<ReducerT...> &Reducers,
-                       ReduTupleT<ResultT...> Identities,
-                       std::index_sequence<Is...>) {
-  ((std::get<Is>(LocalAccs)[LID] = std::get<Is>(Reducers).MValue), ...);
-
-  // For work-groups, which size is not power of two, local accessors have
-  // an additional element with index WGSize that is used by the tree-reduction
-  // algorithm. Initialize those additional elements with identity values here.
-  if (!Pow2WG)
-    ((std::get<Is>(LocalAccs)[WGSize] = std::get<Is>(Identities)), ...);
-}
-
-template <typename... LocalAccT, typename... InputAccT, typename... ResultT,
-          size_t... Is>
-void initReduLocalAccs(bool UniformPow2WG, size_t LID, size_t GID,
-                       size_t NWorkItems, size_t WGSize,
-                       ReduTupleT<InputAccT...> LocalAccs,
-                       ReduTupleT<LocalAccT...> InputAccs,
-                       ReduTupleT<ResultT...> Identities,
-                       std::index_sequence<Is...>) {
-  // Normally, the local accessors are initialized with elements from the input
-  // accessors. The exception is the case when (GID >= NWorkItems), which
-  // possible only when UniformPow2WG is false. For that case the elements of
-  // local accessors are initialized with identity value, so they would not
-  // give any impact into the final partial sums during the tree-reduction
-  // algorithm work.
-  if (UniformPow2WG || GID < NWorkItems)
-    ((std::get<Is>(LocalAccs)[LID] = std::get<Is>(InputAccs)[GID]), ...);
-  else
-    ((std::get<Is>(LocalAccs)[LID] = std::get<Is>(Identities)), ...);
-
-  // For work-groups, which size is not power of two, local accessors have
-  // an additional element with index WGSize that is used by the tree-reduction
-  // algorithm. Initialize those additional elements with identity values here.
-  if (!UniformPow2WG)
-    ((std::get<Is>(LocalAccs)[WGSize] = std::get<Is>(Identities)), ...);
 }
 
 template <typename... LocalAccT, typename... BOPsT, size_t... Is>
@@ -1826,8 +1725,16 @@ void reduCGFuncImplScalar(
     std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = NDIt.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
-  initReduLocalAccs(Pow2WG, LID, WGSize, LocalAccsTuple, ReducersTuple,
-                    IdentitiesTuple, ReduIndices);
+
+  ((std::get<Is>(LocalAccsTuple)[LID] = std::get<Is>(ReducersTuple).MValue),
+   ...);
+
+  // For work-groups, which size is not power of two, local accessors have
+  // an additional element with index WGSize that is used by the tree-reduction
+  // algorithm. Initialize those additional elements with identity values here.
+  if (!Pow2WG)
+    ((std::get<Is>(LocalAccsTuple)[WGSize] = std::get<Is>(IdentitiesTuple)),
+     ...);
   NDIt.barrier();
 
   size_t PrevStep = WGSize;
@@ -1963,8 +1870,10 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
 
   // Create inputs using the global order of all reductions
   size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
+
   auto LocalAccsTuple =
-      createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
+      makeReduTupleT(local_accessor<typename Reductions::result_type, 1>{
+          LocalAccSize, CGH}...);
 
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsOneWG = NWorkGroups == 1;
@@ -1973,10 +1882,12 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
   // one WorkGroup and when there are multiple. Use this lambda to write the
   // code just once.
   auto Rest = [&](auto OutAccsTuple) {
-    auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
-    auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
-    auto InitToIdentityProps =
-        getInitToIdentityProperties(ReduTuple, ReduIndices);
+    auto IdentitiesTuple =
+        makeReduTupleT(std::get<Is>(ReduTuple).getIdentity()...);
+    auto BOPsTuple =
+        makeReduTupleT(std::get<Is>(ReduTuple).getBinaryOperation()...);
+    std::array InitToIdentityProps{
+        std::get<Is>(ReduTuple).initializeToIdentity()...};
 
     using Name = __sycl_reduction_kernel<reduction::main_krn::NDRangeMulti,
                                          KernelName, decltype(OutAccsTuple)>;
@@ -1984,9 +1895,10 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
       // Pass all reductions to user's lambda in the same order as supplied
       // Each reducer initializes its own storage
       auto ReduIndices = std::index_sequence_for<Reductions...>();
-      auto ReducersTuple = createReducers<Reductions...>(
-          IdentitiesTuple, BOPsTuple, ReduIndices);
-      callReduUserKernelFunc(KernelFunc, NDIt, ReducersTuple, ReduIndices);
+      auto ReducersTuple = std::tuple{typename Reductions::reducer_type{
+          std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple)}...};
+      std::apply([&](auto &...Reducers) { KernelFunc(NDIt, Reducers...); },
+                 ReducersTuple);
 
       // Combine and write-back the results of any scalar reductions
       // reduCGFuncImplScalar<Reductions...>(NDIt, LocalAccsTuple, OutAccsTuple,
@@ -2076,8 +1988,24 @@ void reduAuxCGFuncImplScalar(
     ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
-  initReduLocalAccs(UniformPow2WG, LID, GID, NWorkItems, WGSize, LocalAccsTuple,
-                    InAccsTuple, IdentitiesTuple, ReduIndices);
+  // Normally, the local accessors are initialized with elements from the input
+  // accessors. The exception is the case when (GID >= NWorkItems), which
+  // possible only when UniformPow2WG is false. For that case the elements of
+  // local accessors are initialized with identity value, so they would not
+  // give any impact into the final partial sums during the tree-reduction
+  // algorithm work.
+  ((std::get<Is>(LocalAccsTuple)[LID] = UniformPow2WG || GID < NWorkItems
+                                            ? std::get<Is>(InAccsTuple)[GID]
+                                            : std::get<Is>(IdentitiesTuple)),
+   ...);
+
+  // For work-groups, which size is not power of two, local accessors have
+  // an additional element with index WGSize that is used by the tree-reduction
+  // algorithm. Initialize those additional elements with identity values here.
+  if (!UniformPow2WG)
+    ((std::get<Is>(LocalAccsTuple)[WGSize] = std::get<Is>(IdentitiesTuple)),
+     ...);
+
   NDIt.barrier();
 
   size_t PrevStep = WGSize;
@@ -2272,14 +2200,17 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
 
   size_t LocalAccSize = WGSize + (HasUniformWG ? 0 : 1);
   auto LocalAccsTuple =
-      createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
-  auto InAccsTuple =
-      getReadAccsToPreviousPartialReds(CGH, ReduTuple, ReduIndices);
+      makeReduTupleT(local_accessor<typename Reductions::result_type, 1>{
+          LocalAccSize, CGH}...);
+  auto InAccsTuple = makeReduTupleT(
+      std::get<Is>(ReduTuple).getReadAccToPreviousPartialReds(CGH)...);
 
-  auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
-  auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
-  auto InitToIdentityProps =
-      getInitToIdentityProperties(ReduTuple, ReduIndices);
+  auto IdentitiesTuple =
+      makeReduTupleT(std::get<Is>(ReduTuple).getIdentity()...);
+  auto BOPsTuple =
+      makeReduTupleT(std::get<Is>(ReduTuple).getBinaryOperation()...);
+  std::array InitToIdentityProps{
+      std::get<Is>(ReduTuple).initializeToIdentity()...};
 
   // Predicate/OutAccsTuple below have different type depending on us having
   // just a single WG or multiple WGs. Use this lambda to avoid code
