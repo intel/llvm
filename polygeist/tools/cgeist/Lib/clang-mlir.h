@@ -263,6 +263,10 @@ private:
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
 
+  /// Returns the MLIR Function type given clang's CGFunctionInfo \p FI.
+  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
+                                     const clang::FunctionDecl &FD);
+
   /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>
   getMLIRFunction(const std::string &mangledName,
@@ -529,6 +533,7 @@ public:
   VisitUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *Uop);
 
   ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
+  ValueCategory VisitBinAssign(clang::BinaryOperator *BO);
 
   ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
 

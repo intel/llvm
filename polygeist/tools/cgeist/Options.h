@@ -13,6 +13,7 @@
 #ifndef CGEIST_OPTIONS_H_
 #define CGEIST_OPTIONS_H_
 
+#include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/CommandLine.h"
 #include <string>
 
@@ -49,6 +50,34 @@ private:
   llvm::SmallVector<const char *> Args;
 };
 
+/// Class wrapping cgeist options.
+class CgeistOptions {
+public:
+  CgeistOptions(bool SYCLIsDevice,
+                const llvm::OptimizationLevel &OptimizationLevel)
+      : SYCLIsDevice(SYCLIsDevice), OptimizationLevel(OptimizationLevel) {}
+
+  constexpr bool syclIsDevice() const { return SYCLIsDevice; }
+
+  constexpr const llvm::OptimizationLevel &getOptimizationLevel() const {
+    return OptimizationLevel;
+  }
+
+  static constexpr bool DefaultSYCLIsDeviceOpt = false;
+  static const llvm::OptimizationLevel DefaultOptimizationLevelOpt;
+
+private:
+  /// Whether to generate MLIR only for kernels.
+  const bool SYCLIsDevice = DefaultSYCLIsDeviceOpt;
+  /// Optimization level to use.
+  ///
+  /// '-O2' is used by default.
+  const llvm::OptimizationLevel OptimizationLevel = DefaultOptimizationLevelOpt;
+};
+
+const llvm::OptimizationLevel CgeistOptions::DefaultOptimizationLevelOpt =
+    llvm::OptimizationLevel::O0;
+
 static llvm::cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static llvm::cl::opt<bool>
@@ -64,20 +93,15 @@ static llvm::cl::opt<bool> EmitOpenMPIR("emit-openmpir", llvm::cl::init(false),
 static llvm::cl::opt<bool> EmitAssembly("S", llvm::cl::init(false),
                                         llvm::cl::desc("Emit Assembly"));
 
-static llvm::cl::opt<bool> Opt0("O0", llvm::cl::init(false),
-                                llvm::cl::desc("Opt level 0"));
-static llvm::cl::opt<bool> Opt1("O1", llvm::cl::init(false),
-                                llvm::cl::desc("Opt level 1"));
-static llvm::cl::opt<bool> Opt2("O2", llvm::cl::init(false),
-                                llvm::cl::desc("Opt level 2"));
-static llvm::cl::opt<bool> Opt3("O3", llvm::cl::init(false),
-                                llvm::cl::desc("Opt level 3"));
-
 static llvm::cl::opt<bool> SCFOpenMP("scf-openmp", llvm::cl::init(true),
                                      llvm::cl::desc("Emit llvm"));
 
 static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
                                      llvm::cl::desc("Turn on openmp opt"));
+
+static llvm::cl::opt<bool>
+    DoNotOptimizeMLIR("no-opt-mlir", llvm::cl::init(false),
+                      llvm::cl::desc("Do not optimize MLIR"));
 
 static llvm::cl::opt<bool>
     ParallelLICM("parallel-licm", llvm::cl::init(true),

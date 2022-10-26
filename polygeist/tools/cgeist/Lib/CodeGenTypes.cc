@@ -29,6 +29,7 @@
 #include "llvm/IR/Assumptions.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "cgeist"
@@ -286,8 +287,9 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
       llvm::StructType *STy = dyn_cast<llvm::StructType>(AI.getCoerceToType());
 
       if (AI.isDirect() && AI.getCanBeFlattened() && STy)
-        llvm::errs() << "Warning: struct should be flattened but MLIR codegen "
-                        "cannot yet handle it. Needs to be fixed.";
+        llvm::WithColor::warning()
+            << "struct should be flattened but MLIR codegen "
+               "cannot yet handle it. Needs to be fixed.";
 
       if (AllowStructFlattening && AI.isDirect() && AI.getCanBeFlattened() &&
           STy) {
@@ -423,9 +425,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   case clang::CodeGen::ABIArgInfo::Indirect:
     if (!AllowSRet) {
       // HACK: remove once we can handle function returning a struct.
-      llvm::errs() << "Warning: function should return its value indirectly "
-                      "(as an extra reference parameter). This is not yet "
-                      "handled by the MLIR codegen\n";
+      llvm::WithColor::warning()
+          << "function should return its value indirectly "
+             "(as an extra reference parameter). This is not yet "
+             "handled by the MLIR codegen\n";
       QualType Ret = FI.getReturnType();
       ResultType = getMLIRType(Ret);
       break;
@@ -454,7 +457,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     mlir::Type Ty = getMLIRType(Ret);
     unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
     ArgTypes[IRFunctionArgs.getSRetArgNo()] =
-        mlir::MemRefType::get(-1, Ty, {}, AddressSpace);
+        getPointerOrMemRefType(Ty, AddressSpace);
   }
 
   // Add type for inalloca argument.
@@ -462,10 +465,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     llvm_unreachable("not implemented");
     auto ArgStruct = FI.getArgStruct();
     assert(ArgStruct);
-    //  auto Ty = LLVM::LLVMStructType::getLiteral(TheModule->getContext(),
-    //  ArgTys);
-    // ArgTypes[IRFunctionArgs.getInallocaArgNo()] =
-    //  mlir::MemRefType::get(-1, Ty, {}, 0);
+    // ArgTypes[IRFunctionArgs.getInallocaArgNo()] = ArgStruct->getPointerTo();
   }
 
   // Add in all of the required arguments.
@@ -1555,11 +1555,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
 mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 unsigned AddressSpace,
                                                 bool IsAlloc) {
+  auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>();
+
   bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
-  if (auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>())
+  if (ST)
     IsSYCLType |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
 
-  if (IsSYCLType)
+  if (!ST || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : -1, Ty, {}, AddressSpace);
 
   return LLVM::LLVMPointerType::get(Ty, AddressSpace);
