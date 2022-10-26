@@ -5632,7 +5632,10 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   pi_result Result = EventCreate(Context, nullptr, true, RetEvent);
   (*RetEvent)->RefCountExternal++;
-  return Result;
+  if (Result != PI_SUCCESS)
+    return Result;
+  ZE_CALL(zeEventHostSignal, ((*RetEvent)->ZeEvent));
+  return PI_SUCCESS;
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -8812,10 +8815,29 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     LastDeviceWithValidAllocation = Device;
     return PI_SUCCESS;
   }
+  // Reads user setting on how to deal with buffers in contexts where
+  // all devices have the same root-device. Returns "true" if the
+  // preference is to have allocate on each [sub-]device and migrate
+  // normally (copy) to other sub-devices as needed. Returns "false"
+  // if the preference is to have single root-device allocations
+  // serve the needs of all [sub-]devices, meaning potentially more
+  // cross-tile traffic.
+  //
+  static const bool SingleRootDeviceBufferMigration = [] {
+    const char *EnvStr =
+        std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION");
+    if (EnvStr)
+      return (std::stoi(EnvStr) != 0);
+    // The default is to migrate normally, which may not always be the
+    // best option (depends on buffer access patterns), but is an
+    // overall win on the set of the available benchmarks.
+    return true;
+  }();
 
   // Peform actual device allocation as needed.
   if (!Allocation.ZeHandle) {
-    if (Context->SingleRootDevice && Context->SingleRootDevice != Device) {
+    if (!SingleRootDeviceBufferMigration && Context->SingleRootDevice &&
+        Context->SingleRootDevice != Device) {
       // If all devices in the context are sub-devices of the same device
       // then we reuse root-device allocation by all sub-devices in the
       // context.

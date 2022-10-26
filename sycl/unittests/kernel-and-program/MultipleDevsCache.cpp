@@ -21,11 +21,24 @@
 
 using namespace sycl;
 
-static pi_result redefinedDevicesGetAfter(pi_platform platform,
-                                          pi_device_type device_type,
-                                          pi_uint32 num_entries,
-                                          pi_device *devices,
-                                          pi_uint32 *num_devices) {
+static pi_result redefinedContextCreate(
+    const pi_context_properties *properties, pi_uint32 num_devices,
+    const pi_device *devices,
+    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
+                       void *user_data),
+    void *user_data, pi_context *ret_context) {
+  *ret_context = reinterpret_cast<pi_context>(123);
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedContextRelease(pi_context context) {
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedDevicesGet(pi_platform platform,
+                                     pi_device_type device_type,
+                                     pi_uint32 num_entries, pi_device *devices,
+                                     pi_uint32 *num_devices) {
   if (num_devices) {
     *num_devices = static_cast<pi_uint32>(2);
     return PI_SUCCESS;
@@ -54,6 +67,31 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedDeviceRetain(pi_device device) { return PI_SUCCESS; }
+
+static pi_result redefinedDeviceRelease(pi_device device) { return PI_SUCCESS; }
+
+static pi_result redefinedQueueCreate(pi_context context, pi_device device,
+                                      pi_queue_properties properties,
+                                      pi_queue *queue) {
+  *queue = reinterpret_cast<pi_queue>(1234);
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedQueueRelease(pi_queue command_queue) {
+  return PI_SUCCESS;
+}
+
+static size_t ProgramNum = 12345;
+static pi_result redefinedProgramCreate(pi_context context, const void *il,
+                                        size_t length,
+                                        pi_program *res_program) {
+  size_t CurrentProgram = ProgramNum;
+  *res_program = reinterpret_cast<pi_program>(CurrentProgram);
+  ++ProgramNum;
+  return PI_SUCCESS;
+}
+
 static int RetainCounter = 0;
 static pi_result redefinedProgramRetain(pi_program program) {
   ++RetainCounter;
@@ -72,14 +110,17 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefineAfter<detail::PiApiKind::piDevicesGet>(
-        redefinedDevicesGetAfter);
-    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfo);
-    Mock.redefineBefore<detail::PiApiKind::piProgramRetain>(
-        redefinedProgramRetain);
-    Mock.redefineBefore<detail::PiApiKind::piKernelRelease>(
-        redefinedKernelRelease);
+    Mock.redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
+    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+    Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
+    Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
+    Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
+    Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+    Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
+    Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+    Mock.redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
+    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   }
 
 protected:
@@ -96,15 +137,15 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     sycl::queue Queue(Context, Devices[0]);
     assert(Devices.size() == 2 && Context.get_devices().size() == 2);
 
-    auto Bundle =
-        sycl::get_kernel_bundle<sycl::bundle_state::input>(Queue.get_context());
+    auto KernelID = sycl::get_kernel_id<TestKernel<>>();
+    auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+        Queue.get_context(), {KernelID});
     assert(Bundle.get_devices().size() == 2);
 
     Queue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 
     auto BundleObject = sycl::build(Bundle, Bundle.get_devices());
-    auto KernelID = sycl::get_kernel_id<TestKernel<>>();
     auto Kernel = BundleObject.get_kernel(KernelID);
 
     // Because of emulating 2 devices program is retained for each one in

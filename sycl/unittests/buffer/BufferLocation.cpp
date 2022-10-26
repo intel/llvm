@@ -43,11 +43,11 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfoAfter(pi_device device,
-                                             pi_device_info param_name,
-                                             size_t param_value_size,
-                                             void *param_value,
-                                             size_t *param_value_size_ret) {
+static pi_result redefinedDeviceGetInfo(pi_device device,
+                                        pi_device_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret) {
   if (param_name == PI_DEVICE_INFO_TYPE) {
     auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
     *Result = PI_DEVICE_TYPE_ACC;
@@ -58,15 +58,9 @@ static pi_result redefinedDeviceGetInfoAfter(pi_device device,
   }
   if (param_name == PI_DEVICE_INFO_EXTENSIONS) {
     const std::string name = "cl_intel_mem_alloc_buffer_location";
-
-    // Increase size by one for the null terminator
-    const size_t nameSize = name.size() + 1;
-
     if (!param_value) {
-      // Choose bigger size so that both original and redefined function
-      // has enough memory for storing the extension string
-      *param_value_size_ret =
-          nameSize > *param_value_size_ret ? nameSize : *param_value_size_ret;
+      // Increase size by one for the null terminator
+      *param_value_size_ret = name.size() + 1;
     } else {
       char *dst = static_cast<char *>(param_value);
       strcpy(dst, name.data());
@@ -81,10 +75,10 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
+    Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
-    Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfoAfter);
+    Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfo);
   }
 
 protected:
