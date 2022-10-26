@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Haohai Wen <haohai.wen@intel.com>
-    # Date:   Fri Jun 10 03:46:22 2022 +0000
-    # Format InstructionSimplify names
-    set(LLVMGenXIntrinsics_GIT_TAG abce9184b7a3a7fe1b02289b9285610d9dc45465)
+    # Author: Gregory Fine <gregory.fine@intel.com>
+    # Date:   Wed, 6 July 2022 16:00:33 +0000
+    # Add support for LLVM_LINK_LLVM_DYLIB option
+    set(LLVMGenXIntrinsics_GIT_TAG c456ff05bd8e11458772acef20e59ef18aa7876d)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
