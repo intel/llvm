@@ -119,6 +119,9 @@ if lit_config.params.get('gpu-intel-pvc', False):
 if lit_config.params.get('matrix', False):
     config.available_features.add('matrix')
 
+if lit_config.params.get('matrix-xmx8', False):
+    config.available_features.add('matrix-xmx8')
+
 #support for LIT parameter ze_debug<num>
 if lit_config.params.get('ze_debug'):
     config.ze_debug = lit_config.params.get('ze_debug')
