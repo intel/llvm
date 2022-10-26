@@ -81,6 +81,8 @@ extern int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0,
 extern int cc1gen_reproducer_main(ArrayRef<const char *> Argv,
                                   const char *Argv0, void *MainAddr);
 
+static llvm::ExitOnError ExitOnErr;
+
 std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   if (!CanonicalPrefixes) {
     SmallString<128> ExecutablePath(Argv0);
@@ -170,18 +172,6 @@ static int emitBinary(const char *Argv0, const char *filename,
   if (CUDAPath != "") {
     Argv.emplace_back("--cuda-path=", CUDAPath);
   }
-  if (Opt0) {
-    Argv.push_back("-O0");
-  }
-  if (Opt1) {
-    Argv.push_back("-O1");
-  }
-  if (Opt2) {
-    Argv.push_back("-O2");
-  }
-  if (Opt3) {
-    Argv.push_back("-O3");
-  }
   if (Output != "") {
     Argv.push_back("-o");
     Argv.push_back(Output);
@@ -231,7 +221,7 @@ static int emitBinary(const char *Argv0, const char *filename,
 #include "Lib/clang-mlir.cc"
 
 // Load MLIR Dialects.
-static void loadDialects(MLIRContext &context, const bool syclKernelsOnly) {
+static void loadDialects(MLIRContext &context, const bool syclIsDevice) {
   context.disableMultithreading();
   context.getOrLoadDialect<mlir::AffineDialect>();
   context.getOrLoadDialect<func::FuncDialect>();
@@ -247,7 +237,7 @@ static void loadDialects(MLIRContext &context, const bool syclKernelsOnly) {
   context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
 
-  if (syclKernelsOnly) {
+  if (syclIsDevice) {
     context.getOrLoadDialect<mlir::sycl::SYCLDialect>();
   }
 
@@ -264,12 +254,12 @@ static void loadDialects(MLIRContext &context, const bool syclKernelsOnly) {
 }
 
 // Register MLIR Dialects.
-static void registerDialects(MLIRContext &context, const bool syclKernelsOnly) {
+static void registerDialects(MLIRContext &context, const bool syclIsDevice) {
   mlir::DialectRegistry registry;
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
   context.appendDialectRegistry(registry);
-  loadDialects(context, syclKernelsOnly);
+  loadDialects(context, syclIsDevice);
 }
 
 // Enable various options for the passmanager
@@ -348,6 +338,7 @@ static int canonicalize(mlir::MLIRContext &context,
 
 // Optimize the MLIR.
 static int optimize(mlir::MLIRContext &context,
+                    const llvm::OptimizationLevel &OptimizationLevel,
                     mlir::OwningOpRef<mlir::ModuleOp> &module) {
   mlir::PassManager pm(&context);
   enableOptionsPM(pm);
@@ -359,7 +350,7 @@ static int optimize(mlir::MLIRContext &context,
   if (DetectReduction)
     optPM.addPass(polygeist::detectReductionPass());
 
-  if (!Opt0) {
+  if (!DoNotOptimizeMLIR) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(mlir::createCSEPass());
     // Affine must be lowered to enable inlining
@@ -680,14 +671,15 @@ static int finalize(mlir::MLIRContext &context,
 // Create and execute the MLIR transformations pipeline.
 static int createAndExecutePassPipeline(
     mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module,
-    llvm::DataLayout &DL, llvm::Triple &triple, bool &LinkOMP) {
+    llvm::DataLayout &DL, llvm::Triple &triple,
+    const llvm::OptimizationLevel &OptimizationLevel, bool &LinkOMP) {
   // MLIR canonicalization & cleanup.
   int rc = canonicalize(context, module);
   if (rc != 0)
     return rc;
 
   // MLIR optimizations.
-  rc = optimize(context, module);
+  rc = optimize(context, OptimizationLevel, module);
   if (rc != 0)
     return rc;
 
@@ -703,26 +695,13 @@ static int createAndExecutePassPipeline(
   return 0;
 }
 
-static llvm::Optional<llvm::OptimizationLevel> optionsToOptimizationLevel() {
-  if (Opt0)
-    return llvm::OptimizationLevel::O0;
-  if (Opt1)
-    return llvm::OptimizationLevel::O1;
-  if (Opt2)
-    return llvm::OptimizationLevel::O2;
-  if (Opt3)
-    return llvm::OptimizationLevel::O3;
-  // Not explicit optimization level not handled by cgeist
-  return llvm::None;
-}
-
 /// Run optimization pipeline in LLVM module.
 ///
 /// Just run default pipelines for now.
-static void runOptimizationPipeline(llvm::Module &module) {
-  const llvm::Optional<llvm::OptimizationLevel> optLevel =
-      optionsToOptimizationLevel();
-  if (!optLevel || optLevel->getSpeedupLevel() == 0) {
+static void
+runOptimizationPipeline(llvm::Module &module,
+                        const llvm::OptimizationLevel &OptimizationLevel) {
+  if (OptimizationLevel == llvm::OptimizationLevel::O0) {
     // No optimizations should be run in this case.
     return;
   }
@@ -740,7 +719,8 @@ static void runOptimizationPipeline(llvm::Module &module) {
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(*optLevel);
+  llvm::ModulePassManager MPM =
+      PB.buildPerModuleDefaultPipeline(OptimizationLevel);
 
   MPM.run(module, MAM);
 }
@@ -749,10 +729,12 @@ static void runOptimizationPipeline(llvm::Module &module) {
 static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
                          StringRef moduleId, mlir::MLIRContext &context,
                          llvm::DataLayout &DL, llvm::Triple &triple,
+                         const llvm::OptimizationLevel &OptimizationLevel,
                          const SmallVectorImpl<const char *> &LinkArgs,
                          const char *Argv0) {
   bool LinkOMP = FOpenMP;
-  int rc = createAndExecutePassPipeline(context, module, DL, triple, LinkOMP);
+  int rc = createAndExecutePassPipeline(context, module, DL, triple,
+                                        OptimizationLevel, LinkOMP);
   if (rc != 0) {
     llvm::errs() << "Failed to execute pass pipeline correctly, rc = " << rc
                  << ".\n";
@@ -790,7 +772,7 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
 
     if (emitBC || EmitLLVM) {
       // Not needed when emitting binary for now; will be handled by the driver.
-      runOptimizationPipeline(*llvmModule);
+      runOptimizationPipeline(*llvmModule, OptimizationLevel);
     }
 
     if (emitBC) {
@@ -841,32 +823,81 @@ static int compileModule(mlir::OwningOpRef<mlir::ModuleOp> &module,
   return 0;
 }
 
-static void setMLIROptLevel(llvm::StringRef Arg) {
-  switch (Arg[2]) {
-  case '0':
-    Opt0 = true;
-    break;
-  case '1':
-    Opt1 = true;
-    break;
-  case '2':
-    Opt2 = true;
-    break;
-  case '3':
-    Opt3 = true;
-    break;
+static llvm::OptimizationLevel
+getOptimizationLevel(unsigned OptimizationLevel) {
+  switch (OptimizationLevel) {
+  case 0:
+    return llvm::OptimizationLevel::O0;
+  case 1:
+    return llvm::OptimizationLevel::O1;
+  case 2:
+    return llvm::OptimizationLevel::O2;
+  case 3:
+    return llvm::OptimizationLevel::O3;
   default:
-    llvm::WithColor::warning()
-        << "Optimization level " << Arg << " not handled by cgeist\n";
+    // All speed levels above 2 are equivalent to '-O3'
+    llvm::WithColor::warning() << "optimization level '-O" << OptimizationLevel
+                               << "' is not supported; using '-O3' instead\n";
+  }
+  return llvm::OptimizationLevel::O3;
+}
+
+static llvm::Expected<llvm::OptimizationLevel>
+getOptimizationLevel(char OptimizationLevel) {
+  switch (OptimizationLevel) {
+  case 's':
+    return llvm::OptimizationLevel::Os;
+  case 'z':
+    return llvm::OptimizationLevel::Oz;
+  case 'g':
+    // '-Og' is equivalent to '-O1'
+    return llvm::OptimizationLevel::O1;
+  default:
+    return llvm::createStringError(
+        std::errc::invalid_argument,
+        "error: invalid integral value '%c' in '-O%c'", OptimizationLevel,
+        OptimizationLevel);
   }
 }
 
+static llvm::Expected<llvm::OptimizationLevel>
+parseOptimizationLevel(llvm::StringRef Arg) {
+  if (Arg.empty()) {
+    // -O and --optimize options are equivalent to -O1
+    return llvm::OptimizationLevel::O1;
+  }
+
+  if (Arg.startswith("fast")) {
+    // We handle -Ofast like -O3.
+    return llvm::OptimizationLevel::O3;
+  }
+
+  // Drop '=' from --optimize= args.
+  constexpr llvm::StringLiteral EqualsSignSuffix("=");
+  Arg.consume_front(EqualsSignSuffix);
+
+  constexpr unsigned Radix(10);
+  unsigned SpeedLevel;
+  if (!Arg.getAsInteger(Radix, SpeedLevel)) {
+    return getOptimizationLevel(SpeedLevel);
+  }
+
+  assert(Arg.size() == 1 &&
+         "Expecting 'g', 's' or 'z' encoding optimization level.");
+
+  return getOptimizationLevel(Arg.front());
+}
+
 // Split the input arguments into 2 sets (LinkageOpts, MLIROpts).
-static bool splitCommandLineOptions(int argc, char **argv,
-                                    SmallVector<const char *> &LinkageArgs,
-                                    SmallVector<const char *> &MLIRArgs) {
-  bool syclKernelsOnly = false;
+static CgeistOptions
+splitCommandLineOptions(int argc, char **argv,
+                        SmallVector<const char *> &LinkageArgs,
+                        SmallVector<const char *> &MLIRArgs) {
+  bool syclIsDevice = false;
   bool linkOnly = false;
+  bool ExplicitO0 = false;
+  llvm::OptimizationLevel OptimizationLevel =
+      CgeistOptions::DefaultOptimizationLevelOpt;
   for (int i = 0; i < argc; i++) {
     StringRef ref(argv[i]);
     if (ref == "-Wl,--start-group")
@@ -892,11 +923,15 @@ static bool splitCommandLineOptions(int argc, char **argv,
         MLIRArgs.push_back("-I");
         MLIRArgs.push_back(&argv[i][2]);
       } else if (ref == "-fsycl-is-device") {
-        syclKernelsOnly = true;
+        syclIsDevice = true;
         MLIRArgs.push_back(argv[i]);
-      } else if (ref.startswith("-O")) {
-        setMLIROptLevel(argv[i]);
+      } else if (ref.consume_front("-O") || ref.consume_front("--optimize")) {
+        // If several flags are passed, we keep the last one.
+        OptimizationLevel = ExitOnErr(parseOptimizationLevel(ref));
+        ExplicitO0 = OptimizationLevel == llvm::OptimizationLevel::O0;
         LinkageArgs.push_back(argv[i]);
+      } else if (ref == "-no-opt-mlir") {
+        MLIRArgs.push_back(argv[i]);
       } else if (ref == "-g")
         LinkageArgs.push_back(argv[i]);
       else
@@ -908,7 +943,14 @@ static bool splitCommandLineOptions(int argc, char **argv,
       linkOnly = false;
   }
 
-  return syclKernelsOnly;
+  if (ExplicitO0) {
+    // TODO: '-O0' (default) should always imply '-no-opt-mlir', but this would
+    // imply updating so many tests. Drop '-no-opt-mlir' and implement correct
+    // '-O0' behavior.
+    MLIRArgs.push_back("-no-opt-mlir");
+  }
+
+  return {syclIsDevice, OptimizationLevel};
 }
 
 // Fill the module with the MLIR in the inputFile.
@@ -943,7 +985,7 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
                               mlir::MLIRContext &context,
                               mlir::OwningOpRef<ModuleOp> &module,
                               llvm::DataLayout &DL, llvm::Triple &triple,
-                              const char *Argv0, bool syclKernelsOnly) {
+                              const char *Argv0, bool syclIsDevice) {
   assert(!inputFiles.empty() && "inputFiles should not be empty");
 
   // Ensure all input files can be opened.
@@ -982,7 +1024,7 @@ static void processInputFiles(const cl::list<std::string> &inputFiles,
   }
 
   // Generate MLIR for the C/C++ files.
-  std::string fn = (!syclKernelsOnly) ? cfunction.getValue() : "";
+  std::string fn = (!syclIsDevice) ? cfunction.getValue() : "";
   parseMLIR(Argv0, files, fn, includeDirs, defines, module, triple, DL,
             commands);
 }
@@ -1012,7 +1054,7 @@ int main(int argc, char **argv) {
 
   // Split up the arguments into MLIR and linkage arguments.
   SmallVector<const char *> LinkageArgs, MLIRArgs;
-  bool syclKernelsOnly =
+  const CgeistOptions Options =
       splitCommandLineOptions(argc, argv, LinkageArgs, MLIRArgs);
   assert(!MLIRArgs.empty() && "MLIRArgs should not be empty");
 
@@ -1036,7 +1078,7 @@ int main(int argc, char **argv) {
 
   // Register MLIR dialects.
   mlir::MLIRContext context;
-  registerDialects(context, syclKernelsOnly);
+  registerDialects(context, Options.syclIsDevice());
 
   // Generate MLIR for the input files.
   mlir::OpBuilder Builder(&context);
@@ -1049,7 +1091,7 @@ int main(int argc, char **argv) {
   llvm::DataLayout DL("");
   llvm::Triple triple;
   processInputFiles(inputFileNames, inputCommandArgs, context, module, DL,
-                    triple, argv[0], syclKernelsOnly);
+                    triple, argv[0], Options.syclIsDevice());
 
   LLVM_DEBUG({
     llvm::dbgs() << "Initial MLIR:\n";
@@ -1074,5 +1116,6 @@ int main(int argc, char **argv) {
   return compileModule(module,
                        inputFileNames.size() == 1 ? inputFileNames[0]
                                                   : "LLVMDialectModule",
-                       context, DL, triple, LinkageArgs, argv[0]);
+                       context, DL, triple, Options.getOptimizationLevel(),
+                       LinkageArgs, argv[0]);
 }
