@@ -177,6 +177,8 @@ private:
   bool error;
   ScopLocList scopLocList;
   LowerToInfo LTInfo;
+  std::map<const clang::FunctionDecl *, const clang::CodeGen::CGFunctionInfo *>
+      CGFunctionInfos;
 
 public:
   static constexpr llvm::StringLiteral DeviceModuleName{"device_functions"};
@@ -236,6 +238,9 @@ public:
                     bool tryInit = true,
                     FunctionContext funcContext = FunctionContext::Host);
 
+  const clang::CodeGen::CGFunctionInfo &
+  GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);
+
   void run();
 
   void HandleTranslationUnit(clang::ASTContext &Context) override;
@@ -253,6 +258,10 @@ private:
 
   /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
   static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
+
+  /// Returns the MLIR Function type given clang's CGFunctionInfo \p FI.
+  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
+                                     const clang::FunctionDecl &FD);
 
   /// Returns the MLIR function corresponding to \p mangledName.
   llvm::Optional<mlir::FunctionOpInterface>
@@ -479,7 +488,8 @@ public:
   ValueCategory
   CallHelper(mlir::func::FuncOp tocall, clang::QualType objType,
              clang::ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
-             clang::QualType retType, bool retReference, clang::Expr *expr);
+             clang::QualType retType, bool retReference, clang::Expr *expr,
+             const clang::FunctionDecl *callee);
 
   std::pair<ValueCategory, bool>
   EmitClangBuiltinCallExpr(clang::CallExpr *expr);

@@ -82,7 +82,10 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
 
   return mlir::TypeSwitch<mlir::Type, mlir::LogicalResult>(
              getOperand(1).getType())
-      .Case<mlir::sycl::IDType>([&](auto IDTy) -> mlir::LogicalResult {
+      .Case<mlir::MemRefType>([&](auto MemRefTy) -> mlir::LogicalResult {
+        Type ElemTy = MemRefTy.getElementType();
+        auto IDTy = ElemTy.dyn_cast<mlir::sycl::IDType>();
+        assert(IDTy && "Unhandled input memref type");
         if (IDTy.getDimension() != Dimensions) {
           return emitOpError(
                      "Both the index and the accessor must have the same "

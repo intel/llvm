@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang-mlir.h"
-#include "Attributes.h"
 #include "TypeUtils.h"
 #include "utils.h"
 
@@ -62,6 +61,10 @@ cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
 static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
+
+static cl::opt<bool>
+    UseOldFunctionType("old-func-type", cl::init(false),
+                       cl::desc("Use old way to compute the function type"));
 
 cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
                                    cl::desc("Generate all SYCL functions"));
@@ -351,7 +354,8 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
     }
   }
 
-  const bool isKernel = FD->hasAttr<SYCLKernelAttr>();
+  const clang::CodeGen::CGFunctionInfo &FI = Glob.GetOrCreateCGFunctionInfo(FD);
+  auto FIArgs = FI.arguments();
 
   for (ParmVarDecl *parm : FD->parameters()) {
     assert(i != function.getNumArguments());
@@ -368,12 +372,15 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
 
     bool isReference = isArray || isa<clang::ReferenceType>(
                                       parmType->getUnqualifiedDesugaredType());
+    isReference |=
+        (FIArgs[i].info.getKind() == clang::CodeGen::ABIArgInfo::Indirect ||
+         FIArgs[i].info.getKind() ==
+             clang::CodeGen::ABIArgInfo::IndirectAliased);
 
     mlir::Value val = function.getArgument(i);
     assert(val && "Expecting a valid value");
 
-    if (isReference ||
-        (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)))
+    if (isReference)
       params.emplace(parm, ValueCategory(val, /*isReference*/ true));
     else {
       mlir::Value alloc =
@@ -3018,6 +3025,23 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
   return function;
 }
 
+const clang::CodeGen::CGFunctionInfo &
+MLIRASTConsumer::GetOrCreateCGFunctionInfo(const clang::FunctionDecl *FD) {
+  auto result = CGFunctionInfos.find(FD);
+  if (result != CGFunctionInfos.end())
+    return *result->second;
+
+  GlobalDecl GD;
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXCtorType::Ctor_Complete);
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    GD = GlobalDecl(CC, CXXDtorType::Dtor_Complete);
+  else
+    GD = GlobalDecl(FD);
+  CGFunctionInfos[FD] = &getTypes().arrangeGlobalDeclaration(GD);
+  return *CGFunctionInfos[FD];
+}
+
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     FunctionToEmit &FTE = functionsToEmit.front();
@@ -3276,7 +3300,8 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     const clang::FunctionDecl &FD,
     SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) {
   assert(parmDescriptors.empty() && "Expecting 'parmDescriptors' to be empty");
-  llvm::dbgs() << "\n-- Entering createMLIRParameterDescriptors --\n";
+  LLVM_DEBUG(
+      llvm::dbgs() << "\n-- Entering createMLIRParameterDescriptors --\n");
 
   bool isMethodDecl = isa<CXXMethodDecl>(FD);
   bool isMethodInstance = isMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
@@ -3386,22 +3411,40 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   Location loc = getMLIRLocation(FD.getLocation());
   mlir::OpBuilder Builder(module->getContext());
 
+  const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
+  mlir::FunctionType funcTy = getTypes().getFunctionType(FI, FD);
+
   SmallVector<CodeGenUtils::ParmDesc, 4> parmDescriptors;
   createMLIRParameterDescriptors(FD, parmDescriptors);
 
   SmallVector<CodeGenUtils::ResultDesc, 4> resDescriptors;
   createMLIRResultDescriptors(FD, resDescriptors);
 
-  SmallVector<mlir::Type, 4> parmTypes, retTypes;
-  CodeGenUtils::ParmDesc::getTypes(parmDescriptors, parmTypes);
-  CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
+  // TODO: remove once we are happy with the new way to compute the function
+  // type.
+  if (UseOldFunctionType) {
+    SmallVector<mlir::Type, 4> parmTypes, retTypes;
+    CodeGenUtils::ParmDesc::getTypes(parmDescriptors, parmTypes);
+    CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
 
-  auto funcType = Builder.getFunctionType(parmTypes, retTypes);
+    auto oldFuncTy = Builder.getFunctionType(parmTypes, retTypes);
+
+    LLVM_DEBUG({
+      llvm::dbgs() << "New funcTy: " << funcTy << "\n";
+      llvm::dbgs() << "Old funcTy: " << oldFuncTy << "\n";
+      if (funcTy != oldFuncTy) {
+        llvm::dbgs() << "Function types are different for " << mangledName
+                     << "\n";
+      }
+    });
+
+    funcTy = oldFuncTy;
+  }
 
   mlir::FunctionOpInterface function =
       FD.hasAttr<SYCLKernelAttr>()
-          ? Builder.create<gpu::GPUFuncOp>(loc, mangledName, funcType)
-          : Builder.create<func::FuncOp>(loc, mangledName, funcType);
+          ? Builder.create<gpu::GPUFuncOp>(loc, mangledName, funcTy)
+          : Builder.create<func::FuncOp>(loc, mangledName, funcTy);
 
   setMLIRFunctionVisibility(function, FTE, ShouldEmit);
   setMLIRFunctionAttributes(function, FTE, ShouldEmit);

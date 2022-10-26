@@ -867,7 +867,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   for (auto a : cons->arguments())
     args.push_back(std::make_pair(Visit(a), a));
   CallHelper(tocall, innerType, args,
-             /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons);
+             /*retType*/ Glob.getCGM().getContext().VoidTy, false, cons,
+             ctorDecl);
 
   if (Glob.getCGM().getContext().getAsArrayType(cons->getType())) {
     builder.setInsertionPoint(oldblock, oldpoint);
