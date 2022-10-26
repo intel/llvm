@@ -21,7 +21,7 @@ class FunctorWithCallOpDefined {
 class FunctorWithCallOpDeclared {
   int x;
   public:
-  void operator()() const {};
+  void operator()() const;
 };
 
 int main() {
