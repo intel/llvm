@@ -185,7 +185,7 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 ///
 pi_result check_error(hipError_t result, const char *function, int line,
                       const char *file) {
-  if (result == hipSuccess) {
+  if (result == hipSuccess || result == hipErrorContextIsDestroyed) {
     return PI_SUCCESS;
   }
 
