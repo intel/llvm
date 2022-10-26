@@ -527,6 +527,7 @@ public:
   VisitUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *Uop);
 
   ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
+  ValueCategory VisitBinAssign(clang::BinaryOperator *BO);
 
   ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
 

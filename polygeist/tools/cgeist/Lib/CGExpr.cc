@@ -2157,3 +2157,46 @@ ValueCategory MLIRScanner::VisitStmtExpr(clang::StmtExpr *stmt) {
   }
   return off;
 }
+
+ValueCategory MLIRScanner::VisitBinAssign(BinaryOperator *e) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitBinAssign: ";
+    e->dump();
+    llvm::dbgs() << "\n";
+  });
+  auto rhs = Visit(e->getRHS());
+  auto lhs = Visit(e->getLHS());
+
+  assert(lhs.isReference);
+  mlir::Value tostore = rhs.getValue(builder);
+  mlir::Type subType;
+  if (auto PT = lhs.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>())
+    subType = PT.getElementType();
+  else
+    subType = lhs.val.getType().cast<MemRefType>().getElementType();
+  if (tostore.getType() != subType) {
+    if (auto prevTy = tostore.getType().dyn_cast<mlir::IntegerType>()) {
+      if (auto postTy = subType.dyn_cast<mlir::IntegerType>()) {
+        bool signedType = true;
+        if (auto bit = dyn_cast<BuiltinType>(&*e->getType())) {
+          if (bit->isUnsignedInteger())
+            signedType = false;
+          if (bit->isSignedInteger())
+            signedType = true;
+        }
+
+        if (prevTy.getWidth() < postTy.getWidth()) {
+          if (signedType) {
+            tostore = builder.create<arith::ExtSIOp>(loc, postTy, tostore);
+          } else {
+            tostore = builder.create<arith::ExtUIOp>(loc, postTy, tostore);
+          }
+        } else if (prevTy.getWidth() > postTy.getWidth()) {
+          tostore = builder.create<arith::TruncIOp>(loc, postTy, tostore);
+        }
+      }
+    }
+  }
+  lhs.store(builder, tostore);
+  return rhs;
+}

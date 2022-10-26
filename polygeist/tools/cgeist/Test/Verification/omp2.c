@@ -33,10 +33,10 @@ void square2(double** x, int sstart, int send, int sinc, int tstart, int tend, i
 // CHECK-NEXT:     scf.parallel (%arg7, %arg8) = (%0, %1) to (%8, %15) step (%16, %17) {
 // CHECK-NEXT:       %18 = arith.index_cast %arg7 : index to i64
 // CHECK-NEXT:       %19 = arith.index_cast %arg8 : index to i64
-// CHECK-NEXT:       %20 = memref.load %arg0[%arg7] : memref<?xmemref<?xf64>>
-// CHECK-NEXT:       %21 = arith.addi %18, %19 : i64
-// CHECK-NEXT:       %22 = arith.sitofp %21 : i64 to f64
-// CHECK-NEXT:       memref.store %22, %20[%arg8] : memref<?xf64>
+// CHECK-NEXT:       %20 = arith.addi %18, %19 : i64
+// CHECK-NEXT:       %21 = arith.sitofp %20 : i64 to f64
+// CHECK-NEXT:       %22 = memref.load %arg0[%arg7] : memref<?xmemref<?xf64>>
+// CHECK-NEXT:       memref.store %21, %22[%arg8] : memref<?xf64>
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
