@@ -3905,7 +3905,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   zePrint("piextQueueCreateWithNativeHandle(NativeHandle=%p, Context=%p, "
           "Device=%p, UseImmCmdList=%d, OwnNativeHandle=%d, Queue=%p\n",
           NativeHandle, Context, Device, UseImmCmdList, OwnNativeHandle, Queue);
-  if (/*UseImmCmdList ||*/ Device->useImmediateCommandLists()) {
+  if (UseImmCmdList) {
     zePrint("piextQueueCreateWithNativeHandle using immediate commandlists\n");
     std::vector<ze_command_queue_handle_t> ComputeQueues;
     std::vector<ze_command_queue_handle_t> CopyQueues;
@@ -3927,7 +3927,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
     *Queue = new _pi_queue(ZeQueues, ZeroCopyQueues, Context, Device,
                            OwnNativeHandle);
   }
-  //(*Queue)->UsingImmCmdLists = UseImmCmdList;
+  (*Queue)->UsingImmCmdLists = UseImmCmdList;
 
   return PI_SUCCESS;
 }

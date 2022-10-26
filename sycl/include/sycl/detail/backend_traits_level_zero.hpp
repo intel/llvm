@@ -26,12 +26,14 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/queue.hpp>
 
-typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
-typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
-typedef union _ze_queue_handle_t {
-  ze_command_queue_handle_t ze_command_queue_handle;
-  ze_command_list_handle_t ze_command_list_handle;
-} * ze_queue_handle_t;
+struct _ze_queue_handle_t {};
+struct _ze_command_queue_handle_t : _ze_queue_handle_t {};
+struct _ze_command_list_handle_t : _ze_queue_handle_t {};
+
+// This declares a pointer to an L0 object, which is either a command list or
+// command queue. The interface remains a single pointer to an L0 opaque object.
+typedef struct _ze_queue_handle_t *ze_queue_handle_t;
+
 typedef struct _ze_context_handle_t *ze_context_handle_t;
 typedef struct _ze_device_handle_t *ze_device_handle_t;
 typedef struct _ze_driver_handle_t *ze_driver_handle_t;
