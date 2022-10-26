@@ -76,7 +76,8 @@ public:
                                      const clang::FunctionDecl &FD);
 
   /// Construct the IR attribute list of a function type or function call.
-  void constructAttributeList(const clang::CodeGen::CGFunctionInfo &FI,
+  void constructAttributeList(llvm::StringRef Name,
+                              const clang::CodeGen::CGFunctionInfo &FI,
                               clang::CodeGen::CGCalleeInfo CalleeInfo,
                               mlirclang::AttributeList &AttrList,
                               bool AttrOnCallSite, bool IsThunk);
@@ -90,6 +91,11 @@ public:
 
   const clang::CodeGen::CGFunctionInfo &
   arrangeGlobalDeclaration(clang::GlobalDecl GD);
+
+private:
+  void getDefaultFunctionAttributes(llvm::StringRef Name, bool HasOptnone,
+                                    bool AttrOnCallSite,
+                                    mlirclang::AttrBuilder &FuncAttrs);
 };
 
 } // namespace CodeGen

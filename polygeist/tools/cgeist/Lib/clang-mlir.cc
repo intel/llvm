@@ -66,7 +66,11 @@ static cl::opt<bool>
 
 static cl::opt<bool>
     UseOldFunctionType("old-func-type", cl::init(false),
-                       cl::desc("Use way to compute the function type"));
+                       cl::desc("Use old way to compute the function type"));
+
+static cl::opt<bool> UseOldAttributeImpl(
+    "old-func-attrs", cl::init(true),
+    cl::desc("Use old way to compute function attributes "));
 
 cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
                                    cl::desc("Generate all SYCL functions"));
@@ -3532,17 +3536,17 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
 
   const FunctionDecl &FD = FTE.getDecl();
   MLIRContext *ctx = module->getContext();
-  mlirclang::AttrBuilder attrBuilder(*ctx);
-
-  LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
-  attrBuilder.addAttribute("llvm.linkage",
-                           mlir::LLVM::LinkageAttr::get(ctx, lnk));
 
   bool isDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
   if (!isDeviceContext) {
     LLVM_DEBUG(llvm::dbgs()
                << "Not in a device context - skipping setting attributes for "
                << FD.getNameAsString() << "\n");
+
+    mlirclang::AttrBuilder attrBuilder(*ctx);
+    LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+    attrBuilder.addAttribute("llvm.linkage",
+                             mlir::LLVM::LinkageAttr::get(ctx, lnk));
 
     // HACK: we want to avoid setting additional attributes on non-sycl
     // functions because we do not want to adjust the test cases at this time
@@ -3556,61 +3560,123 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   LLVM_DEBUG(llvm::dbgs() << "Setting attributes for " << FD.getNameAsString()
                           << "\n");
 
-#if 0
-  const auto *FPT = FD.getType()->getAs <FunctionProtoType>();
-  CodeGen::CGCalleeInfo CalleeInfo(FPT);
-
+  // New way to compute function attributes.
   mlirclang::AttributeList PAL;
-  constructAttributeList(FI, CalleeInfo, PAL, /*AttrOnCallSite=*/false,
-                         IsThunk);
+  {
+    const auto *FPT = FD.getType()->getAs<FunctionProtoType>();
+    clang::CodeGen::CGCalleeInfo CalleeInfo(FPT);
 
-  NamedAttrList attrs(function->getAttrDictionary());
-  attrs.append(PAL.getFnAttrs());
-  function->setAttrs(attrs.getDictionary(ctx));
-#else
+    getTypes().constructAttributeList(function.getName(), FI, CalleeInfo, PAL,
+                                      /*AttrOnCallSite=*/false, IsThunk);
 
-  // Mark a SYCL kernel as a SPIRV kernel.
-  if (FD.hasAttr<SYCLKernelAttr>()) {
-    attrBuilder
-        .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
-                      UnitAttr::get(ctx))
-        .addPassThroughAttribute(ArrayAttr::get(
-            ctx, {StringAttr::get(ctx, "sycl-module-id"),
-                  StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
+    // Set additional function attributes that are not derivable from the
+    // function declaration.
+    mlirclang::AttrBuilder attrBuilder(*ctx);
+    {
+      // If we're in C++ mode and the function name is "main", it is guaranteed
+      // to be norecurse by the standard (3.6.1.3 "The function main shall not
+      // be used within a program").
+      //
+      // OpenCL C 2.0 v2.2-11 s6.9.i:
+      //     Recursion is not supported.
+      //
+      // SYCL v1.2.1 s3.10:
+      //     kernels cannot include RTTI information, exception classes,
+      //     recursive code, virtual functions or make use of C++ libraries that
+      //     are not compiled for the device.
+      if ((CGM.getLangOpts().CPlusPlus && FD.isMain()) ||
+          CGM.getLangOpts().OpenCL || CGM.getLangOpts().SYCLIsDevice ||
+          (CGM.getLangOpts().CUDA && FD.hasAttr<CUDAGlobalAttr>())) {
+        attrBuilder.addPassThroughAttribute(
+            llvm::Attribute::AttrKind::NoRecurse);
+      }
+
+      auto functionMustProgress =
+          [](const clang::CodeGen::CodeGenModule &CGM) -> bool {
+        if (CGM.getCodeGenOpts().getFiniteLoops() ==
+            CodeGenOptions::FiniteLoopsKind::Never)
+          return false;
+        return CGM.getLangOpts().CPlusPlus11;
+      };
+
+      if (functionMustProgress(CGM))
+        attrBuilder.addPassThroughAttribute(Attribute::AttrKind::MustProgress);
+    }
+
+    // Merge the attribute lists.
+    PAL.addFnAttrs(attrBuilder);
   }
 
-  // Calling conventions for SPIRV functions.
-  attrBuilder.addAttribute("llvm.cconv",
-                           mlir::LLVM::CConvAttr::get(
-                               ctx, FD.hasAttr<SYCLKernelAttr>()
-                                        ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
-                                        : mlir::LLVM::cconv::CConv::SPIR_FUNC));
+  NamedAttrList attrs(function->getAttrDictionary());
 
-  // SYCL v1.2.1 s3.10:
-  //   kernels and device function cannot include RTTI information,
-  //   exception classes, recursive code, virtual functions or make use of
-  //   C++ libraries that are not compiled for the device.
-  attrBuilder.addPassThroughAttribute(Attribute::AttrKind::NoRecurse)
-      .addPassThroughAttribute(Attribute::AttrKind::NoUnwind);
+  // Old way to compute function attributes.
+  // TODO: remove once we are happy with the new way to compute function
+  // attributes.
+  mlirclang::AttrBuilder attrBuilder(*ctx);
+  {
+    // Mark a SYCL kernel as a SPIRV kernel.
+    if (FD.hasAttr<SYCLKernelAttr>()) {
+      attrBuilder
+          .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
+                        UnitAttr::get(ctx))
+          .addPassThroughAttribute(ArrayAttr::get(
+              ctx, {StringAttr::get(ctx, "sycl-module-id"),
+                    StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
+    }
 
-  if (CGM.getLangOpts().assumeFunctionsAreConvergent())
-    attrBuilder.addPassThroughAttribute(Attribute::AttrKind::Convergent);
+    // Calling conventions for SPIRV functions.
+    attrBuilder.addAttribute(
+        "llvm.cconv", mlir::LLVM::CConvAttr::get(
+                          ctx, FD.hasAttr<SYCLKernelAttr>()
+                                   ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
+                                   : mlir::LLVM::cconv::CConv::SPIR_FUNC));
 
-  auto functionMustProgress =
-      [](const clang::CodeGen::CodeGenModule &CGM) -> bool {
-    if (CGM.getCodeGenOpts().getFiniteLoops() ==
-        CodeGenOptions::FiniteLoopsKind::Never)
-      return false;
-    return CGM.getLangOpts().CPlusPlus11;
+    // SYCL v1.2.1 s3.10:
+    //   kernels and device function cannot include RTTI information,
+    //   exception classes, recursive code, virtual functions or make use of
+    //   C++ libraries that are not compiled for the device.
+    attrBuilder.addPassThroughAttribute(Attribute::AttrKind::NoRecurse)
+        .addPassThroughAttribute(Attribute::AttrKind::NoUnwind);
+
+    if (CGM.getLangOpts().assumeFunctionsAreConvergent())
+      attrBuilder.addPassThroughAttribute(Attribute::AttrKind::Convergent);
+
+    auto functionMustProgress =
+        [](const clang::CodeGen::CodeGenModule &CGM) -> bool {
+      if (CGM.getCodeGenOpts().getFiniteLoops() ==
+          CodeGenOptions::FiniteLoopsKind::Never)
+        return false;
+      return CGM.getLangOpts().CPlusPlus11;
+    };
+
+    if (functionMustProgress(CGM))
+      attrBuilder.addPassThroughAttribute(Attribute::AttrKind::MustProgress);
+  }
+
+  // Compare the 2 attribute computations.
+  const mlir::NamedAttrList &newAttrs = PAL.getFnAttrs();
+  const mlir::NamedAttrList &oldAttrs = attrBuilder.getAttrs();
+
+  auto printAttrs = [&](const mlir::NamedAttribute &attr) {
+    llvm::dbgs() << attr.getName();
+    if (attr.getValue() != UnitAttr::get(ctx))
+      llvm::dbgs() << " = " << attr.getValue();
+    llvm::dbgs() << ", ";
   };
 
-  if (functionMustProgress(CGM))
-    attrBuilder.addPassThroughAttribute(Attribute::AttrKind::MustProgress);
+  llvm::dbgs() << "New attributes: ";
+  for (const NamedAttribute &attr : newAttrs)
+    printAttrs(attr);
+  llvm::dbgs() << "\nOld attributes: ";
+  for (const NamedAttribute &attr : oldAttrs)
+    printAttrs(attr);
+  if (newAttrs != oldAttrs) {
+    llvm::dbgs() << "\nAttributes are different for " << FD.getNameAsString()
+                 << "\n";
+  }
 
-  NamedAttrList attrs(function->getAttrDictionary());
-  attrs.append(attrBuilder.getAttrs());
+  attrs.append(UseOldAttributeImpl ? oldAttrs : newAttrs);
   function->setAttrs(attrs.getDictionary(ctx));
-#endif
 }
 
 void MLIRASTConsumer::setMLIRFunctionParmsAttributes(
@@ -3895,8 +3961,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
     // Inform the target of the language options.
     //
-    // FIXME: We shouldn't need to do this, the target should be immutable once
-    // created. This complexity should be lifted elsewhere.
+    // FIXME: We shouldn't need to do this, the target should be immutable
+    // once created. This complexity should be lifted elsewhere.
     Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
 
     // Adjust target options based on codegen options.

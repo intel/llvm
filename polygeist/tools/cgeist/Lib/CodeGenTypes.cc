@@ -591,32 +591,32 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 }
 
 void CodeGenTypes::constructAttributeList(
-    const clang::CodeGen::CGFunctionInfo &FI,
+    StringRef Name, const clang::CodeGen::CGFunctionInfo &FI,
     clang::CodeGen::CGCalleeInfo CalleeInfo, mlirclang::AttributeList &AttrList,
     bool AttrOnCallSite, bool IsThunk) {
-  MLIRContext *ctx = TheModule->getContext();
-  mlirclang::AttrBuilder funcAttrsBuilder(*ctx);
-  mlirclang::AttrBuilder retAttrsBuilder(*ctx);
+  MLIRContext *Ctx = TheModule->getContext();
+  mlirclang::AttrBuilder FuncAttrsBuilder(*Ctx);
+  mlirclang::AttrBuilder RetAttrsBuilder(*Ctx);
 
   unsigned CC = FI.getEffectiveCallingConvention();
-  funcAttrsBuilder.addAttribute(
+  FuncAttrsBuilder.addAttribute(
       "llvm.cconv", mlir::LLVM::CConvAttr::get(
-                        ctx, static_cast<mlir::LLVM::cconv::CConv>(CC)));
+                        Ctx, static_cast<mlir::LLVM::cconv::CConv>(CC)));
 
   if (FI.isNoReturn())
-    funcAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
+    FuncAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
   if (FI.isCmseNSCall())
-    funcAttrsBuilder.addAttribute("cmse_nonsecure_call", UnitAttr::get(ctx));
+    FuncAttrsBuilder.addAttribute("cmse_nonsecure_call", UnitAttr::get(Ctx));
 
   // Collect function IR attributes from the callee prototype if we have one.
-  addAttributesFromFunctionProtoType(funcAttrsBuilder,
+  addAttributesFromFunctionProtoType(FuncAttrsBuilder,
                                      CalleeInfo.getCalleeFunctionProtoType());
 
-  const Decl *targetDecl = CalleeInfo.getCalleeDecl().getDecl();
+  const Decl *TargetDecl = CalleeInfo.getCalleeDecl().getDecl();
 
   // Attach assumption attributes to the declaration. If this is a call
   // site, attach assumptions from the caller to the call as well.
-  addAttributesFromAssumes(funcAttrsBuilder, targetDecl);
+  addAttributesFromAssumes(FuncAttrsBuilder, TargetDecl);
 
   bool HasOptnone = false;
   // The NoBuiltinAttr attached to the target FunctionDecl.
@@ -624,101 +624,101 @@ void CodeGenTypes::constructAttributeList(
 
   // Collect function IR attributes based on declaration-specific
   // information.
-  if (targetDecl) {
-    if (targetDecl->hasAttr<ReturnsTwiceAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::ReturnsTwice);
-    if (targetDecl->hasAttr<NoThrowAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
-    if (targetDecl->hasAttr<NoReturnAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
-    if (targetDecl->hasAttr<ColdAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::Cold);
-    if (targetDecl->hasAttr<HotAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::Hot);
-    if (targetDecl->hasAttr<NoDuplicateAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoDuplicate);
-    if (targetDecl->hasAttr<ConvergentAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::Convergent);
+  if (TargetDecl) {
+    if (TargetDecl->hasAttr<ReturnsTwiceAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::ReturnsTwice);
+    if (TargetDecl->hasAttr<NoThrowAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+    if (TargetDecl->hasAttr<NoReturnAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
+    if (TargetDecl->hasAttr<ColdAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::Cold);
+    if (TargetDecl->hasAttr<HotAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::Hot);
+    if (TargetDecl->hasAttr<NoDuplicateAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoDuplicate);
+    if (TargetDecl->hasAttr<ConvergentAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::Convergent);
 
-    if (const FunctionDecl *Fn = dyn_cast<FunctionDecl>(targetDecl)) {
+    if (const FunctionDecl *Fn = dyn_cast<FunctionDecl>(TargetDecl)) {
       addAttributesFromFunctionProtoType(
-          funcAttrsBuilder, Fn->getType()->getAs<FunctionProtoType>());
+          FuncAttrsBuilder, Fn->getType()->getAs<FunctionProtoType>());
       if (AttrOnCallSite && Fn->isReplaceableGlobalAllocationFunction()) {
         // A sane operator new returns a non-aliasing pointer.
         auto Kind = Fn->getDeclName().getCXXOverloadedOperator();
         if (CGM.getCodeGenOpts().AssumeSaneOperatorNew &&
             (Kind == OO_New || Kind == OO_Array_New))
-          retAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+          RetAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
       }
       const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(Fn);
-      const bool isVirtualCall = MD && MD->isVirtual();
+      const bool IsVirtualCall = MD && MD->isVirtual();
       // Don't use [[noreturn]], _Noreturn or [[no_builtin]] for a call to a
       // virtual function. These attributes are not inherited by overloads.
-      if (!(AttrOnCallSite && isVirtualCall)) {
+      if (!(AttrOnCallSite && IsVirtualCall)) {
         if (Fn->isNoReturn())
-          funcAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
+          FuncAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
       // Only place nomerge attribute on call sites, never functions. This
       // allows it to work on indirect virtual function calls.
-      if (AttrOnCallSite && targetDecl->hasAttr<NoMergeAttr>())
-        funcAttrsBuilder.addAttribute(llvm::Attribute::NoMerge);
+      if (AttrOnCallSite && TargetDecl->hasAttr<NoMergeAttr>())
+        FuncAttrsBuilder.addAttribute(llvm::Attribute::NoMerge);
     }
 
     // 'const', 'pure' and 'noalias' attributed functions are also nounwind.
-    if (targetDecl->hasAttr<ConstAttr>()) {
-      funcAttrsBuilder.addAttribute(llvm::Attribute::ReadNone);
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+    if (TargetDecl->hasAttr<ConstAttr>()) {
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::ReadNone);
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
       // gcc specifies that 'const' functions have greater restrictions than
       // 'pure' functions, so they also cannot have infinite loops.
-      funcAttrsBuilder.addAttribute(llvm::Attribute::WillReturn);
-    } else if (targetDecl->hasAttr<PureAttr>()) {
-      funcAttrsBuilder.addAttribute(llvm::Attribute::ReadOnly);
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::WillReturn);
+    } else if (TargetDecl->hasAttr<PureAttr>()) {
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::ReadOnly);
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
       // gcc specifies that 'pure' functions cannot have infinite loops.
-      funcAttrsBuilder.addAttribute(llvm::Attribute::WillReturn);
-    } else if (targetDecl->hasAttr<NoAliasAttr>()) {
-      funcAttrsBuilder.addAttribute(llvm::Attribute::ArgMemOnly);
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::WillReturn);
+    } else if (TargetDecl->hasAttr<NoAliasAttr>()) {
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::ArgMemOnly);
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
     }
-    if (targetDecl->hasAttr<RestrictAttr>())
-      retAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
-    if (targetDecl->hasAttr<ReturnsNonNullAttr>() &&
+    if (TargetDecl->hasAttr<RestrictAttr>())
+      RetAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+    if (TargetDecl->hasAttr<ReturnsNonNullAttr>() &&
         !CGM.getCodeGenOpts().NullPointerIsValid)
-      retAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
-    if (targetDecl->hasAttr<AnyX86NoCallerSavedRegistersAttr>())
-      funcAttrsBuilder.addAttribute("no_caller_saved_registers",
-                                    UnitAttr::get(ctx));
-    if (targetDecl->hasAttr<AnyX86NoCfCheckAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoCfCheck);
-    if (targetDecl->hasAttr<LeafAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::NoCallback);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
+    if (TargetDecl->hasAttr<AnyX86NoCallerSavedRegistersAttr>())
+      FuncAttrsBuilder.addAttribute("no_caller_saved_registers",
+                                    UnitAttr::get(Ctx));
+    if (TargetDecl->hasAttr<AnyX86NoCfCheckAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoCfCheck);
+    if (TargetDecl->hasAttr<LeafAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoCallback);
 
-    HasOptnone = targetDecl->hasAttr<OptimizeNoneAttr>();
-    if (auto *AllocSize = targetDecl->getAttr<AllocSizeAttr>()) {
+    HasOptnone = TargetDecl->hasAttr<OptimizeNoneAttr>();
+    if (auto *AllocSize = TargetDecl->getAttr<AllocSizeAttr>()) {
       Optional<unsigned> NumElemsParam;
       if (AllocSize->getNumElemsParam().isValid())
         NumElemsParam = AllocSize->getNumElemsParam().getLLVMIndex();
       uint64_t RawArgs = packAllocSizeArgs(
           AllocSize->getElemSizeParam().getLLVMIndex(), NumElemsParam);
-      funcAttrsBuilder.addAttribute(llvm::Attribute::AllocSize, RawArgs);
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::AllocSize, RawArgs);
     }
 
-    if (targetDecl->hasAttr<OpenCLKernelAttr>()) {
+    if (TargetDecl->hasAttr<OpenCLKernelAttr>()) {
       if (CGM.getLangOpts().OpenCLVersion <= 120) {
         // OpenCL v1.2 Work groups are always uniform
-        funcAttrsBuilder.addAttribute("uniform-work-group-size",
-                                      StringAttr::get(ctx, "true"));
+        FuncAttrsBuilder.addAttribute("uniform-work-group-size",
+                                      StringAttr::get(Ctx, "true"));
       } else {
         // OpenCL v2.0 Work groups may be whether uniform or not.
         // '-cl-uniform-work-group-size' compile option gets a hint
         // to the compiler that the global work-size be a multiple of
         // the work-group size specified to clEnqueueNDRangeKernel
         // (i.e. work groups are uniform).
-        funcAttrsBuilder.addAttribute(
+        FuncAttrsBuilder.addAttribute(
             "uniform-work-group-size",
             StringAttr::get(
-                ctx, llvm::toStringRef(CGM.getCodeGenOpts().UniformWGSize)));
+                Ctx, llvm::toStringRef(CGM.getCodeGenOpts().UniformWGSize)));
       }
     }
   }
@@ -729,41 +729,39 @@ void CodeGenTypes::constructAttributeList(
   // The attributes can come from:
   // * LangOpts: -ffreestanding, -fno-builtin, -fno-builtin-<name>
   // * FunctionDecl attributes: __attribute__((no_builtin(...)))
-  addNoBuiltinAttributes(funcAttrsBuilder, CGM.getLangOpts(), NBA);
+  addNoBuiltinAttributes(FuncAttrsBuilder, CGM.getLangOpts(), NBA);
 
-// Collect function IR attributes based on global settiings.
-// TODO
-#if 0
-  getDefaultFunctionAttributes(Name, HasOptnone, AttrOnCallSite, funcAttrsBuilder);
-#endif
+  // Collect function IR attributes based on global settiings.
+  getDefaultFunctionAttributes(Name, HasOptnone, AttrOnCallSite,
+                               FuncAttrsBuilder);
 
   // Override some default IR attributes based on declaration-specific
   // information.
-  if (targetDecl) {
-    if (targetDecl->hasAttr<NoSpeculativeLoadHardeningAttr>())
-      funcAttrsBuilder.removeAttribute(
+  if (TargetDecl) {
+    if (TargetDecl->hasAttr<NoSpeculativeLoadHardeningAttr>())
+      FuncAttrsBuilder.removeAttribute(
           llvm::Attribute::SpeculativeLoadHardening);
-    if (targetDecl->hasAttr<SpeculativeLoadHardeningAttr>())
-      funcAttrsBuilder.addAttribute(llvm::Attribute::SpeculativeLoadHardening);
-    if (targetDecl->hasAttr<NoSplitStackAttr>())
-      funcAttrsBuilder.removeAttribute("split-stack");
-    if (targetDecl->hasAttr<ZeroCallUsedRegsAttr>()) {
+    if (TargetDecl->hasAttr<SpeculativeLoadHardeningAttr>())
+      FuncAttrsBuilder.addAttribute(llvm::Attribute::SpeculativeLoadHardening);
+    if (TargetDecl->hasAttr<NoSplitStackAttr>())
+      FuncAttrsBuilder.removeAttribute("split-stack");
+    if (TargetDecl->hasAttr<ZeroCallUsedRegsAttr>()) {
       // A function "__attribute__((...))" overrides the command-line flag.
       auto Kind =
-          targetDecl->getAttr<ZeroCallUsedRegsAttr>()->getZeroCallUsedRegs();
-      funcAttrsBuilder.removeAttribute("zero-call-used-regs");
-      funcAttrsBuilder.addAttribute(
+          TargetDecl->getAttr<ZeroCallUsedRegsAttr>()->getZeroCallUsedRegs();
+      FuncAttrsBuilder.removeAttribute("zero-call-used-regs");
+      FuncAttrsBuilder.addAttribute(
           "zero-call-used-regs",
           StringAttr::get(
-              ctx,
+              Ctx,
               ZeroCallUsedRegsAttr::ConvertZeroCallUsedRegsKindToStr(Kind)));
     }
 
     // Add NonLazyBind attribute to function declarations when -fno-plt is used.
     if (CGM.getCodeGenOpts().NoPLT) {
-      if (auto *Fn = dyn_cast<FunctionDecl>(targetDecl)) {
+      if (auto *Fn = dyn_cast<FunctionDecl>(TargetDecl)) {
         if (!Fn->isDefined() && !AttrOnCallSite) {
-          funcAttrsBuilder.addAttribute(llvm::Attribute::NonLazyBind);
+          FuncAttrsBuilder.addAttribute(llvm::Attribute::NonLazyBind);
         }
       }
     }
@@ -771,51 +769,51 @@ void CodeGenTypes::constructAttributeList(
 
   // Add "sample-profile-suffix-elision-policy" attribute for internal linkage
   // functions with -funique-internal-linkage-names.
-  if (targetDecl && CGM.getCodeGenOpts().UniqueInternalLinkageNames) {
-    if (isa<FunctionDecl>(targetDecl)) {
+  if (TargetDecl && CGM.getCodeGenOpts().UniqueInternalLinkageNames) {
+    if (isa<FunctionDecl>(TargetDecl)) {
       if (CGM.getFunctionLinkage(CalleeInfo.getCalleeDecl()) ==
           llvm::GlobalValue::InternalLinkage)
-        funcAttrsBuilder.addAttribute("sample-profile-suffix-elision-policy",
-                                      StringAttr::get(ctx, "selected"));
+        FuncAttrsBuilder.addAttribute("sample-profile-suffix-elision-policy",
+                                      StringAttr::get(Ctx, "selected"));
     }
   }
 
   // Collect non-call-site function IR attributes from declaration-specific
   // information.
   if (!AttrOnCallSite) {
-    if (targetDecl && targetDecl->hasAttr<CmseNSEntryAttr>())
-      funcAttrsBuilder.addAttribute("cmse_nonsecure_entry", UnitAttr::get(ctx));
+    if (TargetDecl && TargetDecl->hasAttr<CmseNSEntryAttr>())
+      FuncAttrsBuilder.addAttribute("cmse_nonsecure_entry", UnitAttr::get(Ctx));
 
     // Whether tail calls are enabled.
-    auto shouldDisableTailCalls = [&] {
+    auto ShouldDisableTailCalls = [&] {
       // Should this be honored in getDefaultFunctionAttributes?
       if (CGM.getCodeGenOpts().DisableTailCalls)
         return true;
 
-      if (!targetDecl)
+      if (!TargetDecl)
         return false;
 
-      if (targetDecl->hasAttr<DisableTailCallsAttr>() ||
-          targetDecl->hasAttr<AnyX86InterruptAttr>())
+      if (TargetDecl->hasAttr<DisableTailCallsAttr>() ||
+          TargetDecl->hasAttr<AnyX86InterruptAttr>())
         return true;
 
       if (CGM.getCodeGenOpts().NoEscapingBlockTailCalls) {
-        if (const auto *BD = dyn_cast<BlockDecl>(targetDecl))
+        if (const auto *BD = dyn_cast<BlockDecl>(TargetDecl))
           if (!BD->doesNotEscape())
             return true;
       }
 
       return false;
     };
-    if (shouldDisableTailCalls())
-      funcAttrsBuilder.addAttribute("disable-tail-calls",
-                                    StringAttr::get(ctx, "true"));
+    if (ShouldDisableTailCalls())
+      FuncAttrsBuilder.addAttribute("disable-tail-calls",
+                                    StringAttr::get(Ctx, "true"));
 
       // TODO
 #if 0
     // CPU/feature overrides.  addDefaultFunctionDefinitionAttributes
     // handles these separately to set them based on the global defaults.
-    getCPUAndFeaturesAttributes(CalleeInfo.getCalleeDecl(), funcAttrsBuilder);
+    getCPUAndFeaturesAttributes(CalleeInfo.getCalleeDecl(), FuncAttrsBuilder);
 #endif
   }
 
@@ -829,10 +827,10 @@ void CodeGenTypes::constructAttributeList(
   // C++ explicitly makes returning undefined values UB. C's rule only applies
   // to used values, so we never mark them noundef for now.
   bool HasStrictReturn = CGM.getLangOpts().CPlusPlus;
-  if (targetDecl && HasStrictReturn) {
-    if (const FunctionDecl *FDecl = dyn_cast<FunctionDecl>(targetDecl))
+  if (TargetDecl && HasStrictReturn) {
+    if (const FunctionDecl *FDecl = dyn_cast<FunctionDecl>(TargetDecl))
       HasStrictReturn &= !FDecl->isExternC();
-    else if (const VarDecl *VDecl = dyn_cast<VarDecl>(targetDecl))
+    else if (const VarDecl *VDecl = dyn_cast<VarDecl>(TargetDecl))
       // Function pointer
       HasStrictReturn &= !VDecl->isExternC();
   }
@@ -850,19 +848,19 @@ void CodeGenTypes::constructAttributeList(
     if (!RetTy->isVoidType() &&
         RetAI.getKind() != clang::CodeGen::ABIArgInfo::Indirect &&
         CodeGenUtils::determineNoUndef(RetTy, CGM.getTypes(), DL, RetAI))
-      retAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
   }
 
   switch (RetAI.getKind()) {
   case clang::CodeGen::ABIArgInfo::Extend:
     if (RetAI.isSignExt())
-      retAttrsBuilder.addAttribute(llvm::Attribute::SExt);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::SExt);
     else
-      retAttrsBuilder.addAttribute(llvm::Attribute::ZExt);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::ZExt);
     LLVM_FALLTHROUGH;
   case clang::CodeGen::ABIArgInfo::Direct:
     if (RetAI.getInReg())
-      retAttrsBuilder.addAttribute(llvm::Attribute::InReg);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::InReg);
     break;
   case clang::CodeGen::ABIArgInfo::Ignore:
     break;
@@ -870,7 +868,7 @@ void CodeGenTypes::constructAttributeList(
   case clang::CodeGen::ABIArgInfo::InAlloca:
   case clang::CodeGen::ABIArgInfo::Indirect: {
     // inalloca and sret disable readnone and readonly
-    funcAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
+    FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
         .removeAttribute(llvm::Attribute::ReadNone);
     break;
   }
@@ -885,37 +883,37 @@ void CodeGenTypes::constructAttributeList(
 
   if (!IsThunk) {
     // FIXME: fix this properly, https://reviews.llvm.org/D100388
-    if (const auto *refTy = RetTy->getAs<ReferenceType>()) {
-      QualType PTy = refTy->getPointeeType();
+    if (const auto *RefTy = RetTy->getAs<ReferenceType>()) {
+      QualType PTy = RefTy->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
-        retAttrsBuilder.addAttribute(
+        RetAttrsBuilder.addAttribute(
             llvm::Attribute::Dereferenceable,
             CGM.getMinimumObjectSize(PTy).getQuantity());
       if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
-        retAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
+        RetAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
         llvm::Align Alignment =
             CGM.getNaturalPointeeTypeAlignment(RetTy).getAsAlign();
-        retAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
+        RetAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
                                      Alignment.value());
       }
     }
   }
 
-  bool hasUsedSRet = false;
+  bool HasUsedSRet = false;
   SmallVector<mlir::NamedAttrList, 4> ArgAttrs(IRFunctionArgs.totalIRArgs());
 
   // Attach attributes to sret.
   if (IRFunctionArgs.hasSRetArg()) {
-    mlirclang::AttrBuilder SRETAttrs(*ctx);
+    mlirclang::AttrBuilder SRETAttrs(*Ctx);
 #if 0
     // TODO
-    auto val = mlir::Attribute::get(ctx, llvm::Attribute::StructRet,
+    auto val = mlir::Attribute::get(Ctx, llvm::Attribute::StructRet,
                                     getMLIRType(RetTy));
     SRETAttrs.addAttribute(llvm::Attribute::StructRet, val);
 #endif
-    hasUsedSRet = true;
+    HasUsedSRet = true;
     if (RetAI.getInReg())
       SRETAttrs.addAttribute(llvm::Attribute::InReg);
     SRETAttrs.addAttribute(llvm::Attribute::Alignment,
@@ -925,7 +923,7 @@ void CodeGenTypes::constructAttributeList(
 
   // Attach attributes to inalloca argument.
   if (IRFunctionArgs.hasInallocaArg()) {
-    mlirclang::AttrBuilder Attrs(*ctx);
+    mlirclang::AttrBuilder Attrs(*Ctx);
 #if 0
     // TODO
     Attrs.addInAllocaAttr(FI.getArgStruct());
@@ -942,22 +940,22 @@ void CodeGenTypes::constructAttributeList(
 
     assert(IRArgs.second == 1 && "Expected only a single `this` pointer.");
 
-    mlirclang::AttrBuilder attrsBuilder(*ctx);
+    mlirclang::AttrBuilder AttrsBuilder(*Ctx);
 
     QualType ThisTy =
         FI.arg_begin()->type.castAs<clang::PointerType>()->getPointeeType();
 
     if (!CGM.getCodeGenOpts().NullPointerIsValid &&
         CGM.getContext().getTargetAddressSpace(FI.arg_begin()->type) == 0) {
-      attrsBuilder.addAttribute(llvm::Attribute::NonNull);
-      attrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
+      AttrsBuilder.addAttribute(llvm::Attribute::NonNull);
+      AttrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
                                 CGM.getMinimumObjectSize(ThisTy).getQuantity());
     } else {
       // FIXME dereferenceable should be correct here, regardless of
       // NullPointerIsValid. However, dereferenceable currently does not always
       // respect NullPointerIsValid and may imply nonnull and break the program.
       // See https://reviews.llvm.org/D66618 for discussions.
-      attrsBuilder.addAttribute(
+      AttrsBuilder.addAttribute(
           llvm::Attribute::DereferenceableOrNull,
           CGM.getMinimumObjectSize(FI.arg_begin()
                                        ->type.castAs<clang::PointerType>()
@@ -970,8 +968,8 @@ void CodeGenTypes::constructAttributeList(
                                     /*TBAAInfo=*/nullptr,
                                     /*forPointeeType=*/true)
             .getAsAlign();
-    attrsBuilder.addAttribute(llvm::Attribute::Alignment, Alignment.value());
-    ArgAttrs[IRArgs.first] = attrsBuilder.getAttrs();
+    AttrsBuilder.addAttribute(llvm::Attribute::Alignment, Alignment.value());
+    ArgAttrs[IRArgs.first] = AttrsBuilder.getAttrs();
   }
 
   unsigned ArgNo = 0;
@@ -980,13 +978,13 @@ void CodeGenTypes::constructAttributeList(
        I != E; ++I, ++ArgNo) {
     QualType ParamType = I->type;
     const clang::CodeGen::ABIArgInfo &AI = I->info;
-    mlirclang::AttrBuilder attrsBuilder(*ctx);
+    mlirclang::AttrBuilder AttrsBuilder(*Ctx);
 
     // Add attribute for padding argument, if necessary.
     if (IRFunctionArgs.hasPaddingArg(ArgNo)) {
       if (AI.getPaddingInReg()) {
         ArgAttrs[IRFunctionArgs.getPaddingArgNo(ArgNo)] =
-            mlirclang::AttrBuilder(*ctx)
+            mlirclang::AttrBuilder(*Ctx)
                 .addAttribute(llvm::Attribute::InReg)
                 .getAttrs();
       }
@@ -995,7 +993,7 @@ void CodeGenTypes::constructAttributeList(
     // Decide whether the argument we're handling could be partially undef
     if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
         CodeGenUtils::determineNoUndef(ParamType, CGM.getTypes(), DL, AI)) {
-      attrsBuilder.addAttribute(llvm::Attribute::NoUndef);
+      AttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
     }
 
     // 'restrict' -> 'noalias' is done in EmitFunctionProlog when we
@@ -1004,27 +1002,27 @@ void CodeGenTypes::constructAttributeList(
     switch (AI.getKind()) {
     case clang::CodeGen::ABIArgInfo::Extend:
       if (AI.isSignExt())
-        attrsBuilder.addAttribute(llvm::Attribute::SExt);
+        AttrsBuilder.addAttribute(llvm::Attribute::SExt);
       else
-        attrsBuilder.addAttribute(llvm::Attribute::ZExt);
+        AttrsBuilder.addAttribute(llvm::Attribute::ZExt);
       LLVM_FALLTHROUGH;
     case clang::CodeGen::ABIArgInfo::Direct:
       if (ArgNo == 0 && FI.isChainCall())
-        attrsBuilder.addAttribute(llvm::Attribute::Nest);
+        AttrsBuilder.addAttribute(llvm::Attribute::Nest);
       else if (AI.getInReg())
-        attrsBuilder.addAttribute(llvm::Attribute::InReg);
-      attrsBuilder.addAttribute(llvm::Attribute::StackAlignment,
+        AttrsBuilder.addAttribute(llvm::Attribute::InReg);
+      AttrsBuilder.addAttribute(llvm::Attribute::StackAlignment,
                                 AI.getDirectAlign());
       break;
 
     case clang::CodeGen::ABIArgInfo::Indirect: {
       if (AI.getInReg())
-        attrsBuilder.addAttribute(llvm::Attribute::InReg);
+        AttrsBuilder.addAttribute(llvm::Attribute::InReg);
 
 #if 0
 // TODO
       if (AI.getIndirectByVal())
-        attrsBuilder.addByValAttr(CGM.getTypes().ConvertTypeForMem(ParamType));
+        AttrsBuilder.addByValAttr(CGM.getTypes().ConvertTypeForMem(ParamType));
 #endif
 
       auto *Decl = ParamType->getAsRecordDecl();
@@ -1032,7 +1030,7 @@ void CodeGenTypes::constructAttributeList(
           Decl->getArgPassingRestrictions() == RecordDecl::APK_CanPassInRegs)
         // When calling the function, the pointer passed in will be the only
         // reference to the underlying object. Mark it accordingly.
-        attrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+        AttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
 
       // TODO: We could add the byref attribute if not byval, but it would
       // require updating many testcases.
@@ -1054,11 +1052,11 @@ void CodeGenTypes::constructAttributeList(
       // For now, only add this when we have a byval argument.
       // TODO: be less lazy about updating test cases.
       if (AI.getIndirectByVal())
-        attrsBuilder.addAttribute(llvm::Attribute::Alignment,
+        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
                                   Align.getQuantity());
 
       // byval disables readnone and readonly.
-      funcAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
+      FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
           .removeAttribute(llvm::Attribute::ReadNone);
 
       break;
@@ -1067,9 +1065,9 @@ void CodeGenTypes::constructAttributeList(
       CharUnits Align = AI.getIndirectAlign();
 #if 0
       //TODO
-      attrsBuilder.addByRefAttr(CGM.getTypes().ConvertTypeForMem(ParamType));
+      AttrsBuilder.addByRefAttr(CGM.getTypes().ConvertTypeForMem(ParamType));
 #endif
-      attrsBuilder.addAttribute(llvm::Attribute::Alignment,
+      AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
                                 Align.getQuantity());
       break;
     }
@@ -1080,7 +1078,7 @@ void CodeGenTypes::constructAttributeList(
 
     case clang::CodeGen::ABIArgInfo::InAlloca:
       // inalloca disables readnone and readonly.
-      funcAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
+      FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
           .removeAttribute(llvm::Attribute::ReadNone);
       continue;
     }
@@ -1088,15 +1086,15 @@ void CodeGenTypes::constructAttributeList(
     if (const auto *RefTy = ParamType->getAs<ReferenceType>()) {
       QualType PTy = RefTy->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
-        attrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
+        AttrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
                                   CGM.getMinimumObjectSize(PTy).getQuantity());
       if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
-        attrsBuilder.addAttribute(llvm::Attribute::NonNull);
+        AttrsBuilder.addAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
         llvm::Align Alignment =
             CGM.getNaturalPointeeTypeAlignment(ParamType).getAsAlign();
-        attrsBuilder.addAttribute(llvm::Attribute::Alignment,
+        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
                                   Alignment.value());
       }
     }
@@ -1105,12 +1103,12 @@ void CodeGenTypes::constructAttributeList(
     // > For arguments to a __kernel function declared to be a pointer to a
     // > data type, the OpenCL compiler can assume that the pointee is always
     // > appropriately aligned as required by the data type.
-    if (targetDecl && targetDecl->hasAttr<OpenCLKernelAttr>() &&
+    if (TargetDecl && TargetDecl->hasAttr<OpenCLKernelAttr>() &&
         ParamType->isPointerType()) {
       QualType PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         CharUnits Alignment = CGM.getNaturalPointeeTypeAlignment(ParamType);
-        attrsBuilder.addAttribute(llvm::Attribute::Alignment,
+        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
                                   Alignment.getQuantity());
       }
     }
@@ -1125,51 +1123,51 @@ void CodeGenTypes::constructAttributeList(
 #if 0      
       if (!hasUsedSRet && RetTy->isVoidType()) {
         //TODO
-        attrsBuilder.addStructRetAttr(getTypes().ConvertTypeForMem(ParamType));
+        AttrsBuilder.addStructRetAttr(getTypes().ConvertTypeForMem(ParamType));
         hasUsedSRet = true;
     }
 #endif
       // Add 'noalias' in either case.
-      attrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+      AttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
 
       // Add 'dereferenceable' and 'alignment'.
       auto PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         auto info = CGM.getContext().getTypeInfoInChars(PTy);
-        attrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
+        AttrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
                                   info.Width.getQuantity());
-        attrsBuilder.addAttribute(llvm::Attribute::Alignment,
+        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
                                   info.Align.getQuantity());
       }
       break;
     }
 
     case ParameterABI::SwiftErrorResult:
-      attrsBuilder.addAttribute(llvm::Attribute::SwiftError);
+      AttrsBuilder.addAttribute(llvm::Attribute::SwiftError);
       break;
 
     case ParameterABI::SwiftContext:
-      attrsBuilder.addAttribute(llvm::Attribute::SwiftSelf);
+      AttrsBuilder.addAttribute(llvm::Attribute::SwiftSelf);
       break;
 
     case ParameterABI::SwiftAsyncContext:
-      attrsBuilder.addAttribute(llvm::Attribute::SwiftAsync);
+      AttrsBuilder.addAttribute(llvm::Attribute::SwiftAsync);
       break;
     }
 
     if (FI.getExtParameterInfo(ArgNo).isNoEscape())
-      attrsBuilder.addAttribute(llvm::Attribute::NoCapture);
+      AttrsBuilder.addAttribute(llvm::Attribute::NoCapture);
 
-    if (attrsBuilder.hasAttributes()) {
+    if (AttrsBuilder.hasAttributes()) {
       unsigned FirstIRArg, NumIRArgs;
       std::tie(FirstIRArg, NumIRArgs) = IRFunctionArgs.getIRArgs(ArgNo);
       for (unsigned i = 0; i < NumIRArgs; i++)
-        ArgAttrs[FirstIRArg + i].append(attrsBuilder.getAttrs());
+        ArgAttrs[FirstIRArg + i].append(AttrsBuilder.getAttrs());
     }
   }
   assert(ArgNo == FI.arg_size());
 
-  AttrList.addAttrs(funcAttrsBuilder, retAttrsBuilder, ArgAttrs);
+  AttrList.addAttrs(FuncAttrsBuilder, RetAttrsBuilder, ArgAttrs);
 }
 
 mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
@@ -1570,6 +1568,178 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
 const clang::CodeGen::CGFunctionInfo &
 CodeGenTypes::arrangeGlobalDeclaration(clang::GlobalDecl GD) {
   return CGM.getTypes().arrangeGlobalDeclaration(GD);
+}
+
+void CodeGenTypes::getDefaultFunctionAttributes(
+    StringRef Name, bool HasOptnone, bool AttrOnCallSite,
+    mlirclang::AttrBuilder &FuncAttrs) {
+  MLIRContext *Ctx = TheModule->getContext();
+  const LangOptions &LangOpts = CGM.getLangOpts();
+
+  // OptimizeNoneAttr takes precedence over -Os or -Oz. No warning needed.
+  if (!HasOptnone) {
+    if (getCodeGenOpts().OptimizeSize)
+      FuncAttrs.addAttribute(llvm::Attribute::OptimizeForSize);
+    if (getCodeGenOpts().OptimizeSize == 2)
+      FuncAttrs.addAttribute(llvm::Attribute::MinSize);
+  }
+
+  if (getCodeGenOpts().DisableRedZone)
+    FuncAttrs.addAttribute(llvm::Attribute::NoRedZone);
+  if (getCodeGenOpts().IndirectTlsSegRefs)
+    FuncAttrs.addAttribute("indirect-tls-seg-refs", UnitAttr::get(Ctx));
+  if (getCodeGenOpts().NoImplicitFloat)
+    FuncAttrs.addAttribute(llvm::Attribute::NoImplicitFloat);
+
+  if (AttrOnCallSite) {
+    // Attributes that should go on the call site only.
+    // FIXME: Look for 'BuiltinAttr' on the function rather than re-checking
+    // the -fno-builtin-foo list.
+    if (!getCodeGenOpts().SimplifyLibCalls || LangOpts.isNoBuiltinFunc(Name))
+      FuncAttrs.addAttribute(llvm::Attribute::NoBuiltin);
+    if (!getCodeGenOpts().TrapFuncName.empty())
+      FuncAttrs.addAttribute(
+          "trap-func-name",
+          StringAttr::get(Ctx, getCodeGenOpts().TrapFuncName));
+  } else {
+    StringRef FpKind;
+    switch (getCodeGenOpts().getFramePointer()) {
+    case CodeGenOptions::FramePointerKind::None:
+      FpKind = "none";
+      break;
+    case CodeGenOptions::FramePointerKind::NonLeaf:
+      FpKind = "non-leaf";
+      break;
+    case CodeGenOptions::FramePointerKind::All:
+      FpKind = "all";
+      break;
+    }
+    FuncAttrs.addAttribute("frame-pointer", StringAttr::get(Ctx, FpKind));
+
+    if (getCodeGenOpts().LessPreciseFPMAD)
+      FuncAttrs.addAttribute("less-precise-fpmad",
+                             StringAttr::get(Ctx, "true"));
+
+    if (getCodeGenOpts().NullPointerIsValid)
+      FuncAttrs.addAttribute(llvm::Attribute::NullPointerIsValid);
+
+    if (getCodeGenOpts().FPDenormalMode != llvm::DenormalMode::getIEEE())
+      FuncAttrs.addAttribute(
+          "denormal-fp-math",
+          StringAttr::get(Ctx, getCodeGenOpts().FPDenormalMode.str()));
+    if (getCodeGenOpts().FP32DenormalMode != getCodeGenOpts().FPDenormalMode) {
+      FuncAttrs.addAttribute(
+          "denormal-fp-math-f32",
+          StringAttr::get(Ctx, getCodeGenOpts().FP32DenormalMode.str()));
+    }
+
+    if (LangOpts.getDefaultExceptionMode() == LangOptions::FPE_Ignore)
+      FuncAttrs.addAttribute("no-trapping-math", StringAttr::get(Ctx, "true"));
+
+    // TODO: Are these all needed?
+    // unsafe/inf/nan/nsz are handled by instruction-level FastMathFlags.
+    if (LangOpts.NoHonorInfs)
+      FuncAttrs.addAttribute("no-infs-fp-math", StringAttr::get(Ctx, "true"));
+    if (LangOpts.NoHonorNaNs)
+      FuncAttrs.addAttribute("no-nans-fp-math", StringAttr::get(Ctx, "true"));
+    if (LangOpts.ApproxFunc)
+      FuncAttrs.addAttribute("approx-func-fp-math",
+                             StringAttr::get(Ctx, "true"));
+    if (LangOpts.UnsafeFPMath)
+      FuncAttrs.addAttribute("unsafe-fp-math", StringAttr::get(Ctx, "true"));
+    if (getCodeGenOpts().SoftFloat)
+      FuncAttrs.addAttribute("use-soft-float", StringAttr::get(Ctx, "true"));
+    FuncAttrs.addAttribute(
+        "stack-protector-buffer-size",
+        StringAttr::get(Ctx, llvm::utostr(getCodeGenOpts().SSPBufferSize)));
+    if (LangOpts.NoSignedZero)
+      FuncAttrs.addAttribute("no-signed-zeros-fp-math",
+                             StringAttr::get(Ctx, "true"));
+
+    // TODO: Reciprocal estimate codegen options should apply to instructions?
+    const std::vector<std::string> &Recips = getCodeGenOpts().Reciprocals;
+    if (!Recips.empty())
+      FuncAttrs.addAttribute("reciprocal-estimates",
+                             StringAttr::get(Ctx, llvm::join(Recips, ",")));
+
+    if (!getCodeGenOpts().PreferVectorWidth.empty() &&
+        getCodeGenOpts().PreferVectorWidth != "none")
+      FuncAttrs.addAttribute(
+          "prefer-vector-width",
+          StringAttr::get(Ctx, getCodeGenOpts().PreferVectorWidth));
+
+    if (getCodeGenOpts().StackRealignment)
+      FuncAttrs.addAttribute("stackrealign", UnitAttr::get(Ctx));
+    if (getCodeGenOpts().Backchain)
+      FuncAttrs.addAttribute("backchain", UnitAttr::get(Ctx));
+    if (getCodeGenOpts().EnableSegmentedStacks)
+      FuncAttrs.addAttribute("split-stack", UnitAttr::get(Ctx));
+
+    if (getCodeGenOpts().SpeculativeLoadHardening)
+      FuncAttrs.addAttribute(llvm::Attribute::SpeculativeLoadHardening);
+
+    // Add zero-call-used-regs attribute.
+    switch (getCodeGenOpts().getZeroCallUsedRegs()) {
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::Skip:
+      FuncAttrs.removeAttribute("zero-call-used-regs");
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::UsedGPRArg:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "used-gpr-arg"));
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::UsedGPR:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "used-gpr"));
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::UsedArg:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "used-arg"));
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::Used:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "used"));
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::AllGPRArg:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "all-gpr-arg"));
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::AllGPR:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "all-gpr"));
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::AllArg:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "all-arg"));
+      break;
+    case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::All:
+      FuncAttrs.addAttribute("zero-call-used-regs",
+                             StringAttr::get(Ctx, "all"));
+      break;
+    }
+  }
+
+  if (LangOpts.assumeFunctionsAreConvergent()) {
+    // Conservatively, mark all functions and calls in CUDA and OpenCL as
+    // convergent (meaning, they may call an intrinsically convergent op, such
+    // as __syncthreads() / barrier(), and so can't have certain optimizations
+    // applied around them).  LLVM will remove this attribute where it safely
+    // can.
+    FuncAttrs.addAttribute(llvm::Attribute::Convergent);
+  }
+
+  // TODO: NoUnwind attribute should be added for other GPU modes OpenCL, HIP,
+  // SYCL, OpenMP offload. AFAIK, none of them support exceptions in device
+  // code.
+  if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
+    // Exceptions aren't supported in CUDA device code.
+    FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
+  }
+
+  for (StringRef Attr : CGM.getCodeGenOpts().DefaultFunctionAttrs) {
+    StringRef Var, Value;
+    std::tie(Var, Value) = Attr.split('=');
+    FuncAttrs.addAttribute(Var, StringAttr::get(Ctx, Value));
+  }
 }
 
 } // namespace CodeGen
