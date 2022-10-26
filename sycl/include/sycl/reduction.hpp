@@ -49,16 +49,6 @@ template <typename T> struct AreAllButLastReductions<T> {
   static constexpr bool value = !IsReduction<T>::value;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-#if __cplusplus >= 201703L
-// Entire feature is dependent on C++17. We still have to make the trait above
-// available as queue shortcuts use them unconditionally, including on
-// non-reduction path.
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-
 
 /// Class that is used to represent objects that are passed to user's lambda
 /// functions and representing users' reduction variable.
@@ -2477,7 +2467,6 @@ auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
                                                        InitializeToIdentity);
 }
 
-#if __cplusplus >= 201703L
 /// Constructs a reduction object using the reduction variable referenced by
 /// the given sycl::span \p Span, reduction operation \p Combiner, and
 /// optional reduction properties.
@@ -2524,9 +2513,5 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
-#endif
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-
-#endif // __cplusplus >= 201703L
