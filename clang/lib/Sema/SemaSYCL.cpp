@@ -986,7 +986,7 @@ static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
 
 // Fetch the associated call operator of the kernel object
 // (of either the lambda or the function object).
-CXXMethodDecl *
+static CXXMethodDecl *
 GetCallOperatorOfKernelObject(const CXXRecordDecl *KernelObjType) {
   CXXMethodDecl *CallOperator = nullptr;
   if (!KernelObjType)
