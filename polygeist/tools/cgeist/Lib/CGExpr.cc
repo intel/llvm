@@ -2199,3 +2199,260 @@ ValueCategory MLIRScanner::VisitBinAssign(BinaryOperator *e) {
   lhs.store(builder, tostore);
   return rhs;
 }
+
+static bool isSigned(QualType Ty) {
+  // TODO note assumptions made here about unsigned / unordered
+  bool signedType = true;
+  if (auto bit = dyn_cast<clang::BuiltinType>(Ty)) {
+    if (bit->isUnsignedInteger())
+      signedType = false;
+    if (bit->isSignedInteger())
+      signedType = true;
+  }
+  return signedType;
+}
+
+class BinOpInfo {
+public:
+  BinOpInfo(ValueCategory LHS, ValueCategory RHS, QualType Ty,
+            BinaryOperator::Opcode Opcode, const BinaryOperator *Expr)
+      : LHS(LHS), RHS(RHS), Ty(Ty), Opcode(Opcode), Expr(Expr) {}
+
+  ValueCategory getLHS() const { return LHS; }
+  ValueCategory getRHS() const { return RHS; }
+  constexpr QualType getType() const { return Ty; }
+  constexpr BinaryOperator::Opcode getOpcode() const { return Opcode; }
+  constexpr const BinaryOperator *getExpr() const { return Expr; }
+
+private:
+  const ValueCategory LHS;
+  const ValueCategory RHS;
+  const QualType Ty;                   // Computation Type.
+  const BinaryOperator::Opcode Opcode; // Opcode of BinOp to perform
+  const BinaryOperator *Expr;
+};
+
+#define HANDLEBINOP(OP)                                                        \
+  ValueCategory MLIRScanner::VisitBin##OP(BinaryOperator *E) {                 \
+    LLVM_DEBUG({                                                               \
+      llvm::dbgs() << "VisitBin" #OP ": ";                                     \
+      E->dump();                                                               \
+      llvm::dbgs() << "\n";                                                    \
+    });                                                                        \
+    return EmitBin##OP(EmitBinOps(E));                                         \
+  }
+#include "Expressions.def"
+#undef HANDLEBINOP
+
+BinOpInfo MLIRScanner::EmitBinOps(BinaryOperator *E) {
+  const ValueCategory LHS = Visit(E->getLHS());
+  const ValueCategory RHS = Visit(E->getRHS());
+  const QualType Ty = E->getType();
+  const BinaryOperator::Opcode Opcode = E->getOpcode();
+  return {LHS, RHS, Ty, Opcode, E};
+}
+
+ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Mul &&
+         "Invalid binary expression");
+  auto lhs_v = Info.getLHS().getValue(builder);
+  auto rhs_v = Info.getRHS().getValue(builder);
+  if (lhs_v.getType().isa<mlir::FloatType>()) {
+    return ValueCategory(builder.create<arith::MulFOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  } else {
+    return ValueCategory(builder.create<arith::MulIOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  }
+}
+
+ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Div &&
+         "Invalid binary expression");
+  auto lhs_v = Info.getLHS().getValue(builder);
+  auto rhs_v = Info.getRHS().getValue(builder);
+  if (lhs_v.getType().isa<mlir::FloatType>()) {
+    return ValueCategory(builder.create<arith::DivFOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  } else {
+    if (isSigned(Info.getType()))
+      return ValueCategory(builder.create<arith::DivSIOp>(loc, lhs_v, rhs_v),
+                           /*isReference*/ false);
+    else
+      return ValueCategory(builder.create<arith::DivUIOp>(loc, lhs_v, rhs_v),
+                           /*isReference*/ false);
+  }
+}
+
+ValueCategory MLIRScanner::EmitBinRem(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Rem &&
+         "Invalid binary expression");
+  auto lhs_v = Info.getLHS().getValue(builder);
+  auto rhs_v = Info.getRHS().getValue(builder);
+  if (lhs_v.getType().isa<mlir::FloatType>()) {
+    return ValueCategory(builder.create<arith::RemFOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  } else {
+    if (isSigned(Info.getType()))
+      return ValueCategory(builder.create<arith::RemSIOp>(loc, lhs_v, rhs_v),
+                           /*isReference*/ false);
+    else
+      return ValueCategory(builder.create<arith::RemUIOp>(loc, lhs_v, rhs_v),
+                           /*isReference*/ false);
+  }
+}
+
+ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Add &&
+         "Invalid binary expression");
+  auto lhs_v = Info.getLHS().getValue(builder);
+  auto rhs_v = Info.getRHS().getValue(builder);
+  if (lhs_v.getType().isa<mlir::FloatType>()) {
+    return ValueCategory(builder.create<AddFOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  } else if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+    auto shape = std::vector<int64_t>(mt.getShape());
+    shape[0] = -1;
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
+    auto ptradd = rhs_v;
+    ptradd = castToIndex(loc, ptradd);
+    return ValueCategory(
+        builder.create<polygeist::SubIndexOp>(loc, mt0, lhs_v, ptradd),
+        /*isReference*/ false);
+  } else if (auto pt =
+                 lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+    return ValueCategory(builder.create<LLVM::GEPOp>(
+                             loc, pt, lhs_v, std::vector<mlir::Value>({rhs_v})),
+                         /*isReference*/ false);
+  } else {
+    if (auto lhs_c = lhs_v.getDefiningOp<ConstantIntOp>()) {
+      if (auto rhs_c = rhs_v.getDefiningOp<ConstantIntOp>()) {
+        return ValueCategory(
+            builder.create<arith::ConstantIntOp>(
+                loc, lhs_c.value() + rhs_c.value(), lhs_c.getType()),
+            false);
+      }
+    }
+    return ValueCategory(builder.create<AddIOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  }
+}
+
+ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Sub &&
+         "Invalid binary expression");
+  auto lhs_v = Info.getLHS().getValue(builder);
+  auto rhs_v = Info.getRHS().getValue(builder);
+  if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+    lhs_v = builder.create<polygeist::Memref2PointerOp>(
+        loc,
+        LLVM::LLVMPointerType::get(mt.getElementType(),
+                                   mt.getMemorySpaceAsInt()),
+        lhs_v);
+  }
+  if (auto mt = rhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+    rhs_v = builder.create<polygeist::Memref2PointerOp>(
+        loc,
+        LLVM::LLVMPointerType::get(mt.getElementType(),
+                                   mt.getMemorySpaceAsInt()),
+        rhs_v);
+  }
+  if (lhs_v.getType().isa<mlir::FloatType>()) {
+    assert(rhs_v.getType() == lhs_v.getType());
+    return ValueCategory(builder.create<SubFOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  } else if (auto pt =
+                 lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+    if (auto IT = rhs_v.getType().dyn_cast<mlir::IntegerType>()) {
+      mlir::Value vals[1] = {builder.create<SubIOp>(
+          loc, builder.create<ConstantIntOp>(loc, 0, IT.getWidth()), rhs_v)};
+      return ValueCategory(
+          builder.create<LLVM::GEPOp>(loc, lhs_v.getType(), lhs_v,
+                                      ArrayRef<mlir::Value>(vals)),
+          false);
+    }
+    mlir::Value val = builder.create<SubIOp>(
+        loc,
+        builder.create<LLVM::PtrToIntOp>(
+            loc, Glob.getTypes().getMLIRType(Info.getType()), lhs_v),
+        builder.create<LLVM::PtrToIntOp>(
+            loc, Glob.getTypes().getMLIRType(Info.getType()), rhs_v));
+    val = builder.create<DivSIOp>(
+        loc, val,
+        builder.create<IndexCastOp>(
+            loc, val.getType(),
+            builder.create<polygeist::TypeSizeOp>(
+                loc, builder.getIndexType(),
+                mlir::TypeAttr::get(pt.getElementType()))));
+    return ValueCategory(val, /*isReference*/ false);
+  } else {
+    return ValueCategory(builder.create<SubIOp>(loc, lhs_v, rhs_v),
+                         /*isReference*/ false);
+  }
+}
+
+ValueCategory MLIRScanner::EmitBinShl(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Shl &&
+         "Invalid binary expression");
+  auto lhsv = Info.getLHS().getValue(builder);
+  auto rhsv = Info.getRHS().getValue(builder);
+  auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
+  auto postTy = lhsv.getType().cast<mlir::IntegerType>();
+  if (prevTy.getWidth() < postTy.getWidth())
+    rhsv = builder.create<arith::ExtUIOp>(loc, postTy, rhsv);
+  if (prevTy.getWidth() > postTy.getWidth())
+    rhsv = builder.create<arith::TruncIOp>(loc, postTy, rhsv);
+  assert(lhsv.getType() == rhsv.getType());
+  return ValueCategory(builder.create<ShLIOp>(loc, lhsv, rhsv),
+                       /*isReference*/ false);
+}
+
+ValueCategory MLIRScanner::EmitBinShr(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Shr &&
+         "Invalid binary expression");
+  auto lhsv = Info.getLHS().getValue(builder);
+  auto rhsv = Info.getRHS().getValue(builder);
+  auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
+  auto postTy = lhsv.getType().cast<mlir::IntegerType>();
+  if (prevTy.getWidth() < postTy.getWidth())
+    rhsv = builder.create<mlir::arith::ExtUIOp>(loc, postTy, rhsv);
+  if (prevTy.getWidth() > postTy.getWidth())
+    rhsv = builder.create<mlir::arith::TruncIOp>(loc, postTy, rhsv);
+  assert(lhsv.getType() == rhsv.getType());
+  if (isSigned(Info.getExpr()->getType()))
+    return ValueCategory(builder.create<ShRSIOp>(loc, lhsv, rhsv),
+                         /*isReference*/ false);
+  else
+    return ValueCategory(builder.create<ShRUIOp>(loc, lhsv, rhsv),
+                         /*isReference*/ false);
+}
+
+ValueCategory MLIRScanner::EmitBinAnd(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_And &&
+         "Invalid binary expression");
+  return ValueCategory(builder.create<AndIOp>(loc,
+                                              Info.getLHS().getValue(builder),
+                                              Info.getRHS().getValue(builder)),
+                       /*isReference*/ false);
+}
+
+ValueCategory MLIRScanner::EmitBinXor(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Xor &&
+         "Invalid binary expression");
+  return ValueCategory(builder.create<XOrIOp>(loc,
+                                              Info.getLHS().getValue(builder),
+                                              Info.getRHS().getValue(builder)),
+                       /*isReference*/ false);
+}
+
+ValueCategory MLIRScanner::EmitBinOr(const BinOpInfo &Info) {
+  assert(Info.getOpcode() == BinaryOperator::Opcode::BO_Or &&
+         "Invalid binary expression");
+  // TODO short circuit
+  return ValueCategory(builder.create<OrIOp>(loc,
+                                             Info.getLHS().getValue(builder),
+                                             Info.getRHS().getValue(builder)),
+                       /*isReference*/ false);
+}
