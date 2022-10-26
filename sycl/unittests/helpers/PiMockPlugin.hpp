@@ -144,6 +144,13 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
       *param_value_size_ret = sizeof(PI_TRUE);
     return PI_SUCCESS;
   }
+  //This mock GPU device has no sub-devices 
+  case PI_DEVICE_INFO_PARTITION_PROPERTIES:{
+    if(param_value_size_ret){
+      *param_value_size_ret=0;
+    }
+    return PI_SUCCESS;
+  }
   default:
     return PI_SUCCESS;
   }
