@@ -642,6 +642,7 @@ for (int i = 0; i < length; ++i) {
 - In the future looking APIs, `get_wi_data` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
 
 - `dynamic_extent` on the shape of `joint_matrix` is only available on Intel AMX. Should this be part of the API?  
+- This document still contains non-portable code between Intel AMX and DPAS, and Nvidia Tensor Cores such as: packed layout, dynamic layout on joint matrix type of use A and B, store of matrix A and B. Currently, these restrictions are explained in the spec text. But we might decide to move these to a separate Intel-specific additional matrix API document. 
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
