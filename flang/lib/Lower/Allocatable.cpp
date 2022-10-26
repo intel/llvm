@@ -14,6 +14,7 @@
 #include "flang/Evaluate/tools.h"
 #include "flang/Lower/AbstractConverter.h"
 #include "flang/Lower/IterationSpace.h"
+#include "flang/Lower/Mangler.h"
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/Runtime.h"
 #include "flang/Lower/StatementContext.h"
@@ -23,6 +24,7 @@
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Support/FatalError.h"
+#include "flang/Optimizer/Support/InternalNames.h"
 #include "flang/Parser/parse-tree.h"
 #include "flang/Runtime/allocatable.h"
 #include "flang/Runtime/pointer.h"
@@ -393,7 +395,7 @@ private:
     if (alloc.hasCoarraySpec())
       TODO(loc, "coarray allocation");
     if (alloc.type.IsPolymorphic())
-      genSetType(alloc, box);
+      genSetType(alloc, box, loc);
     genSetDeferredLengthParameters(alloc, box);
     // Set bounds for arrays
     mlir::Type idxTy = builder.getIndexType();
@@ -467,8 +469,47 @@ private:
   void genMoldAllocation(const Allocation &, const fir::MutableBoxValue &) {
     TODO(loc, "MOLD allocation");
   }
-  void genSetType(const Allocation &, const fir::MutableBoxValue &) {
-    TODO(loc, "polymorphic entity allocation");
+
+  /// Generate call to the AllocatableInitDerived to set up the type descriptor
+  /// and other part of the descriptor for derived type.
+  void genSetType(const Allocation &alloc, const fir::MutableBoxValue &box,
+                  mlir::Location loc) {
+    const Fortran::semantics::DeclTypeSpec *typeSpec =
+        getIfAllocateStmtTypeSpec();
+
+    // No type spec provided in allocate statement so the declared type spec is
+    // used.
+    if (!typeSpec)
+      typeSpec = &alloc.type;
+
+    assert(typeSpec && "type spec missing for polymorphic allocation");
+    std::string typeName =
+        Fortran::lower::mangle::mangleName(typeSpec->derivedTypeSpec());
+    std::string typeDescName =
+        fir::NameUniquer::getTypeDescriptorName(typeName);
+
+    auto typeDescGlobal =
+        builder.getModule().lookupSymbol<fir::GlobalOp>(typeDescName);
+    if (!typeDescGlobal)
+      fir::emitFatalError(loc, "type descriptor not defined");
+    auto typeDescAddr = builder.create<fir::AddrOfOp>(
+        loc, fir::ReferenceType::get(typeDescGlobal.getType()),
+        typeDescGlobal.getSymbol());
+    mlir::func::FuncOp callee =
+        fir::runtime::getRuntimeFunc<mkRTKey(AllocatableInitDerived)>(loc,
+                                                                      builder);
+
+    llvm::ArrayRef<mlir::Type> inputTypes =
+        callee.getFunctionType().getInputs();
+    llvm::SmallVector<mlir::Value> args;
+    args.push_back(builder.createConvert(loc, inputTypes[0], box.getAddr()));
+    args.push_back(builder.createConvert(loc, inputTypes[1], typeDescAddr));
+    mlir::Value rank = builder.createIntegerConstant(loc, inputTypes[2],
+                                                     alloc.getSymbol().Rank());
+    mlir::Value c0 = builder.createIntegerConstant(loc, inputTypes[3], 0);
+    args.push_back(rank);
+    args.push_back(c0);
+    builder.create<fir::CallOp>(loc, callee, args);
   }
 
   /// Returns a pointer to the DeclTypeSpec if a type-spec is provided in the
@@ -511,7 +552,9 @@ static void genDeallocate(fir::FirOpBuilder &builder, mlir::Location loc,
                           const fir::MutableBoxValue &box,
                           ErrorManager &errorManager) {
   // Deallocate intrinsic types inline.
-  if (!box.isDerived() && !errorManager.hasStatSpec() && !useAllocateRuntime) {
+  if (!box.isDerived() && !box.isPolymorphic() &&
+      !box.isUnlimitedPolymorphic() && !errorManager.hasStatSpec() &&
+      !useAllocateRuntime) {
     fir::factory::genInlinedDeallocate(builder, loc, box);
     return;
   }
@@ -722,4 +765,37 @@ bool Fortran::lower::isWholePointer(const Fortran::lower::SomeExpr &expr) {
           Fortran::evaluate::UnwrapWholeSymbolOrComponentDataRef(expr))
     return Fortran::semantics::IsPointer(*sym);
   return false;
+}
+
+mlir::Value Fortran::lower::getAssumedCharAllocatableOrPointerLen(
+    fir::FirOpBuilder &builder, mlir::Location loc,
+    const Fortran::semantics::Symbol &sym, mlir::Value box) {
+  // Read length from fir.box (explicit expr cannot safely be re-evaluated
+  // here).
+  auto readLength = [&]() {
+    fir::BoxValue boxLoad =
+        builder.create<fir::LoadOp>(loc, fir::getBase(box)).getResult();
+    return fir::factory::readCharLen(builder, loc, boxLoad);
+  };
+  if (Fortran::semantics::IsOptional(sym)) {
+    mlir::IndexType idxTy = builder.getIndexType();
+    // It is not safe to unconditionally read boxes of optionals in case
+    // they are absents. According to 15.5.2.12 3 (9), it is illegal to
+    // inquire the length of absent optional, even if non deferred, so
+    // it's fine to use undefOp in this case.
+    auto isPresent = builder.create<fir::IsPresentOp>(loc, builder.getI1Type(),
+                                                      fir::getBase(box));
+    mlir::Value len =
+        builder.genIfOp(loc, {idxTy}, isPresent, true)
+            .genThen(
+                [&]() { builder.create<fir::ResultOp>(loc, readLength()); })
+            .genElse([&]() {
+              auto undef = builder.create<fir::UndefOp>(loc, idxTy);
+              builder.create<fir::ResultOp>(loc, undef.getResult());
+            })
+            .getResults()[0];
+    return len;
+  }
+
+  return readLength();
 }

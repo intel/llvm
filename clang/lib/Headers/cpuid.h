@@ -202,7 +202,12 @@
 /* Features in %eax for leaf 7 sub-leaf 1 */
 #define bit_AVXVNNI       0x00000010
 #define bit_AVX512BF16    0x00000020
+#define bit_CMPCCXADD     0x00000080
+#define bit_AMXFP16       0x00200000
 #define bit_HRESET        0x00400000
+
+/* Features in %edx for leaf 7 sub-leaf 1 */
+#define bit_PREFETCHI     0x00004000
 
 /* Features in %eax for leaf 13 sub-leaf 1 */
 #define bit_XSAVEOPT    0x00000001
@@ -261,7 +266,8 @@
         : "0"(__leaf), "2"(__count))
 #endif
 
-static __inline int __get_cpuid_max (unsigned int __leaf, unsigned int *__sig)
+static __inline unsigned int __get_cpuid_max (unsigned int __leaf,
+                                              unsigned int *__sig)
 {
     unsigned int __eax, __ebx, __ecx, __edx;
 #if __i386__

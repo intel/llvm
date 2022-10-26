@@ -290,6 +290,8 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasCLWB = true;
     } else if (Feature == "+wbnoinvd") {
       HasWBNOINVD = true;
+    } else if (Feature == "+prefetchi") {
+      HasPREFETCHI = true;
     } else if (Feature == "+prefetchwt1") {
       HasPREFETCHWT1 = true;
     } else if (Feature == "+clzero") {
@@ -326,10 +328,14 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasHRESET = true;
     } else if (Feature == "+amx-bf16") {
       HasAMXBF16 = true;
+    } else if (Feature == "+amx-fp16") {
+      HasAMXFP16 = true;
     } else if (Feature == "+amx-int8") {
       HasAMXINT8 = true;
     } else if (Feature == "+amx-tile") {
       HasAMXTILE = true;
+    } else if (Feature == "+cmpccxadd") {
+      HasCMPCCXADD = true;
     } else if (Feature == "+avxvnni") {
       HasAVXVNNI = true;
     } else if (Feature == "+serialize") {
@@ -738,6 +744,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__SHSTK__");
   if (HasSGX)
     Builder.defineMacro("__SGX__");
+  if (HasPREFETCHI)
+    Builder.defineMacro("__PREFETCHI__");
   if (HasPREFETCHWT1)
     Builder.defineMacro("__PREFETCHWT1__");
   if (HasCLZERO)
@@ -774,6 +782,10 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__AMXINT8__");
   if (HasAMXBF16)
     Builder.defineMacro("__AMXBF16__");
+  if (HasAMXFP16)
+    Builder.defineMacro("__AMXFP16__");
+  if (HasCMPCCXADD)
+    Builder.defineMacro("__CMPCCXADD__");
   if (HasAVXVNNI)
     Builder.defineMacro("__AVXVNNI__");
   if (HasSERIALIZE)
@@ -877,6 +889,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("adx", true)
       .Case("aes", true)
       .Case("amx-bf16", true)
+      .Case("amx-fp16", true)
       .Case("amx-int8", true)
       .Case("amx-tile", true)
       .Case("avx", true)
@@ -904,6 +917,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("clflushopt", true)
       .Case("clwb", true)
       .Case("clzero", true)
+      .Case("cmpccxadd", true)
       .Case("crc32", true)
       .Case("cx16", true)
       .Case("enqcmd", true)
@@ -929,6 +943,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("pconfig", true)
       .Case("pku", true)
       .Case("popcnt", true)
+      .Case("prefetchi", true)
       .Case("prefetchwt1", true)
       .Case("prfchw", true)
       .Case("ptwrite", true)
@@ -971,6 +986,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("adx", HasADX)
       .Case("aes", HasAES)
       .Case("amx-bf16", HasAMXBF16)
+      .Case("amx-fp16", HasAMXFP16)
       .Case("amx-int8", HasAMXINT8)
       .Case("amx-tile", HasAMXTILE)
       .Case("avxvnni", HasAVXVNNI)
@@ -998,6 +1014,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("clflushopt", HasCLFLUSHOPT)
       .Case("clwb", HasCLWB)
       .Case("clzero", HasCLZERO)
+      .Case("cmpccxadd", HasCMPCCXADD)
       .Case("crc32", HasCRC32)
       .Case("cx8", HasCX8)
       .Case("cx16", HasCX16)
@@ -1025,6 +1042,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("pconfig", HasPCONFIG)
       .Case("pku", HasPKU)
       .Case("popcnt", HasPOPCNT)
+      .Case("prefetchi", HasPREFETCHI)
       .Case("prefetchwt1", HasPREFETCHWT1)
       .Case("prfchw", HasPRFCHW)
       .Case("ptwrite", HasPTWRITE)

@@ -321,9 +321,7 @@ public:
     DeclsInScope.insert(D);
   }
 
-  void RemoveDecl(Decl *D) {
-    DeclsInScope.erase(D);
-  }
+  void RemoveDecl(Decl *D) { DeclsInScope.erase(D); }
 
   void incrementMSManglingNumber() {
     if (Scope *MSLMP = getMSLastManglingParent()) {

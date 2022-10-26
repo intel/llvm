@@ -61,7 +61,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HighlightingKind K);
 
 enum class HighlightingModifier {
   Declaration,
-  // FIXME: Definition (needs findExplicitReferences support)
+  Definition,
   Deprecated,
   Deduced,
   Readonly,
@@ -71,6 +71,7 @@ enum class HighlightingModifier {
   DependentName,
   DefaultLibrary,
   UsedAsMutableReference,
+  ConstructorOrDestructor,
 
   FunctionScope,
   ClassScope,

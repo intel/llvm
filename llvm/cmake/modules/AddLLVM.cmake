@@ -103,11 +103,7 @@ function(add_llvm_symbol_exports target_name export_file)
     # FIXME: Don't write the "local:" line on OpenBSD.
     # in the export file, also add a linker script to version LLVM symbols (form: LLVM_N.M)
     add_custom_command(OUTPUT ${native_export_file}
-      COMMAND echo "LLVM_${LLVM_VERSION_MAJOR} {" > ${native_export_file}
-      COMMAND grep -q "[[:alnum:]]" ${export_file} && echo "  global:" >> ${native_export_file} || :
-      COMMAND sed -e "s/$/;/" -e "s/^/    /" < ${export_file} >> ${native_export_file}
-      COMMAND echo "  local: *;" >> ${native_export_file}
-      COMMAND echo "};" >> ${native_export_file}
+      COMMAND "${Python3_EXECUTABLE}" ${LLVM_MAIN_SRC_DIR}/utils/add_llvm_symbol_exports.py ${LLVM_VERSION_MAJOR} ${export_file} ${native_export_file}
       DEPENDS ${export_file}
       VERBATIM
       COMMENT "Creating export file for ${target_name}")
@@ -387,19 +383,35 @@ function(set_windows_version_resource_properties name resource_file)
     ${ARGN})
 
   if (NOT DEFINED ARG_VERSION_MAJOR)
-    set(ARG_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
+    if (${LLVM_VERSION_MAJOR})
+      set(ARG_VERSION_MAJOR ${LLVM_VERSION_MAJOR})
+    else()
+      set(ARG_VERSION_MAJOR 0)
+    endif()
   endif()
 
   if (NOT DEFINED ARG_VERSION_MINOR)
-    set(ARG_VERSION_MINOR ${LLVM_VERSION_MINOR})
+    if (${LLVM_VERSION_MINOR})
+      set(ARG_VERSION_MINOR ${LLVM_VERSION_MINOR})
+    else()
+      set(ARG_VERSION_MINOR 0)
+    endif()
   endif()
 
   if (NOT DEFINED ARG_VERSION_PATCHLEVEL)
-    set(ARG_VERSION_PATCHLEVEL ${LLVM_VERSION_PATCH})
+    if (${LLVM_VERSION_PATCH})
+      set(ARG_VERSION_PATCHLEVEL ${LLVM_VERSION_PATCH})
+    else()
+      set(ARG_VERSION_PATCHLEVEL 0)
+    endif()
   endif()
 
   if (NOT DEFINED ARG_VERSION_STRING)
-    set(ARG_VERSION_STRING ${PACKAGE_VERSION})
+    if (${PACKAGE_VERSION})
+      set(ARG_VERSION_STRING ${PACKAGE_VERSION})
+    else()
+      set(ARG_VERSION_STRING 0)
+    endif()
   endif()
 
   if (NOT DEFINED ARG_PRODUCT_NAME)
@@ -2101,7 +2113,7 @@ function(llvm_add_tool_symlink project link_name target)
   if(NOT ARG_OUTPUT_DIR)
     # If you're not overriding the OUTPUT_DIR, we can make the link relative in
     # the same directory.
-    if(CMAKE_HOST_UNIX)
+    if(LLVM_USE_SYMLINKS)
       set(dest_binary "$<TARGET_FILE_NAME:${target}>")
     endif()
     if(CMAKE_CONFIGURATION_TYPES)
@@ -2127,7 +2139,7 @@ function(llvm_add_tool_symlink project link_name target)
     endif()
   endif()
 
-  if(CMAKE_HOST_UNIX)
+  if(LLVM_USE_SYMLINKS)
     set(LLVM_LINK_OR_COPY create_symlink)
   else()
     set(LLVM_LINK_OR_COPY copy)

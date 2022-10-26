@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_DEMANGLE_ITANIUMDEMANGLE_H
-#define LLVM_DEMANGLE_ITANIUMDEMANGLE_H
+#ifndef DEMANGLE_ITANIUMDEMANGLE_H
+#define DEMANGLE_ITANIUMDEMANGLE_H
 
 #include "DemangleConfig.h"
 #include "StringView.h"
@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <new>
 #include <utility>
 
 DEMANGLE_NAMESPACE_BEGIN
@@ -3051,14 +3052,21 @@ AbstractManglingParser<Derived, Alloc>::parseOperatorEncoding() {
   if (numLeft() < 2)
     return nullptr;
 
-  auto Op = std::lower_bound(
-      &Ops[0], &Ops[NumOps], First,
-      [](const OperatorInfo &Op_, const char *Enc_) { return Op_ < Enc_; });
-  if (Op == &Ops[NumOps] || *Op != First)
+  // We can't use lower_bound as that can link to symbols in the C++ library,
+  // and this must remain independant of that.
+  size_t lower = 0u, upper = NumOps - 1; // Inclusive bounds.
+  while (upper != lower) {
+    size_t middle = (upper + lower) / 2;
+    if (Ops[middle] < First)
+      lower = middle + 1;
+    else
+      upper = middle;
+  }
+  if (Ops[lower] != First)
     return nullptr;
 
   First += 2;
-  return Op;
+  return &Ops[lower];
 }
 
 //   <operator-name> ::= See parseOperatorEncoding()
@@ -5509,4 +5517,4 @@ struct ManglingParser : AbstractManglingParser<ManglingParser<Alloc>, Alloc> {
 
 DEMANGLE_NAMESPACE_END
 
-#endif // LLVM_DEMANGLE_ITANIUMDEMANGLE_H
+#endif // DEMANGLE_ITANIUMDEMANGLE_H

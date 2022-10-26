@@ -188,6 +188,22 @@ static bool canUseUnwrappedRawValue(const tblgen::Attribute &attr) {
          !attr.getConstBuilderTemplate().empty();
 }
 
+/// Build an attribute from a parameter value using the constant builder.
+static std::string constBuildAttrFromParam(const tblgen::Attribute &attr,
+                                           FmtContext &fctx,
+                                           StringRef paramName) {
+  std::string builderTemplate = attr.getConstBuilderTemplate().str();
+
+  // For StringAttr, its constant builder call will wrap the input in
+  // quotes, which is correct for normal string literals, but incorrect
+  // here given we use function arguments. So we need to strip the
+  // wrapping quotes.
+  if (StringRef(builderTemplate).contains("\"$0\""))
+    builderTemplate = replaceAllSubstrs(builderTemplate, "\"$0\"", "$0");
+
+  return tgfmt(builderTemplate, &fctx, paramName).str();
+}
+
 namespace {
 /// Metadata on a registered attribute. Given that attributes are stored in
 /// sorted order on operations, we can use information from ODS to deduce the
@@ -907,6 +923,7 @@ void OpEmitter::genAttrNameGetters() {
 
     const char *const getAttrName = R"(
   assert(index < {0} && "invalid attribute index");
+  assert(name.getStringRef() == getOperationName() && "invalid operation name");
   return name.getRegisteredInfo()->getAttributeNames()[index];
 )";
     method->body() << formatv(getAttrName, attributes.size());
@@ -1091,13 +1108,69 @@ void OpEmitter::genAttrSetters() {
                                 getterName);
   };
 
+  // Generate a setter that accepts the underlying C++ type as opposed to the
+  // attribute type.
+  auto emitAttrWithReturnType = [&](StringRef setterName, StringRef getterName,
+                                    Attribute attr) {
+    Attribute baseAttr = attr.getBaseAttr();
+    if (!canUseUnwrappedRawValue(baseAttr))
+      return;
+    FmtContext fctx;
+    fctx.withBuilder("::mlir::Builder((*this)->getContext())");
+    bool isUnitAttr = attr.getAttrDefName() == "UnitAttr";
+    bool isOptional = attr.isOptional();
+
+    auto createMethod = [&](const Twine &paramType) {
+      return opClass.addMethod("void", setterName,
+                               MethodParameter(paramType.str(), "attrValue"));
+    };
+
+    // Build the method using the correct parameter type depending on
+    // optionality.
+    Method *method = nullptr;
+    if (isUnitAttr)
+      method = createMethod("bool");
+    else if (isOptional)
+      method =
+          createMethod("::llvm::Optional<" + baseAttr.getReturnType() + ">");
+    else
+      method = createMethod(attr.getReturnType());
+    if (!method)
+      return;
+
+    // If the value isn't optional, just set it directly.
+    if (!isOptional) {
+      method->body() << formatv(
+          "  (*this)->setAttr({0}AttrName(), {1});", getterName,
+          constBuildAttrFromParam(attr, fctx, "attrValue"));
+      return;
+    }
+
+    // Otherwise, we only set if the provided value is valid. If it isn't, we
+    // remove the attribute.
+
+    // TODO: Handle unit attr parameters specially, given that it is treated as
+    // optional but not in the same way as the others (i.e. it uses bool over
+    // Optional<>).
+    StringRef paramStr = isUnitAttr ? "attrValue" : "*attrValue";
+    const char *optionalCodeBody = R"(
+    if (attrValue)
+      return (*this)->setAttr({0}AttrName(), {1});
+    (*this)->removeAttr({0}AttrName());)";
+    method->body() << formatv(
+        optionalCodeBody, getterName,
+        constBuildAttrFromParam(baseAttr, fctx, paramStr));
+  };
+
   for (const NamedAttribute &namedAttr : op.getAttributes()) {
     if (namedAttr.attr.isDerivedAttr())
       continue;
-    for (auto names : llvm::zip(op.getSetterNames(namedAttr.name),
-                                op.getGetterNames(namedAttr.name)))
-      emitAttrWithStorageType(std::get<0>(names), std::get<1>(names),
-                              namedAttr.attr);
+    for (auto [setterName, getterName] :
+         llvm::zip(op.getSetterNames(namedAttr.name),
+                   op.getGetterNames(namedAttr.name))) {
+      emitAttrWithStorageType(setterName, getterName, namedAttr.attr);
+      emitAttrWithReturnType(setterName, getterName, namedAttr.attr);
+    }
   }
 }
 
@@ -1510,13 +1583,12 @@ void OpEmitter::genSeparateArgParamBuilder() {
       // Generate builder that infers type too.
       // TODO: Subsume this with general checking if type can be
       // inferred automatically.
-      // TODO: Expand to handle regions.
       body << formatv(R"(
         ::llvm::SmallVector<::mlir::Type, 2> inferredReturnTypes;
         if (::mlir::succeeded({0}::inferReturnTypes(odsBuilder.getContext(),
                       {1}.location, {1}.operands,
                       {1}.attributes.getDictionary({1}.getContext()),
-                      /*regions=*/{{}, inferredReturnTypes)))
+                      {1}.regions, inferredReturnTypes)))
           {1}.addTypes(inferredReturnTypes);
         else
           ::llvm::report_fatal_error("Failed to infer result type(s).");)",
@@ -1587,7 +1659,7 @@ void OpEmitter::genSeparateArgParamBuilder() {
   // ambiguous function detection will elide those ones.
   for (auto attrType : attrBuilderType) {
     emit(attrType, TypeParamKind::Separate, /*inferType=*/false);
-    if (canInferType(op) && op.getNumRegions() == 0)
+    if (canInferType(op))
       emit(attrType, TypeParamKind::None, /*inferType=*/true);
     emit(attrType, TypeParamKind::Collective, /*inferType=*/false);
   }
@@ -1635,9 +1707,9 @@ void OpEmitter::genUseOperandAsResultTypeCollectiveParamBuilder() {
 }
 
 void OpEmitter::genPopulateDefaultAttributes() {
-  // All done if no attributes have default values.
+  // All done if no attributes, except optional ones, have default values.
   if (llvm::all_of(op.getAttributes(), [](const NamedAttribute &named) {
-        return !named.attr.hasDefaultValue();
+        return !named.attr.hasDefaultValue() || named.attr.isOptional();
       }))
     return;
 
@@ -1667,8 +1739,8 @@ void OpEmitter::genPopulateDefaultAttributes() {
     fctx.withBuilder(odsBuilder);
     std::string defaultValue = std::string(
         tgfmt(attr.getConstBuilderTemplate(), &fctx, attr.getDefaultValue()));
-    body.indent() << formatv(" attributes.append(attrNames[{0}], {1});\n",
-                             index, defaultValue);
+    body.indent() << formatv("attributes.append(attrNames[{0}], {1});\n", index,
+                             defaultValue);
     body.unindent() << "}\n";
   }
 }
@@ -2143,39 +2215,32 @@ void OpEmitter::genCodeForAddingArgAndRegionForBuilder(
     if (attr.isDerivedAttr() || inferredAttributes.contains(namedAttr.name))
       continue;
 
-    // TODO(jpienaar): The wrapping of optional is different for default or not,
-    // so don't unwrap for default ones that would fail below.
-    bool emitNotNullCheck = (attr.isOptional() && !attr.hasDefaultValue()) ||
-                            (attr.hasDefaultValue() && !isRawValueAttr);
+    // TODO: The wrapping of optional is different for default or not, so don't
+    // unwrap for default ones that would fail below.
+    bool emitNotNullCheck =
+        (attr.isOptional() && !attr.hasDefaultValue()) ||
+        (attr.hasDefaultValue() && !isRawValueAttr) ||
+        // TODO: UnitAttr is optional, not wrapped, but needs to be guarded as
+        // the constant materialization is only for true case.
+        (isRawValueAttr && attr.getAttrDefName() == "UnitAttr");
     if (emitNotNullCheck)
-      body << formatv("  if ({0}) ", namedAttr.name) << "{\n";
+      body.indent() << formatv("if ({0}) ", namedAttr.name) << "{\n";
 
     if (isRawValueAttr && canUseUnwrappedRawValue(attr)) {
       // If this is a raw value, then we need to wrap it in an Attribute
       // instance.
       FmtContext fctx;
       fctx.withBuilder("odsBuilder");
-
-      std::string builderTemplate = std::string(attr.getConstBuilderTemplate());
-
-      // For StringAttr, its constant builder call will wrap the input in
-      // quotes, which is correct for normal string literals, but incorrect
-      // here given we use function arguments. So we need to strip the
-      // wrapping quotes.
-      if (StringRef(builderTemplate).contains("\"$0\""))
-        builderTemplate = replaceAllSubstrs(builderTemplate, "\"$0\"", "$0");
-
-      std::string value =
-          std::string(tgfmt(builderTemplate, &fctx, namedAttr.name));
       body << formatv("  {0}.addAttribute({1}AttrName({0}.name), {2});\n",
-                      builderOpState, op.getGetterName(namedAttr.name), value);
+                      builderOpState, op.getGetterName(namedAttr.name),
+                      constBuildAttrFromParam(attr, fctx, namedAttr.name));
     } else {
       body << formatv("  {0}.addAttribute({1}AttrName({0}.name), {2});\n",
                       builderOpState, op.getGetterName(namedAttr.name),
                       namedAttr.name);
     }
     if (emitNotNullCheck)
-      body << "  }\n";
+      body.unindent() << "  }\n";
   }
 
   // Create the correct number of regions.
@@ -2966,7 +3031,7 @@ OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(
       // call. This should be set instead.
       std::string defaultValue = std::string(
           tgfmt(attr.getConstBuilderTemplate(), &fctx, attr.getDefaultValue()));
-      body << "  if (!attr)\n    attr = " << defaultValue << ";\n";
+      body << "if (!attr)\n  attr = " << defaultValue << ";\n";
     }
     body << "return attr;\n";
   };

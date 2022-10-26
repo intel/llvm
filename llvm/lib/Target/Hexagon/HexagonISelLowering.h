@@ -53,12 +53,20 @@ enum NodeType : unsigned {
   CP,          // Constant pool.
 
   COMBINE,
-  VASL,
+  VASL,        // Vector shifts by a scalar value
   VASR,
   VLSR,
+  MFSHL,       // Funnel shifts with the shift amount guaranteed to be
+  MFSHR,       // within the range of the bit width of the element.
 
   SSAT,        // Signed saturate.
   USAT,        // Unsigned saturate.
+  SMUL_LOHI,   // Same as ISD::SMUL_LOHI, but opaque to the combiner.
+  UMUL_LOHI,   // Same as ISD::UMUL_LOHI, but opaque to the combiner.
+               // We want to legalize MULH[SU] to [SU]MUL_LOHI, but the
+               // combiner will keep rewriting it back to MULH[SU].
+  USMUL_LOHI,  // Like SMUL_LOHI, but unsigned*signed.
+
   TSTBIT,
   INSERT,
   EXTRACTU,
@@ -158,10 +166,12 @@ public:
   // Should we expand the build vector with shuffles?
   bool shouldExpandBuildVectorWithShuffles(EVT VT,
       unsigned DefinedValues) const override;
+  bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
+      unsigned Index) const override;
 
   bool isShuffleMaskLegal(ArrayRef<int> Mask, EVT VT) const override;
-  TargetLoweringBase::LegalizeTypeAction getPreferredVectorAction(MVT VT)
-      const override;
+  LegalizeTypeAction getPreferredVectorAction(MVT VT) const override;
+  LegalizeAction getCustomOperationAction(SDNode &Op) const override;
 
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   void LowerOperationWrapper(SDNode *N, SmallVectorImpl<SDValue> &Results,
@@ -330,6 +340,9 @@ public:
   bool shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtTy,
                              EVT NewVT) const override;
 
+  void AdjustInstrPostInstrSelection(MachineInstr &MI,
+                                     SDNode *Node) const override;
+
   // Handling of atomic RMW instructions.
   Value *emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy, Value *Addr,
                         AtomicOrdering Ord) const override;
@@ -348,6 +361,7 @@ public:
 private:
   void initializeHVXLowering();
   unsigned getPreferredHvxVectorAction(MVT VecTy) const;
+  unsigned getCustomHvxOperationAction(SDNode &Op) const;
 
   bool validateConstPtrAlignment(SDValue Ptr, Align NeedAlign, const SDLoc &dl,
                                  SelectionDAG &DAG) const;
@@ -370,6 +384,7 @@ private:
                           SelectionDAG &DAG) const;
   SDValue contractPredicate(SDValue Vec64, const SDLoc &dl,
                             SelectionDAG &DAG) const;
+  SDValue getSplatValue(SDValue Op, SelectionDAG &DAG) const;
   SDValue getVectorShiftByInt(SDValue Op, SelectionDAG &DAG) const;
   SDValue appendUndef(SDValue Val, MVT ResTy, SelectionDAG &DAG) const;
 
@@ -431,6 +446,7 @@ private:
   bool allowsHvxMisalignedMemoryAccesses(MVT VecTy,
                                          MachineMemOperand::Flags Flags,
                                          bool *Fast) const;
+  void AdjustHvxInstrPostInstrSelection(MachineInstr &MI, SDNode *Node) const;
 
   bool isHvxSingleTy(MVT Ty) const;
   bool isHvxPairTy(MVT Ty) const;
@@ -476,6 +492,12 @@ private:
                                     bool Signed, SelectionDAG &DAG) const;
   VectorPair emitHvxShiftRightRnd(SDValue Val, unsigned Amt, bool Signed,
                                   SelectionDAG &DAG) const;
+  SDValue emitHvxMulHsV60(SDValue A, SDValue B, const SDLoc &dl,
+                          SelectionDAG &DAG) const;
+  SDValue emitHvxMulLoHiV60(SDValue A, bool SignedA, SDValue B, bool SignedB,
+                            const SDLoc &dl, SelectionDAG &DAG) const;
+  SDValue emitHvxMulLoHiV62(SDValue A, bool SignedA, SDValue B, bool SignedB,
+                            const SDLoc &dl, SelectionDAG &DAG) const;
 
   SDValue LowerHvxBuildVector(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxSplatVector(SDValue Op, SelectionDAG &DAG) const;
@@ -490,10 +512,12 @@ private:
   SDValue LowerHvxZeroExt(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxCttz(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxMulh(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerHvxMulLoHi(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxSetCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxExtend(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxSelect(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxShift(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerHvxFunnelShift(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxIntrinsic(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxMaskedOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerHvxFpExtend(SDValue Op, SelectionDAG &DAG) const;

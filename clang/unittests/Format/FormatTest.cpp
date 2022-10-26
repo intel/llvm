@@ -2999,6 +2999,10 @@ TEST_F(FormatTest, ShortCaseLabels) {
                "}",
                Style);
   Style.ColumnLimit = 21;
+  verifyFormat("#define X           \\\n"
+               "  case 0: break;\n"
+               "#include \"f\"",
+               Style);
   verifyFormat("switch (a) {\n"
                "case 1: x = 1; break;\n"
                "case 2: return;\n"
@@ -5168,7 +5172,7 @@ TEST_F(FormatTest, MacroDefinitionsWithIncompleteCode) {
   verifyIncompleteFormat("#define STR(x) #x\n"
                          "f(STR(this_is_a_string_literal{));");
   verifyFormat("#pragma omp threadprivate( \\\n"
-               "    y)), // expected-warning",
+               "        y)), // expected-warning",
                getLLVMStyleWithColumns(28));
   verifyFormat("#d, = };");
   verifyFormat("#if \"a");
@@ -10149,6 +10153,14 @@ TEST_F(FormatTest, UnderstandsOverloadedOperators) {
   // verifyFormat("void f() { operator*(a & a); }");
   // verifyFormat("void f() { operator&(a, b * b); }");
 
+  verifyFormat("void f() { return operator()(x) * b; }");
+  verifyFormat("void f() { return operator[](x) * b; }");
+  verifyFormat("void f() { return operator\"\"_a(x) * b; }");
+  verifyFormat("void f() { return operator\"\" _a(x) * b; }");
+  verifyFormat("void f() { return operator\"\"s(x) * b; }");
+  verifyFormat("void f() { return operator\"\" s(x) * b; }");
+  verifyFormat("void f() { return operator\"\"if(x) * b; }");
+
   verifyFormat("::operator delete(foo);");
   verifyFormat("::operator new(n * sizeof(foo));");
   verifyFormat("foo() { ::operator delete(foo); }");
@@ -10455,6 +10467,7 @@ TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
   verifyFormat("#define MACRO() [](A *a) { return 1; }");
   verifyFormat("Constructor() : member([](A *a, B *b) {}) {}");
   verifyIndependentOfContext("typedef void (*f)(int *a);");
+  verifyIndependentOfContext("typedef void (*f)(Type *a);");
   verifyIndependentOfContext("int i{a * b};");
   verifyIndependentOfContext("aaa && aaa->f();");
   verifyIndependentOfContext("int x = ~*p;");
@@ -19930,6 +19943,27 @@ TEST_F(FormatTest, UnderstandsPragmas) {
                    "(including parentheses)."));
 }
 
+TEST_F(FormatTest, UnderstandsPragmaOmpTarget) {
+  verifyFormat("#pragma omp target map(to : var)");
+  verifyFormat("#pragma omp target map(to : var[ : N])");
+  verifyFormat("#pragma omp target map(to : var[0 : N])");
+  verifyFormat("#pragma omp target map(always, to : var[0 : N])");
+
+  EXPECT_EQ(
+      "#pragma omp target       \\\n"
+      "    reduction(+ : var)   \\\n"
+      "    map(to : A[0 : N])   \\\n"
+      "    map(to : B[0 : N])   \\\n"
+      "    map(from : C[0 : N]) \\\n"
+      "    firstprivate(i)      \\\n"
+      "    firstprivate(j)      \\\n"
+      "    firstprivate(k)",
+      format(
+          "#pragma omp target reduction(+:var) map(to:A[0:N]) map(to:B[0:N]) "
+          "map(from:C[0:N]) firstprivate(i) firstprivate(j) firstprivate(k)",
+          getLLVMStyleWithColumns(26)));
+}
+
 TEST_F(FormatTest, UnderstandPragmaOption) {
   verifyFormat("#pragma option -C -A");
 
@@ -19939,9 +19973,7 @@ TEST_F(FormatTest, UnderstandPragmaOption) {
 TEST_F(FormatTest, UnderstandPragmaRegion) {
   auto Style = getLLVMStyleWithColumns(0);
   verifyFormat("#pragma region TEST(FOO : BAR)", Style);
-
-  EXPECT_EQ("#pragma region TEST(FOO : BAR)",
-            format("#pragma region TEST(FOO : BAR)", Style));
+  verifyFormat("#pragma region TEST(FOO: NOSPACE)", Style);
 }
 
 TEST_F(FormatTest, OptimizeBreakPenaltyVsExcess) {
@@ -20281,6 +20313,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(Cpp11BracedListStyle);
   CHECK_PARSE_BOOL(ReflowComments);
   CHECK_PARSE_BOOL(RemoveBracesLLVM);
+  CHECK_PARSE_BOOL(RemoveSemicolon);
   CHECK_PARSE_BOOL(SortUsingDeclarations);
   CHECK_PARSE_BOOL(SpacesInParentheses);
   CHECK_PARSE_BOOL(SpacesInSquareBrackets);
@@ -24307,6 +24340,12 @@ TEST_F(FormatTest, WebKitDefaultStyle) {
 TEST_F(FormatTest, Concepts) {
   EXPECT_EQ(getLLVMStyle().BreakBeforeConceptDeclarations,
             FormatStyle::BBCDS_Always);
+
+  // The default in LLVM style is REI_OuterScope, but these tests were written
+  // when the default was REI_Keyword.
+  FormatStyle Style = getLLVMStyle();
+  Style.RequiresExpressionIndentation = FormatStyle::REI_Keyword;
+
   verifyFormat("template <typename T>\n"
                "concept True = true;");
 
@@ -24323,13 +24362,15 @@ TEST_F(FormatTest, Concepts) {
                "concept DelayedCheck = true && requires(T t) {\n"
                "                                 t.bar();\n"
                "                                 t.baz();\n"
-               "                               } && sizeof(T) <= 8;");
+               "                               } && sizeof(T) <= 8;",
+               Style);
 
   verifyFormat("template <typename T>\n"
                "concept DelayedCheck = true && requires(T t) { // Comment\n"
                "                                 t.bar();\n"
                "                                 t.baz();\n"
-               "                               } && sizeof(T) <= 8;");
+               "                               } && sizeof(T) <= 8;",
+               Style);
 
   verifyFormat("template <typename T>\n"
                "concept DelayedCheck = false || requires(T t) { t.bar(); } && "
@@ -24431,26 +24472,30 @@ TEST_F(FormatTest, Concepts) {
                "concept Hashable = requires(T a) {\n"
                "                     { std::hash<T>{}(a) } -> "
                "std::convertible_to<std::size_t>;\n"
-               "                   };");
+               "                   };",
+               Style);
 
   verifyFormat(
       "template <typename T>\n"
       "concept EqualityComparable = requires(T a, T b) {\n"
       "                               { a == b } -> std::same_as<bool>;\n"
-      "                             };");
+      "                             };",
+      Style);
 
   verifyFormat(
       "template <typename T>\n"
       "concept EqualityComparable = requires(T a, T b) {\n"
       "                               { a == b } -> std::same_as<bool>;\n"
       "                               { a != b } -> std::same_as<bool>;\n"
-      "                             };");
+      "                             };",
+      Style);
 
   verifyFormat("template <typename T>\n"
                "concept WeakEqualityComparable = requires(T a, T b) {\n"
                "                                   { a == b };\n"
                "                                   { a != b };\n"
-               "                                 };");
+               "                                 };",
+               Style);
 
   verifyFormat("template <typename T>\n"
                "concept HasSizeT = requires { typename T::size_t; };");
@@ -24466,7 +24511,8 @@ TEST_F(FormatTest, Concepts) {
                "      requires Same<T *, decltype(new T[n])>;\n"
                "      { delete new T; };\n"
                "      { delete new T[n]; };\n"
-               "    };");
+               "    };",
+               Style);
 
   verifyFormat("template <typename T>\n"
                "concept Semiregular =\n"
@@ -24479,7 +24525,8 @@ TEST_F(FormatTest, Concepts) {
                "      { delete new T[n]; };\n"
                "      { new T } -> std::same_as<T *>;\n"
                "    } && DefaultConstructible<T> && CopyConstructible<T> && "
-               "CopyAssignable<T>;");
+               "CopyAssignable<T>;",
+               Style);
 
   verifyFormat(
       "template <typename T>\n"
@@ -24493,14 +24540,16 @@ TEST_F(FormatTest, Concepts) {
       "                                 { delete new T; };\n"
       "                                 { delete new T[n]; };\n"
       "                               } && CopyConstructible<T> && "
-      "CopyAssignable<T>;");
+      "CopyAssignable<T>;",
+      Style);
 
   verifyFormat("template <typename T>\n"
                "concept Two = requires(T t) {\n"
                "                { t.foo() } -> std::same_as<Bar>;\n"
                "              } && requires(T &&t) {\n"
                "                     { t.foo() } -> std::same_as<Bar &&>;\n"
-               "                   };");
+               "                   };",
+               Style);
 
   verifyFormat(
       "template <typename T>\n"
@@ -24508,7 +24557,8 @@ TEST_F(FormatTest, Concepts) {
       "              { *x } -> std::convertible_to<typename T::inner>;\n"
       "              { x + 1 } noexcept -> std::same_as<int>;\n"
       "              { x * 1 } -> std::convertible_to<T>;\n"
-      "            };");
+      "            };",
+      Style);
 
   verifyFormat("template <typename T>\n"
                "concept C = requires(T x) {\n"
@@ -24518,33 +24568,38 @@ TEST_F(FormatTest, Concepts) {
                "              {\n"
                "                long_long_long_function_call(1, 2, 3, 4, 5)\n"
                "              } noexcept -> long_long_concept_name<T>;\n"
-               "            };");
+               "            };",
+               Style);
 
   verifyFormat(
       "template <typename T, typename U = T>\n"
       "concept Swappable = requires(T &&t, U &&u) {\n"
       "                      swap(std::forward<T>(t), std::forward<U>(u));\n"
       "                      swap(std::forward<U>(u), std::forward<T>(t));\n"
-      "                    };");
+      "                    };",
+      Style);
 
   verifyFormat("template <typename T, typename U>\n"
                "concept Common = requires(T &&t, U &&u) {\n"
                "                   typename CommonType<T, U>;\n"
                "                   { CommonType<T, U>(std::forward<T>(t)) };\n"
-               "                 };");
+               "                 };",
+               Style);
 
   verifyFormat("template <typename T, typename U>\n"
                "concept Common = requires(T &&t, U &&u) {\n"
                "                   typename CommonType<T, U>;\n"
                "                   { CommonType<T, U>{std::forward<T>(t)} };\n"
-               "                 };");
+               "                 };",
+               Style);
 
   verifyFormat(
       "template <typename T>\n"
       "concept C = requires(T t) {\n"
       "              requires Bar<T> && Foo<T>;\n"
       "              requires((trait<T> && Baz) || (T2<T> && Foo<T>));\n"
-      "            };");
+      "            };",
+      Style);
 
   verifyFormat("template <typename T>\n"
                "concept HasFoo = requires(T t) {\n"
@@ -24555,7 +24610,8 @@ TEST_F(FormatTest, Concepts) {
                "concept HasBar = requires(T t) {\n"
                "                   { t.bar() };\n"
                "                   t.bar();\n"
-               "                 };");
+               "                 };",
+               Style);
 
   verifyFormat("template <typename T>\n"
                "concept Large = sizeof(T) > 10;");
@@ -24566,7 +24622,8 @@ TEST_F(FormatTest, Concepts) {
                "                        { t.foo(u) } -> typename T::foo_type;\n"
                "                        t++;\n"
                "                      };\n"
-               "void doFoo(FooableWith<int> auto t) { t.foo(3); }");
+               "void doFoo(FooableWith<int> auto t) { t.foo(3); }",
+               Style);
 
   verifyFormat("template <typename T>\n"
                "concept Context = is_specialization_of_v<context, T>;");
@@ -24592,7 +24649,6 @@ TEST_F(FormatTest, Concepts) {
       "    std::forward_iterator<_OutIt> &&\n"
       "    std::same_as<std::iter_value_t<_InIt>, std::iter_value_t<_OutIt>>;");
 
-  auto Style = getLLVMStyle();
   Style.BreakBeforeConceptDeclarations = FormatStyle::BBCDS_Allowed;
 
   verifyFormat(
@@ -24702,6 +24758,10 @@ TEST_F(FormatTest, RequiresClausesPositions) {
   auto Style = getLLVMStyle();
   EXPECT_EQ(Style.RequiresClausePosition, FormatStyle::RCPS_OwnLine);
   EXPECT_EQ(Style.IndentRequiresClause, true);
+
+  // The default in LLVM style is REI_OuterScope, but these tests were written
+  // when the default was REI_Keyword.
+  Style.RequiresExpressionIndentation = FormatStyle::REI_Keyword;
 
   verifyFormat("template <typename T>\n"
                "  requires(Foo<T> && std::trait<T>)\n"
@@ -24992,6 +25052,123 @@ TEST_F(FormatTest, RequiresClauses) {
                "foo();\n"
                "#endif\n"
                "bar(requires);");
+}
+
+TEST_F(FormatTest, RequiresExpressionIndentation) {
+  auto Style = getLLVMStyle();
+  EXPECT_EQ(Style.RequiresExpressionIndentation, FormatStyle::REI_OuterScope);
+
+  verifyFormat("template <typename T>\n"
+               "concept C = requires(T t) {\n"
+               "  typename T::value;\n"
+               "  requires requires(typename T::value v) {\n"
+               "    { t == v } -> std::same_as<bool>;\n"
+               "  };\n"
+               "};",
+               Style);
+
+  verifyFormat("template <typename T>\n"
+               "void bar(T)\n"
+               "  requires Foo<T> && requires(T t) {\n"
+               "    { t.foo() } -> std::same_as<int>;\n"
+               "  } && requires(T t) {\n"
+               "    { t.bar() } -> std::same_as<bool>;\n"
+               "    --t;\n"
+               "  };",
+               Style);
+
+  verifyFormat("template <typename T>\n"
+               "  requires Foo<T> &&\n"
+               "           requires(T t) {\n"
+               "             { t.foo() } -> std::same_as<int>;\n"
+               "           } && requires(T t) {\n"
+               "             { t.bar() } -> std::same_as<bool>;\n"
+               "             --t;\n"
+               "           }\n"
+               "void bar(T);",
+               Style);
+
+  verifyFormat("template <typename T> void f() {\n"
+               "  if constexpr (requires(T t) {\n"
+               "                  { t.bar() } -> std::same_as<bool>;\n"
+               "                }) {\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("template <typename T> void f() {\n"
+               "  if constexpr (condition && requires(T t) {\n"
+               "                  { t.bar() } -> std::same_as<bool>;\n"
+               "                }) {\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("template <typename T> struct C {\n"
+               "  void f()\n"
+               "    requires requires(T t) {\n"
+               "      { t.bar() } -> std::same_as<bool>;\n"
+               "    };\n"
+               "};",
+               Style);
+
+  Style.RequiresExpressionIndentation = FormatStyle::REI_Keyword;
+
+  verifyFormat("template <typename T>\n"
+               "concept C = requires(T t) {\n"
+               "              typename T::value;\n"
+               "              requires requires(typename T::value v) {\n"
+               "                         { t == v } -> std::same_as<bool>;\n"
+               "                       };\n"
+               "            };",
+               Style);
+
+  verifyFormat(
+      "template <typename T>\n"
+      "void bar(T)\n"
+      "  requires Foo<T> && requires(T t) {\n"
+      "                       { t.foo() } -> std::same_as<int>;\n"
+      "                     } && requires(T t) {\n"
+      "                            { t.bar() } -> std::same_as<bool>;\n"
+      "                            --t;\n"
+      "                          };",
+      Style);
+
+  verifyFormat("template <typename T>\n"
+               "  requires Foo<T> &&\n"
+               "           requires(T t) {\n"
+               "             { t.foo() } -> std::same_as<int>;\n"
+               "           } && requires(T t) {\n"
+               "                  { t.bar() } -> std::same_as<bool>;\n"
+               "                  --t;\n"
+               "                }\n"
+               "void bar(T);",
+               Style);
+
+  verifyFormat("template <typename T> void f() {\n"
+               "  if constexpr (requires(T t) {\n"
+               "                  { t.bar() } -> std::same_as<bool>;\n"
+               "                }) {\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat(
+      "template <typename T> void f() {\n"
+      "  if constexpr (condition && requires(T t) {\n"
+      "                               { t.bar() } -> std::same_as<bool>;\n"
+      "                             }) {\n"
+      "  }\n"
+      "}",
+      Style);
+
+  verifyFormat("template <typename T> struct C {\n"
+               "  void f()\n"
+               "    requires requires(T t) {\n"
+               "               { t.bar() } -> std::same_as<bool>;\n"
+               "             };\n"
+               "};",
+               Style);
 }
 
 TEST_F(FormatTest, StatementAttributeLikeMacros) {
@@ -26738,6 +26915,51 @@ TEST_F(FormatTest, FormatsVariableTemplates) {
   verifyFormat("inline bool var = is_integral_v<int> && is_signed_v<int>;");
   verifyFormat("template <typename T> "
                "inline bool var = is_integral_v<T> && is_signed_v<T>;");
+}
+
+TEST_F(FormatTest, RemoveSemicolon) {
+  FormatStyle Style = getLLVMStyle();
+  Style.RemoveSemicolon = true;
+
+  verifyFormat("int max(int a, int b) { return a > b ? a : b; }",
+               "int max(int a, int b) { return a > b ? a : b; };", Style);
+
+  verifyFormat("int max(int a, int b) { return a > b ? a : b; }",
+               "int max(int a, int b) { return a > b ? a : b; };;", Style);
+
+  verifyFormat("class Foo {\n"
+               "  int getSomething() const { return something; }\n"
+               "};",
+               "class Foo {\n"
+               "  int getSomething() const { return something; };\n"
+               "};",
+               Style);
+
+  verifyFormat("class Foo {\n"
+               "  int getSomething() const { return something; }\n"
+               "};",
+               "class Foo {\n"
+               "  int getSomething() const { return something; };;\n"
+               "};",
+               Style);
+
+  verifyFormat("for (;;) {\n"
+               "}",
+               Style);
+
+  // These tests are here to show a problem that may not be easily
+  // solved, our implementation to remove semicolons is only as good
+  // as our FunctionLBrace detection and this fails for empty braces
+  // because we can't distringuish this from a bracelist.
+  // We will enable when that is resolved.
+#if 0
+  verifyFormat("void main() {}", "void main() {};", Style);
+  verifyFormat("void foo() {} //\n"
+               "int bar;",
+               "void foo() {}; //\n"
+               "; int bar;",
+               Style);
+#endif
 }
 
 } // namespace

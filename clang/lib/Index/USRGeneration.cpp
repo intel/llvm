@@ -179,10 +179,11 @@ public:
 //===----------------------------------------------------------------------===//
 
 bool USRGenerator::EmitDeclName(const NamedDecl *D) {
-  const unsigned startSize = Buf.size();
-  D->printName(Out);
-  const unsigned endSize = Buf.size();
-  return startSize == endSize;
+  DeclarationName N = D->getDeclName();
+  if (N.isEmpty())
+    return true;
+  Out << N;
+  return false;
 }
 
 bool USRGenerator::ShouldGenerateLocation(const NamedDecl *D) {
@@ -860,9 +861,9 @@ void USRGenerator::VisitType(QualType T) {
                                     = T->getAs<TemplateSpecializationType>()) {
       Out << '>';
       VisitTemplateName(Spec->getTemplateName());
-      Out << Spec->getNumArgs();
-      for (unsigned I = 0, N = Spec->getNumArgs(); I != N; ++I)
-        VisitTemplateArgument(Spec->getArg(I));
+      Out << Spec->template_arguments().size();
+      for (const auto &Arg : Spec->template_arguments())
+        VisitTemplateArgument(Arg);
       return;
     }
     if (const DependentNameType *DNT = T->getAs<DependentNameType>()) {

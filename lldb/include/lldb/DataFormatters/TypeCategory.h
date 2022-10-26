@@ -45,14 +45,10 @@ public:
       sc = std::make_shared<Subcontainer>(change_listener);
   }
 
-  /// Returns the subcontainer containing formatters for exact matching.
-  std::shared_ptr<Subcontainer> GetExactMatch() const {
-    return m_subcontainers[lldb::eFormatterMatchExact];
-  }
-
-  /// Returns the subcontainer containing formatters for regex matching.
-  std::shared_ptr<Subcontainer> GetRegexMatch() const {
-    return m_subcontainers[lldb::eFormatterMatchRegex];
+  /// Clears all subcontainers.
+  void Clear() {
+    for (auto sc : m_subcontainers)
+      sc->Clear();
   }
 
   /// Adds a formatter to the right subcontainer depending on the matching type
@@ -67,6 +63,15 @@ public:
   bool Delete(lldb::TypeNameSpecifierImplSP type_sp) {
     return m_subcontainers[type_sp->GetMatchType()]->Delete(
         TypeMatcher(type_sp));
+  }
+
+  /// Deletes all formatters registered with the string `name`, in all
+  /// subcontainers.
+  bool Delete(ConstString name) {
+    bool success = false;
+    for (auto sc : m_subcontainers)
+      success = sc->Delete(name) || success;
+    return success;
   }
 
   /// Returns the total count of elements across all subcontainers.
@@ -95,6 +100,15 @@ public:
            std::shared_ptr<FormatterImpl> &entry) {
     for (auto sc : m_subcontainers) {
       if (sc->Get(candidates, entry))
+        return true;
+    }
+    return false;
+  }
+
+  bool AnyMatches(const FormattersMatchCandidate &candidate) {
+    std::shared_ptr<FormatterImpl> entry;
+    for (auto sc : m_subcontainers) {
+      if (sc->Get(FormattersMatchVector{candidate}, entry))
         return true;
     }
     return false;
@@ -130,6 +144,21 @@ public:
     return lldb::TypeNameSpecifierImplSP();
   }
 
+  /// Iterates through tiers in order, running `callback` on each element of
+  /// each tier.
+  void ForEach(std::function<bool(const TypeMatcher &,
+                                  const std::shared_ptr<FormatterImpl> &)>
+                   callback) {
+    for (auto sc : m_subcontainers) {
+      sc->ForEach(callback);
+    }
+  }
+
+  void AutoComplete(CompletionRequest &request) {
+    for (auto sc: m_subcontainers)
+      sc->AutoComplete(request);
+  }
+
  private:
   std::array<std::shared_ptr<Subcontainer>, lldb::eLastFormatterMatchType + 1>
       m_subcontainers;
@@ -146,151 +175,37 @@ public:
   typedef uint16_t FormatCategoryItems;
   static const uint16_t ALL_ITEM_TYPES = UINT16_MAX;
 
-  template <typename T> class ForEachCallbacks {
-  public:
-    ForEachCallbacks() = default;
-    ~ForEachCallbacks() = default;
-
-    template <typename U = TypeFormatImpl>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetExact(FormatContainer::ForEachCallback callback) {
-      m_format_exact = std::move(callback);
-      return *this;
-    }
-    template <typename U = TypeFormatImpl>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetWithRegex(FormatContainer::ForEachCallback callback) {
-      m_format_regex = std::move(callback);
-      return *this;
-    }
-
-    template <typename U = TypeSummaryImpl>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetExact(SummaryContainer::ForEachCallback callback) {
-      m_summary_exact = std::move(callback);
-      return *this;
-    }
-    template <typename U = TypeSummaryImpl>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetWithRegex(SummaryContainer::ForEachCallback callback) {
-      m_summary_regex = std::move(callback);
-      return *this;
-    }
-
-    template <typename U = TypeFilterImpl>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetExact(FilterContainer::ForEachCallback callback) {
-      m_filter_exact = std::move(callback);
-      return *this;
-    }
-    template <typename U = TypeFilterImpl>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetWithRegex(FilterContainer::ForEachCallback callback) {
-      m_filter_regex = std::move(callback);
-      return *this;
-    }
-
-    template <typename U = SyntheticChildren>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetExact(SynthContainer::ForEachCallback callback) {
-      m_synth_exact = std::move(callback);
-      return *this;
-    }
-    template <typename U = SyntheticChildren>
-    typename std::enable_if<std::is_same<U, T>::value, ForEachCallbacks &>::type
-    SetWithRegex(SynthContainer::ForEachCallback callback) {
-      m_synth_regex = std::move(callback);
-      return *this;
-    }
-
-    FormatContainer::ForEachCallback GetFormatExactCallback() const {
-      return m_format_exact;
-    }
-    FormatContainer::ForEachCallback GetFormatRegexCallback() const {
-      return m_format_regex;
-    }
-
-    SummaryContainer::ForEachCallback GetSummaryExactCallback() const {
-      return m_summary_exact;
-    }
-    SummaryContainer::ForEachCallback GetSummaryRegexCallback() const {
-      return m_summary_regex;
-    }
-
-    FilterContainer::ForEachCallback GetFilterExactCallback() const {
-      return m_filter_exact;
-    }
-    FilterContainer::ForEachCallback GetFilterRegexCallback() const {
-      return m_filter_regex;
-    }
-
-    SynthContainer::ForEachCallback GetSynthExactCallback() const {
-      return m_synth_exact;
-    }
-    SynthContainer::ForEachCallback GetSynthRegexCallback() const {
-      return m_synth_regex;
-    }
-
-  private:
-    FormatContainer::ForEachCallback m_format_exact;
-    FormatContainer::ForEachCallback m_format_regex;
-
-    SummaryContainer::ForEachCallback m_summary_exact;
-    SummaryContainer::ForEachCallback m_summary_regex;
-
-    FilterContainer::ForEachCallback m_filter_exact;
-    FilterContainer::ForEachCallback m_filter_regex;
-
-    SynthContainer::ForEachCallback m_synth_exact;
-    SynthContainer::ForEachCallback m_synth_regex;
+  // TypeFilterImpl inherits from SyntheticChildren, so we can't simply overload
+  // ForEach on the type of the callback because it would result in "call to
+  // member function 'ForEach' is ambiguous" errors. Instead we use this
+  // templated struct to hold the formatter type and the callback.
+  template<typename T>
+  struct ForEachCallback {
+    // Make it constructible from any callable that fits. This allows us to use
+    // lambdas a bit more easily at the call site. For example:
+    // ForEachCallback<TypeFormatImpl> callback = [](...) {...};
+    template <typename Callable> ForEachCallback(Callable c) : callback(c) {}
+    std::function<bool(const TypeMatcher &, const std::shared_ptr<T> &)>
+        callback;
   };
 
   TypeCategoryImpl(IFormatChangeListener *clist, ConstString name);
 
-  template <typename T> void ForEach(const ForEachCallbacks<T> &foreach) {
-    GetTypeFormatsContainer()->ForEach(foreach.GetFormatExactCallback());
-    GetRegexTypeFormatsContainer()->ForEach(foreach.GetFormatRegexCallback());
-
-    GetTypeSummariesContainer()->ForEach(foreach.GetSummaryExactCallback());
-    GetRegexTypeSummariesContainer()->ForEach(
-        foreach.GetSummaryRegexCallback());
-
-    GetTypeFiltersContainer()->ForEach(foreach.GetFilterExactCallback());
-    GetRegexTypeFiltersContainer()->ForEach(foreach.GetFilterRegexCallback());
-
-    GetTypeSyntheticsContainer()->ForEach(foreach.GetSynthExactCallback());
-    GetRegexTypeSyntheticsContainer()->ForEach(foreach.GetSynthRegexCallback());
+  void ForEach(ForEachCallback<TypeFormatImpl> callback) {
+    m_format_cont.ForEach(callback.callback);
   }
 
-  FormatContainer::SubcontainerSP GetTypeFormatsContainer() {
-    return m_format_cont.GetExactMatch();
+  void ForEach(ForEachCallback<TypeSummaryImpl> callback) {
+    m_summary_cont.ForEach(callback.callback);
   }
 
-  FormatContainer::SubcontainerSP GetRegexTypeFormatsContainer() {
-    return m_format_cont.GetRegexMatch();
+  void ForEach(ForEachCallback<TypeFilterImpl> callback) {
+    m_filter_cont.ForEach(callback.callback);
   }
 
-  FormatContainer &GetFormatContainer() { return m_format_cont; }
-
-  SummaryContainer::SubcontainerSP GetTypeSummariesContainer() {
-    return m_summary_cont.GetExactMatch();
+  void ForEach(ForEachCallback<SyntheticChildren> callback) {
+    m_synth_cont.ForEach(callback.callback);
   }
-
-  SummaryContainer::SubcontainerSP GetRegexTypeSummariesContainer() {
-    return m_summary_cont.GetRegexMatch();
-  }
-
-  SummaryContainer &GetSummaryContainer() { return m_summary_cont; }
-
-  FilterContainer::SubcontainerSP GetTypeFiltersContainer() {
-    return m_filter_cont.GetExactMatch();
-  }
-
-  FilterContainer::SubcontainerSP GetRegexTypeFiltersContainer() {
-    return m_filter_cont.GetRegexMatch();
-  }
-
-  FilterContainer &GetFilterContainer() { return m_filter_cont; }
 
   FormatContainer::MapValueType
   GetFormatForType(lldb::TypeNameSpecifierImplSP type_sp);
@@ -309,9 +224,23 @@ public:
     m_format_cont.Add(type_sp, format_sp);
   }
 
+  void AddTypeFormat(llvm::StringRef name, lldb::FormatterMatchType match_type,
+                     lldb::TypeFormatImplSP format_sp) {
+    AddTypeFormat(
+        std::make_shared<lldb_private::TypeNameSpecifierImpl>(name, match_type),
+        format_sp);
+  }
+
   void AddTypeSummary(lldb::TypeNameSpecifierImplSP type_sp,
                       lldb::TypeSummaryImplSP summary_sp) {
     m_summary_cont.Add(type_sp, summary_sp);
+  }
+
+  void AddTypeSummary(llvm::StringRef name, lldb::FormatterMatchType match_type,
+                      lldb::TypeSummaryImplSP summary_sp) {
+    AddTypeSummary(
+        std::make_shared<lldb_private::TypeNameSpecifierImpl>(name, match_type),
+        summary_sp);
   }
 
   void AddTypeFilter(lldb::TypeNameSpecifierImplSP type_sp,
@@ -319,9 +248,24 @@ public:
     m_filter_cont.Add(type_sp, filter_sp);
   }
 
+  void AddTypeFilter(llvm::StringRef name, lldb::FormatterMatchType match_type,
+                     lldb::TypeFilterImplSP filter_sp) {
+    AddTypeFilter(
+        std::make_shared<lldb_private::TypeNameSpecifierImpl>(name, match_type),
+        filter_sp);
+  }
+
   void AddTypeSynthetic(lldb::TypeNameSpecifierImplSP type_sp,
                         lldb::SyntheticChildrenSP synth_sp) {
     m_synth_cont.Add(type_sp, synth_sp);
+  }
+
+  void AddTypeSynthetic(llvm::StringRef name,
+                        lldb::FormatterMatchType match_type,
+                        lldb::SyntheticChildrenSP synth_sp) {
+    AddTypeSynthetic(
+        std::make_shared<lldb_private::TypeNameSpecifierImpl>(name, match_type),
+        synth_sp);
   }
 
   bool DeleteTypeFormat(lldb::TypeNameSpecifierImplSP type_sp) {
@@ -368,17 +312,6 @@ public:
 
   SynthContainer::MapValueType GetSyntheticAtIndex(size_t index);
 
-  SynthContainer::SubcontainerSP GetTypeSyntheticsContainer() {
-    return m_synth_cont.GetExactMatch();
-  }
-
-  SynthContainer::SubcontainerSP GetRegexTypeSyntheticsContainer() {
-    return m_synth_cont.GetRegexMatch();
-  }
-
-  SynthContainer &GetSyntheticsContainer() { return m_synth_cont; }
-
-
   bool IsEnabled() const { return m_enabled; }
 
   uint32_t GetEnabledPosition() {
@@ -413,11 +346,13 @@ public:
 
   std::string GetDescription();
 
-  bool AnyMatches(ConstString type_name,
+  bool AnyMatches(const FormattersMatchCandidate &candidate_type,
                   FormatCategoryItems items = ALL_ITEM_TYPES,
                   bool only_enabled = true,
                   const char **matching_category = nullptr,
                   FormatCategoryItems *matching_type = nullptr);
+
+  void AutoComplete(CompletionRequest &request, FormatCategoryItems items);
 
   typedef std::shared_ptr<TypeCategoryImpl> SharedPointer;
 

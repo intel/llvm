@@ -90,7 +90,7 @@ bool mlir::linalg::areElementwiseOpsFusable(OpOperand *fusedOperand) {
 
   // Only allow fusing the producer of an input operand for now.
   // TODO: allow fusing the producer of an output operand.
-  if (!consumer.isInputTensor(fusedOperand))
+  if (!consumer.isInput(fusedOperand))
     return false;
 
   // Get the consumer index map. The number of results of the consumer index
@@ -179,7 +179,7 @@ generateFusedElementwiseOpRegion(RewriterBase &rewriter, GenericOp fusedOp,
     }
   }
   // TODO: allow fusing the producer of an output operand.
-  assert(consumer.isInputTensor(fusedOperand) &&
+  assert(consumer.isInput(fusedOperand) &&
          "expected producer of input operand");
   // 3. Consumer input operands up to consumerIdx (exclusive).
   for (BlockArgument bbArg : consumerBlock.getArguments().take_front(
@@ -267,7 +267,7 @@ mlir::linalg::fuseElementwiseOps(RewriterBase &rewriter,
   auto producer = cast<GenericOp>(producerResult.getOwner());
   auto consumer = cast<GenericOp>(fusedOperand->getOwner());
   // TODO: allow fusing the producer of an output operand.
-  assert(consumer.isInputTensor(fusedOperand) &&
+  assert(consumer.isInput(fusedOperand) &&
          "expected producer of input operand");
 
   // Compute the fused operands list and indexing maps.
@@ -278,13 +278,14 @@ mlir::linalg::fuseElementwiseOps(RewriterBase &rewriter,
   fusedOutputOperands.reserve(producer.getNumOutputs() +
                               consumer.getNumOutputs());
   fusedResultTypes.reserve(producer.getNumOutputs() + consumer.getNumOutputs());
-  fusedIndexMaps.reserve(producer.getNumInputsAndOutputs() +
-                         consumer.getNumInputsAndOutputs());
+  fusedIndexMaps.reserve(producer->getNumOperands() +
+                         consumer->getNumOperands());
   // In the following, numbering matches that of `generateFusedTensorOpRegion`.
   // 3. Consumer input operands/maps up to consumerIdx (exclusive).
-  SmallVector<OpOperand *> consumerInputs = consumer.getInputOperands();
-  SmallVector<OpOperand *>::iterator it =
-      llvm::find(consumerInputs, fusedOperand);
+  auto consumerInputs = consumer.getInputOperands();
+  auto *it = llvm::find_if(consumerInputs, [&](OpOperand *operand) {
+    return operand == fusedOperand;
+  });
   assert(it != consumerInputs.end() && "expected to find the consumer operand");
   for (OpOperand *opOperand : llvm::make_range(consumerInputs.begin(), it)) {
     fusedInputOperands.push_back(opOperand->get());
@@ -373,13 +374,13 @@ public:
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
     // Find the first operand that is defined by another generic op on tensors.
-    for (OpOperand *opOperand : genericOp.getInputAndOutputOperands()) {
-      if (!areElementwiseOpsFusable(opOperand))
+    for (OpOperand &opOperand : genericOp->getOpOperands()) {
+      if (!areElementwiseOpsFusable(&opOperand))
         continue;
-      if (!controlFn(opOperand))
+      if (!controlFn(&opOperand))
         continue;
 
-      FailureOr<Operation *> fusedOp = fuseElementwiseOps(rewriter, opOperand);
+      FailureOr<Operation *> fusedOp = fuseElementwiseOps(rewriter, &opOperand);
       if (succeeded(fusedOp)) {
         auto replacements =
             fusedOp.value()->getResults().take_back(genericOp.getNumResults());
@@ -727,9 +728,9 @@ fuseWithReshapeByExpansion(GenericOp genericOp, Operation *reshapeOp,
                                                : collapsingReshapeOp.getSrc());
       continue;
     }
-    if (genericOp.isInputTensor(opOperand)) {
+    if (auto opOperandType =
+            opOperand->get().getType().dyn_cast<RankedTensorType>()) {
       AffineMap indexingMap = genericOp.getMatchingIndexingMap(opOperand);
-      auto opOperandType = opOperand->get().getType().cast<RankedTensorType>();
       RankedTensorType expandedOperandType =
           getExpandedType(opOperandType, indexingMap, expansionInfo);
       if (expandedOperandType != opOperand->get().getType()) {
@@ -833,7 +834,7 @@ public:
 
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
-    for (OpOperand *opOperand : genericOp.getInputTensorOperands()) {
+    for (OpOperand *opOperand : genericOp.getInputOperands()) {
       tensor::CollapseShapeOp reshapeOp =
           opOperand->get().getDefiningOp<tensor::CollapseShapeOp>();
       if (!reshapeOp)
@@ -1367,7 +1368,7 @@ void generateCollapsedIndexingRegion(Location loc, Block *block,
 /// Implementation of fusion with reshape operation by collapsing dimensions.
 static FailureOr<SmallVector<Value>> collapseGenericOpIterationDims(
     GenericOp genericOp, ArrayRef<ReassociationIndices> foldedIterationDims,
-    OpOperand *fusableOpOperand, PatternRewriter &rewriter) {
+    PatternRewriter &rewriter) {
   // Bail on trivial no-op cases.
   if (genericOp.getNumLoops() <= 1 || foldedIterationDims.empty() ||
       llvm::all_of(foldedIterationDims, [](ReassociationIndicesRef foldedDims) {
@@ -1494,23 +1495,23 @@ public:
 
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
-    for (OpOperand *opOperand : genericOp.getInputTensorOperands()) {
+    for (OpOperand &opOperand : genericOp->getOpOperands()) {
       tensor::ExpandShapeOp reshapeOp =
-          opOperand->get().getDefiningOp<tensor::ExpandShapeOp>();
+          opOperand.get().getDefiningOp<tensor::ExpandShapeOp>();
       if (!reshapeOp)
         continue;
 
       SmallVector<ReassociationIndices> collapsableIterationDims =
-          getCollapsableIterationSpaceDims(genericOp, opOperand,
+          getCollapsableIterationSpaceDims(genericOp, &opOperand,
                                            reshapeOp.getReassociationIndices());
       if (collapsableIterationDims.empty() ||
-          !controlFoldingReshapes(opOperand)) {
+          !controlFoldingReshapes(&opOperand)) {
         continue;
       }
 
       Optional<SmallVector<Value>> replacements =
           collapseGenericOpIterationDims(genericOp, collapsableIterationDims,
-                                         opOperand, rewriter);
+                                         rewriter);
       if (!replacements) {
         return rewriter.notifyMatchFailure(
             genericOp, "failed to do the fusion by collapsing transformation");
@@ -1525,6 +1526,37 @@ public:
 private:
   ControlFusionFn controlFoldingReshapes;
 };
+
+/// Pattern to collapse dimensions.
+class CollapseLinalgDimensions : public OpRewritePattern<GenericOp> {
+public:
+  CollapseLinalgDimensions(MLIRContext *context,
+                           GetCollapsableDimensionsFn collapseDimensions,
+                           PatternBenefit benefit = 1)
+      : OpRewritePattern<GenericOp>(context, benefit),
+        controlCollapseDimension(std::move(collapseDimensions)) {}
+
+  LogicalResult matchAndRewrite(GenericOp genericOp,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<ReassociationIndices> collapsableIterationDims =
+        controlCollapseDimension(genericOp);
+    if (collapsableIterationDims.empty())
+      return failure();
+
+    Optional<SmallVector<Value>> replacements = collapseGenericOpIterationDims(
+        genericOp, collapsableIterationDims, rewriter);
+    if (!replacements) {
+      return rewriter.notifyMatchFailure(genericOp,
+                                         "failed to collpase dimensions");
+    }
+    rewriter.replaceOp(genericOp, *replacements);
+    return success();
+  }
+
+private:
+  GetCollapsableDimensionsFn controlCollapseDimension;
+};
+
 } // namespace
 
 //===---------------------------------------------------------------------===//
@@ -1583,7 +1615,7 @@ public:
       SmallVector<AffineMap> fusedIndexMaps;
       SmallVector<Value> fusedOperands;
       SmallVector<Location> fusedLocs{genericOp.getLoc()};
-      fusedIndexMaps.reserve(genericOp.getNumInputsAndOutputs());
+      fusedIndexMaps.reserve(genericOp->getNumOperands());
       fusedOperands.reserve(genericOp.getNumInputs());
       fusedLocs.reserve(fusedLocs.size() + genericOp.getNumInputs());
       for (OpOperand *inputOperand : genericOp.getInputOperands()) {
@@ -1609,7 +1641,7 @@ public:
       Value scalarConstant = rewriter.create<arith::ConstantOp>(
           def->getLoc(), constantAttr, constantAttr.getType());
 
-      SmallVector<Value> outputOperands = genericOp.getOutputOperands();
+      SmallVector<Value> outputOperands = genericOp.getOutputs();
       auto fusedOp = rewriter.create<GenericOp>(
           rewriter.getFusedLoc(fusedLocs), genericOp->getResultTypes(),
           /*inputs=*/fusedOperands,
@@ -1741,6 +1773,13 @@ void mlir::linalg::populateElementwiseOpsFusionPatterns(
   patterns.add<FuseElementwiseOps>(context, controlElementwiseOpsFusion);
   patterns.add<FoldFillWithGenericOp, FoldScalarOrSplatConstant,
                RemoveOutsDependency>(context);
+}
+
+void mlir::linalg::populateCollapseDimensions(
+    RewritePatternSet &patterns,
+    const GetCollapsableDimensionsFn &controlCollapseDimensions) {
+  patterns.add<CollapseLinalgDimensions>(patterns.getContext(),
+                                         controlCollapseDimensions);
 }
 
 //===---------------------------------------------------------------------===//

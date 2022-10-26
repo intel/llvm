@@ -121,6 +121,20 @@ add_libc_unittest(
     libc.src.stdio.puts
 )
 
+add_libc_unittest(
+  putc_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    putc_test.cpp
+  DEPENDS
+    libc.src.stdio.putc
+    libc.src.stdio.fclose
+    libc.src.stdio.ferror
+    libc.src.stdio.fopen
+    libc.src.stdio.fread
+)
+
 if(${LIBC_TARGET_OS} STREQUAL "linux")
   add_libc_unittest(
     remove_test
@@ -138,6 +152,23 @@ if(${LIBC_TARGET_OS} STREQUAL "linux")
       libc.src.unistd.close
   )
 endif()
+
+add_libc_unittest(
+  fgetc_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    fgetc_test.cpp
+  DEPENDS
+    libc.include.errno
+    libc.include.stdio
+    libc.src.stdio.fclose
+    libc.src.stdio.feof
+    libc.src.stdio.ferror
+    libc.src.stdio.fgetc
+    libc.src.stdio.fopen
+    libc.src.stdio.fwrite
+)
 
 add_subdirectory(printf_core)
 add_subdirectory(testdata)

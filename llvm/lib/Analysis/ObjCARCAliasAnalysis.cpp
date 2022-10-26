@@ -92,18 +92,18 @@ bool ObjCARCAAResult::pointsToConstantMemory(const MemoryLocation &Loc,
   return false;
 }
 
-FunctionModRefBehavior ObjCARCAAResult::getModRefBehavior(const Function *F) {
+MemoryEffects ObjCARCAAResult::getMemoryEffects(const Function *F) {
   if (!EnableARCOpts)
-    return AAResultBase::getModRefBehavior(F);
+    return AAResultBase::getMemoryEffects(F);
 
   switch (GetFunctionClass(F)) {
   case ARCInstKind::NoopCast:
-    return FunctionModRefBehavior::none();
+    return MemoryEffects::none();
   default:
     break;
   }
 
-  return AAResultBase::getModRefBehavior(F);
+  return AAResultBase::getMemoryEffects(F);
 }
 
 ModRefInfo ObjCARCAAResult::getModRefInfo(const CallBase *Call,
@@ -136,30 +136,4 @@ AnalysisKey ObjCARCAA::Key;
 
 ObjCARCAAResult ObjCARCAA::run(Function &F, FunctionAnalysisManager &AM) {
   return ObjCARCAAResult(F.getParent()->getDataLayout());
-}
-
-char ObjCARCAAWrapperPass::ID = 0;
-INITIALIZE_PASS(ObjCARCAAWrapperPass, "objc-arc-aa",
-                "ObjC-ARC-Based Alias Analysis", false, true)
-
-ImmutablePass *llvm::createObjCARCAAWrapperPass() {
-  return new ObjCARCAAWrapperPass();
-}
-
-ObjCARCAAWrapperPass::ObjCARCAAWrapperPass() : ImmutablePass(ID) {
-  initializeObjCARCAAWrapperPassPass(*PassRegistry::getPassRegistry());
-}
-
-bool ObjCARCAAWrapperPass::doInitialization(Module &M) {
-  Result.reset(new ObjCARCAAResult(M.getDataLayout()));
-  return false;
-}
-
-bool ObjCARCAAWrapperPass::doFinalization(Module &M) {
-  Result.reset();
-  return false;
-}
-
-void ObjCARCAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
 }

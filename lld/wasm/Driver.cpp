@@ -428,7 +428,7 @@ static void readConfigs(opt::InputArgList &args) {
   LLVM_DEBUG(errorHandler().verbose = true);
 
   config->initialMemory = args::getInteger(args, OPT_initial_memory, 0);
-  config->globalBase = args::getInteger(args, OPT_global_base, 1024);
+  config->globalBase = args::getInteger(args, OPT_global_base, 0);
   config->maxMemory = args::getInteger(args, OPT_max_memory, 0);
   config->zStackSize =
       args::getZOptionValue(args, OPT_z, "stack-size", WasmPageSize);
@@ -467,6 +467,13 @@ static void readConfigs(opt::InputArgList &args) {
         llvm::Optional<std::vector<std::string>>(std::vector<std::string>());
     for (StringRef s : arg->getValues())
       config->features->push_back(std::string(s));
+  }
+
+  if (auto *arg = args.getLastArg(OPT_extra_features)) {
+    config->extraFeatures =
+        llvm::Optional<std::vector<std::string>>(std::vector<std::string>());
+    for (StringRef s : arg->getValues())
+      config->extraFeatures->push_back(std::string(s));
   }
 
   // Legacy --allow-undefined flag which is equivalent to
@@ -544,6 +551,8 @@ static void checkOptions(opt::InputArgList &args) {
       error("-r and -pie may not be used together");
     if (config->sharedMemory)
       error("-r and --shared-memory may not be used together");
+    if (config->globalBase)
+      error("-r and --global-base may not by used together");
   }
 
   // To begin to prepare for Module Linking-style shared libraries, start
@@ -570,6 +579,10 @@ static void checkOptions(opt::InputArgList &args) {
 
   if (config->bsymbolic && !config->shared) {
     warn("-Bsymbolic is only meaningful when combined with -shared");
+  }
+
+  if (config->globalBase && config->isPic) {
+    error("--global-base may not be used with -shared/-pie");
   }
 }
 
@@ -725,8 +738,11 @@ static void createOptionalSymbols() {
     WasmSym::dataEnd = symtab->addOptionalDataSymbol("__data_end");
 
   if (!config->isPic) {
+    WasmSym::stackLow = symtab->addOptionalDataSymbol("__stack_low");
+    WasmSym::stackHigh = symtab->addOptionalDataSymbol("__stack_high");
     WasmSym::globalBase = symtab->addOptionalDataSymbol("__global_base");
     WasmSym::heapBase = symtab->addOptionalDataSymbol("__heap_base");
+    WasmSym::heapEnd = symtab->addOptionalDataSymbol("__heap_end");
     WasmSym::definedMemoryBase = symtab->addOptionalDataSymbol("__memory_base");
     WasmSym::definedTableBase = symtab->addOptionalDataSymbol("__table_base");
     if (config->is64.value_or(false))

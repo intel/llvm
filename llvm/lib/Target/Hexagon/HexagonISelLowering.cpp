@@ -1808,6 +1808,7 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FMUL,    MVT::f64, Legal);
   }
 
+  setTargetDAGCombine(ISD::TRUNCATE);
   setTargetDAGCombine(ISD::VSELECT);
 
   if (Subtarget.useHVXOps())
@@ -1899,8 +1900,13 @@ const char* HexagonTargetLowering::getTargetNodeName(unsigned Opcode) const {
   case HexagonISD::VASL:          return "HexagonISD::VASL";
   case HexagonISD::VASR:          return "HexagonISD::VASR";
   case HexagonISD::VLSR:          return "HexagonISD::VLSR";
+  case HexagonISD::MFSHL:         return "HexagonISD::MFSHL";
+  case HexagonISD::MFSHR:         return "HexagonISD::MFSHR";
   case HexagonISD::SSAT:          return "HexagonISD::SSAT";
   case HexagonISD::USAT:          return "HexagonISD::USAT";
+  case HexagonISD::SMUL_LOHI:     return "HexagonISD::SMUL_LOHI";
+  case HexagonISD::UMUL_LOHI:     return "HexagonISD::UMUL_LOHI";
+  case HexagonISD::USMUL_LOHI:    return "HexagonISD::USMUL_LOHI";
   case HexagonISD::VEXTRACTW:     return "HexagonISD::VEXTRACTW";
   case HexagonISD::VINSERTW0:     return "HexagonISD::VINSERTW0";
   case HexagonISD::VROR:          return "HexagonISD::VROR";
@@ -2141,6 +2147,20 @@ bool HexagonTargetLowering::shouldExpandBuildVectorWithShuffles(EVT VT,
   return false;
 }
 
+bool HexagonTargetLowering::isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
+      unsigned Index) const {
+  assert(ResVT.getVectorElementType() == SrcVT.getVectorElementType());
+  if (!ResVT.isSimple() || !SrcVT.isSimple())
+    return false;
+
+  MVT ResTy = ResVT.getSimpleVT(), SrcTy = SrcVT.getSimpleVT();
+  if (ResTy.getVectorElementType() != MVT::i1)
+    return true;
+
+  // Non-HVX bool vectors are relatively cheap.
+  return SrcTy.getVectorNumElements() <= 8;
+}
+
 bool HexagonTargetLowering::isShuffleMaskLegal(ArrayRef<int> Mask,
                                                EVT VT) const {
   return true;
@@ -2170,6 +2190,16 @@ HexagonTargetLowering::getPreferredVectorAction(MVT VT) const {
     return TargetLoweringBase::TypeWidenVector;
 
   return TargetLoweringBase::TypeSplitVector;
+}
+
+TargetLoweringBase::LegalizeAction
+HexagonTargetLowering::getCustomOperationAction(SDNode &Op) const {
+  if (Subtarget.useHVXOps()) {
+    unsigned Action = getCustomHvxOperationAction(Op);
+    if (Action != ~0u)
+      return static_cast<TargetLoweringBase::LegalizeAction>(Action);
+  }
+  return TargetLoweringBase::Legal;
 }
 
 std::pair<SDValue, int>
@@ -2309,6 +2339,19 @@ HexagonTargetLowering::LowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG)
   return SDValue();
 }
 
+SDValue
+HexagonTargetLowering::getSplatValue(SDValue Op, SelectionDAG &DAG) const {
+  switch (Op.getOpcode()) {
+    case ISD::BUILD_VECTOR:
+      if (SDValue S = cast<BuildVectorSDNode>(Op)->getSplatValue())
+        return S;
+      break;
+    case ISD::SPLAT_VECTOR:
+      return Op.getOperand(0);
+  }
+  return SDValue();
+}
+
 // Create a Hexagon-specific node for shifting a vector by an integer.
 SDValue
 HexagonTargetLowering::getVectorShiftByInt(SDValue Op, SelectionDAG &DAG)
@@ -2328,18 +2371,8 @@ HexagonTargetLowering::getVectorShiftByInt(SDValue Op, SelectionDAG &DAG)
       llvm_unreachable("Unexpected shift opcode");
   }
 
-  SDValue Op0 = Op.getOperand(0);
-  SDValue Op1 = Op.getOperand(1);
-  const SDLoc &dl(Op);
-
-  switch (Op1.getOpcode()) {
-    case ISD::BUILD_VECTOR:
-      if (SDValue S = cast<BuildVectorSDNode>(Op1)->getSplatValue())
-        return DAG.getNode(NewOpc, dl, ty(Op), Op0, S);
-      break;
-    case ISD::SPLAT_VECTOR:
-      return DAG.getNode(NewOpc, dl, ty(Op), Op0, Op1.getOperand(0));
-  }
+  if (SDValue Sp = getSplatValue(Op.getOperand(1), DAG))
+    return DAG.getNode(NewOpc, SDLoc(Op), ty(Op), Op.getOperand(0), Sp);
   return SDValue();
 }
 
@@ -3381,6 +3414,19 @@ HexagonTargetLowering::PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI)
         return VSel;
       }
     }
+  } else if (Opc == ISD::TRUNCATE) {
+    SDValue Op0 = Op.getOperand(0);
+    // fold (truncate (build pair x, y)) -> (truncate x) or x
+    if (Op0.getOpcode() == ISD::BUILD_PAIR) {
+      MVT TruncTy = ty(Op);
+      SDValue Elem0 = Op0.getOperand(0);
+      // if we match the low element of the pair, just return it.
+      if (ty(Elem0) == TruncTy)
+        return Elem0;
+      // otherwise, if the low part is still too large, apply the truncate.
+      if (ty(Elem0).bitsGT(TruncTy))
+        return DCI.DAG.getNode(ISD::TRUNCATE, dl, TruncTy, Elem0);
+    }
   }
 
   return SDValue();
@@ -3667,6 +3713,11 @@ bool HexagonTargetLowering::shouldReduceLoadWidth(SDNode *Load,
     return !GO || !HTM.getObjFileLowering()->isGlobalInSmallSection(GO, HTM);
   }
   return true;
+}
+
+void HexagonTargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
+      SDNode *Node) const {
+  AdjustHvxInstrPostInstrSelection(MI, Node);
 }
 
 Value *HexagonTargetLowering::emitLoadLinked(IRBuilderBase &Builder,

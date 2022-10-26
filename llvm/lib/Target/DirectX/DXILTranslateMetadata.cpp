@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "DXILMetadata.h"
+#include "DXILResource.h"
+#include "DXILResourceAnalysis.h"
 #include "DirectX.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
@@ -27,6 +29,11 @@ public:
 
   StringRef getPassName() const override { return "DXIL Metadata Emit"; }
 
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+    AU.addRequired<DXILResourceWrapper>();
+  }
+
   bool runOnModule(Module &M) override;
 };
 
@@ -38,6 +45,10 @@ bool DXILTranslateMetadata::runOnModule(Module &M) {
   if (ValVerMD.isEmpty())
     ValVerMD.update(VersionTuple(1, 0));
   dxil::createShaderModelMD(M);
+
+  const dxil::Resources &Res =
+      getAnalysis<DXILResourceWrapper>().getDXILResource();
+  Res.write(M);
   return false;
 }
 
@@ -47,5 +58,8 @@ ModulePass *llvm::createDXILTranslateMetadataPass() {
   return new DXILTranslateMetadata();
 }
 
-INITIALIZE_PASS(DXILTranslateMetadata, "dxil-metadata-emit",
-                "DXIL Metadata Emit", false, false)
+INITIALIZE_PASS_BEGIN(DXILTranslateMetadata, "dxil-metadata-emit",
+                      "DXIL Metadata Emit", false, false)
+INITIALIZE_PASS_DEPENDENCY(DXILResourceWrapper)
+INITIALIZE_PASS_END(DXILTranslateMetadata, "dxil-metadata-emit",
+                    "DXIL Metadata Emit", false, false)

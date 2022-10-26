@@ -23,6 +23,7 @@
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/CFGPrinter.h"
+#include "llvm/Analysis/CFGSCCPrinter.h"
 #include "llvm/Analysis/CFLAndersAliasAnalysis.h"
 #include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
@@ -94,6 +95,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h"
 #include "llvm/Transforms/Coroutines/CoroCleanup.h"
+#include "llvm/Transforms/Coroutines/CoroConditionalWrapper.h"
 #include "llvm/Transforms/Coroutines/CoroEarly.h"
 #include "llvm/Transforms/Coroutines/CoroElide.h"
 #include "llvm/Transforms/Coroutines/CoroSplit.h"
@@ -906,6 +908,8 @@ static bool isModulePassName(StringRef Name, CallbacksT &Callbacks) {
     return true;
   if (Name == "function" || Name == "function<eager-inv>")
     return true;
+  if (Name == "coro-cond")
+    return true;
 
   // Explicitly handle custom-parsed pass names.
   if (parseRepeatPassName(Name))
@@ -1098,6 +1102,13 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
       if (auto Err = parseModulePassPipeline(NestedMPM, InnerPipeline))
         return Err;
       MPM.addPass(std::move(NestedMPM));
+      return Error::success();
+    }
+    if (Name == "coro-cond") {
+      ModulePassManager NestedMPM;
+      if (auto Err = parseModulePassPipeline(NestedMPM, InnerPipeline))
+        return Err;
+      MPM.addPass(CoroConditionalWrapper(std::move(NestedMPM)));
       return Error::success();
     }
     if (Name == "cgscc") {
@@ -1768,40 +1779,6 @@ Error PassBuilder::parseAAPipeline(AAManager &AA, StringRef PipelineText) {
   }
 
   return Error::success();
-}
-
-bool PassBuilder::isAAPassName(StringRef PassName) {
-#define MODULE_ALIAS_ANALYSIS(NAME, CREATE_PASS)                               \
-  if (PassName == NAME)                                                        \
-    return true;
-#define FUNCTION_ALIAS_ANALYSIS(NAME, CREATE_PASS)                             \
-  if (PassName == NAME)                                                        \
-    return true;
-#include "PassRegistry.def"
-  return false;
-}
-
-bool PassBuilder::isAnalysisPassName(StringRef PassName) {
-#define MODULE_ANALYSIS(NAME, CREATE_PASS)                                     \
-  if (PassName == NAME)                                                        \
-    return true;
-#define FUNCTION_ANALYSIS(NAME, CREATE_PASS)                                   \
-  if (PassName == NAME)                                                        \
-    return true;
-#define LOOP_ANALYSIS(NAME, CREATE_PASS)                                       \
-  if (PassName == NAME)                                                        \
-    return true;
-#define CGSCC_ANALYSIS(NAME, CREATE_PASS)                                      \
-  if (PassName == NAME)                                                        \
-    return true;
-#define MODULE_ALIAS_ANALYSIS(NAME, CREATE_PASS)                               \
-  if (PassName == NAME)                                                        \
-    return true;
-#define FUNCTION_ALIAS_ANALYSIS(NAME, CREATE_PASS)                             \
-  if (PassName == NAME)                                                        \
-    return true;
-#include "PassRegistry.def"
-  return false;
 }
 
 static void printPassName(StringRef PassName, raw_ostream &OS) {

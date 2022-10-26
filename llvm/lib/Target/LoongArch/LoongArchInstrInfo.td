@@ -202,24 +202,32 @@ def simm21_lsl2 : Operand<OtherVT> {
   let DecoderMethod = "decodeSImmOperand<21, 2>";
 }
 
-// TODO: Need split the ParserMethod/PredicateMethod for call/jump/tailcall.
-def SImm26Operand: AsmOperandClass {
-  let Name = "SImm26Operand";
+def SImm26OperandB: AsmOperandClass {
+  let Name = "SImm26OperandB";
+  let PredicateMethod = "isSImm26Operand";
+  let RenderMethod = "addImmOperands";
+  let DiagnosticType = "InvalidSImm26Operand";
+  let ParserMethod = "parseImmediate";
+}
+
+// A symbol or an imm used in B/PseudoBR.
+def simm26_b : Operand<OtherVT> {
+  let ParserMatchClass = SImm26OperandB;
+  let EncoderMethod = "getImmOpValueAsr2";
+  let DecoderMethod = "decodeSImmOperand<26, 2>";
+}
+
+def SImm26OperandBL: AsmOperandClass {
+  let Name = "SImm26OperandBL";
+  let PredicateMethod = "isSImm26Operand";
   let RenderMethod = "addImmOperands";
   let DiagnosticType = "InvalidSImm26Operand";
   let ParserMethod = "parseSImm26Operand";
 }
 
-// A symbol or an imm used in B/PseudoBR.
-def simm26_b : Operand<OtherVT> {
-  let ParserMatchClass = SImm26Operand;
-  let EncoderMethod = "getImmOpValueAsr2";
-  let DecoderMethod = "decodeSImmOperand<26, 2>";
-}
-
 // A symbol or an imm used in BL/PseudoCALL.
 def simm26_bl : Operand<GRLenVT> {
-  let ParserMatchClass = SImm26Operand;
+  let ParserMatchClass = SImm26OperandBL;
   let EncoderMethod = "getImmOpValueAsr2";
   let DecoderMethod = "decodeSImmOperand<26, 2>";
 }
@@ -248,6 +256,7 @@ def ImmSubFrom32 : SDNodeXForm<imm, [{
 }]>;
 
 def BaseAddr : ComplexPattern<iPTR, 1, "SelectBaseAddr">;
+def NonFIBaseAddr : ComplexPattern<iPTR, 1, "selectNonFIBaseAddr">;
 
 def fma_nsz : PatFrag<(ops node:$fj, node:$fk, node:$fa),
                       (fma node:$fj, node:$fk, node:$fa), [{
@@ -338,7 +347,7 @@ class STORE_2RI14<bits<8> op, string opstr>
                "$rd, $rj, $imm14">;
 } // mayStore = 1
 
-let mayLoad = 1, mayStore = 1 in
+let mayLoad = 1, mayStore = 1, Constraints = "@earlyclobber $rd" in
 class AM_3R<bits<17> op, string opstr>
     : Fmt3R<op, (outs GPR:$rd), (ins GPR:$rk, GPR:$rj), opstr, "$rd, $rk, $rj">;
 
@@ -741,6 +750,21 @@ def : Pat<(not (or GPR:$rj, GPR:$rk)), (NOR GPR:$rj, GPR:$rk)>;
 def : Pat<(or GPR:$rj, (not GPR:$rk)), (ORN GPR:$rj, GPR:$rk)>;
 def : Pat<(and GPR:$rj, (not GPR:$rk)), (ANDN GPR:$rj, GPR:$rk)>;
 
+/// Traps
+
+// We lower `trap` to `amswap.w rd:$r0, rk:$r1, rj:$r0`, as this is guaranteed
+// to trap with an INE (non-existent on LA32, explicitly documented to INE on
+// LA64). And the resulting signal is different from `debugtrap` like on some
+// other existing ports so programs/porters might have an easier time.
+def PseudoUNIMP : Pseudo<(outs), (ins), [(trap)]>,
+                  PseudoInstExpansion<(AMSWAP_W R0, R1, R0)>;
+
+// We lower `debugtrap` to `break 0`, as this is guaranteed to exist and work,
+// even for LA32 Primary. Also, because so far the ISA does not provide a
+// specific trap instruction/kind exclusively for alerting the debugger,
+// every other project uses the generic immediate of 0 for this.
+def : Pat<(debugtrap), (BREAK 0)>;
+
 /// Bit counting operations
 
 let Predicates = [IsLA64] in {
@@ -925,6 +949,18 @@ def PseudoLA_PCREL : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
 def PseudoLA_GOT : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
 
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def PseudoLA_TLS_LE : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+def PseudoLA_TLS_IE : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+def PseudoLA_TLS_LD : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+
 /// BSTRINS and BSTRPICK
 
 let Predicates = [IsLA32] in {
@@ -987,8 +1023,8 @@ defm : LdPat<load, LD_D, i64>;
 // LA64 register-register-addressed loads
 let Predicates = [IsLA64] in {
 class RegRegLdPat<PatFrag LoadOp, LAInst Inst, ValueType vt>
-  : Pat<(vt (LoadOp (add BaseAddr:$rj, GPR:$rk))),
-        (Inst BaseAddr:$rj, GPR:$rk)>;
+  : Pat<(vt (LoadOp (add NonFIBaseAddr:$rj, GPR:$rk))),
+        (Inst NonFIBaseAddr:$rj, GPR:$rk)>;
 
 def : RegRegLdPat<extloadi8, LDX_B, i64>;
 def : RegRegLdPat<sextloadi8, LDX_B, i64>;
@@ -1036,8 +1072,8 @@ def : Pat<(store (i64 GPR:$rd), (AddLike BaseAddr:$rj, simm14_lsl2:$imm14)),
 let Predicates = [IsLA64] in {
 class RegRegStPat<PatFrag StoreOp, LAInst Inst, RegisterClass StTy,
                   ValueType vt>
-  : Pat<(StoreOp (vt StTy:$rd), (add BaseAddr:$rj, GPR:$rk)),
-        (Inst StTy:$rd, BaseAddr:$rj, GPR:$rk)>;
+  : Pat<(StoreOp (vt StTy:$rd), (add NonFIBaseAddr:$rj, GPR:$rk)),
+        (Inst StTy:$rd, NonFIBaseAddr:$rj, GPR:$rk)>;
 
 def : RegRegStPat<truncstorei8, STX_B, GPR, i64>;
 def : RegRegStPat<truncstorei16, STX_H, GPR, i64>;
@@ -1130,6 +1166,20 @@ def PseudoAtomicLoadAnd32 : PseudoAM;
 def PseudoAtomicLoadOr32 : PseudoAM;
 def PseudoAtomicLoadXor32 : PseudoAM;
 
+
+class PseudoMaskedAMUMinUMax
+    : Pseudo<(outs GPR:$res, GPR:$scratch1, GPR:$scratch2),
+             (ins GPR:$addr, GPR:$incr, GPR:$mask, grlenimm:$ordering), []> {
+  let Constraints = "@earlyclobber $res,@earlyclobber $scratch1,"
+                    "@earlyclobber $scratch2";
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 0;
+}
+
+def PseudoMaskedAtomicLoadUMax32 : PseudoMaskedAMUMinUMax;
+def PseudoMaskedAtomicLoadUMin32 : PseudoMaskedAMUMinUMax;
+
 class AtomicPat<Intrinsic intrin, Pseudo AMInst>
     : Pat<(intrin GPR:$addr, GPR:$incr, GPR:$mask, timm:$ordering),
           (AMInst GPR:$addr, GPR:$incr, GPR:$mask, timm:$ordering)>;
@@ -1152,7 +1202,7 @@ def : Pat<(atomic_load_sub_64 GPR:$rj, GPR:$rk),
 def : AtomicPat<int_loongarch_masked_atomicrmw_sub_i64,
                 PseudoMaskedAtomicLoadSub32>;
 def : Pat<(atomic_load_nand_64 GPR:$rj, GPR:$rk),
-          (PseudoAtomicLoadNand64 GPR:$rk, GPR:$rj)>;
+          (PseudoAtomicLoadNand64 GPR:$rj, GPR:$rk)>;
 def : AtomicPat<int_loongarch_masked_atomicrmw_nand_i64,
                 PseudoMaskedAtomicLoadNand32>;
 def : Pat<(atomic_load_add_32 GPR:$rj, GPR:$rk),
@@ -1169,10 +1219,24 @@ def : Pat<(atomic_load_xor_32 GPR:$rj, GPR:$rk),
           (AMXOR_DB_W GPR:$rk, GPR:$rj)>;
 def : Pat<(atomic_load_xor_64 GPR:$rj, GPR:$rk),
           (AMXOR_DB_D GPR:$rk, GPR:$rj)>;
+
+def : Pat<(atomic_load_umin_32 GPR:$rj, GPR:$rk),
+          (AMMIN_DB_WU GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_umin_64 GPR:$rj, GPR:$rk),
+          (AMMIN_DB_DU GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_umax_32 GPR:$rj, GPR:$rk),
+          (AMMAX_DB_WU GPR:$rk, GPR:$rj)>;
+def : Pat<(atomic_load_umax_64 GPR:$rj, GPR:$rk),
+          (AMMAX_DB_DU GPR:$rk, GPR:$rj)>;
+
+def : AtomicPat<int_loongarch_masked_atomicrmw_umax_i64,
+                PseudoMaskedAtomicLoadUMax32>;
+def : AtomicPat<int_loongarch_masked_atomicrmw_umin_i64,
+                PseudoMaskedAtomicLoadUMin32>;
 } // Predicates = [IsLA64]
 
 def : Pat<(atomic_load_nand_32 GPR:$rj, GPR:$rk),
-          (PseudoAtomicLoadNand32 GPR:$rk, GPR:$rj)>;
+          (PseudoAtomicLoadNand32 GPR:$rj, GPR:$rk)>;
 
 let Predicates = [IsLA32] in {
 def : AtomicPat<int_loongarch_masked_atomicrmw_xchg_i32,

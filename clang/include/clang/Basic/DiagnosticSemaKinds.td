@@ -183,7 +183,7 @@ def ext_vla_folded_to_constant : ExtWarn<
   "variable length array folded to constant array as an extension">,
   InGroup<GNUFoldingConstant>;
 def err_vla_unsupported : Error<
-  "variable length arrays are not supported for the current target">;
+  "variable length arrays are not supported for %select{the current target|'%1'}0">;
 def note_vla_unsupported : Note<
   "variable length arrays are not supported for the current target">;
 
@@ -3518,6 +3518,8 @@ def warn_attribute_dll_redeclaration : Warning<
   InGroup<DiagGroup<"dll-attribute-on-redeclaration">>;
 def err_attribute_dllimport_function_definition : Error<
   "dllimport cannot be applied to non-inline function definition">;
+def err_attribute_dllimport_function_specialization_definition : Error<
+  "cannot define non-inline dllimport template specialization">;
 def err_attribute_dll_deleted : Error<
   "attribute %q0 cannot be applied to a deleted function">;
 def err_attribute_dllimport_data_definition : Error<
@@ -4756,6 +4758,8 @@ def ext_ovl_ambiguous_oper_binary_reversed : ExtWarn<
 def note_ovl_ambiguous_oper_binary_reversed_self : Note<
   "ambiguity is between a regular call to this operator and a call with the "
   "argument order reversed">;
+def note_ovl_ambiguous_eqeq_reversed_self_non_const : Note<
+  "mark 'operator==' as const or add a matching 'operator!=' to resolve the ambiguity">;
 def note_ovl_ambiguous_oper_binary_selected_candidate : Note<
   "candidate function with non-reversed arguments">;
 def note_ovl_ambiguous_oper_binary_reversed_candidate : Note<
@@ -5076,6 +5080,8 @@ def err_template_arg_not_pointer_to_member_form : Error<
 def err_template_arg_member_ptr_base_derived_not_supported : Error<
   "sorry, non-type template argument of pointer-to-member type %1 that refers "
   "to member %q0 of a different class is not supported yet">;
+def err_template_arg_invalid : Error<
+  "non-type template argument '%0' is invalid">;
 def ext_template_arg_extra_parens : ExtWarn<
   "address non-type template argument cannot be surrounded by parentheses">;
 def warn_cxx98_compat_template_arg_extra_parens : Warning<
@@ -5288,6 +5294,8 @@ def note_template_exception_spec_instantiation_here : Note<
   "in instantiation of exception specification for %0 requested here">;
 def note_template_requirement_instantiation_here : Note<
   "in instantiation of requirement here">;
+def note_template_requirement_params_instantiation_here : Note<
+  "in instantiation of requirement parameters here">;
 def warn_var_template_missing : Warning<"instantiation of variable %q0 "
   "required here, but no definition is available">,
   InGroup<UndefinedVarTemplate>;
@@ -6917,8 +6925,8 @@ def err_array_init_plain_string_into_char8_t : Error<
 def note_array_init_plain_string_into_char8_t : Note<
   "add 'u8' prefix to form a 'char8_t' string literal">;
 def err_array_init_utf8_string_into_char : Error<
-  "%select{|ISO C++20 does not permit }0initialization of char array with "
-  "UTF-8 string literal%select{ is not permitted by '-fchar8_t'|}0">;
+  "initialization of %select{|signed }0char array with "
+  "UTF-8 string literal is not permitted by %select{'-fchar8_t'|C++20}1">;
 def warn_cxx20_compat_utf8_string : Warning<
   "type of UTF-8 string literal will change from array of const char to "
   "array of const char8_t in C++20">, InGroup<CXX20Compat>, DefaultIgnore;
@@ -6987,8 +6995,11 @@ def err_typecheck_unary_expr : Error<
 def err_typecheck_indirection_requires_pointer : Error<
   "indirection requires pointer operand (%0 invalid)">;
 def ext_typecheck_indirection_through_void_pointer : ExtWarn<
-  "ISO %select{C|C++}0 does not allow indirection on operand of type %1">,
-  InGroup<DiagGroup<"void-ptr-dereference">>;
+  "ISO C does not allow indirection on operand of type %0">,
+  InGroup<VoidPointerDeref>;
+def ext_typecheck_indirection_through_void_pointer_cpp
+    : ExtWarn<"ISO C++ does not allow indirection on operand of type %0">,
+      InGroup<VoidPointerDeref>, DefaultError, SFINAEFailure;
 def warn_indirection_through_null : Warning<
   "indirection of non-volatile null pointer will be deleted, not trap">,
   InGroup<NullDereference>;
@@ -8753,6 +8764,9 @@ def warn_cast_function_type : Warning<
   InGroup<CastFunctionType>, DefaultIgnore;
 def err_cast_pointer_to_non_pointer_int : Error<
   "pointer cannot be cast to type %0">;
+def err_nullptr_cast : Error<
+  "cannot cast an object of type %select{'nullptr_t' to %1|%1 to 'nullptr_t'}0"
+>;
 def err_cast_to_bfloat16 : Error<"cannot type-cast to __bf16">;
 def err_cast_from_bfloat16 : Error<"cannot type-cast from __bf16">;
 def err_typecheck_expect_scalar_operand : Error<
@@ -9327,6 +9341,8 @@ def err_incorrect_defaulted_consteval : Error<
 def warn_defaulted_method_deleted : Warning<
   "explicitly defaulted %sub{select_special_member_kind}0 is implicitly "
   "deleted">, InGroup<DefaultedFunctionDeleted>;
+def note_replace_equals_default_to_delete : Note<
+  "replace 'default' with 'delete'">;
 def err_out_of_line_default_deletes : Error<
   "defaulting this %sub{select_special_member_kind}0 "
   "would delete it after its first declaration">;
@@ -9453,15 +9469,14 @@ def warn_ptr_arith_precedes_bounds : Warning<
   "the pointer decremented by %0 refers before the beginning of the array">,
   InGroup<ArrayBoundsPointerArithmetic>, DefaultIgnore;
 def warn_ptr_arith_exceeds_bounds : Warning<
-  "the pointer incremented by %0 refers past the end of the array (that "
-  "contains %1 element%s2)">,
+  "the pointer incremented by %0 refers past the end of the array (that has type %1)">,
   InGroup<ArrayBoundsPointerArithmetic>, DefaultIgnore;
 def warn_array_index_precedes_bounds : Warning<
   "array index %0 is before the beginning of the array">,
   InGroup<ArrayBounds>;
 def warn_array_index_exceeds_bounds : Warning<
-  "array index %0 is past the end of the array (which contains %1 "
-  "element%s2)">, InGroup<ArrayBounds>;
+  "array index %0 is past the end of the array (that has type %1%select{|, cast to %3}2)">,
+  InGroup<ArrayBounds>;
 def warn_ptr_arith_exceeds_max_addressable_bounds : Warning<
   "the pointer incremented by %0 refers past the last possible element for an array in %1-bit "
   "address space containing %2-bit (%3-byte) elements (max possible %4 element%s5)">,
@@ -10012,10 +10027,10 @@ def err_argument_not_shifted_byte_or_xxff : Error<
   "argument should be an 8-bit value shifted by a multiple of 8 bits, or in the form 0x??FF">;
 def err_argument_not_contiguous_bit_field : Error<
   "argument %0 value should represent a contiguous bit field">;
-def err_rotation_argument_to_cadd
-    : Error<"argument should be the value 90 or 270">;
-def err_rotation_argument_to_cmla
-    : Error<"argument should be the value 0, 90, 180 or 270">;
+def err_rotation_argument_to_cadd : Error<
+  "argument should be the value 90 or 270">;
+def err_rotation_argument_to_cmla : Error<
+  "argument should be the value 0, 90, 180 or 270">;
 def warn_neon_vector_initializer_non_portable : Warning<
   "vector initializers are not compatible with NEON intrinsics in big endian "
   "mode">, InGroup<DiagGroup<"nonportable-vector-initialization">>;
@@ -10358,8 +10373,8 @@ def err_reference_pipe_type : Error <
 def err_opencl_no_main : Error<"%select{function|kernel}0 cannot be called 'main'">;
 def err_opencl_kernel_attr :
   Error<"attribute %0 can only be applied to an OpenCL kernel function">;
-def err_opencl_return_value_with_address_space : Error<
-  "return value cannot be qualified with address space">;
+def err_return_value_with_address_space : Error<
+  "return type cannot be qualified with address space">;
 def err_opencl_constant_no_init : Error<
   "variable in constant address space must be initialized">;
 def err_opencl_atomic_init: Error<
@@ -11919,7 +11934,10 @@ def err_std_source_location_impl_malformed : Error<
 
 // HLSL Diagnostics
 def err_hlsl_attr_unsupported_in_stage : Error<"attribute %0 is unsupported in %select{Pixel|Vertex|Geometry|Hull|Domain|Compute|Library|RayGeneration|Intersection|AnyHit|ClosestHit|Miss|Callable|Mesh|Amplification|Invalid}1 shaders, requires %2">;
-
+def err_hlsl_attr_invalid_type : Error<
+   "attribute %0 only applies to a field or parameter of type '%1'">;
+def err_hlsl_attr_invalid_ast_node : Error<
+   "attribute %0 only applies to %1">;
 def err_hlsl_numthreads_argument_oor : Error<"argument '%select{X|Y|Z}0' to numthreads attribute cannot exceed %1">;
 def err_hlsl_numthreads_invalid : Error<"total number of threads cannot exceed %0">;
 def err_hlsl_missing_numthreads : Error<"missing numthreads attribute for %0 shader entry">;

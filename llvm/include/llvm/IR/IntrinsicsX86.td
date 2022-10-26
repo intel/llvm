@@ -4901,39 +4901,39 @@ let TargetPrefix = "x86" in {
 let TargetPrefix = "x86" in {
   def int_x86_avx512bf16_cvtne2ps2bf16_128:
               ClangBuiltin<"__builtin_ia32_cvtne2ps2bf16_128">,
-              Intrinsic<[llvm_v8i16_ty], [llvm_v4f32_ty, llvm_v4f32_ty],
+              Intrinsic<[llvm_v8bf16_ty], [llvm_v4f32_ty, llvm_v4f32_ty],
               [IntrNoMem]>;
   def int_x86_avx512bf16_cvtne2ps2bf16_256:
               ClangBuiltin<"__builtin_ia32_cvtne2ps2bf16_256">,
-              Intrinsic<[llvm_v16i16_ty], [llvm_v8f32_ty, llvm_v8f32_ty],
+              Intrinsic<[llvm_v16bf16_ty], [llvm_v8f32_ty, llvm_v8f32_ty],
               [IntrNoMem]>;
   def int_x86_avx512bf16_cvtne2ps2bf16_512:
               ClangBuiltin<"__builtin_ia32_cvtne2ps2bf16_512">,
-              Intrinsic<[llvm_v32i16_ty], [llvm_v16f32_ty, llvm_v16f32_ty],
+              Intrinsic<[llvm_v32bf16_ty], [llvm_v16f32_ty, llvm_v16f32_ty],
               [IntrNoMem]>;
   // Intrinsic must be masked due to it producing less than 128 bits of results.
   def int_x86_avx512bf16_mask_cvtneps2bf16_128:
-              Intrinsic<[llvm_v8i16_ty],
-                        [llvm_v4f32_ty, llvm_v8i16_ty, llvm_v4i1_ty],
+              Intrinsic<[llvm_v8bf16_ty],
+                        [llvm_v4f32_ty, llvm_v8bf16_ty, llvm_v4i1_ty],
                         [IntrNoMem]>;
   def int_x86_avx512bf16_cvtneps2bf16_256:
               ClangBuiltin<"__builtin_ia32_cvtneps2bf16_256">,
-              Intrinsic<[llvm_v8i16_ty], [llvm_v8f32_ty], [IntrNoMem]>;
+              Intrinsic<[llvm_v8bf16_ty], [llvm_v8f32_ty], [IntrNoMem]>;
   def int_x86_avx512bf16_cvtneps2bf16_512:
               ClangBuiltin<"__builtin_ia32_cvtneps2bf16_512">,
-              Intrinsic<[llvm_v16i16_ty], [llvm_v16f32_ty], [IntrNoMem]>;
+              Intrinsic<[llvm_v16bf16_ty], [llvm_v16f32_ty], [IntrNoMem]>;
   def int_x86_avx512bf16_dpbf16ps_128:
               ClangBuiltin<"__builtin_ia32_dpbf16ps_128">,
               Intrinsic<[llvm_v4f32_ty],
-              [llvm_v4f32_ty, llvm_v4i32_ty, llvm_v4i32_ty], [IntrNoMem]>;
+              [llvm_v4f32_ty, llvm_v8bf16_ty, llvm_v8bf16_ty], [IntrNoMem]>;
   def int_x86_avx512bf16_dpbf16ps_256:
               ClangBuiltin<"__builtin_ia32_dpbf16ps_256">,
               Intrinsic<[llvm_v8f32_ty],
-              [llvm_v8f32_ty, llvm_v8i32_ty, llvm_v8i32_ty], [IntrNoMem]>;
+              [llvm_v8f32_ty, llvm_v16bf16_ty, llvm_v16bf16_ty], [IntrNoMem]>;
   def int_x86_avx512bf16_dpbf16ps_512:
               ClangBuiltin<"__builtin_ia32_dpbf16ps_512">,
               Intrinsic<[llvm_v16f32_ty],
-              [llvm_v16f32_ty, llvm_v16i32_ty, llvm_v16i32_ty], [IntrNoMem]>;
+              [llvm_v16f32_ty, llvm_v32bf16_ty, llvm_v32bf16_ty], [IntrNoMem]>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -5115,6 +5115,27 @@ let TargetPrefix = "x86" in {
               Intrinsic<[llvm_anyvector_ty], [llvm_x86amx_ty], [IntrNoMem]>;
 }
 
+let TargetPrefix = "x86" in {
+def int_x86_cmpccxadd32
+    : ClangBuiltin<"__builtin_ia32_cmpccxadd32">,
+      Intrinsic<[llvm_i32_ty],
+                [llvm_ptr_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+                [IntrArgMemOnly, ImmArg<ArgIndex<3>>]>;
+
+def int_x86_cmpccxadd64
+    : ClangBuiltin<"__builtin_ia32_cmpccxadd64">,
+      Intrinsic<[llvm_i64_ty],
+                [llvm_ptr_ty, llvm_i64_ty, llvm_i64_ty, llvm_i32_ty],
+                [IntrArgMemOnly, ImmArg<ArgIndex<3>>]>;
+}
+//===----------------------------------------------------------------------===//
+let TargetPrefix = "x86" in {
+// AMX_FP16 - Intel FP16 AMX extensions
+  def int_x86_tdpfp16ps : ClangBuiltin<"__builtin_ia32_tdpfp16ps">,
+                          Intrinsic<[], [llvm_i8_ty, llvm_i8_ty, llvm_i8_ty],
+                                    [ImmArg<ArgIndex<0>>,
+                                    ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+}
 //===----------------------------------------------------------------------===//
 // UINTR - User Level Interrupt
 

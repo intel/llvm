@@ -149,6 +149,7 @@ def StringAPI : PublicAPI<"string.h"> {
 def StdIOAPI : PublicAPI<"stdio.h"> {
   let Macros = [
     SimpleMacroDef<"stderr", "stderr">,
+    SimpleMacroDef<"stdin", "stdin">,
     SimpleMacroDef<"stdout", "stdout">,
     SimpleMacroDef<"_IOFBF", "0">,
     SimpleMacroDef<"_IOLBF", "1">,
@@ -171,7 +172,7 @@ def StdlibAPI : PublicAPI<"stdlib.h"> {
 }
 
 def TimeAPI : PublicAPI<"time.h"> {
-  let Types = ["time_t", "struct tm", "struct timespec", "clockid_t",];
+  let Types = ["clock_t", "time_t", "struct tm", "struct timespec", "clockid_t",];
 }
 
 def ErrnoAPI : PublicAPI<"errno.h"> {
@@ -205,7 +206,14 @@ def SysMManAPI : PublicAPI<"sys/mman.h"> {
 }
 
 def SignalAPI : PublicAPI<"signal.h"> {
-  let Types = ["sigset_t", "struct sigaction", "union sigval", "siginfo_t"];
+  let Types = [
+    "sigset_t",
+    "struct sigaction",
+    "union sigval",
+    "siginfo_t",
+    "stack_t",
+    "pid_t",
+  ];
 }
 
 def ThreadsAPI : PublicAPI<"threads.h"> {
@@ -238,6 +246,7 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
 
 def PThreadAPI : PublicAPI<"pthread.h"> {
   let Types = [
+      "__atfork_callback_t",
       "__pthread_once_func_t",
       "__pthread_start_t",
       "__pthread_tss_dtor_t",
@@ -259,7 +268,15 @@ def DirentAPI : PublicAPI<"dirent.h"> {
 }
 
 def UniStdAPI : PublicAPI<"unistd.h"> {
-  let Types = ["off_t", "pid_t", "size_t", "ssize_t", "uid_t"];
+  let Types = ["__exec_argv_t", "__exec_envp_t", "off_t", "pid_t", "size_t", "ssize_t", "uid_t"];
+}
+
+def SysRandomAPI : PublicAPI<"sys/random.h"> {
+  let Types = ["size_t", "ssize_t"];
+}
+
+def SysSelectAPI : PublicAPI<"sys/select.h"> {
+  let Types = ["fd_set", "sigset_t", "suseconds_t", "time_t", "struct timespec", "struct timeval"];
 }
 
 def SysResourceAPI : PublicAPI<"sys/resource.h"> {
@@ -271,10 +288,29 @@ def SysStatAPI : PublicAPI<"sys/stat.h"> {
                "struct timespec", "blksize_t", "blkcnt_t", "struct stat"];
 }
 
+def SysWaitAPI : PublicAPI<"sys/wait.h"> {
+  let Types = ["pid_t", "struct rusage"];
+}
+
 def SysSendfileAPI : PublicAPI<"sys/sendfile.h"> {
   let Types = ["off_t", "size_t", "ssize_t"];
 }
 
+def SysTypesAPI : PublicAPI<"sys/types.h"> {
+  let Types = ["blkcnt_t", "blksize_t", "clockid_t", "dev_t", "gid_t", "ino_t",
+               "mode_t", "nlink_t", "off_t", "pid_t", "pthread_attr_t", "pthread_key_t",
+               "pthread_mutex_t", "pthread_mutexattr_t", "pthread_once_t", "pthread_t",
+               "size_t", "ssize_t", "suseconds_t", "time_t", "uid_t"];
+}
+
 def SysUtsNameAPI : PublicAPI<"sys/utsname.h"> {
   let Types = ["struct utsname"];
+}
+
+def SpawnAPI : PublicAPI<"spawn.h"> {
+  let Types = ["mode_t", "pid_t", "posix_spawnattr_t", "posix_spawn_file_actions_t"];
+}
+
+def TermiosAPI : PublicAPI<"termios.h"> {
+  let Types = ["cc_t", "pid_t", "speed_t", "struct termios", "tcflag_t"];
 }
