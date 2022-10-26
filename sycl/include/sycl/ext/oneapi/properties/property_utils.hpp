@@ -20,7 +20,7 @@ namespace oneapi {
 namespace experimental {
 
 // Forward declaration
-template <typename PropertyT, typename T, typename... Ts> struct property_value;
+template <typename PropertyT, typename... Ts> struct property_value;
 
 namespace detail {
 
