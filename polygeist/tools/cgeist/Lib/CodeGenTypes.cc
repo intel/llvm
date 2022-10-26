@@ -14,11 +14,10 @@
 #include "TypeUtils.h"
 #include "utils.h"
 
-#include "clang/AST/ASTContext.h"
-#include "clang/CodeGen/CGFunctionInfo.h"
-
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/../../lib/CodeGen/TargetInfo.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/CodeGen/CGFunctionInfo.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -29,6 +28,7 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "cgeist"
@@ -210,8 +210,9 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
       llvm::StructType *STy = dyn_cast<llvm::StructType>(AI.getCoerceToType());
 
       if (AI.isDirect() && AI.getCanBeFlattened() && STy)
-        llvm::errs() << "Warning: struct should be flattened but MLIR codegen "
-                        "cannot yet handle it. Needs to be fixed.";
+        llvm::WithColor::warning()
+            << "struct should be flattened but MLIR codegen "
+               "cannot yet handle it. Needs to be fixed.";
 
       if (AllowStructFlattening && AI.isDirect() && AI.getCanBeFlattened() &&
           STy) {
@@ -347,9 +348,10 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   case clang::CodeGen::ABIArgInfo::Indirect:
     if (!AllowSRet) {
       // HACK: remove once we can handle function returning a struct.
-      llvm::errs() << "Warning: function should return its value indirectly "
-                      "(as an extra reference parameter). This is not yet "
-                      "handled by the MLIR codegen\n";
+      llvm::WithColor::warning()
+          << "function should return its value indirectly "
+             "(as an extra reference parameter). This is not yet "
+             "handled by the MLIR codegen\n";
       QualType Ret = FI.getReturnType();
       ResultType = getMLIRType(Ret);
       break;
