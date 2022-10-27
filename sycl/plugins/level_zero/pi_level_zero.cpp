@@ -168,70 +168,6 @@ static pi_result mapError(ze_result_t ZeResult) {
 // This will count the calls to Level-Zero
 static std::map<const char *, int> *ZeCallCount = nullptr;
 
-#if 1
-static int ZECallArgumentNumber;
-static std::vector<std::string> ZECallArguments;
-char ZECAS[1024];
-static void GetParams(std::string& Parms) {
-  size_t start;
-  size_t end = 0;
-  ZECallArguments.clear();
-  while ((start = Parms.find_first_not_of(',', end)) != std::string::npos) {
-    end = Parms.find(',', start);
-    ZECallArguments.push_back(Parms.substr(start, end - start));
-  }
-}
-template <typename T> static void GetArg(T p) {
-  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECAS, "=");
-  std::ostringstream Value;
-  Value << p;
-  strcat(ZECAS, Value.str().c_str());
-  ++ZECallArgumentNumber;
-}
-template <> void GetArg<std::nullptr_t>(std::nullptr_t) {
-  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECAS, "=nullptr");
-  ++ZECallArgumentNumber;
-}
-template <> void GetArg<char*>(char* p) {
-  strcat(ZECAS, ZECallArguments[ZECallArgumentNumber].c_str());
-  strcat(ZECAS, "=");
-  if (p) {
-    std::ostringstream Value;
-    Value << (void*)p;
-    strcat(ZECAS, Value.str().c_str());
-  }
-  else {
-    strcat(ZECAS, "nullptr");
-  }
-  ++ZECallArgumentNumber;
-}
-template <typename T> static void GetArgs1(T p) { GetArg(p); }
-template <typename T, class... Types>
-static void GetArgs1(T p, Types... args) {
-  GetArg(p);
-  strcat(ZECAS, ",");
-  GetArgs1(args...);
-}
-template <class... Types> static void GetArgs(Types... args) {
-  sprintf(ZECAS, "(");
-  ZECallArgumentNumber = 0;
-  GetArgs1(args...);
-  strcat(ZECAS, ")");
-}
-
-// Trace a call to Level-Zero RT
-#define ZE_CALL(ZeName, ZeArgs)                                                \
-  {                                                                            \
-    ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    std::string s = #ZeArgs;                                                   \
-    GetParams(s);                                                              \
-    GetArgs ZeArgs;                                                            \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, ZECAS, true))         \
-      return mapError(Result);                                                 \
-  }
-#else
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -239,7 +175,6 @@ template <class... Types> static void GetArgs(Types... args) {
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return mapError(Result);                                                 \
   }
-#endif
 
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
