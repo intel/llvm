@@ -233,11 +233,19 @@ public:
       throw PI_ERROR_INVALID_CONTEXT;
     }
 
+    std::cout << "placedContext_->get() before" << std::endl;
     hipCtx_t desired = placedContext_->get();
+    std::cout << "placedContext_->get() after" << std::endl;
+
     PI_CHECK_ERROR(hipCtxGetCurrent(&original_));
+    std::cout << "hipCtxGetCurrent(&original_) after" << std::endl;
+
     if (original_ != desired) {
       // Sets the desired context as the active one for the thread
+      std::cout << "hipCtxSetCurrent before" << std::endl;
       PI_CHECK_ERROR(hipCtxSetCurrent(desired));
+      std::cout << "hipCtxSetCurrent after" << std::endl;
+
       if (original_ == nullptr) {
         // No context is installed on the current thread
         // This is the most common case. We can activate the context in the
