@@ -67,17 +67,18 @@ int main() {
 // CHECK: %[[PARAM_TO_PTR:.*]] = bitcast %struct.base addrspace(4)* %[[ARG_BASE]] to i8 addrspace(4)*
 // CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %[[BASE_TO_PTR]], i8 addrspace(4)* align 4 %[[PARAM_TO_PTR]], i64 12, i1 false)
 
-// Initialize field 'a'
-// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, %struct.derived addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 3
-// CHECK: %[[LOAD_A:[0-9]+]] = load i32, i32 addrspace(4)* %[[ARG_A]], align 4
-// CHECK: store i32 %[[LOAD_A]], i32 addrspace(4)* %[[GEP_A]]
-
 // Initialize 'second_base' subobject
 // First, derived-to-base cast with offset:
 // CHECK: %[[DERIVED_PTR:.*]] = bitcast %struct.derived addrspace(4)* %[[LOCAL_OBJECT]] to i8 addrspace(4)*
 // CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, i8 addrspace(4)* %[[DERIVED_PTR]], i64 16
 // CHECK: %[[TO_SECOND_BASE:.*]] = bitcast i8 addrspace(4)* %[[OFFSET_CALC]] to %class.second_base addrspace(4)*
-// CHECK: %[[SECOND_BASE_TO_PTR:.*]] = bitcast %class.second_base addrspace(4)* %[[TO_SECOND_BASE]] to i8 addrspace(4)*
-// CHECK: %[[SECOND_PARAM_TO_PTR:.*]] = bitcast %class.__generated_second_base addrspace(4)* %[[ARG_BASE1]] to i8 addrspace(4)*
-// CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %[[SECOND_BASE_TO_PTR]], i8 addrspace(4)* align 8 %[[SECOND_PARAM_TO_PTR]], i64 8, i1 false)
+// CHECK: %[[GEN_TO_SECOND_BASE:.*]] = bitcast %class.__generated_second_base addrspace(4)* %[[ARG_BASE1]] to %class.second_base addrspace(4)*
+// CHECK: %[[TO:.*]] = bitcast %class.second_base addrspace(4)* %[[TO_SECOND_BASE]] to i8 addrspace(4)*
+// CHECK: %[[FROM:.*]] = bitcast %class.second_base addrspace(4)* %[[GEN_TO_SECOND_BASE]] to i8 addrspace(4)*
+// CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %[[TO]], i8 addrspace(4)* align 8 %[[FROM]], i64 8, i1 false)
 
+
+// Initialize field 'a'
+// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, %struct.derived addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 3
+// CHECK: %[[LOAD_A:[0-9]+]] = load i32, i32 addrspace(4)* %[[ARG_A]], align 4
+// CHECK: store i32 %[[LOAD_A]], i32 addrspace(4)* %[[GEP_A]]

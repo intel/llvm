@@ -258,6 +258,7 @@ def Math_CosOp : Math_FloatUnaryOp<"cos"> {
     %a = math.cos %b : f64
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -284,6 +285,7 @@ def Math_SinOp : Math_FloatUnaryOp<"sin"> {
     %a = math.sin %b : f64
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -370,6 +372,7 @@ def Math_ErfOp : Math_FloatUnaryOp<"erf"> {
     %a = math.erf %b : f64
     ```
   }];
+  let hasFolder = 1;
 }
 
 
@@ -481,6 +484,8 @@ def Math_FloorOp : Math_FloatUnaryOp<"floor"> {
     %a = math.floor %b : f64
     ```
   }];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -768,6 +773,7 @@ def Math_RoundEvenOp : Math_FloatUnaryOp<"roundeven"> {
     %a = math.roundeven %b : f64
     ```
   }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -797,6 +803,36 @@ def Math_RoundOp : Math_FloatUnaryOp<"round"> {
     %a = math.round %b : f64
     ```
   }];
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// TruncOp
+//===----------------------------------------------------------------------===//
+
+def Math_TruncOp : Math_FloatUnaryOp<"trunc"> {
+  let summary = "trunc of the specified value";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.trunc` ssa-use `:` type
+    ```
+
+    The `trunc` operation returns the operand rounded to the nearest integer
+    value in floating-point format. It takes one operand of floating point type
+    (i.e., scalar, tensor or vector) and produces one result of the same type.
+    The operation always rounds to the nearest integer not larger in magnitude
+    than the operand, regardless of the current rounding direction.
+
+    Example:
+
+    ```mlir
+    // Scalar trunc operation.
+    %a = math.trunc %b : f64
+    ```
+  }];
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
