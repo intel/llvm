@@ -53,7 +53,7 @@ template <> struct Repr<64, true> { using Type = int64_t; };
 /// These wrappers are required to shared an interface between APSint and
 /// builtin primitive numeral types, while optimising for storage and
 /// allowing methods operating on primitive type to compile to fast code.
-template <unsigned Bits, bool Signed> class Integral {
+template <unsigned Bits, bool Signed> class Integral final {
 private:
   template <unsigned OtherBits, bool OtherSigned> friend class Integral;
 
@@ -107,7 +107,7 @@ public:
     return APSInt(APInt(Bits, static_cast<uint64_t>(V), Signed), !Signed);
   }
   APSInt toAPSInt(unsigned NumBits) const {
-    if (Signed)
+    if constexpr (Signed)
       return APSInt(toAPSInt().sextOrTrunc(NumBits), !Signed);
     else
       return APSInt(toAPSInt().zextOrTrunc(NumBits), !Signed);
@@ -171,7 +171,7 @@ public:
   }
 
   template <bool SrcSign> static Integral from(Integral<0, SrcSign> Value) {
-    if (SrcSign)
+    if constexpr (SrcSign)
       return Integral(Value.V.getSExtValue());
     else
       return Integral(Value.V.getZExtValue());

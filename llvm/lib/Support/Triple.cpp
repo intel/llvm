@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/Triple.h"
-#include "llvm/ADT/STLArrayExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -173,7 +172,7 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
 
   case loongarch32:
   case loongarch64: return "loongarch";
-  
+
   case dxil:        return "dx";
   }
 }
@@ -1005,13 +1004,13 @@ std::string Triple::normalize(StringRef Str) {
   // If they are not there already, permute the components into their canonical
   // positions by seeing if they parse as a valid architecture, and if so moving
   // the component to the architecture position etc.
-  for (unsigned Pos = 0; Pos != array_lengthof(Found); ++Pos) {
+  for (unsigned Pos = 0; Pos != std::size(Found); ++Pos) {
     if (Found[Pos])
       continue; // Already in the canonical position.
 
     for (unsigned Idx = 0; Idx != Components.size(); ++Idx) {
       // Do not reparse any components that already matched.
-      if (Idx < array_lengthof(Found) && Found[Idx])
+      if (Idx < std::size(Found) && Found[Idx])
         continue;
 
       // Does this component parse as valid for the target position?
@@ -1059,7 +1058,7 @@ std::string Triple::normalize(StringRef Str) {
         // components to the right.
         for (unsigned i = Pos; !CurrentComponent.empty(); ++i) {
           // Skip over any fixed components.
-          while (i < array_lengthof(Found) && Found[i])
+          while (i < std::size(Found) && Found[i])
             ++i;
           // Place the component at the new position, getting the component
           // that was at this position - it will be moved right.
@@ -1080,7 +1079,7 @@ std::string Triple::normalize(StringRef Str) {
             if (CurrentComponent.empty())
               break;
             // Advance to the next component, skipping any fixed components.
-            while (++i < array_lengthof(Found) && Found[i])
+            while (++i < std::size(Found) && Found[i])
               ;
           }
           // The last component was pushed off the end - append it.
@@ -1088,7 +1087,7 @@ std::string Triple::normalize(StringRef Str) {
             Components.push_back(CurrentComponent);
 
           // Advance Idx to the component's new position.
-          while (++Idx < array_lengthof(Found) && Found[Idx])
+          while (++Idx < std::size(Found) && Found[Idx])
             ;
         } while (Idx < Pos); // Add more until the final position is reached.
       }
@@ -1172,6 +1171,10 @@ StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) const {
   case Triple::mips64el:
     if (SubArch == MipsSubArch_r6)
       return "mipsisa64r6el";
+    break;
+  case Triple::aarch64:
+    if (SubArch == AArch64SubArch_arm64ec)
+      return "arm64ec";
     break;
   default:
     break;

@@ -100,6 +100,8 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 #include <version>
 
 // standard-mandated includes
+
+// [thread.syn]
 #include <compare>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -409,7 +411,7 @@ _LIBCPP_END_NAMESPACE_STD
 _LIBCPP_POP_MACROS
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 17
-#  include <chrono> // IGNORE-CYCLE due to <format>
+#  include <chrono>
 #endif
 
 #if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20

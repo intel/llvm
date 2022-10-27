@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SparseTensor/Utils/Merger.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
@@ -78,6 +78,7 @@ TensorExp::TensorExp(Kind k, unsigned x, unsigned y, Value v, Operation *o)
     children.e1 = y;
     break;
   case kBinaryBranch:
+  case kSelect:
     assert(x != -1u && y == -1u && !v && o);
     children.e0 = x;
     children.e1 = y;
@@ -212,7 +213,7 @@ unsigned Merger::takeCombi(Kind kind, unsigned s0, unsigned s1, Operation *orig,
 }
 
 unsigned Merger::mapSet(Kind kind, unsigned s0, Value v, Operation *op) {
-  assert(kAbsF <= kind && kind <= kUnary);
+  assert(kAbsF <= kind && kind <= kSelect);
   unsigned s = addSet();
   for (unsigned p : latSets[s0]) {
     unsigned e = addExp(kind, latPoints[p].exp, v, op);
@@ -263,9 +264,10 @@ BitVector Merger::simplifyCond(unsigned s0, unsigned p0) {
   }
   // Now apply the two basic rules.
   BitVector simple = latPoints[p0].bits;
-  bool reset = isSingleton && hasAnyDimOf(simple, kSparse);
+  bool reset = isSingleton && hasAnySparse(simple);
   for (unsigned b = 0, be = simple.size(); b < be; b++) {
-    if (simple[b] && !isDim(b, kSparse)) {
+    if (simple[b] && (!isDimLevelType(b, DimLvlType::kCompressed) &&
+                      !isDimLevelType(b, DimLvlType::kSingleton))) {
       if (reset)
         simple.reset(b);
       reset = true;
@@ -290,14 +292,7 @@ bool Merger::latGT(unsigned i, unsigned j) const {
 bool Merger::onlyDenseDiff(unsigned i, unsigned j) {
   BitVector tmp = latPoints[j].bits;
   tmp ^= latPoints[i].bits;
-  return !hasAnyDimOf(tmp, kSparse);
-}
-
-bool Merger::hasAnyDimOf(const BitVector &bits, Dim d) const {
-  for (unsigned b = 0, be = bits.size(); b < be; b++)
-    if (bits[b] && isDim(b, d))
-      return true;
-  return false;
+  return !hasAnySparse(tmp);
 }
 
 bool Merger::isSingleCondition(unsigned t, unsigned e) const {
@@ -343,6 +338,7 @@ bool Merger::isSingleCondition(unsigned t, unsigned e) const {
     return isSingleCondition(t, tensorExps[e].children.e0);
   case kBinaryBranch:
   case kUnary:
+  case kSelect:
     return false;
   // Binary operations.
   case kDivF: // note: x / c only
@@ -381,6 +377,14 @@ bool Merger::isSingleCondition(unsigned t, unsigned e) const {
     return false;
   }
   llvm_unreachable("unexpected kind");
+}
+
+bool Merger::hasAnySparse(const BitVector &bits) const {
+  for (unsigned b = 0, be = bits.size(); b < be; b++)
+    if (bits[b] && (isDimLevelType(b, DimLvlType::kCompressed) ||
+                    isDimLevelType(b, DimLvlType::kSingleton)))
+      return true;
+  return false;
 }
 
 #ifndef NDEBUG
@@ -446,6 +450,8 @@ static const char *kindToOpSymbol(Kind kind) {
     return "binary_branch";
   case kUnary:
     return "unary";
+  case kSelect:
+    return "select";
   // Binary operations.
   case kMulF:
   case kMulC:
@@ -534,6 +540,7 @@ void Merger::dumpExp(unsigned e) const {
   case kBitCast:
   case kBinaryBranch:
   case kUnary:
+  case kSelect:
     llvm::dbgs() << kindToOpSymbol(tensorExps[e].kind) << " ";
     dumpExp(tensorExps[e].children.e0);
     break;
@@ -591,18 +598,23 @@ void Merger::dumpBits(const BitVector &bits) const {
     if (bits[b]) {
       unsigned t = tensor(b);
       unsigned i = index(b);
+      DimLevelFormat f = dims[t][i];
       llvm::dbgs() << " i_" << t << "_" << i << "_";
-      switch (dims[t][i]) {
-      case kSparse:
-        llvm::dbgs() << "S";
-        break;
-      case kDense:
+      switch (f.levelType) {
+      case DimLvlType::kDense:
         llvm::dbgs() << "D";
         break;
-      case kUndef:
+      case DimLvlType::kCompressed:
+        llvm::dbgs() << "C";
+        break;
+      case DimLvlType::kSingleton:
+        llvm::dbgs() << "S";
+        break;
+      case DimLvlType::kUndef:
         llvm::dbgs() << "U";
         break;
       }
+      llvm::dbgs() << "[O=" << f.isOrdered << ",U=" << f.isUnique << "]";
     }
   }
 }
@@ -676,6 +688,7 @@ unsigned Merger::buildLattices(unsigned e, unsigned i) {
     return mapSet(kind, buildLattices(tensorExps[e].children.e0, i),
                   tensorExps[e].val);
   case kBinaryBranch:
+  case kSelect:
     // The left or right half of a binary operation which has already
     // been split into separate operations for each region.
     return mapSet(kind, buildLattices(tensorExps[e].children.e0, i), Value(),
@@ -847,7 +860,7 @@ Type Merger::inferType(unsigned e, Value src) {
 
 /// Ensures that sparse compiler can generate code for expression.
 static bool isAdmissableBranchExp(Operation *op, Block *block, Value v) {
-  // Arguments are always admissable.
+  // Arguments are always admissible.
   if (auto arg = v.dyn_cast<BlockArgument>())
     return true;
   // Accept index anywhere.
@@ -855,11 +868,10 @@ static bool isAdmissableBranchExp(Operation *op, Block *block, Value v) {
   if (isa<linalg::IndexOp>(def))
     return true;
   // Operation defined outside branch.
-  if (def->getBlock() != block) {
+  if (def->getBlock() != block)
     return def->getBlock() != op->getBlock(); // invariant?
-  }
   // Operation defined within branch. Anything is accepted,
-  // as long as all subexpressions are admissable.
+  // as long as all subexpressions are admissible.
   for (unsigned i = 0, n = def->getNumOperands(); i < n; i++)
     if (!isAdmissableBranchExp(op, block, def->getOperand(i)))
       return false;
@@ -971,6 +983,10 @@ Optional<unsigned> Merger::buildTensorExp(linalg::GenericOp op, Value v) {
             isAdmissableBranch(unop, unop.getAbsentRegion()))
           return addExp(kUnary, e, Value(), def);
       }
+      if (auto selop = dyn_cast<sparse_tensor::SelectOp>(def)) {
+        if (isAdmissableBranch(selop, selop.getRegion()))
+          return addExp(kSelect, e, Value(), def);
+      }
     }
   }
   // Construct binary operations if subexpressions can be built.
@@ -1038,7 +1054,6 @@ Optional<unsigned> Merger::buildTensorExp(linalg::GenericOp op, Value v) {
     if (x.has_value() && y.has_value() && z.has_value()) {
       unsigned e0 = x.value();
       unsigned e1 = y.value();
-      // unsigned e2 = z.getValue();
       if (auto redop = dyn_cast<sparse_tensor::ReduceOp>(def)) {
         if (isAdmissableBranch(redop, redop.getRegion()))
           return addExp(kReduce, e0, e1, Value(), def);
@@ -1222,6 +1237,9 @@ Value Merger::buildExp(RewriterBase &rewriter, Location loc, unsigned e,
                          *tensorExps[e].op->getBlock()->getParent(), {v0});
   case kUnary:
     return buildUnaryPresent(rewriter, loc, tensorExps[e].op, v0);
+  case kSelect:
+    return insertYieldOp(rewriter, loc,
+                         cast<SelectOp>(tensorExps[e].op).getRegion(), {v0});
   case kBinary:
     return buildBinaryOverlap(rewriter, loc, tensorExps[e].op, v0, v1);
   case kReduce: {

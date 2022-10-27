@@ -86,8 +86,8 @@ const ARM::ArchNames<ArchKind> AArch64ARCHNames[] = {
    sizeof(NAME) - 1,                                                           \
    CPU_ATTR,                                                                   \
    sizeof(CPU_ATTR) - 1,                                                       \
-   SUB_ARCH,                                                                   \
-   sizeof(SUB_ARCH) - 1,                                                       \
+   "+" SUB_ARCH,                                                               \
+   sizeof(SUB_ARCH),                                                           \
    ARM::FPUKind::ARCH_FPU,                                                     \
    ARCH_BASE_EXT,                                                              \
    AArch64::ArchKind::ID,                                                      \
@@ -113,6 +113,17 @@ const ArchKind ArchKinds[] = {
 #include "AArch64TargetParser.def"
 };
 
+inline ArchKind &operator--(ArchKind &Kind) {
+  if ((Kind == ArchKind::INVALID) || (Kind == ArchKind::ARMV8A) ||
+      (Kind == ArchKind::ARMV9A) || (Kind == ArchKind::ARMV8R))
+    Kind = ArchKind::INVALID;
+  else {
+    unsigned KindAsInteger = static_cast<unsigned>(Kind);
+    Kind = static_cast<ArchKind>(--KindAsInteger);
+  }
+  return Kind;
+}
+
 // FIXME: These should be moved to TargetTuple once it exists
 bool getExtensionFeatures(uint64_t Extensions,
                           std::vector<StringRef> &Features);
@@ -124,12 +135,14 @@ StringRef getCPUAttr(ArchKind AK);
 StringRef getSubArch(ArchKind AK);
 StringRef getArchExtName(unsigned ArchExtKind);
 StringRef getArchExtFeature(StringRef ArchExt);
+ArchKind convertV9toV8(ArchKind AK);
 
 // Information by Name
 unsigned getDefaultFPU(StringRef CPU, ArchKind AK);
 uint64_t getDefaultExtensions(StringRef CPU, ArchKind AK);
 StringRef getDefaultCPU(StringRef Arch);
 ArchKind getCPUArchKind(StringRef CPU);
+ArchKind getSubArchArchKind(StringRef SubArch);
 
 // Parser
 ArchKind parseArch(StringRef Arch);

@@ -30,6 +30,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -100,6 +101,10 @@ static cl::opt<bool>
     PrintCrashIR("print-on-crash",
                  cl::desc("Print the last form of the IR before crash"),
                  cl::init(false), cl::Hidden);
+
+static cl::opt<std::string> OptBisectPrintIRPath(
+    "opt-bisect-print-ir-path",
+    cl::desc("Print IR to path when opt-bisect-limit is reached"), cl::Hidden);
 
 namespace {
 
@@ -188,10 +193,7 @@ std::string getIRName(Any IR) {
 
   if (any_isa<const Loop *>(IR)) {
     const Loop *L = any_cast<const Loop *>(IR);
-    std::string S;
-    raw_string_ostream OS(S);
-    L->print(OS, /*Verbose*/ false, /*PrintNested*/ false);
-    return OS.str();
+    return L->getName().str();
   }
 
   llvm_unreachable("Unknown wrapped IR type");
@@ -315,8 +317,8 @@ bool isInterestingFunction(const Function &F) {
 
 // Return true when this is a pass on IR for which printing
 // of changes is desired.
-bool isInteresting(Any IR, StringRef PassID) {
-  if (isIgnored(PassID) || !isPassInPrintList(PassID))
+bool isInteresting(Any IR, StringRef PassID, StringRef PassName) {
+  if (isIgnored(PassID) || !isPassInPrintList(PassName))
     return false;
   if (any_isa<const Function *>(IR))
     return isInterestingFunction(*any_cast<const Function *>(IR));
@@ -330,13 +332,14 @@ template <typename T> ChangeReporter<T>::~ChangeReporter() {
 }
 
 template <typename T>
-void ChangeReporter<T>::saveIRBeforePass(Any IR, StringRef PassID) {
+void ChangeReporter<T>::saveIRBeforePass(Any IR, StringRef PassID,
+                                         StringRef PassName) {
   // Always need to place something on the stack because invalidated passes
   // are not given the IR so it cannot be determined whether the pass was for
   // something that was filtered out.
   BeforeStack.emplace_back();
 
-  if (!isInteresting(IR, PassID))
+  if (!isInteresting(IR, PassID, PassName))
     return;
   // Is this the initial IR?
   if (InitialIR) {
@@ -351,7 +354,8 @@ void ChangeReporter<T>::saveIRBeforePass(Any IR, StringRef PassID) {
 }
 
 template <typename T>
-void ChangeReporter<T>::handleIRAfterPass(Any IR, StringRef PassID) {
+void ChangeReporter<T>::handleIRAfterPass(Any IR, StringRef PassID,
+                                          StringRef PassName) {
   assert(!BeforeStack.empty() && "Unexpected empty stack encountered.");
 
   std::string Name = getIRName(IR);
@@ -359,7 +363,7 @@ void ChangeReporter<T>::handleIRAfterPass(Any IR, StringRef PassID) {
   if (isIgnored(PassID)) {
     if (VerboseMode)
       handleIgnored(PassID, Name);
-  } else if (!isInteresting(IR, PassID)) {
+  } else if (!isInteresting(IR, PassID, PassName)) {
     if (VerboseMode)
       handleFiltered(PassID, Name);
   } else {
@@ -395,12 +399,13 @@ void ChangeReporter<T>::handleInvalidatedPass(StringRef PassID) {
 template <typename T>
 void ChangeReporter<T>::registerRequiredCallbacks(
     PassInstrumentationCallbacks &PIC) {
-  PIC.registerBeforeNonSkippedPassCallback(
-      [this](StringRef P, Any IR) { saveIRBeforePass(IR, P); });
+  PIC.registerBeforeNonSkippedPassCallback([&PIC, this](StringRef P, Any IR) {
+    saveIRBeforePass(IR, P, PIC.getPassNameForClassName(P));
+  });
 
   PIC.registerAfterPassCallback(
-      [this](StringRef P, Any IR, const PreservedAnalyses &) {
-        handleIRAfterPass(IR, P);
+      [&PIC, this](StringRef P, Any IR, const PreservedAnalyses &) {
+        handleIRAfterPass(IR, P, PIC.getPassNameForClassName(P));
       });
   PIC.registerAfterPassInvalidatedCallback(
       [this](StringRef P, const PreservedAnalyses &) {
@@ -765,9 +770,23 @@ void OptBisectInstrumentation::registerCallbacks(
     PassInstrumentationCallbacks &PIC) {
   if (!getOptBisector().isEnabled())
     return;
-  PIC.registerShouldRunOptionalPassCallback([](StringRef PassID, Any IR) {
-    return isIgnored(PassID) ||
-           getOptBisector().checkPass(PassID, getIRName(IR));
+  PIC.registerShouldRunOptionalPassCallback([this](StringRef PassID, Any IR) {
+    if (isIgnored(PassID))
+      return true;
+    bool ShouldRun = getOptBisector().checkPass(PassID, getIRName(IR));
+    if (!ShouldRun && !this->HasWrittenIR && !OptBisectPrintIRPath.empty()) {
+      // FIXME: print IR if limit is higher than number of opt-bisect
+      // invocations
+      this->HasWrittenIR = true;
+      const Module *M = unwrapModule(IR, /*Force=*/true);
+      assert(M && "expected Module");
+      std::error_code EC;
+      raw_fd_ostream OS(OptBisectPrintIRPath, EC);
+      if (EC)
+        report_fatal_error(errorCodeToError(EC));
+      M->print(OS, nullptr);
+    }
+    return ShouldRun;
   });
 }
 
@@ -1143,6 +1162,34 @@ void InLineChangePrinter::registerCallbacks(PassInstrumentationCallbacks &PIC) {
       PrintChanged == ChangePrinter::ColourDiffQuiet)
     TextChangeReporter<IRDataT<EmptyData>>::registerRequiredCallbacks(PIC);
 }
+
+TimeProfilingPassesHandler::TimeProfilingPassesHandler() {}
+
+void TimeProfilingPassesHandler::registerCallbacks(
+    PassInstrumentationCallbacks &PIC) {
+  if (!getTimeTraceProfilerInstance())
+    return;
+  PIC.registerBeforeNonSkippedPassCallback(
+      [this](StringRef P, Any IR) { this->runBeforePass(P, IR); });
+  PIC.registerAfterPassCallback(
+      [this](StringRef P, Any IR, const PreservedAnalyses &) {
+        this->runAfterPass();
+      },
+      true);
+  PIC.registerAfterPassInvalidatedCallback(
+      [this](StringRef P, const PreservedAnalyses &) { this->runAfterPass(); },
+      true);
+  PIC.registerBeforeAnalysisCallback(
+      [this](StringRef P, Any IR) { this->runBeforePass(P, IR); });
+  PIC.registerAfterAnalysisCallback(
+      [this](StringRef P, Any IR) { this->runAfterPass(); }, true);
+}
+
+void TimeProfilingPassesHandler::runBeforePass(StringRef PassID, Any IR) {
+  timeTraceProfilerBegin(PassID, getIRName(IR));
+}
+
+void TimeProfilingPassesHandler::runAfterPass() { timeTraceProfilerEnd(); }
 
 namespace {
 
@@ -2030,12 +2077,13 @@ void PrintCrashIRInstrumentation::registerCallbacks(
   sys::AddSignalHandler(SignalHandler, nullptr);
   CrashReporter = this;
 
-  PIC.registerBeforeNonSkippedPassCallback([this](StringRef PassID, Any IR) {
+  PIC.registerBeforeNonSkippedPassCallback([&PIC, this](StringRef PassID,
+                                                        Any IR) {
     SavedIR.clear();
     raw_string_ostream OS(SavedIR);
     OS << formatv("*** Dump of {0}IR Before Last Pass {1}",
                   llvm::forcePrintModuleIR() ? "Module " : "", PassID);
-    if (!isInteresting(IR, PassID)) {
+    if (!isInteresting(IR, PassID, PIC.getPassNameForClassName(PassID))) {
       OS << " Filtered Out ***\n";
       return;
     }
@@ -2060,6 +2108,13 @@ void StandardInstrumentations::registerCallbacks(
   PrintChangedDiff.registerCallbacks(PIC);
   WebsiteChangeReporter.registerCallbacks(PIC);
   PrintCrashIR.registerCallbacks(PIC);
+  // TimeProfiling records the pass running time cost.
+  // Its 'BeforePassCallback' can be appended at the tail of all the
+  // BeforeCallbacks by calling `registerCallbacks` in the end.
+  // Its 'AfterPassCallback' is put at the front of all the
+  // AfterCallbacks by its `registerCallbacks`. This is necessary
+  // to ensure that other callbacks are not included in the timings.
+  TimeProfilingPasses.registerCallbacks(PIC);
 }
 
 template class ChangeReporter<std::string>;

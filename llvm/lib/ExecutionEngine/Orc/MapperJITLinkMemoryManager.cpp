@@ -99,7 +99,7 @@ void MapperJITLinkMemoryManager::allocate(const JITLinkDylib *JD, LinkGraph &G,
       SI.Offset = Seg.Addr - Result->Start;
       SI.ContentSize = Seg.ContentSize;
       SI.ZeroFillSize = Seg.ZeroFillSize;
-      SI.Prot = toSysMemoryProtectionFlags(AG.getMemProt());
+      SI.AG = AG;
       SI.WorkingMem = Seg.WorkingMem;
 
       SegInfos.push_back(SI);
@@ -156,8 +156,16 @@ void MapperJITLinkMemoryManager::deallocate(
   Mapper->deinitialize(Bases, [this, Allocs = std::move(Allocs),
                                OnDeallocated = std::move(OnDeallocated)](
                                   llvm::Error Err) mutable {
-    if (Err)
+    // TODO: How should we treat memory that we fail to deinitialize?
+    // We're currently bailing out and treating it as "burned" -- should we
+    // require that a failure to deinitialize still reset the memory so that
+    // we can reclaim it?
+    if (Err) {
+      for (auto &FA : Allocs)
+        FA.release();
       OnDeallocated(std::move(Err));
+      return;
+    }
 
     {
       std::lock_guard<std::mutex> Lock(Mutex);

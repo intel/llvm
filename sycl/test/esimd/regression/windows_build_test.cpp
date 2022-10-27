@@ -6,36 +6,39 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: windows
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s -I %sycl_include
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include
 // expected-no-diagnostics
 
 // The tests validates an ability to build ESIMD code on windows platform
 
-#include <iostream>
 #include <CL/sycl.hpp>
+#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/intel/experimental/esimd/memory.hpp>
 
 class Kernel;
 
-int main()
-{
+int main() {
   sycl::queue q;
   sycl::device dev = q.get_device();
   sycl::context ctx = q.get_context();
-  std::cout << "Device: " << dev.get_info<sycl::info::device::name>() << std::endl;
+  std::cout << "Device: " << dev.get_info<sycl::info::device::name>()
+            << std::endl;
 
-  int* buffer = (int*)sycl::aligned_alloc_device(128, 1024, q);
+  int *buffer = (int *)sycl::aligned_alloc_device(128, 1024, q);
 
-  q.parallel_for<Kernel>(
-    1,
-    [=](sycl::item<1> it) SYCL_ESIMD_KERNEL {
-      using namespace sycl::ext::intel::esimd;
-      using namespace sycl::ext::intel::experimental::esimd;
+  q.parallel_for<Kernel>(1, [=](sycl::item<1> it) SYCL_ESIMD_KERNEL {
+    using namespace sycl::ext::intel::esimd;
+    using namespace sycl::ext::intel::experimental::esimd;
 
-      simd<int, 32> blk;
-      lsc_block_store<int, 32>(buffer, blk);
-    });
+    simd<int, 32> blk;
+    simd<sycl::ext::oneapi::experimental::bfloat16, 16> A;
+    simd<sycl::ext::oneapi::experimental::bfloat16, 256> B;
+    simd<float, 16> C;
+    lzd<uint>(blk);
+    lzd<uint>(35);
+    sycl::ext::intel::esimd::xmx::dpas<8, 1, float>(C, B, A);
+    lsc_block_store<int, 32>(buffer, blk);
+  });
 
   q.wait();
   sycl::free(buffer, q);

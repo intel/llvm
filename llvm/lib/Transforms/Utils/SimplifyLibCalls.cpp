@@ -33,6 +33,8 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
 
+#include <cmath>
+
 using namespace llvm;
 using namespace PatternMatch;
 
@@ -245,13 +247,14 @@ static void annotateNonNullNoUndefBasedOnAccess(CallInst *CI,
     if (!CI->paramHasAttr(ArgNo, Attribute::NoUndef))
       CI->addParamAttr(ArgNo, Attribute::NoUndef);
 
-    if (CI->paramHasAttr(ArgNo, Attribute::NonNull))
-      continue;
-    unsigned AS = CI->getArgOperand(ArgNo)->getType()->getPointerAddressSpace();
-    if (llvm::NullPointerIsDefined(F, AS))
-      continue;
+    if (!CI->paramHasAttr(ArgNo, Attribute::NonNull)) {
+      unsigned AS =
+          CI->getArgOperand(ArgNo)->getType()->getPointerAddressSpace();
+      if (llvm::NullPointerIsDefined(F, AS))
+        continue;
+      CI->addParamAttr(ArgNo, Attribute::NonNull);
+    }
 
-    CI->addParamAttr(ArgNo, Attribute::NonNull);
     annotateDereferenceableBytes(CI, ArgNo, 1);
   }
 }
@@ -283,6 +286,12 @@ static Value *copyFlags(const CallInst &Old, Value *New) {
   if (auto *NewCI = dyn_cast_or_null<CallInst>(New))
     NewCI->setTailCallKind(Old.getTailCallKind());
   return New;
+}
+
+static Value *mergeAttributesAndFlags(CallInst *NewCI, const CallInst &Old) {
+  NewCI->setAttributes(Old.getAttributes());
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
+  return copyFlags(Old, NewCI);
 }
 
 // Helper to avoid truncating the length if size_t is 32-bits.
@@ -424,14 +433,16 @@ Value *LibCallSimplifier::optimizeStrChr(CallInst *CI, IRBuilderBase &B) {
 
     Function *Callee = CI->getCalledFunction();
     FunctionType *FT = Callee->getFunctionType();
-    if (!FT->getParamType(1)->isIntegerTy(32)) // memchr needs i32.
+    unsigned IntBits = TLI->getIntSize();
+    if (!FT->getParamType(1)->isIntegerTy(IntBits)) // memchr needs 'int'.
       return nullptr;
 
-    return copyFlags(
-        *CI,
-        emitMemChr(SrcStr, CharVal, // include nul.
-                   ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len), B,
-                   DL, TLI));
+    unsigned SizeTBits = TLI->getSizeTSize(*CI->getModule());
+    Type *SizeTTy = IntegerType::get(CI->getContext(), SizeTBits);
+    return copyFlags(*CI,
+                     emitMemChr(SrcStr, CharVal, // include nul.
+                                ConstantInt::get(SizeTTy, Len), B,
+                                DL, TLI));
   }
 
   if (CharC->isZero()) {
@@ -478,11 +489,13 @@ Value *LibCallSimplifier::optimizeStrRChr(CallInst *CI, IRBuilderBase &B) {
     return nullptr;
   }
 
+  unsigned SizeTBits = TLI->getSizeTSize(*CI->getModule());
+  Type *SizeTTy = IntegerType::get(CI->getContext(), SizeTBits);
+
   // Try to expand strrchr to the memrchr nonstandard extension if it's
   // available, or simply fail otherwise.
   uint64_t NBytes = Str.size() + 1;   // Include the terminating nul.
-  Type *IntPtrType = DL.getIntPtrType(CI->getContext());
-  Value *Size = ConstantInt::get(IntPtrType, NBytes);
+  Value *Size = ConstantInt::get(SizeTTy, NBytes);
   return copyFlags(*CI, emitMemRChr(SrcStr, CharVal, Size, B, DL, TLI));
 }
 
@@ -652,9 +665,7 @@ Value *LibCallSimplifier::optimizeStrCpy(CallInst *CI, IRBuilderBase &B) {
   CallInst *NewCI =
       B.CreateMemCpy(Dst, Align(1), Src, Align(1),
                      ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len));
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
+  mergeAttributesAndFlags(NewCI, *CI);
   return Dst;
 }
 
@@ -686,9 +697,7 @@ Value *LibCallSimplifier::optimizeStpCpy(CallInst *CI, IRBuilderBase &B) {
   // We have enough information to now generate the memcpy call to do the
   // copy for us.  Make a memcpy to copy the nul byte with align = 1.
   CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1), LenV);
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
+  mergeAttributesAndFlags(NewCI, *CI);
   return DstEnd;
 }
 
@@ -757,9 +766,7 @@ Value *LibCallSimplifier::optimizeStrLCpy(CallInst *CI, IRBuilderBase &B) {
   // D[N' - 1] if necessary.
   CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1),
                         ConstantInt::get(DL.getIntPtrType(PT), NBytes));
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
+  mergeAttributesAndFlags(NewCI, *CI);
 
   if (!NulTerm) {
     Value *EndOff = ConstantInt::get(CI->getType(), NBytes);
@@ -773,40 +780,62 @@ Value *LibCallSimplifier::optimizeStrLCpy(CallInst *CI, IRBuilderBase &B) {
   return ConstantInt::get(CI->getType(), SrcLen);
 }
 
-// Optimize a call to strncpy.
-
-Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilderBase &B) {
+// Optimize a call CI to either stpncpy when RetEnd is true, or to strncpy
+// otherwise.
+Value *LibCallSimplifier::optimizeStringNCpy(CallInst *CI, bool RetEnd,
+                                             IRBuilderBase &B) {
   Function *Callee = CI->getCalledFunction();
   Value *Dst = CI->getArgOperand(0);
   Value *Src = CI->getArgOperand(1);
   Value *Size = CI->getArgOperand(2);
-  annotateNonNullNoUndefBasedOnAccess(CI, 0);
-  if (isKnownNonZero(Size, DL))
-    annotateNonNullNoUndefBasedOnAccess(CI, 1);
 
-  uint64_t Len;
-  if (ConstantInt *LengthArg = dyn_cast<ConstantInt>(Size))
-    Len = LengthArg->getZExtValue();
+  if (isKnownNonZero(Size, DL)) {
+    // Both st{p,r}ncpy(D, S, N) access the source and destination arrays
+    // only when N is nonzero.
+    annotateNonNullNoUndefBasedOnAccess(CI, 0);
+    annotateNonNullNoUndefBasedOnAccess(CI, 1);
+  }
+
+  // If the "bound" argument is known set N to it.  Otherwise set it to
+  // UINT64_MAX and handle it later.
+  uint64_t N = UINT64_MAX;
+  if (ConstantInt *SizeC = dyn_cast<ConstantInt>(Size))
+    N = SizeC->getZExtValue();
+
+  if (N == 0)
+    // Fold st{p,r}ncpy(D, S, 0) to D.
+    return Dst;
+
+  if (N == 1) {
+    Type *CharTy = B.getInt8Ty();
+    Value *CharVal = B.CreateLoad(CharTy, Src, "stxncpy.char0");
+    B.CreateStore(CharVal, Dst);
+    if (!RetEnd)
+      // Transform strncpy(D, S, 1) to return (*D = *S), D.
+      return Dst;
+
+    // Transform stpncpy(D, S, 1) to return (*D = *S) ? D + 1 : D.
+    Value *ZeroChar = ConstantInt::get(CharTy, 0);
+    Value *Cmp = B.CreateICmpEQ(CharVal, ZeroChar, "stpncpy.char0cmp");
+
+    Value *Off1 = B.getInt32(1);
+    Value *EndPtr = B.CreateInBoundsGEP(CharTy, Dst, Off1, "stpncpy.end");
+    return B.CreateSelect(Cmp, Dst, EndPtr, "stpncpy.sel");
+  }
+
+  // If the length of the input string is known set SrcLen to it.
+  uint64_t SrcLen = GetStringLength(Src);
+  if (SrcLen)
+    annotateDereferenceableBytes(CI, 1, SrcLen);
   else
     return nullptr;
 
-  // strncpy(x, y, 0) -> x
-  if (Len == 0)
-    return Dst;
-
-  // See if we can get the length of the input string.
-  uint64_t SrcLen = GetStringLength(Src);
-  if (SrcLen) {
-    annotateDereferenceableBytes(CI, 1, SrcLen);
-    --SrcLen; // Unbias length.
-  } else {
-    return nullptr;
-  }
+  --SrcLen; // Unbias length.
 
   if (SrcLen == 0) {
-    // strncpy(x, "", y) -> memset(x, '\0', y)
+    // Transform st{p,r}ncpy(D, "", N) to memset(D, '\0', N) for any N.
     Align MemSetAlign =
-        CI->getAttributes().getParamAttrs(0).getAlignment().valueOrOne();
+      CI->getAttributes().getParamAttrs(0).getAlignment().valueOrOne();
     CallInst *NewCI = B.CreateMemSet(Dst, B.getInt8('\0'), Size, MemSetAlign);
     AttrBuilder ArgAttrs(CI->getContext(), CI->getAttributes().getParamAttrs(0));
     NewCI->setAttributes(NewCI->getAttributes().addParamAttributes(
@@ -815,28 +844,35 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilderBase &B) {
     return Dst;
   }
 
-  // strncpy(a, "a", 4) - > memcpy(a, "a\0\0\0", 4)
-  if (Len > SrcLen + 1) {
-    if (Len <= 128) {
-      StringRef Str;
-      if (!getConstantStringInfo(Src, Str))
-        return nullptr;
-      std::string SrcStr = Str.str();
-      SrcStr.resize(Len, '\0');
-      Src = B.CreateGlobalString(SrcStr, "str");
-    } else {
+  if (N > SrcLen + 1) {
+    if (N > 128)
+      // Bail if N is large or unknown.
       return nullptr;
-    }
+
+    // st{p,r}ncpy(D, "a", N) -> memcpy(D, "a\0\0\0", N) for N <= 128.
+    StringRef Str;
+    if (!getConstantStringInfo(Src, Str))
+      return nullptr;
+    std::string SrcStr = Str.str();
+    // Create a bigger, nul-padded array with the same length, SrcLen,
+    // as the original string.
+    SrcStr.resize(N, '\0');
+    Src = B.CreateGlobalString(SrcStr, "str");
   }
 
   Type *PT = Callee->getFunctionType()->getParamType(0);
-  // strncpy(x, s, c) -> memcpy(align 1 x, align 1 s, c) [s and c are constant]
+  // st{p,r}ncpy(D, S, N) -> memcpy(align 1 D, align 1 S, N) when both
+  // S and N are constant.
   CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1),
-                                   ConstantInt::get(DL.getIntPtrType(PT), Len));
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
-  return Dst;
+                                   ConstantInt::get(DL.getIntPtrType(PT), N));
+  mergeAttributesAndFlags(NewCI, *CI);
+  if (!RetEnd)
+    return Dst;
+
+  // stpncpy(D, S, N) returns the address of the first null in D if it writes
+  // one, otherwise D + N.
+  Value *Off = B.getInt64(std::min(SrcLen, N));
+  return B.CreateInBoundsGEP(B.getInt8Ty(), Dst, Off, "endptr");
 }
 
 Value *LibCallSimplifier::optimizeStringLength(CallInst *CI, IRBuilderBase &B,
@@ -1524,9 +1560,7 @@ Value *LibCallSimplifier::optimizeMemCpy(CallInst *CI, IRBuilderBase &B) {
   // memcpy(x, y, n) -> llvm.memcpy(align 1 x, align 1 y, n)
   CallInst *NewCI = B.CreateMemCpy(CI->getArgOperand(0), Align(1),
                                    CI->getArgOperand(1), Align(1), Size);
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
+  mergeAttributesAndFlags(NewCI, *CI);
   return CI->getArgOperand(0);
 }
 
@@ -1580,9 +1614,7 @@ Value *LibCallSimplifier::optimizeMemPCpy(CallInst *CI, IRBuilderBase &B) {
   // Propagate attributes, but memcpy has no return value, so make sure that
   // any return attributes are compliant.
   // TODO: Attach return value attributes to the 1st operand to preserve them?
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
+  mergeAttributesAndFlags(NewCI, *CI);
   return B.CreateInBoundsGEP(B.getInt8Ty(), Dst, N);
 }
 
@@ -1595,9 +1627,7 @@ Value *LibCallSimplifier::optimizeMemMove(CallInst *CI, IRBuilderBase &B) {
   // memmove(x, y, n) -> llvm.memmove(align 1 x, align 1 y, n)
   CallInst *NewCI = B.CreateMemMove(CI->getArgOperand(0), Align(1),
                                     CI->getArgOperand(1), Align(1), Size);
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
+  mergeAttributesAndFlags(NewCI, *CI);
   return CI->getArgOperand(0);
 }
 
@@ -1610,9 +1640,7 @@ Value *LibCallSimplifier::optimizeMemSet(CallInst *CI, IRBuilderBase &B) {
   // memset(p, v, n) -> llvm.memset(align 1 p, v, n)
   Value *Val = B.CreateIntCast(CI->getArgOperand(1), B.getInt8Ty(), false);
   CallInst *NewCI = B.CreateMemSet(CI->getArgOperand(0), Val, Size, Align(1));
-  NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-  copyFlags(*CI, NewCI);
+  mergeAttributesAndFlags(NewCI, *CI);
   return CI->getArgOperand(0);
 }
 
@@ -3166,10 +3194,11 @@ Value *LibCallSimplifier::optimizeFPrintFString(CallInst *CI,
     if (FormatStr.contains('%'))
       return nullptr; // We found a format specifier.
 
+    unsigned SizeTBits = TLI->getSizeTSize(*CI->getModule());
+    Type *SizeTTy = IntegerType::get(CI->getContext(), SizeTBits);
     return copyFlags(
         *CI, emitFWrite(CI->getArgOperand(1),
-                        ConstantInt::get(DL.getIntPtrType(CI->getContext()),
-                                         FormatStr.size()),
+                        ConstantInt::get(SizeTTy, FormatStr.size()),
                         CI->getArgOperand(0), B, DL, TLI));
   }
 
@@ -3180,11 +3209,13 @@ Value *LibCallSimplifier::optimizeFPrintFString(CallInst *CI,
 
   // Decode the second character of the format string.
   if (FormatStr[1] == 'c') {
-    // fprintf(F, "%c", chr) --> fputc(chr, F)
+    // fprintf(F, "%c", chr) --> fputc((int)chr, F)
     if (!CI->getArgOperand(2)->getType()->isIntegerTy())
       return nullptr;
-    return copyFlags(
-        *CI, emitFPutC(CI->getArgOperand(2), CI->getArgOperand(0), B, TLI));
+    Type *IntTy = B.getIntNTy(TLI->getIntSize());
+    Value *V = B.CreateIntCast(CI->getArgOperand(2), IntTy, /*isSigned*/ true,
+                               "chari");
+    return copyFlags(*CI, emitFPutC(V, CI->getArgOperand(0), B, TLI));
   }
 
   if (FormatStr[1] == 's') {
@@ -3251,7 +3282,9 @@ Value *LibCallSimplifier::optimizeFWrite(CallInst *CI, IRBuilderBase &B) {
     if (Bytes == 1 && CI->use_empty()) { // fwrite(S,1,1,F) -> fputc(S[0],F)
       Value *Char = B.CreateLoad(B.getInt8Ty(),
                                  castToCStr(CI->getArgOperand(0), B), "char");
-      Value *NewCI = emitFPutC(Char, CI->getArgOperand(3), B, TLI);
+      Type *IntTy = B.getIntNTy(TLI->getIntSize());
+      Value *Cast = B.CreateIntCast(Char, IntTy, /*isSigned*/ true, "chari");
+      Value *NewCI = emitFPutC(Cast, CI->getArgOperand(3), B, TLI);
       return NewCI ? ConstantInt::get(CI->getType(), 1) : nullptr;
     }
   }
@@ -3280,10 +3313,12 @@ Value *LibCallSimplifier::optimizeFPuts(CallInst *CI, IRBuilderBase &B) {
     return nullptr;
 
   // Known to have no uses (see above).
+  unsigned SizeTBits = TLI->getSizeTSize(*CI->getModule());
+  Type *SizeTTy = IntegerType::get(CI->getContext(), SizeTBits);
   return copyFlags(
       *CI,
       emitFWrite(CI->getArgOperand(0),
-                 ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len - 1),
+                 ConstantInt::get(SizeTTy, Len - 1),
                  CI->getArgOperand(1), B, DL, TLI));
 }
 
@@ -3349,8 +3384,10 @@ Value *LibCallSimplifier::optimizeStringMemoryLibCall(CallInst *CI,
       return optimizeStpCpy(CI, Builder);
     case LibFunc_strlcpy:
       return optimizeStrLCpy(CI, Builder);
+    case LibFunc_stpncpy:
+      return optimizeStringNCpy(CI, /*RetEnd=*/true, Builder);
     case LibFunc_strncpy:
-      return optimizeStrNCpy(CI, Builder);
+      return optimizeStringNCpy(CI, /*RetEnd=*/false, Builder);
     case LibFunc_strlen:
       return optimizeStrLen(CI, Builder);
     case LibFunc_strnlen:
@@ -3756,9 +3793,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemCpyChk(CallInst *CI,
     CallInst *NewCI =
         B.CreateMemCpy(CI->getArgOperand(0), Align(1), CI->getArgOperand(1),
                        Align(1), CI->getArgOperand(2));
-    NewCI->setAttributes(CI->getAttributes());
-    NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-    copyFlags(*CI, NewCI);
+    mergeAttributesAndFlags(NewCI, *CI);
     return CI->getArgOperand(0);
   }
   return nullptr;
@@ -3770,9 +3805,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemMoveChk(CallInst *CI,
     CallInst *NewCI =
         B.CreateMemMove(CI->getArgOperand(0), Align(1), CI->getArgOperand(1),
                         Align(1), CI->getArgOperand(2));
-    NewCI->setAttributes(CI->getAttributes());
-    NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-    copyFlags(*CI, NewCI);
+    mergeAttributesAndFlags(NewCI, *CI);
     return CI->getArgOperand(0);
   }
   return nullptr;
@@ -3784,9 +3817,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemSetChk(CallInst *CI,
     Value *Val = B.CreateIntCast(CI->getArgOperand(1), B.getInt8Ty(), false);
     CallInst *NewCI = B.CreateMemSet(CI->getArgOperand(0), Val,
                                      CI->getArgOperand(2), Align(1));
-    NewCI->setAttributes(CI->getAttributes());
-    NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-    copyFlags(*CI, NewCI);
+    mergeAttributesAndFlags(NewCI, *CI);
     return CI->getArgOperand(0);
   }
   return nullptr;
@@ -3798,10 +3829,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemPCpyChk(CallInst *CI,
   if (isFortifiedCallFoldable(CI, 3, 2))
     if (Value *Call = emitMemPCpy(CI->getArgOperand(0), CI->getArgOperand(1),
                                   CI->getArgOperand(2), B, DL, TLI)) {
-      CallInst *NewCI = cast<CallInst>(Call);
-      NewCI->setAttributes(CI->getAttributes());
-      NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
-      return copyFlags(*CI, NewCI);
+      return mergeAttributesAndFlags(cast<CallInst>(Call), *CI);
     }
   return nullptr;
 }
@@ -3841,11 +3869,8 @@ Value *FortifiedLibCallSimplifier::optimizeStrpCpyChk(CallInst *CI,
   else
     return nullptr;
 
-  // FIXME: There is really no guarantee that sizeof(size_t) is equal to
-  // sizeof(int*) for every target. So the assumption used here to derive the
-  // SizeTBits based on the size of an integer pointer in address space zero
-  // isn't always valid.
-  Type *SizeTTy = DL.getIntPtrType(CI->getContext(), /*AddressSpace=*/0);
+  unsigned SizeTBits = TLI->getSizeTSize(*CI->getModule());
+  Type *SizeTTy = IntegerType::get(CI->getContext(), SizeTBits);
   Value *LenV = ConstantInt::get(SizeTTy, Len);
   Value *Ret = emitMemCpyChk(Dst, Src, LenV, ObjSize, B, DL, TLI);
   // If the function was an __stpcpy_chk, and we were able to fold it into

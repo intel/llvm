@@ -284,6 +284,17 @@ TEST_F(TokenAnnotatorTest, UnderstandsVariableTemplates) {
   EXPECT_TOKEN(Tokens[13], tok::ampamp, TT_BinaryOperator);
 }
 
+TEST_F(TokenAnnotatorTest, UnderstandsTemplatesInMacros) {
+  auto Tokens =
+      annotate("#define FOO(typeName) \\\n"
+               "  { #typeName, foo<FooType>(new foo<realClass>(#typeName)) }");
+  ASSERT_EQ(Tokens.size(), 27u) << Tokens;
+  EXPECT_TOKEN(Tokens[11], tok::less, TT_TemplateOpener);
+  EXPECT_TOKEN(Tokens[13], tok::greater, TT_TemplateCloser);
+  EXPECT_TOKEN(Tokens[17], tok::less, TT_TemplateOpener);
+  EXPECT_TOKEN(Tokens[19], tok::greater, TT_TemplateCloser);
+}
+
 TEST_F(TokenAnnotatorTest, UnderstandsWhitespaceSensitiveMacros) {
   FormatStyle Style = getLLVMStyle();
   Style.WhitespaceSensitiveMacros.push_back("FOO");
@@ -428,6 +439,23 @@ TEST_F(TokenAnnotatorTest, UnderstandsRequiresClausesAndConcepts) {
                     "void foo(T) noexcept requires Bar<T>;");
   ASSERT_EQ(Tokens.size(), 18u) << Tokens;
   EXPECT_TOKEN(Tokens[11], tok::kw_requires, TT_RequiresClause);
+
+  Tokens = annotate("template <typename T>\n"
+                    "requires Bar<T> || Baz<T>\n"
+                    "auto foo(T) -> int;");
+  ASSERT_EQ(Tokens.size(), 24u) << Tokens;
+  EXPECT_TOKEN(Tokens[5], tok::kw_requires, TT_RequiresClause);
+  EXPECT_EQ(Tokens[11]->FakeLParens.size(), 0u);
+  EXPECT_TRUE(Tokens[14]->ClosesRequiresClause);
+  EXPECT_TOKEN(Tokens[20], tok::arrow, TT_TrailingReturnArrow);
+
+  Tokens = annotate("template <typename T>\n"
+                    "requires Bar<T>\n"
+                    "bool foo(T) { return false; }");
+  ASSERT_EQ(Tokens.size(), 21u) << Tokens;
+  EXPECT_TOKEN(Tokens[5], tok::kw_requires, TT_RequiresClause);
+  EXPECT_TRUE(Tokens[9]->ClosesRequiresClause);
+  EXPECT_TOKEN(Tokens[11], tok::identifier, TT_FunctionDeclarationName);
 
   Tokens = annotate("template <typename T>\n"
                     "struct S {\n"
@@ -718,6 +746,16 @@ TEST_F(TokenAnnotatorTest, RequiresDoesNotChangeParsingOfTheRest) {
   TestRequires(__LINE__);
 
   BaseCode = "template<typename T>\n"
+             "T foo();";
+  ConstrainedCode = "template<typename T>\n"
+                    "  requires(Foo<T>)\n"
+                    "T foo();";
+  BaseTokenCount = 11;
+  RequiresTokenCount = 7;
+  PrefixTokenCount = 5;
+  TestRequires(__LINE__);
+
+  BaseCode = "template<typename T>\n"
              "Bar(T) -> Bar<typename T::I>;";
   ConstrainedCode = "template<typename T>\n"
                     "  requires requires(T &&t) {\n"
@@ -803,6 +841,21 @@ TEST_F(TokenAnnotatorTest, UnderstandsObjCBlock) {
 
 TEST_F(TokenAnnotatorTest, UnderstandsLambdas) {
   auto Tokens = annotate("[]() constexpr {}");
+  ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  EXPECT_TOKEN(Tokens[0], tok::l_square, TT_LambdaLSquare);
+  EXPECT_TOKEN(Tokens[5], tok::l_brace, TT_LambdaLBrace);
+
+  Tokens = annotate("[]() consteval {}");
+  ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  EXPECT_TOKEN(Tokens[0], tok::l_square, TT_LambdaLSquare);
+  EXPECT_TOKEN(Tokens[5], tok::l_brace, TT_LambdaLBrace);
+
+  Tokens = annotate("[]() mutable {}");
+  ASSERT_EQ(Tokens.size(), 8u) << Tokens;
+  EXPECT_TOKEN(Tokens[0], tok::l_square, TT_LambdaLSquare);
+  EXPECT_TOKEN(Tokens[5], tok::l_brace, TT_LambdaLBrace);
+
+  Tokens = annotate("[]() static {}");
   ASSERT_EQ(Tokens.size(), 8u) << Tokens;
   EXPECT_TOKEN(Tokens[0], tok::l_square, TT_LambdaLSquare);
   EXPECT_TOKEN(Tokens[5], tok::l_brace, TT_LambdaLBrace);

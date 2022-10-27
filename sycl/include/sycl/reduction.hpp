@@ -30,32 +30,25 @@ namespace detail {
 /// implementation classes. It is needed to detect the reduction classes.
 class reduction_impl_base {};
 
+/// Predicate returning true if a type is a reduction.
+template <typename T> struct IsReduction {
+  static constexpr bool value =
+      std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
+};
+
 /// Predicate returning true if all template type parameters except the last one
 /// are reductions.
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
   static constexpr bool value =
-      std::is_base_of<reduction_impl_base,
-                      std::remove_reference_t<FirstT>>::value &&
-      AreAllButLastReductions<RestT...>::value;
+      IsReduction<FirstT>::value && AreAllButLastReductions<RestT...>::value;
 };
 
 /// Helper specialization of AreAllButLastReductions for one element only.
 /// Returns true if the template parameter is not a reduction.
 template <typename T> struct AreAllButLastReductions<T> {
-  static constexpr bool value =
-      !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
+  static constexpr bool value = !IsReduction<T>::value;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-#if __cplusplus >= 201703L
-// Entire feature is dependent on C++17. We still have to make the trait above
-// available as queue shortcuts use them unconditionally, including on
-// non-reduction path.
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-
 
 /// Class that is used to represent objects that are passed to user's lambda
 /// functions and representing users' reduction variable.
@@ -247,16 +240,16 @@ private:
   void atomic_combine_impl(T *ReduVarPtr, AtomicFunctor Functor) const {
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
-      auto AtomicRef =
-          sycl::atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(),
-                           Space>(multi_ptr<T, Space>(ReduVarPtr)[E]);
+      auto AtomicRef = sycl::atomic_ref<T, memory_order::relaxed,
+                                        getMemoryScope<Space>(), Space>(
+          address_space_cast<Space, access::decorated::no>(ReduVarPtr)[E]);
       Functor(AtomicRef, reducer->getElement(E));
     }
   }
 
   template <class _T, access::address_space Space, class BinaryOp>
   static constexpr bool BasicCheck =
-      std::is_same<typename remove_AS<_T>::type, Ty>::value &&
+      std::is_same<remove_decoration_t<_T>, Ty>::value &&
       (Space == access::address_space::global_space ||
        Space == access::address_space::local_space);
 
@@ -298,7 +291,7 @@ public:
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, _T>::value &&
+  enable_if_t<std::is_same<remove_decoration_t<_T>, _T>::value &&
               IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
               IsBitAND<_T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
@@ -568,19 +561,6 @@ public:
                       RedOutVar RedOut)
       : base(Identity, BinaryOp, Init), MRedOut(std::move(RedOut)){};
 
-  /// Creates and returns a local accessor with the \p Size elements.
-  /// By default the local accessor elements are of the same type as the
-  /// elements processed by the reduction, but may it be altered by specifying
-  /// \p _T explicitly if need an accessor with elements of different type.
-  ///
-  /// For array reductions we process them one element in a type to avoid stack
-  /// growth, so the dimensionality of the temporary buffer is always one.
-  template <class _T = result_type>
-  static accessor<_T, 1, access::mode::read_write, access::target::local>
-  getReadWriteLocalAcc(size_t Size, handler &CGH) {
-    return {Size, CGH};
-  }
-
   auto getReadAccToPreviousPartialReds(handler &CGH) const {
     CGH.addReduction(MOutBufPtr);
     return accessor{*MOutBufPtr, CGH, sycl::read_only};
@@ -682,14 +662,6 @@ public:
   }
 
   RedOutVar &getUserRedVar() { return MRedOut; }
-
-  static inline result_type *getOutPointer(result_type *OutPtr) {
-    return OutPtr;
-  }
-  template <class AccessorType>
-  static inline result_type *getOutPointer(const AccessorType &OutAcc) {
-    return OutAcc.get_pointer().get();
-  }
 
 private:
   // Array reduction is performed element-wise to avoid stack growth, hence
@@ -856,19 +828,20 @@ namespace main_krn {
 template <class KernelName> struct RangeFastAtomics;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                    const range<Dims> &Range,
                                    const nd_range<1> &NDRange,
-                                   Reduction &Redu) {
+                                   PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-  auto GroupSum = Reduction::getReadWriteLocalAcc(NElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> GroupSum{NElements, CGH};
   using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastAtomics,
                                        KernelName>;
   size_t NWorkGroups = NDRange.get_group_range().size();
   size_t PerGroup = Range.size() / NWorkGroups;
-  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+  CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
@@ -891,7 +864,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
       for (size_t E = 0; E < NElements; ++E) {
         Reducer.getElement(E) = GroupSum[E];
       }
-      Reducer.template atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.template atomic_combine(&Out[0]);
     }
   });
   return Reduction::is_usm || Redu.initializeToIdentity();
@@ -902,10 +875,12 @@ namespace main_krn {
 template <class KernelName, class NWorkGroupsFinished> struct RangeFastReduce;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
                                   const range<Dims> &Range,
-                                  const nd_range<1> &NDRange, Reduction &Redu) {
+                                  const nd_range<1> &NDRange,
+                                  PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = NDRange.get_local_range().size();
   size_t NWorkGroups = NDRange.get_group_range().size();
@@ -919,13 +894,12 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
 
   bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
   auto Rest = [&](auto NWorkGroupsFinished) {
-    auto DoReducePartialSumsInLastWG =
-        Reduction::template getReadWriteLocalAcc<int>(1, CGH);
+    local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
     using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
                                          KernelName, decltype(NWorkGroupsFinished)>;
     size_t PerGroup = Range.size() / NWorkGroups;
-    CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+    CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
       // Call user's functions. Reducer.MValue gets initialized there.
       typename Reduction::reducer_type Reducer;
       reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
@@ -941,12 +915,11 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
         RedElem = reduce_over_group(Group, RedElem, BOp);
         if (LID == 0) {
           if (NWorkGroups == 1) {
-            auto &OutElem = Reduction::getOutPointer(Out)[E];
             // Can avoid using partial sum and write the final result
             // immediately.
             if (IsUpdateOfUserVar)
-              RedElem = BOp(RedElem, OutElem);
-            OutElem = RedElem;
+              RedElem = BOp(RedElem, Out[E]);
+            Out[E] = RedElem;
           } else {
             PartialSums[NDId.get_group_linear_id() * NElements + E] =
                 Reducer.getElement(E);
@@ -972,7 +945,6 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements.
         for (int E = 0; E < NElements; ++E) {
-          auto &OutElem = Reduction::getOutPointer(Out)[E];
           auto LocalSum = Reducer.getIdentity();
           for (size_t I = LID; I < NWorkGroups; I += WGSize)
             LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
@@ -980,8 +952,8 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
 
           if (LID == 0) {
             if (IsUpdateOfUserVar)
-              Result = BOp(Result, OutElem);
-            OutElem = Result;
+              Result = BOp(Result, Out[E]);
+            Out[E] = Result;
           }
         }
       }
@@ -1006,10 +978,12 @@ namespace main_krn {
 template <class KernelName> struct RangeBasic;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
                              const range<Dims> &Range,
-                             const nd_range<1> &NDRange, Reduction &Redu) {
+                             const nd_range<1> &NDRange, PropertiesT Properties,
+                             Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = NDRange.get_local_range().size();
   size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1020,18 +994,17 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
   auto Out = (NWorkGroups == 1)
                  ? PartialSums
                  : Redu.getWriteAccForPartialReds(NElements, CGH);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(WGSize + 1, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize + 1, CGH};
   auto NWorkGroupsFinished =
       Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
-  auto DoReducePartialSumsInLastWG =
-      Reduction::template getReadWriteLocalAcc<int>(1, CGH);
+  local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
   auto Identity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::RangeBasic, KernelName>;
   size_t PerGroup = Range.size() / NWorkGroups;
-  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+  CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(Identity, BOp);
     reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
@@ -1063,10 +1036,9 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       if (LID == 0) {
         auto V = BOp(LocalReds[0], LocalReds[WGSize]);
         if (NWorkGroups == 1 && IsUpdateOfUserVar)
-          V = BOp(V, Reduction::getOutPointer(Out)[E]);
+          V = BOp(V, Out[E]);
         // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
-        Reduction::getOutPointer(
-            PartialSums)[NDId.get_group_linear_id() * NElements + E] = V;
+        PartialSums[NDId.get_group_linear_id() * NElements + E] = V;
       }
     }
 
@@ -1087,9 +1059,7 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       for (int E = 0; E < NElements; ++E) {
         auto LocalSum = Identity;
         for (size_t I = LID; I < NWorkGroups; I += WGSize)
-          LocalSum =
-              BOp(LocalSum,
-                  Reduction::getOutPointer(PartialSums)[I * NElements + E]);
+          LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
 
         LocalReds[LID] = LocalSum;
         if (LID == 0)
@@ -1108,8 +1078,8 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
         if (LID == 0) {
           auto V = BOp(LocalReds[0], LocalReds[WGSize]);
           if (IsUpdateOfUserVar)
-            V = BOp(V, Reduction::getOutPointer(Out)[E]);
-          Reduction::getOutPointer(Out)[E] = V;
+            V = BOp(V, Out[E]);
+          Out[E] = V;
         }
       }
     }
@@ -1119,10 +1089,12 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
 
 /// Returns "true" if the result has to be saved to user's variable by
 /// reduSaveFinalResultToUserMem.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
-                        uint32_t NumConcurrentWorkGroups, Reduction &Redu) {
+                        uint32_t NumConcurrentWorkGroups,
+                        PropertiesT Properties, Reduction &Redu) {
   size_t NWorkItems = Range.size();
   size_t WGSize = std::min(NWorkItems, MaxWGSize);
   size_t NWorkGroups = NWorkItems / WGSize;
@@ -1135,13 +1107,13 @@ bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
 
   if constexpr (Reduction::has_fast_reduce)
     return reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range,
-                                                    NDRange, Redu);
+                                                    NDRange, Properties, Redu);
   else if constexpr (Reduction::has_fast_atomics)
     return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
-                                                     NDRange, Redu);
+                                                     NDRange, Properties, Redu);
   else
     return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                               Redu);
+                                               Properties, Redu);
 }
 
 namespace reduction {
@@ -1158,16 +1130,17 @@ template <class KernelName> struct NDRangeBothFastReduceAndAtomics;
 ///
 /// Briefly: calls user's lambda, reduce() + atomic, INT +
 /// ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
                                                   KernelType KernelFunc,
                                                   const nd_range<Dims> &Range,
+                                                  PropertiesT Properties,
                                                   Reduction &, AccTy Out) {
   size_t NElements = Reduction::num_elements;
   using Name = __sycl_reduction_kernel<
       reduction::main_krn::NDRangeBothFastReduceAndAtomics, KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -1178,7 +1151,7 @@ void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
           reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
     }
     if (NDIt.get_local_linear_id() == 0)
-      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.atomic_combine(&Out[0]);
   });
 }
 
@@ -1195,12 +1168,13 @@ template <class KernelName> struct NDRangeFastAtomicsOnly;
 /// user's reduction variable.
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
                                          KernelType KernelFunc,
                                          const nd_range<Dims> &Range,
-                                         Reduction &, AccTy Out) {
+                                         PropertiesT Properties, Reduction &,
+                                         AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
 
@@ -1209,12 +1183,13 @@ void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
   // The additional last element is used to catch reduce elements that could
   // otherwise be lost in the tree-reduction algorithm used in the kernel.
   size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(NLocalElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{NLocalElements,
+                                                               CGH};
 
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeFastAtomicsOnly,
                               KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -1258,7 +1233,7 @@ void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
     }
 
     if (LID == 0) {
-      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.atomic_combine(&Out[0]);
     }
   });
 }
@@ -1276,11 +1251,12 @@ template <class KernelName> struct NDRangeFastReduceOnly;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, reduce(), FP + ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
                                         const nd_range<Dims> &Range,
-                                        Reduction &Redu, AccTy Out) {
+                                        PropertiesT Properties, Reduction &Redu,
+                                        AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserVar =
@@ -1289,7 +1265,7 @@ void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeFastReduceOnly,
                               KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -1303,8 +1279,8 @@ void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
       PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
-          PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
-        Reduction::getOutPointer(Out)[WGID * NElements + E] = PSum;
+          PSum = BOp(Out[E], PSum);
+        Out[WGID * NElements + E] = PSum;
       }
     }
   });
@@ -1323,11 +1299,12 @@ template <class KernelName> struct NDRangeBasic;
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          class AccTy>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction, class AccTy>
 void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
                                KernelType KernelFunc,
-                               const nd_range<Dims> &Range, Reduction &Redu,
+                               const nd_range<Dims> &Range,
+                               PropertiesT Properties, Reduction &Redu,
                                AccTy Out) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
@@ -1341,12 +1318,13 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
   // The additional last element is used to catch elements that could
   // otherwise be lost in the tree-reduction algorithm.
   size_t NumLocalElements = WGSize + (IsPow2WG ? 0 : 1);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(NumLocalElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{NumLocalElements,
+                                                               CGH};
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeBasic, KernelName>;
   auto BOp = Redu.getBinaryOperation();
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(ReduIdentity, BOp);
     KernelFunc(NDIt, Reducer);
@@ -1383,8 +1361,8 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
         typename Reduction::result_type PSum =
             IsPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
         if (IsUpdateOfUserVar)
-          PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = PSum;
+          PSum = BOp(Out[0], PSum);
+        Out[GrID * NElements + E] = PSum;
       }
 
       // Ensure item 0 is finished with LocalReds before next iteration
@@ -1434,8 +1412,8 @@ void reduAuxCGFuncFastReduceImpl(handler &CGH, bool UniformWG,
       PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
-          PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
-        Reduction::getOutPointer(Out)[WGID * NElements + E] = PSum;
+          PSum = BOp(Out[E], PSum);
+        Out[WGID * NElements + E] = PSum;
       }
     }
   });
@@ -1469,7 +1447,8 @@ void reduAuxCGFuncNoFastReduceNorAtomicImpl(handler &CGH, bool UniformPow2WG,
   // The additional last element is used to catch elements that could
   // otherwise be lost in the tree-reduction algorithm.
   size_t NumLocalElements = WGSize + (UniformPow2WG ? 0 : 1);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(NumLocalElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{NumLocalElements,
+                                                               CGH};
 
   auto ReduIdentity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
@@ -1511,8 +1490,8 @@ void reduAuxCGFuncNoFastReduceNorAtomicImpl(handler &CGH, bool UniformPow2WG,
         typename Reduction::result_type PSum =
             UniformPow2WG ? LocalReds[0] : BOp(LocalReds[0], LocalReds[WGSize]);
         if (IsUpdateOfUserVar)
-          PSum = BOp(*(Reduction::getOutPointer(Out)), PSum);
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = PSum;
+          PSum = BOp(Out[0], PSum);
+        Out[GrID * NElements + E] = PSum;
       }
 
       // Ensure item 0 is finished with LocalReds before next iteration
@@ -1601,8 +1580,9 @@ template <typename... Reductions, size_t... Is>
 auto createReduLocalAccs(size_t Size, handler &CGH,
                          std::index_sequence<Is...>) {
   return makeReduTupleT(
-      std::tuple_element_t<Is, std::tuple<Reductions...>>::getReadWriteLocalAcc(
-          Size, CGH)...);
+      local_accessor<typename std::tuple_element_t<
+                         Is, std::tuple<Reductions...>>::result_type,
+                     1>{Size, CGH}...);
 }
 
 /// For the given 'Reductions' types pack and indices enumerating them this
@@ -1734,24 +1714,20 @@ void writeReduSumsToOutAccs(
   // Add the initial value of user's variable to the final result.
   if (IsOneWG)
     std::tie(std::get<Is>(LocalAccs)[0]...) = std::make_tuple(std::get<Is>(
-        BOPs)(std::get<Is>(LocalAccs)[0],
-              IsInitializeToIdentity[Is]
-                  ? std::get<Is>(IdentityVals)
-                  : std::tuple_element_t<Is, std::tuple<Reductions...>>::
-                        getOutPointer(std::get<Is>(OutAccs))[0])...);
+        BOPs)(std::get<Is>(LocalAccs)[0], IsInitializeToIdentity[Is]
+                                              ? std::get<Is>(IdentityVals)
+                                              : std::get<Is>(OutAccs)[0])...);
 
   if (Pow2WG) {
     // The partial sums for the work-group are stored in 0-th elements of local
     // accessors. Simply write those sums to output accessors.
-    std::tie(std::tuple_element_t<Is, std::tuple<Reductions...>>::getOutPointer(
-        std::get<Is>(OutAccs))[OutAccIndex]...) =
+    std::tie(std::get<Is>(OutAccs)[OutAccIndex]...) =
         std::make_tuple(std::get<Is>(LocalAccs)[0]...);
   } else {
     // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
     // elements. Combine them into final partial sums and write to output
     // accessors.
-    std::tie(std::tuple_element_t<Is, std::tuple<Reductions...>>::getOutPointer(
-        std::get<Is>(OutAccs))[OutAccIndex]...) =
+    std::tie(std::get<Is>(OutAccs)[OutAccIndex]...) =
         std::make_tuple(std::get<Is>(BOPs)(std::get<Is>(LocalAccs)[0],
                                            std::get<Is>(LocalAccs)[WGSize])...);
   }
@@ -1918,23 +1894,21 @@ void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
     if (LID == 0) {
       if (IsOneWG) {
         LocalReds[0] =
-            BOp(LocalReds[0], IsInitializeToIdentity
-                                  ? Identity
-                                  : Reduction::getOutPointer(Out)[E]);
+            BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E]);
       }
 
       size_t GrID = NDIt.get_group_linear_id();
-      if (Pow2WG) {
-        // The partial sums for the work-group are stored in 0-th elements of
-        // local accessors. Simply write those sums to output accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = LocalReds[0];
-      } else {
-        // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
-        // elements. Combine them into final partial sums and write to output
-        // accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] =
-            BOp(LocalReds[0], LocalReds[WGSize]);
-      }
+      Out[GrID * NElements + E] =
+          Pow2WG ?
+                 // The partial sums for the work-group are stored in 0-th
+                 // elements of local accessors. Simply write those sums to
+                 // output accessors.
+              LocalReds[0]
+                 :
+                 // Each of local accessors keeps two partial sums: in 0-th
+                 // and WGsize-th elements. Combine them into final partial
+                 // sums and write to output accessors.
+              BOp(LocalReds[0], LocalReds[WGSize]);
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
@@ -1969,9 +1943,9 @@ template <class KernelName, class Accessor> struct NDRangeMulti;
 } // namespace main_krn
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims,
-          typename... Reductions, size_t... Is>
+          typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
-                     const nd_range<Dims> &Range,
+                     const nd_range<Dims> &Range, PropertiesT Properties,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = Range.get_local_range().size();
@@ -2010,7 +1984,7 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
 
     using Name = __sycl_reduction_kernel<reduction::main_krn::NDRangeMulti,
                                          KernelName, decltype(OutAccsTuple)>;
-    CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+    CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
       // Pass all reductions to user's lambda in the same order as supplied
       // Each reducer initializes its own storage
       auto ReduIndices = std::index_sequence_for<Reductions...>();
@@ -2050,9 +2024,11 @@ template <class KernelName> struct NDRangeAtomic64;
 
 // Specialization for devices with the atomic64 aspect, which guarantees 64 bit
 // floating point support for atomic reduction operation.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
-                        const nd_range<Dims> &Range, Reduction &Redu) {
+                        const nd_range<Dims> &Range, PropertiesT Properties,
+                        Reduction &Redu) {
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   static_assert(
       Reduction::has_float64_atomics,
@@ -2060,7 +2036,7 @@ void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
   size_t NElements = Reduction::num_elements;
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeAtomic64, KernelName>;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+  CGH.parallel_for<Name>(Range, Properties, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     KernelFunc(NDIt, Reducer);
@@ -2074,7 +2050,7 @@ void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
     }
 
     if (NDIt.get_local_linear_id() == 0) {
-      Reducer.atomic_combine(Reduction::getOutPointer(Out));
+      Reducer.atomic_combine(&Out[0]);
     }
   });
 }
@@ -2183,23 +2159,21 @@ void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
     if (LID == 0) {
       if (IsOneWG) {
         LocalReds[0] =
-            BOp(LocalReds[0], IsInitializeToIdentity
-                                  ? Identity
-                                  : Reduction::getOutPointer(Out)[E]);
+            BOp(LocalReds[0], IsInitializeToIdentity ? Identity : Out[E]);
       }
 
       size_t GrID = NDIt.get_group_linear_id();
-      if (UniformPow2WG) {
-        // The partial sums for the work-group are stored in 0-th elements of
-        // local accessors. Simply write those sums to output accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] = LocalReds[0];
-      } else {
-        // Each of local accessors keeps two partial sums: in 0-th and WGsize-th
-        // elements. Combine them into final partial sums and write to output
-        // accessors.
-        Reduction::getOutPointer(Out)[GrID * NElements + E] =
-            BOp(LocalReds[0], LocalReds[WGSize]);
-      }
+      Out[GrID * NElements + E] =
+          UniformPow2WG ?
+                        // The partial sums for the work-group are stored in
+                        // 0-th elements of local accessors. Simply write those
+                        // sums to output accessors.
+              LocalReds[0]
+                        :
+                        // Each of local accessors keeps two partial sums: in
+                        // 0-th and WGsize-th elements. Combine them into final
+                        // partial sums and write to output accessors.
+              BOp(LocalReds[0], LocalReds[WGSize]);
     }
 
     // Ensure item 0 is finished with LocalReds before next iteration
@@ -2229,9 +2203,11 @@ void reduAuxCGFuncImplArray(
    ...);
 }
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
+template <typename KernelName, typename KernelType, int Dims,
+          typename PropertiesT, class Reduction>
 void reduCGFunc(handler &CGH, KernelType KernelFunc,
-                const nd_range<Dims> &Range, Reduction &Redu) {
+                const nd_range<Dims> &Range, PropertiesT Properties,
+                Reduction &Redu) {
   size_t WGSize = Range.get_local_range().size();
   auto Out = [&]() {
     if constexpr (Reduction::has_fast_atomics) {
@@ -2257,19 +2233,19 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
   if constexpr (Reduction::has_fast_reduce) {
     if constexpr (Reduction::has_fast_atomics) {
       reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu, Out);
     } else {
       reduCGFuncForNDRangeFastReduceOnly<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu, Out);
     }
   } else {
     bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
     if constexpr (Reduction::has_fast_atomics) {
       reduCGFuncForNDRangeFastAtomicsOnly<KernelName, KernelType>(
-          CGH, IsPow2WG, KernelFunc, Range, Redu, Out);
+          CGH, IsPow2WG, KernelFunc, Range, Properties, Redu, Out);
     } else {
       reduCGFuncForNDRangeBasic<KernelName, KernelType>(
-          CGH, IsPow2WG, KernelFunc, Range, Redu, Out);
+          CGH, IsPow2WG, KernelFunc, Range, Properties, Redu, Out);
     }
   }
 }
@@ -2459,7 +2435,6 @@ auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
                                                        InitializeToIdentity);
 }
 
-#if __cplusplus >= 201703L
 /// Constructs a reduction object using the reduction variable referenced by
 /// the given sycl::span \p Span, reduction operation \p Combiner, and
 /// optional reduction properties.
@@ -2506,9 +2481,5 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
-#endif
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-
-#endif // __cplusplus >= 201703L

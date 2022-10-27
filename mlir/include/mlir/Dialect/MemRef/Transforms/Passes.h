@@ -55,10 +55,15 @@ void populateResolveRankedShapeTypeResultDimsPatterns(
 /// terms of shapes of its input operands.
 void populateResolveShapedTypeResultDimsPatterns(RewritePatternSet &patterns);
 
+/// Appends patterns for simplifying extract_strided_metadata(other_op) into
+/// easier to analyze constructs.
+void populateSimplifyExtractStridedMetadataOpPatterns(
+    RewritePatternSet &patterns);
+
 /// Transformation to do multi-buffering/array expansion to remove dependencies
 /// on the temporary allocation between consecutive loop iterations.
-/// It return success if the allocation was multi-buffered and returns failure()
-/// otherwise.
+/// It returns the new allocation if the original allocation was multi-buffered
+/// and returns failure() otherwise.
 /// Example:
 /// ```
 /// %0 = memref.alloc() : memref<4x128xf32>
@@ -75,22 +80,19 @@ void populateResolveShapedTypeResultDimsPatterns(RewritePatternSet &patterns);
 ///   %d = arith.divsi %s, %c3 : index
 ///   %i = arith.remsi %d, %c5 : index
 ///   %sv = memref.subview %0[%i, 0, 0] [1, 4, 128] [1, 1, 1] :
-///     memref<5x4x128xf32> to memref<4x128xf32, #map0>
-///   memref.copy %1, %sv : memref<4x128xf32> to memref<4x128xf32, #map0>
-///   "some_use"(%sv) : (memref<4x128xf32, $map0>) -> ()
+///     memref<5x4x128xf32> to memref<4x128xf32, strided<[128, 1], offset: ?>>
+///   memref.copy %1, %sv : memref<4x128xf32> to memref<4x128xf32, strided<...>>
+///   "some_use"(%sv) : (memref<4x128xf32, strided<...>) -> ()
 /// }
 /// ```
-LogicalResult multiBuffer(memref::AllocOp allocOp, unsigned multiplier);
+FailureOr<memref::AllocOp> multiBuffer(memref::AllocOp allocOp,
+                                       unsigned multiplier);
 
 //===----------------------------------------------------------------------===//
 // Passes
 //===----------------------------------------------------------------------===//
 
-#define GEN_PASS_DECL_EXPANDOPS
-#define GEN_PASS_DECL_FOLDMEMREFALIASOPS
-#define GEN_PASS_DECL_NORMALIZEMEMREFS
-#define GEN_PASS_DECL_RESOLVERANKEDSHAPETYPERESULTDIMS
-#define GEN_PASS_DECL_RESOLVESHAPEDTYPERESULTDIMS
+#define GEN_PASS_DECL
 #include "mlir/Dialect/MemRef/Transforms/Passes.h.inc"
 
 /// Creates an instance of the ExpandOps pass that legalizes memref dialect ops
@@ -117,6 +119,11 @@ std::unique_ptr<Pass> createResolveRankedShapeTypeResultDimsPass();
 /// `InferShapedTypeOpInterface` or the `ReifyRankedShapeTypeShapeOpInterface`,
 /// in terms of shapes of its input operands.
 std::unique_ptr<Pass> createResolveShapedTypeResultDimsPass();
+
+/// Creates an operation pass to simplify
+/// `extract_strided_metadata(other_op(memref))` into
+/// `extract_strided_metadata(memref)`.
+std::unique_ptr<Pass> createSimplifyExtractStridedMetadataPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

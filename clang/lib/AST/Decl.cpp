@@ -187,8 +187,9 @@ static bool usesTypeVisibility(const NamedDecl *D) {
 
 /// Does the given declaration have member specialization information,
 /// and if so, is it an explicit specialization?
-template <class T> static typename
-std::enable_if<!std::is_base_of<RedeclarableTemplateDecl, T>::value, bool>::type
+template <class T>
+static std::enable_if_t<!std::is_base_of<RedeclarableTemplateDecl, T>::value,
+                        bool>
 isExplicitMemberSpecialization(const T *D) {
   if (const MemberSpecializationInfo *member =
         D->getMemberSpecializationInfo()) {
@@ -2974,6 +2975,7 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
   FunctionDeclBits.IsMultiVersion = false;
   FunctionDeclBits.IsCopyDeductionCandidate = false;
   FunctionDeclBits.HasODRHash = false;
+  FunctionDeclBits.FriendConstraintRefersToEnclosingTemplate = false;
   if (TrailingRequiresClause)
     setTrailingRequiresClause(TrailingRequiresClause);
 }
@@ -5212,6 +5214,40 @@ EmptyDecl *EmptyDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation L) {
 
 EmptyDecl *EmptyDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
   return new (C, ID) EmptyDecl(nullptr, SourceLocation());
+}
+
+HLSLBufferDecl::HLSLBufferDecl(DeclContext *DC, bool CBuffer,
+                               SourceLocation KwLoc, IdentifierInfo *ID,
+                               SourceLocation IDLoc, SourceLocation LBrace)
+    : NamedDecl(Decl::Kind::HLSLBuffer, DC, IDLoc, DeclarationName(ID)),
+      DeclContext(Decl::Kind::HLSLBuffer), LBraceLoc(LBrace), KwLoc(KwLoc),
+      IsCBuffer(CBuffer) {}
+
+HLSLBufferDecl *HLSLBufferDecl::Create(ASTContext &C,
+                                       DeclContext *LexicalParent, bool CBuffer,
+                                       SourceLocation KwLoc, IdentifierInfo *ID,
+                                       SourceLocation IDLoc,
+                                       SourceLocation LBrace) {
+  // For hlsl like this
+  // cbuffer A {
+  //     cbuffer B {
+  //     }
+  // }
+  // compiler should treat it as
+  // cbuffer A {
+  // }
+  // cbuffer B {
+  // }
+  // FIXME: support nested buffers if required for back-compat.
+  DeclContext *DC = LexicalParent;
+  HLSLBufferDecl *Result =
+      new (C, DC) HLSLBufferDecl(DC, CBuffer, KwLoc, ID, IDLoc, LBrace);
+  return Result;
+}
+
+HLSLBufferDecl *HLSLBufferDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
+  return new (C, ID) HLSLBufferDecl(nullptr, false, SourceLocation(), nullptr,
+                                    SourceLocation(), SourceLocation());
 }
 
 //===----------------------------------------------------------------------===//

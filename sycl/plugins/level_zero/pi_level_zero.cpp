@@ -234,6 +234,29 @@ static const pi_uint32 MaxNumEventsPerPool = [] {
   return Result;
 }();
 
+// Get value of device scope events env var setting or default setting
+static const int DeviceEventsSetting = [] {
+  const char *DeviceEventsSettingStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+  if (DeviceEventsSettingStr) {
+    // Override the default if user has explicitly chosen the events scope.
+    switch (std::stoi(DeviceEventsSettingStr)) {
+    case 0:
+      return AllHostVisible;
+    case 1:
+      return OnDemandHostVisibleProxy;
+    case 2:
+      return LastCommandInBatchHostVisible;
+    default:
+      // fallthrough to default setting
+      break;
+    }
+  }
+  // This is our default setting, which is expected to be the fastest
+  // with the modern GPU drivers.
+  return AllHostVisible;
+}();
+
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
 // This allows for a much more responsive debugging of hangs.
@@ -643,7 +666,7 @@ inline static pi_result createEventAndAssociateQueue(
     bool ForceHostVisible = false) {
 
   if (!ForceHostVisible)
-    ForceHostVisible = Queue->Device->eventsScope() == AllHostVisible;
+    ForceHostVisible = DeviceEventsSetting == AllHostVisible;
   PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
 
   (*Event)->Queue = Queue;
@@ -807,33 +830,6 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
       false; // (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
 
   return PI_SUCCESS;
-}
-
-// Get value of device scope events env var setting or -1 if unset
-static const int DeviceEventsSetting = [] {
-  const char *DeviceEventsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
-  if (!DeviceEventsSettingStr)
-    return -1;
-  return std::stoi(DeviceEventsSettingStr);
-}();
-
-// Controls the scope of events.
-// If immediate commandlists are being used then use compatible event scopes.
-enum EventsScope _pi_device::eventsScope() {
-  // Set default based on type of commandlists being used.
-  auto Default = useImmediateCommandLists() ? OnDemandHostVisibleProxy
-                                            : LastCommandInBatchHostVisible;
-  // Override the default if user has explicitly chosen the events scope.
-  switch (DeviceEventsSetting) {
-  case 0:
-    return AllHostVisible;
-  case 1:
-    return OnDemandHostVisibleProxy;
-  case 2:
-    return LastCommandInBatchHostVisible;
-  }
-  return Default;
 }
 
 // Get value of immediate commandlists env var setting or -1 if unset
@@ -1047,7 +1043,7 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
 }
 
 // Configuration of the command-list batching.
-typedef struct CommandListBatchConfig {
+struct zeCommandListBatchConfig {
   // Default value of 0. This specifies to use dynamic batch size adjustment.
   // Other values will try to collect specified amount of commands.
   pi_uint32 Size{0};
@@ -1070,7 +1066,7 @@ typedef struct CommandListBatchConfig {
   pi_uint32 startSize() const { return Size > 0 ? Size : DynamicSizeStart; }
   // Tells is we are doing dynamic batch size adjustment.
   bool dynamic() const { return Size == 0; }
-} zeCommandListBatchConfig;
+};
 
 // Helper function to initialize static variables that holds batch config info
 // for compute and copy command batching.
@@ -1627,7 +1623,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // in the command list is not empty, otherwise we are going to just create
     // and remove proxy event right away and dereference deleted object
     // afterwards.
-    if (Device->eventsScope() == LastCommandInBatchHostVisible &&
+    if (DeviceEventsSetting == LastCommandInBatchHostVisible &&
         !CommandList->second.EventList.empty()) {
       // If there are only internal events in the command list then we don't
       // need to create host proxy event.
@@ -2007,7 +2003,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (CurQueue->Device->eventsScope() != AllHostVisible) {
+          if (DeviceEventsSetting != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }
@@ -3130,6 +3126,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
 
     // intel extensions for GPU information
+  case PI_DEVICE_INFO_DEVICE_ID:
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties->deviceId});
   case PI_DEVICE_INFO_PCI_ADDRESS: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       zePrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
@@ -3959,8 +3957,12 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
         (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
 
+      // We don't yet know which device needs this buffer, so make the first
+      // device in the context be the master, and hold the initial valid
+      // allocation.
       char *ZeHandleDst;
-      PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only));
+      PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only,
+                                  Context->Devices[0]));
       if (Buffer->OnHost) {
         // Do a host to host copy.
         // For an imported HostPtr the copy is unneeded.
@@ -4332,7 +4334,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     // represent the buffer in this context) copy the data to a newly
     // created device allocation.
     char *ZeHandleDst;
-    PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only));
+    PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Device));
 
     // zeCommandListAppendMemoryCopy must not be called from simultaneous
     // threads with the same command list handle, so we need exclusive lock.
@@ -5254,27 +5256,6 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 pi_result piKernelRelease(pi_kernel Kernel) {
   PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
 
-  if (IndirectAccessTrackingEnabled) {
-    // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
-    // kernel execution has finished. This is the place where we need to release
-    // memory allocations. If kernel is not in use (not submitted by some
-    // other thread) then release referenced memory allocations. As a result,
-    // memory can be deallocated and context can be removed from container in
-    // the platform. That's why we need to lock a mutex here.
-    pi_platform Plt = Kernel->Program->Context->getPlatform();
-    std::scoped_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex);
-
-    if (--Kernel->SubmissionsCount == 0) {
-      // Kernel is not submitted for execution, release referenced memory
-      // allocations.
-      for (auto &MemAlloc : Kernel->MemAllocs) {
-        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
-                      MemAlloc->second.OwnZeMemHandle);
-      }
-      Kernel->MemAllocs.clear();
-    }
-  }
-
   if (!Kernel->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
@@ -5512,7 +5493,7 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
-    if (Queue->Device->eventsScope() != OnDemandHostVisibleProxy)
+    if (DeviceEventsSetting != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -5651,7 +5632,10 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   pi_result Result = EventCreate(Context, nullptr, true, RetEvent);
   (*RetEvent)->RefCountExternal++;
-  return Result;
+  if (Result != PI_SUCCESS)
+    return Result;
+  ZE_CALL(zeEventHostSignal, ((*RetEvent)->ZeEvent));
+  return PI_SUCCESS;
 }
 
 pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
@@ -5822,9 +5806,35 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
     Event->CleanedUp = true;
   }
 
+  auto ReleaseIndirectMem = [](pi_kernel Kernel) {
+    if (IndirectAccessTrackingEnabled) {
+      // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
+      // kernel execution has finished. This is the place where we need to
+      // release memory allocations. If kernel is not in use (not submitted by
+      // some other thread) then release referenced memory allocations. As a
+      // result, memory can be deallocated and context can be removed from
+      // container in the platform. That's why we need to lock a mutex here.
+      pi_platform Plt = Kernel->Program->Context->getPlatform();
+      std::scoped_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex);
+
+      if (--Kernel->SubmissionsCount == 0) {
+        // Kernel is not submitted for execution, release referenced memory
+        // allocations.
+        for (auto &MemAlloc : Kernel->MemAllocs) {
+          // std::pair<void *const, MemAllocRecord> *, Hash
+          USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                        MemAlloc->second.OwnZeMemHandle);
+        }
+        Kernel->MemAllocs.clear();
+      }
+    }
+  };
+
   // We've reset event data members above, now cleanup resources.
-  if (AssociatedKernel)
+  if (AssociatedKernel) {
+    ReleaseIndirectMem(AssociatedKernel);
     PI_CALL(piKernelRelease(AssociatedKernel));
+  }
 
   if (AssociatedQueue) {
     {
@@ -5878,8 +5888,10 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
         }
       }
     }
-    if (DepEventKernel)
-      PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
+    if (DepEventKernel) {
+      ReleaseIndirectMem(DepEventKernel);
+      PI_CALL(piKernelRelease(DepEventKernel));
+    }
     PI_CALL(piEventReleaseInternal(DepEvent));
   }
 
@@ -5894,8 +5906,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     return PI_ERROR_INVALID_EVENT;
   }
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (EventList[I]->Queue->Device->eventsScope() ==
-        OnDemandHostVisibleProxy) {
+    if (DeviceEventsSetting == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
       // thus proxy events can be waited without a deadlock.
@@ -6514,11 +6525,9 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
   char *ZeHandleSrc;
   PI_CALL(Src->getZeHandle(ZeHandleSrc, _pi_mem::read_only, Queue->Device));
-  bool PreferCopyEngine = true;
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
                               BlockingRead, Size, ZeHandleSrc + Offset,
-                              NumEventsInWaitList, EventWaitList, Event,
-                              PreferCopyEngine);
+                              NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -6538,13 +6547,11 @@ pi_result piEnqueueMemBufferReadRect(
 
   char *ZeHandleSrc;
   PI_CALL(Buffer->getZeHandle(ZeHandleSrc, _pi_mem::read_only, Queue->Device));
-  bool PreferCopyEngine = true;
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, Queue, ZeHandleSrc,
       static_cast<char *>(Ptr), BufferOffset, HostOffset, Region,
       BufferRowPitch, HostRowPitch, BufferSlicePitch, HostSlicePitch,
-      BlockingRead, NumEventsInWaitList, EventWaitList, Event,
-      PreferCopyEngine);
+      BlockingRead, NumEventsInWaitList, EventWaitList, Event);
 }
 
 } // extern "C"
@@ -6787,13 +6794,11 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
 
   char *ZeHandleDst;
   PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
-  bool PreferCopyEngine = true;
   return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
                               ZeHandleDst + Offset, // dst
                               BlockingWrite, Size,
                               Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event,
-                              PreferCopyEngine);
+                              NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
@@ -6812,13 +6817,12 @@ pi_result piEnqueueMemBufferWriteRect(
 
   char *ZeHandleDst;
   PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only, Queue->Device));
-  bool PreferCopyEngine = true;
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, Queue,
       const_cast<char *>(static_cast<const char *>(Ptr)), ZeHandleDst,
       HostOffset, BufferOffset, Region, HostRowPitch, BufferRowPitch,
       HostSlicePitch, BufferSlicePitch, BlockingWrite, NumEventsInWaitList,
-      EventWaitList, Event, PreferCopyEngine);
+      EventWaitList, Event);
 }
 
 pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcMem, pi_mem DstMem,
@@ -8759,9 +8763,16 @@ size_t _pi_buffer::getAlignment() const {
 pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
                                   pi_device Device) {
 
+  // NOTE: There might be no valid allocation at all yet and we get
+  // here from piEnqueueKernelLaunch that would be doing the buffer
+  // initialization. In this case the Device is not null as kernel
+  // launch is always on a specific device.
   if (!Device)
     Device = LastDeviceWithValidAllocation;
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
+  // If the device is still not selected then use the first one in
+  // the context of the buffer.
+  if (!Device)
+    Device = Context->Devices[0];
 
   auto &Allocation = Allocations[Device];
 
@@ -8804,10 +8815,29 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     LastDeviceWithValidAllocation = Device;
     return PI_SUCCESS;
   }
+  // Reads user setting on how to deal with buffers in contexts where
+  // all devices have the same root-device. Returns "true" if the
+  // preference is to have allocate on each [sub-]device and migrate
+  // normally (copy) to other sub-devices as needed. Returns "false"
+  // if the preference is to have single root-device allocations
+  // serve the needs of all [sub-]devices, meaning potentially more
+  // cross-tile traffic.
+  //
+  static const bool SingleRootDeviceBufferMigration = [] {
+    const char *EnvStr =
+        std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION");
+    if (EnvStr)
+      return (std::stoi(EnvStr) != 0);
+    // The default is to migrate normally, which may not always be the
+    // best option (depends on buffer access patterns), but is an
+    // overall win on the set of the available benchmarks.
+    return true;
+  }();
 
   // Peform actual device allocation as needed.
   if (!Allocation.ZeHandle) {
-    if (Context->SingleRootDevice && Context->SingleRootDevice != Device) {
+    if (!SingleRootDeviceBufferMigration && Context->SingleRootDevice &&
+        Context->SingleRootDevice != Device) {
       // If all devices in the context are sub-devices of the same device
       // then we reuse root-device allocation by all sub-devices in the
       // context.
@@ -8816,6 +8846,9 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       //       devices in the context have the same root.
       PI_CALL(getZeHandle(ZeHandle, AccessMode, Context->SingleRootDevice));
       Allocation.ReleaseAction = allocation_t::keep;
+      Allocation.ZeHandle = ZeHandle;
+      Allocation.Valid = true;
+      return PI_SUCCESS;
     } else { // Create device allocation
       if (enableBufferPooling()) {
         Allocation.ReleaseAction = allocation_t::free;
@@ -8838,13 +8871,27 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     if (Device == LastDeviceWithValidAllocation)
       die("getZeHandle: last used allocation is not valid");
 
-    Allocation.Valid = true;
     // For write-only access the allocation contents is not going to be used.
     // So don't do anything to make it "valid".
-    if (AccessMode != _pi_mem::write_only) {
-      char *ZeHandleSrc;
+    bool NeedCopy = AccessMode != _pi_mem::write_only;
+    // It's also possible that the buffer doesn't have a valid allocation
+    // yet presumably when it is passed to a kernel that will perform
+    // it's intialization.
+    if (NeedCopy && !LastDeviceWithValidAllocation) {
+      NeedCopy = false;
+    }
+    char *ZeHandleSrc = nullptr;
+    if (NeedCopy) {
       PI_CALL(getZeHandle(ZeHandleSrc, _pi_mem::read_only,
                           LastDeviceWithValidAllocation));
+      // It's possible with the single root-device contexts that
+      // the buffer is represented by the single root-device
+      // allocation and then skip the copy to itself.
+      if (ZeHandleSrc == ZeHandle)
+        NeedCopy = false;
+    }
+
+    if (NeedCopy) {
       // Copy valid buffer data to this allocation.
       // TODO: see if we should better use peer's device allocation used
       // directly, if that capability is reported with zeDeviceCanAccessPeer,
@@ -8853,7 +8900,7 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       //
       // zeCommandListAppendMemoryCopy must not be called from simultaneous
       // threads with the same command list handle, so we need exclusive lock.
-      ze_bool_t P2P;
+      ze_bool_t P2P = false;
       ZE_CALL(
           zeDeviceCanAccessPeer,
           (Device->ZeDevice, LastDeviceWithValidAllocation->ZeDevice, &P2P));
@@ -8897,9 +8944,10 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
                  Size, nullptr, 0, nullptr));
       }
     }
+    Allocation.Valid = true;
+    LastDeviceWithValidAllocation = Device;
   }
 
-  LastDeviceWithValidAllocation = Device;
   // Invalidate other allocations that would become not valid if
   // this access is not read-only.
   if (AccessMode != _pi_mem::read_only) {
