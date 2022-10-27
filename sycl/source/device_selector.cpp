@@ -181,8 +181,6 @@ __SYCL_EXPORT int default_selector_v(const device &dev) {
   }
 
   traceDeviceSelector("info::device_type::automatic");
-  if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
-    Score += 2000;
 
   if (dev.is_gpu())
     Score += 500;
