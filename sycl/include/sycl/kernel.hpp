@@ -105,6 +105,8 @@ public:
   /// Check if the associated SYCL context is a SYCL host context.
   ///
   /// \return true if this SYCL kernel is a host kernel.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Get the context that this kernel is defined for.

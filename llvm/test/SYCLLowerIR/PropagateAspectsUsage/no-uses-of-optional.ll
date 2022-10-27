@@ -1,4 +1,4 @@
-; RUN: opt -passes=sycl-propagate-aspects-usage < %s -S | FileCheck %s --implicit-check-not "!intel_used_aspects"
+; RUN: opt -passes=sycl-propagate-aspects-usage < %s -S | FileCheck %s --implicit-check-not "!sycl_used_aspects"
 ;
 ; Test checks that no metadata propagates because MyStruct
 ; isn't used inside functions.
@@ -16,5 +16,8 @@ define weak dso_local spir_func void @func() {
   ret void
 }
 
-!intel_types_that_use_aspects = !{!0}
+!sycl_types_that_use_aspects = !{!0}
 !0 = !{!"MyStruct", i32 1}
+
+!sycl_aspects = !{!2}
+!2 = !{!"fp64", i32 6}

@@ -357,8 +357,15 @@ ESIMD_INLINE
     __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
         mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
   } else {
-    __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
-        mask.data(), si, glob_offset, offsets.data(), vals.data());
+    using Treal = __raw_t<T>;
+    if constexpr (!std::is_same_v<Treal, T>) {
+      simd<Treal, N> Values = vals.template bit_cast_view<Treal>();
+      __esimd_scatter_scaled<Treal, N, decltype(si), TypeSizeLog2, scale>(
+          mask.data(), si, glob_offset, offsets.data(), Values.data());
+    } else {
+      __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
+          mask.data(), si, glob_offset, offsets.data(), vals.data());
+    }
   }
 }
 
@@ -396,9 +403,15 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
       return Res;
     }
   } else {
-    return __esimd_gather_masked_scaled2<T, N, decltype(si), TypeSizeLog2,
-                                         scale>(si, glob_offset, offsets.data(),
-                                                mask.data());
+    using Treal = __raw_t<T>;
+    simd<Treal, N> Res = __esimd_gather_masked_scaled2<Treal, N, decltype(si),
+                                                       TypeSizeLog2, scale>(
+        si, glob_offset, offsets.data(), mask.data());
+    if constexpr (!std::is_same_v<Treal, T>) {
+      return Res.template bit_cast_view<T>();
+    } else {
+      return Res;
+    }
   }
 }
 
