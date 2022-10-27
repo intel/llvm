@@ -1164,10 +1164,15 @@ public:
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {
 #ifndef NDEBUG
+    const auto *this_const = this;
     (void)getMemoryRange();
+    (void)this_const->getMemoryRange();
     (void)getOffset();
+    (void)this_const->getOffset();
     (void)getPtr();
+    (void)this_const->getPtr();
     (void)getAccessRange();
+    (void)this_const->getAccessRange();
 #endif
   }
 
@@ -1200,13 +1205,17 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
 public:
-  using value_type = DataT;
+  // 4.7.6.9.1. Interface for buffer command accessors
+  // value_type is defined as const DataT for read_only accessors, DataT
+  // otherwise
+  using value_type = typename std::conditional<AccessMode == access_mode::read,
+                                               const DataT, DataT>::type;
   using reference = DataT &;
   using const_reference = const DataT &;
 
-  using iterator = typename detail::accessor_iterator<DataT, Dimensions>;
+  using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
   using const_iterator =
-      typename detail::accessor_iterator<const DataT, Dimensions>;
+      typename detail::accessor_iterator<const value_type, Dimensions>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
 
@@ -2013,8 +2022,8 @@ public:
 #endif
                                         >() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
@@ -2022,8 +2031,8 @@ public:
                                atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
@@ -2031,8 +2040,8 @@ public:
                                atomic<DataT, AS>>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
   auto operator[](size_t Index) const {
@@ -2160,7 +2169,7 @@ private:
   // but for get_pointer() we must return the original pointer.
   // On device, getQualifiedPtr() returns MData, so we need to backjust it.
   // On host, getQualifiedPtr() does not return MData, no need to adjust.
-  PtrType getPointerAdjusted() const {
+  auto getPointerAdjusted() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return getQualifiedPtr() - getTotalOffset();
 #else
@@ -2439,8 +2448,11 @@ protected:
   // The function references helper methods required by GDB pretty-printers
   void GDBMethodsAnchor() {
 #ifndef NDEBUG
+    const auto *this_const = this;
     (void)getSize();
+    (void)this_const->getSize();
     (void)getPtr();
+    (void)this_const->getPtr();
 #endif
   }
 
@@ -2558,7 +2570,8 @@ public:
   operator typename detail::enable_if_t<
       Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
       const {
-    return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr()));
+    return atomic<DataT, AS>(
+        multi_ptr<DataT, AS, access::decorated::yes>(getQualifiedPtr()));
   }
 
   template <int Dims = Dimensions>
@@ -2566,15 +2579,16 @@ public:
                                atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
                                atomic<DataT, AS>>
   operator[](size_t Index) const {
-    return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr() + Index));
+    return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
+        getQualifiedPtr() + Index));
   }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>

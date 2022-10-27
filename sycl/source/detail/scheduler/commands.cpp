@@ -321,27 +321,7 @@ public:
 
     HostTask.MHostTask.reset();
 
-    // Completing command's event along with unblocking enqueue readiness of
-    // empty command may lead to quick deallocation of MThisCmd by some cleanup
-    // process. Thus we'll copy deps prior to completing of event and unblocking
-    // of empty command.
-    // Also, it's possible to have record deallocated prior to enqueue process.
-    // Thus we employ read-lock of graph.
-    std::vector<Command *> ToCleanUp;
-    Scheduler &Sched = Scheduler::getInstance();
-    {
-      Scheduler::ReadLockT Lock(Sched.MGraphLock);
-
-      std::vector<DepDesc> Deps = MThisCmd->MDeps;
-
-      {
-        std::lock_guard<std::mutex> Guard(MThisCmd->MBlockedUsersMutex);
-        // update self-event status
-        MThisCmd->MEvent->setComplete();
-      }
-      Scheduler::enqueueUnblockedCommands(MThisCmd->MBlockedUsers, ToCleanUp);
-    }
-    Sched.cleanupCommands(ToCleanUp);
+    Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
   }
 };
 
@@ -366,9 +346,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
       // Also we have default host queue. This queue is accessible via
       // Scheduler. Now, let's assume we have three different events: E1(C1),
       // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
-      // three events (E1, E2, E3). Now, if piEventsWait is called for all three
-      // events we'll experience failure with CL_INVALID_CONTEXT 'cause these
-      // events refer to different contexts.
+      // three events (E1, E2, E3). Now, if piEventsWait is called for all
+      // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
+      // these events refer to different contexts.
       std::map<context_impl *, std::vector<EventImplPtr>>
           RequiredEventsPerContext;
 
@@ -434,19 +414,19 @@ void Command::emitInstrumentationDataProxy() {
 /// Method takes in void * for the address as adding a template function to
 /// the command group object maybe undesirable.
 /// @param Cmd The command object of the source of the edge
-/// @param ObjAddr The address that defines the edge dependency; it is the event
-/// address when the edge is for an event and a memory object address if it is
-/// due to an accessor
-/// @param Prefix Contains "event" if the dependency is an edge and contains the
-/// access mode to the buffer if it is due to an accessor
-/// @param IsCommand True if the dependency has a command object as the source,
-/// false otherwise
+/// @param ObjAddr The address that defines the edge dependency; it is the
+/// event address when the edge is for an event and a memory object address if
+/// it is due to an accessor
+/// @param Prefix Contains "event" if the dependency is an edge and contains
+/// the access mode to the buffer if it is due to an accessor
+/// @param IsCommand True if the dependency has a command object as the
+/// source, false otherwise
 void Command::emitEdgeEventForCommandDependence(
     Command *Cmd, void *ObjAddr, bool IsCommand,
     std::optional<access::mode> AccMode) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  // Bail early if either the source or the target node for the given dependency
-  // is undefined or NULL
+  // Bail early if either the source or the target node for the given
+  // dependency is undefined or NULL
   if (!(xptiTraceEnabled() && MTraceEvent && Cmd && Cmd->MTraceEvent))
     return;
 
@@ -598,7 +578,8 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 
   // 1. Async work is not supported for host device.
   // 2. Non-host events can be ignored if they are not fully initialized.
-  // 3. Some types of commands do not produce PI events after they are enqueued
+  // 3. Some types of commands do not produce PI events after they are
+  // enqueued
   //    (e.g. alloca). Note that we can't check the pi event to make that
   //    distinction since the command might still be unenqueued at this point.
   bool PiEventExpected = (!DepEvent->is_host() && DepEvent->isInitialized());
@@ -796,10 +777,10 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
   // nodes have to be completed first before the current node can begin to
   // execute; these edges model control flow
   xpti_td *TgtTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-  // We have all the Commands that must be completed before the release command
-  // can be enqueued; here we'll find the command that is an Alloca with the
-  // same SYCLMemObject address and create a dependency line (edge) between them
-  // in our sematic modeling
+  // We have all the Commands that must be completed before the release
+  // command can be enqueued; here we'll find the command that is an Alloca
+  // with the same SYCLMemObject address and create a dependency line (edge)
+  // between them in our sematic modeling
   for (auto &Item : DepList) {
     if (Item->MTraceEvent && Item->MAddress == MAddress) {
       xpti::utils::StringHelper SH;
@@ -882,8 +863,8 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
     : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
                         LinkedAllocaCmd, IsConst),
       MInitFromUserData(InitFromUserData) {
-  // Node event must be created before the dependent edge is added to this node,
-  // so this call must be before the addDep() call.
+  // Node event must be created before the dependent edge is added to this
+  // node, so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
   // "Nothing to depend on"
   std::vector<Command *> ToCleanUp;
@@ -1080,14 +1061,15 @@ pi_int32 ReleaseCommand::enqueueImp() {
   bool NeedUnmap = false;
   if (MAllocaCmd->MLinkedAllocaCmd) {
 
-    // When releasing one of the "linked" allocations special rules take place:
+    // When releasing one of the "linked" allocations special rules take
+    // place:
     // 1. Device allocation should always be released.
     // 2. Host allocation should be released if host allocation is "leader".
     // 3. Device alloca in the pair should be in active state in order to be
     //    correctly released.
 
-    // There is no actual memory allocation if a host alloca command is created
-    // being linked to a device allocation.
+    // There is no actual memory allocation if a host alloca command is
+    // created being linked to a device allocation.
     SkipRelease |= CurAllocaIsHost && !MAllocaCmd->MIsLeaderAlloca;
 
     NeedUnmap |= CurAllocaIsHost == MAllocaCmd->MIsActive;
@@ -1575,7 +1557,8 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
   MRequirements.emplace_back(ReqRef);
   const Requirement *const StoredReq = &MRequirements.back();
 
-  // EmptyCommand is always host one, so we believe that result of addDep is nil
+  // EmptyCommand is always host one, so we believe that result of addDep is
+  // nil
   std::vector<Command *> ToCleanUp;
   Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd}, ToCleanUp);
   assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
@@ -1842,9 +1825,9 @@ void ExecCGCommand::emitInstrumentationData() {
       auto KernelBundleImplPtr = KernelCG->getKernelBundle();
 
       // Use kernel_bundle if available unless it is interop.
-      // Interop bundles can't be used in the first branch, because the kernels
-      // in interop kernel bundles (if any) do not have kernel_id
-      // and can therefore not be looked up, but since they are self-contained
+      // Interop bundles can't be used in the first branch, because the
+      // kernels in interop kernel bundles (if any) do not have kernel_id and
+      // can therefore not be looked up, but since they are self-contained
       // they can simply be launched directly.
       if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
         kernel_id KernelID =
@@ -1933,16 +1916,15 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
 }
 
 // SYCL has a parallel_for_work_group variant where the only NDRange
-// characteristics set by a user is the number of work groups. This does not map
-// to the OpenCL clEnqueueNDRangeAPI, which requires global work size to be set
-// as well. This function determines local work size based on the device
-// characteristics and the number of work groups requested by the user, then
-// calculates the global work size.
-// SYCL specification (from 4.8.5.3):
-// The member function handler::parallel_for_work_group is parameterized by the
-// number of work - groups, such that the size of each group is chosen by the
-// runtime, or by the number of work - groups and number of work - items for
-// users who need more control.
+// characteristics set by a user is the number of work groups. This does not
+// map to the OpenCL clEnqueueNDRangeAPI, which requires global work size to
+// be set as well. This function determines local work size based on the
+// device characteristics and the number of work groups requested by the user,
+// then calculates the global work size. SYCL specification (from 4.8.5.3):
+// The member function handler::parallel_for_work_group is parameterized by
+// the number of work - groups, such that the size of each group is chosen by
+// the runtime, or by the number of work - groups and number of work - items
+// for users who need more control.
 static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
                                    const device_impl &DeviceImpl) {
   if (NDR.GlobalSize[0] != 0)
@@ -2330,9 +2312,9 @@ pi_int32 ExecCGCommand::enqueueImp() {
     }
 
     std::vector<pi_mem> Buffers;
-    // piEnqueueNativeKernel requires additional array of pointers to args blob,
-    // values that pointers point to are replaced with actual pointers to the
-    // memory before execution of user function.
+    // piEnqueueNativeKernel requires additional array of pointers to args
+    // blob, values that pointers point to are replaced with actual pointers
+    // to the memory before execution of user function.
     std::vector<void *> MemLocs;
 
     for (ArgDesc &Arg : HostTask->MArgs) {
@@ -2458,7 +2440,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     const detail::plugin &Plugin = MQueue->getPlugin();
     CGInteropTask *ExecInterop = (CGInteropTask *)MCommandGroup.get();
     // Wait for dependencies to complete before dispatching work on the host
-    // TODO: Use a callback to dispatch the interop task instead of waiting for
+    // TODO: Use a callback to dispatch the interop task instead of waiting
+    // for
     //  the event
     if (!RawEvents.empty()) {
       Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
