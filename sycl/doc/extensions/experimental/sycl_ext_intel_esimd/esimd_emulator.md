@@ -78,7 +78,7 @@ mkdir build && cd build
 cmake \
  -DCMAKE_CXX_COMPILER=clang++ \
  -DTEST_SUITE_SUBDIRS=SYCL \
- -DSYCL_BE="ext_intel_esimd_emulator" \
+ -DSYCL_DEVICE_FILTER="esimd_emulator" \
  -DSYCL_TARGET_DEVICES="gpu" \
  ..
 
@@ -89,7 +89,7 @@ make check
 cmake -G Ninja \
  -DCMAKE_CXX_COMPILER=clang++ \
  -DTEST_SUITE_SUBDIRS=SYCL \
- -DSYCL_BE="ext_intel_esimd_emulator" \
+ -DSYCL_DEVICE_FILTER="esimd_emulator" \
  -DSYCL_TARGET_DEVICES="gpu" \
  ..
 

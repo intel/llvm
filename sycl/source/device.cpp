@@ -70,6 +70,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
       devices.insert(devices.end(), found_devices.begin(),
                      found_devices.end());
   }
+  std::cout << devices.size() << std::endl;
 
   return devices;
 }
