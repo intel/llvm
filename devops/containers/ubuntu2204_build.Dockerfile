@@ -13,9 +13,10 @@ COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
 # Install AMD ROCm
+RUN printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' | tee /etc/apt/preferences.d/rocm-pin-600
 RUN apt install -yqq libnuma-dev wget gnupg2 && \
   wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
-  echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ jammy main' | tee /etc/apt/sources.list.d/rocm.list && \
+  echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ ubuntu main' | tee /etc/apt/sources.list.d/rocm.list && \
   apt update && \
   apt install -yqq rocm-dev && \
   apt-get clean && \
