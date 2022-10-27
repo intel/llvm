@@ -194,7 +194,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
   }
 
   while (auto CO = toInit.getDefiningOp<memref::CastOp>())
-    toInit = CO.source();
+    toInit = CO.getSource();
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
@@ -1327,7 +1327,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
             ? FunctionContext::SYCLDevice
             : FunctionContext::Host);
 
-    auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.type(),
+    auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.getType(),
                                                    gv.first.getName());
     bool isArray = gv.second;
     // TODO check reference

@@ -18,7 +18,7 @@
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -1163,7 +1163,7 @@ bool Mem2Reg::forwardStoreToLoad(
         continue;
       }
       if (auto storeOp = dyn_cast<mlir::memref::StoreOp>(user)) {
-        if (storeOp.value() == val)
+        if (storeOp.getValue() == val)
           captured = true;
         else if (!modified) {
           switch (matchesIndices(storeOp.getIndices(), idx)) {
@@ -1296,15 +1296,15 @@ bool Mem2Reg::forwardStoreToLoad(
               if (Value val = effect.getValue()) {
                 while (true) {
                   if (auto co = val.getDefiningOp<memref::CastOp>())
-                    val = co.source();
+                    val = co.getSource();
                   else if (auto co = val.getDefiningOp<polygeist::SubIndexOp>())
-                    val = co.source();
+                    val = co.getSource();
                   else if (auto co =
                                val.getDefiningOp<polygeist::Memref2PointerOp>())
-                    val = co.source();
+                    val = co.getSource();
                   else if (auto co =
                                val.getDefiningOp<polygeist::Pointer2MemrefOp>())
-                    val = co.source();
+                    val = co.getSource();
                   else if (auto co = val.getDefiningOp<LLVM::BitcastOp>())
                     val = co.getArg();
                   else if (auto co = val.getDefiningOp<LLVM::AddrSpaceCastOp>())
@@ -1322,7 +1322,7 @@ bool Mem2Reg::forwardStoreToLoad(
                 }
                 if (auto glob = val.getDefiningOp<memref::GetGlobalOp>()) {
                   if (auto Aglob = AI.getDefiningOp<memref::GetGlobalOp>()) {
-                    if (glob.name() != Aglob.name())
+                    if (glob.getName() != Aglob.getName())
                       continue;
                   } else
                     continue;
@@ -2016,7 +2016,7 @@ void Mem2Reg::runOnOperation() {
             }
             toErase.push_back(U);
           } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
-            if (SO.value() == val) {
+            if (SO.getValue() == val) {
               error = true;
               break;
             }

@@ -1122,7 +1122,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             auto idx = counts[T.getAsOpaquePointer()]++;
             auto aop = allocateBuffer(idx, T);
             args.push_back(aop.getResult());
-            ops.emplace_back(aop.getResult(), toptr.source());
+            ops.emplace_back(aop.getResult(), toptr.getSource());
           } else
             args.push_back(v);
         }

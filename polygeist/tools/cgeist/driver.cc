@@ -109,8 +109,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
 
   llvm::BumpPtrAllocator A;
   llvm::StringSaver Saver(A);
-  llvm::cl::ExpandResponseFiles(Saver, &llvm::cl::TokenizeGNUCommandLine, ArgV,
-                                /*MarkEOLs=*/false);
+  llvm::cl::ExpandResponseFiles(Saver, &llvm::cl::TokenizeGNUCommandLine, ArgV);
   StringRef Tool = ArgV[1];
   void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
   if (Tool == "-cc1")

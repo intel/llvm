@@ -14,12 +14,12 @@
 #include "PassDetails.h"
 
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
@@ -587,11 +587,11 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
 }
 
 static void createContinuations(FunctionOpInterface func) {
-  if (func->getNumRegions() == 0 || func.getBody().empty())
+  if (func->getNumRegions() == 0 || func.getFunctionBody().empty())
     return;
 
-  OpBuilder allocaBuilder(&func.getBody().front(),
-                          func.getBody().front().begin());
+  OpBuilder allocaBuilder(&func.getFunctionBody().front(),
+                          func.getFunctionBody().front().begin());
   func.walk([&](scf::ParallelOp parallel) {
     // Ignore parallel ops with no barriers.
     if (!hasImmediateBarriers(parallel))

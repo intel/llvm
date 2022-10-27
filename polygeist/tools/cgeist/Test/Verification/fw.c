@@ -33,9 +33,9 @@ int main()
 
 // CHECK:     func @main() -> i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = memref.alloc() : memref<2800xi32>
-// CHECK-NEXT:     %1 = memref.cast %0 : memref<2800xi32> to memref<?xi32>
-// CHECK-NEXT:     call @init_array(%1) : (memref<?xi32>) -> ()
+// CHECK-NEXT:     %alloc = memref.alloc() : memref<2800xi32>
+// CHECK-NEXT:     %cast = memref.cast %alloc : memref<2800xi32> to memref<?xi32>
+// CHECK-NEXT:     call @init_array(%cast) : (memref<?xi32>) -> ()
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
 

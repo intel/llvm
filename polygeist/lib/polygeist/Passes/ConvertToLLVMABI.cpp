@@ -170,7 +170,7 @@ public:
                             << op << "\n");
 
     auto funcCallOp = rewriter.create<func::CallOp>(
-        op.getLoc(), op.MangledName(), TypeRange(), op.getOperands());
+        op.getLoc(), op.getMangledName(), TypeRange(), op.getOperands());
     rewriter.replaceOp(op.getOperation(), funcCallOp.getResults());
     LLVM_DEBUG(llvm::dbgs() << "  Converted to: " << funcCallOp << "\n");
 

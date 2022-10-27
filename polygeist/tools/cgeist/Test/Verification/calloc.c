@@ -15,9 +15,9 @@ float* zmem(int n) {
 // CHECK-NEXT:     %0 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:     %1 = arith.muli %0, %c4 : index
 // CHECK-NEXT:     %2 = arith.divui %1, %c4 : index
-// CHECK-NEXT:     %3 = memref.alloc(%2) : memref<?xf32>
+// CHECK-NEXT:     %alloc = memref.alloc(%2) : memref<?xf32>
 // CHECK-NEXT:     scf.for %arg1 = %c0 to %2 step %c1 {
-// CHECK-NEXT:       memref.store %cst, %3[%arg1] : memref<?xf32>
+// CHECK-NEXT:       memref.store %cst, %alloc[%arg1] : memref<?xf32>
 // CHECK-NEXT:     }
-// CHECK-NEXT:     return %3 : memref<?xf32>
+// CHECK-NEXT:     return %alloc : memref<?xf32>
 // CHECK-NEXT:   }
