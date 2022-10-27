@@ -346,7 +346,8 @@ struct SizeListToStrHelper<SizeList<0, Values...>, CharList<ParsedChars...>>
 // converting the current value and we insert the converted digits from Chars
 // into ParsedChars. We do not add a ',' as it is the end of the list.
 // Example:
-//  - Current: SizeListToStrHelper<SizeList<0>, CharList<'1', '0', ','>, '1', '2', '3'>>
+//  - Current: SizeListToStrHelper<SizeList<0>, CharList<'1', '0', ','>, '1',
+//  '2', '3'>>
 //  - Next: None.
 //  - Outermost: SizeListToStrHelper<SizeList<10,123>, CharList<>>
 //  - Final: SizeListToStrHelper<SizeList<0>,
