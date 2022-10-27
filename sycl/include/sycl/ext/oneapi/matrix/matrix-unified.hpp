@@ -38,12 +38,12 @@ joint_matrix_fill(Group sg,
 }
 
 template <typename Group, typename S, typename T, size_t NumRows,
-          size_t NumCols, use Use, access::address_space Space,
+          size_t NumCols, access::address_space Space,
           std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value,
                            bool> = true>
 void joint_matrix_load(
     Group sg,
-    joint_matrix<S, Use, NumRows, NumCols,
+    joint_matrix<S, use::accumulator, NumRows, NumCols,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic,
                  Group> &res,
     multi_ptr<T, Space> src, size_t stride,
