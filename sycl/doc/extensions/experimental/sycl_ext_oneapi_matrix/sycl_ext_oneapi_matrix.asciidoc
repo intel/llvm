@@ -61,8 +61,8 @@ While this document presents the core API that unifies Intel AMX, DPAS, and Nvid
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported. The exact API used for this implementation is detailed in [matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_deprecated_matrix_no_use.asciidoc)
-|2     |joint matrix type has a new `use` parameter. `layout` on matrix is optional for `C` matrix. JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
+|1     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported. The old API used for this implementation is detailed in [matrix extension](doc/extensions/deprecated/sycl_ext_oneapi_deprecated_matrix_no_use.asciidoc)
+|2     |JIT implementation on Intel AMX and DPAS. load, store, mad, fill, piece-wise operations, and the query interface are supported 
 |3     |Implementation on Nvidia Tensor Cores
 |======================
 
@@ -79,6 +79,8 @@ struct joint_matrix {
 };
 }
 ```
+
+IMPORTANT: Matrix layout defaulting to `layout::dynamic` applies only to matrix with `use::accumulator`
 
 #### Shape
 The same class, `joint_matrix`, should handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
@@ -112,7 +114,6 @@ enum class layout {
 }
 ```
 
-IMPORTANT: In both AMX and DPAS support, the `layout` template parameter can be `dynamic` for Matrix A and B as well.
 
 #### Memory Scope
 In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
@@ -145,9 +146,9 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          use Use, access::address_space Space>
+            access::address_space Space>
   void joint_matrix_load(Group sg,
-    joint_matrix<T, Use, NumRows, NumCols, layout::dynamic, Group> &res,
+    joint_matrix<T, use::accumulator, NumRows, NumCols, layout::dynamic, Group> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, layout memL);
     
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -167,9 +168,9 @@ The second overload without a memory layout must not be used with a `joint_matri
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
   template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          use Use, layout Layout, access::address_space Space>
+            access::address_space Space>
   void joint_matrix_store(Group sg,
-    joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
+    joint_matrix<T, use::accumulator, NumRows, NumCols, layout::dynamic, Group> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride, layout memL);
 }
 ```
@@ -642,7 +643,7 @@ for (int i = 0; i < length; ++i) {
 - In the future looking APIs, `get_wi_data` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
 
 - `dynamic_extent` on the shape of `joint_matrix` is only available on Intel AMX. Should this be part of the API?  
-- This document still contains non-portable code between Intel AMX and DPAS, and Nvidia Tensor Cores such as: packed layout, dynamic layout on joint matrix type of use A and B, store of matrix A and B. Currently, these restrictions are explained in the spec text. But we might decide to move these to a separate Intel-specific additional matrix API document. 
+- This document still contains non-portable code between Intel AMX and DPAS, and Nvidia Tensor Cores such as: packed layout and dynamic_extent. Currently, these restrictions are explained in the spec text. But we might decide to move these to a separate Intel-specific additional matrix API document. 
 
 ## TODO List
 - Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
