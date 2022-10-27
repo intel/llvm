@@ -13,37 +13,37 @@ SYCL_EXTERNAL void foo(long x, sycl::half y);
 __attribute__((noinline)) float op(float a, float b) {
   // CHECK: define {{.*}} spir_func float @_Z2opff(float [[a:%.*]], float [[b:%.*]])
   bfloat16 A{a};
-  // CHECK: [[A:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) [[a]].addr.ascast)
+  // CHECK: [[A:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} [[a]].addr.ascast)
   // CHECK-NOT: fptoui
 
   bfloat16 B{b};
-  // CHECK: [[B:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) [[b]].addr.ascast)
+  // CHECK: [[B:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} [[b]].addr.ascast)
   // CHECK-NOT: fptoui
 
   bfloat16 C = A + B;
-  // CHECK: [[A_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) %value.i)
-  // CHECK: [[B_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) %value.i7)
+  // CHECK: [[A_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i)
+  // CHECK: [[B_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i7)
   // CHECK: [[Add:%.*]] = fadd float [[A_float]], [[B_float]]
   // CHECK: store float [[Add]], float addrspace(4)* [[Add1:%ref.tmp.ascast.i]], align 4, !tbaa !48, !noalias !55
-  // CHECK: [[C:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) [[Add1]])
+  // CHECK: [[C:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} [[Add1]])
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
 
   long L = bfloat16(3.14f);
-  // CHECK: [[L:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) %ref.tmp1.ascast)
+  // CHECK: [[L:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} %ref.tmp1.ascast)
   // CHECK: store i16 [[L]], i16 addrspace(4)* [[L1:%value.i9]]
-  // CHECK: [[L_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) [[L1]])
+  // CHECK: [[L_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} [[L1]])
   // CHECK: [[L:%.*]] = fptosi float [[L_float]] to i{{32|64}}
 
   sycl::half H = bfloat16(2.71f);
-  // CHECK: [[H:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) %ref.tmp3.ascast)
+  // CHECK: [[H:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float {{.*}} %ref.tmp3.ascast)
   // CHECK: store i16 [[H]], i16 addrspace(4)* [[H1:%value.i13]]
-  // CHECK: [[H_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) [[H1]])
+  // CHECK: [[H_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} [[H1]])
   // CHECK: [[H:%.*]] = fptrunc float [[H_float]] to half
   foo(L, H);
 
   return A;
-  // CHECK: [[RetVal:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) %value.i)
+  // CHECK: [[RetVal:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 {{.*}} %value.i)
   // CHECK: ret float [[RetVal]]
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
