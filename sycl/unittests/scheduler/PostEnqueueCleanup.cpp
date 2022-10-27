@@ -190,7 +190,7 @@ static void checkCleanupOnLeafUpdate(
   MS.addNodeToLeaves(Record, MockCmd, access::mode::read_write, ToEnqueue);
   MS.updateLeaves({AllocaCmd}, Record, access::mode::read_write, ToCleanUp);
   detail::EnqueueResultT Res;
-  MockScheduler::enqueueCommand(MockCmd, Res, detail::BLOCKING);
+  MS.enqueueCommand(MockCmd, Res, detail::BLOCKING);
 
   EXPECT_FALSE(CommandDeleted);
   SchedulerCall(Record);

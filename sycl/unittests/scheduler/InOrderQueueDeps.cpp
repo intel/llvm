@@ -119,9 +119,9 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
       MS.insertMemoryMove(Record, &Req, DefaultHostQueue, AuxCmds);
   detail::EnqueueResultT Res;
   auto ReadLock = MS.acquireGraphReadLock();
-  MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
+  MS.enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
   Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl, AuxCmds);
-  MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
+  MS.enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
   Cmd = MS.insertMemoryMove(Record, &Req, DefaultHostQueue, AuxCmds);
-  MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
+  MS.enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
 }

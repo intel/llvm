@@ -230,7 +230,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     detail::AllocaCommandBase *InteropAlloca =
         MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::EnqueueResultT Res;
-    MockScheduler::enqueueCommand(InteropAlloca, Res, detail::BLOCKING);
+    MS.enqueueCommand(InteropAlloca, Res, detail::BLOCKING);
 
     EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
     EXPECT_EQ(InteropAlloca->MMemAllocation, MockInteropBuffer);

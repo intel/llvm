@@ -374,6 +374,8 @@ public:
   /// \return an event object to wait on for copy finish.
   EventImplPtr addCopyBack(Requirement *Req);
 
+  bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
+                      std::vector<Command *> &ToCleanUp, BlockingT Blocking);
   /// Waits for the event.
   ///
   /// This operation is blocking. For eager execution mode this method invokes

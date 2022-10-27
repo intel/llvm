@@ -95,32 +95,33 @@ static void resetTestCtx() {
 
 static void addDepAndEnqueue(detail::Command *Cmd,
                              detail::QueueImplPtr &DepQueue,
-                             detail::Requirement &MockReq) {
+                             detail::Requirement &MockReq, MockScheduler &MS) {
   MockCommand DepCmd(DepQueue);
   std::vector<detail::Command *> ToCleanUp;
   DepCmd.getEvent()->getHandleRef() = reinterpret_cast<pi_event>(new int{});
   (void)Cmd->addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
 
   detail::EnqueueResultT Res;
-  MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
+  MS.enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
 }
 
 static void testCommandEnqueue(detail::Command *Cmd,
                                detail::QueueImplPtr &DepQueue,
-                               detail::Requirement &MockReq,
+                               detail::Requirement &MockReq, MockScheduler &MS,
                                bool ExpectedFlush = true) {
   resetTestCtx();
-  addDepAndEnqueue(Cmd, DepQueue, MockReq);
+  addDepAndEnqueue(Cmd, DepQueue, MockReq, MS);
   EXPECT_EQ(QueueFlushed, ExpectedFlush);
 }
 
 static void testEventStatusCheck(detail::Command *Cmd,
                                  detail::QueueImplPtr &DepQueue,
                                  detail::Requirement &MockReq,
+                                 MockScheduler &MS,
                                  pi_event_status ReturnedEventStatus) {
   resetTestCtx();
   EventStatus = ReturnedEventStatus;
-  addDepAndEnqueue(Cmd, DepQueue, MockReq);
+  addDepAndEnqueue(Cmd, DepQueue, MockReq, MS);
   EXPECT_FALSE(QueueFlushed);
 }
 
@@ -146,6 +147,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
   detail::QueueImplPtr QueueImplB = detail::getSyclObjImpl(QueueB);
   ExpectedDepQueue = QueueImplB->getHandleRef();
 
+  MockScheduler MS;
+
   int val;
   buffer<int, 1> Buf(&val, range<1>(1));
   detail::Requirement MockReq = getMockRequirement(Buf);
@@ -158,11 +161,11 @@ TEST_F(SchedulerTest, QueueFlushing) {
   {
     detail::MapMemObject MapCmd{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                                 access::mode::read_write};
-    testCommandEnqueue(&MapCmd, QueueImplB, MockReq);
+    testCommandEnqueue(&MapCmd, QueueImplB, MockReq, MS);
 
     detail::UnMapMemObject UnmapCmd{&AllocaCmd, MockReq, &MockHostPtr,
                                     QueueImplA};
-    testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq);
+    testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq, MS);
 
     device HostDevice = detail::createSyclObjFromImpl<device>(
         detail::device_impl::getHostDeviceImpl());
@@ -174,12 +177,12 @@ TEST_F(SchedulerTest, QueueFlushing) {
     detail::MemCpyCommand MemCpyCmd{MockReq,    &AllocaCmd,
                                     MockReq,    &HostAllocaCmd,
                                     QueueImplA, DefaultHostQueue};
-    testCommandEnqueue(&MemCpyCmd, QueueImplB, MockReq);
+    testCommandEnqueue(&MemCpyCmd, QueueImplB, MockReq, MS);
 
     detail::MemCpyCommandHost MemCpyCmdHost{MockReq,    &AllocaCmd,
                                             MockReq,    &MockHostPtr,
                                             QueueImplA, DefaultHostQueue};
-    testCommandEnqueue(&MemCpyCmdHost, QueueImplB, MockReq);
+    testCommandEnqueue(&MemCpyCmdHost, QueueImplB, MockReq, MS);
 
     std::unique_ptr<detail::CG> CG{new detail::CGFill(/*Pattern*/ {}, &MockReq,
                                                       /*ArgsStorage*/ {},
@@ -191,7 +194,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
     MockReq.MDims = 1;
     (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd),
                            ToCleanUp);
-    testCommandEnqueue(&ExecCGCmd, QueueImplB, MockReq);
+    testCommandEnqueue(&ExecCGCmd, QueueImplB, MockReq, MS);
   }
 
   // Check dependency event without a command
@@ -203,7 +206,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
     DepEvent->setContextImpl(QueueImplB->getContextImplPtr());
     DepEvent->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     (void)Cmd.addDep(DepEvent, ToCleanUp);
-    MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
+    MS.enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
     EXPECT_TRUE(QueueFlushed);
   }
 
@@ -221,7 +224,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
       DepEvent->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     }
     (void)Cmd.addDep(DepEvent, ToCleanUp);
-    MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
+    MS.enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
     EXPECT_FALSE(EventStatusQueried);
     EXPECT_FALSE(QueueFlushed);
   }
@@ -230,7 +233,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
   {
     detail::MapMemObject Cmd = {&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                                 access::mode::read_write};
-    testCommandEnqueue(&Cmd, QueueImplA, MockReq, false);
+    testCommandEnqueue(&Cmd, QueueImplA, MockReq, MS, false);
   }
 
   // Check that flush is not called twice for the same dependency queue
@@ -245,7 +248,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
     DepCmdB.getEvent()->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     (void)Cmd.addDep(detail::DepDesc{&DepCmdB, &MockReq, nullptr}, ToCleanUp);
     // The check is performed in redefinedQueueFlush
-    MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
+    MS.enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
   }
 
   // Check that the event status isn't requested twice for the same event
@@ -256,13 +259,13 @@ TEST_F(SchedulerTest, QueueFlushing) {
     MockCommand DepCmd(QueueImplB);
     DepCmd.getEvent()->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
-    MockScheduler::enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
+    MS.enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
 
     EventStatusQueried = false;
     detail::MapMemObject CmdB{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
     (void)CmdB.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
-    MockScheduler::enqueueCommand(&CmdB, Res, detail::NON_BLOCKING);
+    MS.enqueueCommand(&CmdB, Res, detail::NON_BLOCKING);
     EXPECT_FALSE(EventStatusQueried);
   }
 
@@ -270,12 +273,12 @@ TEST_F(SchedulerTest, QueueFlushing) {
   {
     detail::MapMemObject CmdA{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
-    testEventStatusCheck(&CmdA, QueueImplB, MockReq, PI_EVENT_SUBMITTED);
+    testEventStatusCheck(&CmdA, QueueImplB, MockReq, MS, PI_EVENT_SUBMITTED);
     detail::MapMemObject CmdB{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
-    testEventStatusCheck(&CmdB, QueueImplB, MockReq, PI_EVENT_RUNNING);
+    testEventStatusCheck(&CmdB, QueueImplB, MockReq, MS, PI_EVENT_RUNNING);
     detail::MapMemObject CmdC{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
-    testEventStatusCheck(&CmdC, QueueImplB, MockReq, PI_EVENT_COMPLETE);
+    testEventStatusCheck(&CmdC, QueueImplB, MockReq, MS, PI_EVENT_COMPLETE);
   }
 }

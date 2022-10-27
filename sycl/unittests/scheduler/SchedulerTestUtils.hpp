@@ -138,12 +138,11 @@ public:
     return MGraphBuilder.updateLeaves(Cmds, Record, AccessMode, ToCleanUp);
   }
 
-  static bool enqueueCommand(sycl::detail::Command *Cmd,
-                             sycl::detail::EnqueueResultT &EnqueueResult,
-                             sycl::detail::BlockingT Blocking) {
+  bool enqueueCommand(sycl::detail::Command *Cmd,
+                      sycl::detail::EnqueueResultT &EnqueueResult,
+                      sycl::detail::BlockingT Blocking) {
     std::vector<sycl::detail::Command *> ToCleanUp;
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp,
-                                          Blocking);
+    return Scheduler::enqueueCommand(Cmd, EnqueueResult, ToCleanUp, Blocking);
   }
 
   sycl::detail::AllocaCommandBase *

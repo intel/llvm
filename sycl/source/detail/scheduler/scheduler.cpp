@@ -163,32 +163,47 @@ Scheduler &Scheduler::getInstance() {
   return GlobalHandler::instance().getScheduler();
 }
 
-void Scheduler::waitForEvent(const EventImplPtr &Event) {
-  std::vector<Command *> ToCleanUp;
+bool Scheduler::enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
+                               std::vector<Command *> &ToCleanUp,
+                               BlockingT Blocking) {
+
   // Repeat enqueue process until we finally enqueue the target command
   while (true) {
-    EnqueueResultT Res;
     {
       ReadLockT Lock{MGraphLock};
-      if (GraphProcessor::enqueueCommand(GraphProcessor::getCommand(Event), Res,
-                                         ToCleanUp, BLOCKING))
-        break;
+      if (GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp, BLOCKING))
+        return true;
     }
 
-    if (EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+    if (EnqueueResultT::SyclEnqueueFailed == EnqueueResult.MResult)
       // TODO: Reschedule commands.
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
 
-    assert(EnqueueResultT::SyclEnqueueBlocked == Res.MResult);
-    assert(!Res.MBlockingEvents.empty());
+    if (NON_BLOCKING == Blocking)
+      return false;
+
+    assert(EnqueueResultT::SyclEnqueueBlocked == EnqueueResult.MResult);
+    assert(!EnqueueResult.MBlockingEvents.empty());
 
     // Wait for state change of the commands blocking the target command from
     // being enqueued. The state may change to completed or ready to enqueue.
     // In both cases need to repeat enqueue.
-    for (EventImplPtr &Event : Res.MBlockingEvents)
+    for (EventImplPtr &Event : EnqueueResult.MBlockingEvents)
       Event->waitStateChange();
+
+    EnqueueResult.MBlockingEvents.clear();
   }
+
+
+}
+
+void Scheduler::waitForEvent(const EventImplPtr &Event) {
+  std::vector<Command *> ToCleanUp;
+
+  EnqueueResultT EnqueueResult;
+  enqueueCommand(GraphProcessor::getCommand(Event), EnqueueResult, ToCleanUp,
+                 BLOCKING);
 
   // Wait for the target command to complete
   Event->waitInternal();
