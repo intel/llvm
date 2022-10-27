@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -Xsycl-target-backend=%sycl_triple "-device pvc" -S -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
 // UNSUPPORTED: cuda || hip_amd
 
@@ -13,39 +13,37 @@ SYCL_EXTERNAL void foo(long x, sycl::half y);
 __attribute__((noinline)) float op(float a, float b) {
   // CHECK: define {{.*}} spir_func float @_Z2opff(float [[a:%.*]], float [[b:%.*]])
   bfloat16 A{a};
-  // CHECK: [[A:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float [[a]])
+  // CHECK: [[A:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) [[a]].addr.ascast)
   // CHECK-NOT: fptoui
 
   bfloat16 B{b};
-  // CHECK: [[B:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float [[b]])
+  // CHECK: [[B:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) [[b]].addr.ascast)
   // CHECK-NOT: fptoui
 
   bfloat16 C = A + B;
-  // CHECK: [[A_float:%.*]] = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELt(i16 zeroext [[A]])
-  // CHECK: [[B_float:%.*]] = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELt(i16 zeroext [[B]])
+  // CHECK: [[A_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) %value.i)
+  // CHECK: [[B_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) %value.i7)
   // CHECK: [[Add:%.*]] = fadd float [[A_float]], [[B_float]]
-  // CHECK: [[C:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float [[Add]])
-  // CHECK-NOT: uitofp
-  // CHECK-NOT: fptoui
-
-  bfloat16 D = bfloat16::from_bits(some_bf16_intrinsic(A.raw(), C.raw()));
-  // CHECK: [[D:%.*]] = tail call spir_func zeroext i16 @_Z19some_bf16_intrinsictt(i16 zeroext [[A]], i16 zeroext [[C]])
+  // CHECK: store float [[Add]], float addrspace(4)* [[Add1:%ref.tmp.ascast.i]], align 4, !tbaa !48, !noalias !55
+  // CHECK: [[C:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) [[Add1]])
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
 
   long L = bfloat16(3.14f);
-  // CHECK: [[L_bfloat16:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float 0x40091EB860000000)
-  // CHECK: [[L_float:%.*]] = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELt(i16 zeroext [[L_bfloat16]])
+  // CHECK: [[L:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) %ref.tmp1.ascast)
+  // CHECK: store i16 [[L]], i16 addrspace(4)* [[L1:%value.i9]]
+  // CHECK: [[L_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) [[L1]])
   // CHECK: [[L:%.*]] = fptosi float [[L_float]] to i{{32|64}}
 
   sycl::half H = bfloat16(2.71f);
-  // CHECK: [[H_bfloat16:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float 0x4005AE1480000000)
-  // CHECK: [[H_float:%.*]] = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELt(i16 zeroext [[H_bfloat16]])
+  // CHECK: [[H:%.*]] = call spir_func zeroext i16 @__devicelib_ConvertFToBF16INTEL(float addrspace(4)* align 4 dereferenceable(4) %ref.tmp3.ascast)
+  // CHECK: store i16 [[H]], i16 addrspace(4)* [[H1:%value.i13]]
+  // CHECK: [[H_float:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) [[H1]])
   // CHECK: [[H:%.*]] = fptrunc float [[H_float]] to half
   foo(L, H);
 
-  return D;
-  // CHECK: [[RetVal:%.*]] = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELt(i16 zeroext [[D]])
+  return A;
+  // CHECK: [[RetVal:%.*]] = call spir_func float @__devicelib_ConvertBF16ToFINTEL(i16 addrspace(4)* align 2 dereferenceable(2) %value.i)
   // CHECK: ret float [[RetVal]]
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
