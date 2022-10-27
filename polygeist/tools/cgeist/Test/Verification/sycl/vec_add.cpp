@@ -15,7 +15,7 @@
 // CHECK-MLIR-DAG:  [[V1:%.*]] = affine.load {{.*}}[0] : memref<?xf32, 4>
 // CHECK-MLIR-DAG:  [[V2:%.*]] = affine.load {{.*}}[0] : memref<?xf32, 4>
 // CHECK-MLIR-NEXT: [[RESULT:%.*]] = arith.addf [[V1]], [[V2]] : f32
-// CHECK-MLIR-NEXT: affine.store [[RESULT]], {{.*}}[0] : memref<?xf32, 4>
+// CHECK-MLIR:      affine.store [[RESULT]], {{.*}}[0] : memref<?xf32, 4>
 
 // CHECK-LLVM:       define internal spir_func void [[FUNC:@.*vec_add_device_simple.*_]]({{.*}}) #0
 // CHECK-LLVM-DAG:   [[V1:%.*]] = load float, float addrspace(4)* {{.*}}, align 4

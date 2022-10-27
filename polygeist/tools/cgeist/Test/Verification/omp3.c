@@ -20,9 +20,9 @@ void square(double* x) {
 // CHECK-NEXT:       %1 = arith.sitofp %0 : i32 to f64
 // CHECK-NEXT:       memref.store %1, %arg0[%arg1] : memref<?xf64>
 // CHECK-NEXT:       %2 = arith.addi %0, %c1_i32 : i32
-// CHECK-NEXT:       %3 = arith.index_cast %2 : i32 to index
-// CHECK-NEXT:       %4 = arith.sitofp %2 : i32 to f64
-// CHECK-NEXT:       memref.store %4, %arg0[%3] : memref<?xf64>
+// CHECK-NEXT:       %3 = arith.sitofp %2 : i32 to f64
+// CHECK-NEXT:       %4 = arith.index_cast %2 : i32 to index
+// CHECK-NEXT:       memref.store %3, %arg0[%4] : memref<?xf64>
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

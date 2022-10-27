@@ -21,8 +21,10 @@
 namespace clang {
 class ASTContext;
 class CodeGenOptions;
+class FunctionDecl;
 class QualType;
 class RecordType;
+class Type;
 class GlobalDecl;
 
 namespace CodeGen {
@@ -34,6 +36,7 @@ class CodeGenModule;
 } // namespace clang
 
 namespace mlir {
+class FunctionType;
 class ModuleOp;
 class Type;
 
@@ -67,9 +70,18 @@ public:
   clang::CodeGen::CGCXXABI &getCXXABI() const { return TheCXXABI; }
   const clang::CodeGenOptions &getCodeGenOpts() const;
 
+  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
+                                     const clang::FunctionDecl &FD);
+
   // TODO: Possibly create a SYCLTypeCache
   mlir::Type getMLIRType(clang::QualType QT, bool *ImplicitRef = nullptr,
                          bool AllowMerge = true);
+
+  mlir::Type getPointerOrMemRefType(mlir::Type Ty, unsigned AddressSpace,
+                                    bool IsAlloca = false);
+
+  const clang::CodeGen::CGFunctionInfo &
+  arrangeGlobalDeclaration(clang::GlobalDecl GD);
 };
 
 } // namespace CodeGen
