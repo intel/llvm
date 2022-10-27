@@ -561,19 +561,6 @@ public:
                       RedOutVar RedOut)
       : base(Identity, BinaryOp, Init), MRedOut(std::move(RedOut)){};
 
-  /// Creates and returns a local accessor with the \p Size elements.
-  /// By default the local accessor elements are of the same type as the
-  /// elements processed by the reduction, but may it be altered by specifying
-  /// \p _T explicitly if need an accessor with elements of different type.
-  ///
-  /// For array reductions we process them one element in a type to avoid stack
-  /// growth, so the dimensionality of the temporary buffer is always one.
-  template <class _T = result_type>
-  static accessor<_T, 1, access::mode::read_write, access::target::local>
-  getReadWriteLocalAcc(size_t Size, handler &CGH) {
-    return {Size, CGH};
-  }
-
   auto getReadAccToPreviousPartialReds(handler &CGH) const {
     CGH.addReduction(MOutBufPtr);
     return accessor{*MOutBufPtr, CGH, sycl::read_only};
@@ -849,7 +836,7 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                    PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-  auto GroupSum = Reduction::getReadWriteLocalAcc(NElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> GroupSum{NElements, CGH};
   using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastAtomics,
                                        KernelName>;
   size_t NWorkGroups = NDRange.get_group_range().size();
@@ -907,8 +894,7 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
 
   bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
   auto Rest = [&](auto NWorkGroupsFinished) {
-    auto DoReducePartialSumsInLastWG =
-        Reduction::template getReadWriteLocalAcc<int>(1, CGH);
+    local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
     using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
                                          KernelName, decltype(NWorkGroupsFinished)>;
@@ -1008,11 +994,10 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
   auto Out = (NWorkGroups == 1)
                  ? PartialSums
                  : Redu.getWriteAccForPartialReds(NElements, CGH);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(WGSize + 1, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize + 1, CGH};
   auto NWorkGroupsFinished =
       Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
-  auto DoReducePartialSumsInLastWG =
-      Reduction::template getReadWriteLocalAcc<int>(1, CGH);
+  local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
   auto Identity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
@@ -1198,7 +1183,8 @@ void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
   // The additional last element is used to catch reduce elements that could
   // otherwise be lost in the tree-reduction algorithm used in the kernel.
   size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(NLocalElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{NLocalElements,
+                                                               CGH};
 
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeFastAtomicsOnly,
@@ -1332,7 +1318,8 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
   // The additional last element is used to catch elements that could
   // otherwise be lost in the tree-reduction algorithm.
   size_t NumLocalElements = WGSize + (IsPow2WG ? 0 : 1);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(NumLocalElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{NumLocalElements,
+                                                               CGH};
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeBasic, KernelName>;
@@ -1460,7 +1447,8 @@ void reduAuxCGFuncNoFastReduceNorAtomicImpl(handler &CGH, bool UniformPow2WG,
   // The additional last element is used to catch elements that could
   // otherwise be lost in the tree-reduction algorithm.
   size_t NumLocalElements = WGSize + (UniformPow2WG ? 0 : 1);
-  auto LocalReds = Reduction::getReadWriteLocalAcc(NumLocalElements, CGH);
+  local_accessor<typename Reduction::result_type, 1> LocalReds{NumLocalElements,
+                                                               CGH};
 
   auto ReduIdentity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
@@ -1592,8 +1580,9 @@ template <typename... Reductions, size_t... Is>
 auto createReduLocalAccs(size_t Size, handler &CGH,
                          std::index_sequence<Is...>) {
   return makeReduTupleT(
-      std::tuple_element_t<Is, std::tuple<Reductions...>>::getReadWriteLocalAcc(
-          Size, CGH)...);
+      local_accessor<typename std::tuple_element_t<
+                         Is, std::tuple<Reductions...>>::result_type,
+                     1>{Size, CGH}...);
 }
 
 /// For the given 'Reductions' types pack and indices enumerating them this
