@@ -1,0 +1,138 @@
+= sycl_ext_intel_user_defined_reductions
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+This extension is written against the SYCL 2020 revision 5 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+**TODO**: dependency on `group_with_scrathpad` from `sycl_ext_oneapi_group_sort`
+
+NOTE: THis extension is experimental: interfaces are subject to change later.
+
+== Introduction
+
+The purpose of this extension is to expand functionality of `reduce_over_group`
+free function defined in section 4.17.4.5. `reduce` of the core SYCL
+specification by allowing to pass user-defined binary operators in there as well
+as perform reductions on a non-fundamental types.
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 Feature test macros. Therefore, an implementation
+supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_USER_DEFINED_REDUCTIONS` to one of the values defined in the
+table below.
+Application can test for existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extensions's APIs the implementation supports.
+
+Table 1. Values of the `SYCL_EXT_INTEL_USER_DEFINED_REDUCTIONS` macro.
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+== Reduction functions
+
+This extension provides two overloads of `reduce_over_group` defined by the core
+SYCL specification.
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+
+  template <typename GroupHelper, typename T, typename BinaryOperation>
+  T reduce_over_group(GroupHelper g, T x, BinaryOperation binary_op); // (1)
+
+  template <typename GroupHelper, typename V, typename T, typename BinaryOperation>
+  T reduce_over_group(GroupHelper g, V x, T init, BinaryOperation binary_op); // (2)
+}
+----
+
+**TODO**: consider adding `is_group_with_scratchpad_v` helper to describe
+preconditions better.
+
+1._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+
+_Mandates_: `binary_op(x, x)` must return a value of type `T`.
+
+_Preconditions_: The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
+
+_Returns_: The result of combining all the values of `x` specified by each
+work-item in the group using the operator `binary_op`, where the values are
+combined according to the generalized sum defined in standard C++.
+
+NOTE: If `T` is a fundamental type and `BinaryOperation` is a SYCL function
+object type, then memory attached to `GroupHelper` object `g` is not used and
+the call to this overload is equivalent to calling
+`reduce_over_group(g.get_group(), x, binary_op)`.
+
+2._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+
+_Mandates_: `binary_op(init, x)` and `binary_op(x, x)` must return a value of
+type `T`.
+
+_Preconditions_: The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
+
+_Returns_: The result of combining all the values of `x` specified by each
+work-item in the group and the initial value `init` using the operator
+`binary_op`, where the values are combined according to the generalized sum
+defined in standard C++.
+
+NOTE: If `T` and `V` are fundamental types and `BinaryOperation` is a SYCL
+function object type, then memory attached to `GroupHelper` object `g` is not
+used and the call to this overload is equivalent to calling
+`reduce_over_group(g.get_group(), x, init, binary_op)`.
+
+NOTE: Implementation of both those overaloads could use less memory than passed
+to the function depending on the exact algorithm which is used for doing the
+reduction.
+
+== Possible future direction
+
+In future versions of this extensions we may add a query function which would
+help to calculate the eaxact amount of memory needed for doing the reduction.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|===
+|Rev|Date      |Author        |Changes
+|1  |2022-10-27|Alexey Sachkov|Initial working draft
+|===
