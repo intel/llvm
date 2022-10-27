@@ -264,7 +264,7 @@ static std::vector<device> amendDeviceAndSubDevices(
   std::vector<device> FinalResult;
   // (Only) when amending sub-devices for ONEAPI_DEVICE_SELECTOR, all
   // sub-devices are treated as root.
-  TempAssignGuard TAG(PlatformImpl->MAlwaysRootDevice, true);
+  TempAssignGuard<bool> TAG(PlatformImpl->MAlwaysRootDevice, true);
 
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
