@@ -11,6 +11,8 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
 
+#include <vector>
+
 // 4.6.1 Device selection class
 
 namespace sycl {
@@ -117,6 +119,17 @@ static constexpr int REJECT_DEVICE_SCORE = -1;
 
 using DSelectorInvocableType = std::function<int(const sycl::device &)>;
 
+template <typename LastT>
+void fill_aspect_vector(std::vector<aspect> &V, LastT L) {
+  V.emplace_back(L);
+}
+
+template <typename FirstT, typename... OtherTs>
+void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
+  V.emplace_back(F);
+  fill_aspect_vector(V, O...);
+}
+
 #if __cplusplus >= 201703L
 
 // Enable if DeviceSelector callable has matching signature, but
@@ -136,6 +149,27 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
               const context &SyclContext);
+
 } // namespace detail
+
+__SYCL_EXPORT detail::DSelectorInvocableType
+aspect_selector(const std::vector<aspect> &RequireList,
+                const std::vector<aspect> &DenyList = {});
+
+template <typename... AspectListT>
+detail::DSelectorInvocableType aspect_selector(AspectListT... AspectList) {
+  std::vector<aspect> RequireList;
+  RequireList.reserve(sizeof...(AspectList));
+
+  detail::fill_aspect_vector(RequireList, AspectList...);
+
+  return aspect_selector(RequireList, {});
+}
+
+template <aspect... AspectList>
+detail::DSelectorInvocableType aspect_selector() {
+  return aspect_selector({AspectList...}, {});
+}
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

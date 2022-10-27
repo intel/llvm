@@ -10390,8 +10390,8 @@ def warn_opencl_generic_address_space_arg : Warning<
   "passing non-generic address space pointer to %0"
   " may cause dynamic conversion affecting performance">,
   InGroup<Conversion>, DefaultIgnore;
-def err_bad_union_kernel_param_members : Error<
-  "%0 cannot be used inside a union kernel parameter">;
+def err_bad_kernel_param_data_members : Error<
+  "%0 cannot be a data member of a %select{union|struct}1 kernel parameter">;
 
 // OpenCL v2.0 s6.13.6 -- Builtin Pipe Functions
 def err_opencl_builtin_pipe_first_arg : Error<
@@ -11887,6 +11887,9 @@ def err_sycl_add_ir_attribute_invalid_value : Error<
 def err_sycl_add_ir_attribute_invalid_filter : Error<
   "initializer list in the first argument of %0 must contain only string "
   "literals">;
+def warn_sycl_old_and_new_kernel_attributes : Warning<
+  "kernel has both attribute %0 and kernel properties; conflicting properties "
+  "are ignored">, InGroup<IgnoredAttributes>;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<
