@@ -271,7 +271,8 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, nullptr, false, Handler, Backend);
+                            TargetContext, nullptr, false, false, Handler,
+                            Backend);
 }
 
 template <backend Backend>

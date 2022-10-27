@@ -305,7 +305,7 @@ mock_piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle) {
 
 inline pi_result mock_piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_device device,
-    bool pluginOwnsNativeHandle, pi_queue *queue) {
+    bool UseImmCmdList, bool pluginOwnsNativeHandle, pi_queue *queue) {
   return PI_SUCCESS;
 }
 
