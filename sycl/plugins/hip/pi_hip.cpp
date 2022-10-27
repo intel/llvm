@@ -185,7 +185,7 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 ///
 pi_result check_error(hipError_t result, const char *function, int line,
                       const char *file) {
-  if (result == hipSuccess) {
+  if (result == hipSuccess || result == hipErrorContextIsDestroyed) {
     return PI_SUCCESS;
   }
 
@@ -1826,6 +1826,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_DEVICE_INFO_DEVICE_ID:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:

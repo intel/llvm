@@ -5094,19 +5094,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-default-sub-group-size if in SYCL mode.
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
-
-    // Add any predefined macros associated with intel_gpu* type targets
-    // passed in with -fsycl-targets
-    if (RawTriple.isSPIR() &&
-        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-      StringRef Device = JA.getOffloadingArch();
-      if (!Device.empty())
-        CmdArgs.push_back(Args.MakeArgString(
-            Twine("-D") + SYCL::gen::getGenDeviceMacro(Device)));
-    }
-    if (RawTriple.isSPIR() &&
-        RawTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-      CmdArgs.push_back("-D__SYCL_TARGET_INTEL_X86_64__");
   }
 
   if (IsSYCL) {
@@ -5122,6 +5109,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Ensure the default version in SYCL mode is 2020.
       CmdArgs.push_back("-sycl-std=2020");
     }
+
+    if (!Args.hasFlag(options::OPT_fsycl_force_inline_kernel_lambda,
+                      options::OPT_fno_sycl_force_inline_kernel_lambda, true))
+      CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
     if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
                       options::OPT_fno_sycl_unnamed_lambda, true))
@@ -5187,6 +5178,35 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back("-D_DLL");
         }
       }
+    }
+    // Add any predefined macros associated with intel_gpu* type targets
+    // passed in with -fsycl-targets
+    // TODO: Macros are populated during device compilations and saved for
+    // addition to the host compilation. There is no dependence connection
+    // between device and host where we should be able to use the offloading
+    // arch to add the macro to the host compile.
+    auto addTargetMacros = [&](const llvm::Triple &Triple) {
+      if (!Triple.isSPIR())
+        return;
+      SmallString<64> Macro;
+      if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        StringRef Device = JA.getOffloadingArch();
+        if (!Device.empty()) {
+          Macro = "-D";
+          Macro += SYCL::gen::getGenDeviceMacro(Device);
+        }
+      } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+        Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
+      if (Macro.size()) {
+        CmdArgs.push_back(Args.MakeArgString(Macro));
+        D.addSYCLTargetMacroArg(Args, Macro);
+      }
+    };
+    if (IsSYCLOffloadDevice)
+      addTargetMacros(RawTriple);
+    else {
+      for (auto &Macro : D.getSYCLTargetMacroArgs())
+        CmdArgs.push_back(Args.MakeArgString(Macro));
     }
   }
 
@@ -9407,9 +9427,19 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
       Targets += ',';
     Targets += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Targets += '-';
-    std::string NormalizedTriple =
-        Dep.DependentToolChain->getTriple().normalize();
-    Targets += NormalizedTriple;
+    // When -fsycl-force-target is used, this value overrides the expected
+    // output type we are creating deps for.
+    if (Dep.DependentOffloadKind == Action::OFK_SYCL &&
+        TCArgs.hasArg(options::OPT_fsycl_force_target_EQ)) {
+      StringRef Val(
+          TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      Targets += TT.normalize();
+    } else {
+      std::string NormalizedTriple =
+          Dep.DependentToolChain->getTriple().normalize();
+      Targets += NormalizedTriple;
+    }
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {

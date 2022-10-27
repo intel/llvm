@@ -114,15 +114,21 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyNonDefaultAllocator) {
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
 
   MockCmdWithReleaseTracking *MockCmd = NULL;
+  sycl::detail::buffer_impl *RawBufferImplPtr = NULL;
   {
     using AllocatorTypeTest =
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
+    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
+        sycl::detail::getSyclObjImpl(Buf);
+    RawBufferImplPtr = BufImpl.get();
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
-  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
+  EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
+            RawBufferImplPtr);
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
@@ -191,24 +197,6 @@ TEST_F(BufferDestructionCheck, BufferWithConstRawHostPtr) {
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
-TEST_F(BufferDestructionCheck,
-       BufferWithConstRawHostPtrWithNonDefaultAllocator) {
-  sycl::context Context{Plt};
-  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-
-  MockCmdWithReleaseTracking *MockCmd = NULL;
-  {
-    const int InitialVal = 8;
-    using AllocatorTypeTest =
-        sycl::usm_allocator<int, sycl::usm::alloc::shared>;
-    AllocatorTypeTest allocator(Q);
-    sycl::buffer<int, 1, AllocatorTypeTest> Buf(&InitialVal, 1, allocator);
-    MockCmd = addCommandToBuffer(Buf, Q);
-    EXPECT_CALL(*MockCmd, Release).Times(1);
-  }
-  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-}
-
 TEST_F(BufferDestructionCheck, BufferWithContainer) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
@@ -217,23 +205,6 @@ TEST_F(BufferDestructionCheck, BufferWithContainer) {
   {
     std::vector<int> data{3, 4};
     sycl::buffer<int, 1> Buf(data);
-    MockCmd = addCommandToBuffer(Buf, Q);
-    EXPECT_CALL(*MockCmd, Release).Times(1);
-  }
-  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-}
-
-TEST_F(BufferDestructionCheck, BufferWithContainerWithNonDefaultAllocator) {
-  sycl::context Context{Plt};
-  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-
-  MockCmdWithReleaseTracking *MockCmd = NULL;
-  {
-    std::vector<int> data{3, 4};
-    using AllocatorTypeTest =
-        sycl::usm_allocator<int, sycl::usm::alloc::shared>;
-    AllocatorTypeTest allocator(Q);
-    sycl::buffer<int, 1, AllocatorTypeTest> Buf(data, allocator);
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
@@ -254,23 +225,6 @@ TEST_F(BufferDestructionCheck, BufferWithSharedPtr) {
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 }
 
-TEST_F(BufferDestructionCheck, BufferWithSharedPtrWithNonDefaultAllocator) {
-  sycl::context Context{Plt};
-  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-
-  MockCmdWithReleaseTracking *MockCmd = NULL;
-  {
-    std::shared_ptr<int> InitialVal(new int(5));
-    using AllocatorTypeTest =
-        sycl::usm_allocator<int, sycl::usm::alloc::shared>;
-    AllocatorTypeTest allocator(Q);
-    sycl::buffer<int, 1, AllocatorTypeTest> Buf(InitialVal, 1, allocator);
-    MockCmd = addCommandToBuffer(Buf, Q);
-    EXPECT_CALL(*MockCmd, Release).Times(1);
-  }
-  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-}
-
 TEST_F(BufferDestructionCheck, BufferWithSharedPtrArray) {
   sycl::context Context{Plt};
   sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
@@ -279,24 +233,6 @@ TEST_F(BufferDestructionCheck, BufferWithSharedPtrArray) {
   {
     std::shared_ptr<int[]> InitialVal(new int[2]);
     sycl::buffer<int, 1> Buf(InitialVal, 1);
-    MockCmd = addCommandToBuffer(Buf, Q);
-    EXPECT_CALL(*MockCmd, Release).Times(1);
-  }
-  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
-}
-
-TEST_F(BufferDestructionCheck,
-       BufferWithSharedPtrArrayWithNonDefaultAllocator) {
-  sycl::context Context{Plt};
-  sycl::queue Q = sycl::queue{Context, sycl::default_selector{}};
-
-  MockCmdWithReleaseTracking *MockCmd = NULL;
-  {
-    std::shared_ptr<int[]> InitialVal(new int[2]);
-    using AllocatorTypeTest =
-        sycl::usm_allocator<int, sycl::usm::alloc::shared>;
-    AllocatorTypeTest allocator(Q);
-    sycl::buffer<int, 1, AllocatorTypeTest> Buf(InitialVal, 2, allocator);
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }

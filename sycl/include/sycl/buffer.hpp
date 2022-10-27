@@ -117,7 +117,7 @@ protected:
 
   size_t getSize() const;
 
-  void handleRelease(bool DefaultAllocator) const;
+  void handleRelease() const;
 
   std::shared_ptr<detail::buffer_impl> impl;
 };
@@ -459,13 +459,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() {
-    buffer_plain::
-        handleRelease(/*DefaultAllocator = */
-                      std::is_same<
-                          AllocatorT,
-                          detail::sycl_memory_object_allocator<T>>::value);
-  }
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -635,7 +629,7 @@ public:
   template <typename ReinterpretT, int ReinterpretDim>
   buffer<ReinterpretT, ReinterpretDim,
          typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-             ReinterpretT>>
+             std::remove_const_t<ReinterpretT>>>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
       throw sycl::invalid_object_error(
@@ -645,8 +639,8 @@ public:
           PI_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
@@ -655,11 +649,11 @@ public:
       (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
       buffer<ReinterpretT, ReinterpretDim,
              typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-                 ReinterpretT>>>::type
+                 std::remove_const_t<ReinterpretT>>>>::type
   reinterpret() const {
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, get_range(), OffsetInBytes, IsSubBuffer);
   }
 

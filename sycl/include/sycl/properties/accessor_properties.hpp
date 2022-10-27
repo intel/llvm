@@ -118,15 +118,10 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
 class accessor;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
 
 // Accessor property trait specializations
-template <> struct is_property<property::noinit> : std::true_type {};
-template <> struct is_property<property::no_init> : std::true_type {};
 template <>
 struct is_property<ext::oneapi::property::no_offset> : std::true_type {};
 template <>
@@ -169,19 +164,6 @@ struct is_property_of<ext::intel::property::buffer_location,
                       accessor<DataT, Dimensions, AccessMode, AccessTarget,
                                IsPlaceholder, PropertyListT>> : std::true_type {
 };
-
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-struct is_property_of<
-    property::noinit,
-    image_accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
-    : std::true_type {};
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-struct is_property_of<
-    property::no_init,
-    image_accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
-    : std::true_type {};
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct is_property_of<property::noinit,

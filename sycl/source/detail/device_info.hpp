@@ -1416,6 +1416,13 @@ inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
 // Specializations for intel extensions for Level Zero low-level
 // detail device descriptors (not support on host).
 template <>
+inline uint32_t
+get_device_info_host<ext::intel::info::device::device_id>() {
+  throw runtime_error(
+      "Obtaining the device ID is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+template <>
 inline std::string
 get_device_info_host<ext::intel::info::device::pci_address>() {
   throw runtime_error(
