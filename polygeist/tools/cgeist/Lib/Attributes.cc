@@ -126,15 +126,12 @@ AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind Kind,
 
   switch (Kind) {
   case llvm::Attribute::AttrKind::Alignment:
-    LLVM_FALLTHROUGH;
   case llvm::Attribute::AttrKind::StackAlignment:
     assert(Val <= llvm::Value::MaximumAlignment && "Alignment too large");
     return (!Val) ? *this : Invoke(AddRawIntAttrPtr, Kind, Val);
 
   case llvm::Attribute::AttrKind::Dereferenceable:
-    LLVM_FALLTHROUGH;
   case llvm::Attribute::AttrKind::DereferenceableOrNull:
-    LLVM_FALLTHROUGH;
   case llvm::Attribute::AttrKind::UWTable:
     return (!Val) ? *this : Invoke(AddRawIntAttrPtr, Kind, Val);
 
