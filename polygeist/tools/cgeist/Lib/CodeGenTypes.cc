@@ -125,7 +125,7 @@ addAttributesFromFunctionProtoType(mlirclang::AttrBuilder &FuncAttrs,
 
   if (!isUnresolvedExceptionSpec(FPT->getExceptionSpecType()) &&
       FPT->isNothrow())
-    FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
+    FuncAttrs.addPassThroughAttribute(llvm::Attribute::NoUnwind);
 }
 
 static void addAttributesFromAssumes(mlirclang::AttrBuilder &FuncAttrs,
@@ -142,8 +142,8 @@ static void addAttributesFromAssumes(mlirclang::AttrBuilder &FuncAttrs,
   for (StringRef AttrName : Attrs)
     StrAttrs.push_back(StringAttr::get(Ctx, AttrName));
 
-  FuncAttrs.addAttribute(llvm::AssumptionAttrKey,
-                         mlir::ArrayAttr::get(Ctx, StrAttrs));
+  FuncAttrs.addPassThroughAttribute(llvm::AssumptionAttrKey,
+                                    mlir::ArrayAttr::get(Ctx, StrAttrs));
 }
 
 static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
@@ -153,13 +153,13 @@ static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
     SmallString<32> AttributeName;
     AttributeName += "no-builtin-";
     AttributeName += BuiltinName;
-    FuncAttrs.addAttribute(AttributeName, mlir::UnitAttr());
+    FuncAttrs.addPassThroughAttribute(AttributeName, mlir::UnitAttr());
   };
 
   // First, handle the language options passed through -fno-builtin.
   if (LangOpts.NoBuiltin) {
     // -fno-builtin disables them all.
-    FuncAttrs.addAttribute("no-builtins", mlir::UnitAttr());
+    FuncAttrs.addPassThroughAttribute("no-builtins", mlir::UnitAttr());
     return;
   }
 
@@ -174,7 +174,7 @@ static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
   // If there is a wildcard in the builtin names specified through the
   // attribute, disable them all.
   if (llvm::is_contained(NBA->builtinNames(), "*")) {
-    FuncAttrs.addAttribute("no-builtins", mlir::UnitAttr());
+    FuncAttrs.addPassThroughAttribute("no-builtins", mlir::UnitAttr());
     return;
   }
 
@@ -604,9 +604,10 @@ void CodeGenTypes::constructAttributeList(
                         Ctx, static_cast<mlir::LLVM::cconv::CConv>(CC)));
 
   if (FI.isNoReturn())
-    FuncAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
+    FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoReturn);
   if (FI.isCmseNSCall())
-    FuncAttrsBuilder.addAttribute("cmse_nonsecure_call", UnitAttr::get(Ctx));
+    FuncAttrsBuilder.addPassThroughAttribute("cmse_nonsecure_call",
+                                             UnitAttr::get(Ctx));
 
   // Collect function IR attributes from the callee prototype if we have one.
   addAttributesFromFunctionProtoType(FuncAttrsBuilder,
@@ -626,19 +627,19 @@ void CodeGenTypes::constructAttributeList(
   // information.
   if (TargetDecl) {
     if (TargetDecl->hasAttr<ReturnsTwiceAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::ReturnsTwice);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ReturnsTwice);
     if (TargetDecl->hasAttr<NoThrowAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
     if (TargetDecl->hasAttr<NoReturnAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoReturn);
     if (TargetDecl->hasAttr<ColdAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::Cold);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Cold);
     if (TargetDecl->hasAttr<HotAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::Hot);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Hot);
     if (TargetDecl->hasAttr<NoDuplicateAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoDuplicate);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoDuplicate);
     if (TargetDecl->hasAttr<ConvergentAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::Convergent);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Convergent);
 
     if (const FunctionDecl *Fn = dyn_cast<FunctionDecl>(TargetDecl)) {
       addAttributesFromFunctionProtoType(
@@ -648,7 +649,7 @@ void CodeGenTypes::constructAttributeList(
         auto Kind = Fn->getDeclName().getCXXOverloadedOperator();
         if (CGM.getCodeGenOpts().AssumeSaneOperatorNew &&
             (Kind == OO_New || Kind == OO_Array_New))
-          RetAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+          RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
       }
       const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(Fn);
       const bool IsVirtualCall = MD && MD->isVirtual();
@@ -656,43 +657,43 @@ void CodeGenTypes::constructAttributeList(
       // virtual function. These attributes are not inherited by overloads.
       if (!(AttrOnCallSite && IsVirtualCall)) {
         if (Fn->isNoReturn())
-          FuncAttrsBuilder.addAttribute(llvm::Attribute::NoReturn);
+          FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
       // Only place nomerge attribute on call sites, never functions. This
       // allows it to work on indirect virtual function calls.
       if (AttrOnCallSite && TargetDecl->hasAttr<NoMergeAttr>())
-        FuncAttrsBuilder.addAttribute(llvm::Attribute::NoMerge);
+        FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoMerge);
     }
 
     // 'const', 'pure' and 'noalias' attributed functions are also nounwind.
     if (TargetDecl->hasAttr<ConstAttr>()) {
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::ReadNone);
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ReadNone);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
       // gcc specifies that 'const' functions have greater restrictions than
       // 'pure' functions, so they also cannot have infinite loops.
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::WillReturn);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::WillReturn);
     } else if (TargetDecl->hasAttr<PureAttr>()) {
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::ReadOnly);
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ReadOnly);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
       // gcc specifies that 'pure' functions cannot have infinite loops.
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::WillReturn);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::WillReturn);
     } else if (TargetDecl->hasAttr<NoAliasAttr>()) {
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::ArgMemOnly);
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoUnwind);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ArgMemOnly);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
     }
     if (TargetDecl->hasAttr<RestrictAttr>())
-      RetAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
     if (TargetDecl->hasAttr<ReturnsNonNullAttr>() &&
         !CGM.getCodeGenOpts().NullPointerIsValid)
-      RetAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
+      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
     if (TargetDecl->hasAttr<AnyX86NoCallerSavedRegistersAttr>())
-      FuncAttrsBuilder.addAttribute("no_caller_saved_registers",
-                                    UnitAttr::get(Ctx));
+      FuncAttrsBuilder.addPassThroughAttribute("no_caller_saved_registers",
+                                               UnitAttr::get(Ctx));
     if (TargetDecl->hasAttr<AnyX86NoCfCheckAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoCfCheck);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoCfCheck);
     if (TargetDecl->hasAttr<LeafAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::NoCallback);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoCallback);
 
     HasOptnone = TargetDecl->hasAttr<OptimizeNoneAttr>();
     if (auto *AllocSize = TargetDecl->getAttr<AllocSizeAttr>()) {
@@ -701,21 +702,22 @@ void CodeGenTypes::constructAttributeList(
         NumElemsParam = AllocSize->getNumElemsParam().getLLVMIndex();
       uint64_t RawArgs = packAllocSizeArgs(
           AllocSize->getElemSizeParam().getLLVMIndex(), NumElemsParam);
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::AllocSize, RawArgs);
+      FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::AllocSize,
+                                               RawArgs);
     }
 
     if (TargetDecl->hasAttr<OpenCLKernelAttr>()) {
       if (CGM.getLangOpts().OpenCLVersion <= 120) {
         // OpenCL v1.2 Work groups are always uniform
-        FuncAttrsBuilder.addAttribute("uniform-work-group-size",
-                                      StringAttr::get(Ctx, "true"));
+        FuncAttrsBuilder.addPassThroughAttribute("uniform-work-group-size",
+                                                 StringAttr::get(Ctx, "true"));
       } else {
         // OpenCL v2.0 Work groups may be whether uniform or not.
         // '-cl-uniform-work-group-size' compile option gets a hint
         // to the compiler that the global work-size be a multiple of
         // the work-group size specified to clEnqueueNDRangeKernel
         // (i.e. work groups are uniform).
-        FuncAttrsBuilder.addAttribute(
+        FuncAttrsBuilder.addPassThroughAttribute(
             "uniform-work-group-size",
             StringAttr::get(
                 Ctx, llvm::toStringRef(CGM.getCodeGenOpts().UniformWGSize)));
@@ -742,7 +744,8 @@ void CodeGenTypes::constructAttributeList(
       FuncAttrsBuilder.removeAttribute(
           llvm::Attribute::SpeculativeLoadHardening);
     if (TargetDecl->hasAttr<SpeculativeLoadHardeningAttr>())
-      FuncAttrsBuilder.addAttribute(llvm::Attribute::SpeculativeLoadHardening);
+      FuncAttrsBuilder.addPassThroughAttribute(
+          llvm::Attribute::SpeculativeLoadHardening);
     if (TargetDecl->hasAttr<NoSplitStackAttr>())
       FuncAttrsBuilder.removeAttribute("split-stack");
     if (TargetDecl->hasAttr<ZeroCallUsedRegsAttr>()) {
@@ -750,7 +753,7 @@ void CodeGenTypes::constructAttributeList(
       auto Kind =
           TargetDecl->getAttr<ZeroCallUsedRegsAttr>()->getZeroCallUsedRegs();
       FuncAttrsBuilder.removeAttribute("zero-call-used-regs");
-      FuncAttrsBuilder.addAttribute(
+      FuncAttrsBuilder.addPassThroughAttribute(
           "zero-call-used-regs",
           StringAttr::get(
               Ctx,
@@ -761,7 +764,8 @@ void CodeGenTypes::constructAttributeList(
     if (CGM.getCodeGenOpts().NoPLT) {
       if (auto *Fn = dyn_cast<FunctionDecl>(TargetDecl)) {
         if (!Fn->isDefined() && !AttrOnCallSite) {
-          FuncAttrsBuilder.addAttribute(llvm::Attribute::NonLazyBind);
+          FuncAttrsBuilder.addPassThroughAttribute(
+              llvm::Attribute::NonLazyBind);
         }
       }
     }
@@ -773,8 +777,9 @@ void CodeGenTypes::constructAttributeList(
     if (isa<FunctionDecl>(TargetDecl)) {
       if (CGM.getFunctionLinkage(CalleeInfo.getCalleeDecl()) ==
           llvm::GlobalValue::InternalLinkage)
-        FuncAttrsBuilder.addAttribute("sample-profile-suffix-elision-policy",
-                                      StringAttr::get(Ctx, "selected"));
+        FuncAttrsBuilder.addPassThroughAttribute(
+            "sample-profile-suffix-elision-policy",
+            StringAttr::get(Ctx, "selected"));
     }
   }
 
@@ -782,7 +787,8 @@ void CodeGenTypes::constructAttributeList(
   // information.
   if (!AttrOnCallSite) {
     if (TargetDecl && TargetDecl->hasAttr<CmseNSEntryAttr>())
-      FuncAttrsBuilder.addAttribute("cmse_nonsecure_entry", UnitAttr::get(Ctx));
+      FuncAttrsBuilder.addPassThroughAttribute("cmse_nonsecure_entry",
+                                               UnitAttr::get(Ctx));
 
     // Whether tail calls are enabled.
     auto ShouldDisableTailCalls = [&] {
@@ -806,8 +812,8 @@ void CodeGenTypes::constructAttributeList(
       return false;
     };
     if (ShouldDisableTailCalls())
-      FuncAttrsBuilder.addAttribute("disable-tail-calls",
-                                    StringAttr::get(Ctx, "true"));
+      FuncAttrsBuilder.addPassThroughAttribute("disable-tail-calls",
+                                               StringAttr::get(Ctx, "true"));
 
       // TODO
 #if 0
@@ -848,19 +854,19 @@ void CodeGenTypes::constructAttributeList(
     if (!RetTy->isVoidType() &&
         RetAI.getKind() != clang::CodeGen::ABIArgInfo::Indirect &&
         CodeGenUtils::determineNoUndef(RetTy, CGM.getTypes(), DL, RetAI))
-      RetAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
+      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUndef);
   }
 
   switch (RetAI.getKind()) {
   case clang::CodeGen::ABIArgInfo::Extend:
     if (RetAI.isSignExt())
-      RetAttrsBuilder.addAttribute(llvm::Attribute::SExt);
+      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::SExt);
     else
-      RetAttrsBuilder.addAttribute(llvm::Attribute::ZExt);
+      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ZExt);
     LLVM_FALLTHROUGH;
   case clang::CodeGen::ABIArgInfo::Direct:
     if (RetAI.getInReg())
-      RetAttrsBuilder.addAttribute(llvm::Attribute::InReg);
+      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::InReg);
     break;
   case clang::CodeGen::ABIArgInfo::Ignore:
     break;
@@ -886,17 +892,17 @@ void CodeGenTypes::constructAttributeList(
     if (const auto *RefTy = RetTy->getAs<ReferenceType>()) {
       QualType PTy = RefTy->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
-        RetAttrsBuilder.addAttribute(
+        RetAttrsBuilder.addPassThroughAttribute(
             llvm::Attribute::Dereferenceable,
             CGM.getMinimumObjectSize(PTy).getQuantity());
       if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
-        RetAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
+        RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
         llvm::Align Alignment =
             CGM.getNaturalPointeeTypeAlignment(RetTy).getAsAlign();
-        RetAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
-                                     Alignment.value());
+        RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                                Alignment.value());
       }
     }
   }
@@ -911,13 +917,13 @@ void CodeGenTypes::constructAttributeList(
     // TODO
     auto val = mlir::Attribute::get(Ctx, llvm::Attribute::StructRet,
                                     getMLIRType(RetTy));
-    SRETAttrs.addAttribute(llvm::Attribute::StructRet, val);
+    SRETAttrs.addPassThroughAttribute(llvm::Attribute::StructRet, val);
 #endif
     HasUsedSRet = true;
     if (RetAI.getInReg())
-      SRETAttrs.addAttribute(llvm::Attribute::InReg);
-    SRETAttrs.addAttribute(llvm::Attribute::Alignment,
-                           RetAI.getIndirectAlign().getQuantity());
+      SRETAttrs.addPassThroughAttribute(llvm::Attribute::InReg);
+    SRETAttrs.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                      RetAI.getIndirectAlign().getQuantity());
     ArgAttrs[IRFunctionArgs.getSRetArgNo()] = SRETAttrs.getAttrs();
   }
 
@@ -947,15 +953,16 @@ void CodeGenTypes::constructAttributeList(
 
     if (!CGM.getCodeGenOpts().NullPointerIsValid &&
         CGM.getContext().getTargetAddressSpace(FI.arg_begin()->type) == 0) {
-      AttrsBuilder.addAttribute(llvm::Attribute::NonNull);
-      AttrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
-                                CGM.getMinimumObjectSize(ThisTy).getQuantity());
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
+      AttrsBuilder.addPassThroughAttribute(
+          llvm::Attribute::Dereferenceable,
+          CGM.getMinimumObjectSize(ThisTy).getQuantity());
     } else {
       // FIXME dereferenceable should be correct here, regardless of
       // NullPointerIsValid. However, dereferenceable currently does not always
       // respect NullPointerIsValid and may imply nonnull and break the program.
       // See https://reviews.llvm.org/D66618 for discussions.
-      AttrsBuilder.addAttribute(
+      AttrsBuilder.addPassThroughAttribute(
           llvm::Attribute::DereferenceableOrNull,
           CGM.getMinimumObjectSize(FI.arg_begin()
                                        ->type.castAs<clang::PointerType>()
@@ -968,7 +975,8 @@ void CodeGenTypes::constructAttributeList(
                                     /*TBAAInfo=*/nullptr,
                                     /*forPointeeType=*/true)
             .getAsAlign();
-    AttrsBuilder.addAttribute(llvm::Attribute::Alignment, Alignment.value());
+    AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                         Alignment.value());
     ArgAttrs[IRArgs.first] = AttrsBuilder.getAttrs();
   }
 
@@ -985,7 +993,7 @@ void CodeGenTypes::constructAttributeList(
       if (AI.getPaddingInReg()) {
         ArgAttrs[IRFunctionArgs.getPaddingArgNo(ArgNo)] =
             mlirclang::AttrBuilder(*Ctx)
-                .addAttribute(llvm::Attribute::InReg)
+                .addPassThroughAttribute(llvm::Attribute::InReg)
                 .getAttrs();
       }
     }
@@ -993,7 +1001,7 @@ void CodeGenTypes::constructAttributeList(
     // Decide whether the argument we're handling could be partially undef
     if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
         CodeGenUtils::determineNoUndef(ParamType, CGM.getTypes(), DL, AI)) {
-      AttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUndef);
     }
 
     // 'restrict' -> 'noalias' is done in EmitFunctionProlog when we
@@ -1002,22 +1010,22 @@ void CodeGenTypes::constructAttributeList(
     switch (AI.getKind()) {
     case clang::CodeGen::ABIArgInfo::Extend:
       if (AI.isSignExt())
-        AttrsBuilder.addAttribute(llvm::Attribute::SExt);
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SExt);
       else
-        AttrsBuilder.addAttribute(llvm::Attribute::ZExt);
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::ZExt);
       LLVM_FALLTHROUGH;
     case clang::CodeGen::ABIArgInfo::Direct:
       if (ArgNo == 0 && FI.isChainCall())
-        AttrsBuilder.addAttribute(llvm::Attribute::Nest);
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Nest);
       else if (AI.getInReg())
-        AttrsBuilder.addAttribute(llvm::Attribute::InReg);
-      AttrsBuilder.addAttribute(llvm::Attribute::StackAlignment,
-                                AI.getDirectAlign());
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::InReg);
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::StackAlignment,
+                                           AI.getDirectAlign());
       break;
 
     case clang::CodeGen::ABIArgInfo::Indirect: {
       if (AI.getInReg())
-        AttrsBuilder.addAttribute(llvm::Attribute::InReg);
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::InReg);
 
 #if 0
 // TODO
@@ -1030,7 +1038,7 @@ void CodeGenTypes::constructAttributeList(
           Decl->getArgPassingRestrictions() == RecordDecl::APK_CanPassInRegs)
         // When calling the function, the pointer passed in will be the only
         // reference to the underlying object. Mark it accordingly.
-        AttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
 
       // TODO: We could add the byref attribute if not byval, but it would
       // require updating many testcases.
@@ -1052,8 +1060,8 @@ void CodeGenTypes::constructAttributeList(
       // For now, only add this when we have a byval argument.
       // TODO: be less lazy about updating test cases.
       if (AI.getIndirectByVal())
-        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
-                                  Align.getQuantity());
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                             Align.getQuantity());
 
       // byval disables readnone and readonly.
       FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
@@ -1067,8 +1075,8 @@ void CodeGenTypes::constructAttributeList(
       //TODO
       AttrsBuilder.addByRefAttr(CGM.getTypes().ConvertTypeForMem(ParamType));
 #endif
-      AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
-                                Align.getQuantity());
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                           Align.getQuantity());
       break;
     }
     case clang::CodeGen::ABIArgInfo::Ignore:
@@ -1086,16 +1094,17 @@ void CodeGenTypes::constructAttributeList(
     if (const auto *RefTy = ParamType->getAs<ReferenceType>()) {
       QualType PTy = RefTy->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
-        AttrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
-                                  CGM.getMinimumObjectSize(PTy).getQuantity());
+        AttrsBuilder.addPassThroughAttribute(
+            llvm::Attribute::Dereferenceable,
+            CGM.getMinimumObjectSize(PTy).getQuantity());
       if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
-        AttrsBuilder.addAttribute(llvm::Attribute::NonNull);
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
         llvm::Align Alignment =
             CGM.getNaturalPointeeTypeAlignment(ParamType).getAsAlign();
-        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
-                                  Alignment.value());
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                             Alignment.value());
       }
     }
 
@@ -1108,8 +1117,8 @@ void CodeGenTypes::constructAttributeList(
       QualType PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         CharUnits Alignment = CGM.getNaturalPointeeTypeAlignment(ParamType);
-        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
-                                  Alignment.getQuantity());
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                             Alignment.getQuantity());
       }
     }
 
@@ -1128,35 +1137,35 @@ void CodeGenTypes::constructAttributeList(
     }
 #endif
       // Add 'noalias' in either case.
-      AttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
 
       // Add 'dereferenceable' and 'alignment'.
       auto PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         auto info = CGM.getContext().getTypeInfoInChars(PTy);
-        AttrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
-                                  info.Width.getQuantity());
-        AttrsBuilder.addAttribute(llvm::Attribute::Alignment,
-                                  info.Align.getQuantity());
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Dereferenceable,
+                                             info.Width.getQuantity());
+        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
+                                             info.Align.getQuantity());
       }
       break;
     }
 
     case ParameterABI::SwiftErrorResult:
-      AttrsBuilder.addAttribute(llvm::Attribute::SwiftError);
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SwiftError);
       break;
 
     case ParameterABI::SwiftContext:
-      AttrsBuilder.addAttribute(llvm::Attribute::SwiftSelf);
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SwiftSelf);
       break;
 
     case ParameterABI::SwiftAsyncContext:
-      AttrsBuilder.addAttribute(llvm::Attribute::SwiftAsync);
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SwiftAsync);
       break;
     }
 
     if (FI.getExtParameterInfo(ArgNo).isNoEscape())
-      AttrsBuilder.addAttribute(llvm::Attribute::NoCapture);
+      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoCapture);
 
     if (AttrsBuilder.hasAttributes()) {
       unsigned FirstIRArg, NumIRArgs;
@@ -1581,26 +1590,27 @@ void CodeGenTypes::getDefaultFunctionAttributes(
   // OptimizeNoneAttr takes precedence over -Os or -Oz. No warning needed.
   if (!HasOptnone) {
     if (getCodeGenOpts().OptimizeSize)
-      FuncAttrs.addAttribute(llvm::Attribute::OptimizeForSize);
+      FuncAttrs.addPassThroughAttribute(llvm::Attribute::OptimizeForSize);
     if (getCodeGenOpts().OptimizeSize == 2)
-      FuncAttrs.addAttribute(llvm::Attribute::MinSize);
+      FuncAttrs.addPassThroughAttribute(llvm::Attribute::MinSize);
   }
 
   if (getCodeGenOpts().DisableRedZone)
-    FuncAttrs.addAttribute(llvm::Attribute::NoRedZone);
+    FuncAttrs.addPassThroughAttribute(llvm::Attribute::NoRedZone);
   if (getCodeGenOpts().IndirectTlsSegRefs)
-    FuncAttrs.addAttribute("indirect-tls-seg-refs", UnitAttr::get(Ctx));
+    FuncAttrs.addPassThroughAttribute("indirect-tls-seg-refs",
+                                      UnitAttr::get(Ctx));
   if (getCodeGenOpts().NoImplicitFloat)
-    FuncAttrs.addAttribute(llvm::Attribute::NoImplicitFloat);
+    FuncAttrs.addPassThroughAttribute(llvm::Attribute::NoImplicitFloat);
 
   if (AttrOnCallSite) {
     // Attributes that should go on the call site only.
     // FIXME: Look for 'BuiltinAttr' on the function rather than re-checking
     // the -fno-builtin-foo list.
     if (!getCodeGenOpts().SimplifyLibCalls || LangOpts.isNoBuiltinFunc(Name))
-      FuncAttrs.addAttribute(llvm::Attribute::NoBuiltin);
+      FuncAttrs.addPassThroughAttribute(llvm::Attribute::NoBuiltin);
     if (!getCodeGenOpts().TrapFuncName.empty())
-      FuncAttrs.addAttribute(
+      FuncAttrs.addPassThroughAttribute(
           "trap-func-name",
           StringAttr::get(Ctx, getCodeGenOpts().TrapFuncName));
   } else {
@@ -1616,69 +1626,77 @@ void CodeGenTypes::getDefaultFunctionAttributes(
       FpKind = "all";
       break;
     }
-    FuncAttrs.addAttribute("frame-pointer", StringAttr::get(Ctx, FpKind));
+    FuncAttrs.addPassThroughAttribute("frame-pointer",
+                                      StringAttr::get(Ctx, FpKind));
 
     if (getCodeGenOpts().LessPreciseFPMAD)
-      FuncAttrs.addAttribute("less-precise-fpmad",
-                             StringAttr::get(Ctx, "true"));
+      FuncAttrs.addPassThroughAttribute("less-precise-fpmad",
+                                        StringAttr::get(Ctx, "true"));
 
     if (getCodeGenOpts().NullPointerIsValid)
-      FuncAttrs.addAttribute(llvm::Attribute::NullPointerIsValid);
+      FuncAttrs.addPassThroughAttribute(llvm::Attribute::NullPointerIsValid);
 
     if (getCodeGenOpts().FPDenormalMode != llvm::DenormalMode::getIEEE())
-      FuncAttrs.addAttribute(
+      FuncAttrs.addPassThroughAttribute(
           "denormal-fp-math",
           StringAttr::get(Ctx, getCodeGenOpts().FPDenormalMode.str()));
     if (getCodeGenOpts().FP32DenormalMode != getCodeGenOpts().FPDenormalMode) {
-      FuncAttrs.addAttribute(
+      FuncAttrs.addPassThroughAttribute(
           "denormal-fp-math-f32",
           StringAttr::get(Ctx, getCodeGenOpts().FP32DenormalMode.str()));
     }
 
     if (LangOpts.getDefaultExceptionMode() == LangOptions::FPE_Ignore)
-      FuncAttrs.addAttribute("no-trapping-math", StringAttr::get(Ctx, "true"));
+      FuncAttrs.addPassThroughAttribute("no-trapping-math",
+                                        StringAttr::get(Ctx, "true"));
 
     // TODO: Are these all needed?
     // unsafe/inf/nan/nsz are handled by instruction-level FastMathFlags.
     if (LangOpts.NoHonorInfs)
-      FuncAttrs.addAttribute("no-infs-fp-math", StringAttr::get(Ctx, "true"));
+      FuncAttrs.addPassThroughAttribute("no-infs-fp-math",
+                                        StringAttr::get(Ctx, "true"));
     if (LangOpts.NoHonorNaNs)
-      FuncAttrs.addAttribute("no-nans-fp-math", StringAttr::get(Ctx, "true"));
+      FuncAttrs.addPassThroughAttribute("no-nans-fp-math",
+                                        StringAttr::get(Ctx, "true"));
     if (LangOpts.ApproxFunc)
-      FuncAttrs.addAttribute("approx-func-fp-math",
-                             StringAttr::get(Ctx, "true"));
+      FuncAttrs.addPassThroughAttribute("approx-func-fp-math",
+                                        StringAttr::get(Ctx, "true"));
     if (LangOpts.UnsafeFPMath)
-      FuncAttrs.addAttribute("unsafe-fp-math", StringAttr::get(Ctx, "true"));
+      FuncAttrs.addPassThroughAttribute("unsafe-fp-math",
+                                        StringAttr::get(Ctx, "true"));
     if (getCodeGenOpts().SoftFloat)
-      FuncAttrs.addAttribute("use-soft-float", StringAttr::get(Ctx, "true"));
-    FuncAttrs.addAttribute(
+      FuncAttrs.addPassThroughAttribute("use-soft-float",
+                                        StringAttr::get(Ctx, "true"));
+    FuncAttrs.addPassThroughAttribute(
         "stack-protector-buffer-size",
         StringAttr::get(Ctx, llvm::utostr(getCodeGenOpts().SSPBufferSize)));
     if (LangOpts.NoSignedZero)
-      FuncAttrs.addAttribute("no-signed-zeros-fp-math",
-                             StringAttr::get(Ctx, "true"));
+      FuncAttrs.addPassThroughAttribute("no-signed-zeros-fp-math",
+                                        StringAttr::get(Ctx, "true"));
 
     // TODO: Reciprocal estimate codegen options should apply to instructions?
     const std::vector<std::string> &Recips = getCodeGenOpts().Reciprocals;
     if (!Recips.empty())
-      FuncAttrs.addAttribute("reciprocal-estimates",
-                             StringAttr::get(Ctx, llvm::join(Recips, ",")));
+      FuncAttrs.addPassThroughAttribute(
+          "reciprocal-estimates",
+          StringAttr::get(Ctx, llvm::join(Recips, ",")));
 
     if (!getCodeGenOpts().PreferVectorWidth.empty() &&
         getCodeGenOpts().PreferVectorWidth != "none")
-      FuncAttrs.addAttribute(
+      FuncAttrs.addPassThroughAttribute(
           "prefer-vector-width",
           StringAttr::get(Ctx, getCodeGenOpts().PreferVectorWidth));
 
     if (getCodeGenOpts().StackRealignment)
-      FuncAttrs.addAttribute("stackrealign", UnitAttr::get(Ctx));
+      FuncAttrs.addPassThroughAttribute("stackrealign", UnitAttr::get(Ctx));
     if (getCodeGenOpts().Backchain)
-      FuncAttrs.addAttribute("backchain", UnitAttr::get(Ctx));
+      FuncAttrs.addPassThroughAttribute("backchain", UnitAttr::get(Ctx));
     if (getCodeGenOpts().EnableSegmentedStacks)
-      FuncAttrs.addAttribute("split-stack", UnitAttr::get(Ctx));
+      FuncAttrs.addPassThroughAttribute("split-stack", UnitAttr::get(Ctx));
 
     if (getCodeGenOpts().SpeculativeLoadHardening)
-      FuncAttrs.addAttribute(llvm::Attribute::SpeculativeLoadHardening);
+      FuncAttrs.addPassThroughAttribute(
+          llvm::Attribute::SpeculativeLoadHardening);
 
     // Add zero-call-used-regs attribute.
     switch (getCodeGenOpts().getZeroCallUsedRegs()) {
@@ -1686,36 +1704,36 @@ void CodeGenTypes::getDefaultFunctionAttributes(
       FuncAttrs.removeAttribute("zero-call-used-regs");
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::UsedGPRArg:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "used-gpr-arg"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "used-gpr-arg"));
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::UsedGPR:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "used-gpr"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "used-gpr"));
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::UsedArg:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "used-arg"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "used-arg"));
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::Used:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "used"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "used"));
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::AllGPRArg:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "all-gpr-arg"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "all-gpr-arg"));
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::AllGPR:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "all-gpr"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "all-gpr"));
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::AllArg:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "all-arg"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "all-arg"));
       break;
     case llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::All:
-      FuncAttrs.addAttribute("zero-call-used-regs",
-                             StringAttr::get(Ctx, "all"));
+      FuncAttrs.addPassThroughAttribute("zero-call-used-regs",
+                                        StringAttr::get(Ctx, "all"));
       break;
     }
   }
@@ -1726,21 +1744,20 @@ void CodeGenTypes::getDefaultFunctionAttributes(
     // as __syncthreads() / barrier(), and so can't have certain optimizations
     // applied around them).  LLVM will remove this attribute where it safely
     // can.
-    FuncAttrs.addAttribute(llvm::Attribute::Convergent);
+    FuncAttrs.addPassThroughAttribute(llvm::Attribute::Convergent);
   }
 
   // TODO: NoUnwind attribute should be added for other GPU modes OpenCL, HIP,
   // SYCL, OpenMP offload. AFAIK, none of them support exceptions in device
   // code.
-  if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
-    // Exceptions aren't supported in CUDA device code.
-    FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
-  }
+  if ((LangOpts.CUDA && LangOpts.CUDAIsDevice) ||
+      (LangOpts.isSYCL() && LangOpts.SYCLIsDevice))
+    FuncAttrs.addPassThroughAttribute(llvm::Attribute::NoUnwind);
 
   for (StringRef Attr : CGM.getCodeGenOpts().DefaultFunctionAttrs) {
     StringRef Var, Value;
     std::tie(Var, Value) = Attr.split('=');
-    FuncAttrs.addAttribute(Var, StringAttr::get(Ctx, Value));
+    FuncAttrs.addPassThroughAttribute(Var, StringAttr::get(Ctx, Value));
   }
 }
 

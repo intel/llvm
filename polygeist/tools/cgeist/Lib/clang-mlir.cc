@@ -69,7 +69,7 @@ static cl::opt<bool>
                        cl::desc("Use old way to compute the function type"));
 
 static cl::opt<bool> UseOldAttributeImpl(
-    "old-func-attrs", cl::init(true),
+    "old-func-attrs", cl::init(false),
     cl::desc("Use old way to compute function attributes "));
 
 cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
@@ -3495,10 +3495,244 @@ void MLIRASTConsumer::setMLIRFunctionVisibility(
   SymbolTable::setSymbolVisibility(function, visibility);
 }
 
+/// Determines whether the language options require us to model
+/// unwind exceptions.  We treat -fexceptions as mandating this
+/// except under the fragile ObjC ABI with only ObjC exceptions
+/// enabled.  This means, for example, that C with -fexceptions
+/// enables this.
+static bool hasUnwindExceptions(const LangOptions &LangOpts) {
+  // If exceptions are completely disabled, obviously this is false.
+  if (!LangOpts.Exceptions)
+    return false;
+
+  // If C++ exceptions are enabled, this is true.
+  if (LangOpts.CXXExceptions)
+    return true;
+
+  // If ObjC exceptions are enabled, this depends on the ABI.
+  if (LangOpts.ObjCExceptions)
+    return LangOpts.ObjCRuntime.hasUnwindExceptions();
+
+  return true;
+}
+
+void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
+    const Decl *D, mlir::FunctionOpInterface F) const {
+  const CodeGenOptions &CodeGenOpts = CGM.getCodeGenOpts();
+  const LangOptions &LangOpts = CGM.getLangOpts();
+  MLIRContext *Ctx = module->getContext();
+  mlirclang::AttrBuilder B(*Ctx);
+
+  if (CodeGenOpts.UnwindTables)
+    B.addAttribute(llvm::Attribute::UWTable,
+                   uint64_t(llvm::UWTableKind(CodeGenOpts.UnwindTables)));
+
+  if (CodeGenOpts.StackClashProtector)
+    B.addAttribute("probe-stack", mlir::StringAttr::get(Ctx, "inline-asm"));
+
+  if (!hasUnwindExceptions(LangOpts))
+    B.addAttribute(llvm::Attribute::NoUnwind);
+
+  if (!D || !D->hasAttr<NoStackProtectorAttr>()) {
+    if (LangOpts.getStackProtector() == LangOptions::SSPOn)
+      B.addAttribute(llvm::Attribute::StackProtect);
+    else if (LangOpts.getStackProtector() == LangOptions::SSPStrong)
+      B.addAttribute(llvm::Attribute::StackProtectStrong);
+    else if (LangOpts.getStackProtector() == LangOptions::SSPReq)
+      B.addAttribute(llvm::Attribute::StackProtectReq);
+  }
+
+  if (!D) {
+    // If we don't have a declaration to control inlining, the function isn't
+    // explicitly marked as alwaysinline for semantic reasons, and inlining is
+    // disabled, mark the function as noinline.
+    if (!F->hasAttr(llvm::Attribute::getNameFromAttrKind(
+            llvm::Attribute::AlwaysInline)) &&
+        CodeGenOpts.getInlining() == CodeGenOptions::OnlyAlwaysInlining)
+      B.addAttribute(llvm::Attribute::NoInline);
+
+    mlir::NamedAttrList attrs(F->getAttrDictionary());
+    attrs.append(B.getAttrs());
+    F->setAttrs(attrs.getDictionary(Ctx));
+
+    return;
+  }
+
+  // Track whether we need to add the optnone LLVM attribute,
+  // starting with the default for this optimization level.
+  bool ShouldAddOptNone =
+      !CodeGenOpts.DisableO0ImplyOptNone && CodeGenOpts.OptimizationLevel == 0;
+  // We can't add optnone in the following cases, it won't pass the verifier.
+  ShouldAddOptNone &= !D->hasAttr<MinSizeAttr>();
+  ShouldAddOptNone &= !D->hasAttr<AlwaysInlineAttr>();
+
+  // Add optnone, but do so only if the function isn't always_inline.
+  if ((ShouldAddOptNone || D->hasAttr<OptimizeNoneAttr>()) &&
+      !F->hasAttr(llvm::Attribute::getNameFromAttrKind(
+          llvm::Attribute::AlwaysInline))) {
+    B.addAttribute(llvm::Attribute::OptimizeNone);
+
+    // OptimizeNone implies noinline; we should not be inlining such functions.
+    B.addAttribute(llvm::Attribute::NoInline);
+
+    // We still need to handle naked functions even though optnone subsumes
+    // much of their semantics.
+    if (D->hasAttr<NakedAttr>())
+      B.addAttribute(llvm::Attribute::Naked);
+
+    // OptimizeNone wins over OptimizeForSize and MinSize.
+    F->removeAttr(
+        llvm::Attribute::getNameFromAttrKind(llvm::Attribute::OptimizeForSize));
+    F->removeAttr(
+        llvm::Attribute::getNameFromAttrKind(llvm::Attribute::MinSize));
+  } else if (D->hasAttr<NakedAttr>()) {
+    // Naked implies noinline: we should not be inlining such functions.
+    B.addAttribute(llvm::Attribute::Naked);
+    B.addAttribute(llvm::Attribute::NoInline);
+  } else if (D->hasAttr<NoDuplicateAttr>()) {
+    B.addAttribute(llvm::Attribute::NoDuplicate);
+  } else if (D->hasAttr<NoInlineAttr>() &&
+             !F->hasAttr(llvm::Attribute::getNameFromAttrKind(
+                 llvm::Attribute::AlwaysInline))) {
+    // Add noinline if the function isn't always_inline.
+    B.addAttribute(llvm::Attribute::NoInline);
+  } else if (D->hasAttr<AlwaysInlineAttr>() &&
+             !F->hasAttr(llvm::Attribute::getNameFromAttrKind(
+                 llvm::Attribute::NoInline))) {
+    // (noinline wins over always_inline, and we can't specify both in IR)
+    B.addAttribute(llvm::Attribute::AlwaysInline);
+  } else if (CodeGenOpts.getInlining() == CodeGenOptions::OnlyAlwaysInlining) {
+    // If we're not inlining, then force everything that isn't always_inline to
+    // carry an explicit noinline attribute.
+    if (!F->hasAttr(llvm::Attribute::getNameFromAttrKind(
+            llvm::Attribute::AlwaysInline)))
+      B.addAttribute(llvm::Attribute::NoInline);
+  } else {
+    // Otherwise, propagate the inline hint attribute and potentially use its
+    // absence to mark things as noinline.
+    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+      // Search function and template pattern redeclarations for inline.
+      auto CheckForInline = [](const FunctionDecl *FD) {
+        auto CheckRedeclForInline = [](const FunctionDecl *Redecl) {
+          return Redecl->isInlineSpecified();
+        };
+        if (any_of(FD->redecls(), CheckRedeclForInline))
+          return true;
+        const FunctionDecl *Pattern = FD->getTemplateInstantiationPattern();
+        if (!Pattern)
+          return false;
+        return any_of(Pattern->redecls(), CheckRedeclForInline);
+      };
+      if (CheckForInline(FD)) {
+        B.addPassThroughAttribute(llvm::Attribute::InlineHint);
+      } else if (CodeGenOpts.getInlining() ==
+                     CodeGenOptions::OnlyHintInlining &&
+                 !FD->isInlined() &&
+                 !F->hasAttr(llvm::Attribute::getNameFromAttrKind(
+                     llvm::Attribute::AlwaysInline))) {
+        B.addPassThroughAttribute(llvm::Attribute::NoInline);
+      }
+    }
+  }
+
+  // Add other optimization related attributes if we are optimizing this
+  // function.
+  if (!D->hasAttr<OptimizeNoneAttr>()) {
+    if (D->hasAttr<ColdAttr>()) {
+      if (!ShouldAddOptNone)
+        B.addAttribute(llvm::Attribute::OptimizeForSize);
+      B.addAttribute(llvm::Attribute::Cold);
+    }
+    if (D->hasAttr<HotAttr>())
+      B.addAttribute(llvm::Attribute::Hot);
+    if (D->hasAttr<MinSizeAttr>())
+      B.addAttribute(llvm::Attribute::MinSize);
+  }
+
+  NamedAttrList attrs(F->getAttrDictionary());
+  attrs.append(B.getAttrs());
+  F->setAttrs(attrs.getDictionary(Ctx));
+
+  unsigned alignment = D->getMaxAlignment() / CGM.getContext().getCharWidth();
+  if (alignment) {
+    OpBuilder Builder(Ctx);
+    F->setAttr(llvm::Attribute::getNameFromAttrKind(llvm::Attribute::Alignment),
+               Builder.getIntegerAttr(Builder.getIntegerType(64), alignment));
+  }
+
+  if (!D->hasAttr<AlignedAttr>())
+    if (LangOpts.FunctionAlignment) {
+      OpBuilder Builder(Ctx);
+      F->setAttr(
+          llvm::Attribute::getNameFromAttrKind(llvm::Attribute::Alignment),
+          Builder.getIntegerAttr(Builder.getIntegerType(64),
+                                 1ull << LangOpts.FunctionAlignment));
+    }
+
+#if 0
+  // Some C++ ABIs require 2-byte alignment for member functions, in order to
+  // reserve a bit for differentiating between virtual and non-virtual member
+  // functions. If the current target's C++ ABI requires this and this is a
+  // member function, set its alignment accordingly.
+  if (CGM.getTarget().getCXXABI().areMemberFunctionsAligned()) {
+    StringRef AlignAttrName =
+        llvm::Attribute::getNameFromAttrKind(llvm::Attribute::Alignment);
+    if (auto AlignmentAttr =
+            F->getAttrOfType<mlir::NamedAttribute>(AlignAttrName)) {
+      //      assert(isa<NamedAttribute>(AlignmentAttr));
+      mlir::Attribute AlignValAttr =
+          static_cast<mlir::NamedAttribute>(AlignmentAttr).getValue();
+      unsigned AlignVal = AlignValAttr.cast<mlir::IntegerAttr>().getInt();
+      if (AlignVal < 2 && isa<CXXMethodDecl>(D)) {
+        OpBuilder Builder(Ctx);
+        F->setAttr(
+            llvm::Attribute::getNameFromAttrKind(llvm::Attribute::Alignment),
+            Builder.getIntegerAttr(Builder.getIntegerType(64), 2));
+      }
+    }
+  }
+#endif
+
+#if 0
+  // In the cross-dso CFI mode with canonical jump tables, we want !type
+  // attributes on definitions only.
+  if (CodeGenOpts.SanitizeCfiCrossDso &&
+      CodeGenOpts.SanitizeCfiCanonicalJumpTables) {
+    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+      // Skip available_externally functions. They won't be codegen'ed in the
+      // current module anyway.
+      if (CGM.getContext().GetGVALinkageForFunction(FD) !=
+          GVA_AvailableExternally)
+        CreateFunctionTypeMetadataForIcall(FD, F);
+    }
+  }
+  
+  // Emit type metadata on member functions for member function pointer checks.
+  // These are only ever necessary on definitions; we're guaranteed that the
+  // definition will be present in the LTO unit as a result of LTO visibility.
+  auto *MD = dyn_cast<CXXMethodDecl>(D);
+  if (MD && requiresMemberFunctionPointerTypeMetadata(*this, MD)) {
+    for (const CXXRecordDecl *Base : getMostBaseClasses(MD->getParent())) {
+      llvm::Metadata *Id =
+          CreateMetadataIdentifierForType(Context.getMemberPointerType(
+              MD->getType(), Context.getRecordType(Base).getTypePtr()));
+      F->addTypeMetadata(0, Id);
+    }
+  }
+#endif
+}
+
 void MLIRASTConsumer::setMLIRFunctionAttributes(
     mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
     const clang::CodeGen::CGFunctionInfo &FI, bool IsThunk, bool ShouldEmit) {
   using Attribute = llvm::Attribute;
+
+  auto printAttrs = [&](const mlir::NamedAttribute &attr) {
+    llvm::dbgs() << attr.getName();
+    if (attr.getValue() != UnitAttr::get(module->getContext()))
+      llvm::dbgs() << " = " << attr.getValue();
+    llvm::dbgs() << ", ";
+  };
 
   const FunctionDecl &FD = FTE.getDecl();
   MLIRContext *ctx = module->getContext();
@@ -3539,9 +3773,20 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     // function declaration.
     mlirclang::AttrBuilder attrBuilder(*ctx);
     {
-      // If we're in C++ mode and the function name is "main", it is guaranteed
-      // to be norecurse by the standard (3.6.1.3 "The function main shall not
-      // be used within a program").
+      if (FD.hasAttr<SYCLKernelAttr>())
+        attrBuilder.addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
+                                 UnitAttr::get(ctx));
+
+      if (CGM.getLangOpts().SYCLIsDevice) {
+        NamedAttribute NamedAttr = mlirclang::AttrBuilder::createNamedAttr(
+            StringAttr::get(ctx, "sycl-module-id"),
+            StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
+        attrBuilder.addPassThroughAttribute(NamedAttr);
+      }
+
+      // If we're in C++ mode and the function name is "main", it is
+      // guaranteed to be norecurse by the standard (3.6.1.3 "The function
+      // main shall not be used within a program").
       //
       // OpenCL C 2.0 v2.2-11 s6.9.i:
       //     Recursion is not supported.
@@ -3552,11 +3797,13 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
       //     are not compiled for the device.
       if ((CGM.getLangOpts().CPlusPlus && FD.isMain()) ||
           CGM.getLangOpts().OpenCL || CGM.getLangOpts().SYCLIsDevice ||
-          (CGM.getLangOpts().CUDA && FD.hasAttr<CUDAGlobalAttr>())) {
+          (CGM.getLangOpts().CUDA && FD.hasAttr<CUDAGlobalAttr>()))
         attrBuilder.addPassThroughAttribute(
             llvm::Attribute::AttrKind::NoRecurse);
-      }
 
+      // Note: this one is incorrect because we should traverse the function
+      // body before setting this attribute. If the body does not contain
+      // any infinite loops the attributes can be set.
       auto functionMustProgress =
           [](const clang::CodeGen::CodeGenModule &CGM) -> bool {
         if (CGM.getCodeGenOpts().getFiniteLoops() ==
@@ -3569,11 +3816,10 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
         attrBuilder.addPassThroughAttribute(Attribute::AttrKind::MustProgress);
     }
 
-    // Merge the attribute lists.
+    setMLIRFunctionAttributesForDefinition(&FD, function);
+
     PAL.addFnAttrs(attrBuilder);
   }
-
-  NamedAttrList attrs(function->getAttrDictionary());
 
   // Old way to compute function attributes.
   // TODO: remove once we are happy with the new way to compute function
@@ -3582,12 +3828,11 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   {
     // Mark a SYCL kernel as a SPIRV kernel.
     if (FD.hasAttr<SYCLKernelAttr>()) {
-      attrBuilder
-          .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
-                        UnitAttr::get(ctx))
-          .addPassThroughAttribute(ArrayAttr::get(
-              ctx, {StringAttr::get(ctx, "sycl-module-id"),
-                    StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
+      NamedAttribute NamedAttr = mlirclang::AttrBuilder::createNamedAttr(
+          StringAttr::get(ctx, "sycl-module-id"),
+          StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
+      attrBuilder.addPassThroughAttribute(NamedAttr).addAttribute(
+          gpu::GPUDialect::getKernelFuncAttrName(), UnitAttr::get(ctx));
     }
 
     // Calling conventions for SPIRV functions.
@@ -3623,13 +3868,6 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   const mlir::NamedAttrList &newAttrs = PAL.getFnAttrs();
   const mlir::NamedAttrList &oldAttrs = attrBuilder.getAttrs();
 
-  auto printAttrs = [&](const mlir::NamedAttribute &attr) {
-    llvm::dbgs() << attr.getName();
-    if (attr.getValue() != UnitAttr::get(ctx))
-      llvm::dbgs() << " = " << attr.getValue();
-    llvm::dbgs() << ", ";
-  };
-
   llvm::dbgs() << "New attributes: ";
   for (const NamedAttribute &attr : newAttrs)
     printAttrs(attr);
@@ -3641,8 +3879,30 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
                  << "\n";
   }
 
-  attrs.append(UseOldAttributeImpl ? oldAttrs : newAttrs);
-  function->setAttrs(attrs.getDictionary(ctx));
+  NamedAttrList FnAttrs(function->getAttrDictionary());
+
+  // merge the attribute lists.
+  // TODO: place this as a static function in AttrBuilder ????
+  for (const NamedAttribute &Attr : UseOldAttributeImpl ? oldAttrs : newAttrs) {
+    Optional<NamedAttribute> ExistingAttr = FnAttrs.getNamed(Attr.getName());
+    if (!ExistingAttr) {
+      FnAttrs.append(Attr);
+      continue;
+    }
+
+    // Add the new attribute to the existing passthrough attributes list.
+    if (ExistingAttr->getName() == "passthrough") {
+      auto Attrs = Attr.getValue().cast<ArrayAttr>();
+      mlirclang::AttrBuilder::addToPassThroughAttr(*ExistingAttr, Attrs, *ctx);
+      llvm::dbgs() << "ExistingAttr after adding: ";
+      printAttrs(*ExistingAttr);
+
+      FnAttrs.set(ExistingAttr->getName(), ExistingAttr->getValue());
+    }
+  }
+
+  //  FnAttrs.append(UseOldAttributeImpl ? oldAttrs : newAttrs);
+  function->setAttrs(FnAttrs.getDictionary(ctx));
 }
 
 void MLIRASTConsumer::setMLIRFunctionParmsAttributes(

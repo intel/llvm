@@ -314,6 +314,9 @@ private:
       mlir::FunctionOpInterface function,
       const llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors)
       const;
+
+  void setMLIRFunctionAttributesForDefinition(
+      const clang::Decl *D, mlir::FunctionOpInterface function) const;
 };
 
 class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
