@@ -126,7 +126,6 @@ private:
   }
 };
 
-
 template <> class SYCLConfig<SYCL_PI_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
 

@@ -67,8 +67,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
 
     std::vector<device> found_devices(plt.get_devices(deviceType));
     if (!found_devices.empty())
-      devices.insert(devices.end(), found_devices.begin(),
-                     found_devices.end());
+      devices.insert(devices.end(), found_devices.begin(), found_devices.end());
   }
   std::cout << devices.size() << std::endl;
 

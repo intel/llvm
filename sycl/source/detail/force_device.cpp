@@ -21,9 +21,7 @@ bool match_types(const info::device_type &l, const info::device_type &r) {
   return l == info::device_type::all || l == r || r == info::device_type::all;
 }
 
-info::device_type get_forced_type() {
-  return info::device_type::all;
-}
+info::device_type get_forced_type() { return info::device_type::all; }
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
