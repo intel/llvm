@@ -319,7 +319,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
     {
       Tracer t("removeMemoryObject::waitForRecordToFinish for record = " +
-        std::to_string(reinterpret_cast<long long>(Record)));
+               std::to_string(reinterpret_cast<long long>(Record)));
 
       ReadLockT Lock = acquireReadLock();
       waitForRecordToFinish(Record, Lock);
@@ -327,7 +327,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     {
       WriteLockT Lock = acquireWriteLock();
       Tracer t("removeRecordForMemObj for record = " +
-        std::to_string(reinterpret_cast<long long>(Record)));
+               std::to_string(reinterpret_cast<long long>(Record)));
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
                                              AuxResourcesToDeallocate);
