@@ -446,16 +446,16 @@ private:
         SpecializationInfo &S = I.first->second;
 
         if (I.second)
-          S.Gain = ForceFunctionSpecialization ? 1 : 0 - Cost;
-        if (!ForceFunctionSpecialization)
-          S.Gain += getSpecializationBonus(&FormalArg, ActualArg);
+          S.Gain = 0 - Cost;
+        S.Gain += getSpecializationBonus(&FormalArg, ActualArg);
         S.Args.push_back({&FormalArg, ActualArg});
       }
     }
 
     // Remove unprofitable specializations.
-    Specializations.remove_if(
-        [](const auto &Entry) { return Entry.second.Gain <= 0; });
+    if (!ForceFunctionSpecialization)
+      Specializations.remove_if(
+          [](const auto &Entry) { return Entry.second.Gain <= 0; });
 
     // Clear the MapVector and return the underlying vector.
     WorkList = Specializations.takeVector();
@@ -552,11 +552,9 @@ private:
     // inlined so that we shouldn't specialize it.
     if (Metrics.notDuplicatable || !Metrics.NumInsts.isValid() ||
         (!ForceFunctionSpecialization &&
-         Metrics.NumInsts < SmallFunctionThreshold)) {
-      InstructionCost C{};
-      C.setInvalid();
-      return C;
-    }
+         !F->hasFnAttribute(Attribute::NoInline) &&
+         Metrics.NumInsts < SmallFunctionThreshold))
+      return InstructionCost::getInvalid();
 
     // Otherwise, set the specialization cost to be the cost of all the
     // instructions in the function and penalty for specializing more functions.
@@ -733,18 +731,17 @@ private:
 
       auto *V = CS.getArgOperand(A->getArgNo());
       if (isa<PoisonValue>(V))
-        return;
+        continue;
 
       // TrackValueOfGlobalVariable only tracks scalar global variables.
       if (auto *GV = dyn_cast<GlobalVariable>(V)) {
         // Check if we want to specialize on the address of non-constant
         // global values.
-        if (!GV->isConstant())
-          if (!SpecializeOnAddresses)
-            return;
+        if (!GV->isConstant() && !SpecializeOnAddresses)
+          continue;
 
         if (!GV->getValueType()->isSingleValueType())
-          return;
+          continue;
       }
 
       if (isa<Constant>(V) && (Solver.getLatticeValueFor(V).isConstant() ||
