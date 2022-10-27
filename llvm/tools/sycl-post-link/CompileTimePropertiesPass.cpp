@@ -131,13 +131,13 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
   Decor DecorFound = DecorIt->second;
   uint32_t DecorCode = DecorFound.Code;
   switch (DecorFound.Type) {
-    case DecorValueTy::uint32:
-      return buildSpirvDecorMetadata(Ctx, DecorCode,
-                                     getAttributeAsInteger<uint32_t>(Attr));
-    case DecorValueTy::boolean:
-      return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
-    default:
-      llvm_unreachable("Unhandled decorator type.");
+  case DecorValueTy::uint32:
+    return buildSpirvDecorMetadata(Ctx, DecorCode,
+                                   getAttributeAsInteger<uint32_t>(Attr));
+  case DecorValueTy::boolean:
+    return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
+  default:
+    llvm_unreachable("Unhandled decorator type.");
   }
 }
 
@@ -184,8 +184,8 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
     // Get the integers from the strings.
     SmallVector<Metadata *, 3> MDVals;
     for (StringRef ValStr : ValStrs)
-      MDVals.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
-          SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
 
     // The SPIR-V translator expects 3 values, so we pad the remaining
     // dimensions with 1.
@@ -261,49 +261,51 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
-	{
-		// Process all properties on kernels arugments
-		SmallVector<Metadata *, 8> MDOps;
-		for (unsigned i = 0; i < F.arg_size(); i++) {
-		  SmallVector<Metadata *, 8> MDArgOps;
-		  for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
-			if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
-			  MDArgOps.push_back(SPIRVMetadata);
-		  }
-		  MDOps.push_back(MDNode::get(Ctx, MDArgOps));
-		}
-		// Add the generated metadata to the kernel function.
-		if (!MDOps.empty()) {
-		  F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
-		  CompileTimePropertiesMet = true;
-		}
-	}
+    {
+      // Process all properties on kernels arugments
+      SmallVector<Metadata *, 8> MDOps;
+      for (unsigned i = 0; i < F.arg_size(); i++) {
+        SmallVector<Metadata *, 8> MDArgOps;
+        for (auto &Attribute : F.getAttributes().getParamAttrs(i)) {
+          if (MDNode *SPIRVMetadata =
+                  attributeToDecorateMetadata(Ctx, Attribute))
+            MDArgOps.push_back(SPIRVMetadata);
+        }
+        MDOps.push_back(MDNode::get(Ctx, MDArgOps));
+      }
+      // Add the generated metadata to the kernel function.
+      if (!MDOps.empty()) {
+        F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
+        CompileTimePropertiesMet = true;
+      }
+    }
 
-	{
-		// Process all properties on kernels.
-		SmallVector<Metadata *, 8> MDOps;
-		SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
-		for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
-		  if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
-			MDOps.push_back(SPIRVMetadata);
-		  else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
-			NamedMDOps.push_back(*NamedMetadata);
-		}
+    {
+      // Process all properties on kernels.
+      SmallVector<Metadata *, 8> MDOps;
+      SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
+      for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
+        if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
+          MDOps.push_back(SPIRVMetadata);
+        else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
+          NamedMDOps.push_back(*NamedMetadata);
+      }
 
-		// Add the generated metadata to the kernel function.
-		if (!MDOps.empty()) {
-		  F.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
-		  CompileTimePropertiesMet = true;
-		}
+      // Add the generated metadata to the kernel function.
+      if (!MDOps.empty()) {
+        F.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
+        CompileTimePropertiesMet = true;
+      }
 
-		// Add the new named metadata to the kernel function.
-		for (std::pair<std::string, MDNode *> NamedMD : NamedMDOps) {
-		  // If multiple sources defined this metadata, prioritize the existing one.
-		  if (F.hasMetadata(NamedMD.first))
-			continue;
-		  F.addMetadata(NamedMD.first, *NamedMD.second);
-		}
-	}
+      // Add the new named metadata to the kernel function.
+      for (std::pair<std::string, MDNode *> NamedMD : NamedMDOps) {
+        // If multiple sources defined this metadata, prioritize the existing
+        // one.
+        if (F.hasMetadata(NamedMD.first))
+          continue;
+        F.addMetadata(NamedMD.first, *NamedMD.second);
+      }
+    }
   }
 
   // Check pointer annotations.
