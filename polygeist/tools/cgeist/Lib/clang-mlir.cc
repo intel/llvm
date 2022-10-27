@@ -3506,9 +3506,9 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     attrBuilder
         .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
                       UnitAttr::get(ctx))
-        .addPassThroughAttribute(ArrayAttr::get(
-            ctx, {StringAttr::get(ctx, "sycl-module-id"),
-                  StringAttr::get(ctx, llvmMod.getModuleIdentifier())}));
+        .addPassThroughAttribute(mlirclang::AttrBuilder::createNamedAttr(
+            StringAttr::get(ctx, "sycl-module-id"),
+            StringAttr::get(ctx, llvmMod.getModuleIdentifier())));
   }
 
   // Calling conventions for SPIRV functions.
