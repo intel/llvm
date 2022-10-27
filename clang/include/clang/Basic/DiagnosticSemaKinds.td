@@ -10390,8 +10390,8 @@ def warn_opencl_generic_address_space_arg : Warning<
   "passing non-generic address space pointer to %0"
   " may cause dynamic conversion affecting performance">,
   InGroup<Conversion>, DefaultIgnore;
-def err_bad_union_kernel_param_members : Error<
-  "%0 cannot be used inside a union kernel parameter">;
+def err_bad_kernel_param_data_members : Error<
+  "%0 cannot be a data member of a %select{union|struct}1 kernel parameter">;
 
 // OpenCL v2.0 s6.13.6 -- Builtin Pipe Functions
 def err_opencl_builtin_pipe_first_arg : Error<
