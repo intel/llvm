@@ -237,7 +237,7 @@ public:
   /// Checks if this event is complete.
   ///
   /// \return true if this event is complete.
-  bool isComplete() const { return MState == HES_Complete; }
+  bool isCompleted();
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and

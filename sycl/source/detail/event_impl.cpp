@@ -444,6 +444,11 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   }
 }
 
+bool event_impl::isCompleted() {
+  return get_info<info::event::command_execution_status>() ==
+         info::event_command_status::complete;
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -149,7 +149,7 @@ public:
   }
   // Shows thst command could be enqueud, but is blocking enqueue of all
   // commands depending on it. Regular usage - host task.
-  bool isBlocking() const { return isHostTask() && !MEvent->isComplete(); }
+  bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
