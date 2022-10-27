@@ -1131,12 +1131,13 @@ template <class KernelName> struct NDRangeBothFastReduceAndAtomics;
 /// Briefly: calls user's lambda, reduce() + atomic, INT +
 /// ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction, class AccTy>
+          typename PropertiesT, class Reduction>
 void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
                                                   KernelType KernelFunc,
                                                   const nd_range<Dims> &Range,
                                                   PropertiesT Properties,
-                                                  Reduction &, AccTy Out) {
+                                                  Reduction &Redu) {
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   size_t NElements = Reduction::num_elements;
   using Name = __sycl_reduction_kernel<
       reduction::main_krn::NDRangeBothFastReduceAndAtomics, KernelName>;
@@ -1169,14 +1170,15 @@ template <class KernelName> struct NDRangeFastAtomicsOnly;
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
 template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction, class AccTy>
-void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, bool IsPow2WG,
-                                         KernelType KernelFunc,
+          typename PropertiesT, class Reduction>
+void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, KernelType KernelFunc,
                                          const nd_range<Dims> &Range,
-                                         PropertiesT Properties, Reduction &,
-                                         AccTy Out) {
+                                         PropertiesT Properties,
+                                         Reduction &Redu) {
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
+  bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
 
   // Use local memory to reduce elements in work-groups into zero-th element.
   // If WGSize is not power of two, then WGSize+1 elements are allocated.
@@ -1252,13 +1254,15 @@ template <class KernelName> struct NDRangeFastReduceOnly;
 ///
 /// Briefly: user's lambda, reduce(), FP + ADD/MIN/MAX.
 template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction, class AccTy>
+          typename PropertiesT, class Reduction>
 void reduCGFuncForNDRangeFastReduceOnly(handler &CGH, KernelType KernelFunc,
                                         const nd_range<Dims> &Range,
-                                        PropertiesT Properties, Reduction &Redu,
-                                        AccTy Out) {
+                                        PropertiesT Properties,
+                                        Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   size_t NWorkGroups = Range.get_group_range().size();
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
+
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
 
@@ -1300,15 +1304,15 @@ template <class KernelName> struct NDRangeBasic;
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
 template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction, class AccTy>
-void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
-                               KernelType KernelFunc,
+          typename PropertiesT, class Reduction>
+void reduCGFuncForNDRangeBasic(handler &CGH, KernelType KernelFunc,
                                const nd_range<Dims> &Range,
-                               PropertiesT Properties, Reduction &Redu,
-                               AccTy Out) {
+                               PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
+  bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
   size_t NWorkGroups = Range.get_group_range().size();
+  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
 
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
@@ -2208,44 +2212,21 @@ template <typename KernelName, typename KernelType, int Dims,
 void reduCGFunc(handler &CGH, KernelType KernelFunc,
                 const nd_range<Dims> &Range, PropertiesT Properties,
                 Reduction &Redu) {
-  size_t WGSize = Range.get_local_range().size();
-  auto Out = [&]() {
-    if constexpr (Reduction::has_fast_atomics) {
-
-      // User's initialized read-write accessor is re-used here if
-      // initialize_to_identity is not set (i.e. if user's variable is
-      // initialized). Otherwise, a new buffer is initialized with identity
-      // value and a new read-write accessor to that buffer is created. That is
-      // done because atomic operations update some initialized memory. User's
-      // USM pointer is not re-used even when initialize_to_identity is not set
-      // because it does not worth the creation of an additional variant of a
-      // user's kernel for that case.
-      return Redu.getReadWriteAccessorToInitializedMem(CGH);
-
-    } else {
-      constexpr size_t NElements = Reduction::num_elements;
-      size_t NWorkGroups = Range.get_group_range().size();
-
-      return Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
-    }
-  }();
-
   if constexpr (Reduction::has_fast_reduce) {
     if constexpr (Reduction::has_fast_atomics) {
       reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Properties, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu);
     } else {
       reduCGFuncForNDRangeFastReduceOnly<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Properties, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu);
     }
   } else {
-    bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
     if constexpr (Reduction::has_fast_atomics) {
       reduCGFuncForNDRangeFastAtomicsOnly<KernelName, KernelType>(
-          CGH, IsPow2WG, KernelFunc, Range, Properties, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu);
     } else {
       reduCGFuncForNDRangeBasic<KernelName, KernelType>(
-          CGH, IsPow2WG, KernelFunc, Range, Properties, Redu, Out);
+          CGH, KernelFunc, Range, Properties, Redu);
     }
   }
 }
