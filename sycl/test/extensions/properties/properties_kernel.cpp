@@ -25,7 +25,8 @@ using device_has_all =
              aspect::ext_intel_device_info_uuid, aspect::ext_oneapi_srgb,
              aspect::ext_oneapi_native_assert, aspect::host_debuggable,
              aspect::ext_intel_gpu_hw_threads_per_eu,
-             aspect::ext_oneapi_cuda_async_barrier, aspect::ext_oneapi_bfloat16,
+             aspect::ext_oneapi_cuda_async_barrier,
+             aspect::ext_oneapi_bfloat16_math_functions,
              aspect::ext_intel_free_memory, aspect::ext_intel_device_id>);
 
 template <aspect Aspect> inline void singleAspectDeviceHasChecks() {
@@ -117,7 +118,7 @@ int main() {
   singleAspectDeviceHasChecks<aspect::host_debuggable>();
   singleAspectDeviceHasChecks<aspect::ext_intel_gpu_hw_threads_per_eu>();
   singleAspectDeviceHasChecks<aspect::ext_oneapi_cuda_async_barrier>();
-  singleAspectDeviceHasChecks<aspect::ext_oneapi_bfloat16>();
+  singleAspectDeviceHasChecks<aspect::ext_oneapi_bfloat16_math_functions>();
   singleAspectDeviceHasChecks<aspect::ext_intel_free_memory>();
   singleAspectDeviceHasChecks<aspect::ext_intel_device_id>();
 
@@ -171,7 +172,8 @@ int main() {
                 aspect::ext_intel_gpu_hw_threads_per_eu);
   static_assert(device_has_all::value[32] ==
                 aspect::ext_oneapi_cuda_async_barrier);
-  static_assert(device_has_all::value[33] == aspect::ext_oneapi_bfloat16);
+  static_assert(device_has_all::value[33] ==
+                aspect::ext_oneapi_bfloat16_math_functions);
   static_assert(device_has_all::value[34] == aspect::ext_intel_free_memory);
   static_assert(device_has_all::value[35] == aspect::ext_intel_device_id);
 
