@@ -212,7 +212,6 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
   return None;
 }
 
->>>>>>> f74664a57c1caa448b8ed3014dd51c4277a8a14c
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
@@ -282,6 +281,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
 
 	{
 		// Process all properties on kernels.
+		SmallVector<Metadata *, 8> MDOps;
 		SmallVector<std::pair<std::string, MDNode *>, 8> NamedMDOps;
 		for (const Attribute &Attribute : F.getAttributes().getFnAttrs()) {
 		  if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
