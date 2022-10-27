@@ -72,9 +72,14 @@ template <typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout = layout::unused, typename Group = sycl::sub_group>
 struct joint_matrix {
 public:
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+#else
   __spv::__spirv_JointMatrixINTEL<
       T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
+#endif
+#endif
   joint_matrix(Group sg) {
 #ifndef __SYCL_DEVICE_ONLY__
     (void)sg;
