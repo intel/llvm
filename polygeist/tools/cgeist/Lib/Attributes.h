@@ -28,13 +28,17 @@ public:
   /// Note: only unit attributes can be added using this member function.
   AttrBuilder &addAttribute(llvm::Attribute::AttrKind kind);
 
+  /// Add the LLVM attribute identified by \p kind with a type given by \p Ty
+  /// to the builder.
+  AttrBuilder &addAttribute(llvm::Attribute::AttrKind kind, mlir::Type Ty);
+
   /// Add the LLVM attribute identified by \p kind with a value given by \p val
   /// to the builder.
   AttrBuilder &addAttribute(llvm::Attribute::AttrKind kind, uint64_t val);
 
   /// Create a NamedAttribute with name \p attrName and value \p attr and add it
   /// to the builder.
-  AttrBuilder &addAttribute(llvm::StringRef attrName, mlir::Attribute attr);
+  AttrBuilder &addAttribute(llvm::Twine attrName, mlir::Attribute attr);
 
   /// Add the given named attribute \p attr to the builder.
   AttrBuilder &addAttribute(mlir::NamedAttribute attr) {

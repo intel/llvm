@@ -3320,7 +3320,8 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
       auto mt = mlir::MemRefType::get(-1, getTypes().getMLIRType(parmType), {},
                                       CGM.getDataLayout().getAllocaAddrSpace());
-      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal);
+      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal,
+                               getTypes().getMLIRType(parmType));
       attrBuilder.addAttribute(
           llvm::Attribute::AttrKind::Alignment,
           CGM.getContext().getTypeAlignInChars(parmType).getQuantity());

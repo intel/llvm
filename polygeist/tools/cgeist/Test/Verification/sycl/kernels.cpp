@@ -18,9 +18,9 @@
 
 // CHECK-MLIR: gpu.module @device_functions
 // CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, 
-// CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> [[PARM_ATTRS:{llvm.align = 8 : i64, llvm.byval, llvm.noundef}]],  
-// CHECK-MLIR-SAME:    %arg2: memref<?x!sycl_range_1_> [[PARM_ATTRS]], 
-// CHECK-MLIR-SAME:    %arg3: memref<?x!sycl_id_1_> [[PARM_ATTRS]]) 
+// CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS:{llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef}]],
+// CHECK-MLIR-SAME:    %arg2: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS]],
+// CHECK-MLIR-SAME:    %arg3: memref<?x!sycl_id_1_> [[PARM_ID_ATTRS:{llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef}]])
 // CHECK-MLIR-SAME:  kernel attributes {[[CCONV:llvm.cconv = #llvm.cconv<spir_kernelcc>]], [[LINKAGE:llvm.linkage = #llvm.linkage<weak_odr>]],
 // CHECK-MLIR-SAME:  [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/kernels.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR-NOT: gpu.func kernel
@@ -53,9 +53,9 @@ void host_1() {
 }
 
 // CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, 
-// CHECK-MLIR-SAME:     %arg1: memref<?x!sycl_range_1_> [[PARM_ATTRS]], 
-// CHECK-MLIR-SAME:     %arg2: memref<?x!sycl_range_1_> [[PARM_ATTRS]], 
-// CHECK-MLIR-SAME:     %arg3: memref<?x!sycl_id_1_> [[PARM_ATTRS]])
+// CHECK-MLIR-SAME:     %arg1: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS]],
+// CHECK-MLIR-SAME:     %arg2: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS]],
+// CHECK-MLIR-SAME:     %arg3: memref<?x!sycl_id_1_> [[PARM_ID_ATTRS]])
 // CHECK-MLIR-SAME:     kernel attributes {[[CCONV]], [[LINKAGE]], [[PASSTHROUGH]]}
 // CHECK-MLIR-NOT: gpu.func kernel
 

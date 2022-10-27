@@ -623,7 +623,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
             loc, LLVM::LLVMPointerType::get(ST),
             rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
-                .getResult(0));
+                .getResult());
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
@@ -687,7 +687,7 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
   matchAndRewrite(LLVM::ReturnOp op, LLVM::ReturnOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto replacement =
-        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArgs());
+        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArg());
     replacement->setAttrs(adaptor.getAttributes());
     return success();
   }

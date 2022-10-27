@@ -404,17 +404,16 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   ArrayPtr = CommonArrayToPointer(ArrayPtr);
 
-  res = builder.create<LLVM::InsertValueOp>(loc, res.getType(), res,
-                                            ArrayPtr.getValue(builder),
-                                            builder.getI64ArrayAttr(0));
+  res = builder.create<LLVM::InsertValueOp>(loc, res,
+                                            ArrayPtr.getValue(builder), 0);
   Field++;
   auto iTy =
       Glob.getTypes().getMLIRType(Field->getType()).cast<mlir::IntegerType>();
   res = builder.create<LLVM::InsertValueOp>(
-      loc, res.getType(), res,
+      loc, res,
       builder.create<arith::ConstantIntOp>(
           loc, ArrayType->getSize().getZExtValue(), iTy.getWidth()),
-      builder.getI64ArrayAttr(1));
+      1);
   return ValueCategory(res, /*isRef*/ false);
 }
 

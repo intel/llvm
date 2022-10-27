@@ -35,6 +35,14 @@ AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind kind) {
 }
 
 AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind kind,
+                                       mlir::Type Ty) {
+  OpBuilder builder(&ctx);
+  constexpr StringLiteral dialect = LLVM::LLVMDialect::getDialectNamespace();
+  StringRef attrName = llvm::Attribute::getNameFromAttrKind(kind);
+  return addAttribute(dialect + "." + attrName, mlir::TypeAttr::get(Ty));
+}
+
+AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind kind,
                                        uint64_t val) {
   OpBuilder builder(&ctx);
   constexpr StringLiteral dialect = LLVM::LLVMDialect::getDialectNamespace();
@@ -62,8 +70,7 @@ AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind kind,
   return *this;
 }
 
-AttrBuilder &AttrBuilder::addAttribute(StringRef attrName,
-                                       mlir::Attribute attr) {
+AttrBuilder &AttrBuilder::addAttribute(Twine attrName, mlir::Attribute attr) {
   NamedAttribute namedAttr = createNamedAttr(createStringAttr(attrName), attr);
   return addAttribute(namedAttr);
 }
@@ -97,7 +104,7 @@ AttrBuilder &AttrBuilder::addPassThroughAttribute(mlir::Attribute attr) {
 }
 
 bool AttrBuilder::contains(StringRef attrName) const {
-  return getAttr(attrName).hasValue();
+  return getAttr(attrName).has_value();
 }
 
 bool AttrBuilder::contains(llvm::Attribute::AttrKind kind) const {

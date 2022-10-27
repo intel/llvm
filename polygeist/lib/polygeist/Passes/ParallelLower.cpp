@@ -13,8 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetails.h"
-#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/CallGraph.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -442,8 +442,8 @@ void ParallelLower::runOnOperation() {
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
-    if (call.getCallee().getValue() == "cudaMemcpy" ||
-        call.getCallee().getValue() == "cudaMemcpyAsync") {
+    if (call.getCallee().value() == "cudaMemcpy" ||
+        call.getCallee().value() == "cudaMemcpyAsync") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
@@ -452,7 +452,7 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMemcpyToSymbol") {
+    } else if (call.getCallee().value() == "cudaMemcpyToSymbol") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(
@@ -465,7 +465,7 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMemset") {
+    } else if (call.getCallee().value() == "cudaMemset") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
@@ -477,8 +477,8 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMalloc" ||
-               call.getCallee().getValue() == "cudaMallocHost") {
+    } else if (call.getCallee().value() == "cudaMalloc" ||
+               call.getCallee().value() == "cudaMallocHost") {
       auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(1)};
@@ -486,18 +486,18 @@ void ParallelLower::runOnOperation() {
         args[0] =
             bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), args[0]);
       mlir::Value alloc =
-          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult(0);
+          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult();
       bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult(0).getType().cast<IntegerType>().getWidth());
+            call.getResult().getType().cast<IntegerType>().getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-    } else if (call.getCallee().getValue() == "cudaFree" ||
-               call.getCallee().getValue() == "cudaFreeHost") {
+    } else if (call.getCallee().value() == "cudaFree" ||
+               call.getCallee().value() == "cudaFreeHost") {
       auto mf = GetOrCreateFreeFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(0)};
@@ -505,24 +505,24 @@ void ParallelLower::runOnOperation() {
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult(0).getType().cast<IntegerType>().getWidth());
+            call.getResult().getType().cast<IntegerType>().getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-    } else if (call.getCallee().getValue() == "cudaDeviceSynchronize") {
+    } else if (call.getCallee().value() == "cudaDeviceSynchronize") {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          call.getResult().getType().cast<IntegerType>().getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaGetLastError") {
+    } else if (call.getCallee().value() == "cudaGetLastError") {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          call.getResult().getType().cast<IntegerType>().getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
