@@ -161,6 +161,13 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
     }
     return PI_SUCCESS;
   }
+  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:{
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if(param_value){
+      *static_cast<pi_device_affinity_domain*>(param_value) = 0;
+    }
+    return PI_SUCCESS;
+  }
   default:
     return PI_SUCCESS;
   }
