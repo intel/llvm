@@ -334,13 +334,12 @@ public:
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
-      // update self-event status
-      const std::vector<EventImplPtr> &CmdsToEnqueue =
-          MThisCmd->getBlockedUsers();
-
-      MThisCmd->MEvent->setComplete();
-
-      Scheduler::enqueueUnblockedCommands(CmdsToEnqueue, ToCleanUp);
+      {
+        std::lock_guard<std::mutex> Guard(MThisCmd->MBlockedUsersMutex);
+        // update self-event status
+        MThisCmd->MEvent->setComplete();
+      }
+      Scheduler::enqueueUnblockedCommands(MThisCmd->MBlockedUsers, ToCleanUp);
     }
     Sched.cleanupCommands(ToCleanUp);
   }

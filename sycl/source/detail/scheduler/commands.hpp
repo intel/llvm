@@ -151,17 +151,11 @@ public:
   // commands depending on it. Regular usage - host task.
   bool isBlocking() const { return isHostTask() && !MEvent->isComplete(); }
 
-  void addBlockedUser(const EventImplPtr &NewUser) {
+  void addBlockedUserUnique(const EventImplPtr &NewUser) {
+    if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
+        MBlockedUsers.end())
+      return;
     MBlockedUsers.push_back(NewUser);
-  }
-
-  bool containsBlockedUser(const EventImplPtr &User) const {
-    return std::find(MBlockedUsers.begin(), MBlockedUsers.end(), User) !=
-           MBlockedUsers.end();
-  }
-
-  const std::vector<EventImplPtr> &getBlockedUsers() const {
-    return MBlockedUsers;
   }
 
   const QueueImplPtr &getQueue() const { return MQueue; }
@@ -273,13 +267,6 @@ protected:
 
   friend class DispatchHostTask;
 
-  /// Contains list of commands that depends on the host command explicitly (by
-  /// depends_on). Not involved into cleanup process since it is one-way link
-  /// and not holds resources.
-  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
-  /// intersect with command enqueue.
-  std::vector<EventImplPtr> MBlockedUsers;
-
 public:
   const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
     return MPreparedHostDepsEvents;
@@ -353,6 +340,14 @@ public:
   /// Indicates that the node will be freed by cleanup after enqueue. Such nodes
   /// should be ignored by other cleanup mechanisms.
   bool MPostEnqueueCleanup = false;
+
+  /// Contains list of commands that depends on the host command explicitly (by
+  /// depends_on). Not involved into cleanup process since it is one-way link
+  /// and not holds resources.
+  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
+  /// intersect with command enqueue.
+  std::vector<EventImplPtr> MBlockedUsers;
+  std::mutex MBlockedUsersMutex;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to

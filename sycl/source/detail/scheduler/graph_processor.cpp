@@ -50,14 +50,18 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   EnqueueResultT &EnqueueResult,
                                                   Command *RootCommand,
                                                   BlockingT Blocking) {
-  if (Cmd == RootCommand || !Cmd->isBlocking() || Blocking)
+  if (Cmd == RootCommand || Blocking)
     return true;
-
-  const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
-  if (!Cmd->containsBlockedUser(RootCmdEvent))
-    Cmd->addBlockedUser(RootCmdEvent);
-  EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-  return false;
+  {
+    std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+    if (Cmd->isBlocking()) {
+      const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
+      Cmd->addBlockedUserUnique(RootCmdEvent);
+      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+      return false;
+    }
+  }
+  return true;
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(
