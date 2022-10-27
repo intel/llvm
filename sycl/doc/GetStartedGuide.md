@@ -644,15 +644,11 @@ clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
 The target architecture may also be specified for the CUDA backend, with 
 `-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is 
 necessary if an application aims to use newer hardware features, such as
-native atomic operations or tensor core operations.
-Moreover, it is possible to pass specific options to CUDA `ptxas` (such as
-`--maxrregcount=<n>` for limiting the register usage or `--verbose` for
-printing generation statistics) using the `-Xcuda-ptxas` flag.
+native atomic operations or tensor core operations. 
 
 ```bash
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe \
-  -Xcuda-ptxas --maxrregcount=128 -Xcuda-ptxas --verbose \
   -Xsycl-target-backend --cuda-gpu-arch=sm_80
 ```
 
@@ -686,17 +682,7 @@ more. To find available options, execute:
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system.
-In this case, the behavior of the `default_selector` can be altered
-using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
-the usage of the CUDA backend (if available), `PI_HIP` forces
-the usage of the HIP backend (if available), `PI_OPENCL` will
-force the usage of the OpenCL backend.
 
-```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
-```
-
-The default is the OpenCL backend if available.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
@@ -706,14 +692,6 @@ if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
 ```bash
 ./simple-sycl-app.exe
 The results are correct!
-```
-
-**NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `SYCL_BE` environment
-variable.
-
-```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using

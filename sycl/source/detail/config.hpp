@@ -287,7 +287,6 @@ public:
       FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
     }
 
-
     // As mentioned above, configuration parameters are processed only once.
     // If multiple threads are checking this env var at the same time,
     // they will end up setting the configration to the same value.
