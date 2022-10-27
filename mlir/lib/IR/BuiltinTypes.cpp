@@ -60,9 +60,6 @@ LogicalResult ComplexType::verify(function_ref<InFlightDiagnostic()> emitError,
 // Integer Type
 //===----------------------------------------------------------------------===//
 
-// static constexpr must have a definition (until in C++17 and inline variable).
-constexpr unsigned IntegerType::kMaxWidth;
-
 /// Verify the construction of an integer type.
 LogicalResult IntegerType::verify(function_ref<InFlightDiagnostic()> emitError,
                                   unsigned width,
@@ -535,13 +532,6 @@ unsigned mlir::detail::getMemorySpaceAsInt(Attribute memorySpace) {
   return static_cast<unsigned>(memorySpace.cast<IntegerAttr>().getInt());
 }
 
-MemRefType::Builder &
-MemRefType::Builder::setMemorySpace(unsigned newMemorySpace) {
-  memorySpace =
-      wrapIntegerMemorySpace(newMemorySpace, elementType.getContext());
-  return *this;
-}
-
 unsigned MemRefType::getMemorySpaceAsInt() const {
   return detail::getMemorySpaceAsInt(getMemorySpace());
 }
@@ -904,42 +894,6 @@ Type TupleType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
 //===----------------------------------------------------------------------===//
 // Type Utilities
 //===----------------------------------------------------------------------===//
-
-AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
-                                           int64_t offset,
-                                           MLIRContext *context) {
-  AffineExpr expr;
-  unsigned nSymbols = 0;
-
-  // AffineExpr for offset.
-  // Static case.
-  if (offset != MemRefType::getDynamicStrideOrOffset()) {
-    auto cst = getAffineConstantExpr(offset, context);
-    expr = cst;
-  } else {
-    // Dynamic case, new symbol for the offset.
-    auto sym = getAffineSymbolExpr(nSymbols++, context);
-    expr = sym;
-  }
-
-  // AffineExpr for strides.
-  for (const auto &en : llvm::enumerate(strides)) {
-    auto dim = en.index();
-    auto stride = en.value();
-    assert(stride != 0 && "Invalid stride specification");
-    auto d = getAffineDimExpr(dim, context);
-    AffineExpr mult;
-    // Static case.
-    if (stride != MemRefType::getDynamicStrideOrOffset())
-      mult = getAffineConstantExpr(stride, context);
-    else
-      // Dynamic case, new symbol for each new stride.
-      mult = getAffineSymbolExpr(nSymbols++, context);
-    expr = expr + d * mult;
-  }
-
-  return AffineMap::get(strides.size(), nSymbols, expr);
-}
 
 /// Return a version of `t` with identity layout if it can be determined
 /// statically that the layout is the canonical contiguous strided layout.

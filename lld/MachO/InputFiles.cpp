@@ -342,7 +342,10 @@ void ObjFile::parseSections(ArrayRef<SectionHeader> sectionHeaders) {
 
       InputSection *isec;
       if (sectionType(sec.flags) == S_CSTRING_LITERALS) {
-        isec = make<CStringInputSection>(section, data, align);
+        isec = make<CStringInputSection>(section, data, align,
+                                         /*dedupLiterals=*/name ==
+                                                 section_names::objcMethname ||
+                                             config->dedupLiterals);
         // FIXME: parallelize this?
         cast<CStringInputSection>(isec)->splitIntoPieces();
       } else {
@@ -1507,9 +1510,9 @@ void ObjFile::registerEhFrames(Section &ehFrameSection) {
       // embedded in the section data (AKA an "abs-ified" reloc.). Parse that
       // and generate a Reloc struct.
       uint32_t cieMinuend = reader.readU32(&dataOff);
-      if (cieMinuend == 0)
+      if (cieMinuend == 0) {
         cieIsec = isec;
-      else {
+      } else {
         uint32_t cieOff = isecOff + dataOff - cieMinuend;
         cieIsec = findContainingSubsection(ehFrameSection, &cieOff);
         if (cieIsec == nullptr)
@@ -1590,6 +1593,15 @@ void ObjFile::registerEhFrames(Section &ehFrameSection) {
     funcSym->unwindEntry = isec;
     ehRelocator.commit();
   }
+
+  // __eh_frame is marked as S_ATTR_LIVE_SUPPORT in input files, because FDEs
+  // are normally required to be kept alive if they reference a live symbol.
+  // However, we've explicitly created a dependency from a symbol to its FDE, so
+  // dead-stripping will just work as usual, and S_ATTR_LIVE_SUPPORT will only
+  // serve to incorrectly prevent us from dead-stripping duplicate FDEs for a
+  // live symbol (e.g. if there were multiple weak copies). Remove this flag to
+  // let dead-stripping proceed correctly.
+  ehFrameSection.flags &= ~S_ATTR_LIVE_SUPPORT;
 }
 
 std::string ObjFile::sourceFile() const {
@@ -1942,14 +1954,15 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
   checkAppExtensionSafety(interface.isApplicationExtensionSafe());
 
   exportingFile = isImplicitlyLinked(installName) ? this : umbrella;
-  auto addSymbol = [&](const Twine &name) -> void {
+  auto addSymbol = [&](const llvm::MachO::Symbol &symbol,
+                       const Twine &name) -> void {
     StringRef savedName = saver().save(name);
     if (exportingFile->hiddenSymbols.contains(CachedHashStringRef(savedName)))
       return;
 
     symbols.push_back(symtab->addDylib(savedName, exportingFile,
-                                       /*isWeakDef=*/false,
-                                       /*isTlv=*/false));
+                                       symbol.isWeakDefined(),
+                                       symbol.isThreadLocalValue()));
   };
 
   std::vector<const llvm::MachO::Symbol *> normalSymbols;
@@ -1961,32 +1974,31 @@ DylibFile::DylibFile(const InterfaceFile &interface, DylibFile *umbrella,
       continue;
 
     switch (symbol->getKind()) {
-    case SymbolKind::GlobalSymbol:               // Fallthrough
-    case SymbolKind::ObjectiveCClass:            // Fallthrough
-    case SymbolKind::ObjectiveCClassEHType:      // Fallthrough
-    case SymbolKind::ObjectiveCInstanceVariable: // Fallthrough
+    case SymbolKind::GlobalSymbol:
+    case SymbolKind::ObjectiveCClass:
+    case SymbolKind::ObjectiveCClassEHType:
+    case SymbolKind::ObjectiveCInstanceVariable:
       normalSymbols.push_back(symbol);
     }
   }
 
   // TODO(compnerd) filter out symbols based on the target platform
-  // TODO: handle weak defs, thread locals
   for (const auto *symbol : normalSymbols) {
     switch (symbol->getKind()) {
     case SymbolKind::GlobalSymbol:
-      addSymbol(symbol->getName());
+      addSymbol(*symbol, symbol->getName());
       break;
     case SymbolKind::ObjectiveCClass:
       // XXX ld64 only creates these symbols when -ObjC is passed in. We may
       // want to emulate that.
-      addSymbol(objc::klass + symbol->getName());
-      addSymbol(objc::metaclass + symbol->getName());
+      addSymbol(*symbol, objc::klass + symbol->getName());
+      addSymbol(*symbol, objc::metaclass + symbol->getName());
       break;
     case SymbolKind::ObjectiveCClassEHType:
-      addSymbol(objc::ehtype + symbol->getName());
+      addSymbol(*symbol, objc::ehtype + symbol->getName());
       break;
     case SymbolKind::ObjectiveCInstanceVariable:
-      addSymbol(objc::ivar + symbol->getName());
+      addSymbol(*symbol, objc::ivar + symbol->getName());
       break;
     }
   }

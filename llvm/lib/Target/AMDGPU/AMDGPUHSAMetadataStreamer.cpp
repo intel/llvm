@@ -238,7 +238,7 @@ void MetadataStreamerV2::emitPrintf(const Module &Mod) {
   if (!Node)
     return;
 
-  for (auto Op : Node->operands())
+  for (auto *Op : Node->operands())
     if (Op->getNumOperands())
       Printf.push_back(
           std::string(cast<MDString>(Op->getOperand(0))->getString()));
@@ -623,7 +623,7 @@ void MetadataStreamerV3::emitPrintf(const Module &Mod) {
     return;
 
   auto Printf = HSAMetadataDoc->getArrayNode();
-  for (auto Op : Node->operands())
+  for (auto *Op : Node->operands())
     if (Op->getNumOperands())
       Printf.push_back(Printf.getDocument()->getNode(
           cast<MDString>(Op->getOperand(0))->getString(), /*Copy=*/true));
@@ -768,7 +768,10 @@ void MetadataStreamerV3::emitKernelArg(
 
   if (auto PtrTy = dyn_cast<PointerType>(Ty))
     if (auto Qualifier = getAddressSpaceQualifier(PtrTy->getAddressSpace()))
-      Arg[".address_space"] = Arg.getDocument()->getNode(*Qualifier, /*Copy=*/true);
+      // Limiting address space to emit only for a certain ValueKind.
+      if (ValueKind == "global_buffer" || ValueKind == "dynamic_shared_pointer")
+        Arg[".address_space"] = Arg.getDocument()->getNode(*Qualifier,
+                                                           /*Copy=*/true);
 
   if (auto AQ = getAccessQualifier(AccQual))
     Arg[".access"] = Arg.getDocument()->getNode(*AQ, /*Copy=*/true);

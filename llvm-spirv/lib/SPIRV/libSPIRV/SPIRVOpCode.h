@@ -247,6 +247,11 @@ inline bool isEventOpCode(Op OpCode) {
   return OpRetainEvent <= OpCode && OpCode <= OpCaptureEventProfilingInfo;
 }
 
+inline bool isSplitBarrierINTELOpCode(Op OpCode) {
+  return OpCode == OpControlBarrierArriveINTEL ||
+         OpCode == OpControlBarrierWaitINTEL;
+}
+
 } // namespace SPIRV
 
 #endif // SPIRV_LIBSPIRV_SPIRVOPCODE_H

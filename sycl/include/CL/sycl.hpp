@@ -10,7 +10,6 @@
 
 #include <sycl/sycl.hpp>
 
-namespace __SYCL2020_DEPRECATED(
-    "cl::sycl is deprecated, use ::sycl instead.") cl {
+namespace cl {
 namespace sycl = ::sycl;
 }

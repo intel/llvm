@@ -10,14 +10,19 @@
 // canonicalizations of named ops.
 //
 //===----------------------------------------------------------------------===//
-#include "PassDetail.h"
-#include "mlir/Dialect/Linalg/IR/Linalg.h"
+
 #include "mlir/Dialect/Linalg/Passes.h"
+
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-
 #include "llvm/ADT/SmallVector.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_LINALGNAMEDOPCONVERSION
+#include "mlir/Dialect/Linalg/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -104,8 +109,8 @@ struct SimplifyDepthwiseConvOp
     Value kernel = op.getInputOperand(1)->get();
     Value init = op.getOutputOperand(0)->get();
 
-    auto stride = op.strides();
-    auto dilation = op.dilations();
+    auto stride = op.getStrides();
+    auto dilation = op.getDilations();
 
     return matchAndReplaceDepthwiseConv(operation, input, kernel, nullptr,
                                         nullptr, init, stride, dilation,
@@ -126,8 +131,8 @@ struct SimplifyDepthwiseConvQOp
     Value kZp = op.getInputOperand(3)->get();
     Value init = op.getOutputOperand(0)->get();
 
-    auto stride = op.strides();
-    auto dilation = op.dilations();
+    auto stride = op.getStrides();
+    auto dilation = op.getDilations();
 
     return matchAndReplaceDepthwiseConv(operation, input, kernel, iZp, kZp,
                                         init, stride, dilation, rewriter);
@@ -135,7 +140,7 @@ struct SimplifyDepthwiseConvQOp
 };
 
 struct LinalgNamedOpConversionPass
-    : public LinalgNamedOpConversionBase<LinalgNamedOpConversionPass> {
+    : public impl::LinalgNamedOpConversionBase<LinalgNamedOpConversionPass> {
   LinalgNamedOpConversionPass() = default;
   LinalgNamedOpConversionPass(const LinalgNamedOpConversionPass &) = default;
 

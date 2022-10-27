@@ -11,6 +11,9 @@ def RestrictedStructSigactionPtr : RestrictedPtrType<StructSigaction>;
 def ConstRestrictedStructSigactionPtr : ConstType<RestrictedStructSigactionPtr>;
 
 def PThreadStartT : NamedType<"__pthread_start_t">;
+def PThreadTSSDtorT : NamedType<"__pthread_tss_dtor_t">;
+def PThreadKeyT : NamedType<"pthread_key_t">;
+def PThreadKeyTPtr : PtrType<PThreadKeyT>;
 
 def InoT : NamedType<"ino_t">;
 def DIR : NamedType<"DIR">;
@@ -29,8 +32,6 @@ def POSIX : StandardSpec<"POSIX"> {
   ConstType ConstRestrictedCharPtr = ConstType<RestrictedCharPtr>;
 
   NamedType ModeTType = NamedType<"mode_t">;
-  NamedType OffTType = NamedType<"off_t">;
-  NamedType SSizeTType = NamedType<"ssize_t">;
 
   NamedType PThreadAttrTType = NamedType<"pthread_attr_t">;
   PtrType PThreadAttrTPtr = PtrType<PThreadAttrTType>;
@@ -261,6 +262,16 @@ def POSIX : StandardSpec<"POSIX"> {
     [], // Enumerations
     [
         FunctionSpec<
+          "chdir",
+          RetValSpec<IntType>,
+          [ArgSpec<ConstCharPtr>]
+        >,
+        FunctionSpec<
+          "fchdir",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>]
+        >,
+        FunctionSpec<
           "close",
           RetValSpec<IntType>,
           [ArgSpec<IntType>]
@@ -269,6 +280,21 @@ def POSIX : StandardSpec<"POSIX"> {
           "fsync",
           RetValSpec<IntType>,
           [ArgSpec<IntType>]
+        >,
+        FunctionSpec<
+          "ftruncate",
+          RetValSpec<IntType>,
+          [ArgSpec<ConstCharPtr>, ArgSpec<OffTType>]
+        >,
+        FunctionSpec<
+          "link",
+          RetValSpec<IntType>,
+          [ArgSpec<ConstCharPtr>, ArgSpec<ConstCharPtr>]
+        >,
+        FunctionSpec<
+          "linkat",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>, ArgSpec<ConstCharPtr>, ArgSpec<IntType>, ArgSpec<ConstCharPtr>, ArgSpec<IntType>]
         >,
         FunctionSpec<
           "lseek",
@@ -281,9 +307,34 @@ def POSIX : StandardSpec<"POSIX"> {
           [ArgSpec<IntType>, ArgSpec<VoidPtr>, ArgSpec<SizeTType>]
         >,
         FunctionSpec<
+          "readlink",
+          RetValSpec<SSizeTType>,
+          [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtr>, ArgSpec<SizeTType>]
+        >,
+        FunctionSpec<
+          "readlinkat",
+          RetValSpec<SSizeTType>,
+          [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtr>, ArgSpec<SizeTType>]
+        >,
+        FunctionSpec<
           "rmdir",
           RetValSpec<IntType>,
           [ArgSpec<ConstCharPtr>]
+        >,
+        FunctionSpec<
+          "symlink",
+          RetValSpec<IntType>,
+          [ArgSpec<ConstCharPtr>, ArgSpec<ConstCharPtr>]
+        >,
+        FunctionSpec<
+          "symlinkat",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>, ArgSpec<ConstCharPtr>, ArgSpec<IntType>, ArgSpec<ConstCharPtr>]
+        >,
+        FunctionSpec<
+          "truncate",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>, ArgSpec<OffTType>]
         >,
         FunctionSpec<
           "unlink",
@@ -391,6 +442,21 @@ def POSIX : StandardSpec<"POSIX"> {
     [], // Enumerations
     [
         FunctionSpec<
+          "chmod",
+          RetValSpec<IntType>,
+          [ArgSpec<ConstCharPtr>, ArgSpec<ModeTType>]
+        >,
+        FunctionSpec<
+          "fchmod",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>, ArgSpec<ModeTType>]
+        >,
+        FunctionSpec<
+          "fchmodat",
+          RetValSpec<IntType>,
+          [ArgSpec<IntType>, ArgSpec<ConstCharPtr>, ArgSpec<ModeTType>, ArgSpec<IntType>]
+        >,
+        FunctionSpec<
             "mkdir",
             RetValSpec<IntType>,
             [ArgSpec<ConstCharPtr>, ArgSpec<ModeTType>]
@@ -406,7 +472,15 @@ def POSIX : StandardSpec<"POSIX"> {
   HeaderSpec PThread = HeaderSpec<
     "pthread.h",
     [], // Macros
-    [PThreadAttrTType, PThreadMutexAttrTType, PThreadMutexTType, PThreadStartT, PThreadTType], // Types
+    [
+        PThreadAttrTType,
+        PThreadKeyT,
+        PThreadMutexAttrTType,
+        PThreadMutexTType,
+        PThreadStartT,
+        PThreadTSSDtorT,
+        PThreadTType,
+    ], // Types
     [], // Enumerations
     [
       FunctionSpec<
@@ -473,6 +547,11 @@ def POSIX : StandardSpec<"POSIX"> {
           "pthread_detach",
           RetValSpec<IntType>,
           [ArgSpec<PThreadTType>]
+      >,
+      FunctionSpec<
+          "pthread_exit",
+          RetValSpec<VoidType>,
+          [ArgSpec<VoidPtr>]
       >,
       FunctionSpec<
           "pthread_self",
@@ -563,6 +642,26 @@ def POSIX : StandardSpec<"POSIX"> {
           "pthread_mutex_unlock",
           RetValSpec<IntType>,
           [ArgSpec<PThreadMutexTPtr>]
+      >,
+      FunctionSpec<
+          "pthread_key_create",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadKeyTPtr>, ArgSpec<PThreadTSSDtorT>]
+      >,
+      FunctionSpec<
+          "pthread_key_delete",
+          RetValSpec<IntType>,
+          [ArgSpec<PThreadKeyT>]
+      >,
+      FunctionSpec<
+          "pthread_getspecific",
+          RetValSpec<VoidPtr>,
+          [ArgSpec<PThreadKeyT>]
+      >,
+      FunctionSpec<
+          "pthread_setspecific",
+          RetValSpec<VoidPtr>,
+          [ArgSpec<PThreadKeyT>, ArgSpec<ConstVoidPtr>]
       >,
     ]
   >;

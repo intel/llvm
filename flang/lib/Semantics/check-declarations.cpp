@@ -291,7 +291,11 @@ void CheckHelper::Check(const Symbol &symbol) {
         canHaveAssumedParameter |= symbol.has<AssocEntityDetails>();
       }
     }
-    Check(*type, canHaveAssumedParameter);
+    if (IsProcedurePointer(symbol) && symbol.HasExplicitInterface()) {
+      // Don't check function result types here
+    } else {
+      Check(*type, canHaveAssumedParameter);
+    }
     if (InPure() && InFunction() && IsFunctionResult(symbol)) {
       if (derived && HasImpureFinal(*derived)) { // C1584
         messages_.Say(
@@ -809,16 +813,17 @@ void CheckHelper::CheckProcEntity(
   if (symbol.attrs().test(Attr::POINTER)) {
     CheckPointerInitialization(symbol);
     if (const Symbol * interface{details.interface().symbol()}) {
-      if (interface->attrs().test(Attr::INTRINSIC)) {
+      const Symbol &ultimate{interface->GetUltimate()};
+      if (ultimate.attrs().test(Attr::INTRINSIC)) {
         if (const auto intrinsic{
                 context_.intrinsics().IsSpecificIntrinsicFunction(
-                    interface->name().ToString())};
+                    ultimate.name().ToString())};
             !intrinsic || intrinsic->isRestrictedSpecific) { // C1515
           messages_.Say(
               "Intrinsic procedure '%s' is not an unrestricted specific "
               "intrinsic permitted for use as the definition of the interface "
               "to procedure pointer '%s'"_err_en_US,
-              interface->name(), symbol.name());
+              ultimate.name(), symbol.name());
         }
       } else if (IsElementalProcedure(*interface)) {
         messages_.Say("Procedure pointer '%s' may not be ELEMENTAL"_err_en_US,
@@ -1513,11 +1518,14 @@ void CheckHelper::CheckPointer(const Symbol &symbol) { // C852
 // C760 constraints on the passed-object dummy argument
 // C757 constraints on procedure pointer components
 void CheckHelper::CheckPassArg(
-    const Symbol &proc, const Symbol *interface, const WithPassArg &details) {
+    const Symbol &proc, const Symbol *interface0, const WithPassArg &details) {
   if (proc.attrs().test(Attr::NOPASS)) {
     return;
   }
   const auto &name{proc.name()};
+  const Symbol *interface {
+    interface0 ? FindInterface(*interface0) : nullptr
+  };
   if (!interface) {
     messages_.Say(name,
         "Procedure component '%s' must have NOPASS attribute or explicit interface"_err_en_US,
@@ -1661,7 +1669,7 @@ void CheckHelper::CheckProcBinding(
         return;
       }
       if (!IsElementalProcedure(binding.symbol()) &&
-          IsElementalProcedure(overriddenBinding->symbol())) {
+          IsElementalProcedure(*overridden)) {
         SayWithDeclaration(*overridden,
             "A type-bound procedure and its override must both, or neither, be ELEMENTAL"_err_en_US);
         return;
@@ -1674,7 +1682,7 @@ void CheckHelper::CheckProcBinding(
                 : "A passed-argument type-bound procedure may not override a NOPASS procedure"_err_en_US);
       } else {
         const auto *bindingChars{Characterize(binding.symbol())};
-        const auto *overriddenChars{Characterize(overriddenBinding->symbol())};
+        const auto *overriddenChars{Characterize(*overridden)};
         if (bindingChars && overriddenChars) {
           if (isNopass) {
             if (!bindingChars->CanOverride(*overriddenChars, std::nullopt)) {
@@ -1913,8 +1921,7 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
           "An interface name with BIND attribute must be specified if the BIND attribute is specified in a procedure declaration statement"_err_en_US);
       context_.SetError(symbol);
     }
-  }
-  if (const auto *derived{symbol.detailsIf<DerivedTypeDetails>()}) {
+  } else if (const auto *derived{symbol.detailsIf<DerivedTypeDetails>()}) {
     if (derived->sequence()) { // C1801
       messages_.Say(symbol.name(),
           "A derived type with the BIND attribute cannot have the SEQUENCE attribute"_err_en_US);
@@ -1933,6 +1940,18 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
         if (IsProcedure(*component)) { // C1804
           messages_.Say(symbol.name(),
               "A derived type with the BIND attribute cannot have a type bound procedure"_err_en_US);
+          context_.SetError(symbol);
+          break;
+        } else if (IsAllocatableOrPointer(*component)) { // C1806
+          messages_.Say(symbol.name(),
+              "A derived type with the BIND attribute cannot have a pointer or allocatable component"_err_en_US);
+          context_.SetError(symbol);
+          break;
+        } else if (component->GetType() && component->GetType()->AsDerived() &&
+            !component->GetType()->AsDerived()->typeSymbol().attrs().test(
+                Attr::BIND_C)) {
+          messages_.Say(component->GetType()->AsDerived()->typeSymbol().name(),
+              "The component of the interoperable derived type must have the BIND attribute"_err_en_US);
           context_.SetError(symbol);
           break;
         }

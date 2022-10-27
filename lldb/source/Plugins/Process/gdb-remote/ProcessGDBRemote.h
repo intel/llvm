@@ -49,8 +49,6 @@ class ThreadGDBRemote;
 class ProcessGDBRemote : public Process,
                          private GDBRemoteClientBase::ContinueDelegate {
 public:
-  ProcessGDBRemote(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
-
   ~ProcessGDBRemote() override;
 
   static lldb::ProcessSP CreateInstance(lldb::TargetSP target_sp,
@@ -239,6 +237,8 @@ protected:
   friend class GDBRemoteCommunicationClient;
   friend class GDBRemoteRegisterContext;
 
+  ProcessGDBRemote(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
+
   bool SupportsMemoryTagging() override;
 
   /// Broadcaster event bits definitions.
@@ -307,8 +307,6 @@ protected:
   bool CanResume(lldb::StateType state) { return state == lldb::eStateStopped; }
 
   bool HasExited(lldb::StateType state) { return state == lldb::eStateExited; }
-
-  bool ProcessIDIsValid() const;
 
   void Clear();
 

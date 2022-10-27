@@ -64,7 +64,10 @@ void runDataflow(llvm::StringRef Code, Matcher Match,
                  LangStandard::Kind Std = LangStandard::lang_cxx17,
                  bool ApplyBuiltinTransfer = true,
                  llvm::StringRef TargetFun = "target") {
-  runDataflow(Code, Match, {ApplyBuiltinTransfer, {}}, Std, TargetFun);
+  runDataflow(Code, Match,
+              {ApplyBuiltinTransfer ? TransferOptions{}
+                                    : llvm::Optional<TransferOptions>()},
+              Std, TargetFun);
 }
 
 TEST(TransferTest, IntVarDeclNotTrackedWhenTransferDisabled) {
@@ -646,8 +649,8 @@ TEST(TransferTest, JoinVarDecl) {
                            std::string, DataflowAnalysisState<NoopLattice>>>
                            Results,
                        ASTContext &ASTCtx) {
-    ASSERT_THAT(Results, ElementsAre(Pair("p4", _), Pair("p3", _),
-                                     Pair("p2", _), Pair("p1", _)));
+    ASSERT_THAT(Results, ElementsAre(Pair("p1", _), Pair("p2", _),
+                                     Pair("p3", _), Pair("p4", _)));
     const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
     ASSERT_THAT(FooDecl, NotNull());
 
@@ -657,24 +660,24 @@ TEST(TransferTest, JoinVarDecl) {
     const ValueDecl *BazDecl = findValueDecl(ASTCtx, "Baz");
     ASSERT_THAT(BazDecl, NotNull());
 
-    const Environment &Env1 = Results[3].second.Env;
+    const Environment &Env1 = Results[0].second.Env;
     const StorageLocation *FooLoc =
         Env1.getStorageLocation(*FooDecl, SkipPast::None);
     EXPECT_THAT(FooLoc, NotNull());
     EXPECT_THAT(Env1.getStorageLocation(*BarDecl, SkipPast::None), IsNull());
     EXPECT_THAT(Env1.getStorageLocation(*BazDecl, SkipPast::None), IsNull());
 
-    const Environment &Env2 = Results[2].second.Env;
+    const Environment &Env2 = Results[1].second.Env;
     EXPECT_EQ(Env2.getStorageLocation(*FooDecl, SkipPast::None), FooLoc);
     EXPECT_THAT(Env2.getStorageLocation(*BarDecl, SkipPast::None), NotNull());
     EXPECT_THAT(Env2.getStorageLocation(*BazDecl, SkipPast::None), IsNull());
 
-    const Environment &Env3 = Results[1].second.Env;
+    const Environment &Env3 = Results[2].second.Env;
     EXPECT_EQ(Env3.getStorageLocation(*FooDecl, SkipPast::None), FooLoc);
     EXPECT_THAT(Env3.getStorageLocation(*BarDecl, SkipPast::None), IsNull());
     EXPECT_THAT(Env3.getStorageLocation(*BazDecl, SkipPast::None), NotNull());
 
-    const Environment &Env4 = Results[0].second.Env;
+    const Environment &Env4 = Results[3].second.Env;
     EXPECT_EQ(Env4.getStorageLocation(*FooDecl, SkipPast::None), FooLoc);
     EXPECT_THAT(Env4.getStorageLocation(*BarDecl, SkipPast::None), IsNull());
     EXPECT_THAT(Env4.getStorageLocation(*BazDecl, SkipPast::None), IsNull());
@@ -3302,8 +3305,8 @@ TEST(TransferTest, CorrelatedBranches) {
         ASSERT_THAT(CDecl, NotNull());
 
         {
-          ASSERT_THAT(Results[2], Pair("p0", _));
-          const Environment &Env = Results[2].second.Env;
+          ASSERT_THAT(Results[0], Pair("p0", _));
+          const Environment &Env = Results[0].second.Env;
           const ValueDecl *BDecl = findValueDecl(ASTCtx, "B");
           ASSERT_THAT(BDecl, NotNull());
           auto &BVal = *cast<BoolValue>(Env.getValue(*BDecl, SkipPast::None));
@@ -3319,8 +3322,8 @@ TEST(TransferTest, CorrelatedBranches) {
         }
 
         {
-          ASSERT_THAT(Results[0], Pair("p2", _));
-          const Environment &Env = Results[0].second.Env;
+          ASSERT_THAT(Results[2], Pair("p2", _));
+          const Environment &Env = Results[2].second.Env;
           auto &CVal = *cast<BoolValue>(Env.getValue(*CDecl, SkipPast::None));
           EXPECT_TRUE(Env.flowConditionImplies(CVal));
         }
@@ -3419,9 +3422,9 @@ TEST(TransferTest, LoopWithStructReferenceAssignmentConverges) {
                    Results,
                ASTContext &ASTCtx) {
         ASSERT_THAT(Results,
-                    ElementsAre(Pair("p-outer", _), Pair("p-inner", _)));
-        const Environment &OuterEnv = Results[0].second.Env;
-        const Environment &InnerEnv = Results[1].second.Env;
+                    ElementsAre(Pair("p-inner", _), Pair("p-outer", _)));
+        const Environment &InnerEnv = Results[0].second.Env;
+        const Environment &OuterEnv = Results[1].second.Env;
 
         const ValueDecl *ValDecl = findValueDecl(ASTCtx, "val");
         ASSERT_THAT(ValDecl, NotNull());
@@ -3896,8 +3899,37 @@ TEST(TransferTest, ContextSensitiveOptionDisabled) {
                 EXPECT_FALSE(Env.flowConditionImplies(FooVal));
                 EXPECT_FALSE(Env.flowConditionImplies(Env.makeNot(FooVal)));
               },
-              {/*.ApplyBuiltinTransfer=*/true,
-               /*.BuiltinTransferOptions=*/{/*.ContextSensitive=*/false}});
+              {TransferOptions{/*.ContextSensitiveOpts=*/llvm::None}});
+}
+
+TEST(TransferTest, ContextSensitiveDepthZero) {
+  std::string Code = R"(
+    bool GiveBool();
+    void SetBool(bool &Var) { Var = true; }
+
+    void target() {
+      bool Foo = GiveBool();
+      SetBool(Foo);
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_FALSE(Env.flowConditionImplies(FooVal));
+                EXPECT_FALSE(Env.flowConditionImplies(Env.makeNot(FooVal)));
+              },
+              {TransferOptions{ContextSensitiveOptions{/*.Depth=*/0}}});
 }
 
 TEST(TransferTest, ContextSensitiveSetTrue) {
@@ -3926,8 +3958,7 @@ TEST(TransferTest, ContextSensitiveSetTrue) {
                     *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
                 EXPECT_TRUE(Env.flowConditionImplies(FooVal));
               },
-              {/*.ApplyBuiltinTransfer=*/true,
-               /*.BuiltinTransferOptions=*/{/*.ContextSensitive=*/true}});
+              {TransferOptions{ContextSensitiveOptions{}}});
 }
 
 TEST(TransferTest, ContextSensitiveSetFalse) {
@@ -3956,8 +3987,7 @@ TEST(TransferTest, ContextSensitiveSetFalse) {
                     *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
                 EXPECT_TRUE(Env.flowConditionImplies(Env.makeNot(FooVal)));
               },
-              {/*.ApplyBuiltinTransfer=*/true,
-               /*.BuiltinTransferOptions=*/{/*.ContextSensitive=*/true}});
+              {TransferOptions{ContextSensitiveOptions{}}});
 }
 
 TEST(TransferTest, ContextSensitiveSetBothTrueAndFalse) {
@@ -3997,11 +4027,10 @@ TEST(TransferTest, ContextSensitiveSetBothTrueAndFalse) {
                 EXPECT_FALSE(Env.flowConditionImplies(BarVal));
                 EXPECT_TRUE(Env.flowConditionImplies(Env.makeNot(BarVal)));
               },
-              {/*.ApplyBuiltinTransfer=*/true,
-               /*.BuiltinTransferOptions=*/{/*.ContextSensitive=*/true}});
+              {TransferOptions{ContextSensitiveOptions{}}});
 }
 
-TEST(TransferTest, ContextSensitiveSetTwoLayers) {
+TEST(TransferTest, ContextSensitiveSetTwoLayersDepthOne) {
   std::string Code = R"(
     bool GiveBool();
     void SetBool1(bool &Var) { Var = true; }
@@ -4029,8 +4058,146 @@ TEST(TransferTest, ContextSensitiveSetTwoLayers) {
                 EXPECT_FALSE(Env.flowConditionImplies(FooVal));
                 EXPECT_FALSE(Env.flowConditionImplies(Env.makeNot(FooVal)));
               },
-              {/*.ApplyBuiltinTransfer=*/true,
-               /*.BuiltinTransferOptions=*/{/*.ContextSensitive=*/true}});
+              {TransferOptions{ContextSensitiveOptions{/*.Depth=*/1}}});
+}
+
+TEST(TransferTest, ContextSensitiveSetTwoLayersDepthTwo) {
+  std::string Code = R"(
+    bool GiveBool();
+    void SetBool1(bool &Var) { Var = true; }
+    void SetBool2(bool &Var) { SetBool1(Var); }
+
+    void target() {
+      bool Foo = GiveBool();
+      SetBool2(Foo);
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{/*.Depth=*/2}}});
+}
+
+TEST(TransferTest, ContextSensitiveSetThreeLayersDepthTwo) {
+  std::string Code = R"(
+    bool GiveBool();
+    void SetBool1(bool &Var) { Var = true; }
+    void SetBool2(bool &Var) { SetBool1(Var); }
+    void SetBool3(bool &Var) { SetBool2(Var); }
+
+    void target() {
+      bool Foo = GiveBool();
+      SetBool3(Foo);
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_FALSE(Env.flowConditionImplies(FooVal));
+                EXPECT_FALSE(Env.flowConditionImplies(Env.makeNot(FooVal)));
+              },
+              {TransferOptions{ContextSensitiveOptions{/*.Depth=*/2}}});
+}
+
+TEST(TransferTest, ContextSensitiveSetThreeLayersDepthThree) {
+  std::string Code = R"(
+    bool GiveBool();
+    void SetBool1(bool &Var) { Var = true; }
+    void SetBool2(bool &Var) { SetBool1(Var); }
+    void SetBool3(bool &Var) { SetBool2(Var); }
+
+    void target() {
+      bool Foo = GiveBool();
+      SetBool3(Foo);
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{/*.Depth=*/3}}});
+}
+
+TEST(TransferTest, ContextSensitiveMutualRecursion) {
+  std::string Code = R"(
+    bool Pong(bool X, bool Y);
+
+    bool Ping(bool X, bool Y) {
+      if (X) {
+        return Y;
+      } else {
+        return Pong(!X, Y);
+      }
+    }
+
+    bool Pong(bool X, bool Y) {
+      if (Y) {
+        return X;
+      } else {
+        return Ping(X, !Y);
+      }
+    }
+
+    void target() {
+      bool Foo = Ping(false, false);
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                // The analysis doesn't crash...
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                // ... but it also can't prove anything here.
+                EXPECT_FALSE(Env.flowConditionImplies(FooVal));
+                EXPECT_FALSE(Env.flowConditionImplies(Env.makeNot(FooVal)));
+              },
+              {TransferOptions{ContextSensitiveOptions{/*.Depth=*/4}}});
 }
 
 TEST(TransferTest, ContextSensitiveSetMultipleLines) {
@@ -4071,8 +4238,7 @@ TEST(TransferTest, ContextSensitiveSetMultipleLines) {
                 EXPECT_FALSE(Env.flowConditionImplies(BarVal));
                 EXPECT_TRUE(Env.flowConditionImplies(Env.makeNot(BarVal)));
               },
-              {/*.ApplyBuiltinTransfer=*/true,
-               /*.BuiltinTransferOptions=*/{/*.ContextSensitive=*/true}});
+              {TransferOptions{ContextSensitiveOptions{}}});
 }
 
 TEST(TransferTest, ContextSensitiveSetMultipleBlocks) {
@@ -4117,8 +4283,365 @@ TEST(TransferTest, ContextSensitiveSetMultipleBlocks) {
                 EXPECT_TRUE(Env.flowConditionImplies(BazVal));
                 EXPECT_FALSE(Env.flowConditionImplies(Env.makeNot(BazVal)));
               },
-              {/*.ApplyBuiltinTransfer=*/true,
-               /*.BuiltinTransferOptions=*/{/*.ContextSensitive=*/true}});
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveReturnVoid) {
+  std::string Code = R"(
+    void Noop() { return; }
+
+    void target() {
+      Noop();
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                // This just tests that the analysis doesn't crash.
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveReturnTrue) {
+  std::string Code = R"(
+    bool GiveBool() { return true; }
+
+    void target() {
+      bool Foo = GiveBool();
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveReturnFalse) {
+  std::string Code = R"(
+    bool GiveBool() { return false; }
+
+    void target() {
+      bool Foo = GiveBool();
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(Env.makeNot(FooVal)));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveReturnArg) {
+  std::string Code = R"(
+    bool GiveBool();
+    bool GiveBack(bool Arg) { return Arg; }
+
+    void target() {
+      bool Foo = GiveBool();
+      bool Bar = GiveBack(Foo);
+      bool Baz = Foo == Bar;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *BazDecl = findValueDecl(ASTCtx, "Baz");
+                ASSERT_THAT(BazDecl, NotNull());
+
+                auto &BazVal =
+                    *cast<BoolValue>(Env.getValue(*BazDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(BazVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveReturnInt) {
+  std::string Code = R"(
+    int identity(int x) { return x; }
+
+    void target() {
+      int y = identity(42);
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                // This just tests that the analysis doesn't crash.
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveMethodLiteral) {
+  std::string Code = R"(
+    class MyClass {
+    public:
+      bool giveBool() { return true; }
+    };
+
+    void target() {
+      MyClass MyObj;
+      bool Foo = MyObj.giveBool();
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveMethodGetter) {
+  std::string Code = R"(
+    class MyClass {
+    public:
+      bool getField() { return Field; }
+
+      bool Field;
+    };
+
+    void target() {
+      MyClass MyObj;
+      MyObj.Field = true;
+      bool Foo = MyObj.getField();
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveMethodSetter) {
+  std::string Code = R"(
+    class MyClass {
+    public:
+      bool setField(bool Val) { Field = Val; }
+
+      bool Field;
+    };
+
+    void target() {
+      MyClass MyObj;
+      MyObj.setField(true);
+      bool Foo = MyObj.Field;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveMethodGetterAndSetter) {
+  std::string Code = R"(
+    class MyClass {
+    public:
+      bool getField() { return Field; }
+      bool setField(bool Val) { Field = Val; }
+
+    private:
+      bool Field;
+    };
+
+    void target() {
+      MyClass MyObj;
+      MyObj.setField(true);
+      bool Foo = MyObj.getField();
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveConstructorBody) {
+  std::string Code = R"(
+    class MyClass {
+    public:
+      MyClass() { MyField = true; }
+
+      bool MyField;
+    };
+
+    void target() {
+      MyClass MyObj;
+      bool Foo = MyObj.MyField;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveConstructorInitializer) {
+  std::string Code = R"(
+    class MyClass {
+    public:
+      MyClass() : MyField(true) {}
+
+      bool MyField;
+    };
+
+    void target() {
+      MyClass MyObj;
+      bool Foo = MyObj.MyField;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
+}
+
+TEST(TransferTest, ContextSensitiveConstructorDefault) {
+  std::string Code = R"(
+    class MyClass {
+    public:
+      MyClass() = default;
+
+      bool MyField = true;
+    };
+
+    void target() {
+      MyClass MyObj;
+      bool Foo = MyObj.MyField;
+      // [[p]]
+    }
+  )";
+  runDataflow(Code,
+              [](llvm::ArrayRef<
+                     std::pair<std::string, DataflowAnalysisState<NoopLattice>>>
+                     Results,
+                 ASTContext &ASTCtx) {
+                ASSERT_THAT(Results, ElementsAre(Pair("p", _)));
+                const Environment &Env = Results[0].second.Env;
+
+                const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
+                ASSERT_THAT(FooDecl, NotNull());
+
+                auto &FooVal =
+                    *cast<BoolValue>(Env.getValue(*FooDecl, SkipPast::None));
+                EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+              },
+              {TransferOptions{ContextSensitiveOptions{}}});
 }
 
 } // namespace

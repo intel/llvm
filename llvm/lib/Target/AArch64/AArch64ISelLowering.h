@@ -291,6 +291,8 @@ enum NodeType : unsigned {
   SMULL,
   UMULL,
 
+  PMULL,
+
   // Reciprocal estimates and steps.
   FRECPE,
   FRECPS,
@@ -450,6 +452,7 @@ enum NodeType : unsigned {
   STZ2G,
 
   LDP,
+  LDNP,
   STP,
   STNP,
 
@@ -633,14 +636,6 @@ public:
                              unsigned AS,
                              Instruction *I = nullptr) const override;
 
-  /// Return the cost of the scaling factor used in the addressing
-  /// mode represented by AM for this target, for a load/store
-  /// of the specified type.
-  /// If the AM is supported, the return value must be >= 0.
-  /// If the AM is not supported, it returns a negative value.
-  InstructionCost getScalingFactorCost(const DataLayout &DL, const AddrMode &AM,
-                                       Type *Ty, unsigned AS) const override;
-
   /// Return true if an FMA operation is faster than a pair of fmul and fadd
   /// instructions. fmuladd intrinsics will be expanded to FMAs when this method
   /// returns true, otherwise fmuladd is expanded to fmul + fadd.
@@ -747,11 +742,11 @@ public:
     return true;
   }
 
-  bool isCheapToSpeculateCttz() const override {
+  bool isCheapToSpeculateCttz(Type *) const override {
     return true;
   }
 
-  bool isCheapToSpeculateCtlz() const override {
+  bool isCheapToSpeculateCtlz(Type *) const override {
     return true;
   }
 
@@ -818,6 +813,8 @@ public:
   bool supportSwiftError() const override {
     return true;
   }
+
+  bool supportKCFIBundles() const override { return true; }
 
   /// Enable aggressive FMA fusion on targets that want it.
   bool enableAggressiveFMAFusion(EVT VT) const override;

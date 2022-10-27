@@ -208,14 +208,7 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
-                               const device &TargetDevice, bool KeepOwnership,
-                               const async_handler &Handler, backend Backend);
-// TODO: Unused. Remove when allowed.
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &TargetContext, bool KeepOwnership,
-                               const async_handler &Handler, backend Backend);
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &TargetContext,
+                               const device *TargetDevice, bool KeepOwnership,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
@@ -271,26 +264,13 @@ make_context(
 }
 
 template <backend Backend>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
-typename std::enable_if<
-    detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
-    make_queue(
-        const typename backend_traits<Backend>::template input_type<queue>
-            &BackendObject,
-        const context &TargetContext, bool KeepOwnership,
-        const async_handler Handler = {}) {
-  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, KeepOwnership, Handler, Backend);
-}
-
-template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, false, Handler, Backend);
+                            TargetContext, nullptr, false, Handler, Backend);
 }
 
 template <backend Backend>

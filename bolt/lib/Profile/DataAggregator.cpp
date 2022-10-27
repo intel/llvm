@@ -18,6 +18,7 @@
 #include "bolt/Profile/Heatmap.h"
 #include "bolt/Utils/CommandLineOpts.h"
 #include "bolt/Utils/Utils.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -865,8 +866,8 @@ bool DataAggregator::recordTrace(
   if (From > To)
     return false;
 
-  BinaryBasicBlock *FromBB = BF.getBasicBlockContainingOffset(From);
-  BinaryBasicBlock *ToBB = BF.getBasicBlockContainingOffset(To);
+  const BinaryBasicBlock *FromBB = BF.getBasicBlockContainingOffset(From);
+  const BinaryBasicBlock *ToBB = BF.getBasicBlockContainingOffset(To);
 
   if (!FromBB || !ToBB)
     return false;
@@ -875,7 +876,8 @@ bool DataAggregator::recordTrace(
   // the previous block (that instruction should be a call).
   if (From == FromBB->getOffset() && !BF.containsAddress(FirstLBR.From) &&
       !FromBB->isEntryPoint() && !FromBB->isLandingPad()) {
-    BinaryBasicBlock *PrevBB = BF.getLayout().getBlock(FromBB->getIndex() - 1);
+    const BinaryBasicBlock *PrevBB =
+        BF.getLayout().getBlock(FromBB->getIndex() - 1);
     if (PrevBB->getSuccessor(FromBB->getLabel())) {
       const MCInst *Instr = PrevBB->getLastNonPseudoInstr();
       if (Instr && BC.MIB->isCall(*Instr))
@@ -1156,7 +1158,7 @@ ErrorOr<DataAggregator::PerfMemSample> DataAggregator::parseMemSample() {
   ErrorOr<StringRef> Event = parseString(FieldSeparator);
   if (std::error_code EC = Event.getError())
     return EC;
-  if (Event.get().find("mem-loads") == StringRef::npos) {
+  if (!Event.get().contains("mem-loads")) {
     consumeRestOfLine();
     return Res;
   }
@@ -2021,19 +2023,16 @@ std::error_code DataAggregator::parseMMapEvents() {
     MMapInfo &MMapInfo = I->second;
     if (BC->HasFixedLoadAddress && MMapInfo.MMapAddress) {
       // Check that the binary mapping matches one of the segments.
-      bool MatchFound = false;
-      for (auto &KV : BC->SegmentMapInfo) {
-        SegmentInfo &SegInfo = KV.second;
-        // The mapping is page-aligned and hence the MMapAddress could be
-        // different from the segment start address. We cannot know the page
-        // size of the mapping, but we know it should not exceed the segment
-        // alignment value. Hence we are performing an approximate check.
-        if (SegInfo.Address >= MMapInfo.MMapAddress &&
-            SegInfo.Address - MMapInfo.MMapAddress < SegInfo.Alignment) {
-          MatchFound = true;
-          break;
-        }
-      }
+      bool MatchFound = llvm::any_of(
+          llvm::make_second_range(BC->SegmentMapInfo),
+          [&](SegmentInfo &SegInfo) {
+            // The mapping is page-aligned and hence the MMapAddress could be
+            // different from the segment start address. We cannot know the page
+            // size of the mapping, but we know it should not exceed the segment
+            // alignment value. Hence we are performing an approximate check.
+            return SegInfo.Address >= MMapInfo.MMapAddress &&
+                   SegInfo.Address - MMapInfo.MMapAddress < SegInfo.Alignment;
+          });
       if (!MatchFound) {
         errs() << "PERF2BOLT-WARNING: ignoring mapping of " << NameToUse
                << " at 0x" << Twine::utohexstr(MMapInfo.MMapAddress) << '\n';

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out -g
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER=host %t.out
 //
 //==-------------------------- DataMovement.cpp ----------------------------==//

@@ -714,7 +714,7 @@ PPCLoopInstrFormPrep::rewriteForBase(Loop *L, const SCEVAddRecExpr *BasePtrSCEV,
 
   // Note that LoopPredecessor might occur in the predecessor list multiple
   // times, and we need to add it the right number of times.
-  for (auto PI : predecessors(Header)) {
+  for (auto *PI : predecessors(Header)) {
     if (PI != LoopPredecessor)
       continue;
 
@@ -729,7 +729,7 @@ PPCLoopInstrFormPrep::rewriteForBase(Loop *L, const SCEVAddRecExpr *BasePtrSCEV,
         I8Ty, NewPHI, IncNode, getInstrName(BaseMemI, GEPNodeIncNameSuffix),
         InsPoint);
     cast<GetElementPtrInst>(PtrInc)->setIsInBounds(IsPtrInBounds(BasePtr));
-    for (auto PI : predecessors(Header)) {
+    for (auto *PI : predecessors(Header)) {
       if (PI == LoopPredecessor)
         continue;
 
@@ -744,7 +744,7 @@ PPCLoopInstrFormPrep::rewriteForBase(Loop *L, const SCEVAddRecExpr *BasePtrSCEV,
   } else {
     // Note that LoopPredecessor might occur in the predecessor list multiple
     // times, and we need to make sure no more incoming value for them in PHI.
-    for (auto PI : predecessors(Header)) {
+    for (auto *PI : predecessors(Header)) {
       if (PI == LoopPredecessor)
         continue;
 
@@ -1049,16 +1049,15 @@ bool PPCLoopInstrFormPrep::rewriteLoadStores(
   SmallPtrSet<Value *, 16> NewPtrs;
   NewPtrs.insert(Base.first);
 
-  for (auto I = std::next(BucketChain.Elements.begin()),
-       IE = BucketChain.Elements.end(); I != IE; ++I) {
-    Value *Ptr = getPointerOperandAndType(I->Instr);
+  for (const BucketElement &BE : llvm::drop_begin(BucketChain.Elements)) {
+    Value *Ptr = getPointerOperandAndType(BE.Instr);
     assert(Ptr && "No pointer operand");
     if (NewPtrs.count(Ptr))
       continue;
 
     Instruction *NewPtr = rewriteForBucketElement(
-        Base, *I,
-        I->Offset ? cast<SCEVConstant>(I->Offset)->getValue() : nullptr,
+        Base, BE,
+        BE.Offset ? cast<SCEVConstant>(BE.Offset)->getValue() : nullptr,
         DeletedPtrs);
     assert(NewPtr && "wrong rewrite!\n");
     NewPtrs.insert(NewPtr);

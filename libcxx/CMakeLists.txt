@@ -592,6 +592,7 @@ function(cxx_add_warning_flags target)
       -Wno-user-defined-literals
       -Wno-covered-switch-default
       -Wno-suggest-override
+      -Wno-ctad-maybe-unsupported
     )
     if (LIBCXX_TARGETING_CLANG_CL)
       target_add_compile_flags_if_supported(${target} PRIVATE
@@ -699,6 +700,8 @@ function(get_sanitizer_flags OUT_VAR  USE_SANITIZER)
     endif()
     if (USE_SANITIZER STREQUAL "Address")
       append_flags(SANITIZER_FLAGS "-fsanitize=address")
+    elseif (USE_SANITIZER STREQUAL "HWAddress")
+      append_flags(SANITIZER_FLAGS "-fsanitize=hwaddress")
     elseif (USE_SANITIZER MATCHES "Memory(WithOrigins)?")
       append_flags(SANITIZER_FLAGS -fsanitize=memory)
       if (USE_SANITIZER STREQUAL "MemoryWithOrigins")
@@ -829,6 +832,14 @@ function(cxx_add_windows_flags target)
                                  # Use the ISO conforming behaviour for conversion
                                  # in printf, scanf.
                                  _CRT_STDIO_ISO_WIDE_SPECIFIERS)
+    # Clang-cl shared builds don't support the experimental library.
+    # To avoid linker errors the format_error destructor is inlined for the
+    # dylib. Users can never use format in this mode.
+    # TODO FMT Remove when format becomes mainline.
+    if (LIBCXX_ENABLE_SHARED)
+      target_compile_definitions(${target} PRIVATE
+                                 _LIBCPP_INLINE_FORMAT_ERROR_DTOR)
+    endif()
   endif()
 endfunction()
 

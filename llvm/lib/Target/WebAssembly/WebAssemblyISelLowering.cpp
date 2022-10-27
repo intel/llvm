@@ -751,12 +751,12 @@ WebAssemblyTargetLowering::getRegForInlineAsmConstraint(
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
-bool WebAssemblyTargetLowering::isCheapToSpeculateCttz() const {
+bool WebAssemblyTargetLowering::isCheapToSpeculateCttz(Type *Ty) const {
   // Assume ctz is a relatively cheap operation.
   return true;
 }
 
-bool WebAssemblyTargetLowering::isCheapToSpeculateCtlz() const {
+bool WebAssemblyTargetLowering::isCheapToSpeculateCtlz(Type *Ty) const {
   // Assume clz is a relatively cheap operation.
   return true;
 }
@@ -1581,6 +1581,11 @@ SDValue WebAssemblyTargetLowering::LowerStore(SDValue Op,
     return DAG.getNode(WebAssemblyISD::LOCAL_SET, DL, Tys, Ops);
   }
 
+  if (WebAssembly::isWasmVarAddressSpace(SN->getAddressSpace()))
+    report_fatal_error(
+        "Encountered an unlowerable store to the wasm_var address space",
+        false);
+
   return Op;
 }
 
@@ -1635,6 +1640,11 @@ SDValue WebAssemblyTargetLowering::LowerLoad(SDValue Op,
     assert(Result->getNumValues() == 2 && "Loads must carry a chain!");
     return Result;
   }
+
+  if (WebAssembly::isWasmVarAddressSpace(LN->getAddressSpace()))
+    report_fatal_error(
+        "Encountered an unlowerable load from the wasm_var address space",
+        false);
 
   return Op;
 }
@@ -1845,7 +1855,7 @@ SDValue WebAssemblyTargetLowering::LowerBR_JT(SDValue Op,
   const auto &MBBs = MJTI->getJumpTables()[JT->getIndex()].MBBs;
 
   // Add an operand for each case.
-  for (auto MBB : MBBs)
+  for (auto *MBB : MBBs)
     Ops.push_back(DAG.getBasicBlock(MBB));
 
   // Add the first MBB as a dummy default target for now. This will be replaced

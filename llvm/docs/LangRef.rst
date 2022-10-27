@@ -1803,8 +1803,14 @@ example:
     startup time if the function is not called during program startup.
 ``noprofile``
     This function attribute prevents instrumentation based profiling, used for
-    coverage or profile based optimization, from being added to a function,
-    even when inlined.
+    coverage or profile based optimization, from being added to a function. It
+    also blocks inlining if the caller and callee have different values of this
+    attribute.
+``skipprofile``
+    This function attribute prevents instrumentation based profiling, used for
+    coverage or profile based optimization, from being added to a function. This
+    attribute does not restrict inlining, so instrumented instruction could end
+    up in this function.
 ``noredzone``
     This attribute indicates that the code generator should not use a
     red zone, even if the target-specific ABI normally permits it.
@@ -2644,6 +2650,23 @@ Pointer Authentication Operand Bundles
 Pointer Authentication operand bundles are characterized by the
 ``"ptrauth"`` operand bundle tag.  They are described in the
 `Pointer Authentication <PointerAuth.html#operand-bundle>`__ document.
+
+.. _ob_kcfi:
+
+KCFI Operand Bundles
+^^^^^^^^^^^^^^^^^^^^
+
+A ``"kcfi"`` operand bundle on an indirect call indicates that the call will
+be preceded by a runtime type check, which validates that the call target is
+prefixed with a :ref:`type identifier<md_kcfi_type>` that matches the operand
+bundle attribute. For example:
+
+.. code-block:: llvm
+
+      call void %0() ["kcfi"(i32 1234)]
+
+Clang emits KCFI operand bundles and the necessary metadata with
+``-fsanitize=kcfi``.
 
 .. _moduleasm:
 
@@ -7207,6 +7230,29 @@ Example:
     }
     !0 = !{i32 846595819, ptr @__llvm_rtti_proxy}
 
+.. _md_kcfi_type:
+
+'``kcfi_type``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``kcfi_type`` metadata can be used to attach a type identifier to
+functions that can be called indirectly. The type data is emitted before the
+function entry in the assembly. Indirect calls with the :ref:`kcfi operand
+bundle<ob_kcfi>` will emit a check that compares the type identifier to the
+metadata.
+
+Example:
+
+.. code-block:: text
+
+    define dso_local i32 @f() !kcfi_type !0 {
+      ret i32 0
+    }
+    !0 = !{i32 12345678}
+
+Clang emits ``kcfi_type`` metadata nodes for address-taken functions with
+``-fsanitize=kcfi``.
+
 Module Flags Metadata
 =====================
 
@@ -11651,7 +11697,8 @@ This instruction requires several arguments:
    should perform tail call optimization. The ``tail`` marker is a hint that
    `can be ignored <CodeGenerator.html#sibcallopt>`_. The ``musttail`` marker
    means that the call must be tail call optimized in order for the program to
-   be correct. The ``musttail`` marker provides these guarantees:
+   be correct. This is true even in the presence of attributes like
+   "disable-tail-calls". The ``musttail`` marker provides these guarantees:
 
    #. The call will not cause unbounded stack growth if it is part of a
       recursive cycle in the call graph.
@@ -14419,6 +14466,8 @@ trapping or setting ``errno``.
 
 When specified with the fast-math-flag 'afn', the result may be approximated
 using a less accurate calculation.
+
+.. _int_fabs:
 
 '``llvm.fabs.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -19085,6 +19134,54 @@ Examples:
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
 
 
+.. _int_vp_fabs:
+
+'``llvm.vp.fabs.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.fabs.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.fabs.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.fabs.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point absolute value of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fabs``' intrinsic performs floating-point absolute value
+(:ref:`fabs <int_fabs>`) of the first vector operand on each enabled lane.  The
+result on disabled lanes is undefined.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.fabs.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.fabs.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+
+
 .. _int_vp_fma:
 
 '``llvm.vp.fma.*``' Intrinsics
@@ -20526,7 +20623,7 @@ Semantics:
 
 The '``llvm.vp.sext``' intrinsic performs a sign extension by copying the sign
 bit (highest order bit) of the value until it reaches the size of the return
-type. When zero extending from i1, the result will always be either -1 or 0.
+type. When sign extending from i1, the result will always be either -1 or 0.
 The conversion is performed on lane positions below the explicit vector length
 and where the vector mask is true. Masked-off lanes are undefined.
 

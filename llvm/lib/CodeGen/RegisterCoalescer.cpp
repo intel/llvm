@@ -418,24 +418,24 @@ INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_END(RegisterCoalescer, "simple-register-coalescing",
                     "Simple Register Coalescing", false, false)
 
-LLVM_NODISCARD static bool isMoveInstr(const TargetRegisterInfo &tri,
-                                       const MachineInstr *MI, Register &Src,
-                                       Register &Dst, unsigned &SrcSub,
-                                       unsigned &DstSub) {
-  if (MI->isCopy()) {
-    Dst = MI->getOperand(0).getReg();
-    DstSub = MI->getOperand(0).getSubReg();
-    Src = MI->getOperand(1).getReg();
-    SrcSub = MI->getOperand(1).getSubReg();
-  } else if (MI->isSubregToReg()) {
-    Dst = MI->getOperand(0).getReg();
-    DstSub = tri.composeSubRegIndices(MI->getOperand(0).getSubReg(),
-                                      MI->getOperand(3).getImm());
-    Src = MI->getOperand(2).getReg();
-    SrcSub = MI->getOperand(2).getSubReg();
-  } else
-    return false;
-  return true;
+[[nodiscard]] static bool isMoveInstr(const TargetRegisterInfo &tri,
+                                      const MachineInstr *MI, Register &Src,
+                                      Register &Dst, unsigned &SrcSub,
+                                      unsigned &DstSub) {
+    if (MI->isCopy()) {
+      Dst = MI->getOperand(0).getReg();
+      DstSub = MI->getOperand(0).getSubReg();
+      Src = MI->getOperand(1).getReg();
+      SrcSub = MI->getOperand(1).getSubReg();
+    } else if (MI->isSubregToReg()) {
+      Dst = MI->getOperand(0).getReg();
+      DstSub = tri.composeSubRegIndices(MI->getOperand(0).getSubReg(),
+                                        MI->getOperand(3).getImm());
+      Src = MI->getOperand(2).getReg();
+      SrcSub = MI->getOperand(2).getSubReg();
+    } else
+      return false;
+    return true;
 }
 
 /// Return true if this block should be vacated by the coalescer to eliminate
@@ -2743,8 +2743,10 @@ JoinVals::analyzeValue(unsigned ValNo, JoinVals &Other) {
     }
     V.OtherVNI = OtherVNI;
     Val &OtherV = Other.Vals[OtherVNI->id];
-    // Keep this value, check for conflicts when analyzing OtherVNI.
-    if (!OtherV.isAnalyzed())
+    // Keep this value, check for conflicts when analyzing OtherVNI. Avoid
+    // revisiting OtherVNI->id in JoinVals::computeAssignment() below before it
+    // is assigned.
+    if (!OtherV.isAnalyzed() || Other.Assignments[OtherVNI->id] == -1)
       return CR_Keep;
     // Both sides have been analyzed now.
     // Allow overlapping PHI values. Any real interference would show up in a
@@ -2956,7 +2958,7 @@ void JoinVals::computeAssignment(unsigned ValNo, JoinVals &Other) {
     }
 
     OtherV.Pruned = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   default:
     // This value number needs to go in the final joined live range.
@@ -3399,7 +3401,7 @@ void JoinVals::eraseInstrs(SmallPtrSetImpl<MachineInstr*> &ErasedInstrs,
         if (LI != nullptr)
           dbgs() << "\t\t  LHS = " << *LI << '\n';
       });
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
 
     case CR_Erase: {
@@ -4108,7 +4110,7 @@ bool RegisterCoalescer::runOnMachineFunction(MachineFunction &fn) {
   // calls
   if (fn.exposesReturnsTwice()) {
     LLVM_DEBUG(
-        dbgs() << "* Skipped as it exposes funcions that returns twice.\n");
+        dbgs() << "* Skipped as it exposes functions that returns twice.\n");
     return false;
   }
 

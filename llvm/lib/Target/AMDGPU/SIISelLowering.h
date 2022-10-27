@@ -87,6 +87,8 @@ private:
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue makeV_ILLEGAL(SDValue Op, SelectionDAG &DAG) const;
+
   // The raw.tbuffer and struct.tbuffer intrinsics have two offset args: offset
   // (the offset that is included in bounds checking and swizzling, to be split
   // between the instruction's voffset and immoffset fields) and soffset (the
@@ -522,9 +524,6 @@ public:
                                       MachineFunction &MF,
                                       const SIRegisterInfo &TRI,
                                       SIMachineFunctionInfo &Info) const;
-
-  std::pair<InstructionCost, MVT> getTypeLegalizationCost(const DataLayout &DL,
-                                                          Type *Ty) const;
 
   MachineMemOperand::Flags
   getTargetMMOFlags(const Instruction &I) const override;

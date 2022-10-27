@@ -11,4 +11,8 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_WARNING("sycl/backend/cuda.hpp is deprecated and no required anymore")
+#if !defined(_MSC_VER) || defined(__clang__)
+// MSVC doesn't support #warning and we cannot use other methods to report a
+// warning from inside a system header (which SYCL is considered to be).
+#warning sycl/backend/cuda.hpp is deprecated and not required anymore
+#endif

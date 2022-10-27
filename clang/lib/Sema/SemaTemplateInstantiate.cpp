@@ -168,7 +168,7 @@ MultiLevelTemplateArgumentList Sema::getTemplateInstantiationArgs(
       // instead of its semantic parent, unless of course the pattern we're
       // instantiating actually comes from the file's context!
       if (Function->getFriendObjectKind() &&
-          Function->getDeclContext()->isFileContext() &&
+          Function->getNonTransparentDeclContext()->isFileContext() &&
           (!Pattern || !Pattern->getLexicalDeclContext()->isFileContext())) {
         Ctx = Function->getLexicalDeclContext();
         RelativeToPrimary = false;
@@ -864,7 +864,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
       // context, depending on what else is on the stack.
       if (isa<TypeAliasTemplateDecl>(Active->Entity))
         break;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case CodeSynthesisContext::DefaultFunctionArgumentInstantiation:
     case CodeSynthesisContext::ExceptionSpecInstantiation:
     case CodeSynthesisContext::ConstraintsCheck:

@@ -32,7 +32,7 @@
 ; XFAIL: *
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s
 
 ; CHECK: call spir_func i32 @_Z21work_group_reduce_addj(i32 %a)

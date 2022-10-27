@@ -471,6 +471,18 @@ void fir::runtime::genAnyDescriptor(fir::FirOpBuilder &builder,
   genReduction2Args(anyFunc, builder, loc, resultBox, maskBox, dim);
 }
 
+/// Generate call to `ParityDim` runtime routine.
+/// This calls the descriptor based runtime call implementation of the `parity`
+/// intrinsic.
+void fir::runtime::genParityDescriptor(fir::FirOpBuilder &builder,
+                                       mlir::Location loc,
+                                       mlir::Value resultBox,
+                                       mlir::Value maskBox, mlir::Value dim) {
+  auto parityFunc =
+      fir::runtime::getRuntimeFunc<mkRTKey(ParityDim)>(loc, builder);
+  genReduction2Args(parityFunc, builder, loc, resultBox, maskBox, dim);
+}
+
 /// Generate call to `All` intrinsic runtime routine. This routine is
 /// specialized for mask arguments with rank == 1.
 mlir::Value fir::runtime::genAll(fir::FirOpBuilder &builder, mlir::Location loc,
@@ -694,6 +706,15 @@ mlir::Value fir::runtime::genMinval(fir::FirOpBuilder &builder,
   return builder.create<fir::CallOp>(loc, func, args).getResult(0);
 }
 
+/// Generate call to `Parity` intrinsic runtime routine. This routine is
+/// specialized for mask arguments with rank == 1.
+mlir::Value fir::runtime::genParity(fir::FirOpBuilder &builder,
+                                    mlir::Location loc, mlir::Value maskBox,
+                                    mlir::Value dim) {
+  auto parityFunc = fir::runtime::getRuntimeFunc<mkRTKey(Parity)>(loc, builder);
+  return genSpecial2Args(parityFunc, builder, loc, maskBox, dim);
+}
+
 /// Generate call to `ProductDim` intrinsic runtime routine. This is the version
 /// that handles any rank array with the dim argument specified.
 void fir::runtime::genProductDim(fir::FirOpBuilder &builder, mlir::Location loc,
@@ -778,9 +799,10 @@ mlir::Value fir::runtime::genDotProduct(fir::FirOpBuilder &builder,
                                         mlir::Value vectorBBox,
                                         mlir::Value resultBox) {
   mlir::func::FuncOp func;
-  auto ty = vectorABox.getType();
-  auto arrTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
-  auto eleTy = arrTy.cast<fir::SequenceType>().getEleTy();
+  // For complex data types, resultBox is !fir.ref<!fir.complex<N>>,
+  // otherwise it is !fir.box<T>.
+  auto ty = resultBox.getType();
+  auto eleTy = fir::dyn_cast_ptrOrBoxEleTy(ty);
 
   if (eleTy.isF16() || eleTy.isBF16())
     TODO(loc, "half-precision DOTPRODUCT");

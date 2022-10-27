@@ -510,7 +510,7 @@ public:
   void setDispatcherContext(DISPATCHER_CONTEXT *disp) { _dispContext = *disp; }
 
   // libunwind does not and should not depend on C++ library which means that we
-  // need our own defition of inline placement new.
+  // need our own definition of inline placement new.
   static void *operator new(size_t, UnwindCursor<A, R> *p) { return p; }
 
 private:
@@ -946,7 +946,7 @@ public:
 #endif
 
   // libunwind does not and should not depend on C++ library which means that we
-  // need our own defition of inline placement new.
+  // need our own definition of inline placement new.
   static void *operator new(size_t, UnwindCursor<A, R> *p) { return p; }
 
 private:
@@ -2106,6 +2106,11 @@ bool UnwindCursor<A, R>::getInfoFromTBTable(pint_t pc, R &registers) {
           // using dlopen().
           const char libcxxabi[] = "libc++abi.a(libc++abi.so.1)";
           void *libHandle;
+          // The AIX dlopen() sets errno to 0 when it is successful, which
+          // clobbers the value of errno from the user code. This is an AIX
+          // bug because according to POSIX it should not set errno to 0. To
+          // workaround before AIX fixes the bug, errno is saved and restored.
+          int saveErrno = errno;
           libHandle = dlopen(libcxxabi, RTLD_MEMBER | RTLD_NOW);
           if (libHandle == NULL) {
             _LIBUNWIND_TRACE_UNWINDING("dlopen() failed with errno=%d\n",
@@ -2119,6 +2124,7 @@ bool UnwindCursor<A, R>::getInfoFromTBTable(pint_t pc, R &registers) {
             assert(0 && "dlsym() failed");
           }
           dlclose(libHandle);
+          errno = saveErrno;
         }
       }
       xlcPersonalityV0InitLock.unlock();
@@ -2455,7 +2461,7 @@ int UnwindCursor<A, R>::stepWithTBTable(pint_t pc, tbtable *TBTable,
                              reinterpret_cast<void *>(pc));
 
   // The return address is the address after call site instruction, so
-  // setting IP to that simualates a return.
+  // setting IP to that simulates a return.
   newRegisters.setIP(reinterpret_cast<uintptr_t>(returnAddress));
 
   // Simulate the step by replacing the register set with the new ones.

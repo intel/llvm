@@ -84,15 +84,7 @@ static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
 }
 
 TEST(KernelReleaseTest, DISABLED_GetKernelRelease) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "The program/kernel methods are mostly no-op on the host "
-                 "device, the test is not run."
-              << std::endl;
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
   Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
       redefinedProgramCreateWithSource);
   Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
@@ -103,13 +95,13 @@ TEST(KernelReleaseTest, DISABLED_GetKernelRelease) {
   Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfo);
 
-  context Ctx{Plt.get_devices()[0]};
+  context Ctx{Mock.getPlatform().get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
   // program Prg{Ctx};
   // Prg.build_with_source("");
 
-  // { kernel Krnl = Prg.get_kernel(""); }
+  //{ kernel Krnl = Prg.get_kernel(""); }
 
   ASSERT_EQ(TestContext->KernelReferenceCount, 0)
       << "Reference count not equal to 0 after kernel destruction";

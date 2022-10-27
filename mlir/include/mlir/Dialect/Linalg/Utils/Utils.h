@@ -93,25 +93,6 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
 /// (boundsMap = affine.map<() -> (42)>)
 FailureOr<int64_t> getConstantUpperBoundForIndex(Value value);
 
-/// Create an ExtractSliceOp and, if `source` is defined by an ExtractSliceOp,
-/// fold it by adding the offsets.
-///
-/// Example:
-/// ```
-/// %0 = tensor.extract_slice %arg0[3, 4][3, 32][1, 1] : tensor<64x64xf32> to
-///                                                        tensor<3x32xf32>
-/// %1 = tensor.extract_slice %0[0, 5][3, 4][1, 1] : tensor<3x32xf32> to
-///                                                    tensor<3x4xf32>
-/// ```
-/// folds into:
-/// ```
-/// %1 = tensor.extract_slice %arg0[3, 9][3, 4][1, 1] : tensor<64x64xf32> to
-///                                                       tensor<3x4xf32>
-/// ```
-tensor::ExtractSliceOp makeComposedExtractSliceOp(
-    OpBuilder &b, Location loc, Value source, ArrayRef<OpFoldResult> offsets,
-    ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides);
-
 /// Create a tensor::PadOp that pads `source` to the size of the statically
 /// sized `type` whose static sizes are assumed to be greater than the dynamic
 /// `source` size. The padding introduces trailing `pad` values until the target
@@ -162,8 +143,7 @@ getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes);
 enum class LinalgTilingLoopType {
   Loops = 0,
   AffineLoops = 1,
-  ParallelLoops = 2,
-  TiledLoops = 3,
+  ParallelLoops = 2
 };
 
 /// Checks whether the specific `producer` is the last write to exactly the
@@ -213,17 +193,22 @@ Value materializeOpFoldResult(ImplicitLocOpBuilder &builder,
                               OpFoldResult opFoldResult);
 Value materializeOpFoldResult(OpBuilder &b, Location loc,
                               OpFoldResult opFoldResult);
+Value materializeOpFoldResult(OpBuilder &b, Location loc,
+                              ArrayRef<OpFoldResult> opFoldResults);
 
 /// A struct containg offsets-sizes-strides arguments of the tiled shape.
 struct SliceParameters {
-  SmallVector<OpFoldResult, 3> offsets;
-  SmallVector<OpFoldResult, 3> sizes;
-  SmallVector<OpFoldResult, 3> strides;
+  SmallVector<OpFoldResult> offsets;
+  SmallVector<OpFoldResult> sizes;
+  SmallVector<OpFoldResult> strides;
 };
 
-/// Computes SliceParameters for a single `valueToTile`. `omitPartialTileCheck`
-/// controls whether to omit the partial/boundary tile condition check in cases
-/// where we statically know that it is unnecessary.
+/// Computes SliceParameters for a single `valueToTile` assuming that its user
+/// is being tiled with the given loop bounds `lbs` and `ubs` and the tile sizes
+/// `tileSizes`.
+///
+/// `omitPartialTileCheck` controls whether to omit the partial/boundary tile
+/// condition check in cases where we statically know that it is unnecessary.
 SliceParameters
 computeSliceParameters(OpBuilder &builder, Location loc, Value valueToTile,
                        ArrayRef<OpFoldResult> tileSizes, AffineMap map,
@@ -231,13 +216,9 @@ computeSliceParameters(OpBuilder &builder, Location loc, Value valueToTile,
                        ArrayRef<OpFoldResult> subShapeSizes,
                        bool omitPartialTileCheck);
 
-/// Computes SliceParamaters for all `valuesToTile` of the given
-/// `linalgOp`, assuming `linalgOp` is being fused into a loop
-/// nest for tiling with the given induction variables `ivs` and tile sizes
-/// `tileSizes`. `sizeBounds` are the iteration space bounds for *all* the
-/// implicit loops in `linalgOp`. `omitPartialTileCheck` controls whether to
-/// omit the partial/boundary tile condition check in cases where we statically
-/// know that it is unnecessary.
+/// Computes SliceParamaters for all `valuesToTile` of the given `linalgOp`,
+/// assuming `linalgOp` is being fused into a loop nest. Calls
+/// `computeSliceParameters` for every individual value.
 ///
 /// Note that a constant zero in `tileSizes` means no tiling at that implicit
 /// loop. The number of non-zero values in `tileSizes` should be equal to the
@@ -371,7 +352,10 @@ enum class DistributionMethod {
   /// to
   ///
   /// %iv = %lb + %procId * %step
-  CyclicNumProcsEqNumIters = 2
+  CyclicNumProcsEqNumIters = 2,
+
+  /// No Distribution.
+  None = 3
 };
 
 /// Callback function type used to get processor ID, and number of processors
@@ -379,11 +363,10 @@ enum class DistributionMethod {
 struct ProcInfo {
   Value procId;
   Value nprocs;
+  DistributionMethod distributionMethod;
 };
-using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo, 2>(
+using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo>(
     OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges)>;
-using OneDimProcInfoCallBackFn =
-    std::function<ProcInfo(OpBuilder &b, Location loc)>;
 
 /// Options that allow distribution of loops generated in Linalg transforms to
 /// processors while generating the loops.
@@ -391,21 +374,10 @@ struct LinalgLoopDistributionOptions {
   /// Callback function that returns the Values for processor ID (`procId`), and
   /// number of processors (`nprocs`) used to execute the parallel loops. The
   /// number of `{procId, nprocs}` pairs returned must be equal to the number of
-  /// `parallelLoopRanges` passed into the callback, which in-turn is same as
-  /// the number of parallel loops for which the `distributionMethod` is
-  /// specified below.
+  /// `parallelLoopRanges` passed into the callback. The `parallelLoopRanges`
+  /// are ranges of the outer parallel loops of the operation that
+  /// do have non-zero tile sizes specified.
   ProcInfoCallBackFn procInfo;
-  /// Specification of how to distribute the `scf.parallel` loops that are
-  /// generated. As the `scf.parallel` loop is generated, the elements of this
-  /// vector is used (from left to right) and the specified distribution is
-  /// applied. If the vector is less than the number of `scf.parallel` loops
-  /// generated, then no distribution is applied.
-  SmallVector<DistributionMethod, 0> distributionMethod = {};
-
-  /// The map keyed by the distribution type that contains callback functions
-  /// that return the Values for processor ID (`procId`), and number of
-  /// processors (`nprocs`) used to execute the parallel loops.
-  DenseMap<StringRef, OneDimProcInfoCallBackFn> procInfoMap;
 };
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
@@ -523,8 +495,7 @@ struct GenerateLoopNest {
                    function_ref<scf::ValueVector(OpBuilder &, Location,
                                                  ValueRange, ValueRange)>
                        bodyBuilderFn,
-                   Optional<LinalgLoopDistributionOptions> = None,
-                   ArrayRef<StringRef> distributionTypes = {});
+                   ArrayRef<linalg::ProcInfo> procInfo = {});
 };
 
 } // namespace linalg

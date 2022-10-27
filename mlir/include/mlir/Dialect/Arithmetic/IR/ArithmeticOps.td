@@ -202,6 +202,50 @@ def Arith_AddIOp : Arith_IntBinaryOp<"addi", [Commutative]> {
   let hasCanonicalizer = 1;
 }
 
+
+def Arith_AddUICarryOp : Arith_Op<"addui_carry", [Commutative,
+    AllTypesMatch<["lhs", "rhs", "sum"]>]> {
+  let summary = "unsigned integer addition operation returning sum and carry";
+  let description = [{
+    The `addui_carry` operation takes two operands and returns two results: the
+    sum (same type as both operands), and the carry (boolean-like). The carry
+    value `1` indicates unsigned addition overflow, while indicates `0` no
+    overflow.
+
+    Example:
+
+    ```mlir
+    // Scalar addition.
+    %sum, %carry = arith.addui_carry %b, %c : i64, i1
+
+    // Vector element-wise addition.
+    %b:2 = arith.addui_carry %g, %h : vector<4xi32>, vector<4xi1>
+
+    // Tensor element-wise addition.
+    %c:2 = arith.addui_carry %y, %z : tensor<4x?xi8>, tensor<4x?xi1>
+    ```
+  }];
+
+  let arguments = (ins SignlessIntegerLike:$lhs, SignlessIntegerLike:$rhs);
+  let results = (outs SignlessIntegerLike:$sum, BoolLike:$carry);
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` type($sum) `,` type($carry)
+  }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$lhs, "Value":$rhs), [{
+      build($_builder, $_state, lhs.getType(), ::getI1SameShape(lhs.getType()),
+            lhs, rhs);
+    }]>
+  ];
+
+  let hasFolder = 1;
+
+  let extraClassDeclaration = [{
+    ::llvm::Optional<::llvm::SmallVector<int64_t, 4>> getShapeForUnroll();
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // SubIOp
 //===----------------------------------------------------------------------===//
@@ -1085,13 +1129,13 @@ def Arith_CmpIOp
 
     ```mlir
     // Custom form of scalar "signed less than" comparison.
-    %x = arith.cmpi "slt", %lhs, %rhs : i32
+    %x = arith.cmpi slt, %lhs, %rhs : i32
 
     // Generic form of the same operation.
     %x = "arith.cmpi"(%lhs, %rhs) {predicate = 2 : i64} : (i32, i32) -> i1
 
     // Custom form of vector equality comparison.
-    %x = arith.cmpi "eq", %lhs, %rhs : vector<4xi64>
+    %x = arith.cmpi eq, %lhs, %rhs : vector<4xi64>
 
     // Generic form of the same operation.
     %x = "arith.cmpi"(%lhs, %rhs) {predicate = 0 : i64}
@@ -1144,8 +1188,8 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
     Example:
 
     ```mlir
-    %r1 = arith.cmpf "oeq" %0, %1 : f32
-    %r2 = arith.cmpf "ult" %0, %1 : tensor<42x42xf64>
+    %r1 = arith.cmpf oeq, %0, %1 : f32
+    %r2 = arith.cmpf ult, %0, %1 : tensor<42x42xf64>
     %r3 = "arith.cmpf"(%0, %1) {predicate: 0} : (f8, f8) -> i1
     ```
   }];

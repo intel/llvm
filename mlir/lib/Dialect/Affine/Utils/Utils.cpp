@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineExprVisitor.h"
@@ -397,8 +398,7 @@ mlir::affineParallelize(AffineForOp forOp,
   // "main" induction variable whenc coming from a non-parallel for.
   unsigned numIVs = 1;
   yieldOp->setOperands(reducedValues);
-  newPloop.getBody()->eraseArguments(
-      llvm::to_vector<4>(llvm::seq<unsigned>(numIVs, numReductions + numIVs)));
+  newPloop.getBody()->eraseArguments(numIVs, numReductions);
 
   forOp.erase();
   return success();
@@ -659,15 +659,17 @@ LogicalResult mlir::normalizeAffineFor(AffineForOp op) {
 /// that would change the read within `memOp`.
 template <typename EffectType, typename T>
 static bool hasNoInterveningEffect(Operation *start, T memOp) {
-  Value memref = memOp.getMemRef();
-  bool isOriginalAllocation = memref.getDefiningOp<memref::AllocaOp>() ||
-                              memref.getDefiningOp<memref::AllocOp>();
+  auto isLocallyAllocated = [](Value memref) {
+    auto *defOp = memref.getDefiningOp();
+    return defOp && hasSingleEffect<MemoryEffects::Allocate>(defOp, memref);
+  };
 
   // A boolean representing whether an intervening operation could have impacted
   // memOp.
   bool hasSideEffect = false;
 
   // Check whether the effect on memOp can be caused by a given operation op.
+  Value memref = memOp.getMemRef();
   std::function<void(Operation *)> checkOperation = [&](Operation *op) {
     // If the effect has alreay been found, early exit,
     if (hasSideEffect)
@@ -682,12 +684,12 @@ static bool hasNoInterveningEffect(Operation *start, T memOp) {
         // If op causes EffectType on a potentially aliasing location for
         // memOp, mark as having the effect.
         if (isa<EffectType>(effect.getEffect())) {
-          if (isOriginalAllocation && effect.getValue() &&
-              (effect.getValue().getDefiningOp<memref::AllocaOp>() ||
-               effect.getValue().getDefiningOp<memref::AllocOp>())) {
-            if (effect.getValue() != memref)
-              continue;
-          }
+          // TODO: This should be replaced with a check for no aliasing.
+          // Aliasing information should be passed to this method.
+          if (effect.getValue() && effect.getValue() != memref &&
+              isLocallyAllocated(memref) &&
+              isLocallyAllocated(effect.getValue()))
+            continue;
           opMayHaveEffect = true;
           break;
         }
@@ -701,11 +703,12 @@ static bool hasNoInterveningEffect(Operation *start, T memOp) {
       if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op)) {
         MemRefAccess srcAccess(op);
         MemRefAccess destAccess(memOp);
-        // Dependence analysis is only correct if both ops operate on the same
-        // memref.
-        if (srcAccess.memref == destAccess.memref) {
-          FlatAffineValueConstraints dependenceConstraints;
-
+        // Affine dependence analysis here is applicable only if both ops
+        // operate on the same memref and if `op`, `memOp`, and `start` are in
+        // the same AffineScope.
+        if (srcAccess.memref == destAccess.memref &&
+            getAffineScope(op) == getAffineScope(memOp) &&
+            getAffineScope(op) == getAffineScope(start)) {
           // Number of loops containing the start op and the ending operation.
           unsigned minSurroundingLoops =
               getNumCommonSurroundingLoops(*start, *memOp);
@@ -722,11 +725,14 @@ static bool hasNoInterveningEffect(Operation *start, T memOp) {
           // minSurrounding loops since `start` would overwrite any store with a
           // smaller number of surrounding loops before.
           unsigned d;
+          FlatAffineValueConstraints dependenceConstraints;
           for (d = nsLoops + 1; d > minSurroundingLoops; d--) {
             DependenceResult result = checkMemrefAccessDependence(
                 srcAccess, destAccess, d, &dependenceConstraints,
                 /*dependenceComponents=*/nullptr);
-            if (hasDependence(result)) {
+            // A dependence failure or the presence of a dependence implies a
+            // side effect.
+            if (!noDependence(result)) {
               hasSideEffect = true;
               return;
             }
@@ -735,7 +741,11 @@ static bool hasNoInterveningEffect(Operation *start, T memOp) {
           // No side effect was seen, simply return.
           return;
         }
+        // TODO: Check here if the memrefs alias: there is no side effect if
+        // `srcAccess.memref` and `destAccess.memref` don't alias.
       }
+      // We have an op with a memory effect and we cannot prove if it
+      // intervenes.
       hasSideEffect = true;
       return;
     }
@@ -1050,18 +1060,20 @@ void mlir::affineScalarReplace(func::FuncOp f, DominanceInfo &domInfo,
   for (auto *op : opsToErase)
     op->erase();
 
-  // Check if the store fwd'ed memrefs are now left with only stores and can
-  // thus be completely deleted. Note: the canonicalize pass should be able
-  // to do this as well, but we'll do it here since we collected these anyway.
+  // Check if the store fwd'ed memrefs are now left with only stores and
+  // deallocs and can thus be completely deleted. Note: the canonicalize pass
+  // should be able to do this as well, but we'll do it here since we collected
+  // these anyway.
   for (auto memref : memrefsToErase) {
-    // If the memref hasn't been alloc'ed in this function, skip.
+    // If the memref hasn't been locally alloc'ed, skip.
     Operation *defOp = memref.getDefiningOp();
-    if (!defOp || !isa<memref::AllocOp>(defOp))
+    if (!defOp || !hasSingleEffect<MemoryEffects::Allocate>(defOp, memref))
       // TODO: if the memref was returned by a 'call' operation, we
       // could still erase it if the call had no side-effects.
       continue;
     if (llvm::any_of(memref.getUsers(), [&](Operation *ownerOp) {
-          return !isa<AffineWriteOpInterface, memref::DeallocOp>(ownerOp);
+          return !isa<AffineWriteOpInterface>(ownerOp) &&
+                 !hasSingleEffect<MemoryEffects::Free>(ownerOp, memref);
         }))
       continue;
 
@@ -1300,7 +1312,8 @@ LogicalResult mlir::replaceAllMemRefUsesWith(
 
     // Skip dealloc's - no replacement is necessary, and a memref replacement
     // at other uses doesn't hurt these dealloc's.
-    if (isa<memref::DeallocOp>(op) && !replaceInDeallocOp)
+    if (hasSingleEffect<MemoryEffects::Free>(op, oldMemRef) &&
+        !replaceInDeallocOp)
       continue;
 
     // Check if the memref was used in a non-dereferencing context. It is fine
@@ -1724,8 +1737,8 @@ LogicalResult mlir::normalizeMemRef(memref::AllocOp *allocOp) {
   }
   // Replace any uses of the original alloc op and erase it. All remaining uses
   // have to be dealloc's; RAMUW above would've failed otherwise.
-  assert(llvm::all_of(oldMemRef.getUsers(), [](Operation *op) {
-    return isa<memref::DeallocOp>(op);
+  assert(llvm::all_of(oldMemRef.getUsers(), [&](Operation *op) {
+    return hasSingleEffect<MemoryEffects::Free>(op, oldMemRef);
   }));
   oldMemRef.replaceAllUsesWith(newAlloc);
   allocOp->erase();
@@ -1807,4 +1820,53 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
           .setLayout(AffineMapAttr::get(b.getMultiDimIdentityMap(newRank)));
 
   return newMemRefType;
+}
+
+DivModValue mlir::getDivMod(OpBuilder &b, Location loc, Value lhs, Value rhs) {
+  DivModValue result;
+  AffineExpr d0, d1;
+  bindDims(b.getContext(), d0, d1);
+  result.quotient =
+      makeComposedAffineApply(b, loc, d0.floorDiv(d1), {lhs, rhs});
+  result.remainder = makeComposedAffineApply(b, loc, d0 % d1, {lhs, rhs});
+  return result;
+}
+
+/// Create IR that computes the product of all elements in the set.
+static FailureOr<OpFoldResult> getIndexProduct(OpBuilder &b, Location loc,
+                                               ArrayRef<Value> set) {
+  if (set.empty())
+    return failure();
+  OpFoldResult result = set[0];
+  AffineExpr s0, s1;
+  bindSymbols(b.getContext(), s0, s1);
+  for (unsigned i = 1, e = set.size(); i < e; i++)
+    result = makeComposedFoldedAffineApply(b, loc, s0 * s1, {result, set[i]});
+  return result;
+}
+
+FailureOr<SmallVector<Value>> mlir::delinearizeIndex(OpBuilder &b, Location loc,
+                                                     Value linearIndex,
+                                                     ArrayRef<Value> dimSizes) {
+  unsigned numDims = dimSizes.size();
+
+  SmallVector<Value> divisors;
+  for (unsigned i = 1; i < numDims; i++) {
+    ArrayRef<Value> slice = dimSizes.drop_front(i);
+    FailureOr<OpFoldResult> prod = getIndexProduct(b, loc, slice);
+    if (failed(prod))
+      return failure();
+    divisors.push_back(getValueOrCreateConstantIndexOp(b, loc, *prod));
+  }
+
+  SmallVector<Value> results;
+  results.reserve(divisors.size() + 1);
+  Value residual = linearIndex;
+  for (Value divisor : divisors) {
+    DivModValue divMod = getDivMod(b, loc, residual, divisor);
+    results.push_back(divMod.quotient);
+    residual = divMod.remainder;
+  }
+  results.push_back(residual);
+  return results;
 }

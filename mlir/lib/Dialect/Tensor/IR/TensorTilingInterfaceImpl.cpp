@@ -22,6 +22,8 @@ namespace {
 struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
 
   SmallVector<Value> getDestinationOperands(Operation *op, OpBuilder &b) const {
+    OpBuilder::InsertionGuard g(b);
+    b.setInsertionPoint(op);
     ReifiedRankedShapedTypeDims reifiedShapes;
     ReifyRankedShapedTypeOpInterface reifyShapedTypeInterface =
         dyn_cast<ReifyRankedShapedTypeOpInterface>(op);
@@ -59,15 +61,25 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
   }
 
   SmallVector<Operation *>
-  getTiledImplementation(Operation *op, OpBuilder &b, ValueRange dest,
+  getTiledImplementation(Operation *op, OpBuilder &b,
                          ArrayRef<OpFoldResult> offsets,
-                         ArrayRef<OpFoldResult> sizes,
-                         bool /*tileDestOperands*/) const {
+                         ArrayRef<OpFoldResult> sizes) const {
     Operation *result =
         tensor::bubbleUpPadSlice(b, cast<PadOp>(op), offsets, sizes);
     if (!result)
       return {};
     return {result};
+  }
+
+  LogicalResult
+  getResultTilePosition(Operation *op, OpBuilder &b, unsigned resultNumber,
+                        ArrayRef<OpFoldResult> offsets,
+                        ArrayRef<OpFoldResult> sizes,
+                        SmallVector<OpFoldResult> &resultOffsets,
+                        SmallVector<OpFoldResult> &resultSizes) const {
+    resultOffsets.assign(offsets.begin(), offsets.end());
+    resultSizes.assign(sizes.begin(), sizes.end());
+    return success();
   }
 };
 
@@ -281,7 +293,7 @@ Operation *tensor::bubbleUpPadSlice(OpBuilder &b, tensor::PadOp padOp,
   return createPadOfExtractSlice();
 }
 
-void mlir::tensor::registerTilingOpInterfaceExternalModels(
+void mlir::tensor::registerTilingInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, TensorDialect *dialect) {
     tensor::PadOp::attachInterface<PadOpTiling>(*ctx);

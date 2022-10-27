@@ -37,12 +37,7 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool IsHost)
     : MImpl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
                                                    std::move(SecondaryQueue))),
-      MQueue(std::move(Queue)), MIsHost(IsHost) {
-  // Create extended members
-  auto ExtendedMembers =
-      std::make_shared<std::vector<detail::ExtendedMemberT>>();
-  MSharedPtrStorage.push_back(std::move(ExtendedMembers));
-}
+      MQueue(std::move(Queue)), MIsHost(IsHost) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state

@@ -1,14 +1,17 @@
 /// Verify the usage of -fsycl-force-target applies to all expected unbundlings
 // RUN: touch %t.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fsycl-force-target=spir64 \
+// RUN:          -target x86_64-unknown-linux-gnu \
 // RUN:          %s --sysroot=%S/Inputs/SYCL %t.o -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK_FORCE_TARGET
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen \
+// RUN:          -target x86_64-unknown-linux-gnu \
 // RUN:          -fsycl-force-target=spir64-unknown-unknown \
 // RUN:          %s --sysroot=%S/Inputs/SYCL %t.o -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=CHECK_FORCE_TARGET,CHECK_FORCE_TARGET_GEN
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 \
 // RUN:          -fsycl-force-target=spir64 %s \
+// RUN:          -target x86_64-unknown-linux-gnu \
 // RUN:          --sysroot=%S/Inputs/SYCL %t.o -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=CHECK_FORCE_TARGET,CHECK_FORCE_TARGET_CPU
 // CHECK_FORCE_TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=host-{{.*}},sycl-spir64-unknown-unknown" "-input={{.*}}" "-output={{.*}}" "-output=[[DEVICEOBJECTOUT:.+]]" "-unbundle" "-allow-missing-bundles"

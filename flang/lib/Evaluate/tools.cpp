@@ -771,7 +771,7 @@ inline const ProcedureRef *UnwrapProcedureRef(const Expr<T> &expr) {
 
 // IsObjectPointer()
 bool IsObjectPointer(const Expr<SomeType> &expr, FoldingContext &context) {
-  if (IsNullPointer(expr)) {
+  if (IsNullObjectPointer(expr)) {
     return true;
   } else if (IsProcedurePointerTarget(expr)) {
     return false;
@@ -788,14 +788,28 @@ bool IsBareNullPointer(const Expr<SomeType> *expr) {
   return expr && std::holds_alternative<NullPointer>(expr->u);
 }
 
-// IsNullPointer()
-struct IsNullPointerHelper {
+// IsNullObjectPointetr, IsNullProcedurePointer(), IsNullPointer()
+template <bool IS_PROC_PTR> struct IsNullPointerHelper {
   template <typename A> bool operator()(const A &) const { return false; }
+  bool operator()(const ProcedureRef &call) const {
+    if constexpr (IS_PROC_PTR) {
+      const auto *intrinsic{call.proc().GetSpecificIntrinsic()};
+      return intrinsic &&
+          intrinsic->characteristics.value().attrs.test(
+              characteristics::Procedure::Attr::NullPointer);
+    } else {
+      return false;
+    }
+  }
   template <typename T> bool operator()(const FunctionRef<T> &call) const {
-    const auto *intrinsic{call.proc().GetSpecificIntrinsic()};
-    return intrinsic &&
-        intrinsic->characteristics.value().attrs.test(
-            characteristics::Procedure::Attr::NullPointer);
+    if constexpr (IS_PROC_PTR) {
+      return false;
+    } else {
+      const auto *intrinsic{call.proc().GetSpecificIntrinsic()};
+      return intrinsic &&
+          intrinsic->characteristics.value().attrs.test(
+              characteristics::Procedure::Attr::NullPointer);
+    }
   }
   bool operator()(const NullPointer &) const { return true; }
   template <typename T> bool operator()(const Parentheses<T> &x) const {
@@ -806,8 +820,14 @@ struct IsNullPointerHelper {
   }
 };
 
+bool IsNullObjectPointer(const Expr<SomeType> &expr) {
+  return IsNullPointerHelper<false>{}(expr);
+}
+bool IsNullProcedurePointer(const Expr<SomeType> &expr) {
+  return IsNullPointerHelper<true>{}(expr);
+}
 bool IsNullPointer(const Expr<SomeType> &expr) {
-  return IsNullPointerHelper{}(expr);
+  return IsNullObjectPointer(expr) || IsNullProcedurePointer(expr);
 }
 
 // GetSymbolVector()
@@ -1247,7 +1267,8 @@ bool IsElementalProcedure(const Symbol &original) {
           IsElementalProcedure(*procInterface);
     }
   } else if (const auto *details{symbol.detailsIf<ProcBindingDetails>()}) {
-    return IsElementalProcedure(details->symbol());
+    return !details->symbol().attrs().test(Attr::INTRINSIC) &&
+        IsElementalProcedure(details->symbol());
   } else if (!IsProcedure(symbol)) {
     return false;
   }
@@ -1462,6 +1483,13 @@ bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name) {
   }
 }
 
+bool IsBuiltinCPtr(const Symbol &symbol) {
+  if (const DeclTypeSpec *declType = symbol.GetType())
+    if (const DerivedTypeSpec *derived = declType->AsDerived())
+      return IsIsoCType(derived);
+  return false;
+}
+
 bool IsIsoCType(const DerivedTypeSpec *derived) {
   return IsBuiltinDerivedType(derived, "c_ptr") ||
       IsBuiltinDerivedType(derived, "c_funptr");
@@ -1481,21 +1509,20 @@ bool IsEventTypeOrLockType(const DerivedTypeSpec *derivedTypeSpec) {
 }
 
 int CountLenParameters(const DerivedTypeSpec &type) {
-  return std::count_if(type.parameters().begin(), type.parameters().end(),
-      [](const auto &pair) { return pair.second.isLen(); });
+  return llvm::count_if(
+      type.parameters(), [](const auto &pair) { return pair.second.isLen(); });
 }
 
 int CountNonConstantLenParameters(const DerivedTypeSpec &type) {
-  return std::count_if(
-      type.parameters().begin(), type.parameters().end(), [](const auto &pair) {
-        if (!pair.second.isLen()) {
-          return false;
-        } else if (const auto &expr{pair.second.GetExplicit()}) {
-          return !IsConstantExpr(*expr);
-        } else {
-          return true;
-        }
-      });
+  return llvm::count_if(type.parameters(), [](const auto &pair) {
+    if (!pair.second.isLen()) {
+      return false;
+    } else if (const auto &expr{pair.second.GetExplicit()}) {
+      return !IsConstantExpr(*expr);
+    } else {
+      return true;
+    }
+  });
 }
 
 // Are the type parameters of type1 compile-time compatible with the

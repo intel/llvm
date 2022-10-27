@@ -205,12 +205,12 @@ func.func @rank_reducing_parallel_insert_slice(%in: tensor<100xf32>, %out: tenso
   %num_threads = arith.constant 100 : index
 
   // CHECK: scf.foreach_thread {{.*}} {
-  %result = scf.foreach_thread (%thread_idx) in (%num_threads) -> tensor<200x100xf32> {
+  %result = scf.foreach_thread (%thread_idx) in (%num_threads) shared_outs (%o = %out) -> tensor<200x100xf32> {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
       scf.foreach_thread.perform_concurrently {
         // CHECK: memref.subview %{{.*}}[%{{.*}}] [1] [1] : memref<100xf32, #[[$MAP0]]> to memref<1xf32, #[[$MAP0]]>
         // CHECK: memref.subview %{{.*}}[1, %{{.*}}] [1, 1] [1, 1] : memref<200x100xf32, #[[$MAP1]]> to memref<1xf32, #[[$MAP0]]>
-        tensor.parallel_insert_slice %1 into %out[1, %thread_idx][1, 1][1, 1] :
+        tensor.parallel_insert_slice %1 into %o[1, %thread_idx][1, 1][1, 1] :
           tensor<1xf32> into tensor<200x100xf32>
       }
   }
@@ -234,5 +234,23 @@ func.func @dealloc_generate_buffer(%arg: tensor<*xf32>, %sz: index, %idx: index)
     tensor.yield %elem : index
   } : tensor<?xindex>
   %r = tensor.extract %0[%idx] : tensor<?xindex>
+  return %r : index
+}
+
+// -----
+
+// CHECK-LABEL: func @dealloc_pad_buffer
+func.func @dealloc_pad_buffer(%t1: tensor<?x10xindex>, %l2: index, %h1: index,
+                              %h2: index, %idx: index) -> index {
+  // CHECK: memref.alloc
+  // CHECK: scf.parallel
+  // CHECK: memref.load
+  // CHECK: memref.dealloc
+  %0 = tensor.pad %t1 low[5, %l2] high[%h1, %h2] {
+  ^bb0(%arg0: index, %arg1: index):
+    %m = arith.muli %arg0, %arg1 : index
+    tensor.yield %m : index
+  } : tensor<?x10xindex> to tensor<?x?xindex>
+  %r = tensor.extract %0[%idx, %idx] : tensor<?x?xindex>
   return %r : index
 }

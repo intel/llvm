@@ -1690,7 +1690,7 @@ void AttrsVisitor::SetBindNameOn(Symbol &symbol) {
   symbol.SetBindName(std::move(*label));
   if (!oldBindName.empty()) {
     if (const std::string * newBindName{symbol.GetBindName()}) {
-      if (oldBindName.compare(*newBindName) != 0) {
+      if (oldBindName != *newBindName) {
         Say(symbol.name(), "The entity '%s' has multiple BIND names"_err_en_US);
       }
     }
@@ -2834,6 +2834,25 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
       newSymbol.flags() = useSymbol.flags();
       return;
     }
+  } else {
+    auto localClass{ClassifyProcedure(localUltimate)};
+    auto useClass{ClassifyProcedure(useUltimate)};
+    if (localClass == useClass &&
+        (localClass == ProcedureDefinitionClass::Intrinsic ||
+            localClass == ProcedureDefinitionClass::External) &&
+        localUltimate.name() == useUltimate.name()) {
+      auto localChars{evaluate::characteristics::Procedure::Characterize(
+          localUltimate, GetFoldingContext())};
+      auto useChars{evaluate::characteristics::Procedure::Characterize(
+          useUltimate, GetFoldingContext())};
+      if (localChars && useChars) {
+        if (*localChars == *useChars) {
+          // Same intrinsic or external procedure defined identically in two
+          // modules
+          return;
+        }
+      }
+    }
   }
   if (!combine) {
     if (!ConvertToUseError(localSymbol, location, *useModuleScope_)) {
@@ -2859,6 +2878,9 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
       // it can be locally extended without corrupting the original.
       GenericDetails generic;
       generic.CopyFrom(*localGeneric);
+      if (localGeneric->specific()) {
+        generic.set_specific(*localGeneric->specific());
+      }
       EraseSymbol(localSymbol);
       Symbol &newSymbol{MakeSymbol(
           localSymbol.name(), localSymbol.attrs(), std::move(generic))};
@@ -2873,6 +2895,19 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
       localSymbol.flags() = useSymbol.flags();
       AddGenericUse(*localGeneric, localName, useUltimate);
       localGeneric->CopyFrom(*useGeneric);
+      if (useGeneric->specific()) {
+        if (!localGeneric->specific()) {
+          localGeneric->set_specific(
+              *const_cast<Symbol *>(useGeneric->specific()));
+        } else if (&localGeneric->specific()->GetUltimate() !=
+            &useGeneric->specific()->GetUltimate()) {
+          Say(location,
+              "Cannot use-associate generic interface '%s' with specific procedure of the same name when another such generic is in scope"_err_en_US,
+              localName)
+              .Attach(
+                  localSymbol.name(), "Previous USE of '%s'"_en_US, localName);
+        }
+      }
     } else {
       CHECK(useUltimate.has<DerivedTypeDetails>());
       localGeneric->set_derivedType(
@@ -2885,6 +2920,9 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
     // with the local derived type.
     GenericDetails generic;
     generic.CopyFrom(*useGeneric);
+    if (useGeneric->specific()) {
+      generic.set_specific(*const_cast<Symbol *>(useGeneric->specific()));
+    }
     EraseSymbol(localSymbol);
     Symbol &newSymbol{MakeSymbol(localName,
         useUltimate.attrs() & ~Attrs{Attr::PUBLIC, Attr::PRIVATE},
@@ -3086,8 +3124,15 @@ void InterfaceVisitor::ResolveSpecificsInGeneric(Symbol &generic) {
       Say(*name, "Procedure '%s' not found"_err_en_US);
       continue;
     }
-    const Symbol &specific{BypassGeneric(*symbol)};
-    const Symbol &ultimate{specific.GetUltimate()};
+    // Subtlety: when *symbol is a use- or host-association, the specific
+    // procedure that is recorded in the GenericDetails below must be *symbol,
+    // not the specific procedure shadowed by a generic, because that specific
+    // procedure may be a symbol from another module and its name unavailable to
+    // emit to a module file.
+    const Symbol &bypassed{BypassGeneric(*symbol)};
+    const Symbol &specific{
+        symbol == &symbol->GetUltimate() ? bypassed : *symbol};
+    const Symbol &ultimate{bypassed.GetUltimate()};
     if (!ultimate.has<SubprogramDetails>() &&
         !ultimate.has<SubprogramNameDetails>()) {
       Say(*name, "'%s' is not a subprogram"_err_en_US);
@@ -4756,7 +4801,7 @@ void DeclarationVisitor::Post(const parser::ProcComponentDefStmt &) {
 }
 bool DeclarationVisitor::Pre(const parser::ProcPointerInit &x) {
   if (auto *name{std::get_if<parser::Name>(&x.u)}) {
-    return !NameIsKnownOrIntrinsic(*name);
+    return !NameIsKnownOrIntrinsic(*name) && !CheckUseError(*name);
   }
   return true;
 }
@@ -4850,10 +4895,13 @@ void DeclarationVisitor::Post(
     if (!procedure) {
       procedure = NoteInterfaceName(procedureName);
     }
-    if (auto *s{MakeTypeSymbol(bindingName, ProcBindingDetails{*procedure})}) {
-      SetPassNameOn(*s);
-      if (GetAttrs().test(Attr::DEFERRED)) {
-        context().SetError(*s);
+    if (procedure) {
+      if (auto *s{
+              MakeTypeSymbol(bindingName, ProcBindingDetails{*procedure})}) {
+        SetPassNameOn(*s);
+        if (GetAttrs().test(Attr::DEFERRED)) {
+          context().SetError(*s);
+        }
       }
     }
   }
@@ -5740,7 +5788,9 @@ Symbol *DeclarationVisitor::NoteInterfaceName(const parser::Name &name) {
 
 void DeclarationVisitor::CheckExplicitInterface(const parser::Name &name) {
   if (const Symbol * symbol{name.symbol}) {
-    if (!context().HasError(*symbol) && !symbol->HasExplicitInterface()) {
+    const Symbol &ultimate{symbol->GetUltimate()};
+    if (!context().HasError(*symbol) && !context().HasError(ultimate) &&
+        !ultimate.HasExplicitInterface()) {
       Say(name,
           "'%s' must be an abstract interface or a procedure with "
           "an explicit interface"_err_en_US,
@@ -5787,25 +5837,34 @@ bool DeclarationVisitor::OkToAddComponent(
     const parser::Name &name, const Symbol *extends) {
   for (const Scope *scope{&currScope()}; scope;) {
     CHECK(scope->IsDerivedType());
-    if (auto *prev{FindInScope(*scope, name)}) {
-      if (!context().HasError(*prev)) {
-        parser::MessageFixedText msg;
-        if (extends) {
-          msg = "Type cannot be extended as it has a component named"
-                " '%s'"_err_en_US;
-        } else if (prev->test(Symbol::Flag::ParentComp)) {
-          msg = "'%s' is a parent type of this type and so cannot be"
-                " a component"_err_en_US;
-        } else if (scope != &currScope()) {
-          msg = "Component '%s' is already declared in a parent of this"
-                " derived type"_err_en_US;
-        } else {
-          msg = "Component '%s' is already declared in this"
-                " derived type"_err_en_US;
-        }
-        Say2(name, std::move(msg), *prev, "Previous declaration of '%s'"_en_US);
+    if (auto *prev{FindInScope(*scope, name.source)}) {
+      std::optional<parser::MessageFixedText> msg;
+      if (context().HasError(*prev)) { // don't pile on
+      } else if (extends) {
+        msg = "Type cannot be extended as it has a component named"
+              " '%s'"_err_en_US;
+      } else if (CheckAccessibleComponent(currScope(), *prev)) {
+        // inaccessible component -- redeclaration is ok
+        msg = "Component '%s' is inaccessibly declared in or as a "
+              "parent of this derived type"_warn_en_US;
+      } else if (prev->test(Symbol::Flag::ParentComp)) {
+        msg = "'%s' is a parent type of this type and so cannot be"
+              " a component"_err_en_US;
+      } else if (scope == &currScope()) {
+        msg = "Component '%s' is already declared in this"
+              " derived type"_err_en_US;
+      } else {
+        msg = "Component '%s' is already declared in a parent of this"
+              " derived type"_err_en_US;
       }
-      return false;
+      if (msg) {
+        Say2(
+            name, std::move(*msg), *prev, "Previous declaration of '%s'"_en_US);
+        if (msg->severity() == parser::Severity::Error) {
+          Resolve(name, *prev);
+          return false;
+        }
+      }
     }
     if (scope == &currScope() && extends) {
       // The parent component has not yet been added to the scope.
@@ -5852,10 +5911,10 @@ void ConstructVisitor::ResolveIndexName(
   } else if (!prev) {
     ApplyImplicitRules(symbol);
   } else {
-    const Symbol &prevRoot{ResolveAssociations(*prev)};
+    const Symbol &prevRoot{prev->GetUltimate()};
     // prev could be host- use- or construct-associated with another symbol
     if (!prevRoot.has<ObjectEntityDetails>() &&
-        !prevRoot.has<EntityDetails>()) {
+        !prevRoot.has<AssocEntityDetails>()) {
       Say2(name, "Index name '%s' conflicts with existing identifier"_err_en_US,
           *prev, "Previous declaration of '%s'"_en_US);
       context().SetError(symbol);
@@ -6759,7 +6818,7 @@ void DeclarationVisitor::PointerInitialization(
         CHECK(!details.init());
         Walk(target);
         if (const auto *targetName{std::get_if<parser::Name>(&target.u)}) {
-          if (targetName->symbol) {
+          if (!CheckUseError(*targetName) && targetName->symbol) {
             // Validation is done in declaration checking.
             details.set_init(*targetName->symbol);
           }
@@ -7125,11 +7184,14 @@ void ResolveNamesVisitor::CreateGeneric(const parser::GenericSpec &x) {
   }
   if (existing) {
     Symbol &ultimate{existing->GetUltimate()};
-    if (const auto *existingGeneric{ultimate.detailsIf<GenericDetails>()}) {
+    if (auto *existingGeneric{ultimate.detailsIf<GenericDetails>()}) {
       if (const auto *existingUse{existing->detailsIf<UseDetails>()}) {
         // Create a local copy of a use associated generic so that
         // it can be locally extended without corrupting the original.
         genericDetails.CopyFrom(*existingGeneric);
+        if (existingGeneric->specific()) {
+          genericDetails.set_specific(*existingGeneric->specific());
+        }
         AddGenericUse(genericDetails, existing->name(), existingUse->symbol());
       } else if (existing == &ultimate) {
         // Extending an extant generic in the same scope

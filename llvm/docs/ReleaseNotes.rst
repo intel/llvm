@@ -47,6 +47,18 @@ Non-comprehensive list of changes in this release
 Update on required toolchains to build LLVM
 -------------------------------------------
 
+LLVM is now built with C++17 by default. This means C++17 can be used in
+the code base.
+
+The previous "soft" toolchain requirements have now been changed to "hard".
+This means that the the following versions are now required to build LLVM
+and there is no way to suppress this error.
+
+* GCC >= 7.1
+* Clang >= 5.0
+* Apple Clang >= 9.3
+* Visual Studio 2019 >= 16.7
+
 Changes to the LLVM IR
 ----------------------
 
@@ -95,6 +107,14 @@ Changes to the WebAssembly Backend
 ----------------------------------
 
 * ...
+
+Changes to the Windows Target
+-----------------------------
+
+* For MinGW, generate embedded ``-exclude-symbols:`` directives for symbols
+  with hidden visibility, omitting them from automatic export of all symbols.
+  This roughly makes hidden visibility work like it does for other object
+  file formats.
 
 Changes to the X86 Backend
 --------------------------

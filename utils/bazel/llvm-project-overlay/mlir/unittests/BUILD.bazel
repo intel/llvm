@@ -6,8 +6,9 @@ load("//mlir:tblgen.bzl", "gentbl_cc_library")
 
 package(
     default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
 )
+
+licenses(["notice"])
 
 cc_test(
     name = "ir_tests",
@@ -299,8 +300,8 @@ cc_test(
         "//llvm:gtest_main",
         "//mlir:AffineAnalysis",
         "//mlir:Analysis",
-        "//mlir:Parser",
         "//mlir:IR",
+        "//mlir:Parser",
     ],
 )
 

@@ -1,21 +1,21 @@
 // RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf,lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 // RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf{lower-permutation-maps=true},lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 // RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf{full-unroll=true},lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 // RUN: mlir-opt %s -pass-pipeline="func.func(convert-vector-to-scf{full-unroll=true lower-permutation-maps=true},lower-affine,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 // Test for special cases of 1D vector transfer ops.
@@ -70,9 +70,9 @@ func.func @transfer_read_1d_non_static_unit_stride(%A : memref<?x?xf32>) {
   %c6 = arith.constant 6 : index
   %fm42 = arith.constant -42.0: f32
   %1 = memref.reinterpret_cast %A to offset: [%c6], sizes: [%c1, %c2],  strides: [%c6, %c1]
-      : memref<?x?xf32> to memref<?x?xf32, offset: ?, strides: [?, ?]>
+      : memref<?x?xf32> to memref<?x?xf32, strided<[?, ?], offset: ?>>
   %2 = vector.transfer_read %1[%c2, %c1], %fm42 {in_bounds=[true]}
-      : memref<?x?xf32, offset: ?, strides: [?, ?]>, vector<4xf32>
+      : memref<?x?xf32, strided<[?, ?], offset: ?>>, vector<4xf32>
   vector.print %2 : vector<4xf32>
   return
 }

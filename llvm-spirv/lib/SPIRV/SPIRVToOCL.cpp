@@ -42,6 +42,7 @@
 #define DEBUG_TYPE "spvtocl"
 
 #include "SPIRVToOCL.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -117,6 +118,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   }
   if (OC == OpControlBarrier) {
     visitCallSPIRVControlBarrier(&CI);
+  }
+  if (isSplitBarrierINTELOpCode(OC)) {
+    visitCallSPIRVSplitBarrierINTEL(&CI, OC);
+    return;
   }
   if (isAtomicOpCode(OC)) {
     visitCallSPIRVAtomicBuiltin(&CI, OC);
@@ -251,9 +256,9 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
 
 void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
   // Get image type
-  SmallVector<StructType *, 4> ParamTys;
+  SmallVector<Type *, 4> ParamTys;
   getParameterTypes(CI, ParamTys);
-  StructType *ImgTy = ParamTys[0];
+  StructType *ImgTy = cast<StructType>(ParamTys[0]);
   assert(ImgTy && ImgTy->isOpaque() &&
          "image type must be an opaque structure");
   StringRef ImgTyName = ImgTy->getName();
@@ -277,7 +282,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
 
   AttributeList Attributes = CI->getCalledFunction()->getAttributes();
   BuiltinFuncMangleInfo Mangle;
-  Mangle.getTypeMangleInfo(0).PointerElementType.setPointer(ImgTy);
+  Mangle.getTypeMangleInfo(0).PointerTy = TypedPointerType::get(ImgTy, 0);
   Type *Int32Ty = Type::getInt32Ty(*Ctx);
   Instruction *GetImageSize = nullptr;
 
@@ -807,7 +812,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
-  SmallVector<StructType *, 6> ParamTys;
+  SmallVector<Type *, 6> ParamTys;
   getParameterTypes(CallSampledImg, ParamTys);
   StringRef ImageTypeName;
   bool IsDepthImage = false;
@@ -1317,22 +1322,8 @@ std::string SPIRVToOCLBase::translateOpaqueType(StringRef STName) {
 }
 
 void SPIRVToOCLBase::getParameterTypes(CallInst *CI,
-                                       SmallVectorImpl<StructType *> &Tys) {
-  ::getParameterTypes(CI, Tys);
-  for (auto &Ty : Tys) {
-    if (!Ty)
-      continue;
-    StringRef STName = Ty->getStructName();
-    bool IsSPIRVOpaque =
-        Ty->isOpaque() && STName.startswith(kSPIRVTypeName::PrefixAndDelim);
-
-    if (!IsSPIRVOpaque)
-      continue;
-
-    std::string NewName = translateOpaqueType(STName);
-    if (NewName != STName)
-      Ty = getOrCreateOpaqueStructType(M, NewName);
-  };
+                                       SmallVectorImpl<Type *> &Tys) {
+  ::getParameterTypes(CI->getCalledFunction(), Tys, translateOpaqueType);
 }
 
 void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,

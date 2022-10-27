@@ -11,7 +11,6 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/buffer.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
@@ -246,6 +245,7 @@ void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            access::target Target,
                                            access::mode Mode,
                                            const code_location &CodeLoc);
+
 template <typename T>
 using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
 
@@ -355,6 +355,162 @@ protected:
       return MAccessor[MIDs];
     }
   };
+};
+
+#if __cplusplus >= 201703L
+
+template <typename MayBeTag1, typename MayBeTag2>
+constexpr access::mode deduceAccessMode() {
+  // property_list = {} is not properly detected by deduction guide,
+  // when parameter is passed without curly braces: access(buffer, no_init)
+  // thus simplest approach is to check 2 last arguments for being a tag
+  if constexpr (std::is_same<MayBeTag1,
+                             mode_tag_t<access::mode::read>>::value ||
+                std::is_same<MayBeTag2,
+                             mode_tag_t<access::mode::read>>::value) {
+    return access::mode::read;
+  }
+
+  if constexpr (std::is_same<MayBeTag1,
+                             mode_tag_t<access::mode::write>>::value ||
+                std::is_same<MayBeTag2,
+                             mode_tag_t<access::mode::write>>::value) {
+    return access::mode::write;
+  }
+
+  if constexpr (
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value) {
+    return access::mode::read;
+  }
+
+  return access::mode::read_write;
+}
+
+template <typename MayBeTag1, typename MayBeTag2>
+constexpr access::target deduceAccessTarget(access::target defaultTarget) {
+  if constexpr (
+      std::is_same<MayBeTag1,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value ||
+      std::is_same<MayBeTag2,
+                   mode_target_tag_t<access::mode::read,
+                                     access::target::constant_buffer>>::value) {
+    return access::target::constant_buffer;
+  }
+
+  return defaultTarget;
+}
+
+#endif
+
+template <int Dims> class LocalAccessorBaseDevice {
+public:
+  LocalAccessorBaseDevice(sycl::range<Dims> Size)
+      : AccessRange(Size),
+        MemRange(InitializedVal<Dims, range>::template get<0>()) {}
+  // TODO: Actually we need only one field here, but currently compiler requires
+  // all of them.
+  range<Dims> AccessRange;
+  range<Dims> MemRange;
+  id<Dims> Offset;
+
+  bool operator==(const LocalAccessorBaseDevice &Rhs) const {
+    return (AccessRange == Rhs.AccessRange);
+  }
+};
+
+// The class describes a requirement to access a SYCL memory object such as
+// sycl::buffer and sycl::image. For example, each accessor used in a kernel,
+// except one with access target "local", adds such requirement for the command
+// group.
+
+template <int Dims> class AccessorImplDevice {
+public:
+  AccessorImplDevice() = default;
+  AccessorImplDevice(id<Dims> Offset, range<Dims> AccessRange,
+                     range<Dims> MemoryRange)
+      : Offset(Offset), AccessRange(AccessRange), MemRange(MemoryRange) {}
+
+  id<Dims> Offset;
+  range<Dims> AccessRange;
+  range<Dims> MemRange;
+
+  bool operator==(const AccessorImplDevice &Rhs) const {
+    return (Offset == Rhs.Offset && AccessRange == Rhs.AccessRange &&
+            MemRange == Rhs.MemRange);
+  }
+};
+
+class AccessorImplHost;
+
+void __SYCL_EXPORT addHostAccessorAndWait(AccessorImplHost *Req);
+
+class SYCLMemObjI;
+
+using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
+
+class __SYCL_EXPORT AccessorBaseHost {
+public:
+  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {});
+
+public:
+  id<3> &getOffset();
+  range<3> &getAccessRange();
+  range<3> &getMemoryRange();
+  void *getPtr();
+  unsigned int getElemSize() const;
+
+  const id<3> &getOffset() const;
+  const range<3> &getAccessRange() const;
+  const range<3> &getMemoryRange() const;
+  void *getPtr() const;
+
+  const property_list &getPropList() const;
+
+  void *getMemoryObject() const;
+
+  template <class Obj>
+  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+
+  template <typename, int, access::mode, access::target, access::placeholder,
+            typename>
+  friend class accessor;
+
+  AccessorImplPtr impl;
+
+private:
+  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+};
+
+class LocalAccessorImplHost;
+using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
+
+class __SYCL_EXPORT LocalAccessorBaseHost {
+public:
+  LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize,
+                        const property_list &PropertyList = {});
+  sycl::range<3> &getSize();
+  const sycl::range<3> &getSize() const;
+  void *getPtr();
+  void *getPtr() const;
+  int getNumOfDims();
+  int getElementSize();
+  const property_list &getPropList() const;
+
+protected:
+  template <class Obj>
+  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+
+  LocalAccessorImplPtr impl;
 };
 
 template <int Dim, typename T> struct IsValidCoordDataT;
@@ -789,7 +945,7 @@ private:
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
-class __SYCL_SPECIAL_CLASS accessor :
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
 #endif
@@ -817,12 +973,14 @@ protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
   using AccessorCommonT::AS;
-  using AccessorCommonT::IsAccessAnyWrite;
-  using AccessorCommonT::IsAccessReadOnly;
-  using AccessorCommonT::IsConstantBuf;
-  using AccessorCommonT::IsGlobalBuf;
-  using AccessorCommonT::IsHostBuf;
-  using AccessorCommonT::IsPlaceH;
+  // Cannot do "using AccessorCommonT::Flag" as it doesn't work with g++ as host
+  // compiler, for some reason.
+  static constexpr bool IsAccessAnyWrite = AccessorCommonT::IsAccessAnyWrite;
+  static constexpr bool IsAccessReadOnly = AccessorCommonT::IsAccessReadOnly;
+  static constexpr bool IsConstantBuf = AccessorCommonT::IsConstantBuf;
+  static constexpr bool IsGlobalBuf = AccessorCommonT::IsGlobalBuf;
+  static constexpr bool IsHostBuf = AccessorCommonT::IsHostBuf;
+  static constexpr bool IsPlaceH = AccessorCommonT::IsPlaceH;
   template <int Dims>
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
@@ -948,9 +1106,30 @@ public:
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 #else
-  using AccessorBaseHost::getAccessRange;
-  using AccessorBaseHost::getMemoryRange;
-  using AccessorBaseHost::getOffset;
+  id<3> &getOffset() { return AccessorBaseHost::getOffset(); }
+  range<3> &getAccessRange() { return AccessorBaseHost::getAccessRange(); }
+  range<3> &getMemoryRange() { return AccessorBaseHost::getMemoryRange(); }
+  void *getPtr() { return AccessorBaseHost::getPtr(); }
+
+  const id<3> &getOffset() const { return AccessorBaseHost::getOffset(); }
+  const range<3> &getAccessRange() const {
+    return AccessorBaseHost::getAccessRange();
+  }
+  const range<3> &getMemoryRange() const {
+    return AccessorBaseHost::getMemoryRange();
+  }
+
+  void *getPtr() const { return AccessorBaseHost::getPtr(); }
+
+  // The function references helper methods required by GDB pretty-printers
+  void GDBMethodsAnchor() {
+#ifndef NDEBUG
+    (void)getMemoryRange();
+    (void)getOffset();
+    (void)getPtr();
+    (void)getAccessRange();
+#endif
+  }
 
   char padding[sizeof(detail::AccessorImplDevice<AdjustedDim>) +
                sizeof(PtrType) - sizeof(detail::AccessorBaseHost)];
@@ -1136,6 +1315,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1169,6 +1349,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1232,6 +1413,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1264,6 +1446,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1450,6 +1633,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1491,6 +1675,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1563,6 +1748,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1603,6 +1789,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    GDBMethodsAnchor();
     preScreenAccessor(BufferRef.size(), PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -1671,8 +1858,8 @@ public:
         PropertyListT::template areSameCompileTimeProperties<NewPropsT...>(),
         "Compile-time-constant properties must be the same");
 #ifndef __SYCL_DEVICE_ONLY__
-    detail::constructorNotification(impl.get()->MSYCLMemObj, impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
+    detail::constructorNotification(getMemoryObject(), impl.get(), AccessTarget,
+                                    AccessMode, CodeLoc);
 #endif
   }
 
@@ -1794,7 +1981,7 @@ public:
       !ext::oneapi::is_compile_time_property<Property>::value, bool>
   has_property() const noexcept {
 #ifndef __SYCL_DEVICE_ONLY__
-    return AccessorBaseHost::impl->MPropertyList.has_property<Property>();
+    return getPropList().template has_property<Property>();
 #else
     return false;
 #endif
@@ -1808,7 +1995,7 @@ public:
                 !ext::oneapi::is_compile_time_property<Property>::value>>
   Property get_property() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    return AccessorBaseHost::impl->MPropertyList.get_property<Property>();
+    return getPropList().template get_property<Property>();
 #else
     return Property();
 #endif
@@ -1986,27 +2173,27 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &)
     -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
                 access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                 detail::deduceAccessTarget<Type1, Type1>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
                 detail::deduceAccessTarget<Type1, Type1>(target::device),
@@ -2015,14 +2202,14 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                 detail::deduceAccessTarget<Type1, Type2>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
                 detail::deduceAccessTarget<Type1, Type2>(target::device),
@@ -2031,14 +2218,14 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3)
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                 detail::deduceAccessTarget<Type2, Type3>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
                 detail::deduceAccessTarget<Type2, Type3>(target::device),
@@ -2047,7 +2234,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
          Type4)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                 detail::deduceAccessTarget<Type3, Type4>(target::device),
@@ -2055,7 +2242,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4, typename... PropsT>
-accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
+accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
          Type4, const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
                 detail::deduceAccessTarget<Type3, Type4>(target::device),
@@ -2128,6 +2315,21 @@ protected:
     return reinterpret_cast<PtrType>(LocalAccessorBaseHost::getPtr());
   }
 
+  void *getPtr() { return detail::LocalAccessorBaseHost::getPtr(); }
+  void *getPtr() const { return detail::LocalAccessorBaseHost::getPtr(); }
+  const range<3> &getSize() const {
+    return detail::LocalAccessorBaseHost::getSize();
+  }
+  range<3> &getSize() { return detail::LocalAccessorBaseHost::getSize(); }
+
+  // The function references helper methods required by GDB pretty-printers
+  void GDBMethodsAnchor() {
+#ifndef NDEBUG
+    (void)getSize();
+    (void)getPtr();
+#endif
+  }
+
 #endif // __SYCL_DEVICE_ONLY__
 
   // Method which calculates linear offset for the ID using Range and Offset.
@@ -2152,6 +2354,7 @@ public:
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -2165,10 +2368,11 @@ public:
     (void)propList;
   }
 #else
-      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
-    (void)propList;
+      : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT),
+                              propList) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -2183,6 +2387,7 @@ public:
                               AdjustedDim, sizeof(DataT)) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -2198,10 +2403,10 @@ public:
   }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
-                              AdjustedDim, sizeof(DataT)) {
-    (void)propList;
+                              AdjustedDim, sizeof(DataT), propList) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
                                     access::target::local, AccessMode, CodeLoc);
+    GDBMethodsAnchor();
   }
 #endif
 
@@ -2313,7 +2518,7 @@ public:
 };
 
 template <typename DataT, int Dimensions = 1>
-class __SYCL_SPECIAL_CLASS local_accessor
+class __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
     : public local_accessor_base<DataT, Dimensions, access::mode::read_write,
                                  access::placeholder::false_t> {
 
@@ -2343,6 +2548,23 @@ public:
   }
 
 #endif
+
+public:
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return this->getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return this->getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 };
 
 /// Image accessors.
@@ -2352,8 +2574,9 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image, IsPlaceholder>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
+                               access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image, IsPlaceholder> {
 public:
@@ -2440,8 +2663,9 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image_array, IsPlaceholder>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(accessor) accessor<DataT, Dimensions, AccessMode,
+                               access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                     access::target::image, IsPlaceholder> {
 #ifdef __SYCL_DEVICE_ONLY__

@@ -72,13 +72,13 @@ void event_impl::waitInternal() {
   if (MState == HES_Complete)
     return;
 
-  std::unique_lock lock(MMutex);
+  std::unique_lock<std::mutex> lock(MMutex);
   cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
-    std::unique_lock lock(MMutex);
+    std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
     int Expected = HES_NotComplete;
     int Desired = HES_Complete;

@@ -7,12 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // constexpr iterator& operator++();
 // constexpr void operator++(int);
 // constexpr iterator operator++(int)
-//            requires ref-is-glvalue && forward_­range<Base> &&
+//            requires ref-is-glvalue && forward_range<Base> &&
 //                     forward_range<range_reference_t<Base>>;
 
 #include <cassert>
@@ -187,7 +186,7 @@ constexpr bool test() {
   }
 
   {
-    // !forward_­range<Base>
+    // !forward_range<Base>
     BufferView<int*> inners[2] = {buffer1[0], buffer1[1]};
     using Outer = SimpleInputCommonOuter<BufferView<int*>>;
     std::ranges::join_view jv{Outer(inners)};

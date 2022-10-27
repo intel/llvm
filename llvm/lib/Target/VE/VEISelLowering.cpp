@@ -2214,7 +2214,7 @@ VETargetLowering::emitEHSjLjSetJmp(MachineInstr &MI,
   MF->insert(I, MainMBB);
   MF->insert(I, SinkMBB);
   MF->push_back(RestoreMBB);
-  RestoreMBB->setHasAddressTaken();
+  RestoreMBB->setMachineBlockAddressTaken();
 
   // Transfer the remainder of BB and its successor edges to SinkMBB.
   SinkMBB->splice(SinkMBB->begin(), MBB,
@@ -2620,7 +2620,7 @@ VETargetLowering::emitSjLjDispatchBlock(MachineInstr &MI,
     SmallVector<MachineBasicBlock *, 8> Successors(MBB->succ_rbegin(),
                                                    MBB->succ_rend());
     // FIXME: Avoid quadratic complexity.
-    for (auto MBBS : Successors) {
+    for (auto *MBBS : Successors) {
       if (MBBS->isEHPad()) {
         MBB->removeSuccessor(MBBS);
         MBBLPads.push_back(MBBS);
@@ -2710,7 +2710,7 @@ static bool isI32Insn(const SDNode *User, const SDNode *N) {
     if (User->getOperand(2).getNode() != N &&
         User->getOperand(3).getNode() != N)
       return true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::AND:
   case ISD::OR:
   case ISD::XOR:

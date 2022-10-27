@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %RUN_ON_HOST %t.out
-//
-// CHECK: PASSED
+// RUN: %t.out
 
 // This test performs basic check of the SYCL property_list class.
 

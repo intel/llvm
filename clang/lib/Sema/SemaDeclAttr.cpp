@@ -7956,9 +7956,10 @@ static bool ArmBuiltinAliasValid(unsigned BuiltinID, StringRef AliasName,
                                  const char *IntrinNames) {
   if (AliasName.startswith("__arm_"))
     AliasName = AliasName.substr(6);
-  const IntrinToName *It = std::lower_bound(
-      Map.begin(), Map.end(), BuiltinID,
-      [](const IntrinToName &L, unsigned Id) { return L.Id < Id; });
+  const IntrinToName *It =
+      llvm::lower_bound(Map, BuiltinID, [](const IntrinToName &L, unsigned Id) {
+        return L.Id < Id;
+      });
   if (It == Map.end() || It->Id != BuiltinID)
     return false;
   StringRef FullName(&IntrinNames[It->FullName]);
@@ -9318,7 +9319,11 @@ static void handleHLSLShaderAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   HLSLShaderAttr::ShaderType ShaderType;
-  if (!HLSLShaderAttr::ConvertStrToShaderType(Str, ShaderType)) {
+  if (!HLSLShaderAttr::ConvertStrToShaderType(Str, ShaderType) ||
+      // Library is added to help convert HLSLShaderAttr::ShaderType to
+      // llvm::Triple::EnviromentType. It is not a legal
+      // HLSLShaderAttr::ShaderType.
+      ShaderType == HLSLShaderAttr::Library) {
     S.Diag(AL.getLoc(), diag::warn_attribute_type_not_supported)
         << AL << Str << ArgLoc;
     return;
@@ -9665,7 +9670,7 @@ static void handleAVRSignalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static void handleBPFPreserveAIRecord(Sema &S, RecordDecl *RD) {
   // Add preserve_access_index attribute to all fields and inner records.
-  for (auto D : RD->decls()) {
+  for (auto *D : RD->decls()) {
     if (D->hasAttr<BPFPreserveAccessIndexAttr>())
       continue;
 
@@ -10287,8 +10292,8 @@ static void handleNoSanitizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         SanitizerName != "coverage")
       S.Diag(LiteralLoc, diag::warn_unknown_sanitizer_ignored) << SanitizerName;
     else if (isGlobalVar(D) && !isSanitizerAttributeAllowedOnGlobals(SanitizerName))
-      S.Diag(D->getLocation(), diag::err_attribute_wrong_decl_type)
-          << AL << ExpectedFunctionOrMethod;
+      S.Diag(D->getLocation(), diag::warn_attribute_type_not_supported_global)
+          << AL << SanitizerName;
     Sanitizers.push_back(SanitizerName);
   }
 
@@ -10426,46 +10431,15 @@ static void handleFunctionReturnThunksAttr(Sema &S, Decl *D,
   D->addAttr(FunctionReturnThunksAttr::Create(S.Context, Kind, AL));
 }
 
-static constexpr std::pair<Decl::Kind, StringRef>
-MakeDeclContextDesc(Decl::Kind K, StringRef SR) {
-  return std::pair<Decl::Kind, StringRef>{K, SR};
-}
-
-// FIXME: Refactor Util class in SemaSYCL.cpp to avoid following
-// code duplication.
 bool isDeviceAspectType(const QualType Ty) {
   const EnumType *ET = Ty->getAs<EnumType>();
   if (!ET)
     return false;
 
-  std::array<std::pair<Decl::Kind, StringRef>, 3> Scopes = {
-      MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
-      MakeDeclContextDesc(Decl::Kind::Enum, "aspect")};
+  if (const auto *Attr = ET->getDecl()->getAttr<SYCLTypeAttr>())
+    return Attr->getType() == SYCLTypeAttr::aspect;
 
-  const auto *Ctx = cast<DeclContext>(ET->getDecl());
-  StringRef Name = "";
-
-  for (const auto &Scope : llvm::reverse(Scopes)) {
-    Decl::Kind DK = Ctx->getDeclKind();
-    if (DK != Scope.first)
-      return false;
-
-    switch (DK) {
-    case Decl::Kind::Enum:
-      Name = cast<EnumDecl>(Ctx)->getName();
-      break;
-    case Decl::Kind::Namespace:
-      Name = cast<NamespaceDecl>(Ctx)->getName();
-      break;
-    default:
-      llvm_unreachable("isDeviceAspectType: decl kind not supported");
-    }
-    if (Name != Scope.second)
-      return false;
-    Ctx = Ctx->getParent();
-  }
-  return Ctx->isTranslationUnit();
+  return false;
 }
 
 SYCLDeviceHasAttr *Sema::MergeSYCLDeviceHasAttr(Decl *D,
@@ -10588,6 +10562,39 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   handleSimpleAttribute<SYCLKernelAttr>(S, D, AL);
+}
+
+SYCLTypeAttr *Sema::MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      SYCLTypeAttr::SYCLType TypeName) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLTypeAttr>()) {
+    if (ExistingAttr->getType() != TypeName) {
+      Diag(ExistingAttr->getLoc(), diag::err_duplicate_attribute)
+          << ExistingAttr;
+      Diag(CI.getLoc(), diag::note_previous_attribute);
+    }
+    // Do not add duplicate attribute
+    return nullptr;
+  }
+  return ::new (Context) SYCLTypeAttr(Context, CI, TypeName);
+}
+
+static void handleSYCLTypeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  IdentifierInfo *II = AL.getArgAsIdent(0)->Ident;
+  SYCLTypeAttr::SYCLType Type;
+
+  if (!SYCLTypeAttr::ConvertStrToSYCLType(II->getName(), Type)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_not_supported) << AL << II;
+    return;
+  }
+
+  if (SYCLTypeAttr *NewAttr = S.MergeSYCLTypeAttr(D, AL, Type))
+    D->addAttr(NewAttr);
 }
 
 static void handleDestroyAttr(Sema &S, Decl *D, const ParsedAttr &A) {
@@ -11141,6 +11148,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_SYCLSpecialClass:
     handleSimpleAttribute<SYCLSpecialClassAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLType:
+    handleSYCLTypeAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);

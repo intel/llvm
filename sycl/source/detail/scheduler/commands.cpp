@@ -214,6 +214,8 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
     const QueueImplPtr &WorkerQueue = getWorkerQueue();
+    // MWorkerQueue in command is always not null. So check if
+    // EventImpl->getWorkerQueue != nullptr is implicit.
     if (EventImpl->getWorkerQueue() == WorkerQueue &&
         WorkerQueue->isInOrder() && !isHostTask())
       continue;
@@ -410,12 +412,12 @@ void Command::waitForEvents(QueueImplPtr Queue,
 Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
-      MWorkerQueue(MEvent->getWorkerQueue()),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
       MType(Type) {
   MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
@@ -1313,6 +1315,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
   }
 
   MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
 }
@@ -1494,6 +1497,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
   }
 
   MWorkerQueue = MQueue->is_host() ? MSrcQueue : MQueue;
+  MEvent->setWorkerQueue(MWorkerQueue);
 
   emitInstrumentationDataProxy();
 }

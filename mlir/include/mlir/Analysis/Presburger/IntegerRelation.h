@@ -238,10 +238,10 @@ public:
   /// of the first added variable.
   virtual unsigned insertVar(VarKind kind, unsigned pos, unsigned num = 1);
 
-  /// Append `num` variables of the specified kind after the last variable.
-  /// of that kind. Return the position of the first appended column relative to
-  /// the kind of variable. The coefficient columns corresponding to the added
-  /// variables are initialized to zero.
+  /// Append `num` variables of the specified kind after the last variable
+  /// of that kind. The coefficient columns corresponding to the added variables
+  /// are initialized to zero. Return the absolute column position (i.e., not
+  /// relative to the kind of variable) of the first appended variable.
   unsigned appendVar(VarKind kind, unsigned num = 1);
 
   /// Adds an inequality (>= 0) from the coefficients specified in `inEq`.
@@ -336,7 +336,7 @@ public:
   /// additional processing using Simplex for unbounded sets.
   ///
   /// Returns an integer sample point if one exists, or an empty Optional
-  /// otherwise.
+  /// otherwise. The returned value also includes values of local ids.
   Optional<SmallVector<int64_t, 8>> findIntegerSample() const;
 
   /// Compute an overapproximation of the number of integer points in the

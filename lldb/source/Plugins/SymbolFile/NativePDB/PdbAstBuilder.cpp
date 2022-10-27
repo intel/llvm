@@ -474,9 +474,8 @@ static llvm::Optional<PublicSym32> FindPublicSym(const SegmentOffset &addr,
                                                  SymbolStream &syms,
                                                  PublicsStream &publics) {
   llvm::FixedStreamArray<ulittle32_t> addr_map = publics.getAddressMap();
-  auto iter = std::lower_bound(
-      addr_map.begin(), addr_map.end(), addr,
-      [&](const ulittle32_t &x, const SegmentOffset &y) {
+  auto iter = llvm::lower_bound(
+      addr_map, addr, [&](const ulittle32_t &x, const SegmentOffset &y) {
         CVSymbol s1 = syms.readRecord(x);
         lldbassert(s1.kind() == S_PUB32);
         PublicSym32 p1;
@@ -501,6 +500,8 @@ clang::Decl *PdbAstBuilder::GetOrCreateSymbolForId(PdbCompilandSymId id) {
 
   if (isLocalVariableType(cvs.kind())) {
     clang::DeclContext *scope = GetParentDeclContext(id);
+    if (!scope)
+      return nullptr;
     clang::Decl *scope_decl = clang::Decl::castFromDeclContext(scope);
     PdbCompilandSymId scope_id =
         PdbSymUid(m_decl_to_status[scope_decl].uid).asCompilandSym();
@@ -774,7 +775,7 @@ bool PdbAstBuilder::CompleteTagDecl(clang::TagDecl &tag) {
       llvm::codeview::visitMemberRecordStream(field_list.Data, completer);
   completer.complete();
 
-  status.resolved = true;
+  m_decl_to_status[&tag].resolved = true;
   if (error) {
     llvm::consumeError(std::move(error));
     return false;
@@ -1010,7 +1011,7 @@ PdbAstBuilder::GetOrCreateTypedefDecl(PdbGlobalSymId id) {
 
   PdbTypeSymId real_type_id{udt.Type, false};
   clang::QualType qt = GetOrCreateType(real_type_id);
-  if (qt.isNull())
+  if (qt.isNull() || !scope)
     return nullptr;
 
   std::string uname = std::string(DropNameScope(udt.Name));
@@ -1265,7 +1266,7 @@ PdbAstBuilder::CreateFunctionDeclFromId(PdbTypeSymId func_tid,
     lldbassert(false && "Invalid function id type!");
   }
   clang::QualType func_qt = GetOrCreateType(func_ti);
-  if (func_qt.isNull())
+  if (func_qt.isNull() || !parent)
     return nullptr;
   CompilerType func_ct = ToCompilerType(func_qt);
   uint32_t param_count =
@@ -1280,6 +1281,8 @@ PdbAstBuilder::GetOrCreateFunctionDecl(PdbCompilandSymId func_id) {
     return llvm::dyn_cast<clang::FunctionDecl>(decl);
 
   clang::DeclContext *parent = GetParentDeclContext(PdbSymUid(func_id));
+  if (!parent)
+    return nullptr;
   std::string context_name;
   if (clang::NamespaceDecl *ns = llvm::dyn_cast<clang::NamespaceDecl>(parent)) {
     context_name = ns->getQualifiedNameAsString();

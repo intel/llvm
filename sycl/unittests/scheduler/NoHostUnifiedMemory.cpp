@@ -88,14 +88,8 @@ redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
 }
 
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
-  queue Q;
-  unittest::PiMock Mock{Q};
+  unittest::PiMock Mock;
+  queue Q{Mock.getPlatform().get_devices()[0]};
   Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(

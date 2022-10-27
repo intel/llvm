@@ -15,6 +15,8 @@
 #include "llvm-jitlink.h"
 
 #include "llvm/BinaryFormat/Magic.h"
+#include "llvm/ExecutionEngine/Orc/COFFPlatform.h"
+#include "llvm/ExecutionEngine/Orc/COFFVCRuntimeSupport.h"
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
 #include "llvm/ExecutionEngine/Orc/DebuggerSupportPlugin.h"
 #include "llvm/ExecutionEngine/Orc/ELFNixPlatform.h"
@@ -24,7 +26,9 @@
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/ExecutionEngine/Orc/IndirectionUtils.h"
 #include "llvm/ExecutionEngine/Orc/MachOPlatform.h"
+#include "llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/ObjectFileInterface.h"
+#include "llvm/ExecutionEngine/Orc/Shared/OrcRTBridge.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/JITLoaderGDB.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -233,6 +237,11 @@ static cl::opt<bool>
     ShowErrFailedToMaterialize("show-err-failed-to-materialize",
                                cl::desc("Show FailedToMaterialize errors"),
                                cl::init(false), cl::cat(JITLinkCategory));
+
+static cl::opt<bool> UseSharedMemory(
+    "use-shared-memory",
+    cl::desc("Use shared memory to transfer generated code and data"),
+    cl::init(false), cl::cat(JITLinkCategory));
 
 static ExitOnError ExitOnErr;
 
@@ -451,6 +460,78 @@ static void dumpSectionContents(raw_ostream &OS, LinkGraph &G) {
     OS << "\n";
   }
 }
+
+// A memory mapper with a fake offset applied only used for -noexec testing
+class InProcessDeltaMapper final : public InProcessMemoryMapper {
+public:
+  InProcessDeltaMapper(size_t PageSize, uint64_t TargetAddr)
+      : InProcessMemoryMapper(PageSize), TargetMapAddr(TargetAddr),
+        DeltaAddr(0) {}
+
+  static Expected<std::unique_ptr<InProcessDeltaMapper>> Create() {
+    auto PageSize = sys::Process::getPageSize();
+    if (!PageSize)
+      return PageSize.takeError();
+    return std::make_unique<InProcessDeltaMapper>(*PageSize, SlabAddress);
+  }
+
+  void reserve(size_t NumBytes, OnReservedFunction OnReserved) override {
+    InProcessMemoryMapper::reserve(
+        NumBytes, [this, OnReserved = std::move(OnReserved)](
+                      Expected<ExecutorAddrRange> Result) mutable {
+          if (!Result)
+            return OnReserved(Result.takeError());
+
+          assert(DeltaAddr == 0 && "Overwriting previous offset");
+          if (TargetMapAddr != ~0ULL)
+            DeltaAddr = TargetMapAddr - Result->Start.getValue();
+          auto OffsetRange = ExecutorAddrRange(Result->Start + DeltaAddr,
+                                               Result->End + DeltaAddr);
+
+          OnReserved(OffsetRange);
+        });
+  }
+
+  char *prepare(ExecutorAddr Addr, size_t ContentSize) override {
+    return InProcessMemoryMapper::prepare(Addr - DeltaAddr, ContentSize);
+  }
+
+  void initialize(AllocInfo &AI, OnInitializedFunction OnInitialized) override {
+    auto FixedAI = AI;
+    FixedAI.MappingBase -= DeltaAddr;
+    InProcessMemoryMapper::initialize(
+        FixedAI, [this, OnInitialized = std::move(OnInitialized)](
+                     Expected<ExecutorAddr> Result) mutable {
+          if (!Result)
+            return OnInitialized(Result.takeError());
+
+          OnInitialized(ExecutorAddr(Result->getValue() + DeltaAddr));
+        });
+  }
+
+  void deinitialize(ArrayRef<ExecutorAddr> Allocations,
+                    OnDeinitializedFunction OnDeInitialized) override {
+    std::vector<ExecutorAddr> Addrs(Allocations.size());
+    for (const auto Base : Allocations) {
+      Addrs.push_back(Base - DeltaAddr);
+    }
+
+    InProcessMemoryMapper::deinitialize(Addrs, std::move(OnDeInitialized));
+  }
+
+  void release(ArrayRef<ExecutorAddr> Reservations,
+               OnReleasedFunction OnRelease) override {
+    std::vector<ExecutorAddr> Addrs(Reservations.size());
+    for (const auto Base : Reservations) {
+      Addrs.push_back(Base - DeltaAddr);
+    }
+    InProcessMemoryMapper::release(Addrs, std::move(OnRelease));
+  }
+
+private:
+  uint64_t TargetMapAddr;
+  uint64_t DeltaAddr;
+};
 
 class JITLinkSlabAllocator final : public JITLinkMemoryManager {
 private:
@@ -719,13 +800,54 @@ Expected<uint64_t> getSlabAllocSize(StringRef SizeString) {
   return SlabSize * Units;
 }
 
-static std::unique_ptr<JITLinkMemoryManager> createMemoryManager() {
+static std::unique_ptr<JITLinkMemoryManager> createInProcessMemoryManager() {
   if (!SlabAllocateSizeString.empty()) {
     auto SlabSize = ExitOnErr(getSlabAllocSize(SlabAllocateSizeString));
-    return ExitOnErr(JITLinkSlabAllocator::Create(SlabSize));
+
+    return ExitOnErr(
+        MapperJITLinkMemoryManager::CreateWithMapper<InProcessDeltaMapper>(
+            SlabSize));
   }
-  return ExitOnErr(InProcessMemoryManager::Create());
+
+#ifdef _WIN32
+  return ExitOnErr(
+      MapperJITLinkMemoryManager::CreateWithMapper<InProcessMemoryMapper>(
+          1024 * 1024));
+#else
+  return ExitOnErr(
+      MapperJITLinkMemoryManager::CreateWithMapper<InProcessMemoryMapper>(
+          1024 * 1024 * 1024));
+#endif
 }
+
+Expected<std::unique_ptr<jitlink::JITLinkMemoryManager>>
+createSharedMemoryManager(SimpleRemoteEPC &SREPC) {
+  SharedMemoryMapper::SymbolAddrs SAs;
+  if (auto Err = SREPC.getBootstrapSymbols(
+          {{SAs.Instance, rt::ExecutorSharedMemoryMapperServiceInstanceName},
+           {SAs.Reserve,
+            rt::ExecutorSharedMemoryMapperServiceReserveWrapperName},
+           {SAs.Initialize,
+            rt::ExecutorSharedMemoryMapperServiceInitializeWrapperName},
+           {SAs.Deinitialize,
+            rt::ExecutorSharedMemoryMapperServiceDeinitializeWrapperName},
+           {SAs.Release,
+            rt::ExecutorSharedMemoryMapperServiceReleaseWrapperName}}))
+    return std::move(Err);
+
+#ifdef _WIN32
+  size_t SlabSize = 1024 * 1024;
+#else
+  size_t SlabSize = 1024 * 1024 * 1024;
+#endif
+
+  if (!SlabAllocateSizeString.empty())
+    SlabSize = ExitOnErr(getSlabAllocSize(SlabAllocateSizeString));
+
+  return MapperJITLinkMemoryManager::CreateWithMapper<SharedMemoryMapper>(
+      SlabSize, SREPC, SAs);
+}  size_t SlabSize = 1024 * 1024 * 1024;
+
 
 static Expected<MaterializationUnit::Interface>
 getTestObjectFileInterface(Session &S, MemoryBufferRef O) {
@@ -810,10 +932,8 @@ static Error loadDylibs(Session &S) {
   LLVM_DEBUG(dbgs() << "Loading dylibs...\n");
   for (const auto &Dylib : Dylibs) {
     LLVM_DEBUG(dbgs() << "  " << Dylib << "\n");
-    auto G = orc::EPCDynamicLibrarySearchGenerator::Load(S.ES, Dylib.c_str());
-    if (!G)
-      return G.takeError();
-    S.MainJD->addGenerator(std::move(*G));
+    if (auto Err = S.loadAndLinkDynamicLibrary(*S.MainJD, Dylib))
+      return Err;
   }
 
   return Error::success();
@@ -885,9 +1005,13 @@ static Expected<std::unique_ptr<ExecutorProcessControl>> launchExecutor() {
   close(ToExecutor[ReadEnd]);
   close(FromExecutor[WriteEnd]);
 
+  auto S = SimpleRemoteEPC::Setup();
+  if (UseSharedMemory)
+    S.CreateMemoryManager = createSharedMemoryManager;
+
   return SimpleRemoteEPC::Create<FDSimpleRemoteEPCTransport>(
-      std::make_unique<DynamicThreadPoolTaskDispatcher>(),
-      SimpleRemoteEPC::Setup(), FromExecutor[ReadEnd], ToExecutor[WriteEnd]);
+      std::make_unique<DynamicThreadPoolTaskDispatcher>(), std::move(S),
+      FromExecutor[ReadEnd], ToExecutor[WriteEnd]);
 #endif
 }
 
@@ -971,9 +1095,13 @@ static Expected<std::unique_ptr<ExecutorProcessControl>> connectToExecutor() {
   if (!SockFD)
     return SockFD.takeError();
 
+  auto S = SimpleRemoteEPC::Setup();
+  if (UseSharedMemory)
+    S.CreateMemoryManager = createSharedMemoryManager;
+
   return SimpleRemoteEPC::Create<FDSimpleRemoteEPCTransport>(
       std::make_unique<DynamicThreadPoolTaskDispatcher>(),
-      SimpleRemoteEPC::Setup(), *SockFD, *SockFD);
+      std::move(S), *SockFD, *SockFD);
 #endif
 }
 
@@ -1012,7 +1140,7 @@ Expected<std::unique_ptr<Session>> Session::Create(Triple TT) {
     EPC = std::make_unique<SelfExecutorProcessControl>(
         std::make_shared<SymbolStringPool>(),
         std::make_unique<InPlaceTaskDispatcher>(), std::move(TT), *PageSize,
-        createMemoryManager());
+        createInProcessMemoryManager());
   }
 
   Error Err = Error::success();
@@ -1067,6 +1195,14 @@ Session::Session(std::unique_ptr<ExecutorProcessControl> EPC, Error &Err)
 
   if (!NoProcessSymbols)
     ExitOnErr(loadProcessSymbols(*this));
+  else {
+    // This symbol is used in testcases.
+    ExitOnErr(MainJD->define(absoluteSymbols(
+        {{ES.intern("llvm_jitlink_setTestResultOverride"),
+          {pointerToJITTargetAddress(llvm_jitlink_setTestResultOverride),
+           JITSymbolFlags::Exported}}})));
+  }
+
   ExitOnErr(loadDylibs(*this));
 
   auto &TT = ES.getExecutorProcessControl().getTargetTriple();
@@ -1089,6 +1225,28 @@ Session::Session(std::unique_ptr<ExecutorProcessControl> EPC, Error &Err)
             ELFNixPlatform::Create(ES, ObjLayer, *MainJD, OrcRuntime.c_str()))
       ES.setPlatform(std::move(*P));
     else {
+      Err = P.takeError();
+      return;
+    }
+  } else if (TT.isOSBinFormatCOFF() && !OrcRuntime.empty()) {
+    auto LoadDynLibrary = [&, this](JITDylib &JD, StringRef DLLName) -> Error {
+      if (!DLLName.endswith_insensitive(".dll"))
+        return make_error<StringError>("DLLName not ending with .dll",
+                                       inconvertibleErrorCode());
+      return loadAndLinkDynamicLibrary(JD, DLLName);
+    };
+
+    if (auto P = COFFPlatform::Create(ES, ObjLayer, *MainJD, OrcRuntime.c_str(),
+                                      std::move(LoadDynLibrary))) {
+      // Set platform early to register jitdylib of dynamic libraries.
+      auto &CP = **P;
+      ES.setPlatform(std::move(*P));
+
+      if (auto E2 = CP.bootstrap(*MainJD)) {
+        Err = std::move(E2);
+        return;
+      }
+    } else {
       Err = P.takeError();
       return;
     }
@@ -1189,6 +1347,37 @@ void Session::modifyPassConfig(const Triple &TT,
 
   if (AddSelfRelocations)
     PassConfig.PostPrunePasses.push_back(addSelfRelocations);
+}
+
+Expected<JITDylib *> Session::getOrLoadDynamicLibrary(StringRef LibPath) {
+  auto It = DynLibJDs.find(LibPath.str());
+  if (It != DynLibJDs.end()) {
+    return It->second;
+  }
+  auto G = EPCDynamicLibrarySearchGenerator::Load(ES, LibPath.data());
+  if (!G)
+    return G.takeError();
+  auto JD = &ES.createBareJITDylib(LibPath.str());
+
+  JD->addGenerator(std::move(*G));
+  DynLibJDs.emplace(LibPath.str(), JD);
+  LLVM_DEBUG({
+    dbgs() << "Loaded dynamic library " << LibPath.data() << " for " << LibPath
+           << "\n";
+  });
+  return JD;
+}
+
+Error Session::loadAndLinkDynamicLibrary(JITDylib &JD, StringRef LibPath) {
+  auto DL = getOrLoadDynamicLibrary(LibPath);
+  if (!DL)
+    return DL.takeError();
+  JD.addToLinkOrder(**DL);
+  LLVM_DEBUG({
+    dbgs() << "Linking dynamic library " << LibPath << " to " << JD.getName()
+           << "\n";
+  });
+  return Error::success();
 }
 
 Expected<Session::FileInfo &> Session::findFileInfo(StringRef FileName) {
@@ -1762,18 +1951,8 @@ static Error addLibraries(Session &S,
         case file_magic::pecoff_executable:
         case file_magic::elf_shared_object:
         case file_magic::macho_dynamically_linked_shared_lib: {
-          // TODO: On first reference to LibPath this should create a JITDylib
-          // with a generator and add it to JD's links-against list. Subsquent
-          // references should use the JITDylib created on the first
-          // reference.
-          auto G = EPCDynamicLibrarySearchGenerator::Load(S.ES, LibPath.data());
-          if (!G)
-            return G.takeError();
-          LLVM_DEBUG({
-            dbgs() << "Adding generator for dynamic library " << LibPath.data()
-                   << " to " << JD.getName() << "\n";
-          });
-          JD.addGenerator(std::move(*G));
+          if (auto Err = S.loadAndLinkDynamicLibrary(JD, LibPath.data()))
+            return Err;
           break;
         }
         case file_magic::archive:

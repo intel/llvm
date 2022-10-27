@@ -405,6 +405,11 @@ template <class ELFT> void elf::createSyntheticSections() {
       part.armExidx = std::make_unique<ARMExidxSyntheticSection>();
       add(*part.armExidx);
     }
+
+    if (!config->packageMetadata.empty()) {
+      part.packageMetadataNote = std::make_unique<PackageMetadataNote>();
+      add(*part.packageMetadataNote);
+    }
   }
 
   if (partitions.size() != 1) {
@@ -1270,7 +1275,7 @@ static DenseMap<const InputSectionBase *, int> buildSectionOrder() {
 
   // We want both global and local symbols. We get the global ones from the
   // symbol table and iterate the object files for the local ones.
-  for (Symbol *sym : symtab->symbols())
+  for (Symbol *sym : symtab->getSymbols())
     addSym(*sym);
 
   for (ELFFileBase *file : ctx->objectFiles)
@@ -1886,7 +1891,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
   }
 
   if (config->hasDynSymTab) {
-    parallelForEach(symtab->symbols(), [](Symbol *sym) {
+    parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
       sym->isPreemptible = computeIsPreemptible(*sym);
     });
   }
@@ -1903,21 +1908,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     // a linker-script-defined symbol is absolute.
     ppc64noTocRelax.clear();
     if (!config->relocatable) {
-      // Scan all relocations. Each relocation goes through a series of tests to
-      // determine if it needs special treatment, such as creating GOT, PLT,
-      // copy relocations, etc. Note that relocations for non-alloc sections are
-      // directly processed by InputSection::relocateNonAlloc.
-      for (InputSectionBase *sec : inputSections)
-        if (sec->isLive() && (sec->flags & SHF_ALLOC))
-          scanRelocations<ELFT>(*sec);
-      for (Partition &part : partitions) {
-        for (EhInputSection *sec : part.ehFrame->sections)
-          scanRelocations<ELFT>(*sec);
-        if (part.armExidx && part.armExidx->isLive())
-          for (InputSection *sec : part.armExidx->exidxSections)
-            scanRelocations<ELFT>(*sec);
-      }
-
+      scanRelocations<ELFT>();
       reportUndefinedSymbols();
       postScanRelocations();
     }
@@ -1958,7 +1949,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     llvm::TimeTraceScope timeScope("Add symbols to symtabs");
     // Now that we have defined all possible global symbols including linker-
     // synthesized ones. Visit all symbols to give the finishing touches.
-    for (Symbol *sym : symtab->symbols()) {
+    for (Symbol *sym : symtab->getSymbols()) {
       if (!sym->isUsedInRegularObj || !includeInSymtab(*sym))
         continue;
       if (!config->relocatable)
@@ -2834,9 +2825,10 @@ template <class ELFT> void Writer<ELFT>::openFile() {
 }
 
 template <class ELFT> void Writer<ELFT>::writeSectionsBinary() {
+  parallel::TaskGroup tg;
   for (OutputSection *sec : outputSections)
     if (sec->flags & SHF_ALLOC)
-      sec->writeTo<ELFT>(Out::bufferStart + sec->offset);
+      sec->writeTo<ELFT>(Out::bufferStart + sec->offset, tg);
 }
 
 static void fillTrap(uint8_t *i, uint8_t *end) {
@@ -2879,16 +2871,21 @@ template <class ELFT> void Writer<ELFT>::writeTrapInstr() {
 template <class ELFT> void Writer<ELFT>::writeSections() {
   llvm::TimeTraceScope timeScope("Write sections");
 
-  // In -r or --emit-relocs mode, write the relocation sections first as in
-  // ELf_Rel targets we might find out that we need to modify the relocated
-  // section while doing it.
-  for (OutputSection *sec : outputSections)
-    if (sec->type == SHT_REL || sec->type == SHT_RELA)
-      sec->writeTo<ELFT>(Out::bufferStart + sec->offset);
-
-  for (OutputSection *sec : outputSections)
-    if (sec->type != SHT_REL && sec->type != SHT_RELA)
-      sec->writeTo<ELFT>(Out::bufferStart + sec->offset);
+  {
+    // In -r or --emit-relocs mode, write the relocation sections first as in
+    // ELf_Rel targets we might find out that we need to modify the relocated
+    // section while doing it.
+    parallel::TaskGroup tg;
+    for (OutputSection *sec : outputSections)
+      if (sec->type == SHT_REL || sec->type == SHT_RELA)
+        sec->writeTo<ELFT>(Out::bufferStart + sec->offset, tg);
+  }
+  {
+    parallel::TaskGroup tg;
+    for (OutputSection *sec : outputSections)
+      if (sec->type != SHT_REL && sec->type != SHT_RELA)
+        sec->writeTo<ELFT>(Out::bufferStart + sec->offset, tg);
+  }
 
   // Finally, check that all dynamic relocation addends were written correctly.
   if (config->checkDynamicRelocs && config->writeAddends) {
