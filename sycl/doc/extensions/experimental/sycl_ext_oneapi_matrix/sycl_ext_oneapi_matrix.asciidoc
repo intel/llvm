@@ -174,7 +174,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
     multi_ptr<T, Space, IsDecorated> src, size_t stride, layout memL);
 }
 ```
-This function stores the data from the 2d tiles back to memory.
+This function stores the data in the accumulator matrix from the 2d tiles back to memory.
 
 #### Multiply and Add
 
