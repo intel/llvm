@@ -627,7 +627,7 @@ public:
   template <typename ReinterpretT, int ReinterpretDim>
   buffer<ReinterpretT, ReinterpretDim,
          typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-             ReinterpretT>>
+             std::remove_const_t<ReinterpretT>>>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
       throw sycl::invalid_object_error(
@@ -637,8 +637,8 @@ public:
           PI_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
@@ -647,11 +647,11 @@ public:
       (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
       buffer<ReinterpretT, ReinterpretDim,
              typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-                 ReinterpretT>>>::type
+                 std::remove_const_t<ReinterpretT>>>>::type
   reinterpret() const {
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, get_range(), OffsetInBytes, IsSubBuffer);
   }
 

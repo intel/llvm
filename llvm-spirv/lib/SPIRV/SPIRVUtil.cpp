@@ -920,26 +920,6 @@ void getParameterTypes(Function *F, SmallVectorImpl<TypedPointerType *> &ArgTys,
   }
 }
 
-static Type *toTypedPointerType(Type *T) {
-  if (!isa<PointerType>(T))
-    return T;
-  return TypedPointerType::get(
-      toTypedPointerType(T->getNonOpaquePointerElementType()),
-      T->getPointerAddressSpace());
-}
-
-// This is a transitional helper function to fill in mangling information for
-// mangleBuiltin while all the calls to mutateCallInst are being transitioned.
-static void typeMangle(BuiltinFuncMangleInfo *Mangle, ArrayRef<Value *> Args) {
-  if (!Mangle)
-    return;
-  for (unsigned I = 0; I < Args.size(); I++)
-    if (Args[I]->getType()->isPointerTy()) {
-      Mangle->getTypeMangleInfo(I).PointerTy =
-          toTypedPointerType(Args[I]->getType());
-    }
-}
-
 CallInst *mutateCallInst(
     Module *M, CallInst *CI,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
@@ -953,7 +933,6 @@ CallInst *mutateCallInst(
     InstName = CI->getName().str();
     CI->setName(InstName + ".old");
   }
-  typeMangle(Mangle, Args);
   auto NewCI = addCallInst(M, NewName, CI->getType(), Args, Attrs, CI, Mangle,
                            InstName, TakeFuncName);
   NewCI->setDebugLoc(CI->getDebugLoc());
@@ -975,7 +954,6 @@ Instruction *mutateCallInst(
   Type *RetTy = CI->getType();
   auto NewName = ArgMutate(CI, Args, RetTy);
   StringRef InstName = CI->getName();
-  typeMangle(Mangle, Args);
   auto NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle, InstName,
                            TakeFuncName);
   auto NewI = RetMutate(NewCI);
@@ -1014,23 +992,6 @@ void mutateFunction(
   }
   if (F->use_empty())
     F->eraseFromParent();
-}
-
-CallInst *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
-    AttributeList *Attrs) {
-  BuiltinFuncMangleInfo BtnInfo;
-  return mutateCallInst(M, CI, ArgMutate, &BtnInfo, Attrs);
-}
-
-Instruction *mutateCallInstSPIRV(
-    Module *M, CallInst *CI,
-    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
-        ArgMutate,
-    std::function<Instruction *(CallInst *)> RetMutate, AttributeList *Attrs) {
-  BuiltinFuncMangleInfo BtnInfo;
-  return mutateCallInst(M, CI, ArgMutate, RetMutate, &BtnInfo, Attrs);
 }
 
 CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
@@ -1087,22 +1048,6 @@ void makeVector(Instruction *InsPos, std::vector<Value *> &Ops,
   auto Vec = addVector(InsPos, Range);
   Ops.erase(Range.first, Range.second);
   Ops.push_back(Vec);
-}
-
-void expandVector(Instruction *InsPos, std::vector<Value *> &Ops,
-                  size_t VecPos) {
-  auto Vec = Ops[VecPos];
-  auto *VT = dyn_cast<FixedVectorType>(Vec->getType());
-  if (!VT)
-    return;
-  size_t N = VT->getNumElements();
-  IRBuilder<> Builder(InsPos);
-  for (size_t I = 0; I != N; ++I)
-    Ops.insert(Ops.begin() + VecPos + I,
-               Builder.CreateExtractElement(
-                   Vec, ConstantInt::get(Type::getInt32Ty(InsPos->getContext()),
-                                         I, false)));
-  Ops.erase(Ops.begin() + VecPos + N);
 }
 
 Constant *castToInt8Ptr(Constant *V, unsigned Addr = 0) {
@@ -1586,13 +1531,6 @@ bool isSPIRVConstantName(StringRef TyName) {
     return true;
 
   return false;
-}
-
-Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
-                                       StringRef NewName) {
-  return PointerType::get(
-      getSPIRVStructTypeByChangeBaseTypeName(M, T, OldName, NewName),
-      SPIRAS_Global);
 }
 
 Type *getSPIRVStructTypeByChangeBaseTypeName(Module *M, Type *T,

@@ -12,7 +12,7 @@
 
 #include "mlir/Conversion/TosaToArith/TosaToArith.h"
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/IR/PatternMatch.h"
@@ -31,11 +31,13 @@ using namespace tosa;
 namespace {
 struct TosaToArith : public impl::TosaToArithBase<TosaToArith> {
 public:
+  TosaToArith(TosaToArithOptions &options) : TosaToArithBase(options) {}
+
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
     target.addIllegalOp<tosa::ConstOp>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
 
     mlir::tosa::populateTosaToArithConversionPatterns(&patterns);
 
@@ -52,6 +54,8 @@ public:
 };
 } // namespace
 
-std::unique_ptr<Pass> mlir::tosa::createTosaToArith() {
-  return std::make_unique<TosaToArith>();
+std::unique_ptr<Pass> mlir::tosa::createTosaToArith(bool includeApplyRescale,
+                                                    bool use32BitApplyRescale) {
+  TosaToArithOptions options = {includeApplyRescale, use32BitApplyRescale};
+  return std::make_unique<TosaToArith>(options);
 }

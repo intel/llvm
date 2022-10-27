@@ -12,7 +12,7 @@
 
 #include "mlir/Conversion/TensorToSPIRV/TensorToSPIRVPass.h"
 
-#include "mlir/Conversion/ArithmeticToSPIRV/ArithmeticToSPIRV.h"
+#include "mlir/Conversion/ArithToSPIRV/ArithToSPIRV.h"
 #include "mlir/Conversion/FuncToSPIRV/FuncToSPIRV.h"
 #include "mlir/Conversion/TensorToSPIRV/TensorToSPIRV.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -37,12 +37,12 @@ class ConvertTensorToSPIRVPass
     std::unique_ptr<ConversionTarget> target =
         SPIRVConversionTarget::get(targetAttr);
 
-    SPIRVTypeConverter::Options options;
+    SPIRVConversionOptions options;
     options.emulateNon32BitScalarTypes = this->emulateNon32BitScalarTypes;
     SPIRVTypeConverter typeConverter(targetAttr, options);
 
     RewritePatternSet patterns(context);
-    arith::populateArithmeticToSPIRVPatterns(typeConverter, patterns);
+    arith::populateArithToSPIRVPatterns(typeConverter, patterns);
     populateFuncToSPIRVPatterns(typeConverter, patterns);
     populateTensorToSPIRVPatterns(typeConverter, /*byteCountThreshold=*/64,
                                   patterns);

@@ -41,6 +41,28 @@ static bool isESIMDVectorTy(Type *T) {
          esimd::getVectorTyOrNull(dyn_cast<StructType>(T)) != nullptr;
 }
 
+static Type *getVectorTypeOrNull(Type *T) {
+  if (!T || T->isVectorTy()) {
+    return T;
+  }
+  Type *Res = esimd::getVectorTyOrNull(dyn_cast<StructType>(T));
+  return Res;
+}
+
+// Checks types equivalence for the purpose if this optimization.
+// Thin struct wrapper types around a vector type are equivalent between them
+// and the vector type.
+static bool eq(Type *T1, Type *T2) {
+  if (T1 == T2) {
+    return true;
+  }
+  if (Type *T1V = getVectorTypeOrNull(T1)) {
+    return T1V == getVectorTypeOrNull(T2);
+  } else {
+    return false;
+  }
+}
+
 using NonMemUseHandlerT = std::function<bool(const Use *)>;
 
 static Type *
@@ -54,7 +76,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
   if (Uses.size() == 0) {
     return nullptr;
   }
-  Value *Addr = esimd::stripCasts((*Uses.begin())->get());
+  Value *Addr = esimd::stripCastsAndZeroGEPs((*Uses.begin())->get());
 
   for (const auto *UU : Uses) {
     const User *U = UU->getUser();
@@ -64,13 +86,13 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
         ContentT = LI->getType();
         LoadMet = 1;
         continue;
-      } else if (ContentT != LI->getType()) {
+      } else if (!eq(ContentT, LI->getType())) {
         return nullptr;
       }
     }
 
     if (const auto *SI = dyn_cast<StoreInst>(U)) {
-      if (esimd::stripCasts(SI->getPointerOperand()) != Addr) {
+      if (esimd::stripCastsAndZeroGEPs(SI->getPointerOperand()) != Addr) {
         // the pointer escapes into memory
         return nullptr;
       }
@@ -78,7 +100,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
         ContentT = SI->getValueOperand()->getType();
         StoreMet = 1;
         continue;
-      } else if (ContentT != SI->getValueOperand()->getType()) {
+      } else if (!eq(ContentT, SI->getValueOperand()->getType())) {
         return nullptr;
       }
     }
@@ -88,7 +110,7 @@ getMemTypeIfSameAddressLoadsStores(SmallPtrSetImpl<const Use *> &Uses,
       return nullptr;
     }
   }
-  return ContentT;
+  return getVectorTypeOrNull(ContentT);
 }
 
 static bool isSretParam(const Argument &P) {
@@ -145,15 +167,14 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
   //   }
   {
     SmallPtrSet<const Use *, 4> Uses;
-    esimd::collectUsesLookThroughCasts(&FormalParam, Uses);
+    esimd::collectUsesLookThroughCastsAndZeroGEPs(&FormalParam, Uses);
     bool LoadMet = 0;
     bool StoreMet = 0;
     ContentT = getMemTypeIfSameAddressLoadsStores(Uses, LoadMet, StoreMet);
     const bool NonOptimizeableParam = !IsSret && (StoreMet || !LoadMet);
 
     if (IsSret) {
-      Type *ST = FormalParam.getParamStructRetType();
-      Type *SretVecT = esimd::getVectorTyOrNull(dyn_cast<StructType>(ST));
+      Type *SretVecT = getVectorTypeOrNull(FormalParam.getParamStructRetType());
 
       if (!ContentT) {
         // Can happen when sret param is a "fall through" - return value is
@@ -204,14 +225,14 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
     if (!Call || (Call->getCalledFunction() != F)) {
       return nullptr;
     }
-    auto ArgNo = FormalParam.getArgNo();
-    Value *ActualParam = esimd::stripCasts(Call->getArgOperand(ArgNo));
+    Value *ActualParam = esimd::stripCastsAndZeroGEPs(
+        Call->getArgOperand(FormalParam.getArgNo()));
 
     if (!IsSret && !isa<AllocaInst>(ActualParam)) {
       return nullptr;
     }
     SmallPtrSet<const Use *, 4> Uses;
-    esimd::collectUsesLookThroughCasts(ActualParam, Uses);
+    esimd::collectUsesLookThroughCastsAndZeroGEPs(ActualParam, Uses);
     bool LoadMet = 0;
     bool StoreMet = 0;
 
@@ -353,7 +374,7 @@ optimizeFunction(Function *OldF,
   }
   Instruction *At = &*(NewF->getEntryBlock().begin());
 
-  for (int I = 0; I < NewInsts.size(); ++I) {
+  for (unsigned I = 0; I < NewInsts.size(); ++I) {
     NewInsts[I]->insertBefore(At);
   }
   return NewF;
@@ -373,7 +394,7 @@ void optimizeCall(CallInst *CI, Function *OptF,
   int SretInd = -1;
   IRBuilder<> Bld(CI); // insert before CI
 
-  for (int I = 0; I < OptimizeableParams.size(); ++I) {
+  for (unsigned I = 0; I < OptimizeableParams.size(); ++I) {
     const auto &PI = OptimizeableParams[I];
     auto ArgNo = PI.getFormalParam().getArgNo();
 
@@ -454,20 +475,19 @@ static bool processFunction(Function *F) {
   }
   // Optimize the function.
   Function *NewF = optimizeFunction(F, OptimizeableParams, NewParamTs);
-  // Copy users to a separate container, to enable safe eraseFromParent.
+
+  // Copy users to a separate container, to enable safe eraseFromParent
+  // within optimizeCall.
   SmallVector<User *> FUsers;
   std::copy(F->users().begin(), F->users().end(), std::back_inserter(FUsers));
 
   // Optimize calls to the function.
-  // Iterate over FUsers, to enable safe eraseFromParent in optimizeCall.
   for (auto *U : FUsers) {
     auto *Call = cast<CallInst>(U);
     assert(Call->getCalledFunction() == F);
     optimizeCall(Call, NewF, OptimizeableParams);
   }
-  std::string Name = F->getName().str();
-  F->eraseFromParent();
-  NewF->setName(Name);
+  NewF->takeName(F);
   return true;
 }
 
@@ -485,13 +505,18 @@ ESIMDOptimizeVecArgCallConvPass::run(Module &M, ModuleAnalysisManager &MAM) {
   }
 #endif // DEBUG_OPT_VEC_ARG_CALL_CONV
 
-  SmallVector<Function *, 16> Funcs;
-  std::for_each(M.begin(), M.end(), [&](Function &F) { Funcs.push_back(&F); });
+  SmallVector<Function *, 16> ToErase;
 
-  // Iterate over Funcs, to enable safe eraseFromParent in processFunction.
-  for (Function *F : Funcs) {
-    Modified &= processFunction(F);
+  for (Function &F : M) {
+    const bool FReplaced = processFunction(&F);
+    Modified &= FReplaced;
+
+    if (FReplaced) {
+      ToErase.push_back(&F);
+    }
   }
+  std::for_each(ToErase.begin(), ToErase.end(),
+                [](Function *F) { F->eraseFromParent(); });
 #ifdef DEBUG_OPT_VEC_ARG_CALL_CONV
   {
     std::error_code EC;

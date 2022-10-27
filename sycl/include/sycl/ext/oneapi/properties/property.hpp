@@ -169,7 +169,12 @@ enum PropKind : uint32_t {
   ImplementInCSR = 3,
   LatencyAnchorID = 4,
   LatencyConstraint = 5,
-  PropKindSize = 6,
+  WorkGroupSize = 6,
+  WorkGroupSizeHint = 7,
+  SubGroupSize = 8,
+  DeviceHas = 9,
+  // PropKindSize must always be the last value.
+  PropKindSize = 10,
 };
 
 // This trait must be specialized for all properties and must have a unique

@@ -24,14 +24,14 @@ def ConvertElementwiseToLinalg : Pass<"convert-elementwise-to-linalg", ""> {
   let dependentDialects = ["linalg::LinalgDialect", "memref::MemRefDialect"];
 }
 
-def LinalgInitTensorToAllocTensor : Pass<"linalg-init-tensor-to-alloc-tensor"> {
-  let summary = "Replace all init_tensor ops by alloc_tensor ops.";
+def EmptyTensorToAllocTensor : Pass<"empty-tensor-to-alloc-tensor"> {
+  let summary = "Replace all empty ops by alloc_tensor ops.";
   let description = [{
-    init_tensor ops return a tensor of unspecified contents who's only purpose
+    tensor.empty ops return a tensor of unspecified contents who's only purpose
     is to carry the tensor shape. This pass converts such ops to
     bufferization.alloc_tensor ops, which bufferize to buffer allocations.
   }];
-  let constructor = "mlir::createLinalgInitTensorToAllocTensorPass()";
+  let constructor = "mlir::createEmptyTensorToAllocTensorPass()";
 }
 
 def LinalgFoldUnitExtentDims : Pass<"linalg-fold-unit-extent-dims", ""> {
@@ -235,33 +235,6 @@ def LinalgStrategyPeelPass
       "Which func op is the anchor to latch on.">,
     Option<"anchorOpName", "anchor-op", "std::string", /*default=*/"",
       "Which linalg op within the func is the anchor to latch on.">,
-  ];
-}
-
-def LinalgStrategyVectorizePass
-    : Pass<"linalg-strategy-vectorize-pass", "func::FuncOp"> {
-  let summary = "Configurable pass to apply pattern-based linalg vectorization.";
-  let constructor = "mlir::createLinalgStrategyVectorizePass()";
-  let dependentDialects = ["linalg::LinalgDialect"];
-  let options = [
-    Option<"anchorFuncName", "anchor-func", "std::string", /*default=*/"",
-      "Which func op is the anchor to latch on.">,
-    Option<"anchorOpName", "anchor-op", "std::string", /*default=*/"",
-      "Which linalg op within the func is the anchor to latch on.">,
-    Option<"vectorizePadding", "vectorize-padding", "bool", "false",
-      "Enable vectorization of padding ops.">,
-  ];
-}
-
-def LinalgStrategyEnablePass
-    : Pass<"linalg-strategy-enable-pass", "func::FuncOp"> {
-  let summary = "Configurable pass to enable the application of other "
-    "pattern-based linalg passes.";
-  let constructor = "mlir::createLinalgStrategyEnablePass()";
-  let dependentDialects = ["linalg::LinalgDialect"];
-  let options = [
-    Option<"anchorFuncName", "anchor-func", "std::string", /*default=*/"",
-      "Which func op is the anchor to latch on.">,
   ];
 }
 
