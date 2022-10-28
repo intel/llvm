@@ -9,7 +9,6 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-extern int __nvvm_reflect(__constant char *);
 _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 
 #define __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,     \

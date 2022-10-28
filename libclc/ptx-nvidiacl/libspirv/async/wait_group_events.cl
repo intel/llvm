@@ -9,8 +9,6 @@
 
 #include <spirv/spirv.h>
 
-int __nvvm_reflect(__constant char *);
-
 _CLC_OVERLOAD _CLC_DEF void __spirv_GroupWaitEvents(unsigned int scope,
                                                     int num_events,
                                                     event_t *event_list) {

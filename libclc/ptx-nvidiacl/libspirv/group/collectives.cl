@@ -14,8 +14,6 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-int __nvvm_reflect(__constant char *);
-
 // CLC helpers
 __local bool *
 __clc__get_group_scratch_bool() __asm("__clc__get_group_scratch_bool");

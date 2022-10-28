@@ -11,8 +11,6 @@
 #include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-extern int __nvvm_reflect(__constant char *);
-
 _CLC_DEFINE_TERNARY_BUILTIN(float, __spirv_ocl_fma, __nv_fmaf, float, float,
                             float)
 

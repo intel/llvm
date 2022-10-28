@@ -10,7 +10,6 @@
 #include <spirv/spirv.h>
 #include "../../include/libdevice.h"
 
-extern int __nvvm_reflect(__constant char *);
 
 _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_fmax(float x, float y) {
   return __nvvm_fmax_f(x, y);

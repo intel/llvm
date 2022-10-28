@@ -2431,6 +2431,8 @@ BUILTIN(__nvvm_ldg_f2, "E2fE2fC*", "")
 BUILTIN(__nvvm_ldg_f4, "E4fE4fC*", "")
 BUILTIN(__nvvm_ldg_d2, "E2dE2dC*", "")
 
+BUILTIN(__nvvm_reflect, "ic*", "nc")
+
 // Address space predicates.
 BUILTIN(__nvvm_isspacep_const, "bvC*", "nc")
 BUILTIN(__nvvm_isspacep_global, "bvC*", "nc")

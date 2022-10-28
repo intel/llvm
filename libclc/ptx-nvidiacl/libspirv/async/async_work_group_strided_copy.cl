@@ -15,8 +15,6 @@
 #include "../../include/clc/async/gentype.inc"
 #undef __CLC_GEN_VEC3
 
-int __nvvm_reflect(__constant char *);
-
 #define __CLC_GROUP_CP_ASYNC_DST_GLOBAL(TYPE)                                  \
   _CLC_OVERLOAD _CLC_DEF event_t __spirv_GroupAsyncCopy(                       \
       unsigned int scope, __attribute__((address_space(1))) TYPE *dst,         \

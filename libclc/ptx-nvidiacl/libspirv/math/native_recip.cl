@@ -10,8 +10,6 @@
 
 #include <clcmacro.h>
 
-extern int __nvvm_reflect(__constant char *);
-
 _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_native_recip(float x) {
   return (__nvvm_reflect("__CUDA_FTZ")) ? __nvvm_rcp_approx_ftz_f(x)
                                         : __nvvm_rcp_approx_f(x);

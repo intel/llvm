@@ -9,8 +9,6 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-extern int __nvvm_reflect(__constant char *);
-
 void __clc_trap_if_sm_lower_than_80() {
   if (__nvvm_reflect("__CUDA_ARCH") < 800) {
     __builtin_trap();

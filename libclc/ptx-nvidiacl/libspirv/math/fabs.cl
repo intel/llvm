@@ -11,8 +11,6 @@
 #include "../../include/libdevice.h"
 #include <clcmacro.h>
 
-extern int __nvvm_reflect(__constant char *);
-
 #define __CLC_FUNCTION __spirv_ocl_fabs
 #define __CLC_BUILTIN __nv_fabs
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)

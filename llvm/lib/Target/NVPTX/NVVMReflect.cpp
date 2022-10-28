@@ -40,6 +40,7 @@
 #include <sstream>
 #include <string>
 #define NVVM_REFLECT_FUNCTION "__nvvm_reflect"
+#define NVVM_REFLECT_LLVM_INTRINSIC_NAME "llvm.nvvm.reflect"
 
 using namespace llvm;
 
@@ -119,6 +120,7 @@ static bool runNVVMReflect(Function &F, unsigned SmVersion) {
       continue;
     Function *Callee = Call->getCalledFunction();
     if (!Callee || (Callee->getName() != NVVM_REFLECT_FUNCTION &&
+                    Callee->getName() != NVVM_REFLECT_LLVM_INTRINSIC_NAME &&
                     Callee->getIntrinsicID() != Intrinsic::nvvm_reflect))
       continue;
 
