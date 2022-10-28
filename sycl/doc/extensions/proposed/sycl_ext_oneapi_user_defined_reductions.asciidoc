@@ -1,4 +1,4 @@
-= sycl_ext_intel_user_defined_reductions
+= sycl_ext_oneapi_user_defined_reductions
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -49,13 +49,13 @@ as perform reductions on a non-fundamental types.
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 Feature test macros. Therefore, an implementation
 supporting this extension must predefine the macro
-`SYCL_EXT_INTEL_USER_DEFINED_REDUCTIONS` to one of the values defined in the
+`SYCL_EXT_ONEAPI_USER_DEFINED_REDUCTIONS` to one of the values defined in the
 table below.
 Application can test for existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's value
 to determine which of the extensions's APIs the implementation supports.
 
-Table 1. Values of the `SYCL_EXT_INTEL_USER_DEFINED_REDUCTIONS` macro.
+Table 1. Values of the `SYCL_EXT_ONEAPI_USER_DEFINED_REDUCTIONS` macro.
 [%header,cols="1,5"]
 |===
 |Value |Description
@@ -69,7 +69,7 @@ SYCL specification.
 
 [source,c++]
 ----
-namespace sycl::ext::intel::experimental {
+namespace sycl::ext::oneapi::experimental {
 
   template <typename GroupHelper, typename T, typename BinaryOperation>
   T reduce_over_group(GroupHelper g, T x, BinaryOperation binary_op); // (1)
