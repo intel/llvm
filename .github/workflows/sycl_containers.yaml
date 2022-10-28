@@ -34,7 +34,7 @@ jobs:
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
-#          push: ${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
+          push: true #${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
           file: ubuntu2204_base
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -53,7 +53,7 @@ jobs:
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
-#          push: ${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
+          push: true #${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
           file: ubuntu2204_build
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -85,7 +85,7 @@ jobs:
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
-#          push: ${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
+          push: true # ${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
           file: ubuntu2204_intel_drivers
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
@@ -123,7 +123,7 @@ jobs:
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
-#          push: ${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
+          push: true #${{ github.event_name != 'pull_request' }} TEMPORARY. DO NOT MERGE.
           file: ubuntu2204_intel_drivers
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
