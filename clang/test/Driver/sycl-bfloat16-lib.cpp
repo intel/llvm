@@ -3,6 +3,8 @@
 ///
 
 // UNSUPPORTED: system-windows
+// REQUIRES: opencl-aot, ocloc, cpu, gpu
+// UNSUPPORTED: cuda
 
 /// ###########################################################################
 /// test that no bfloat16 libraries are added in JIT mode
