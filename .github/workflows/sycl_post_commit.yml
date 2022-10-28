@@ -9,6 +9,10 @@ on:
     - sycl
     paths:
     - .github/workflows/sycl_post_commit.yml
+    - .github/workflows/sycl_gen_test_matrix.yml
+    - .github/workflows/sycl_linux_build_and_test.yml
+    - .github/workflows/sycl_windows_build_and_test.yml
+    - .github/workflows/sycl_macos_build_and_test.yml
 
 jobs:
   # This job generates matrix of tests for LLVM Test Suite
