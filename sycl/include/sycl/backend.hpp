@@ -25,7 +25,11 @@
 #endif
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
+#ifdef SYCL_EXT_ONEAPI_BACKEND_HIP_EXPERIMENTAL
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_hip.hpp>
+#else
 #include <sycl/detail/backend_traits_hip.hpp>
+#endif
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/detail/backend_traits_level_zero.hpp>
@@ -110,10 +114,8 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
   // No check for backend mismatch because buffer can be allocated on different
   // backends
   if (BackendName == backend::ext_oneapi_level_zero)
-    throw sycl::runtime_error(
-        errc::feature_not_supported,
-        "Buffer interop is not supported by level zero yet",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::feature_not_supported,
+                          "Buffer interop is not supported by level zero yet");
   return Obj.template getNative<BackendName>();
 }
 #endif
@@ -122,10 +124,8 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT> {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::backend_mismatch, "Backends mismatch");
   }
   return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
       Obj.getNative());
@@ -134,10 +134,8 @@ auto get_native(const SyclObjectT &Obj)
 template <backend BackendName, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<BackendName, kernel_bundle<State>> {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::backend_mismatch, "Backends mismatch");
   }
   return Obj.template getNative<BackendName>();
 }
@@ -153,10 +151,8 @@ auto get_native(const buffer<DataT, Dimensions, AllocatorT> &Obj)
 template <>
 inline backend_return_t<backend::opencl, event>
 get_native<backend::opencl, event>(const event &Obj) {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::opencl) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::backend_mismatch, "Backends mismatch");
   }
   backend_return_t<backend::opencl, event> ReturnValue;
   for (auto const &element : Obj.getNativeVector()) {
@@ -173,14 +169,26 @@ get_native<backend::opencl, event>(const event &Obj) {
 template <>
 inline backend_return_t<backend::ext_oneapi_cuda, device>
 get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
-  // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::ext_oneapi_cuda) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::errc::backend_mismatch, "Backends mismatch");
   }
   // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
   // so we need a specialization with static_cast instead of reinterpret_cast.
   return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
+      Obj.getNative());
+}
+#endif
+
+#if SYCL_EXT_ONEAPI_BACKEND_HIP
+template <>
+inline backend_return_t<backend::ext_oneapi_hip, device>
+get_native<backend::ext_oneapi_hip, device>(const device &Obj) {
+  if (Obj.get_backend() != backend::ext_oneapi_hip) {
+    throw sycl::exception(sycl::errc::backend_mismatch, "Backends mismatch");
+  }
+  // HIP uses a 32-bit int instead of an opaque pointer like other backends,
+  // so we need a specialization with static_cast instead of reinterpret_cast.
+  return static_cast<backend_return_t<backend::ext_oneapi_hip, device>>(
       Obj.getNative());
 }
 #endif

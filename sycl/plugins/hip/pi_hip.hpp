@@ -77,15 +77,15 @@ struct _pi_device {
 private:
   using native_type = hipDevice_t;
 
-  native_type cuDevice_;
+  native_type hipDevice_;
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
 
 public:
-  _pi_device(native_type cuDevice, pi_platform platform)
-      : cuDevice_(cuDevice), refCount_{1}, platform_(platform) {}
+  _pi_device(native_type hipDevice, pi_platform platform)
+      : hipDevice_(hipDevice), refCount_{1}, platform_(platform) {}
 
-  native_type get() const noexcept { return cuDevice_; };
+  native_type get() const noexcept { return hipDevice_; };
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
