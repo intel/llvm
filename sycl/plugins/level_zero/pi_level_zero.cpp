@@ -6026,18 +6026,23 @@ static pi_result piEventReleaseInternal(pi_event Event) {
     PI_CALL(piEventReleaseInternal(Event->HostVisibleEvent));
   }
 
-  // We intentionally incremented the reference counter when an event is
-  // created so that we can avoid pi_queue is released before the associated
-  // pi_event is released. Here we have to decrement it so pi_queue
-  // can be released successfully.
-  if (Event->Queue) {
-    PI_CALL(piQueueReleaseInternal(Event->Queue));
-  }
-
+  // Save pointer to the queue before deleting/resetting event.
+  // When we add an event to the cache we need to check whether profiling is
+  // enabled or not, so we access properties of the queue and that's why queue
+  // must released later.
+  auto Queue = Event->Queue;
   if (DisableEventsCaching || !Event->OwnZeEvent) {
     delete Event;
   } else {
     Event->Context->addEventToCache(Event);
+  }
+
+  // We intentionally incremented the reference counter when an event is
+  // created so that we can avoid pi_queue is released before the associated
+  // pi_event is released. Here we have to decrement it so pi_queue
+  // can be released successfully.
+  if (Queue) {
+    PI_CALL(piQueueReleaseInternal(Queue));
   }
 
   return PI_SUCCESS;
