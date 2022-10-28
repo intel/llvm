@@ -47,6 +47,7 @@ AttributeList &AttributeList::addFnAttrs(const AttrBuilder &B) {
       auto Attrs = NewNamedAttr.getValue().cast<ArrayAttr>();
       AttrBuilder::addToPassThroughAttr(*ExistingAttr, Attrs, B.getContext());
       FnAttrs.set(ExistingAttr->getName(), ExistingAttr->getValue());
+      continue;
     }
   }
 
