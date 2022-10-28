@@ -65,13 +65,12 @@ static void addToPassThroughAttr(mlir::NamedAttribute &PassThroughAttr,
          "PassThroughAttr should have an ArrayAttr as value");
 
   for (mlir::Attribute NewAttr : NewAttrs) {
-    if (NewAttr.isa<ArrayAttr>()) {
-      auto ArrAttr = NewAttr.cast<ArrayAttr>();
+    if (auto ArrAttr = NewAttr.dyn_cast<ArrayAttr>()) {
       assert(ArrAttr.size() == 2 && ArrAttr[0].isa<StringAttr>());
       NamedAttribute NamedAttr(ArrAttr[0].cast<StringAttr>(), ArrAttr[1]);
       addToPassThroughAttr(PassThroughAttr, NamedAttr, Ctx);
-    } else if (NewAttr.isa<StringAttr>()) {
-      NamedAttribute NamedAttr(NewAttr.cast<StringAttr>(), UnitAttr::get(&Ctx));
+    } else if (auto StrAttr = NewAttr.dyn_cast<StringAttr>()) {
+      NamedAttribute NamedAttr(StrAttr, UnitAttr::get(&Ctx));
       addToPassThroughAttr(PassThroughAttr, NamedAttr, Ctx);
     } else
       llvm_unreachable("Unexpected attribute kind");
@@ -182,7 +181,8 @@ AttrBuilder &AttrBuilder::addPassThroughAttribute(StringRef AttrName,
 }
 
 AttrBuilder &AttrBuilder::removeAttribute(llvm::StringRef AttrName) {
-  if (containsInPassThrough(AttrName)) {
+  bool ContainsPassThroughAttr = getAttr(PassThroughAttrName).has_value();
+  if (ContainsPassThroughAttr) {
     NamedAttribute PassThroughAttr = getAttr(PassThroughAttrName).value();
     auto ArrAttr = PassThroughAttr.getValue().cast<ArrayAttr>();
     std::vector<mlir::Attribute> Vec = ArrAttr.getValue().vec();
@@ -245,7 +245,6 @@ AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
                                            Optional<StringLiteral> Dialect,
                                            AddAttrFuncPtr AddAttrPtr) {
   assert(AddAttrPtr && "'AddAttrPtr' should be a valid function pointer");
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
 
   // TODO: Replace with std::invoke once C++17 headers are available.
   auto Invoke = [this](AddAttrFuncPtr AddAttrPtr,
@@ -257,7 +256,6 @@ AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
   StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
   NamedAttribute NamedAttr(createStringAttr(AttrName, Dialect, Ctx),
                            Builder.getUnitAttr());
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
   return Invoke(AddAttrPtr, NamedAttr);
 }
 
@@ -266,7 +264,7 @@ AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
                                            Optional<StringLiteral> Dialect,
                                            AddAttrFuncPtr AddAttrPtr) {
   assert(AddAttrPtr && "'AddAttrPtr' should be a valid function pointer");
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
+
   // TODO: Replace with std::invoke once C++17 headers are available.
   auto Invoke = [this](AddAttrFuncPtr AddAttrPtr,
                        auto... Args) -> AttrBuilder & {
@@ -277,7 +275,6 @@ AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
   StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
   NamedAttribute NamedAttr(createStringAttr(AttrName, Dialect, Ctx),
                            mlir::TypeAttr::get(Ty));
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
   return Invoke(AddAttrPtr, NamedAttr);
 }
 
@@ -325,7 +322,6 @@ AttrBuilder &AttrBuilder::addAttributeImpl(Twine AttrName, mlir::Attribute Attr,
 }
 
 AttrBuilder &AttrBuilder::addAttributeImpl(mlir::NamedAttribute Attr) {
-  llvm::dbgs() << "at line " << __LINE__ << "\n";
   Attrs.set(Attr.getName(), Attr.getValue());
   return *this;
 }

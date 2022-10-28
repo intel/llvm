@@ -70,6 +70,7 @@ public:
   AttrBuilder(const AttrBuilder &) = delete;
   AttrBuilder(AttrBuilder &&) = default;
 
+  using const_iterator = mlir::NamedAttrList::const_iterator;
   using AddAttrFuncPtr =
       AttrBuilder &(AttrBuilder::*)(mlir::NamedAttribute Attr);
   using AddRawIntAttrFuncPtr = AttrBuilder &(
