@@ -1547,7 +1547,7 @@ ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmPackType(
     return ToArgumentPack.takeError();
 
   return Importer.getToContext().getSubstTemplateTypeParmPackType(
-      *ReplacedOrErr, T->getIndex(), *ToArgumentPack);
+      *ReplacedOrErr, T->getIndex(), T->getFinal(), *ToArgumentPack);
 }
 
 ExpectedType ASTNodeImporter::VisitTemplateSpecializationType(
@@ -9447,7 +9447,8 @@ Expected<TemplateName> ASTImporter::Import(TemplateName From) {
       return AssociatedDeclOrErr.takeError();
 
     return ToContext.getSubstTemplateTemplateParmPack(
-        *ArgPackOrErr, *AssociatedDeclOrErr, SubstPack->getIndex());
+        *ArgPackOrErr, *AssociatedDeclOrErr, SubstPack->getIndex(),
+        SubstPack->getFinal());
   }
   case TemplateName::UsingTemplate: {
     auto UsingOrError = Import(From.getAsUsingShadowDecl());

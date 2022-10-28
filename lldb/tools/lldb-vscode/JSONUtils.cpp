@@ -19,7 +19,6 @@
 #include "lldb/API/SBBreakpoint.h"
 #include "lldb/API/SBBreakpointLocation.h"
 #include "lldb/API/SBDeclaration.h"
-#include "lldb/API/SBStructuredData.h"
 #include "lldb/API/SBValue.h"
 #include "lldb/Host/PosixApi.h"
 
@@ -133,27 +132,28 @@ std::vector<std::string> GetStrings(const llvm::json::Object *obj,
 
 void SetValueForKey(lldb::SBValue &v, llvm::json::Object &object,
                     llvm::StringRef key) {
-
-  llvm::StringRef value = v.GetValue();
-  llvm::StringRef summary = v.GetSummary();
-  llvm::StringRef type_name = v.GetType().GetDisplayTypeName();
-  lldb::SBError error = v.GetError();
-
   std::string result;
   llvm::raw_string_ostream strm(result);
+
+  lldb::SBError error = v.GetError();
   if (!error.Success()) {
     strm << "<error: " << error.GetCString() << ">";
-  } else if (!value.empty()) {
-    strm << value;
-    if (!summary.empty())
+  } else {
+    llvm::StringRef value = v.GetValue();
+    llvm::StringRef summary = v.GetSummary();
+    llvm::StringRef type_name = v.GetType().GetDisplayTypeName();
+    if (!value.empty()) {
+      strm << value;
+      if (!summary.empty())
+        strm << ' ' << summary;
+    } else if (!summary.empty()) {
       strm << ' ' << summary;
-  } else if (!summary.empty()) {
-    strm << ' ' << summary;
-  } else if (!type_name.empty()) {
-    strm << type_name;
-    lldb::addr_t address = v.GetLoadAddress();
-    if (address != LLDB_INVALID_ADDRESS)
-      strm << " @ " << llvm::format_hex(address, 0);
+    } else if (!type_name.empty()) {
+      strm << type_name;
+      lldb::addr_t address = v.GetLoadAddress();
+      if (address != LLDB_INVALID_ADDRESS)
+        strm << " @ " << llvm::format_hex(address, 0);
+    }
   }
   strm.flush();
   EmplaceSafeString(object, key, result);
@@ -1138,21 +1138,6 @@ CreateRunInTerminalReverseRequest(const llvm::json::Object &launch_request,
   reverse_request.try_emplace(
       "arguments", llvm::json::Value(std::move(run_in_terminal_args)));
   return reverse_request;
-}
-
-llvm::json::Object CreateTerminatedEventObject() {
-  llvm::json::Object event(CreateEventObject("terminated"));
-  lldb::SBStructuredData statistics = g_vsc.target.GetStatistics();
-  bool is_dictionary =
-      statistics.GetType() == lldb::eStructuredDataTypeDictionary;
-  if (!is_dictionary) {
-    return event;
-  }
-
-  lldb::SBStream stats_stream;
-  statistics.GetAsJSON(stats_stream);
-  event.try_emplace("statistics", llvm::json::fixUTF8(stats_stream.GetData()));
-  return event;
 }
 
 std::string JSONToString(const llvm::json::Value &json) {
