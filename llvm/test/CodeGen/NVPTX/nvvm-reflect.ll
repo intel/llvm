@@ -4,12 +4,12 @@
 ; RUN: cat %s > %t.noftz
 ; RUN: echo '!0 = !{i32 4, !"nvvm-reflect-ftz", i32 0}' >> %t.noftz
 ; RUN: opt %t.noftz -S -mtriple=nvptx-nvidia-cuda -passes='default<O2>' \
-; RUN:   | FileCheck %s --check-prefix=USE_FTZ_0 --check-prefix=CHECK
+; RUN: | FileCheck %s --check-prefix=USE_FTZ_0 --check-prefix=CHECK  
 
 ; RUN: cat %s > %t.ftz
 ; RUN: echo '!0 = !{i32 4, !"nvvm-reflect-ftz", i32 1}' >> %t.ftz
 ; RUN: opt %t.ftz -S -mtriple=nvptx-nvidia-cuda -passes='default<O2>' \
-; RUN:   | FileCheck %s --check-prefix=USE_FTZ_1 --check-prefix=CHECK
+; RUN: | FileCheck %s --check-prefix=USE_FTZ_1 --check-prefix=CHECK  
 
 @str = private unnamed_addr addrspace(4) constant [11 x i8] c"__CUDA_FTZ\00"
 
@@ -41,7 +41,7 @@ exit:
   ret float %ret
 }
 
-declare i32 @llvm.nvvm.reflect.p0i8(i8*)
+declare i32 @llvm.nvvm.reflect(i8*)
 
 ; CHECK-LABEL: define i32 @intrinsic
 define i32 @intrinsic() {
@@ -49,7 +49,7 @@ define i32 @intrinsic() {
 ; USE_FTZ_0: ret i32 0
 ; USE_FTZ_1: ret i32 1
   %ptr = tail call i8* @llvm.nvvm.ptr.constant.to.gen.p0i8.p4i8(i8 addrspace(4)* getelementptr inbounds ([11 x i8], [11 x i8] addrspace(4)* @str, i32 0, i32 0))
-  %reflect = tail call i32 @llvm.nvvm.reflect.p0i8(i8* %ptr)
+  %reflect = tail call i32 @llvm.nvvm.reflect(i8* %ptr)
   ret i32 %reflect
 }
 
