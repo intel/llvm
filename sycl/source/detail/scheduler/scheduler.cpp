@@ -171,14 +171,24 @@ bool Scheduler::enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
   while (true) {
     {
       ReadLockT Lock{MGraphLock};
-      if (GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp, BLOCKING))
+      if (GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp, Blocking))
         return true;
     }
 
     if (EnqueueResultT::SyclEnqueueFailed == EnqueueResult.MResult)
-      // TODO: Reschedule commands.
-      throw runtime_error("Enqueue process failed.",
-                          PI_ERROR_INVALID_OPERATION);
+      return false;
+
+
+    // Workaround
+    bool ForceAgain = false;
+    for (EventImplPtr &Event : EnqueueResult.MBlockingEvents) {
+      if (Event->is_host()) {
+        Event->waitStateChange();
+        ForceAgain = true;
+      }
+    }
+    if (ForceAgain)
+      continue;
 
     if (NON_BLOCKING == Blocking)
       return false;
