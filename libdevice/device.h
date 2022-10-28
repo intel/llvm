@@ -40,8 +40,8 @@
 #define DEVICE_EXTERN_C_INLINE DEVICE_EXTERN_C __attribute__((always_inline))
 #endif // __LIBDEVICE_HOST_IMPL__
 
-// Rounding mode is used by type cast functions in imf libdevice and we don't
-// want involve system's fenv.h, so define ourselves' here.
+// Rounding mode are used internally by type convert functions in imf libdevice
+//  and we don't want to include system's fenv.h, so we define ourselves'.
 typedef enum {
   __IML_RTE, // round to nearest-even
   __IML_RTZ, // round to zero
