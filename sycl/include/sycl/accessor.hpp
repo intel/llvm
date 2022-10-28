@@ -1949,7 +1949,12 @@ public:
 #endif
   }
 
-  void swap(accessor &other) { std::swap(impl, other.impl); }
+  void swap(accessor &other) {
+    std::swap(impl, other.impl);
+#ifndef __SYCL_DEVICE_ONLY__
+    std::swap(MAccData, other.MAccData);
+#endif
+  }
 
   constexpr bool is_placeholder() const { return IsPlaceH; }
 
