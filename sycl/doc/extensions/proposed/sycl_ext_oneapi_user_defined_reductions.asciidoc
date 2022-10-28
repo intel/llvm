@@ -39,7 +39,10 @@ This extension is written against the SYCL 2020 revision 5 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-**TODO**: dependency on `group_with_scrathpad` from `sycl_ext_oneapi_group_sort`
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[
+  sycl_ext_oneapi_group_sort]
 
 NOTE: THis extension is experimental: interfaces are subject to change later.
 
