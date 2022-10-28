@@ -17,22 +17,17 @@
 
 namespace llvm {
 
-struct SPAUOptions {
-  SmallVector<StringRef, 8> TargetFixedAspects;
-};
-
 class SYCLPropagateAspectsUsagePass
     : public PassInfoMixin<SYCLPropagateAspectsUsagePass> {
 public:
-  SYCLPropagateAspectsUsagePass(StringRef Opts = {}) {
-    Opts.split(this->Opts.TargetFixedAspects, ',', /*MaxSplit=*/-1,
-               /*KeepEmpty=*/false);
+  SYCLPropagateAspectsUsagePass(StringRef OptionsString = {}) {
+    OptionsString.split(this->TargetFixedAspects, ',', /*MaxSplit=*/-1,
+                        /*KeepEmpty=*/false);
   };
-  SPAUOptions parseOpts(StringRef Params);
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
-  SPAUOptions Opts;
+  SmallVector<StringRef, 8> TargetFixedAspects;
 };
 
 } // namespace llvm

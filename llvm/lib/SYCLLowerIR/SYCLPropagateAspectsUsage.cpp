@@ -406,13 +406,6 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
 
 } // anonymous namespace
 
-SPAUOptions SYCLPropagateAspectsUsagePass::parseOpts(StringRef Params) {
-  SPAUOptions Result;
-  Params.split(Result.TargetFixedAspects, ',', /*MaxSplit=*/-1,
-               /*KeepEmpty=*/false);
-  return Result;
-}
-
 PreservedAnalyses
 SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
@@ -429,7 +422,8 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   }
 
   if (ClSyclFixedTargets.getNumOccurrences() > 0)
-    Opts = parseOpts(ClSyclFixedTargets);
+    StringRef(ClSyclFixedTargets)
+        .split(TargetFixedAspects, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 
   std::vector<Function *> EntryPoints;
   for (Function &F : M.functions())
@@ -445,7 +439,7 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   // FIXME: check and diagnose if a function uses an aspect which was not
   // declared through [[sycl::device_has()]] attribute
 
-  setSyclFixedTargetsMD(EntryPoints, Opts.TargetFixedAspects, AspectValues);
+  setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
 
   return PreservedAnalyses::all();
 }
