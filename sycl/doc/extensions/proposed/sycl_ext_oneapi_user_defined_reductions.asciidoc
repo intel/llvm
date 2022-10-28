@@ -56,8 +56,8 @@ not rely on APIs defined in this specification.*
 
 The purpose of this extension is to expand functionality of `reduce_over_group`
 free function defined in section 4.17.4.5. `reduce` of the core SYCL
-specification by allowing to pass user-defined binary operators in there as well
-as perform reductions on a non-fundamental types.
+specification by allowing user-defined binary operators and non-fundamental
+types.
 
 == Specification
 
@@ -135,14 +135,14 @@ function object type, then memory attached to `GroupHelper` object `g` is not
 used and the call to this overload is equivalent to calling
 `reduce_over_group(g.get_group(), x, init, binary_op)`.
 
-NOTE: Implementation of both those overaloads could use less memory than passed
+NOTE: Implementation of both overaloads may use less memory than passed
 to the function depending on the exact algorithm which is used for doing the
 reduction.
 
 == Possible future direction
 
-In future versions of this extensions we may add a query function which would
-help to calculate the eaxact amount of memory needed for doing the reduction.
+In future versions of this extension we may add a query function which would
+help to calculate the exact amount of memory needed for doing the reduction.
 
 == Revision History
 
