@@ -176,6 +176,11 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
   return PI_SUCCESS;
 }
 
+bool check_rt_validness() {
+  hipError_t Error = hipPeekAtLastError();
+  return (Error != hipErrorContextIsDestroyed &&
+          Error != hipErrorDeinitialized);
+}
 /// Converts HIP error into PI error codes, and outputs error information
 /// to stderr.
 /// If PI_HIP_ABORT env variable is defined, it aborts directly instead of
@@ -185,7 +190,8 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 ///
 pi_result check_error(hipError_t result, const char *function, int line,
                       const char *file) {
-  if (result == hipSuccess || result == hipErrorContextIsDestroyed) {
+  if (result == hipSuccess || result == hipErrorContextIsDestroyed ||
+      result == hipErrorDeinitialized) {
     return PI_SUCCESS;
   }
 
@@ -228,6 +234,8 @@ class ScopedContext {
 
 public:
   ScopedContext(pi_context ctxt) : placedContext_{ctxt}, needToRecover_{false} {
+    if (!check_rt_validness())
+      return;
 
     if (!placedContext_) {
       throw PI_ERROR_INVALID_CONTEXT;
@@ -260,6 +268,8 @@ public:
   }
 
   ~ScopedContext() {
+    if (!check_rt_validness())
+      return;
     if (needToRecover_) {
       PI_CHECK_ERROR(hipCtxSetCurrent(original_));
     }
@@ -362,6 +372,8 @@ pi_result enqueueEventsWait(pi_queue command_queue, hipStream_t stream,
   }
   try {
     ScopedContext active(command_queue->get_context());
+    if (!check_rt_validness())
+      return PI_SUCCESS;
 
     auto result = forLatestEvents(
         event_wait_list, num_events_in_wait_list,
@@ -1997,6 +2009,8 @@ pi_result hip_piContextRelease(pi_context ctxt) {
   if (count > 0) {
     return PI_SUCCESS;
   }
+  if (!check_rt_validness())
+    return PI_SUCCESS;
   std::cout << "hip_piContextRelease with " << ctxt << std::endl;
   ctxt->invoke_extended_deleters();
 
