@@ -68,14 +68,6 @@ template <typename T, class BinaryOperation, int Dims, size_t Extent,
 class reducer;
 
 namespace detail {
-template <class FunctorTy>
-event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
-                     FunctorTy Func) {
-  handler AuxHandler(Queue, IsHost);
-  Func(AuxHandler);
-  return AuxHandler.finalize();
-}
-
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
 // The order in which the atomic operations are performed may be arbitrary and
