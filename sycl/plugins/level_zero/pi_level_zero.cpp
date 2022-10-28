@@ -6029,6 +6029,9 @@ static pi_result piEventReleaseInternal(pi_event Event) {
   }
 
   // Save pointer to the queue before deleting/resetting event.
+  // When we add an event to the cache we need to check whether profiling is
+  // enabled or not, so we access properties of the queue and that's why queue
+  // must released later.
   auto Queue = Event->Queue;
   if (DisableEventsCaching || !Event->OwnZeEvent) {
     delete Event;
