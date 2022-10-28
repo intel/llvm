@@ -1,4 +1,5 @@
 = sycl_ext_oneapi_user_defined_reductions
+
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -8,8 +9,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-
-:blank: pass:[ +]
+:dpcpp: pass:[DPC++]
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -18,16 +18,22 @@
 
 == Notice
 
-Copyright (c) 2022 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
 IMPORTANT: This specification is a draft.
 
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
-trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
-used by permission by Khronos.
+== Contact
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.
-GitHub does not render image icons.
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
 
 This extension is written against the SYCL 2020 revision 5 specification. All
 references below to the "core SYCL specification" or to section numbers in the
@@ -37,14 +43,20 @@ SYCL specification refer to that revision.
 
 NOTE: THis extension is experimental: interfaces are subject to change later.
 
-== Introduction
+== Status
+
+**TODO**: fill this section
+
+== Overview
 
 The purpose of this extension is to expand functionality of `reduce_over_group`
 free function defined in section 4.17.4.5. `reduce` of the core SYCL
 specification by allowing to pass user-defined binary operators in there as well
 as perform reductions on a non-fundamental types.
 
-== Feature test macro
+== Specification
+
+=== Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
 specification section 6.3.3 Feature test macros. Therefore, an implementation
@@ -62,7 +74,7 @@ Table 1. Values of the `SYCL_EXT_ONEAPI_USER_DEFINED_REDUCTIONS` macro.
 |1     |Initial extension version. Base features are supported.
 |===
 
-== Reduction functions
+=== Reduction functions
 
 This extension provides two overloads of `reduce_over_group` defined by the core
 SYCL specification.
