@@ -139,6 +139,39 @@ NOTE: Implementation of both overaloads may use less memory than passed
 to the function depending on the exact algorithm which is used for doing the
 reduction.
 
+== Example usage
+
+[source,c++]
+----
+template <typename T>
+struct UserDefinedSum {
+  T operator()(T a, T b) {
+    return a + b;
+  }
+};
+
+q.submit([&](sycl::handler& h) {
+  auto acc = sycl::accessor(buf, h);
+
+  constexpr size_t group_size = 256;
+
+  // Create enough local memory for the algorithm
+  size_t temp_memory_size = group_size * sizeof(T);
+  auto scratch = sycl::local_accessor<std::byte, 1>(temp_memory_size, h);
+
+  h.parallel_for(sycl::nd_range<1>{N, group_size}, [=](sycl::nd_item<1> it) {
+    // Create a handle that associates the group with an allocation it can use
+    auto handle = sycl::ext::oneapi::experimental::group_with_scratchpad(
+        it.get_group(), sycl::span(scratch, temp_memory_size));
+
+    // Pass the handle as the first argument to the group algorithm
+    T sum = sycl::reduce_over_group(handle, acc[it.get_global_id(0)], 0,
+        UserDefinedSum<T>{});
+
+  });
+});
+----
+
 == Possible future direction
 
 In future versions of this extension we may add a query function which would
