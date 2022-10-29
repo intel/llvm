@@ -6781,14 +6781,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                                         /*BoundArch=*/nullptr);
   }
 
-  OffloadBuilder->appendTopLevelLinkAction(Actions);
+  if (!UseNewOffloadingDriver) {
+    OffloadBuilder->appendTopLevelLinkAction(Actions);
 
-  // With static fat archives we need to create additional steps for
-  // generating dependence objects for device link actions.
-  if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
-    OffloadBuilder->addDeviceLinkDependenciesFromHost(LinkerInputs);
+    // With static fat archives we need to create additional steps for
+    // generating dependence objects for device link actions.
+    if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
+      OffloadBuilder->addDeviceLinkDependenciesFromHost(LinkerInputs);
 
-  OffloadBuilder->unbundleStaticArchives(C, Args, PL);
+    OffloadBuilder->unbundleStaticArchives(C, Args, PL);
+  }
 
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
