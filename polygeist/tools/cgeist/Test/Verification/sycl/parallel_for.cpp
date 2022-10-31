@@ -20,19 +20,20 @@
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
+#define N 8
 
 void host_parallel_for(std::array<int, 1> &A) {
   auto q = queue{};
   device d = q.get_device();
   std::cout << "Using " << d.get_info<info::device::name>() << "\n";
-  auto range = sycl::range<1>{1};
+  auto range = sycl::range<1>{N};
 
   {
     auto buf = buffer<int, 1>{A.data(), range};
     q.submit([&](handler &cgh) {
       auto A = buf.get_access<access::mode::write>(cgh);
       cgh.parallel_for<class kernel_parallel_for>(range, [=](sycl::id<1> id) {
-        A[id] = 1;
+        A[id] = id;
       });
     });
   }
@@ -40,8 +41,12 @@ void host_parallel_for(std::array<int, 1> &A) {
 
 int main() {
   std::array<int, 1> A = {0};
-  A[0] = 0;
+  for (unsigned i = 0; i < N; ++i) {
+    A[i] = 0;
+  }
   host_parallel_for(A);
-  assert(A[0] == 1);
+  for (unsigned i = 0; i < N; ++i) {
+    assert(A[i] == i);
+  }
   std::cout << "Test passed" << std::endl;
 }
