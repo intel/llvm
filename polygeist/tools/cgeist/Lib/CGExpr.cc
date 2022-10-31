@@ -1451,13 +1451,16 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (llvmType.isa<LLVM::LLVMPointerType>())
       return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, llvmType),
                            /*isReference*/ false);
-    else
+    else {
+      auto MT = llvmType.cast<MemRefType>();
       return ValueCategory(
           builder.create<polygeist::Pointer2MemrefOp>(
-              loc, llvmType,
+              loc, MT,
               builder.create<mlir::LLVM::NullOp>(
-                  loc, LLVM::LLVMPointerType::get(builder.getI8Type()))),
+                  loc, LLVM::LLVMPointerType::get(MT.getElementType(),
+                                                  MT.getMemorySpaceAsInt()))),
           false);
+    }
   }
   case clang::CastKind::CK_UserDefinedConversion: {
     return Visit(E->getSubExpr());
