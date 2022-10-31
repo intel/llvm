@@ -166,7 +166,8 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
         builder.create<polygeist::Pointer2MemrefOp>(
             loc, MT,
             builder.create<mlir::LLVM::NullOp>(
-                loc, LLVM::LLVMPointerType::get(builder.getI8Type()))),
+                loc, LLVM::LLVMPointerType::get(builder.getI8Type(),
+                                                MT.getMemorySpaceAsInt()))),
         false);
   if (auto PT = Mty.dyn_cast<mlir::LLVM::LLVMPointerType>())
     return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, PT), false);
@@ -735,7 +736,8 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr) {
         builder.create<polygeist::Pointer2MemrefOp>(
             loc, MT,
             builder.create<mlir::LLVM::NullOp>(
-                loc, LLVM::LLVMPointerType::get(builder.getI8Type()))),
+                loc, LLVM::LLVMPointerType::get(builder.getI8Type(),
+                                                MT.getMemorySpaceAsInt()))),
         false);
   else if (auto PT = melem.dyn_cast<mlir::LLVM::LLVMPointerType>())
     return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, PT), false);
@@ -1451,13 +1453,15 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (llvmType.isa<LLVM::LLVMPointerType>())
       return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, llvmType),
                            /*isReference*/ false);
-    else
+    else if (auto MT = llvmType.dyn_cast<MemRefType>())
       return ValueCategory(
           builder.create<polygeist::Pointer2MemrefOp>(
-              loc, llvmType,
+              loc, MT,
               builder.create<mlir::LLVM::NullOp>(
-                  loc, LLVM::LLVMPointerType::get(builder.getI8Type()))),
+                  loc, LLVM::LLVMPointerType::get(builder.getI8Type(),
+                                                  MT.getMemorySpaceAsInt()))),
           false);
+    llvm_unreachable("illegal type for cast");
   }
   case clang::CastKind::CK_UserDefinedConversion: {
     return Visit(E->getSubExpr());
