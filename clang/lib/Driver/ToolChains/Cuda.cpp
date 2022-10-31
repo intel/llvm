@@ -722,8 +722,8 @@ std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
 // Windows
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
   if (HostTC.getTriple().isOSWindows())
-    return "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
-  return "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
+    return "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
+  return "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
 }
 
 void CudaToolChain::addClangTargetOptions(
