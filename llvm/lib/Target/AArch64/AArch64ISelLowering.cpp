@@ -19504,7 +19504,7 @@ static SDValue performSETCCCombine(SDNode *N,
     SDValue CCVal = DAG.getConstant(AArch64CC::EQ, DL, MVT_CC);
     EVT TstVT = LHS->getValueType(0);
     SDValue Cmp =
-        DAG.getNode(AArch64ISD::SUBS, DL, DAG.getVTList(TstVT, MVT::Glue),
+        DAG.getNode(AArch64ISD::SUBS, DL, DAG.getVTList(TstVT, MVT::i32),
                     XOR0.getOperand(0), XOR0.getOperand(1));
     SDValue Overflow = Cmp.getValue(1);
     SDValue NZCVOp = DAG.getConstant(0, DL, MVT::i32);
