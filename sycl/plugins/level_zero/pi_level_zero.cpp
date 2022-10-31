@@ -1670,11 +1670,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         HostVisibleEvent->CleanedUp = true;
 
         // Finally set to signal the host-visible event at the end of the
-        // command-list.
-        // TODO: see if we need a barrier here (or explicit wait for all events
-        // in the batch).
-        ZE_CALL(zeCommandListAppendSignalEvent,
-                (CommandList->first, HostVisibleEvent->ZeEvent));
+        // command-list after a barrier that waits for all commands
+        // completion.
+        ZE_CALL(zeCommandListAppendBarrier,
+                (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
       }
     }
 
