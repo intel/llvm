@@ -22,7 +22,7 @@
 using namespace sycl;
 #define N 8
 
-void host_parallel_for(std::array<int, 1> &A) {
+void host_parallel_for(std::array<int, N> &A) {
   auto q = queue{};
   device d = q.get_device();
   std::cout << "Using " << d.get_info<info::device::name>() << "\n";
@@ -40,7 +40,7 @@ void host_parallel_for(std::array<int, 1> &A) {
 }
 
 int main() {
-  std::array<int, 1> A = {0};
+  std::array<int, N> A;
   for (unsigned i = 0; i < N; ++i) {
     A[i] = 0;
   }
