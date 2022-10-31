@@ -214,7 +214,7 @@ HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
 }
 
 static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
-  return "remangled-l64-signed_char.libspirv-amdgcn--amdhsa.bc";
+  return "remangled-l64-signed_char.libspirv-amdgcn-amd-amdhsa.bc";
 }
 
 void HIPAMDToolChain::addClangTargetOptions(
