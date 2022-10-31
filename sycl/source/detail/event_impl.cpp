@@ -72,13 +72,13 @@ void event_impl::waitInternal() {
   if (MState == HES_Complete)
     return;
 
-  std::unique_lock lock(MMutex);
+  std::unique_lock<std::mutex> lock(MMutex);
   cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
-    std::unique_lock lock(MMutex);
+    std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
     int Expected = HES_NotComplete;
     int Desired = HES_Complete;
@@ -402,7 +402,9 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 }
 
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
-  if (MIsFlushed)
+  // Some events might not have a native handle underneath even at this point,
+  // e.g. those produced by memset with 0 size (no PI call is made).
+  if (MIsFlushed || !MEvent)
     return;
 
   QueueImplPtr Queue = MQueue.lock();
@@ -416,7 +418,6 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     return;
 
   // Check if the task for this event has already been submitted.
-  assert(MEvent != nullptr);
   pi_event_status Status = PI_EVENT_QUEUED;
   getPlugin().call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,

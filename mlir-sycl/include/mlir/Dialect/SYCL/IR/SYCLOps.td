@@ -61,10 +61,6 @@ class SYCLMethodOpInterfaceImpl<
      }};
     static ::mlir::TypeID getTypeID() { return ::mlir::sycl::}] # type # [{::getTypeID(); }
     static constexpr llvm::ArrayRef<llvm::StringLiteral> getMethodNames() { return methods; }
-    ::mlir::Type getBaseType() { return BaseType(); }
-    llvm::StringRef getMangledFunctionName() { return MangledFunctionName(); }
-    llvm::StringRef getFunctionName() { return FunctionName(); }
-    llvm::StringRef getTypeName() { return TypeName(); }
   }];
 
   let extraClassDefinition = [{
@@ -189,13 +185,13 @@ def SYCLCallOp : SYCL_Op<"call", []> {
     "::llvm::StringRef":$MangledName,
     "::mlir::ValueRange":$Args), [{
       odsState.addOperands(Args);
-      if (Type.hasValue()) {
-        odsState.addAttribute(TypeAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Type.getValue()));
+      if (Type.has_value()) {
+        odsState.addAttribute(TypeAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Type.value()));
       }
-      odsState.addAttribute(FunctionAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Function));
-      odsState.addAttribute(MangledNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), MangledName));
-      if (result.hasValue()) {
-        odsState.addTypes(result.getValue());
+      odsState.addAttribute(getFunctionAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), Function));
+      odsState.addAttribute(getMangledNameAttrName(odsState.name), ::mlir::SymbolRefAttr::get(odsBuilder.getContext(), MangledName));
+      if (result.has_value()) {
+        odsState.addTypes(result.value());
       }
     }]>
   ];

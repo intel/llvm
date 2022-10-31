@@ -2,14 +2,14 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_expect_assume -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV-NO-EXT
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-NO-EXT
 
 ; CHECK-SPIRV: Capability ExpectAssumeKHR
@@ -31,13 +31,13 @@
 ; CHECK-SPIRV: INotEqual {{[0-9]+}} {{[0-9]+}} [[RES2]] {{[0-9]+}}
 
 ; CHECK-LLVM: define spir_func i32 @_Z12expect_consti{{.*}}
-; CHECK-LLVM: %[[EXP1:[0-9]+]] = load i32, i32* {{.*}}, align 4
+; CHECK-LLVM: %[[EXP1:[0-9]+]] = load i32, ptr {{.*}}, align 4
 ; CHECK-LLVM: %[[CONV1:[a-z0-9]+]] = sext i32 %[[EXP1]] to i64
 ; CHECK-LLVM: %[[RES1:[a-z0-9]+]] = call i64 @llvm.expect.i64(i64 %[[CONV1]], i64 1)
 ; CHECK-LLVM: %{{.*}} = icmp ne i64 %[[RES1]], 0
 
 ; CHECK-LLVM: define spir_func i32 @_Z10expect_funi{{.*}}
-; CHECK-LLVM: %[[EXP2:[0-9]+]] = load i32, i32* {{.*}}, align 4
+; CHECK-LLVM: %[[EXP2:[0-9]+]] = load i32, ptr {{.*}}, align 4
 ; CHECK-LLVM: %[[CONV2A:[a-z0-9]+]] = sext i32 %[[EXP2]] to i64
 ; CHECK-LLVM: %[[CALL:[a-z0-9]+]] = call spir_func i32 @_Z3foov()
 ; CHECK-LLVM: %[[CONV2B:[a-z0-9]+]] = sext i32 %[[CALL]] to i64
@@ -57,13 +57,13 @@
 ; CHECK-SPIRV-NO-EXT: INotEqual {{[0-9]+}} {{[0-9]+}} [[RES2]] {{[0-9]+}}
 
 ; CHECK-LLVM-NO-EXT: define spir_func i32 @_Z12expect_consti{{.*}}
-; CHECK-LLVM-NO-EXT: %[[EXP1:[0-9]+]] = load i32, i32* {{.*}}, align 4
+; CHECK-LLVM-NO-EXT: %[[EXP1:[0-9]+]] = load i32, ptr {{.*}}, align 4
 ; CHECK-LLVM-NO-EXT: %[[CONV1:[a-z0-9]+]] = sext i32 %[[EXP1]] to i64
 ; CHECK-LLVM-NO-EXT-NOT: %{{.*}} = call i64 @llvm.expect.i64(i64 %{{.*}}, i64 1)
 ; CHECK-LLVM-NO-EXT: %{{.*}} = icmp ne i64 %[[CONV1]], 0
 
 ; CHECK-LLVM-NO-EXT: define spir_func i32 @_Z10expect_funi{{.*}}
-; CHECK-LLVM-NO-EXT: %[[EXP2:[0-9]+]] = load i32, i32* {{.*}}, align 4
+; CHECK-LLVM-NO-EXT: %[[EXP2:[0-9]+]] = load i32, ptr {{.*}}, align 4
 ; CHECK-LLVM-NO-EXT: %[[CONV2A:[a-z0-9]+]] = sext i32 %[[EXP2]] to i64
 ; CHECK-LLVM-NO-EXT: %[[CALL:[a-z0-9]+]] = call spir_func i32 @_Z3foov()
 ; CHECK-LLVM-NO-EXT: %[[CONV2B:[a-z0-9]+]] = sext i32 %[[CALL]] to i64

@@ -41,7 +41,7 @@ static void collectAllDefs(StringRef selectedDialect,
   if (selectedDialect.empty()) {
     // If a dialect was not specified, ensure that all found defs belong to the
     // same dialect.
-    if (!llvm::is_splat(llvm::map_range(
+    if (!llvm::all_equal(llvm::map_range(
             defs, [](const auto &def) { return def.getDialect(); }))) {
       llvm::PrintFatalError("defs belonging to more than one dialect. Must "
                             "select one via '--(attr|type)defs-dialect'");
@@ -660,7 +660,7 @@ static const char *const dialectDefaultAttrPrinterParserDispatch = R"(
   {{
     ::mlir::Attribute attr;
     auto parseResult = generatedAttributeParser(parser, &attrTag, type, attr);
-    if (parseResult.hasValue())
+    if (parseResult.has_value())
       return attr;
   }
   {1}
@@ -682,8 +682,8 @@ static const char *const dialectDynamicAttrParserDispatch = R"(
   {
     ::mlir::Attribute genAttr;
     auto parseResult = parseOptionalDynamicAttr(attrTag, parser, genAttr);
-    if (parseResult.hasValue()) {
-      if (::mlir::succeeded(parseResult.getValue()))
+    if (parseResult.has_value()) {
+      if (::mlir::succeeded(parseResult.value()))
         return genAttr;
       return Attribute();
     }
@@ -707,7 +707,7 @@ static const char *const dialectDefaultTypePrinterParserDispatch = R"(
   ::llvm::StringRef mnemonic;
   ::mlir::Type genType;
   auto parseResult = generatedTypeParser(parser, &mnemonic, genType);
-  if (parseResult.hasValue())
+  if (parseResult.has_value())
     return genType;
   {1}
   parser.emitError(typeLoc) << "unknown  type `"

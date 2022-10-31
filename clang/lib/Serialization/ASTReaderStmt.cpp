@@ -782,6 +782,7 @@ static ConstraintSatisfaction
 readConstraintSatisfaction(ASTRecordReader &Record) {
   ConstraintSatisfaction Satisfaction;
   Satisfaction.IsSatisfied = Record.readInt();
+  Satisfaction.ContainsErrors = Record.readInt();
   if (!Satisfaction.IsSatisfied) {
     unsigned NumDetailRecords = Record.readInt();
     for (unsigned i = 0; i != NumDetailRecords; ++i) {
@@ -812,7 +813,7 @@ void ASTStmtReader::VisitConceptSpecializationExpr(
   E->ArgsAsWritten = Record.readASTTemplateArgumentListInfo();
   llvm::SmallVector<TemplateArgument, 4> Args;
   for (unsigned I = 0; I < NumTemplateArgs; ++I)
-    Args.push_back(Record.readTemplateArgument());
+    Args.push_back(Record.readTemplateArgument(/*Canonicalize*/ true));
   E->setTemplateArguments(Args);
   E->Satisfaction = E->isValueDependent() ? nullptr :
       ASTConstraintSatisfaction::Create(Record.getContext(),

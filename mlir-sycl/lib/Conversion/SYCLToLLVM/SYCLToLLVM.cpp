@@ -153,9 +153,9 @@ static Optional<Type> convertRangeOrIDTy(unsigned dimNum, StringRef name,
   if (!convertedTy.isInitialized()) {
     auto arrayTy =
         getArrayTy(converter.getContext(), dimNum, converter.getIndexType());
-    if (!arrayTy.hasValue())
+    if (!arrayTy.has_value())
       return llvm::None;
-    if (failed(convertedTy.setBody(arrayTy.getValue(), /*isPacked=*/false)))
+    if (failed(convertedTy.setBody(arrayTy.value(), /*isPacked=*/false)))
       return llvm::None;
   }
   return convertedTy;
@@ -236,8 +236,8 @@ private:
 
     bool producesResult = op.getNumResults() == 1;
     func::CallOp funcCall = builder.genCall(
-        op.MangledName(),
-        producesResult ? TypeRange(op.result().getType()) : TypeRange(),
+        op.getMangledName(),
+        producesResult ? TypeRange(op.getResult().getType()) : TypeRange(),
         op.getOperands(), module);
 
     rewriter.replaceOp(op.getOperation(),
@@ -274,14 +274,14 @@ private:
     LLVM_DEBUG(llvm::dbgs() << "CastPattern: Rewriting op: "; op.dump();
                llvm::dbgs() << "\n");
 
-    assert(op.source().getType().isa<MemRefType>() &&
+    assert(op.getSource().getType().isa<MemRefType>() &&
            "The cast source type should be a memref type");
-    assert(op.result().getType().isa<MemRefType>() &&
+    assert(op.getResult().getType().isa<MemRefType>() &&
            "The result source type should be a memref type");
 
     // Ensure the input and result types are legal.
-    auto srcType = op.source().getType().cast<MemRefType>();
-    auto resType = op.result().getType().cast<MemRefType>();
+    auto srcType = op.getSource().getType().cast<MemRefType>();
+    auto resType = op.getResult().getType().cast<MemRefType>();
 
     if (!isConvertibleAndHasIdentityMaps(srcType) ||
         !isConvertibleAndHasIdentityMaps(resType))
@@ -291,7 +291,7 @@ private:
     // type of those pointers in the results memref.
     Location loc = op.getLoc();
     LLVMBuilder builder(rewriter, loc);
-    MemRefDescriptor srcMemRefDesc(opAdaptor.source());
+    MemRefDescriptor srcMemRefDesc(opAdaptor.getSource());
     Value allocatedPtr = builder.genBitcast(
         getElementPtrType(resType), srcMemRefDesc.allocatedPtr(rewriter, loc));
     Value alignedPtr = builder.genBitcast(
@@ -344,7 +344,7 @@ private:
 
     ModuleOp module = op.getOperation()->getParentOfType<ModuleOp>();
     FuncBuilder builder(rewriter, op.getLoc());
-    func::CallOp funcCall = builder.genCall(op.MangledName(), TypeRange(),
+    func::CallOp funcCall = builder.genCall(op.getMangledName(), TypeRange(),
                                             op.getOperands(), module);
     rewriter.eraseOp(op);
     (void)funcCall;

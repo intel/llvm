@@ -47,10 +47,12 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -217,10 +219,12 @@ static mlir::LogicalResult convertFortranSourceToMLIR(
   auto &defKinds = semanticsContext.defaultKinds();
   fir::KindMapping kindMap(
       &ctx, llvm::ArrayRef<fir::KindTy>{fir::fromDefaultKinds(defKinds)});
+  // Use default lowering options for bbc.
+  Fortran::lower::LoweringOptions loweringOptions{};
   auto burnside = Fortran::lower::LoweringBridge::create(
-      ctx, defKinds, semanticsContext.intrinsics(),
+      ctx, semanticsContext, defKinds, semanticsContext.intrinsics(),
       semanticsContext.targetCharacteristics(), parsing.allCooked(), "",
-      kindMap);
+      kindMap, loweringOptions);
   burnside.lower(parseTree, semanticsContext);
   mlir::ModuleOp mlirModule = burnside.getModule();
   std::error_code ec;
@@ -276,6 +280,7 @@ int main(int argc, char **argv) {
   registerAllPasses();
 
   mlir::registerMLIRContextCLOptions();
+  mlir::registerAsmPrinterCLOptions();
   mlir::registerPassManagerCLOptions();
   mlir::PassPipelineCLParser passPipe("", "Compiler passes to run");
   llvm::cl::ParseCommandLineOptions(argc, argv, "Burnside Bridge Compiler\n");
@@ -327,6 +332,15 @@ int main(int argc, char **argv) {
       .set_intrinsicModuleDirectories(intrinsicIncludeDirs)
       .set_warnOnNonstandardUsage(warnStdViolation)
       .set_warningsAreErrors(warnIsError);
+
+  llvm::Triple targetTriple{llvm::Triple(
+      llvm::Triple::normalize(llvm::sys::getDefaultTargetTriple()))};
+  // FIXME: Handle real(3) ?
+  if (targetTriple.getArch() != llvm::Triple::ArchType::x86 &&
+      targetTriple.getArch() != llvm::Triple::ArchType::x86_64) {
+    semanticsContext.targetCharacteristics().DisableType(
+        Fortran::common::TypeCategory::Real, /*kind=*/10);
+  }
 
   return mlir::failed(convertFortranSourceToMLIR(
       inputFilename, options, programPrefix, semanticsContext, passPipe));

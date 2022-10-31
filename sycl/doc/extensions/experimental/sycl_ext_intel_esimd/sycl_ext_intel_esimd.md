@@ -660,7 +660,7 @@ int main(void) {
   int err_cnt = 0;
 
   try {
-    queue q(gpu_selector{}, createExceptionHandler());
+    queue q(gpu_selector_v, createExceptionHandler());
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 

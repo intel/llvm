@@ -486,8 +486,10 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT, ScalarEvolution *SE,
   // Tell ScalarEvolution that the loop is deleted. Do this before
   // deleting the loop so that ScalarEvolution can look at the loop
   // to determine what it needs to clean up.
-  if (SE)
+  if (SE) {
     SE->forgetLoop(L);
+    SE->forgetBlockAndLoopDispositions();
+  }
 
   Instruction *OldTerm = Preheader->getTerminator();
   assert(!OldTerm->mayHaveSideEffects() &&
@@ -694,6 +696,7 @@ void llvm::breakLoopBackedge(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
   Loop *OutermostLoop = L->getOutermostLoop();
 
   SE.forgetLoop(L);
+  SE.forgetBlockAndLoopDispositions();
 
   std::unique_ptr<MemorySSAUpdater> MSSAU;
   if (MSSA)
@@ -1166,7 +1169,7 @@ static bool hasHardUserWithinLoop(const Loop *L, const Instruction *I) {
     if (Curr->mayHaveSideEffects())
       return true;
     // Otherwise, add all its users to worklist.
-    for (auto U : Curr->users()) {
+    for (const auto *U : Curr->users()) {
       auto *UI = cast<Instruction>(U);
       if (Visited.insert(UI).second)
         WorkList.push_back(UI);
@@ -1395,7 +1398,10 @@ int llvm::rewriteLoopExitValues(Loop *L, LoopInfo *LI, TargetLibraryInfo *TLI,
         // and next SCEV may errneously get smaller cost.
 
         // Collect all the candidate PHINodes to be rewritten.
-        RewritePhiSet.emplace_back(PN, i, ExitValue, Inst, HighCost);
+        Instruction *InsertPt =
+          (isa<PHINode>(Inst) || isa<LandingPadInst>(Inst)) ?
+          &*Inst->getParent()->getFirstInsertionPt() : Inst;
+        RewritePhiSet.emplace_back(PN, i, ExitValue, InsertPt, HighCost);
       }
     }
   }
@@ -1665,8 +1671,7 @@ Value *llvm::addRuntimeChecks(
 }
 
 Value *llvm::addDiffRuntimeChecks(
-    Instruction *Loc, Loop *TheLoop, ArrayRef<PointerDiffInfo> Checks,
-    SCEVExpander &Expander,
+    Instruction *Loc, ArrayRef<PointerDiffInfo> Checks, SCEVExpander &Expander,
     function_ref<Value *(IRBuilderBase &, unsigned)> GetVF, unsigned IC) {
 
   LLVMContext &Ctx = Loc->getContext();
@@ -1676,7 +1681,7 @@ Value *llvm::addDiffRuntimeChecks(
   // Our instructions might fold to a constant.
   Value *MemoryRuntimeCheck = nullptr;
 
-  for (auto &C : Checks) {
+  for (const auto &C : Checks) {
     Type *Ty = C.SinkStart->getType();
     // Compute VF * IC * AccessSize.
     auto *VFTimesUFTimesSize =
@@ -1841,7 +1846,7 @@ Optional<IVConditionInfo> llvm::hasPartialIVCondition(Loop &L,
           if (L.contains(Succ))
             continue;
 
-          Info.PathIsNoop &= llvm::empty(Succ->phis()) &&
+          Info.PathIsNoop &= Succ->phis().empty() &&
                              (!Info.ExitForPath || Info.ExitForPath == Succ);
           if (!Info.PathIsNoop)
             break;

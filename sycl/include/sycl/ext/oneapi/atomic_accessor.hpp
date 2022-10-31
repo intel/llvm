@@ -57,7 +57,8 @@ private:
   using AccessorT::getQualifiedPtr;
 
   // Prevent non-atomic access to atomic accessor
-  multi_ptr<DataT, AccessorT::AS> get_pointer() const = delete;
+  multi_ptr<DataT, AccessorT::AS, access::decorated::legacy>
+  get_pointer() const = delete;
 
 protected:
   using AccessorT::AdjustedDim;

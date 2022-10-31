@@ -4,6 +4,7 @@
 
 // UNSUPPORTED: nvptx64-nvidia-cuda-oldDriver
 // UNSUPPORTED: amdgcn-amd-amdhsa-oldDriver
+//
 
 #ifdef LIBRARY
 int x = 42;

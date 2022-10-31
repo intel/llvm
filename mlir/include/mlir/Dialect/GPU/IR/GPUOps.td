@@ -263,8 +263,9 @@ def GPU_GPUFuncOp : GPU_Op<"func", [
 
     /// Returns the number of buffers located in the workgroup memory.
     unsigned getNumWorkgroupAttributions() {
-      return (*this)->getAttrOfType<IntegerAttr>(
-          getNumWorkgroupAttributionsAttrName()).getInt();
+      auto attr = (*this)->getAttrOfType<IntegerAttr>(
+          getNumWorkgroupAttributionsAttrName());
+      return attr ? attr.getInt() : 0;
     }
 
     /// Returns a list of block arguments that correspond to buffers located in
@@ -307,10 +308,6 @@ def GPU_GPUFuncOp : GPU_Op<"func", [
       return "workgroup_attributions";
     }
 
-    /// Returns the type of this function.
-    /// FIXME: Remove when GPU uses prefixed accessors.
-    FunctionType getFunctionType() { return function_type(); }
-
     /// Returns the argument types of this function.
     ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
 
@@ -338,7 +335,7 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
                Index:$gridSizeX, Index:$gridSizeY, Index:$gridSizeZ,
                Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ,
                Optional<I32>:$dynamicSharedMemorySize,
-               Variadic<AnyType>:$operands)>,
+               Variadic<AnyType>:$kernelOperands)>,
     Results<(outs Optional<GPU_AsyncToken>:$asyncToken)> {
   let summary = "Launches a function as a GPU kernel";
 
@@ -455,9 +452,6 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
     // present since it is run before the verifier of this op.
     friend LogicalResult GPUDialect::verifyOperationAttribute(Operation *,
                                                               NamedAttribute);
-
-    /// The name of the symbol reference attribute specifying the kernel to launch.
-    static StringRef getKernelAttrName() { return "kernel"; }
   }];
 
   let assemblyFormat = [{
@@ -466,7 +460,7 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
       `blocks` `in` ` ` `(`$gridSizeX`,` $gridSizeY`,` $gridSizeZ`)`
       `threads` `in` ` ` `(`$blockSizeX`,` $blockSizeY`,` $blockSizeZ`)`
       (`dynamic_shared_memory_size` $dynamicSharedMemorySize^)?
-      custom<LaunchFuncOperands>($operands, type($operands)) attr-dict
+      custom<LaunchFuncOperands>($kernelOperands, type($kernelOperands)) attr-dict
   }];
   let hasVerifier = 1;
 }
@@ -743,10 +737,10 @@ def I32OrF32 : TypeConstraint<Or<[I32.predicate, F32.predicate]>,
                                  "i32 or f32">;
 
 def GPU_ShuffleOp : GPU_Op<
-    "shuffle", [NoSideEffect, AllTypesMatch<["value", "result"]>]>,
+    "shuffle", [NoSideEffect, AllTypesMatch<["value", "shuffleResult"]>]>,
     Arguments<(ins I32OrF32:$value, I32:$offset, I32:$width,
                GPU_ShuffleModeAttr:$mode)>,
-    Results<(outs I32OrF32:$result, I1:$valid)> {
+    Results<(outs I32OrF32:$shuffleResult, I1:$valid)> {
   let summary = "Shuffles values within a subgroup.";
   let description = [{
     The "shuffle" op moves values to a different invocation within the same
@@ -828,7 +822,7 @@ def GPU_GPUModuleOp : GPU_Op<"module", [
     ```
   }];
   let builders = [OpBuilder<(ins "StringRef":$name)>];
-  let regions = (region SizedRegion<1>:$body);
+  let regions = (region SizedRegion<1>:$bodyRegion);
   let hasCustomAssemblyFormat = 1;
 
   // We need to ensure the block inside the region is properly terminated;
@@ -938,7 +932,7 @@ def GPU_AllocOp : GPU_Op<"alloc", [
                  Optional<GPU_AsyncToken>:$asyncToken);
 
   let extraClassDeclaration = [{
-    MemRefType getType() { return memref().getType().cast<MemRefType>(); }
+    MemRefType getType() { return getMemref().getType().cast<MemRefType>(); }
   }];
 
   let assemblyFormat = [{
@@ -1215,7 +1209,7 @@ def GPU_SubgroupMmaConstantMatrixOp : GPU_Op<"subgroup_mma_constant_matrix",
 
   let extraClassDeclaration = [{
     gpu::MMAMatrixType getType() {
-      return res().getType().cast<gpu::MMAMatrixType>();
+      return getRes().getType().cast<gpu::MMAMatrixType>();
     }
   }];
 
@@ -1263,25 +1257,25 @@ def GPU_SubgroupMmaElementwiseOp : GPU_Op<"subgroup_mma_elementwise",
     Example:
 
     ```mlir
-     %0 =  %A, %B { operation = "ADD" } :
+     %0 =  %A, %B { opType = "ADD" } :
       (!gpu.mma_matrix<16x16xf16, "COp">, !gpu.mma_matrix<16x16xf16, "COp">)
       -> !gpu.mma_matrix<16x16xf16, "COp">
     ```
   }];
 
   let arguments = (ins Variadic<GPU_MMAMatrix>:$args,
-                       MMAElementWiseAttr:$operation);
+                       MMAElementWiseAttr:$opType);
 
   let results = (outs GPU_MMAMatrix:$res);
 
   let extraClassDeclaration = [{
     gpu::MMAMatrixType getType() {
-      return res().getType().cast<gpu::MMAMatrixType>();
+      return getRes().getType().cast<gpu::MMAMatrixType>();
     }
   }];
 
   let assemblyFormat = [{
-    $operation $args attr-dict `:` functional-type($args, $res)
+    $opType $args attr-dict `:` functional-type($args, $res)
   }];
 }
 

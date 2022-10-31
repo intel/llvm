@@ -13,7 +13,7 @@
 #include "utils.h"
 
 #include "mlir/Conversion/SYCLToLLVM/SYCLFuncRegistry.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -818,7 +818,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto gv =
           Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str(),
                                  /*tryInit*/ false);
-      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.type(),
+      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.getType(),
                                                 gv.first.getName());
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
@@ -2849,8 +2849,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
 
   mlir::OpBuilder builder(module->getContext());
   if (funcContext == FunctionContext::SYCLDevice)
-    builder.setInsertionPointToStart(
-        &(getDeviceModule(*module).body().front()));
+    builder.setInsertionPointToStart(getDeviceModule(*module).getBody());
   else
     builder.setInsertionPointToStart(module->getBody());
 
@@ -2900,7 +2899,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
       // the GPU module, else the block will go at the forefront of the main
       // module.
       if (funcContext == FunctionContext::SYCLDevice) {
-        B->moveBefore(&(getDeviceModule(*module).body().front()));
+        B->moveBefore(getDeviceModule(*module).getBody());
         ms.getBuilder().setInsertionPointToStart(B);
       } else
         ms.setEntryAndAllocBlock(B);
@@ -2933,7 +2932,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
         init->dump();
         llvm::errs() << " warning not initializing global: " << name << "\n";
       } else {
-        globalOp.initial_valueAttr(initial_value);
+        globalOp.setInitialValueAttr(initial_value);
       }
       delete B;
     }
@@ -3343,7 +3342,8 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
     if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
       auto mt = mlir::MemRefType::get(-1, getTypes().getMLIRType(parmType), {},
                                       CGM.getDataLayout().getAllocaAddrSpace());
-      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal);
+      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal,
+                               getTypes().getMLIRType(parmType));
       attrBuilder.addAttribute(
           llvm::Attribute::AttrKind::Alignment,
           CGM.getContext().getTypeAlignInChars(parmType).getQuantity());
@@ -3778,10 +3778,9 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
                                  UnitAttr::get(ctx));
 
       if (CGM.getLangOpts().SYCLIsDevice) {
-        NamedAttribute NamedAttr = mlirclang::AttrBuilder::createNamedAttr(
-            StringAttr::get(ctx, "sycl-module-id"),
+        attrBuilder.addPassThroughAttribute(
+            "sycl-module-id",
             StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
-        attrBuilder.addPassThroughAttribute(NamedAttr);
       }
 
       // If we're in C++ mode and the function name is "main", it is
@@ -3828,11 +3827,12 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   {
     // Mark a SYCL kernel as a SPIRV kernel.
     if (FD.hasAttr<SYCLKernelAttr>()) {
-      NamedAttribute NamedAttr = mlirclang::AttrBuilder::createNamedAttr(
-          StringAttr::get(ctx, "sycl-module-id"),
-          StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
-      attrBuilder.addPassThroughAttribute(NamedAttr).addAttribute(
-          gpu::GPUDialect::getKernelFuncAttrName(), UnitAttr::get(ctx));
+      attrBuilder
+          .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
+                        UnitAttr::get(ctx))
+          .addPassThroughAttribute(
+              "sycl-module-id",
+              StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
     }
 
     // Calling conventions for SPIRV functions.
@@ -3865,44 +3865,23 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   }
 
   // Compare the 2 attribute computations.
-  const mlir::NamedAttrList &newAttrs = PAL.getFnAttrs();
-  const mlir::NamedAttrList &oldAttrs = attrBuilder.getAttrs();
+  const mlir::NamedAttrList &newFnAttrs = PAL.getFnAttrs();
+  const mlir::NamedAttrList &oldFnAttrs = attrBuilder.getAttrs();
 
-  llvm::dbgs() << "New attributes: ";
-  for (const NamedAttribute &attr : newAttrs)
+  llvm::dbgs() << "New Fn attributes: ";
+  for (const NamedAttribute &attr : newFnAttrs)
     printAttrs(attr);
-  llvm::dbgs() << "\nOld attributes: ";
-  for (const NamedAttribute &attr : oldAttrs)
+  llvm::dbgs() << "\nOld Fn attributes: ";
+  for (const NamedAttribute &attr : oldFnAttrs)
     printAttrs(attr);
-  if (newAttrs != oldAttrs) {
+  if (newFnAttrs != oldFnAttrs) {
     llvm::dbgs() << "\nAttributes are different for " << FD.getNameAsString()
                  << "\n";
   }
 
-  NamedAttrList FnAttrs(function->getAttrDictionary());
-
-  // merge the attribute lists.
-  // TODO: place this as a static function in AttrBuilder ????
-  for (const NamedAttribute &Attr : UseOldAttributeImpl ? oldAttrs : newAttrs) {
-    Optional<NamedAttribute> ExistingAttr = FnAttrs.getNamed(Attr.getName());
-    if (!ExistingAttr) {
-      FnAttrs.append(Attr);
-      continue;
-    }
-
-    // Add the new attribute to the existing passthrough attributes list.
-    if (ExistingAttr->getName() == "passthrough") {
-      auto Attrs = Attr.getValue().cast<ArrayAttr>();
-      mlirclang::AttrBuilder::addToPassThroughAttr(*ExistingAttr, Attrs, *ctx);
-      llvm::dbgs() << "ExistingAttr after adding: ";
-      printAttrs(*ExistingAttr);
-
-      FnAttrs.set(ExistingAttr->getName(), ExistingAttr->getValue());
-    }
-  }
-
-  //  FnAttrs.append(UseOldAttributeImpl ? oldAttrs : newAttrs);
-  function->setAttrs(FnAttrs.getDictionary(ctx));
+  mlirclang::AttributeList FnAttrs(function->getAttrDictionary(), {}, {});
+  FnAttrs.addFnAttrs(UseOldAttributeImpl ? oldFnAttrs : newFnAttrs, *ctx);
+  function->setAttrs(FnAttrs.getFnAttrs().getDictionary(ctx));
 }
 
 void MLIRASTConsumer::setMLIRFunctionParmsAttributes(

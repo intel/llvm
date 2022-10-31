@@ -8,7 +8,6 @@
 
 #include <detail/kernel_bundle_impl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -97,18 +96,9 @@ pi_result redefinedContextCreate(const pi_context_properties *Properties,
 // FIXME: mock 3 devices (one root device + two sub-devices) within a single
 // context.
 TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
-  sycl::platform Plt{sycl::default_selector()};
-  // Host devices do not support sub-devices
-  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
-      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cerr << "Test is not supported on "
-              << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
-    GTEST_SKIP(); // test is not supported on selected platform.
-  }
-
   // Setup Mock APIs
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<sycl::detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfo);
   Mock.redefine<sycl::detail::PiApiKind::piDevicePartition>(

@@ -39,7 +39,9 @@
 #include "deltas/ReduceRegisterMasks.h"
 #include "deltas/ReduceRegisterUses.h"
 #include "deltas/ReduceSpecialGlobals.h"
+#include "deltas/ReduceUsingSimplifyCFG.h"
 #include "deltas/ReduceVirtualRegisters.h"
+#include "deltas/RunIRPasses.h"
 #include "deltas/SimplifyInstructions.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -67,12 +69,14 @@ static cl::opt<std::string>
     DELTA_PASS("arguments", reduceArgumentsDeltaPass)                          \
     DELTA_PASS("instructions", reduceInstructionsDeltaPass)                    \
     DELTA_PASS("simplify-instructions", simplifyInstructionsDeltaPass)         \
+    DELTA_PASS("ir-passes", runIRPassesDeltaPass)                              \
     DELTA_PASS("operands-zero", reduceOperandsZeroDeltaPass)                   \
     DELTA_PASS("operands-one", reduceOperandsOneDeltaPass)                     \
     DELTA_PASS("operands-nan", reduceOperandsNaNDeltaPass)                     \
     DELTA_PASS("operands-to-args", reduceOperandsToArgsDeltaPass)              \
     DELTA_PASS("operands-skip", reduceOperandsSkipDeltaPass)                   \
     DELTA_PASS("operand-bundles", reduceOperandBundesDeltaPass)                \
+    DELTA_PASS("simplify-cfg", reduceUsingSimplifyCFGDeltaPass)                \
     DELTA_PASS("attributes", reduceAttributesDeltaPass)                        \
     DELTA_PASS("module-data", reduceModuleDataDeltaPass)                       \
   } while (false)

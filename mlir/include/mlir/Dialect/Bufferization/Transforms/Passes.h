@@ -17,6 +17,9 @@ struct OneShotBufferizationOptions;
 // Passes
 //===----------------------------------------------------------------------===//
 
+#define GEN_PASS_DECL
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h.inc"
+
 /// Creates an instance of the BufferDeallocation pass to free all allocated
 /// buffers.
 std::unique_ptr<Pass> createBufferDeallocationPass();

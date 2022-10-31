@@ -1156,7 +1156,7 @@ struct InformationCache {
 
   /// Check whether \p F is part of module slice.
   bool isInModuleSlice(const Function &F) {
-    return ModuleSlice.count(const_cast<Function *>(&F));
+    return ModuleSlice.empty() || ModuleSlice.count(const_cast<Function *>(&F));
   }
 
   /// Return true if the stack (llvm::Alloca) can be accessed by other threads.
@@ -1438,8 +1438,8 @@ struct Attributor {
 
     // We update only AAs associated with functions in the Functions set or
     // call sites of them.
-    if ((AnchorFn && !Functions.count(const_cast<Function *>(AnchorFn))) &&
-        !Functions.count(IRP.getAssociatedFunction())) {
+    if ((AnchorFn && !isRunOn(const_cast<Function *>(AnchorFn))) &&
+        !isRunOn(IRP.getAssociatedFunction())) {
       AA.getState().indicatePessimisticFixpoint();
       return AA;
     }
@@ -1554,8 +1554,9 @@ struct Attributor {
   bool isModulePass() const { return Configuration.IsModulePass; }
 
   /// Return true if we derive attributes for \p Fn
-  bool isRunOn(Function &Fn) const {
-    return Functions.empty() || Functions.count(&Fn);
+  bool isRunOn(Function &Fn) const { return isRunOn(&Fn); }
+  bool isRunOn(Function *Fn) const {
+    return Functions.empty() || Functions.count(Fn);
   }
 
   /// Determine opportunities to derive 'default' attributes in \p F and create
@@ -5066,8 +5067,9 @@ struct AAPointerInfo : public AbstractAttribute {
              OAS.getOffset() < getOffset() + getSize();
     }
 
-    /// Constant used to represent unknown offset or sizes.
-    static constexpr int64_t Unknown = 1 << 31;
+    /// Constants used to represent special offsets or sizes.
+    static constexpr int64_t Unassigned = -1;
+    static constexpr int64_t Unknown = -2;
   };
 
   /// Call \p CB on all accesses that might interfere with \p OAS and return

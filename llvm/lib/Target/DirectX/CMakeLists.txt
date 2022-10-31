@@ -17,6 +17,7 @@ add_llvm_target(DirectXCodeGen
   DirectXRegisterInfo.cpp
   DirectXSubtarget.cpp
   DirectXTargetMachine.cpp
+  DXILMetadata.cpp
   DXILOpBuilder.cpp
   DXILOpLowering.cpp
   DXILPrepare.cpp
@@ -24,7 +25,9 @@ add_llvm_target(DirectXCodeGen
   PointerTypeAnalysis.cpp
 
   LINK_COMPONENTS
+  AsmPrinter
   Core
+  SelectionDAG
   Support
   DirectXInfo
   DXILBitWriter

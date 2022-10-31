@@ -12,6 +12,7 @@
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/native/common.hpp>
+#include <sycl/ext/intel/esimd/xmx/common.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -23,19 +24,9 @@ namespace ext::intel::experimental::esimd {
 /// @addtogroup sycl_esimd_core
 /// @{
 
-enum class argument_type {
-  U1 = 1,   // unsigned 1 bit
-  S1 = 2,   // signed 1 bit
-  U2 = 3,   // unsigned 2 bits
-  S2 = 4,   // signed 2 bits
-  U4 = 5,   // unsigned 4 bits
-  S4 = 6,   // signed 4 bits
-  U8 = 7,   // unsigned 8 bits
-  S8 = 8,   // signed 8 bits
-  BF16 = 9, // bfloat 16
-  FP16 = 10, // half float
-  TF32 = 12 // tensorfloat 32
-};
+using argument_type
+    __SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas_argument_type") =
+        __ESIMD_NS::xmx::dpas_argument_type;
 
 /// The scope that lsc_fence operation should apply to
 /// Supported platforms: DG2, PVC
@@ -108,7 +99,7 @@ template <lsc_vector_size VS> constexpr void check_lsc_vector_size() {
                 "Unsupported vector size");
 }
 
-template <uint8_t VS> constexpr void check_lsc_vector_size() {
+template <int VS> constexpr void check_lsc_vector_size() {
   static_assert(VS == 1 || VS == 2 || VS == 3 || VS == 4 || VS == 8 ||
                     VS == 16 || VS == 32 || VS == 64,
                 "Unsupported vector size");
@@ -144,7 +135,7 @@ template <lsc_vector_size VS> constexpr uint8_t to_int() {
   }
 }
 
-template <uint8_t VS> constexpr lsc_vector_size to_lsc_vector_size() {
+template <int VS> constexpr lsc_vector_size to_lsc_vector_size() {
   check_lsc_vector_size<VS>();
   switch (VS) {
   case 1:
@@ -194,17 +185,20 @@ constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
 }
 
 template <typename T> struct lsc_expand_type {
-  using type = typename std::conditional<sizeof(T) < 4, uint32_t, T>::type;
+  using type = std::conditional_t<
+      sizeof(T) <= 4,
+      std::conditional_t<std::is_signed<T>::value, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed<T>::value, int64_t, uint64_t>>;
 };
 
 template <typename T> struct lsc_bitcast_type {
-private:
-  using _type1 = typename std::conditional<sizeof(T) == 2, uint16_t, T>::type;
-  using _type2 = typename std::conditional<sizeof(T) == 1, uint8_t, T>::type;
-
 public:
-  using type =
-      typename std::conditional<sizeof(_type2) == 1, _type2, _type1>::type;
+  using type = std::conditional_t<
+      sizeof(T) == 1, uint8_t,
+      std::conditional_t<
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
 };
 
 } // namespace detail
@@ -223,7 +217,7 @@ enum class cache_hint : uint8_t {
 namespace detail {
 
 template <cache_hint Hint> class cache_hint_wrap {
-  template <cache_hint...> class is_one_of_t;
+  template <cache_hint...> struct is_one_of_t;
   template <cache_hint Last>
   struct is_one_of_t<Last>
       : std::conditional<Last == Hint, std::true_type, std::false_type>::type {

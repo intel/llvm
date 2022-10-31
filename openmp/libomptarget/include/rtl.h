@@ -14,7 +14,11 @@
 #define _OMPTARGET_RTL_H
 
 #include "omptarget.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/DynamicLibrary.h"
+
+#include "omptarget.h"
 
 #include <list>
 #include <map>
@@ -45,7 +49,7 @@ struct RTLInfoTy {
   typedef int32_t(data_exchange_ty)(int32_t, void *, int32_t, void *, int64_t);
   typedef int32_t(data_exchange_async_ty)(int32_t, void *, int32_t, void *,
                                           int64_t, __tgt_async_info *);
-  typedef int32_t(data_delete_ty)(int32_t, void *);
+  typedef int32_t(data_delete_ty)(int32_t, void *, int32_t);
   typedef int32_t(run_region_ty)(int32_t, void *, void **, ptrdiff_t *,
                                  int32_t);
   typedef int32_t(run_region_async_ty)(int32_t, void *, void **, ptrdiff_t *,
@@ -78,7 +82,7 @@ struct RTLInfoTy {
                                 // to be registered with this RTL.
   int32_t NumberOfDevices = -1; // Number of devices this RTL deals with.
 
-  void *LibraryHandler = nullptr;
+  std::unique_ptr<llvm::sys::DynamicLibrary> LibraryHandler;
 
 #ifdef OMPTARGET_DEBUG
   std::string RTLName;
@@ -124,6 +128,8 @@ struct RTLInfoTy {
 
   // Are there images associated with this RTL.
   bool IsUsed = false;
+
+  llvm::DenseSet<const __tgt_device_image *> UsedImages;
 
   // Mutex for thread-safety when calling RTL interface functions.
   // It is easier to enforce thread-safety at the libomptarget level,

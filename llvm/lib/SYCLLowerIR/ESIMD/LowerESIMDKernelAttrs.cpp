@@ -10,6 +10,7 @@
 
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -24,7 +25,9 @@ SYCLFixupESIMDKernelWrapperMDPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool Modified = false;
   for (Function &F : M) {
     if (llvm::esimd::isESIMD(F)) {
-      llvm::esimd::traverseCallgraphUp(
+      // TODO: Keep track of traversed functions to avoid repeating traversals
+      // over same function.
+      sycl::utils::traverseCallgraphUp(
           &F,
           [&](Function *GraphNode) {
             if (!llvm::esimd::isESIMD(*GraphNode)) {

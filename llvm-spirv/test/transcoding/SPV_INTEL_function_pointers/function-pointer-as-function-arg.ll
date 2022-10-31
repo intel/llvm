@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_INTEL_function_pointers -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 ;
@@ -65,19 +65,20 @@
 ; CHECK-SPIRV: Load [[FOO_PTR_TYPE_ID]] [[LOADED_F_PTR:[0-9]+]] [[F_PTR_ALLOCA_ID]]
 ; CHECK-SPIRV: FunctionCall {{[0-9]+}} {{[0-9]+}} [[HELPER_ID]] [[LOADED_F_PTR]]
 ;
-; CHECK-LLVM: define spir_func i32 @helper(i32 (i32)* %[[F:.*]],
-; CHECK-LLVM: %[[F_ADDR:.*]] = alloca i32 (i32)*
-; CHECK-LLVM: store i32 (i32)* %[[F]], i32 (i32)** %[[F_ADDR]]
-; CHECK-LLVM: %[[F_LOADED:.*]] = load i32 (i32)*, i32 (i32)** %[[F_ADDR]]
+; CHECK-LLVM: define spir_func i32 @helper(ptr %[[F:.*]],
+; CHECK-LLVM: %[[F_ADDR:.*]] = alloca ptr
+; CHECK-LLVM: store ptr %[[F]], ptr %[[F_ADDR]]
+; CHECK-LLVM: %[[F_LOADED:.*]] = load ptr, ptr %[[F_ADDR]]
 ; CHECK-LLVM: %[[CALL:.*]] = call spir_func i32 %[[F_LOADED]]
 ; CHECK-LLVM: ret i32 %[[CALL]]
 ;
 ; CHECK-LLVM: define spir_kernel void @test
-; CHECK-LLVM: %[[FP:.*]] = alloca i32 (i32)*
-; CHECK-LLVM: store i32 (i32)* @foo, i32 (i32)** %[[FP]]
-; CHECK-LLVM: store i32 (i32)* @bar, i32 (i32)** %[[FP]]
-; CHECK-LLVM: %[[FP_LOADED:.*]] = load i32 (i32)*, i32 (i32)** %[[FP]]
-; CHECK-LLVM: call spir_func i32 @helper(i32 (i32)* %[[FP_LOADED]]
+; CHECK-LLVM: %{{.*}} = alloca ptr
+; CHECK-LLVM: %[[FP:.*]] = alloca ptr
+; CHECK-LLVM: store ptr @foo, ptr %[[FP]]
+; CHECK-LLVM: store ptr @bar, ptr %[[FP]]
+; CHECK-LLVM: %[[FP_LOADED:.*]] = load ptr, ptr %[[FP]]
+; CHECK-LLVM: call spir_func i32 @helper(ptr %[[FP_LOADED]]
 
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

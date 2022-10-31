@@ -12,7 +12,7 @@
 ; RUN: llvm-as < %s | llvm-spirv -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -o - -to-text | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.spv -o - -r | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %t.spv -o - -r -emit-opaque-pointers | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Name [[foo:[0-9]+]] "_Z3foo14ocl_image2d_ro"
 ; CHECK-SPIRV: Function {{[0-9]+}} [[foo]]
@@ -27,7 +27,7 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_func void @bar(%opencl.image2d_ro_t addrspace(1)* %srcImage) local_unnamed_addr #0 {
 entry:
-; CHECK-LLVM: call spir_func void @_Z3foo14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %srcImage)
+; CHECK-LLVM: call spir_func void @_Z3foo14ocl_image2d_ro(ptr addrspace(1) %srcImage)
   tail call spir_func void @_Z3foo14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %srcImage) #2
   ret void
 }

@@ -15,7 +15,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Debug.h"
 #include <deque>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 
 #define DEBUG_TYPE "affine-cfg"
 
@@ -1255,8 +1255,9 @@ void AffineFixup<AffinePrefetchOp>::replaceAffineOp(
     PatternRewriter &rewriter, AffinePrefetchOp prefetch, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<AffinePrefetchOp>(
-      prefetch, prefetch.getMemref(), map, mapOperands, prefetch.getLocalityHint(),
-      prefetch.getIsWrite(), prefetch.getIsDataCache());
+      prefetch, prefetch.getMemref(), map, mapOperands,
+      prefetch.getLocalityHint(), prefetch.getIsWrite(),
+      prefetch.getIsDataCache());
 }
 template <>
 void AffineFixup<AffineStoreOp>::replaceAffineOp(
@@ -1431,9 +1432,11 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
           ifOp.elseYield(), ifOp.elseYield().getOperands());
     }
 
-    rewriter.inlineRegionBefore(ifOp.getThenRegion(), affineIfOp.getThenRegion(),
+    rewriter.inlineRegionBefore(ifOp.getThenRegion(),
+                                affineIfOp.getThenRegion(),
                                 affineIfOp.getThenRegion().begin());
-    rewriter.inlineRegionBefore(ifOp.getElseRegion(), affineIfOp.getElseRegion(),
+    rewriter.inlineRegionBefore(ifOp.getElseRegion(),
+                                affineIfOp.getElseRegion(),
                                 affineIfOp.getElseRegion().begin());
 
     rewriter.replaceOp(ifOp, affineIfOp.getResults());

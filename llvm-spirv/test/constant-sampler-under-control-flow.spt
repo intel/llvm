@@ -89,7 +89,7 @@
 1 FunctionEnd 
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
-; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers --spirv-target-env=SPV-IR %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; Check whether seperate initilizer has been generated for each use
@@ -98,9 +98,9 @@
 ; CHECK-LLVM: br i1 %[[cond]], label %[[br1:.*]], label %[[br0:.*]]
 
 ; CHECK-LLVM: [[br0]]:
-; CHECK-LLVM: %[[s0:.*]] = call %spirv.Sampler addrspace(2)* @__translate_sampler_initializer(i32 23)
-; CHECK-LLVM: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %{{.*}}, %spirv.Sampler addrspace(2)* %[[s0]])
+; CHECK-LLVM: %[[s0:.*]] = call ptr addrspace(2) @__translate_sampler_initializer(i32 23)
+; CHECK-LLVM: call spir_func ptr addrspace(1) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(ptr addrspace(1) %{{.*}}, ptr addrspace(2) %[[s0]])
 
 ; CHECK-LLVM: [[br1]]:
-; CHECK-LLVM: %[[s1:.*]] = call %spirv.Sampler addrspace(2)* @__translate_sampler_initializer(i32 23)
-; CHECK-LLVM: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %{{.*}}, %spirv.Sampler addrspace(2)* %[[s1]])
+; CHECK-LLVM: %[[s1:.*]] = call ptr addrspace(2) @__translate_sampler_initializer(i32 23)
+; CHECK-LLVM: call spir_func ptr addrspace(1) @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(ptr addrspace(1) %{{.*}}, ptr addrspace(2) %[[s1]])

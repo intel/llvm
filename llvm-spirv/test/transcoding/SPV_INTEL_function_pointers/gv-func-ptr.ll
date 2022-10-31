@@ -1,6 +1,6 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
@@ -10,14 +10,14 @@ target triple = "spir64-unknown-unknown"
 
 %structtype.3 = type { [1 x i8 addrspace(4)*] }
 
-; CHECK-LLVM: @A = addrspace(1) constant %structtype.3 { [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8* bitcast (void ()* @foo to i8*) to i8 addrspace(4)*)] }, align 8
+; CHECK-LLVM: @A = addrspace(1) constant %structtype.3 { [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr @foo to ptr addrspace(4))] }, align 8
 
 @A = linkonce_odr addrspace(1) constant %structtype.3 { [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8* bitcast (void ()* @foo to i8*) to i8 addrspace(4)*)] }, align 8
 
 ; Function Attrs: nounwind
 define linkonce_odr spir_func void @foo() #0 {
 entry:
-; CHECK-LLVM: %0 = getelementptr inbounds %structtype.3, %structtype.3 addrspace(1)* @A, i64 0, i32 0, i64 2
+; CHECK-LLVM: %0 = getelementptr inbounds %structtype.3, ptr addrspace(1) @A, i64 0, i32 0, i64 2
   %0 = getelementptr inbounds %structtype.3, %structtype.3 addrspace(1)* @A, i64 0, i32 0, i64 2
   ret void
 }

@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
   // CHECK-O3: call spir_func void {{.*}}assert
 
   // store() for global address space
-  // CHECK-O3: call spir_func ptr addrspace(3) {{.*}}spirv_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4)
+  // NOTE: Call to __spirv_GenericCastToPtrExplicit_ToLocal is consolidated with an earlier call to it.
   // CHECK-O3: {{.*}}SubgroupLocalInvocationId
   // CHECK-O3: call spir_func ptr addrspace(1) {{.*}}spirv_GenericCastToPtrExplicit_ToGlobal{{.*}}(ptr addrspace(4)
   // CHECK-O3: call spir_func void {{.*}}spirv_SubgroupBlockWriteINTEL{{.*}}(ptr addrspace(1)

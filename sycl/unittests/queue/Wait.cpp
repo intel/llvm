@@ -87,14 +87,8 @@ pi_result redefinedEventRelease(pi_event event) {
 }
 
 TEST(QueueWait, QueueWaitTest) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
   Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
   Mock.redefine<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);

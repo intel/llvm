@@ -388,6 +388,9 @@ protected:
     } else {
         Builder.defineMacro("__gnu_linux__");
     }
+    // Work around Issue #47994 until glibc PR build/27558 is fixed.
+    if (Triple.isSPARC())
+      Builder.defineMacro("__NO_INLINE__");
     if (Opts.POSIXThreads)
       Builder.defineMacro("_REENTRANT");
     if (Opts.CPlusPlus)
@@ -477,7 +480,7 @@ public:
     case llvm::Triple::x86:
     case llvm::Triple::x86_64:
       this->HasFloat128 = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       this->MCountName = "__mcount";
       break;

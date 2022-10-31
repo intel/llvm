@@ -39,39 +39,39 @@ module {
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %c10 = arith.constant 10 : index
 // CHECK-DAG:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %0 = memref.alloca() : memref<9xi1>
+// CHECK-NEXT:     %alloca = memref.alloca() : memref<9xi1>
 // CHECK-NEXT:     scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:       memref.store %false, %0[%arg4] : memref<9xi1>
+// CHECK-NEXT:       memref.store %false, %alloca[%arg4] : memref<9xi1>
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 //    TODO don't need this cache during parallel split
-// CHECK-NEXT:     %1 = memref.alloca() : memref<9xi1>
+// CHECK-NEXT:     %alloca_0 = memref.alloca() : memref<9xi1>
 // CHECK-NEXT:     scf.for %arg4 = %c0 to %c10 step %c1 {
 // CHECK-NEXT:       scf.if %arg3 {
 // CHECK-NEXT:         scf.parallel (%arg5) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:           %2 = memref.load %0[%arg5] : memref<9xi1>
-// CHECK-NEXT:           %3 = arith.xori %2, %true : i1
-// CHECK-NEXT:           memref.store %3, %1[%arg5] : memref<9xi1>
+// CHECK-NEXT:           %0 = memref.load %alloca[%arg5] : memref<9xi1>
+// CHECK-NEXT:           %1 = arith.xori %0, %true : i1
+// CHECK-NEXT:           memref.store %1, %alloca_0[%arg5] : memref<9xi1>
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.parallel (%arg5) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:           %2 = memref.load %1[%arg5] : memref<9xi1>
+// CHECK-NEXT:           %0 = memref.load %alloca_0[%arg5] : memref<9xi1>
 // CHECK-NEXT:           "test.something"() : () -> ()
-// CHECK-NEXT:           memref.store %2, %0[%arg5] : memref<9xi1>
+// CHECK-NEXT:           memref.store %0, %alloca[%arg5] : memref<9xi1>
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:       } else {
 //    TODO don't need load/store
 // CHECK-NEXT:         scf.parallel (%arg5) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:           %2 = memref.load %0[%arg5] : memref<9xi1>
-// CHECK-NEXT:           memref.store %2, %0[%arg5] : memref<9xi1>
+// CHECK-NEXT:           %0 = memref.load %alloca[%arg5] : memref<9xi1>
+// CHECK-NEXT:           memref.store %0, %alloca[%arg5] : memref<9xi1>
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:       %2 = memref.load %0[%arg4] : memref<9xi1>
-// CHECK-NEXT:       func.call @use(%2) : (i1) -> ()
+// CHECK-NEXT:       %0 = memref.load %alloca[%arg4] : memref<9xi1>
+// CHECK-NEXT:       func.call @use(%0) : (i1) -> ()
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

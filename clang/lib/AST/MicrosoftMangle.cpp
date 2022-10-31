@@ -2491,6 +2491,10 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
       Out << "$halff@";
     break;
 
+  case BuiltinType::BFloat16:
+    mangleArtificialTagType(TTK_Struct, "__bf16", {"__clang"});
+    break;
+
 #define SVE_TYPE(Name, Id, SingletonId) \
   case BuiltinType::Id:
 #include "clang/Basic/AArch64SVEACLETypes.def"
@@ -2523,7 +2527,6 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
   case BuiltinType::SatUShortFract:
   case BuiltinType::SatUFract:
   case BuiltinType::SatULongFract:
-  case BuiltinType::BFloat16:
   case BuiltinType::Ibm128:
   case BuiltinType::Float128: {
     DiagnosticsEngine &Diags = Context.getDiags();
@@ -3092,14 +3095,17 @@ bool MicrosoftCXXNameMangler::isArtificialTagType(QualType T) const {
 
 void MicrosoftCXXNameMangler::mangleType(const VectorType *T, Qualifiers Quals,
                                          SourceRange Range) {
-  const BuiltinType *ET = T->getElementType()->getAs<BuiltinType>();
-  assert(ET && "vectors with non-builtin elements are unsupported");
+  QualType EltTy = T->getElementType();
+  const BuiltinType *ET = EltTy->getAs<BuiltinType>();
+  const BitIntType *BitIntTy = EltTy->getAs<BitIntType>();
+  assert((ET || BitIntTy) &&
+         "vectors with non-builtin/_BitInt elements are unsupported");
   uint64_t Width = getASTContext().getTypeSize(T);
   // Pattern match exactly the typedefs in our intrinsic headers.  Anything that
   // doesn't match the Intel types uses a custom mangling below.
   size_t OutSizeBefore = Out.tell();
   if (!isa<ExtVectorType>(T)) {
-    if (getASTContext().getTargetInfo().getTriple().isX86()) {
+    if (getASTContext().getTargetInfo().getTriple().isX86() && ET) {
       if (Width == 64 && ET->getKind() == BuiltinType::LongLong) {
         mangleArtificialTagType(TTK_Union, "__m64");
       } else if (Width >= 128) {
@@ -3124,7 +3130,8 @@ void MicrosoftCXXNameMangler::mangleType(const VectorType *T, Qualifiers Quals,
     MicrosoftCXXNameMangler Extra(Context, Stream);
     Stream << "?$";
     Extra.mangleSourceName("__vector");
-    Extra.mangleType(QualType(ET, 0), Range, QMM_Escape);
+    Extra.mangleType(QualType(ET ? static_cast<const Type *>(ET) : BitIntTy, 0),
+                     Range, QMM_Escape);
     Extra.mangleIntegerLiteral(llvm::APSInt::getUnsigned(T->getNumElements()));
 
     mangleArtificialTagType(TTK_Union, TemplateMangling, {"__clang"});

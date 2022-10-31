@@ -11,7 +11,7 @@ add_mlir_conversion_library(MLIRSYCLToLLVM
   MLIRSYCLConversionPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRArithmeticToLLVM
+  MLIRArithToLLVM
   MLIRFuncToLLVM
   MLIRIR
   MLIRLLVMCommonConversion

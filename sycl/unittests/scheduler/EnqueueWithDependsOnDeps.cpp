@@ -8,9 +8,7 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <detail/handler_impl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
@@ -20,48 +18,13 @@
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 
-namespace DependsOnTest {
-class MockHandlerCustom : public MockHandler {
-public:
-  MockHandlerCustom(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                    bool IsHost)
-      : MockHandler(Queue, IsHost) {}
-
-  std::unique_ptr<sycl::detail::CG> finalize() {
-    std::unique_ptr<sycl::detail::CG> CommandGroup;
-    switch (getType()) {
-    case sycl::detail::CG::Kernel: {
-      CommandGroup.reset(new sycl::detail::CGExecKernel(
-          getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
-          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
-          getKernelName(), getOSModuleHandle(), getStreamStorage(),
-          MImpl->MAuxiliaryResources, getCGType(), getCodeLoc()));
-      break;
-    }
-    case sycl::detail::CG::CodeplayHostTask: {
-      CommandGroup.reset(new detail::CGHostTask(
-          std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
-          getArgs(), getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
-          getRequirements(), getEvents(), getCGType(), getCodeLoc()));
-      break;
-    }
-    default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
-    }
-
-    return CommandGroup;
-  }
-};
-} // namespace DependsOnTest
 detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
                            detail::QueueImplPtr DevQueue,
                            const std::vector<EventImplPtr> &Events) {
   std::vector<detail::Command *> ToEnqueue;
 
   // Emulating processing of command group function
-  DependsOnTest::MockHandlerCustom MockCGH(DevQueue, false);
+  MockHandlerCustomFinalize MockCGH(DevQueue, false);
 
   for (auto EventImpl : Events)
     MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
@@ -110,12 +73,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjTwoHostTasks) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -151,15 +114,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -190,15 +150,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjHostDepKernel) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -229,15 +186,12 @@ TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  queue QueueDev(context(Plt), Selector);
+  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
   detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
@@ -344,19 +298,17 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  platform Plt{Selector};
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
   if (!CheckTestExecutionRequirements(Plt))
     return;
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWaitCustom);
   Mock.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCustom);
 
   {
-    queue QueueDev(context(Plt), Selector);
+    queue QueueDev(context(Plt), default_selector_v);
     PassedNumEvents.clear();
     PassedNumEventsToLaunch.clear();
     EventsWaitVerification(QueueDev);
@@ -375,7 +327,8 @@ TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
   }
 
   {
-    queue QueueDev(context(Plt), Selector, property::queue::in_order());
+    queue QueueDev(context(Plt), default_selector_v,
+                   property::queue::in_order());
     PassedNumEvents.clear();
     PassedNumEventsToLaunch.clear();
     EventsWaitVerification(QueueDev);

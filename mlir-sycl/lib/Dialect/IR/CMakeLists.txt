@@ -13,7 +13,7 @@ if (TARGET MLIRArithmetic)
     )
 else()
   set(MLIR_LIBS_TO_LINK
-    MLIRArithmeticDialect
+    MLIRArithDialect
     MLIRCallInterfaces
     MLIRCastInterfaces
     MLIRControlFlowInterfaces

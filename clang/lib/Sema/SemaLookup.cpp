@@ -159,7 +159,7 @@ namespace {
     void addUsingDirectives(DeclContext *DC, DeclContext *EffectiveDC) {
       SmallVector<DeclContext*, 4> queue;
       while (true) {
-        for (auto UD : DC->using_directives()) {
+        for (auto *UD : DC->using_directives()) {
           DeclContext *NS = UD->getNominatedNamespace();
           if (SemaRef.isVisible(UD) && visited.insert(NS).second) {
             addUsingDirective(UD, EffectiveDC);
@@ -522,7 +522,8 @@ void LookupResult::resolveKind() {
     D = cast<NamedDecl>(D->getCanonicalDecl());
 
     // Ignore an invalid declaration unless it's the only one left.
-    if (D->isInvalidDecl() && !(I == 0 && N == 1)) {
+    // Also ignore HLSLBufferDecl which not have name conflict with other Decls.
+    if ((D->isInvalidDecl() || isa<HLSLBufferDecl>(D)) && !(I == 0 && N == 1)) {
       Decls[I] = Decls[--N];
       continue;
     }
@@ -2069,7 +2070,7 @@ static NamedDecl *findAcceptableDecl(Sema &SemaRef, NamedDecl *D,
                                      unsigned IDNS) {
   assert(!LookupResult::isAvailableForLookup(SemaRef, D) && "not in slow case");
 
-  for (auto RD : D->redecls()) {
+  for (auto *RD : D->redecls()) {
     // Don't bother with extra checks if we already know this one isn't visible.
     if (RD == D)
       continue;
@@ -2413,7 +2414,7 @@ static bool LookupQualifiedNameInUsingDirectives(Sema &S, LookupResult &R,
       continue;
     }
 
-    for (auto I : ND->using_directives()) {
+    for (auto *I : ND->using_directives()) {
       NamespaceDecl *Nom = I->getNominatedNamespace();
       if (S.isVisible(I) && Visited.insert(Nom).second)
         Queue.push_back(Nom);
@@ -3193,7 +3194,7 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
       for (const auto &Arg : Proto->param_types())
         Queue.push_back(Arg.getTypePtr());
       // fallthrough
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     }
     case Type::FunctionNoProto: {
       const FunctionType *FnType = cast<FunctionType>(T);
@@ -4212,7 +4213,7 @@ private:
     // Traverse using directives for qualified name lookup.
     if (QualifiedNameLookup) {
       ShadowContextRAII Shadow(Visited);
-      for (auto I : Ctx->using_directives()) {
+      for (auto *I : Ctx->using_directives()) {
         if (!Result.getSema().isVisible(I))
           continue;
         lookupInDeclContext(I->getNominatedNamespace(), Result,
@@ -5074,9 +5075,8 @@ static void AddKeywordsToConsumer(Sema &SemaRef,
       "extern", "inline", "static", "typedef"
     };
 
-    const unsigned NumCTypeSpecs = llvm::array_lengthof(CTypeSpecs);
-    for (unsigned I = 0; I != NumCTypeSpecs; ++I)
-      Consumer.addKeywordResult(CTypeSpecs[I]);
+    for (const auto *CTS : CTypeSpecs)
+      Consumer.addKeywordResult(CTS);
 
     if (SemaRef.getLangOpts().C99)
       Consumer.addKeywordResult("restrict");
@@ -5128,9 +5128,8 @@ static void AddKeywordsToConsumer(Sema &SemaRef,
       static const char *const CXXExprs[] = {
         "delete", "new", "operator", "throw", "typeid"
       };
-      const unsigned NumCXXExprs = llvm::array_lengthof(CXXExprs);
-      for (unsigned I = 0; I != NumCXXExprs; ++I)
-        Consumer.addKeywordResult(CXXExprs[I]);
+      for (const auto *CE : CXXExprs)
+        Consumer.addKeywordResult(CE);
 
       if (isa<CXXMethodDecl>(SemaRef.CurContext) &&
           cast<CXXMethodDecl>(SemaRef.CurContext)->isInstance())
@@ -5154,9 +5153,8 @@ static void AddKeywordsToConsumer(Sema &SemaRef,
       // Statements.
       static const char *const CStmts[] = {
         "do", "else", "for", "goto", "if", "return", "switch", "while" };
-      const unsigned NumCStmts = llvm::array_lengthof(CStmts);
-      for (unsigned I = 0; I != NumCStmts; ++I)
-        Consumer.addKeywordResult(CStmts[I]);
+      for (const auto *CS : CStmts)
+        Consumer.addKeywordResult(CS);
 
       if (SemaRef.getLangOpts().CPlusPlus) {
         Consumer.addKeywordResult("catch");
@@ -5745,7 +5743,7 @@ void Sema::diagnoseMissingImport(SourceLocation UseLoc, NamedDecl *Decl,
   llvm::SmallVector<Module*, 8> UniqueModules;
   llvm::SmallDenseSet<Module*, 8> UniqueModuleSet;
   for (auto *M : Modules) {
-    if (M->Kind == Module::GlobalModuleFragment)
+    if (M->isGlobalModule() || M->isPrivateModule())
       continue;
     if (UniqueModuleSet.insert(M).second)
       UniqueModules.push_back(M);

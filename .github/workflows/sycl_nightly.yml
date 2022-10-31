@@ -10,16 +10,16 @@ on:
       - '.github/workflows/sycl_nightly.yml'
 
 jobs:
-  resolve_matrix:
-    name: Resolve Test Matrix
-    uses: ./.github/workflows/sycl_resolve_test_matrix.yml
+  test_matrix:
+    name: Generate Test Matrix
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "ocl_gen9;ocl_x64"
 
   ubuntu2004_build_test:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: resolve_matrix
+    needs: test_matrix
     secrets: inherit
     with:
       build_cache_root: "/__w/"
@@ -29,7 +29,7 @@ jobs:
   ubuntu2004_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: resolve_matrix
+    needs: test_matrix
     secrets: inherit
     with:
       build_cache_root: "/__w/"
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: ubuntu2004_build_test
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions/download-artifact@v3
       with:
         name: sycl_linux_default

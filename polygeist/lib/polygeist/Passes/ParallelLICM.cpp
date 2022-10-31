@@ -1,12 +1,12 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
@@ -258,8 +258,8 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     for (auto step : llvm::enumerate(looplike.getSteps())) {
       for (auto ub : looplike.getUpperBoundMap(step.index()).getResults()) {
         SmallVector<AffineExpr, 4> symbols;
-        for (unsigned idx = 0; idx < looplike.getUpperBoundsMap().getNumSymbols();
-             ++idx)
+        for (unsigned idx = 0;
+             idx < looplike.getUpperBoundsMap().getNumSymbols(); ++idx)
           symbols.push_back(getAffineSymbolExpr(
               idx + looplike.getLowerBoundsMap().getNumSymbols(),
               looplike.getContext()));
@@ -303,12 +303,12 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
       values.push_back(ub_ops[idx + looplike.getUpperBoundsMap().getNumDims()]);
     }
 
-    auto iset =
-        IntegerSet::get(/*dim*/ looplike.getLowerBoundsMap().getNumDims() +
-                            looplike.getUpperBoundsMap().getNumDims(),
-                        /*symbols*/ looplike.getLowerBoundsMap().getNumSymbols() +
-                            looplike.getUpperBoundsMap().getNumSymbols(),
-                        exprs, eqflags);
+    auto iset = IntegerSet::get(
+        /*dim*/ looplike.getLowerBoundsMap().getNumDims() +
+            looplike.getUpperBoundsMap().getNumDims(),
+        /*symbols*/ looplike.getLowerBoundsMap().getNumSymbols() +
+            looplike.getUpperBoundsMap().getNumSymbols(),
+        exprs, eqflags);
     auto ifOp = b.create<AffineIfOp>(looplike.getLoc(), TypeRange(), iset,
                                      values, /*else*/ false);
     looplike->moveBefore(ifOp.getThenBlock()->getTerminator());

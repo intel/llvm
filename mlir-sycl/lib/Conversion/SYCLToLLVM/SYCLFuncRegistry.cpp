@@ -46,7 +46,7 @@ Value SYCLFuncDescriptor::call(FuncId funcId, ValueRange args,
   // TODO: we could check here the arguments against the function signature and
   // assert if there is a mismatch.
   assert(callOp.getNumResults() <= 1 && "expecting a single result");
-  return callOp.getResult(0);
+  return callOp.getResult();
 }
 
 void SYCLFuncDescriptor::declareFunction(ModuleOp &module, OpBuilder &b) {

@@ -18,6 +18,10 @@
 #endif
 #elif defined(__SYCL_RT_OS_WINDOWS)
 #include <intrin.h>
+#elif defined(__SYCL_RT_OS_DARWIN)
+#if defined(__x86_64__) || defined(__i386__)
+#include <cpuid.h>
+#endif
 #endif
 
 namespace sycl {
@@ -27,7 +31,7 @@ namespace detail {
 #if defined(__x86_64__) || defined(__i386__)
 // Used by methods that duplicate OpenCL behaviour in order to get CPU info
 static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
   __cpuid_count(Type, SubType, CPUInfo[0], CPUInfo[1], CPUInfo[2], CPUInfo[3]);
 #elif defined(__SYCL_RT_OS_WINDOWS)
   __cpuidex(reinterpret_cast<int *>(CPUInfo), Type, SubType);
@@ -39,37 +43,6 @@ uint32_t PlatformUtil::getMaxClockFrequency() {
   throw runtime_error(
       "max_clock_frequency parameter is not supported for host device",
       PI_ERROR_INVALID_DEVICE);
-#if defined(__x86_64__) || defined(__i386__)
-  uint32_t CPUInfo[4];
-  std::string Buff(sizeof(CPUInfo) * 3 + 1, 0);
-  size_t Offset = 0;
-
-  for (uint32_t i = 0x80000002; i <= 0x80000004; i++) {
-    cpuid(CPUInfo, i);
-    std::copy(reinterpret_cast<char *>(CPUInfo),
-              reinterpret_cast<char *>(CPUInfo) + sizeof(CPUInfo),
-              Buff.begin() + Offset);
-    Offset += sizeof(CPUInfo);
-  }
-  std::size_t Found = Buff.rfind("Hz");
-  // Bail out if frequency is not found in CPUID string
-  if (Found == std::string::npos)
-    return 0;
-
-  Buff = Buff.substr(0, Found);
-  uint32_t Freq = 0;
-  switch (Buff[Buff.size() - 1]) {
-  case 'M':
-    Freq = 1;
-    break;
-  case 'G':
-    Freq = 1000;
-    break;
-  }
-  Buff = Buff.substr(Buff.rfind(' '), Buff.length());
-  Freq *= std::stod(Buff);
-  return Freq;
-#endif
   return 0;
 }
 
@@ -115,7 +88,7 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
   // AVX512 has 64 byte (ZMM) registers
   static constexpr uint32_t VECTOR_WIDTH_AVX512[] = {64, 32, 16, 8, 16, 8, 0};
 
-#if defined(__SYCL_RT_OS_LINUX)
+#if defined(__SYCL_RT_OS_LINUX) || defined(__SYCL_RT_OS_DARWIN)
   if (__builtin_cpu_supports("avx512f"))
     return VECTOR_WIDTH_AVX512[Index];
   if (__builtin_cpu_supports("avx2"))

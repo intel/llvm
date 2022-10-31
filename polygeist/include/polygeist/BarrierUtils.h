@@ -17,7 +17,7 @@
 #include "mlir/IR/Block.h"
 #include "polygeist/Ops.h"
 #include "llvm/ADT/SetVector.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 
 std::pair<mlir::Block *, mlir::Block::iterator>
 findInsertionPointAfterLoopOperands(mlir::scf::ParallelOp op);

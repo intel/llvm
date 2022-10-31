@@ -113,6 +113,19 @@ bool kernel_bundle_plain::is_specialization_constant_set(
 ///// sycl::detail free functions
 //////////////////////////////////
 
+const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs) {
+  auto compareDevices = [](device a, device b) {
+    return getSyclObjImpl(a) < getSyclObjImpl(b);
+  };
+  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
+      Devs.begin(), Devs.end(), compareDevices);
+  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
+                                    UniqueDeviceSet.end());
+
+  return UniqueDevices;
+}
+
 kernel_id get_kernel_id_impl(std::string KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
 }
@@ -142,12 +155,6 @@ detail::KernelBundleImplPtr
 get_empty_interop_kernel_bundle_impl(const context &Ctx,
                                      const std::vector<device> &Devs) {
   return std::make_shared<detail::kernel_bundle_impl>(Ctx, Devs);
-}
-
-std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles,
-                                                      bundle_state::input);
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>

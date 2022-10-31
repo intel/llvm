@@ -76,15 +76,15 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL:llvm.linkage = #llvm.linkage<external>]], [[PASSTHROUGH]]} {
 // CHECK-NEXT: %false = arith.constant false
 // CHECK-NEXT: %c0_i8 = arith.constant 0 : i8
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<i8>
-// CHECK-NEXT: %2 = "polygeist.typeSize"() {source = !sycl_id_2_} : () -> index
-// CHECK-NEXT: %3 = arith.index_cast %2 : index to i64
-// CHECK-NEXT: "llvm.intr.memset"(%1, %c0_i8, %3, %false) : (!llvm.ptr<i8>, i8, i64, i1) -> ()
-// CHECK-NEXT: %4 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-NEXT: %5 = llvm.addrspacecast %4 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-NEXT: %6 = "polygeist.pointer2memref"(%5) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: sycl.constructor(%6) {MangledName = @_ZN4sycl3_V12idILi2EEC1Ev, Type = @id} : (memref<?x!sycl_id_2_, 4>) -> ()
+// CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<i8>
+// CHECK-NEXT: %1 = "polygeist.typeSize"() {source = !sycl_id_2_} : () -> index
+// CHECK-NEXT: %2 = arith.index_cast %1 : index to i64
+// CHECK-NEXT: "llvm.intr.memset"(%0, %c0_i8, %2, %false) : (!llvm.ptr<i8>, i8, i64, i1) -> ()
+// CHECK-NEXT: %3 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: sycl.constructor(%5) {MangledName = @_ZN4sycl3_V12idILi2EEC1Ev, Type = @id} : (memref<?x!sycl_id_2_, 4>) -> ()
 
 // Ensure declaration to have external linkage.
 // CHECK-LABEL: func.func private @_ZN4sycl3_V12idILi2EEC1Ev(memref<?x!sycl_id_2_, 4>)
@@ -103,11 +103,11 @@ extern "C" SYCL_EXTERNAL void cons_1() {
 
 // CHECK-LABEL: func.func @cons_2(%arg0: i64, %arg1: i64)
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], [[PASSTHROUGH]]}
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-NEXT: %2 = llvm.addrspacecast %1 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-NEXT: %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: sycl.constructor(%3, %arg0, %arg1) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @id} : (memref<?x!sycl_id_2_, 4>, i64, i64) -> ()
+// CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: sycl.constructor(%2, %arg0, %arg1) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2EEENSt9enable_ifIXeqT_Li2EEmE4typeEm, Type = @id} : (memref<?x!sycl_id_2_, 4>, i64, i64) -> ()
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_2(i64 %0, i64 %1) #0
 // CHECK-LLVM: [[ID1:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]
@@ -120,14 +120,14 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 
 // CHECK-LABEL: func.func @cons_3(%arg0: memref<?x!sycl_item_2_1_>)
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], [[PASSTHROUGH]]}
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-NEXT: %2 = llvm.addrspacecast %1 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-NEXT: %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: %4 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_item_2_1_>) -> !llvm.ptr<!sycl_item_2_1_>
-// CHECK-NEXT: %5 = llvm.addrspacecast %4 : !llvm.ptr<!sycl_item_2_1_> to !llvm.ptr<!sycl_item_2_1_, 4>
-// CHECK-NEXT: %6 = "polygeist.pointer2memref"(%5) : (!llvm.ptr<!sycl_item_2_1_, 4>) -> memref<?x!sycl_item_2_1_, 4>
-// CHECK-NEXT: sycl.constructor(%3, %6) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_item_2_1_, 4>) -> ()
+// CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: %3 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_item_2_1_>) -> !llvm.ptr<!sycl_item_2_1_>
+// CHECK-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_item_2_1_> to !llvm.ptr<!sycl_item_2_1_, 4>
+// CHECK-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_item_2_1_, 4>) -> memref<?x!sycl_item_2_1_, 4>
+// CHECK-NEXT: sycl.constructor(%2, %5) {MangledName = @_ZN4sycl3_V12idILi2EEC1ILi2ELb1EEERNSt9enable_ifIXeqT_Li2EEKNS0_4itemILi2EXT0_EEEE4typeE, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_item_2_1_, 4>) -> ()
 
 // CHECK-LLVM: define spir_func void @cons_3([[ITEM_TYPE:%"class.sycl::_V1::item.2.true"]]* [[ARG0:%.*]]) #0
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]  
@@ -141,14 +141,14 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 
 // CHECK-LABEL: func.func @cons_4(%arg0: memref<?x!sycl_id_2_>)
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], [[PASSTHROUGH]]}
-// CHECK-NEXT: %0 = memref.alloca() : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %1 = "polygeist.memref2pointer"(%0) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-NEXT: %2 = llvm.addrspacecast %1 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-NEXT: %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: %4 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
-// CHECK-NEXT: %5 = llvm.addrspacecast %4 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
-// CHECK-NEXT: %6 = "polygeist.pointer2memref"(%5) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: sycl.constructor(%3, %6) {MangledName = @_ZN4sycl3_V12idILi2EEC1ERKS2_, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> ()
+// CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: %3 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
+// CHECK-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
+// CHECK-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: sycl.constructor(%2, %5) {MangledName = @_ZN4sycl3_V12idILi2EEC1ERKS2_, Type = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> ()
 
 // CHECK-LLVM: define spir_func void @cons_4([[ID_TYPE:%"class.sycl::_V1::id.2"]]* [[ARG0:%.*]]) #0
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]

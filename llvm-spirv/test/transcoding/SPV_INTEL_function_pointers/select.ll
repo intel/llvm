@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
@@ -23,10 +23,10 @@
 ; CHECK-SPIRV: FunctionPointerCallINTEL [[#]] [[#]] [[#LOAD]]
 
 ; CHECK-LLVM: define spir_kernel void @_ZTS6kernel
-; CHECK-LLVM: %[[FPTR_ALLOCA:.*]] = alloca i32 (i32, i32)*
-; CHECK-LLVM: %[[SELECT:.*]] = select i1 %{{.*}}, i32 (i32, i32)* @_Z3barii, i32 (i32, i32)* @_Z3bazii
-; CHECK-LLVM: store i32 (i32, i32)* %[[SELECT]], i32 (i32, i32)** %[[FPTR_ALLOCA]]
-; CHECK-LLVM: %[[FPTR:.*]] = load i32 (i32, i32)*, i32 (i32, i32)** %[[FPTR_ALLOCA]]
+; CHECK-LLVM: %[[FPTR_ALLOCA:.*]] = alloca ptr
+; CHECK-LLVM: %[[SELECT:.*]] = select i1 %{{.*}}, ptr @_Z3barii, ptr @_Z3bazii
+; CHECK-LLVM: store ptr %[[SELECT]], ptr %[[FPTR_ALLOCA]]
+; CHECK-LLVM: %[[FPTR:.*]] = load ptr, ptr %[[FPTR_ALLOCA]]
 ; CHECK-LLVM: call spir_func i32 %[[FPTR]](
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

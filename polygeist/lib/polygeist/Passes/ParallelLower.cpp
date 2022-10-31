@@ -13,8 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetails.h"
-#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/CallGraph.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -31,7 +31,7 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mutex>
 
 #define DEBUG_TYPE "parallel-lower-opt"
@@ -279,24 +279,25 @@ void ParallelLower::runOnOperation() {
     auto oneindex = builder.create<ConstantIndexOp>(loc, 1);
 
     async::ExecuteOp asyncOp = nullptr;
-    if (!llvm::empty(launchOp.asyncDependencies())) {
+    if (!launchOp.getAsyncDependencies().empty()) {
       SmallVector<Value> dependencies;
-      for (auto v : launchOp.asyncDependencies()) {
+      for (auto v : launchOp.getAsyncDependencies()) {
         auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();
         dependencies.push_back(builder.create<polygeist::StreamToTokenOp>(
-            tok.getLoc(), builder.getType<async::TokenType>(), tok.source()));
+            tok.getLoc(), builder.getType<async::TokenType>(),
+            tok.getSource()));
       }
       asyncOp = builder.create<mlir::async::ExecuteOp>(
           loc, /*results*/ TypeRange(), /*dependencies*/ dependencies,
           /*operands*/ ValueRange());
-      Block *blockB = &asyncOp.body().front();
+      Block *blockB = asyncOp.getBody();
       builder.setInsertionPointToStart(blockB);
     }
 
     auto block = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
-        std::vector<Value>(
-            {launchOp.gridSizeX(), launchOp.gridSizeY(), launchOp.gridSizeZ()}),
+        std::vector<Value>({launchOp.getGridSizeX(), launchOp.getGridSizeY(),
+                            launchOp.getGridSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *blockB = &block.getRegion().front();
 
@@ -304,8 +305,8 @@ void ParallelLower::runOnOperation() {
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
-        std::vector<Value>({launchOp.blockSizeX(), launchOp.blockSizeY(),
-                            launchOp.blockSizeZ()}),
+        std::vector<Value>({launchOp.getBlockSizeX(), launchOp.getBlockSizeY(),
+                            launchOp.getBlockSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *threadB = &threadr.getRegion().front();
 
@@ -314,12 +315,12 @@ void ParallelLower::runOnOperation() {
     SmallVector<Value> launchArgs;
     llvm::append_range(launchArgs, blockB->getArguments());
     llvm::append_range(launchArgs, threadB->getArguments());
-    launchArgs.push_back(launchOp.gridSizeX());
-    launchArgs.push_back(launchOp.gridSizeY());
-    launchArgs.push_back(launchOp.gridSizeZ());
-    launchArgs.push_back(launchOp.blockSizeX());
-    launchArgs.push_back(launchOp.blockSizeY());
-    launchArgs.push_back(launchOp.blockSizeZ());
+    launchArgs.push_back(launchOp.getGridSizeX());
+    launchArgs.push_back(launchOp.getGridSizeY());
+    launchArgs.push_back(launchOp.getGridSizeZ());
+    launchArgs.push_back(launchOp.getBlockSizeX());
+    launchArgs.push_back(launchOp.getBlockSizeY());
+    launchArgs.push_back(launchOp.getBlockSizeZ());
     builder.mergeBlockBefore(&launchOp.getRegion().front(),
                              threadr.getRegion().front().getTerminator(),
                              launchArgs);
@@ -328,11 +329,11 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](mlir::gpu::BlockIdOp bidx) {
       int idx = -1;
-      if (bidx.dimension() == gpu::Dimension::x)
+      if (bidx.getDimension() == gpu::Dimension::x)
         idx = 0;
-      else if (bidx.dimension() == gpu::Dimension::y)
+      else if (bidx.getDimension() == gpu::Dimension::y)
         idx = 1;
-      else if (bidx.dimension() == gpu::Dimension::z)
+      else if (bidx.getDimension() == gpu::Dimension::z)
         idx = 2;
       else
         assert(0 && "illegal dimension");
@@ -368,11 +369,11 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {
       int idx = -1;
-      if (bidx.dimension() == gpu::Dimension::x)
+      if (bidx.getDimension() == gpu::Dimension::x)
         idx = 0;
-      else if (bidx.dimension() == gpu::Dimension::y)
+      else if (bidx.getDimension() == gpu::Dimension::y)
         idx = 1;
-      else if (bidx.dimension() == gpu::Dimension::z)
+      else if (bidx.getDimension() == gpu::Dimension::z)
         idx = 2;
       else
         assert(0 && "illegal dimension");
@@ -387,12 +388,12 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](gpu::GridDimOp bidx) {
       Value val = nullptr;
-      if (bidx.dimension() == gpu::Dimension::x)
-        val = launchOp.gridSizeX();
-      else if (bidx.dimension() == gpu::Dimension::y)
-        val = launchOp.gridSizeY();
-      else if (bidx.dimension() == gpu::Dimension::z)
-        val = launchOp.gridSizeZ();
+      if (bidx.getDimension() == gpu::Dimension::x)
+        val = launchOp.getGridSizeX();
+      else if (bidx.getDimension() == gpu::Dimension::y)
+        val = launchOp.getGridSizeY();
+      else if (bidx.getDimension() == gpu::Dimension::z)
+        val = launchOp.getGridSizeZ();
       else
         assert(0 && "illegal dimension");
       builder.replaceOp(bidx, val);
@@ -400,12 +401,12 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](gpu::BlockDimOp bidx) {
       Value val = nullptr;
-      if (bidx.dimension() == gpu::Dimension::x)
-        val = launchOp.blockSizeX();
-      else if (bidx.dimension() == gpu::Dimension::y)
-        val = launchOp.blockSizeY();
-      else if (bidx.dimension() == gpu::Dimension::z)
-        val = launchOp.blockSizeZ();
+      if (bidx.getDimension() == gpu::Dimension::x)
+        val = launchOp.getBlockSizeX();
+      else if (bidx.getDimension() == gpu::Dimension::y)
+        val = launchOp.getBlockSizeY();
+      else if (bidx.getDimension() == gpu::Dimension::z)
+        val = launchOp.getBlockSizeZ();
       else
         assert(0 && "illegal dimension");
       builder.replaceOp(bidx, val);
@@ -442,8 +443,8 @@ void ParallelLower::runOnOperation() {
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
-    if (call.getCallee().getValue() == "cudaMemcpy" ||
-        call.getCallee().getValue() == "cudaMemcpyAsync") {
+    if (call.getCallee().value() == "cudaMemcpy" ||
+        call.getCallee().value() == "cudaMemcpyAsync") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
@@ -452,7 +453,7 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMemcpyToSymbol") {
+    } else if (call.getCallee().value() == "cudaMemcpyToSymbol") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(
@@ -465,7 +466,7 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMemset") {
+    } else if (call.getCallee().value() == "cudaMemset") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
@@ -477,8 +478,8 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMalloc" ||
-               call.getCallee().getValue() == "cudaMallocHost") {
+    } else if (call.getCallee().value() == "cudaMalloc" ||
+               call.getCallee().value() == "cudaMallocHost") {
       auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(1)};
@@ -486,18 +487,18 @@ void ParallelLower::runOnOperation() {
         args[0] =
             bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), args[0]);
       mlir::Value alloc =
-          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult(0);
+          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult();
       bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult(0).getType().cast<IntegerType>().getWidth());
+            call.getResult().getType().cast<IntegerType>().getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-    } else if (call.getCallee().getValue() == "cudaFree" ||
-               call.getCallee().getValue() == "cudaFreeHost") {
+    } else if (call.getCallee().value() == "cudaFree" ||
+               call.getCallee().value() == "cudaFreeHost") {
       auto mf = GetOrCreateFreeFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(0)};
@@ -505,24 +506,24 @@ void ParallelLower::runOnOperation() {
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult(0).getType().cast<IntegerType>().getWidth());
+            call.getResult().getType().cast<IntegerType>().getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-    } else if (call.getCallee().getValue() == "cudaDeviceSynchronize") {
+    } else if (call.getCallee().value() == "cudaDeviceSynchronize") {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          call.getResult().getType().cast<IntegerType>().getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaGetLastError") {
+    } else if (call.getCallee().value() == "cudaGetLastError") {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          call.getResult().getType().cast<IntegerType>().getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();

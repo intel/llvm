@@ -6,7 +6,6 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
-#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_event.hpp>
 #include <sycl/device_selector.hpp>
@@ -43,9 +42,7 @@ int main() {
   check<accessor_t, 32, 8>();
   check<detail::AccessorImplDevice<1>, 24, 8>();
   check<detail::LocalAccessorBaseDevice<1>, 24, 8>();
-  check<detail::AccessorImplHost, 160, 8>();
   check<detail::AccessorBaseHost, 16, 8>();
-  check<detail::LocalAccessorImplHost, 56, 8>();
   check<buffer<int>, 40, 8>();
   check<context, 16, 8>();
   check<cpu_selector, 8, 8>();

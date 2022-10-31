@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <algorithm>
 
@@ -121,9 +120,9 @@ constexpr bool all_the_algorithms()
     (void)std::ranges::for_each(first, last, UnaryVoid(&copies)); assert(copies == 1); copies = 0;
     (void)std::ranges::for_each(a, UnaryVoid(&copies)); assert(copies == 1); copies = 0;
     (void)std::ranges::for_each_n(first, count, UnaryVoid(&copies)); assert(copies == 1); copies = 0;
-    //(void)std::ranges::generate(first, last, NullaryValue(&copies)); assert(copies == 0);
-    //(void)std::ranges::generate(a, NullaryValue(&copies)); assert(copies == 0);
-    //(void)std::ranges::generate_n(first, count, NullaryValue(&copies)); assert(copies == 0);
+    (void)std::ranges::generate(first, last, NullaryValue(&copies)); assert(copies == 0);
+    (void)std::ranges::generate(a, NullaryValue(&copies)); assert(copies == 0);
+    (void)std::ranges::generate_n(first, count, NullaryValue(&copies)); assert(copies == 0);
     (void)std::ranges::includes(first, last, first2, last2, Less(&copies)); assert(copies == 0);
     (void)std::ranges::includes(a, b, Less(&copies)); assert(copies == 0);
     (void)std::ranges::is_heap(first, last, Less(&copies)); assert(copies == 0);
@@ -132,8 +131,8 @@ constexpr bool all_the_algorithms()
     (void)std::ranges::is_heap_until(a, Less(&copies)); assert(copies == 0);
     (void)std::ranges::is_partitioned(first, last, UnaryTrue(&copies)); assert(copies == 0);
     (void)std::ranges::is_partitioned(a, UnaryTrue(&copies)); assert(copies == 0);
-    //(void)std::ranges::is_permutation(first, last, first2, last2, Equal(&copies)); assert(copies == 0);
-    //(void)std::ranges::is_permutation(a, b, Equal(&copies)); assert(copies == 0);
+    (void)std::ranges::is_permutation(first, last, first2, last2, Equal(&copies)); assert(copies == 0);
+    (void)std::ranges::is_permutation(a, b, Equal(&copies)); assert(copies == 0);
     (void)std::ranges::is_sorted(first, last, Less(&copies)); assert(copies == 0);
     (void)std::ranges::is_sorted(a, Less(&copies)); assert(copies == 0);
     (void)std::ranges::is_sorted_until(first, last, Less(&copies)); assert(copies == 0);

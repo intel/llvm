@@ -2,7 +2,7 @@
 
 ; RUN: cat %s > %t.spvasm
 ; RUN: llvm-spirv %t.spvasm --to-binary -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s
 
 ; SPIR-V generated via:
 ;   clang -cc1 input.cl -triple spir -disable-llvm-passes -debug-info-kind=standalone -emit-llvm-bc -o - | ./bin/llvm-spirv -spirv-mem2reg -o input.spv; llvm-spirv input.spv --to-text -o -

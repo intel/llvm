@@ -80,19 +80,30 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
                 OS << "i" << TTy->getIntegerBitWidth();
                 break;
               }
-            } else if (TTy->isBFloatTy())
+            } else if (TTy->isHalfTy()) {
+              OS << "half";
+            } else if (TTy->isFloatTy()) {
+              OS << "float";
+            } else if (TTy->isDoubleTy()) {
+              OS << "double";
+            } else if (TTy->isBFloatTy()) {
               OS << "bfloat16";
-            else if (TTy->isStructTy()) {
+            } else if (TTy->isStructTy()) {
               StringRef LlvmTyName = TTy->getStructName();
-              // Emit half/bfloat16 for sycl[::*]::{half,bfloat16}
+              // Emit half/bfloat16/tf32 for sycl[::*]::{half,bfloat16,tf32}
               if (LlvmTyName.startswith("class.sycl::") ||
                   LlvmTyName.startswith("class.__sycl_internal::"))
                 LlvmTyName = LlvmTyName.rsplit("::").second;
+              if (LlvmTyName != "half" && LlvmTyName != "bfloat16" &&
+                  LlvmTyName != "tf32")
+                llvm_unreachable("Wrong matrix base type!");
               OS << LlvmTyName;
-            } else
-              TTy->print(OS, false, true);
-          } else if (TemplateArg.getKind() == TemplateArgument::Integral)
+            } else {
+              llvm_unreachable("Wrong matrix base type!");
+            }
+          } else if (TemplateArg.getKind() == TemplateArgument::Integral) {
             OS << TemplateArg.getAsIntegral();
+          }
         }
         Ty->setName(OS.str());
         return;
@@ -321,6 +332,10 @@ void CodeGenTypes::UpdateCompletedType(const TagDecl *TD) {
       if (!ConvertType(ED->getIntegerType())->isIntegerTy(32))
         TypeCache.clear();
     }
+    // If this is the SYCL aspect enum it is saved for later processing.
+    if (const auto *Attr = ED->getAttr<SYCLTypeAttr>())
+      if (Attr->getType() == SYCLTypeAttr::SYCLType::aspect)
+        CGM.setAspectsEnumDecl(ED);
     // If necessary, provide the full definition of a type only used with a
     // declaration so far.
     if (CGDebugInfo *DI = CGM.getModuleDebugInfo())

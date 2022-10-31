@@ -52,54 +52,48 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
   detail::device_filter_list *FilterList =
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-  // Host device availability should depend on the forced type
-  bool includeHost = false;
-  // If SYCL_DEVICE_FILTER is set, we don't automatically include it.
-  // We will check if host devices are specified in the filter below.
-  if (FilterList) {
-    if (deviceType != info::device_type::host &&
-        deviceType != info::device_type::all)
-      includeHost = false;
-    else
-      includeHost = FilterList->containsHost();
-  } else {
-    includeHost = detail::match_types(deviceType, info::device_type::host);
-  }
-  info::device_type forced_type = detail::get_forced_type();
+  detail::ods_target_list *OdsTargetList =
+      detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
+
+  info::device_type forced_type =
+      detail::get_forced_type(); // almost always ::all
   // Exclude devices which do not match requested device type
   if (detail::match_types(deviceType, forced_type)) {
     detail::force_type(deviceType, forced_type);
-    for (const auto &plt : platform::get_platforms()) {
+    auto thePlatforms = platform::get_platforms();
+    for (const auto &plt : thePlatforms) {
       // If SYCL_BE is set then skip platforms which doesn't have specified
       // backend.
       backend *ForcedBackend = detail::SYCLConfig<detail::SYCL_BE>::get();
       if (ForcedBackend)
-        if (!plt.is_host() && plt.get_backend() != *ForcedBackend)
+        if (!detail::getSyclObjImpl(plt)->is_host() &&
+            plt.get_backend() != *ForcedBackend)
           continue;
       // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
       // with the filter specification.
-      if (FilterList && !FilterList->backendCompatible(plt.get_backend()))
+      backend platformBackend = plt.get_backend();
+      if (FilterList && !FilterList->backendCompatible(platformBackend))
+        continue;
+      if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
         continue;
 
-      if (includeHost && plt.is_host()) {
-        std::vector<device> host_device(
-            plt.get_devices(info::device_type::host));
-        if (!host_device.empty())
-          devices.insert(devices.end(), host_device.begin(), host_device.end());
-      } else {
-        std::vector<device> found_devices(plt.get_devices(deviceType));
-        if (!found_devices.empty())
-          devices.insert(devices.end(), found_devices.begin(),
-                         found_devices.end());
-      }
+      std::vector<device> found_devices(plt.get_devices(deviceType));
+      if (!found_devices.empty())
+        devices.insert(devices.end(), found_devices.begin(),
+                       found_devices.end());
     }
   }
+
   return devices;
 }
 
 cl_device_id device::get() const { return impl->get(); }
 
-bool device::is_host() const { return impl->is_host(); }
+bool device::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "device::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 bool device::is_cpu() const { return impl->is_cpu(); }
 
@@ -152,7 +146,14 @@ device::get_info() const {
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
 #include <sycl/info/device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_info<Namespace::info::DescType::Desc>() const;
+
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return getImplBackend(impl); }

@@ -1132,7 +1132,7 @@ namespace {
           if (!HasFoldFailureDiagnostic)
             break;
           // We've already failed to fold something. Keep that diagnostic.
-          LLVM_FALLTHROUGH;
+          [[fallthrough]];
         case EM_ConstantExpression:
         case EM_ConstantExpressionUnevaluated:
           setActiveDiagnostic(false);
@@ -1219,7 +1219,7 @@ namespace {
     /// (Foo(), 1)      // use noteSideEffect
     /// (Foo() || true) // use noteSideEffect
     /// Foo() + 1       // use noteFailure
-    LLVM_NODISCARD bool noteFailure() {
+    [[nodiscard]] bool noteFailure() {
       // Failure when evaluating some expression often means there is some
       // subexpression whose evaluation was skipped. Therefore, (because we
       // don't track whether we skipped an expression when unwinding after an
@@ -2174,12 +2174,10 @@ static bool CheckLValueConstantExpression(EvalInfo &Info, SourceLocation Loc,
   // assumed to be global here.
   if (!IsGlobalLValue(Base)) {
     if (Info.getLangOpts().CPlusPlus11) {
-      const ValueDecl *VD = Base.dyn_cast<const ValueDecl*>();
       Info.FFDiag(Loc, diag::note_constexpr_non_global, 1)
-        << IsReferenceType << !Designator.Entries.empty()
-        << !!VD << VD;
-
-      auto *VarD = dyn_cast_or_null<VarDecl>(VD);
+          << IsReferenceType << !Designator.Entries.empty() << !!BaseVD
+          << BaseVD;
+      auto *VarD = dyn_cast_or_null<VarDecl>(BaseVD);
       if (VarD && VarD->isConstexpr()) {
         // Non-static local constexpr variables have unintuitive semantics:
         //   constexpr int a = 1;
@@ -4844,6 +4842,8 @@ enum EvalStmtResult {
 }
 
 static bool EvaluateVarDecl(EvalInfo &Info, const VarDecl *VD) {
+  if (VD->isInvalidDecl())
+    return false;
   // We don't need to evaluate the initializer for a static local.
   if (!VD->hasLocalStorage())
     return true;
@@ -6834,9 +6834,8 @@ public:
       : Bytes(Width.getQuantity()),
         TargetIsLittleEndian(TargetIsLittleEndian) {}
 
-  LLVM_NODISCARD
-  bool readObject(CharUnits Offset, CharUnits Width,
-                  SmallVectorImpl<unsigned char> &Output) const {
+  [[nodiscard]] bool readObject(CharUnits Offset, CharUnits Width,
+                                SmallVectorImpl<unsigned char> &Output) const {
     for (CharUnits I = Offset, E = Offset + Width; I != E; ++I) {
       // If a byte of an integer is uninitialized, then the whole integer is
       // uninitialized.
@@ -8179,7 +8178,8 @@ public:
       return LValueExprEvaluatorBaseTy::VisitCastExpr(E);
 
     case CK_LValueBitCast:
-      this->CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+      this->CCEDiag(E, diag::note_constexpr_invalid_cast)
+          << 2 << Info.Ctx.getLangOpts().CPlusPlus;
       if (!Visit(E->getSubExpr()))
         return false;
       Result.Designator.setInvalid();
@@ -8908,9 +8908,10 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
         Result.Designator.setInvalid();
         if (SubExpr->getType()->isVoidPointerType())
           CCEDiag(E, diag::note_constexpr_invalid_cast)
-            << 3 << SubExpr->getType();
+              << 3 << SubExpr->getType();
         else
-          CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+          CCEDiag(E, diag::note_constexpr_invalid_cast)
+              << 2 << Info.Ctx.getLangOpts().CPlusPlus;
       }
     }
     if (E->getCastKind() == CK_AddressSpaceConversion && Result.IsNullPtr)
@@ -8947,7 +8948,8 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
     return ZeroInitialization(E);
 
   case CK_IntegralToPointer: {
-    CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+    CCEDiag(E, diag::note_constexpr_invalid_cast)
+        << 2 << Info.Ctx.getLangOpts().CPlusPlus;
 
     APValue Value;
     if (!EvaluateIntegerOrLValue(SubExpr, Value, Info))
@@ -9235,7 +9237,7 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
         << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Builtin::BI__builtin_strchr:
   case Builtin::BI__builtin_wcschr:
   case Builtin::BI__builtin_memchr:
@@ -9296,7 +9298,7 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
                                Desired))
         return ZeroInitialization(E);
       StopAtNull = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Builtin::BImemchr:
     case Builtin::BI__builtin_memchr:
     case Builtin::BI__builtin_char_memchr:
@@ -9309,7 +9311,7 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     case Builtin::BIwcschr:
     case Builtin::BI__builtin_wcschr:
       StopAtNull = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case Builtin::BIwmemchr:
     case Builtin::BI__builtin_wmemchr:
       // wcschr and wmemchr are given a wchar_t to look for. Just use it.
@@ -9343,7 +9345,7 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
         << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Builtin::BI__builtin_memcpy:
   case Builtin::BI__builtin_memmove:
   case Builtin::BI__builtin_wmemcpy:
@@ -10713,6 +10715,11 @@ static bool MaybeElementDependentArrayFiller(const Expr *FillerExpr) {
       if (MaybeElementDependentArrayFiller(ILE->getInit(I)))
         return true;
     }
+
+    if (ILE->hasArrayFiller() &&
+        MaybeElementDependentArrayFiller(ILE->getArrayFiller()))
+      return true;
+
     return false;
   }
   return true;
@@ -12147,7 +12154,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
         << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Builtin::BI__builtin_strlen:
   case Builtin::BI__builtin_wcslen: {
     // As an extension, we support __builtin_strlen() as a constant expression,
@@ -12172,7 +12179,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
         << (std::string("'") + Info.Ctx.BuiltinInfo.getName(BuiltinOp) + "'");
     else
       Info.CCEDiag(E, diag::note_invalid_subexpr_in_const_expr);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case Builtin::BI__builtin_strcmp:
   case Builtin::BI__builtin_wcscmp:
   case Builtin::BI__builtin_strncmp:
@@ -13559,7 +13566,21 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
       return Info.Ctx.getTypeSize(DestType) == Info.Ctx.getTypeSize(SrcType);
     }
 
-    if (DestType->isEnumeralType()) {
+    if (Info.Ctx.getLangOpts().CPlusPlus && Info.InConstantContext &&
+        Info.EvalMode == EvalInfo::EM_ConstantExpression &&
+        DestType->isEnumeralType()) {
+
+      bool ConstexprVar = true;
+
+      // We know if we are here that we are in a context that we might require
+      // a constant expression or a context that requires a constant
+      // value. But if we are initializing a value we don't know if it is a
+      // constexpr variable or not. We can check the EvaluatingDecl to determine
+      // if it constexpr or not. If not then we don't want to emit a diagnostic.
+      if (const auto *VD = dyn_cast_or_null<VarDecl>(
+              Info.EvaluatingDecl.dyn_cast<const ValueDecl *>()))
+        ConstexprVar = VD->isConstexpr();
+
       const EnumType *ET = dyn_cast<EnumType>(DestType.getCanonicalType());
       const EnumDecl *ED = ET->getDecl();
       // Check that the value is within the range of the enumeration values.
@@ -13579,15 +13600,18 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
         ED->getValueRange(Max, Min);
         --Max;
 
-        if (ED->getNumNegativeBits() &&
+        if (ED->getNumNegativeBits() && ConstexprVar &&
             (Max.slt(Result.getInt().getSExtValue()) ||
              Min.sgt(Result.getInt().getSExtValue())))
-          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
-              << Result.getInt() << Min.getSExtValue() << Max.getSExtValue();
-        else if (!ED->getNumNegativeBits() &&
+          Info.Ctx.getDiagnostics().Report(
+              E->getExprLoc(), diag::warn_constexpr_unscoped_enum_out_of_range)
+              << llvm::toString(Result.getInt(), 10) << Min.getSExtValue()
+              << Max.getSExtValue();
+        else if (!ED->getNumNegativeBits() && ConstexprVar &&
                  Max.ult(Result.getInt().getZExtValue()))
-          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
-              << Result.getInt() << Min.getZExtValue() << Max.getZExtValue();
+          Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
+                                       diag::warn_constexpr_unscoped_enum_out_of_range)
+	    << llvm::toString(Result.getInt(),10) << Min.getZExtValue() << Max.getZExtValue();
       }
     }
 
@@ -13596,7 +13620,8 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   }
 
   case CK_PointerToIntegral: {
-    CCEDiag(E, diag::note_constexpr_invalid_cast) << 2;
+    CCEDiag(E, diag::note_constexpr_invalid_cast)
+        << 2 << Info.Ctx.getLangOpts().CPlusPlus;
 
     LValue LV;
     if (!EvaluatePointer(SubExpr, LV, Info))
@@ -14943,25 +14968,27 @@ static bool EvaluateInPlace(APValue &Result, EvalInfo &Info, const LValue &This,
 /// lvalue-to-rvalue cast if it is an lvalue.
 static bool EvaluateAsRValue(EvalInfo &Info, const Expr *E, APValue &Result) {
   assert(!E->isValueDependent());
+
+  if (E->getType().isNull())
+    return false;
+
+  if (!CheckLiteralType(Info, E))
+    return false;
+
   if (Info.EnableNewConstInterp) {
     if (!Info.Ctx.getInterpContext().evaluateAsRValue(Info, E, Result))
       return false;
   } else {
-    if (E->getType().isNull())
-      return false;
-
-    if (!CheckLiteralType(Info, E))
-      return false;
-
     if (!::Evaluate(Result, Info, E))
       return false;
+  }
 
-    if (E->isGLValue()) {
-      LValue LV;
-      LV.setFrom(Info.Ctx, Result);
-      if (!handleLValueToRValueConversion(Info, E, E->getType(), LV, Result))
-        return false;
-    }
+  // Implicit lvalue-to-rvalue cast.
+  if (E->isGLValue()) {
+    LValue LV;
+    LV.setFrom(Info.Ctx, Result);
+    if (!handleLValueToRValueConversion(Info, E, E->getType(), LV, Result))
+      return false;
   }
 
   // Check this core constant expression is a constant expression.

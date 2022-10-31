@@ -13,9 +13,9 @@ size_t evt2() {
 }
 
 // CHECK:   func.func @_Z3evtv() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:    %0 = memref.alloca() : memref<1x3xi32>
-// CHECK-NEXT:    %1 = affine.load %0[0, 0] : memref<1x3xi32>
-// CHECK-NEXT:    return %1 : i32
+// CHECK-NEXT:    %alloca = memref.alloca() : memref<1x3xi32>
+// CHECK-NEXT:    %0 = affine.load %alloca[0, 0] : memref<1x3xi32>
+// CHECK-NEXT:    return %0 : i32
 // CHECK-NEXT:    }
 // CHECK:   func.func @_Z4evt2v() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:     %0 = memref.get_global @stv : memref<3xi32>

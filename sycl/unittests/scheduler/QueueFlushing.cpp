@@ -9,7 +9,6 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 
 using namespace sycl;
@@ -31,6 +30,7 @@ static pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
                                        size_t param_value_size,
                                        void *param_value,
                                        size_t *param_value_size_ret) {
+  EXPECT_NE(event, nullptr);
   if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
     auto *Status = reinterpret_cast<pi_event_status *>(param_value);
     *Status = EventStatus;
@@ -126,15 +126,8 @@ static void testEventStatusCheck(detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, QueueFlushing) {
-  default_selector Selector;
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
-
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
   Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
@@ -148,9 +141,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};
-  queue QueueA{Ctx, Selector};
+  queue QueueA{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplA = detail::getSyclObjImpl(QueueA);
-  queue QueueB{Ctx, Selector};
+  queue QueueB{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplB = detail::getSyclObjImpl(QueueB);
   ExpectedDepQueue = QueueImplB->getHandleRef();
 
@@ -172,7 +165,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                     QueueImplA};
     testCommandEnqueue(&UnmapCmd, QueueImplB, MockReq);
 
-    device HostDevice{host_selector{}};
+    device HostDevice = detail::createSyclObjFromImpl<device>(
+        detail::device_impl::getHostDeviceImpl());
     detail::QueueImplPtr DefaultHostQueue{
         new detail::queue_impl(detail::getSyclObjImpl(HostDevice), {}, {})};
     detail::AllocaCommand HostAllocaCmd =
@@ -221,7 +215,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                 access::mode::read_write};
     detail::EventImplPtr DepEvent;
     {
-      queue TempQueue{Ctx, Selector};
+      queue TempQueue{Ctx, default_selector_v};
       detail::QueueImplPtr TempQueueImpl = detail::getSyclObjImpl(TempQueue);
       DepEvent.reset(new detail::event_impl(TempQueueImpl));
       DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());
@@ -284,5 +278,16 @@ TEST_F(SchedulerTest, QueueFlushing) {
     detail::MapMemObject CmdC{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
     testEventStatusCheck(&CmdC, QueueImplB, MockReq, PI_EVENT_COMPLETE);
+  }
+
+  // Check that nullptr pi_events are handled correctly.
+  {
+    resetTestCtx();
+    detail::MapMemObject CmdA{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
+                              access::mode::read_write};
+    MockCommand DepCmd(QueueImplB);
+    (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
+    MockScheduler::enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
+    EXPECT_FALSE(EventStatusQueried);
   }
 }

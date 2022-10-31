@@ -1,5 +1,10 @@
 include "llvm/Option/OptParser.td"
 
+multiclass B<string name, string help1, string help2> {
+  def NAME: Flag<["--"], name>, HelpText<help1>;
+  def no_ # NAME: Flag<["--"], "no-" # name>, HelpText<help2>;
+}
+
 multiclass Eq<string name, string help> {
   def NAME : Separate<["--"], name>;
   def NAME #_eq : Joined<["--"], name #"=">,
@@ -38,6 +43,12 @@ def : Flag<["-"], "a">, Alias<archive_headers>,
 
 def demangle : Flag<["--"], "demangle">, HelpText<"Demangle symbol names">;
 def : Flag<["-"], "C">, Alias<demangle>, HelpText<"Alias for --demangle">;
+
+defm debug_file_directory :
+  Eq<"debug-file-directory", "Path to directory where to look for debug files">,
+  MetaVarName<"<dir>">;
+
+defm debuginfod : B<"debuginfod", "Use debuginfod to find debug files", "Don't use debuginfod to find debug files">;
 
 def disassemble : Flag<["--"], "disassemble">,
   HelpText<"Disassemble all executable sections found in the input files">;
@@ -152,6 +163,10 @@ def : Flag<["--"], "headers">, Alias<section_headers>,
   HelpText<"Alias for --section-headers">;
 def : Flag<["-"], "h">, Alias<section_headers>,
   HelpText<"Alias for --section-headers">;
+
+def show_all_symbols : Flag<["--"], "show-all-symbols">,
+  HelpText<"Show all symbols during disassembly, even if multiple "
+           "symbols are defined at the same location">;
 
 def show_lma : Flag<["--"], "show-lma">,
   HelpText<"Display LMA column when dumping ELF section headers">;
@@ -299,11 +314,15 @@ def info_plist : Flag<["--"], "info-plist">,
            "Mach-O objects (requires --macho)">,
   Group<grp_mach_o>;
 
-def dyld_info : Flag<["--"], "dyld_info">,
-      HelpText<"Print bind and rebase information used by dyld to resolve "
-               "external references in a final linked binary "
-               "(requires --macho)">,
-      Group<grp_mach_o>;
+def chained_fixups : Flag<["--"], "chained-fixups">,
+  HelpText<"Print chained fixup information (requires --macho)">,
+  Group<grp_mach_o>;
+
+def dyld_info : Flag<["--"], "dyld-info">,
+  HelpText<"Print bind and rebase information used by dyld to resolve "
+           "external references in a final linked binary "
+           "(requires --macho)">,
+  Group<grp_mach_o>;
 
 def dylibs_used : Flag<["--"], "dylibs-used">,
   HelpText<"Print the shared libraries used for linked "

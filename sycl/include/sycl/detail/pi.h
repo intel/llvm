@@ -52,9 +52,10 @@
 // 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS queue property.
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
+// 11.15 piEventCreate creates even in the signalled state now.
 
-#define _PI_H_VERSION_MAJOR 10
-#define _PI_H_VERSION_MINOR 14
+#define _PI_H_VERSION_MAJOR 11
+#define _PI_H_VERSION_MINOR 15
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -264,6 +265,7 @@ typedef enum {
   // Intel UUID extension.
   PI_DEVICE_INFO_UUID = 0x106A,
   // These are Intel-specific extensions.
+  PI_DEVICE_INFO_DEVICE_ID = 0x4251,
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
   PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 0x10022,
@@ -752,6 +754,9 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
+/// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
+  "SYCL/device requirements"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -1393,6 +1398,11 @@ piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 //
 // Events
 //
+
+/// Create PI event object in a signalled/completed state.
+///
+/// \param context is the PI context of the event.
+/// \param ret_event is the PI even created.
 __SYCL_EXPORT pi_result piEventCreate(pi_context context, pi_event *ret_event);
 
 __SYCL_EXPORT pi_result piEventGetInfo(pi_event event, pi_event_info param_name,

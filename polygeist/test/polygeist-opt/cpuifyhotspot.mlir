@@ -376,47 +376,47 @@ module {
 // CHECK-NEXT:      %52 = arith.subi %c16, %50 : index
 // CHECK-NEXT:      %53 = arith.addi %45, %c-1_i32 : i32
 // CHECK-NEXT:      scf.parallel (%arg13, %arg14) = (%c0, %c0) to (%28, %29) step (%c1, %c1) {
-// CHECK-NEXT:        %55 = memref.alloca() : memref<16x16xf32>
-// CHECK-NEXT:        %56 = memref.alloca() : memref<16x16xf32>
-// CHECK-NEXT:        %57 = memref.alloca() : memref<16x16xf32>
-// CHECK-NEXT:        %58 = arith.index_cast %arg13 : index to i32
-// CHECK-NEXT:        %59 = arith.index_cast %arg14 : index to i32
-// CHECK-NEXT:        %60 = arith.muli %51, %59 : i32
-// CHECK-NEXT:        %61 = arith.muli %52, %arg14 : index
-// CHECK-NEXT:        %62 = arith.subi %60, %arg9 : i32
-// CHECK-NEXT:        %63 = arith.subi %61, %31 : index
-// CHECK-NEXT:        %64 = arith.muli %51, %58 : i32
-// CHECK-NEXT:        %65 = arith.muli %52, %arg13 : index
-// CHECK-NEXT:        %66 = arith.subi %64, %arg8 : i32
-// CHECK-NEXT:        %67 = arith.subi %65, %30 : index
-// CHECK-NEXT:        %68 = arith.addi %62, %c15_i32 : i32
-// CHECK-NEXT:        %69 = arith.addi %66, %c15_i32 : i32
-// CHECK-NEXT:        %70 = arith.cmpi slt, %62, %c0_i32 : i32
-// CHECK-NEXT:        %71 = arith.cmpi sgt, %68, %37 : i32
-// CHECK-NEXT:        %72 = arith.cmpi slt, %66, %c0_i32 : i32
-// CHECK-NEXT:        %73 = arith.cmpi sgt, %69, %38 : i32
+// CHECK-NEXT:        %alloca = memref.alloca() : memref<16x16xf32>
+// CHECK-NEXT:        %alloca_10 = memref.alloca() : memref<16x16xf32>
+// CHECK-NEXT:        %alloca_11 = memref.alloca() : memref<16x16xf32>
+// CHECK-NEXT:        %55 = arith.index_cast %arg13 : index to i32
+// CHECK-NEXT:        %56 = arith.index_cast %arg14 : index to i32
+// CHECK-NEXT:        %57 = arith.muli %51, %56 : i32
+// CHECK-NEXT:        %58 = arith.muli %52, %arg14 : index
+// CHECK-NEXT:        %59 = arith.subi %57, %arg9 : i32
+// CHECK-NEXT:        %60 = arith.subi %58, %31 : index
+// CHECK-NEXT:        %61 = arith.muli %51, %55 : i32
+// CHECK-NEXT:        %62 = arith.muli %52, %arg13 : index
+// CHECK-NEXT:        %63 = arith.subi %61, %arg8 : i32
+// CHECK-NEXT:        %64 = arith.subi %62, %30 : index
+// CHECK-NEXT:        %65 = arith.addi %59, %c15_i32 : i32
+// CHECK-NEXT:        %66 = arith.addi %63, %c15_i32 : i32
+// CHECK-NEXT:        %67 = arith.cmpi slt, %59, %c0_i32 : i32
+// CHECK-NEXT:        %68 = arith.cmpi sgt, %65, %37 : i32
+// CHECK-NEXT:        %69 = arith.cmpi slt, %63, %c0_i32 : i32
+// CHECK-NEXT:        %70 = arith.cmpi sgt, %66, %38 : i32
 // CHECK-NEXT:        memref.alloca_scope  {
 // CHECK-NEXT:          scf.parallel (%arg15, %arg16) = (%c0, %c0) to (%c16, %c16) step (%c1, %c1) {
-// CHECK-NEXT:            %74 = arith.index_cast %arg15 : index to i32
-// CHECK-NEXT:            %75 = arith.index_cast %arg16 : index to i32
-// CHECK-NEXT:            %76 = arith.addi %62, %75 : i32
-// CHECK-NEXT:            %77 = arith.addi %63, %arg16 : index
-// CHECK-NEXT:            %78 = arith.addi %66, %74 : i32
-// CHECK-NEXT:            %79 = arith.addi %67, %arg15 : index
-// CHECK-NEXT:            %80 = arith.muli %32, %77 : index
-// CHECK-NEXT:            %81 = arith.cmpi sge, %76, %c0_i32 : i32
-// CHECK-NEXT:            scf.if %81 {
-// CHECK-NEXT:              %82 = arith.cmpi sle, %76, %37 : i32
-// CHECK-NEXT:              scf.if %82 {
-// CHECK-NEXT:                %83 = arith.cmpi sge, %78, %c0_i32 : i32
-// CHECK-NEXT:                scf.if %83 {
-// CHECK-NEXT:                  %84 = arith.cmpi sle, %78, %38 : i32
-// CHECK-NEXT:                  scf.if %84 {
-// CHECK-NEXT:                    %85 = arith.addi %80, %79 : index
-// CHECK-NEXT:                    %86 = memref.load %46[%85] : memref<?xf32>
-// CHECK-NEXT:                    memref.store %86, %55[%arg16, %arg15] : memref<16x16xf32>
-// CHECK-NEXT:                    %87 = memref.load %arg0[%85] : memref<?xf32>
-// CHECK-NEXT:                    memref.store %87, %56[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:            %71 = arith.index_cast %arg15 : index to i32
+// CHECK-NEXT:            %72 = arith.index_cast %arg16 : index to i32
+// CHECK-NEXT:            %73 = arith.addi %59, %72 : i32
+// CHECK-NEXT:            %74 = arith.addi %60, %arg16 : index
+// CHECK-NEXT:            %75 = arith.addi %63, %71 : i32
+// CHECK-NEXT:            %76 = arith.addi %64, %arg15 : index
+// CHECK-NEXT:            %77 = arith.muli %32, %74 : index
+// CHECK-NEXT:            %78 = arith.cmpi sge, %73, %c0_i32 : i32
+// CHECK-NEXT:            scf.if %78 {
+// CHECK-NEXT:              %79 = arith.cmpi sle, %73, %37 : i32
+// CHECK-NEXT:              scf.if %79 {
+// CHECK-NEXT:                %80 = arith.cmpi sge, %75, %c0_i32 : i32
+// CHECK-NEXT:                scf.if %80 {
+// CHECK-NEXT:                  %81 = arith.cmpi sle, %75, %38 : i32
+// CHECK-NEXT:                  scf.if %81 {
+// CHECK-NEXT:                    %82 = arith.addi %77, %76 : index
+// CHECK-NEXT:                    %83 = memref.load %46[%82] : memref<?xf32>
+// CHECK-NEXT:                    memref.store %83, %alloca[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                    %84 = memref.load %arg0[%82] : memref<?xf32>
+// CHECK-NEXT:                    memref.store %84, %alloca_10[%arg16, %arg15] : memref<16x16xf32>
 // CHECK-NEXT:                  }
 // CHECK-NEXT:                }
 // CHECK-NEXT:              }
@@ -424,229 +424,229 @@ module {
 // CHECK-NEXT:            scf.yield
 // CHECK-NEXT:          }
 // CHECK-NEXT:          memref.alloca_scope  {
-// CHECK-NEXT:            %74 = memref.alloca(%c16, %c16) : memref<?x?xi32>
-// CHECK-NEXT:            %75 = memref.alloca(%c16, %c16) : memref<?x?xi1>
-// CHECK-NEXT:            %76 = memref.alloca(%c16, %c16) : memref<?x?xi32>
-// CHECK-NEXT:            %77 = memref.alloca(%c16, %c16) : memref<?x?xi8>
-// CHECK-NEXT:            %78 = memref.alloca(%c16, %c16) : memref<?x?xi8>
+// CHECK-NEXT:            %alloca_12 = memref.alloca(%c16, %c16) : memref<?x?xi32>
+// CHECK-NEXT:            %alloca_13 = memref.alloca(%c16, %c16) : memref<?x?xi1>
+// CHECK-NEXT:            %alloca_14 = memref.alloca(%c16, %c16) : memref<?x?xi32>
+// CHECK-NEXT:            %alloca_15 = memref.alloca(%c16, %c16) : memref<?x?xi8>
+// CHECK-NEXT:            %alloca_16 = memref.alloca(%c16, %c16) : memref<?x?xi8>
 // CHECK-NEXT:            scf.parallel (%arg15, %arg16) = (%c0, %c0) to (%c16, %c16) step (%c1, %c1) {
-// CHECK-NEXT:              %79 = "polygeist.subindex"(%74, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:              %80 = "polygeist.subindex"(%79, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:              memref.store %c0_i32, %80[] : memref<i32>
-// CHECK-NEXT:              %81 = "polygeist.subindex"(%75, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
-// CHECK-NEXT:              %82 = "polygeist.subindex"(%81, %arg16) : (memref<?xi1>, index) -> memref<i1>
-// CHECK-NEXT:              memref.store %true, %82[] : memref<i1>
+// CHECK-NEXT:              %71 = "polygeist.subindex"(%alloca_12, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:              %72 = "polygeist.subindex"(%71, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:              memref.store %c0_i32, %72[] : memref<i32>
+// CHECK-NEXT:              %73 = "polygeist.subindex"(%alloca_13, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
+// CHECK-NEXT:              %74 = "polygeist.subindex"(%73, %arg16) : (memref<?xi1>, index) -> memref<i1>
+// CHECK-NEXT:              memref.store %true, %74[] : memref<i1>
 // CHECK-NEXT:              scf.yield
 // CHECK-NEXT:            }
 // CHECK-NEXT:            memref.alloca_scope  {
 // CHECK-NEXT:              scf.while : () -> () {
-// CHECK-NEXT:                %79 = memref.alloca() : memref<i1>
+// CHECK-NEXT:                %alloca_17 = memref.alloca() : memref<i1>
 // CHECK-NEXT:                scf.parallel (%arg15, %arg16) = (%c0, %c0) to (%c16, %c16) step (%c1, %c1) {
-// CHECK-NEXT:                  %81 = "polygeist.subindex"(%74, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                  %82 = "polygeist.subindex"(%81, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                  %83 = memref.load %82[] : memref<i32>
-// CHECK-NEXT:                  %84 = "polygeist.subindex"(%78, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
-// CHECK-NEXT:                  %85 = "polygeist.subindex"(%84, %arg16) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:                  %86 = memref.load %85[] : memref<i8>
-// CHECK-NEXT:                  %87 = "polygeist.subindex"(%75, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
-// CHECK-NEXT:                  %88 = "polygeist.subindex"(%87, %arg16) : (memref<?xi1>, index) -> memref<i1>
-// CHECK-NEXT:                  %89 = memref.load %88[] : memref<i1>
-// CHECK-NEXT:                  %90 = arith.cmpi slt, %83, %45 : i32
-// CHECK-NEXT:                  %91 = arith.andi %90, %89 : i1
-// CHECK-NEXT:                  %92 = arith.cmpi eq, %arg15, %c0 : index
-// CHECK-NEXT:                  %93 = arith.cmpi eq, %arg16, %c0 : index
-// CHECK-NEXT:                  %94 = arith.andi %93, %92 : i1
-// CHECK-NEXT:                  scf.if %94 {
-// CHECK-NEXT:                    memref.store %91, %79[] : memref<i1>
+// CHECK-NEXT:                  %72 = "polygeist.subindex"(%alloca_12, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:                  %73 = "polygeist.subindex"(%72, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:                  %74 = memref.load %73[] : memref<i32>
+// CHECK-NEXT:                  %75 = "polygeist.subindex"(%alloca_16, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
+// CHECK-NEXT:                  %76 = "polygeist.subindex"(%75, %arg16) : (memref<?xi8>, index) -> memref<i8>
+// CHECK-NEXT:                  %77 = memref.load %76[] : memref<i8>
+// CHECK-NEXT:                  %78 = "polygeist.subindex"(%alloca_13, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
+// CHECK-NEXT:                  %79 = "polygeist.subindex"(%78, %arg16) : (memref<?xi1>, index) -> memref<i1>
+// CHECK-NEXT:                  %80 = memref.load %79[] : memref<i1>
+// CHECK-NEXT:                  %81 = arith.cmpi slt, %74, %45 : i32
+// CHECK-NEXT:                  %82 = arith.andi %81, %80 : i1
+// CHECK-NEXT:                  %83 = arith.cmpi eq, %arg15, %c0 : index
+// CHECK-NEXT:                  %84 = arith.cmpi eq, %arg16, %c0 : index
+// CHECK-NEXT:                  %85 = arith.andi %84, %83 : i1
+// CHECK-NEXT:                  scf.if %85 {
+// CHECK-NEXT:                    memref.store %82, %alloca_17[] : memref<i1>
 // CHECK-NEXT:                  }
-// CHECK-NEXT:                  %95 = "polygeist.subindex"(%77, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
-// CHECK-NEXT:                  %96 = "polygeist.subindex"(%95, %arg16) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:                  memref.store %86, %96[] : memref<i8>
-// CHECK-NEXT:                  %97 = "polygeist.subindex"(%76, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                  %98 = "polygeist.subindex"(%97, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                  memref.store %83, %98[] : memref<i32>
+// CHECK-NEXT:                  %86 = "polygeist.subindex"(%alloca_15, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
+// CHECK-NEXT:                  %87 = "polygeist.subindex"(%86, %arg16) : (memref<?xi8>, index) -> memref<i8>
+// CHECK-NEXT:                  memref.store %77, %87[] : memref<i8>
+// CHECK-NEXT:                  %88 = "polygeist.subindex"(%alloca_14, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:                  %89 = "polygeist.subindex"(%88, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:                  memref.store %74, %89[] : memref<i32>
 // CHECK-NEXT:                  scf.yield
 // CHECK-NEXT:                }
-// CHECK-NEXT:                %80 = memref.load %79[] : memref<i1>
-// CHECK-NEXT:                scf.condition(%80)
+// CHECK-NEXT:                %71 = memref.load %alloca_17[] : memref<i1>
+// CHECK-NEXT:                scf.condition(%71)
 // CHECK-NEXT:              } do {
 // CHECK-NEXT:                memref.alloca_scope  {
-// CHECK-NEXT:                  %79 = memref.alloca(%c16, %c16) : memref<?x?xi8>
+// CHECK-NEXT:                  %alloca_17 = memref.alloca(%c16, %c16) : memref<?x?xi8>
 // CHECK-NEXT:                  scf.parallel (%arg15, %arg16) = (%c0, %c0) to (%c16, %c16) step (%c1, %c1) {
-// CHECK-NEXT:                    %80 = arith.index_cast %arg15 : index to i32
-// CHECK-NEXT:                    %81 = arith.addi %80, %c1_i32 : i32
-// CHECK-NEXT:                    %82 = scf.if %73 -> (i32) {
-// CHECK-NEXT:                      %108 = arith.subi %69, %arg2 : i32
-// CHECK-NEXT:                      %109 = arith.subi %c14_i32, %108 : i32
-// CHECK-NEXT:                      scf.yield %109 : i32
+// CHECK-NEXT:                    %71 = arith.index_cast %arg15 : index to i32
+// CHECK-NEXT:                    %72 = arith.addi %71, %c1_i32 : i32
+// CHECK-NEXT:                    %73 = scf.if %70 -> (i32) {
+// CHECK-NEXT:                      %99 = arith.subi %66, %arg2 : i32
+// CHECK-NEXT:                      %100 = arith.subi %c14_i32, %99 : i32
+// CHECK-NEXT:                      scf.yield %100 : i32
 // CHECK-NEXT:                    } else {
 // CHECK-NEXT:                      scf.yield %c15_i32 : i32
 // CHECK-NEXT:                    }
-// CHECK-NEXT:                    %83 = arith.cmpi sgt, %81, %82 : i32
-// CHECK-NEXT:                    %84 = arith.select %83, %82, %81 : i32
-// CHECK-NEXT:                    %85 = arith.index_cast %84 : i32 to index
-// CHECK-NEXT:                    %86 = arith.addi %80, %c-1_i32 : i32
-// CHECK-NEXT:                    %87 = scf.if %72 -> (i32) {
-// CHECK-NEXT:                      %108 = arith.subi %c0_i32, %66 : i32
-// CHECK-NEXT:                      scf.yield %108 : i32
+// CHECK-NEXT:                    %74 = arith.cmpi sgt, %72, %73 : i32
+// CHECK-NEXT:                    %75 = arith.select %74, %73, %72 : i32
+// CHECK-NEXT:                    %76 = arith.index_cast %75 : i32 to index
+// CHECK-NEXT:                    %77 = arith.addi %71, %c-1_i32 : i32
+// CHECK-NEXT:                    %78 = scf.if %69 -> (i32) {
+// CHECK-NEXT:                      %99 = arith.subi %c0_i32, %63 : i32
+// CHECK-NEXT:                      scf.yield %99 : i32
 // CHECK-NEXT:                    } else {
 // CHECK-NEXT:                      scf.yield %c0_i32 : i32
 // CHECK-NEXT:                    }
-// CHECK-NEXT:                    %88 = arith.cmpi slt, %86, %87 : i32
-// CHECK-NEXT:                    %89 = arith.select %88, %87, %86 : i32
-// CHECK-NEXT:                    %90 = arith.index_cast %89 : i32 to index
-// CHECK-NEXT:                    %91 = arith.index_cast %arg16 : index to i32
-// CHECK-NEXT:                    %92 = arith.addi %91, %c1_i32 : i32
-// CHECK-NEXT:                    %93 = scf.if %71 -> (i32) {
-// CHECK-NEXT:                      %108 = arith.subi %68, %arg3 : i32
-// CHECK-NEXT:                      %109 = arith.subi %c14_i32, %108 : i32
-// CHECK-NEXT:                      scf.yield %109 : i32
+// CHECK-NEXT:                    %79 = arith.cmpi slt, %77, %78 : i32
+// CHECK-NEXT:                    %80 = arith.select %79, %78, %77 : i32
+// CHECK-NEXT:                    %81 = arith.index_cast %80 : i32 to index
+// CHECK-NEXT:                    %82 = arith.index_cast %arg16 : index to i32
+// CHECK-NEXT:                    %83 = arith.addi %82, %c1_i32 : i32
+// CHECK-NEXT:                    %84 = scf.if %68 -> (i32) {
+// CHECK-NEXT:                      %99 = arith.subi %65, %arg3 : i32
+// CHECK-NEXT:                      %100 = arith.subi %c14_i32, %99 : i32
+// CHECK-NEXT:                      scf.yield %100 : i32
 // CHECK-NEXT:                    } else {
 // CHECK-NEXT:                      scf.yield %c15_i32 : i32
 // CHECK-NEXT:                    }
-// CHECK-NEXT:                    %94 = arith.cmpi sgt, %92, %93 : i32
-// CHECK-NEXT:                    %95 = arith.select %94, %93, %92 : i32
-// CHECK-NEXT:                    %96 = arith.index_cast %95 : i32 to index
-// CHECK-NEXT:                    %97 = arith.addi %91, %c-1_i32 : i32
-// CHECK-NEXT:                    %98 = scf.if %70 -> (i32) {
-// CHECK-NEXT:                      %108 = arith.subi %c0_i32, %62 : i32
-// CHECK-NEXT:                      scf.yield %108 : i32
+// CHECK-NEXT:                    %85 = arith.cmpi sgt, %83, %84 : i32
+// CHECK-NEXT:                    %86 = arith.select %85, %84, %83 : i32
+// CHECK-NEXT:                    %87 = arith.index_cast %86 : i32 to index
+// CHECK-NEXT:                    %88 = arith.addi %82, %c-1_i32 : i32
+// CHECK-NEXT:                    %89 = scf.if %67 -> (i32) {
+// CHECK-NEXT:                      %99 = arith.subi %c0_i32, %59 : i32
+// CHECK-NEXT:                      scf.yield %99 : i32
 // CHECK-NEXT:                    } else {
 // CHECK-NEXT:                      scf.yield %c0_i32 : i32
 // CHECK-NEXT:                    }
-// CHECK-NEXT:                    %99 = arith.cmpi slt, %97, %98 : i32
-// CHECK-NEXT:                    %100 = arith.select %99, %98, %97 : i32
-// CHECK-NEXT:                    %101 = arith.index_cast %100 : i32 to index
-// CHECK-NEXT:                    %102 = "polygeist.subindex"(%76, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                    %103 = "polygeist.subindex"(%102, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                    %104 = memref.load %103[] : memref<i32>
-// CHECK-NEXT:                    %105 = arith.addi %104, %c1_i32 : i32
-// CHECK-NEXT:                    %106 = arith.cmpi sge, %80, %105 : i32
-// CHECK-NEXT:                    %107 = scf.if %106 -> (i8) {
-// CHECK-NEXT:                      %108 = arith.subi %c14_i32, %104 : i32
-// CHECK-NEXT:                      %109 = arith.cmpi sle, %80, %108 : i32
-// CHECK-NEXT:                      %110 = scf.if %109 -> (i8) {
-// CHECK-NEXT:                        %111 = arith.cmpi sge, %91, %105 : i32
-// CHECK-NEXT:                        %112 = scf.if %111 -> (i8) {
-// CHECK-NEXT:                          %113 = arith.cmpi sle, %91, %108 : i32
-// CHECK-NEXT:                          %114 = scf.if %113 -> (i8) {
-// CHECK-NEXT:                            %115 = arith.cmpi sge, %80, %87 : i32
-// CHECK-NEXT:                            %116 = scf.if %115 -> (i8) {
-// CHECK-NEXT:                              %117 = arith.cmpi sle, %80, %82 : i32
-// CHECK-NEXT:                              %118 = scf.if %117 -> (i8) {
-// CHECK-NEXT:                                %119 = arith.cmpi sge, %91, %98 : i32
-// CHECK-NEXT:                                %120 = scf.if %119 -> (i8) {
-// CHECK-NEXT:                                  %121 = arith.cmpi sle, %91, %93 : i32
-// CHECK-NEXT:                                  %122 = scf.if %121 -> (i8) {
-// CHECK-NEXT:                                    %123 = memref.load %55[%arg16, %arg15] : memref<16x16xf32>
-// CHECK-NEXT:                                    %124 = arith.extf %123 : f32 to f64
-// CHECK-NEXT:                                    %125 = arith.extf %33 : f32 to f64
-// CHECK-NEXT:                                    %126 = memref.load %56[%arg16, %arg15] : memref<16x16xf32>
-// CHECK-NEXT:                                    %127 = arith.extf %126 : f32 to f64
-// CHECK-NEXT:                                    %128 = memref.load %55[%96, %arg15] : memref<16x16xf32>
-// CHECK-NEXT:                                    %129 = memref.load %55[%101, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                    %90 = arith.cmpi slt, %88, %89 : i32
+// CHECK-NEXT:                    %91 = arith.select %90, %89, %88 : i32
+// CHECK-NEXT:                    %92 = arith.index_cast %91 : i32 to index
+// CHECK-NEXT:                    %93 = "polygeist.subindex"(%alloca_14, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:                    %94 = "polygeist.subindex"(%93, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:                    %95 = memref.load %94[] : memref<i32>
+// CHECK-NEXT:                    %96 = arith.addi %95, %c1_i32 : i32
+// CHECK-NEXT:                    %97 = arith.cmpi sge, %71, %96 : i32
+// CHECK-NEXT:                    %98 = scf.if %97 -> (i8) {
+// CHECK-NEXT:                      %99 = arith.subi %c14_i32, %95 : i32
+// CHECK-NEXT:                      %100 = arith.cmpi sle, %71, %99 : i32
+// CHECK-NEXT:                      %101 = scf.if %100 -> (i8) {
+// CHECK-NEXT:                        %102 = arith.cmpi sge, %82, %96 : i32
+// CHECK-NEXT:                        %103 = scf.if %102 -> (i8) {
+// CHECK-NEXT:                          %104 = arith.cmpi sle, %82, %99 : i32
+// CHECK-NEXT:                          %105 = scf.if %104 -> (i8) {
+// CHECK-NEXT:                            %106 = arith.cmpi sge, %71, %78 : i32
+// CHECK-NEXT:                            %107 = scf.if %106 -> (i8) {
+// CHECK-NEXT:                              %108 = arith.cmpi sle, %71, %73 : i32
+// CHECK-NEXT:                              %109 = scf.if %108 -> (i8) {
+// CHECK-NEXT:                                %110 = arith.cmpi sge, %82, %89 : i32
+// CHECK-NEXT:                                %111 = scf.if %110 -> (i8) {
+// CHECK-NEXT:                                  %112 = arith.cmpi sle, %82, %84 : i32
+// CHECK-NEXT:                                  %113 = scf.if %112 -> (i8) {
+// CHECK-NEXT:                                    %114 = memref.load %alloca[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                                    %115 = arith.extf %114 : f32 to f64
+// CHECK-NEXT:                                    %116 = arith.extf %33 : f32 to f64
+// CHECK-NEXT:                                    %117 = memref.load %alloca_10[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                                    %118 = arith.extf %117 : f32 to f64
+// CHECK-NEXT:                                    %119 = memref.load %alloca[%87, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                                    %120 = memref.load %alloca[%92, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                                    %121 = arith.addf %119, %120 : f32
+// CHECK-NEXT:                                    %122 = arith.extf %121 : f32 to f64
+// CHECK-NEXT:                                    %123 = arith.mulf %115, %cst_0 : f64
+// CHECK-NEXT:                                    %124 = arith.subf %122, %123 : f64
+// CHECK-NEXT:                                    %125 = arith.extf %35 : f32 to f64
+// CHECK-NEXT:                                    %126 = arith.mulf %124, %125 : f64
+// CHECK-NEXT:                                    %127 = arith.addf %118, %126 : f64
+// CHECK-NEXT:                                    %128 = memref.load %alloca[%arg16, %76] : memref<16x16xf32>
+// CHECK-NEXT:                                    %129 = memref.load %alloca[%arg16, %81] : memref<16x16xf32>
 // CHECK-NEXT:                                    %130 = arith.addf %128, %129 : f32
 // CHECK-NEXT:                                    %131 = arith.extf %130 : f32 to f64
-// CHECK-NEXT:                                    %132 = arith.mulf %124, %cst_0 : f64
-// CHECK-NEXT:                                    %133 = arith.subf %131, %132 : f64
-// CHECK-NEXT:                                    %134 = arith.extf %35 : f32 to f64
-// CHECK-NEXT:                                    %135 = arith.mulf %133, %134 : f64
-// CHECK-NEXT:                                    %136 = arith.addf %127, %135 : f64
-// CHECK-NEXT:                                    %137 = memref.load %55[%arg16, %85] : memref<16x16xf32>
-// CHECK-NEXT:                                    %138 = memref.load %55[%arg16, %90] : memref<16x16xf32>
-// CHECK-NEXT:                                    %139 = arith.addf %137, %138 : f32
-// CHECK-NEXT:                                    %140 = arith.extf %139 : f32 to f64
-// CHECK-NEXT:                                    %141 = arith.subf %140, %132 : f64
-// CHECK-NEXT:                                    %142 = arith.extf %34 : f32 to f64
-// CHECK-NEXT:                                    %143 = arith.mulf %141, %142 : f64
-// CHECK-NEXT:                                    %144 = arith.addf %136, %143 : f64
-// CHECK-NEXT:                                    %145 = arith.subf %cst_1, %124 : f64
-// CHECK-NEXT:                                    %146 = arith.extf %36 : f32 to f64
-// CHECK-NEXT:                                    %147 = arith.mulf %145, %146 : f64
-// CHECK-NEXT:                                    %148 = arith.addf %144, %147 : f64
-// CHECK-NEXT:                                    %149 = arith.mulf %125, %148 : f64
-// CHECK-NEXT:                                    %150 = arith.addf %124, %149 : f64
-// CHECK-NEXT:                                    %151 = arith.truncf %150 : f64 to f32
-// CHECK-NEXT:                                    memref.store %151, %57[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                                    %132 = arith.subf %131, %123 : f64
+// CHECK-NEXT:                                    %133 = arith.extf %34 : f32 to f64
+// CHECK-NEXT:                                    %134 = arith.mulf %132, %133 : f64
+// CHECK-NEXT:                                    %135 = arith.addf %127, %134 : f64
+// CHECK-NEXT:                                    %136 = arith.subf %cst_1, %115 : f64
+// CHECK-NEXT:                                    %137 = arith.extf %36 : f32 to f64
+// CHECK-NEXT:                                    %138 = arith.mulf %136, %137 : f64
+// CHECK-NEXT:                                    %139 = arith.addf %135, %138 : f64
+// CHECK-NEXT:                                    %140 = arith.mulf %116, %139 : f64
+// CHECK-NEXT:                                    %141 = arith.addf %115, %140 : f64
+// CHECK-NEXT:                                    %142 = arith.truncf %141 : f64 to f32
+// CHECK-NEXT:                                    memref.store %142, %alloca_11[%arg16, %arg15] : memref<16x16xf32>
 // CHECK-NEXT:                                    scf.yield %c1_i8 : i8
 // CHECK-NEXT:                                  } else {
 // CHECK-NEXT:                                    scf.yield %c0_i8 : i8
 // CHECK-NEXT:                                  }
-// CHECK-NEXT:                                  scf.yield %122 : i8
+// CHECK-NEXT:                                  scf.yield %113 : i8
 // CHECK-NEXT:                                } else {
 // CHECK-NEXT:                                  scf.yield %c0_i8 : i8
 // CHECK-NEXT:                                }
-// CHECK-NEXT:                                scf.yield %120 : i8
+// CHECK-NEXT:                                scf.yield %111 : i8
 // CHECK-NEXT:                              } else {
 // CHECK-NEXT:                                scf.yield %c0_i8 : i8
 // CHECK-NEXT:                              }
-// CHECK-NEXT:                              scf.yield %118 : i8
+// CHECK-NEXT:                              scf.yield %109 : i8
 // CHECK-NEXT:                            } else {
 // CHECK-NEXT:                              scf.yield %c0_i8 : i8
 // CHECK-NEXT:                            }
-// CHECK-NEXT:                            scf.yield %116 : i8
+// CHECK-NEXT:                            scf.yield %107 : i8
 // CHECK-NEXT:                          } else {
 // CHECK-NEXT:                            scf.yield %c0_i8 : i8
 // CHECK-NEXT:                          }
-// CHECK-NEXT:                          scf.yield %114 : i8
+// CHECK-NEXT:                          scf.yield %105 : i8
 // CHECK-NEXT:                        } else {
 // CHECK-NEXT:                          scf.yield %c0_i8 : i8
 // CHECK-NEXT:                        }
-// CHECK-NEXT:                        scf.yield %112 : i8
+// CHECK-NEXT:                        scf.yield %103 : i8
 // CHECK-NEXT:                      } else {
 // CHECK-NEXT:                        scf.yield %c0_i8 : i8
 // CHECK-NEXT:                      }
-// CHECK-NEXT:                      scf.yield %110 : i8
+// CHECK-NEXT:                      scf.yield %101 : i8
 // CHECK-NEXT:                    } else {
 // CHECK-NEXT:                      scf.yield %c0_i8 : i8
 // CHECK-NEXT:                    }
-// CHECK-NEXT:                    memref.store %107, %79[%arg15, %arg16] : memref<?x?xi8>
+// CHECK-NEXT:                    memref.store %98, %alloca_17[%arg15, %arg16] : memref<?x?xi8>
 // CHECK-NEXT:                    scf.yield
 // CHECK-NEXT:                  }
 // CHECK-NEXT:                  scf.parallel (%arg15, %arg16) = (%c0, %c0) to (%c16, %c16) step (%c1, %c1) {
-// CHECK-NEXT:                    %80 = memref.load %79[%arg15, %arg16] : memref<?x?xi8>
-// CHECK-NEXT:                    %81 = "polygeist.subindex"(%76, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                    %82 = "polygeist.subindex"(%81, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                    %83 = memref.load %82[] : memref<i32>
-// CHECK-NEXT:                    %84 = arith.addi %83, %c1_i32 : i32
-// CHECK-NEXT:                    %85 = arith.cmpi ne, %83, %53 : i32
-// CHECK-NEXT:                    scf.if %85 {
-// CHECK-NEXT:                      %90 = arith.cmpi ne, %80, %c0_i8 : i8
-// CHECK-NEXT:                      scf.if %90 {
-// CHECK-NEXT:                        %93 = memref.load %57[%arg16, %arg15] : memref<16x16xf32>
-// CHECK-NEXT:                        memref.store %93, %55[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                    %71 = memref.load %alloca_17[%arg15, %arg16] : memref<?x?xi8>
+// CHECK-NEXT:                    %72 = "polygeist.subindex"(%alloca_14, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:                    %73 = "polygeist.subindex"(%72, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:                    %74 = memref.load %73[] : memref<i32>
+// CHECK-NEXT:                    %75 = arith.addi %74, %c1_i32 : i32
+// CHECK-NEXT:                    %76 = arith.cmpi ne, %74, %53 : i32
+// CHECK-NEXT:                    scf.if %76 {
+// CHECK-NEXT:                      %81 = arith.cmpi ne, %71, %c0_i8 : i8
+// CHECK-NEXT:                      scf.if %81 {
+// CHECK-NEXT:                        %84 = memref.load %alloca_11[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                        memref.store %84, %alloca[%arg16, %arg15] : memref<16x16xf32>
 // CHECK-NEXT:                      }
-// CHECK-NEXT:                      %91 = "polygeist.subindex"(%74, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                      %92 = "polygeist.subindex"(%91, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                      memref.store %84, %92[] : memref<i32>
+// CHECK-NEXT:                      %82 = "polygeist.subindex"(%alloca_12, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:                      %83 = "polygeist.subindex"(%82, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:                      memref.store %75, %83[] : memref<i32>
 // CHECK-NEXT:                    } else {
-// CHECK-NEXT:                      %90 = "polygeist.subindex"(%74, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                      %91 = "polygeist.subindex"(%90, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                      memref.store %83, %91[] : memref<i32>
+// CHECK-NEXT:                      %81 = "polygeist.subindex"(%alloca_12, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:                      %82 = "polygeist.subindex"(%81, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:                      memref.store %74, %82[] : memref<i32>
 // CHECK-NEXT:                    }
-// CHECK-NEXT:                    %86 = "polygeist.subindex"(%78, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
-// CHECK-NEXT:                    %87 = "polygeist.subindex"(%86, %arg16) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:                    memref.store %80, %87[] : memref<i8>
-// CHECK-NEXT:                    %88 = "polygeist.subindex"(%75, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
-// CHECK-NEXT:                    %89 = "polygeist.subindex"(%88, %arg16) : (memref<?xi1>, index) -> memref<i1>
-// CHECK-NEXT:                    memref.store %85, %89[] : memref<i1>
+// CHECK-NEXT:                    %77 = "polygeist.subindex"(%alloca_16, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
+// CHECK-NEXT:                    %78 = "polygeist.subindex"(%77, %arg16) : (memref<?xi8>, index) -> memref<i8>
+// CHECK-NEXT:                    memref.store %71, %78[] : memref<i8>
+// CHECK-NEXT:                    %79 = "polygeist.subindex"(%alloca_13, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
+// CHECK-NEXT:                    %80 = "polygeist.subindex"(%79, %arg16) : (memref<?xi1>, index) -> memref<i1>
+// CHECK-NEXT:                    memref.store %76, %80[] : memref<i1>
 // CHECK-NEXT:                    scf.yield
 // CHECK-NEXT:                  }
 // CHECK-NEXT:                }
 // CHECK-NEXT:                scf.yield
 // CHECK-NEXT:              }
 // CHECK-NEXT:              scf.parallel (%arg15, %arg16) = (%c0, %c0) to (%c16, %c16) step (%c1, %c1) {
-// CHECK-NEXT:                %79 = arith.addi %63, %arg16 : index
-// CHECK-NEXT:                %80 = arith.muli %32, %79 : index
-// CHECK-NEXT:                %81 = arith.addi %67, %arg15 : index
-// CHECK-NEXT:                %82 = "polygeist.subindex"(%77, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
-// CHECK-NEXT:                %83 = "polygeist.subindex"(%82, %arg16) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:                %84 = memref.load %83[] : memref<i8>
-// CHECK-NEXT:                %85 = arith.cmpi ne, %84, %c0_i8 : i8
-// CHECK-NEXT:                scf.if %85 {
-// CHECK-NEXT:                  %86 = memref.load %57[%arg16, %arg15] : memref<16x16xf32>
-// CHECK-NEXT:                  %87 = arith.addi %80, %81 : index
-// CHECK-NEXT:                  memref.store %86, %47[%87] : memref<?xf32>
+// CHECK-NEXT:                %71 = arith.addi %60, %arg16 : index
+// CHECK-NEXT:                %72 = arith.muli %32, %71 : index
+// CHECK-NEXT:                %73 = arith.addi %64, %arg15 : index
+// CHECK-NEXT:                %74 = "polygeist.subindex"(%alloca_15, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
+// CHECK-NEXT:                %75 = "polygeist.subindex"(%74, %arg16) : (memref<?xi8>, index) -> memref<i8>
+// CHECK-NEXT:                %76 = memref.load %75[] : memref<i8>
+// CHECK-NEXT:                %77 = arith.cmpi ne, %76, %c0_i8 : i8
+// CHECK-NEXT:                scf.if %77 {
+// CHECK-NEXT:                  %78 = memref.load %alloca_11[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                  %79 = arith.addi %72, %73 : index
+// CHECK-NEXT:                  memref.store %78, %47[%79] : memref<?xf32>
 // CHECK-NEXT:                }
 // CHECK-NEXT:                scf.yield
 // CHECK-NEXT:              }

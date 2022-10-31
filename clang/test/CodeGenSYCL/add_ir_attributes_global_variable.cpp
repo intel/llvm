@@ -23,8 +23,8 @@ template <typename... NameValues> struct
 struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
     h {
   int x;
@@ -36,8 +36,8 @@ struct
 template <typename... NameValues> struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        NameValues::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-        NameValues::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+        NameValues::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+        NameValues::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
     gh {
   int x;
@@ -49,8 +49,8 @@ template <typename... NameValues> struct
 template <typename... NameValues> struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", NameValues::name...,
-        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, NameValues::value...)]]
+        "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18", NameValues::name...,
+        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8, NameValues::value...)]]
 #endif
     hg {
   int x;
@@ -62,8 +62,8 @@ template <typename... NameValues> struct
 struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        "", "", "", "", "", "", "",
-        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+        "", "", "", "", "", "", "", "",
+        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
     np {
   int x;
@@ -75,8 +75,8 @@ struct
 struct
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
-        "", "Prop12", "", "", "", "Prop16", "Prop17",
-        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+        "", "Prop12", "", "", "", "Prop16", "Prop17", "Prop18",
+        "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
     mp {
   int x;
@@ -90,18 +90,18 @@ struct ih : public h {};
 template <typename... NameValues> struct igh : public gh<NameValues...> {};
 template <typename... NameValues> struct ihg : public hg<NameValues...> {};
 
-constexpr g<prop1, prop2, prop3, prop4, prop5, prop6, prop7> g_v;
+constexpr g<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> g_v;
 constexpr h h_v;
-constexpr gh<prop1, prop2, prop3, prop4, prop5, prop6, prop7> gh_v;
-constexpr hg<prop1, prop2, prop3, prop4, prop5, prop6, prop7> hg_v;
+constexpr gh<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> gh_v;
+constexpr hg<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> hg_v;
 
 constexpr np np_v;
 constexpr mp mp_v;
 
-constexpr ig<prop1, prop2, prop3, prop4, prop5, prop6, prop7> ig_v;
+constexpr ig<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> ig_v;
 constexpr ih ih_v;
-constexpr igh<prop1, prop2, prop3, prop4, prop5, prop6, prop7> igh_v;
-constexpr ihg<prop1, prop2, prop3, prop4, prop5, prop6, prop7> ihg_v;
+constexpr igh<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> igh_v;
+constexpr ihg<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> ihg_v;
 
 int main() {
   sycl::queue q;
@@ -132,7 +132,7 @@ int main() {
 // CHECK-DAG: @_ZL4ih_v = internal addrspace(1) constant {{.*}}, align 4{{$}}
 // CHECK-DAG: @_ZL5igh_v = internal addrspace(1) constant {{.*}}, align 4{{$}}
 // CHECK-DAG: @_ZL5ihg_v = internal addrspace(1) constant {{.*}}, align 4{{$}}
-// CHECK-DAG: attributes #[[GlobalVarGAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
-// CHECK-DAG: attributes #[[GlobalVarHAttrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
-// CHECK-DAG: attributes #[[GlobalVarHGAndGHAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
-// CHECK-DAG: attributes #[[GlobalVarMPAttrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
+// CHECK-DAG: attributes #[[GlobalVarGAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[GlobalVarHAttrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[GlobalVarHGAndGHAttrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[GlobalVarMPAttrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} }

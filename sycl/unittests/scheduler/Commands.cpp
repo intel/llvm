@@ -50,16 +50,8 @@ pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 // }
 //
 TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
-  // NB! This test requires at least one non-host environmet
-  // For example, OpenCL.
-  default_selector Selector{};
-  if (Selector.select_device().is_host()) {
-    std::cerr << "Not run due to host-only environment\n";
-    return;
-  }
-
-  platform Plt{Selector};
-  unittest::PiMock Mock{Plt};
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
   Mock.redefine<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
       redefinePiEnqueueEventsWaitWithBarrier);

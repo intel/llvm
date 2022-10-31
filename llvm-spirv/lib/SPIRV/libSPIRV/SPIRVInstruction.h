@@ -3327,6 +3327,24 @@ _SPIRV_OP(JointMatrixMad, true, 7)
 _SPIRV_OP(JointMatrixWorkItemLength, true, 4)
 #undef _SPIRV_OP
 
+class SPIRVSplitBarrierINTELBase : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilitySplitBarrierINTEL);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_split_barrier;
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVSplitBarrierINTELBase, Op##x, __VA_ARGS__>    \
+      SPIRV##x;
+_SPIRV_OP(ControlBarrierArriveINTEL, false, 4)
+_SPIRV_OP(ControlBarrierWaitINTEL, false, 4)
+#undef _SPIRV_OP
+
 class SPIRVGroupUniformArithmeticKHRInstBase : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
@@ -3394,6 +3412,154 @@ class SPIRVComplexFloatInst
 #define _SPIRV_OP(x) typedef SPIRVComplexFloatInst<internal::Op##x> SPIRV##x;
 _SPIRV_OP(ComplexFMulINTEL)
 _SPIRV_OP(ComplexFDivINTEL)
+#undef _SPIRV_OP
+
+class SPIRVMaskedGatherScatterINTELInstBase : public SPIRVInstTemplateBase {
+protected:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityMaskedGatherScatterINTEL);
+  }
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_masked_gather_scatter;
+  }
+};
+
+class SPIRVMaskedGatherINTELInst
+    : public SPIRVMaskedGatherScatterINTELInstBase {
+  void validate() const override {
+    SPIRVInstruction::validate();
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    std::string InstName = "MaskedGatherINTEL";
+
+    SPIRVType *ResTy = this->getType();
+    SPVErrLog.checkError(ResTy->isTypeVector(), SPIRVEC_InvalidInstruction,
+                         InstName + "\nResult must be a vector type\n");
+    SPIRVWord ResCompCount = ResTy->getVectorComponentCount();
+    SPIRVType *ResCompTy = ResTy->getVectorComponentType();
+
+    SPIRVValue *PtrVec =
+        const_cast<SPIRVMaskedGatherINTELInst *>(this)->getOperand(0);
+    SPIRVType *PtrVecTy = PtrVec->getType();
+    SPVErrLog.checkError(
+        PtrVecTy->isTypeVectorPointer(), SPIRVEC_InvalidInstruction,
+        InstName + "\nPtrVector must be a vector of pointers type\n");
+    SPIRVWord PtrVecCompCount = PtrVecTy->getVectorComponentCount();
+    SPIRVType *PtrVecCompTy = PtrVecTy->getVectorComponentType();
+    SPIRVType *PtrElemTy = PtrVecCompTy->getPointerElementType();
+
+    SPVErrLog.checkError(
+        this->isOperandLiteral(1), SPIRVEC_InvalidInstruction,
+        InstName + "\nAlignment must be a constant expression integer\n");
+    const uint32_t Align =
+        static_cast<SPIRVConstant *>(
+            const_cast<SPIRVMaskedGatherINTELInst *>(this)->getOperand(2))
+            ->getZExtIntValue();
+    SPVErrLog.checkError(
+        ((Align & (Align - 1)) == 0), SPIRVEC_InvalidInstruction,
+        InstName + "\nAlignment must be 0 or power-of-two integer\n");
+
+    SPIRVValue *Mask =
+        const_cast<SPIRVMaskedGatherINTELInst *>(this)->getOperand(2);
+    SPIRVType *MaskTy = Mask->getType();
+    SPVErrLog.checkError(MaskTy->isTypeVector(), SPIRVEC_InvalidInstruction,
+                         InstName + "\nMask must be a vector type\n");
+    SPIRVType *MaskCompTy = MaskTy->getVectorComponentType();
+    SPVErrLog.checkError(MaskCompTy->isTypeBool(), SPIRVEC_InvalidInstruction,
+                         InstName + "\nMask must be a boolean vector type\n");
+    SPIRVWord MaskCompCount = MaskTy->getVectorComponentCount();
+
+    SPIRVValue *FillEmpty =
+        const_cast<SPIRVMaskedGatherINTELInst *>(this)->getOperand(3);
+    SPIRVType *FillEmptyTy = FillEmpty->getType();
+    SPVErrLog.checkError(FillEmptyTy->isTypeVector(),
+                         SPIRVEC_InvalidInstruction,
+                         InstName + "\nFillEmpty must be a vector type\n");
+    SPIRVWord FillEmptyCompCount = FillEmptyTy->getVectorComponentCount();
+    SPIRVType *FillEmptyCompTy = FillEmptyTy->getVectorComponentType();
+
+    SPVErrLog.checkError(
+        ResCompCount == PtrVecCompCount &&
+            PtrVecCompCount == FillEmptyCompCount &&
+            FillEmptyCompCount == MaskCompCount,
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nResult, PtrVector, Mask and FillEmpty vectors must have "
+                   "the same size\n");
+
+    SPVErrLog.checkError(
+        ResCompTy == PtrElemTy && PtrElemTy == FillEmptyCompTy,
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nComponent Type of Result and FillEmpty vector must be "
+                   "same as base type of PtrVector the same base type\n");
+  }
+};
+
+class SPIRVMaskedScatterINTELInst
+    : public SPIRVMaskedGatherScatterINTELInstBase {
+  void validate() const override {
+    SPIRVInstruction::validate();
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    std::string InstName = "MaskedScatterINTEL";
+
+    SPIRVValue *InputVec =
+        const_cast<SPIRVMaskedScatterINTELInst *>(this)->getOperand(0);
+    SPIRVType *InputVecTy = InputVec->getType();
+    SPVErrLog.checkError(
+        InputVecTy->isTypeVector(), SPIRVEC_InvalidInstruction,
+        InstName + "\nInputVector must be a vector of pointers type\n");
+    SPIRVWord InputVecCompCount = InputVecTy->getVectorComponentCount();
+    SPIRVType *InputVecCompTy = InputVecTy->getVectorComponentType();
+
+    SPIRVValue *PtrVec =
+        const_cast<SPIRVMaskedScatterINTELInst *>(this)->getOperand(1);
+    SPIRVType *PtrVecTy = PtrVec->getType();
+    SPVErrLog.checkError(
+        PtrVecTy->isTypeVectorPointer(), SPIRVEC_InvalidInstruction,
+        InstName + "\nPtrVector must be a vector of pointers type\n");
+    SPIRVWord PtrVecCompCount = PtrVecTy->getVectorComponentCount();
+    SPIRVType *PtrVecCompTy = PtrVecTy->getVectorComponentType();
+    SPIRVType *PtrElemTy = PtrVecCompTy->getPointerElementType();
+
+    SPVErrLog.checkError(
+        this->isOperandLiteral(2), SPIRVEC_InvalidInstruction,
+        InstName + "\nAlignment must be a constant expression integer\n");
+    const uint32_t Align =
+        static_cast<SPIRVConstant *>(
+            const_cast<SPIRVMaskedScatterINTELInst *>(this)->getOperand(2))
+            ->getZExtIntValue();
+    SPVErrLog.checkError(
+        ((Align & (Align - 1)) == 0), SPIRVEC_InvalidInstruction,
+        InstName + "\nAlignment must be 0 or power-of-two integer\n");
+
+    SPIRVValue *Mask =
+        const_cast<SPIRVMaskedScatterINTELInst *>(this)->getOperand(2);
+    SPIRVType *MaskTy = Mask->getType();
+    SPVErrLog.checkError(MaskTy->isTypeVector(), SPIRVEC_InvalidInstruction,
+                         InstName + "\nMask must be a vector type\n");
+    SPIRVType *MaskCompTy = MaskTy->getVectorComponentType();
+    SPVErrLog.checkError(MaskCompTy->isTypeBool(), SPIRVEC_InvalidInstruction,
+                         InstName + "\nMask must be a boolean vector type\n");
+    SPIRVWord MaskCompCount = MaskTy->getVectorComponentCount();
+
+    SPVErrLog.checkError(
+        InputVecCompCount == PtrVecCompCount &&
+            PtrVecCompCount == MaskCompCount,
+        SPIRVEC_InvalidInstruction,
+        InstName + "\nInputVector, PtrVector and Mask vectors must have "
+                   "the same size\n");
+
+    SPVErrLog.checkError(
+        InputVecCompTy == PtrElemTy, SPIRVEC_InvalidInstruction,
+        InstName + "\nComponent Type of InputVector must be "
+                   "same as base type of PtrVector the same base type\n");
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVMaskedGatherScatterINTELInstBase,             \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(MaskedGather, true, 7)
+_SPIRV_OP(MaskedScatter, false, 5)
 #undef _SPIRV_OP
 } // namespace SPIRV
 

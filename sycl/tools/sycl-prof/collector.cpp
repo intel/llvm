@@ -96,6 +96,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          apiBeginEndCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_end,
                          apiBeginEndCallback);
+  } else if (NameView == "sycl.experimental.cuda.call") {
+    uint8_t StreamID = xptiRegisterStream(StreamName);
+    xptiRegisterCallback(StreamID, xpti::trace_function_begin,
+                         apiBeginEndCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_end,
+                         apiBeginEndCallback);
   }
 }
 

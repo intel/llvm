@@ -335,7 +335,7 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
     if (!IsInNonspecializedTemplate)
       return std::make_tuple(nullptr, ManglingContextDecl);
     // Fall through to get the current context.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
 
   case DataMember:
     //  -- the in-class initializers of class members
@@ -354,13 +354,11 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
   llvm_unreachable("unexpected context");
 }
 
-CXXMethodDecl *Sema::startLambdaDefinition(CXXRecordDecl *Class,
-                                           SourceRange IntroducerRange,
-                                           TypeSourceInfo *MethodTypeInfo,
-                                           SourceLocation EndLoc,
-                                           ArrayRef<ParmVarDecl *> Params,
-                                           ConstexprSpecKind ConstexprKind,
-                                           Expr *TrailingRequiresClause) {
+CXXMethodDecl *Sema::startLambdaDefinition(
+    CXXRecordDecl *Class, SourceRange IntroducerRange,
+    TypeSourceInfo *MethodTypeInfo, SourceLocation EndLoc,
+    ArrayRef<ParmVarDecl *> Params, ConstexprSpecKind ConstexprKind,
+    StorageClass SC, Expr *TrailingRequiresClause) {
   QualType MethodType = MethodTypeInfo->getType();
   TemplateParameterList *TemplateParams =
       getGenericLambdaTemplateParameterList(getCurLambda(), *this);
@@ -390,7 +388,7 @@ CXXMethodDecl *Sema::startLambdaDefinition(CXXRecordDecl *Class,
       Context, Class, EndLoc,
       DeclarationNameInfo(MethodName, IntroducerRange.getBegin(),
                           MethodNameLoc),
-      MethodType, MethodTypeInfo, SC_None, getCurFPFeatures().isFPConstrained(),
+      MethodType, MethodTypeInfo, SC, getCurFPFeatures().isFPConstrained(),
       /*isInline=*/true, ConstexprKind, EndLoc, TrailingRequiresClause);
   Method->setAccess(AS_public);
   if (!TemplateParams)
@@ -418,7 +416,7 @@ CXXMethodDecl *Sema::startLambdaDefinition(CXXRecordDecl *Class,
     CheckParmsForFunctionDef(Params,
                              /*CheckParameterNames=*/false);
 
-    for (auto P : Method->parameters())
+    for (auto *P : Method->parameters())
       P->setOwningFunction(Method);
   }
 
@@ -917,6 +915,15 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
   bool ContainsUnexpandedParameterPack = false;
   SourceLocation EndLoc;
   SmallVector<ParmVarDecl *, 8> Params;
+
+  assert(ParamInfo.getDeclSpec().getStorageClassSpec() ==
+             DeclSpec::SCS_unspecified ||
+         ParamInfo.getDeclSpec().getStorageClassSpec() ==
+                 DeclSpec::SCS_static &&
+             "Unexpected storage specifier");
+  bool IsLambdaStatic =
+      ParamInfo.getDeclSpec().getStorageClassSpec() == DeclSpec::SCS_static;
+
   if (ParamInfo.getNumTypeObjects() == 0) {
     // C++11 [expr.prim.lambda]p4:
     //   If a lambda-expression does not include a lambda-declarator, it is as
@@ -953,7 +960,7 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     //   This function call operator is declared const (9.3.1) if and only if
     //   the lambda-expression's parameter-declaration-clause is not followed
     //   by mutable. It is neither virtual nor declared volatile. [...]
-    if (!FTI.hasMutableQualifier()) {
+    if (!FTI.hasMutableQualifier() && !IsLambdaStatic) {
       FTI.getOrCreateMethodQualifiers().SetTypeQual(DeclSpec::TQ_const,
                                                     SourceLocation());
     }
@@ -981,6 +988,7 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
   CXXMethodDecl *Method =
       startLambdaDefinition(Class, Intro.Range, MethodTyInfo, EndLoc, Params,
                             ParamInfo.getDeclSpec().getConstexprSpecifier(),
+                            IsLambdaStatic ? SC_Static : SC_None,
                             ParamInfo.getTrailingRequiresClause());
   if (ExplicitParams)
     CheckCXXDefaultArguments(Method);
@@ -1479,45 +1487,50 @@ static void addFunctionPointerConversion(Sema &S, SourceRange IntroducerRange,
     Class->addDecl(ConversionTemplate);
   } else
     Class->addDecl(Conversion);
-  // Add a non-static member function that will be the result of
-  // the conversion with a certain unique ID.
-  DeclarationName InvokerName = &S.Context.Idents.get(
-                                                 getLambdaStaticInvokerName());
-  // FIXME: Instead of passing in the CallOperator->getTypeSourceInfo()
-  // we should get a prebuilt TrivialTypeSourceInfo from Context
-  // using FunctionTy & Loc and get its TypeLoc as a FunctionProtoTypeLoc
-  // then rewire the parameters accordingly, by hoisting up the InvokeParams
-  // loop below and then use its Params to set Invoke->setParams(...) below.
-  // This would avoid the 'const' qualifier of the calloperator from
-  // contaminating the type of the invoker, which is currently adjusted
-  // in SemaTemplateDeduction.cpp:DeduceTemplateArguments.  Fixing the
-  // trailing return type of the invoker would require a visitor to rebuild
-  // the trailing return type and adjusting all back DeclRefExpr's to refer
-  // to the new static invoker parameters - not the call operator's.
-  CXXMethodDecl *Invoke = CXXMethodDecl::Create(
-      S.Context, Class, Loc, DeclarationNameInfo(InvokerName, Loc),
-      InvokerFunctionTy, CallOperator->getTypeSourceInfo(), SC_Static,
-      S.getCurFPFeatures().isFPConstrained(),
-      /*isInline=*/true, ConstexprSpecKind::Unspecified,
-      CallOperator->getBody()->getEndLoc());
-  for (unsigned I = 0, N = CallOperator->getNumParams(); I != N; ++I)
-    InvokerParams[I]->setOwningFunction(Invoke);
-  Invoke->setParams(InvokerParams);
-  Invoke->setAccess(AS_private);
-  Invoke->setImplicit(true);
-  if (Class->isGenericLambda()) {
-    FunctionTemplateDecl *TemplateCallOperator =
-            CallOperator->getDescribedFunctionTemplate();
-    FunctionTemplateDecl *StaticInvokerTemplate = FunctionTemplateDecl::Create(
-                          S.Context, Class, Loc, InvokerName,
-                          TemplateCallOperator->getTemplateParameters(),
-                          Invoke);
-    StaticInvokerTemplate->setAccess(AS_private);
-    StaticInvokerTemplate->setImplicit(true);
-    Invoke->setDescribedFunctionTemplate(StaticInvokerTemplate);
-    Class->addDecl(StaticInvokerTemplate);
-  } else
-    Class->addDecl(Invoke);
+
+  // If the lambda is not static, we need to add a static member
+  // function that will be the result of the conversion with a
+  // certain unique ID.
+  // When it is static we just return the static call operator instead.
+  if (CallOperator->isInstance()) {
+    DeclarationName InvokerName =
+        &S.Context.Idents.get(getLambdaStaticInvokerName());
+    // FIXME: Instead of passing in the CallOperator->getTypeSourceInfo()
+    // we should get a prebuilt TrivialTypeSourceInfo from Context
+    // using FunctionTy & Loc and get its TypeLoc as a FunctionProtoTypeLoc
+    // then rewire the parameters accordingly, by hoisting up the InvokeParams
+    // loop below and then use its Params to set Invoke->setParams(...) below.
+    // This would avoid the 'const' qualifier of the calloperator from
+    // contaminating the type of the invoker, which is currently adjusted
+    // in SemaTemplateDeduction.cpp:DeduceTemplateArguments.  Fixing the
+    // trailing return type of the invoker would require a visitor to rebuild
+    // the trailing return type and adjusting all back DeclRefExpr's to refer
+    // to the new static invoker parameters - not the call operator's.
+    CXXMethodDecl *Invoke = CXXMethodDecl::Create(
+        S.Context, Class, Loc, DeclarationNameInfo(InvokerName, Loc),
+        InvokerFunctionTy, CallOperator->getTypeSourceInfo(), SC_Static,
+        S.getCurFPFeatures().isFPConstrained(),
+        /*isInline=*/true, ConstexprSpecKind::Unspecified,
+        CallOperator->getBody()->getEndLoc());
+    for (unsigned I = 0, N = CallOperator->getNumParams(); I != N; ++I)
+      InvokerParams[I]->setOwningFunction(Invoke);
+    Invoke->setParams(InvokerParams);
+    Invoke->setAccess(AS_private);
+    Invoke->setImplicit(true);
+    if (Class->isGenericLambda()) {
+      FunctionTemplateDecl *TemplateCallOperator =
+          CallOperator->getDescribedFunctionTemplate();
+      FunctionTemplateDecl *StaticInvokerTemplate =
+          FunctionTemplateDecl::Create(
+              S.Context, Class, Loc, InvokerName,
+              TemplateCallOperator->getTemplateParameters(), Invoke);
+      StaticInvokerTemplate->setAccess(AS_private);
+      StaticInvokerTemplate->setImplicit(true);
+      Invoke->setDescribedFunctionTemplate(StaticInvokerTemplate);
+      Class->addDecl(StaticInvokerTemplate);
+    } else
+      Class->addDecl(Invoke);
+  }
 }
 
 /// Add a lambda's conversion to function pointers, as described in
@@ -1714,7 +1727,9 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
 
   TypeSourceInfo *TSI = nullptr;
   if (Capture.isVariableCapture()) {
-    const auto *Var = dyn_cast_or_null<VarDecl>(Capture.getVariable());
+    ValueDecl *Val = Capture.getVariable();
+    const auto *Var = dyn_cast_or_null<VarDecl>(Val);
+
     if (Var && Var->isInitCapture())
       TSI = Var->getTypeSourceInfo();
 
@@ -1723,7 +1738,7 @@ FieldDecl *Sema::BuildCaptureField(RecordDecl *RD,
     // For SYCL compilations, save user specified names for
     // lambda capture.
     if (getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost) {
-      StringRef CaptureName = Var->getName();
+      StringRef CaptureName = Val ? Val->getName() : "";
       if (!CaptureName.empty())
         Id = &Context.Idents.get(CaptureName.str());
     }

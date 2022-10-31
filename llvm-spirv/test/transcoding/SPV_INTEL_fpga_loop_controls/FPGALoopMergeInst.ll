@@ -90,6 +90,14 @@
 ;   for (int i = 0; i != 10; ++i)
 ;     a[i] = 0;
 ; }
+;
+; void max_reinvocation_delay() {
+;   int a[10];
+;   [[intel::max_reinvocation_delay(2)]]
+;   for (int i = 0; i != 10; ++i)
+;     a[i] = 0;
+; }
+
 
 ; TODO: This source code will result in different LLVM IR after
 ; rev [a47242e4b2c1c9] of https://github.com/intel/llvm (the
@@ -103,7 +111,7 @@
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
@@ -478,6 +486,40 @@ for.end:                                          ; preds = %for.cond
   ret void
 }
 
+; Function Attrs: noinline nounwind optnone
+define spir_func void @max_reinvocation_delay() #3 {
+entry:
+  %a = alloca [10 x i32], align 4
+  %i = alloca i32, align 4
+  store i32 0, i32* %i, align 4
+  br label %for.cond
+
+; Per SPIR-V spec, LoopControlMaxReinvocationDelayINTELMask = 0x2000000 (33554432)
+; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 33554432 2
+; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 33554432 2
+for.cond:                                         ; preds = %for.inc, %entry
+  %0 = load i32, i32* %i, align 4
+  %cmp = icmp ne i32 %0, 10
+  br i1 %cmp, label %for.body, label %for.end
+
+for.body:                                         ; preds = %for.cond
+  %1 = load i32, i32* %i, align 4
+  %idxprom = sext i32 %1 to i64
+  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
+  store i32 0, i32* %arrayidx, align 4
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.body
+  %2 = load i32, i32* %i, align 4
+  %inc = add nsw i32 %2, 1
+  store i32 %inc, i32* %i, align 4
+  br label %for.cond, !llvm.loop !31
+
+for.end:                                          ; preds = %for.cond
+  ret void
+}
+
 attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "sycl-module-id"="FPGALoopMergeInst.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }
 attributes #2 = { inlinehint nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -520,6 +562,8 @@ attributes #4 = { nounwind }
 !28 = !{!"llvm.loop.intel.speculated.iterations.count", i32 4}
 !29 = distinct !{!29, !30}
 !30 = !{!"llvm.loop.fusion.disable"}
+!31 = distinct !{!31, !32}
+!32 = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 2}
 
 ; CHECK-LLVM: br label %while.cond, !llvm.loop ![[MD_A:[0-9]+]]
 ; CHECK-LLVM: br label %while.cond{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
@@ -531,6 +575,7 @@ attributes #4 = { nounwind }
 ; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_H:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_I:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_NF:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_MRD:[0-9]+]]
 
 ; CHECK-LLVM: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ivdep_enable:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
@@ -553,3 +598,5 @@ attributes #4 = { nounwind }
 ; CHECK-LLVM: ![[MD_spec_iterations]] = !{!"llvm.loop.intel.speculated.iterations.count", i32 4}
 ; CHECK-LLVM: ![[MD_NF]] = distinct !{![[MD_NF]], ![[MD_nofusion:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_nofusion]] = !{!"llvm.loop.fusion.disable"}
+; CHECK-LLVM: ![[MD_MRD]] = distinct !{![[MD_MRD]], ![[MD_max_reinvocation_delay:[0-9]+]]}
+; CHECK-LLVM: ![[MD_max_reinvocation_delay]] = !{!"llvm.loop.intel.max_reinvocation_delay.count", i32 2}

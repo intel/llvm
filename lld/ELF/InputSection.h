@@ -17,6 +17,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/Compiler.h"
 
 namespace lld {
 namespace elf {
@@ -30,7 +31,7 @@ class SyntheticSection;
 template <class ELFT> class ObjFile;
 class OutputSection;
 
-extern std::vector<Partition> partitions;
+LLVM_LIBRARY_VISIBILITY extern std::vector<Partition> partitions;
 
 // Returned by InputSectionBase::relsOrRelas. At least one member is empty.
 template <class ELFT> struct RelsOrRelas {
@@ -163,7 +164,7 @@ public:
 
   ArrayRef<uint8_t> data() const {
     if (uncompressedSize >= 0)
-      uncompress();
+      decompress();
     return rawData;
   }
 
@@ -234,7 +235,7 @@ public:
 protected:
   template <typename ELFT>
   void parseCompressedHeader();
-  void uncompress() const;
+  void decompress() const;
 
   // This field stores the uncompressed size of the compressed data in rawData,
   // or -1 if rawData is not compressed (either because the section wasn't

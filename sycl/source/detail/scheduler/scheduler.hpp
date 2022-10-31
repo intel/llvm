@@ -364,7 +364,7 @@ public:
   /// \param CommandGroup is a unique_ptr to a command group to be added.
   /// \return an event object to wait on for command group completion.
   EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
-                     QueueImplPtr Queue);
+                     const QueueImplPtr &Queue);
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -380,7 +380,7 @@ public:
   /// corresponding function of device API.
   ///
   /// \param Event is a pointer to event to wait on.
-  void waitForEvent(EventImplPtr Event);
+  void waitForEvent(const EventImplPtr &Event);
 
   /// Removes buffer from the graph.
   ///
@@ -404,7 +404,7 @@ public:
   /// \sa GraphBuilder::cleanupFinishedCommands
   ///
   /// \param FinishedEvent is a cleanup candidate event.
-  void cleanupFinishedCommands(EventImplPtr FinishedEvent);
+  void cleanupFinishedCommands(const EventImplPtr &FinishedEvent);
 
   /// Adds nodes to the graph, that update the requirement with the pointer
   /// to the host memory.
@@ -441,25 +441,44 @@ public:
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
+  const QueueImplPtr &getDefaultHostQueue() const { return DefaultHostQueue; }
+
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   Scheduler();
   ~Scheduler();
 
 protected:
-  // TODO: after switching to C++17, change std::shared_timed_mutex to
-  // std::shared_mutex
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
   using WriteLockT = std::unique_lock<RWLockT>;
 
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance
-  ///
-  /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
-  void acquireWriteLock(WriteLockT &Lock);
+  WriteLockT acquireWriteLock() {
+#ifdef _WIN32
+    WriteLockT Lock(MGraphLock, std::defer_lock);
+    while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
+      // Without yield while loop acts like endless while loop and occupies the
+      // whole CPU when multiple command groups are created in multiple host
+      // threads
+      std::this_thread::yield();
+    }
+#else
+    WriteLockT Lock(MGraphLock);
+    // It is a deadlock on UNIX in implementation of lock and lock_shared, if
+    // try_lock in the loop above will be executed, so using a single lock here
+#endif // _WIN32
+    return Lock;
+  }
+
+  /// Provides shared access to std::shared_timed_mutex object with deadlock
+  /// avoidance
+  ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
+
+  void NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
@@ -479,7 +498,8 @@ protected:
     /// \sa queue::submit, Scheduler::addCG
     ///
     /// \return a command that represents command group execution.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
+                   const QueueImplPtr &Queue,
                    std::vector<Command *> &ToEnqueue);
 
     /// Registers a \ref CG "command group" that updates host memory to the
@@ -487,7 +507,7 @@ protected:
     ///
     /// \return a command that represents command group execution.
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                             QueueImplPtr HostQueue,
+                             const QueueImplPtr &HostQueue,
                              std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
@@ -506,7 +526,7 @@ protected:
 
     /// [Provisional] Optimizes subgraph that consists of command associated
     /// with Event passed and its dependencies.
-    void optimize(EventImplPtr Event);
+    void optimize(const EventImplPtr &Event);
 
     void cleanupCommand(Command *Cmd);
 
@@ -523,7 +543,7 @@ protected:
     /// used when the user provides a "secondary" queue to the submit method
     /// which may be used when the command fails to enqueue/execute in the
     /// primary queue.
-    void rescheduleCommand(Command *Cmd, QueueImplPtr Queue);
+    void rescheduleCommand(Command *Cmd, const QueueImplPtr &Queue);
 
     /// \return a pointer to the corresponding memory object record for the
     /// SYCL memory object provided, or nullptr if it does not exist.
@@ -566,7 +586,7 @@ protected:
     /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
-    Command *connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
+    Command *connectDepEvent(Command *const Cmd, const EventImplPtr &DepEvent,
                              const DepDesc &Dep,
                              std::vector<Command *> &ToCleanUp);
 
@@ -631,7 +651,7 @@ protected:
     /// If none found, creates new one.
     AllocaCommandBase *
     getOrCreateAllocaForReq(MemObjRecord *Record, const Requirement *Req,
-                            QueueImplPtr Queue,
+                            const QueueImplPtr &Queue,
                             std::vector<Command *> &ToEnqueue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
@@ -738,7 +758,8 @@ protected:
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
-    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+    static void waitForEvent(const EventImplPtr &Event,
+                             ReadLockT &GraphReadLock,
                              std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true);
 

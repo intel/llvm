@@ -143,7 +143,7 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 
   uint32_t NumOutputs = 0;
   byte **Outputs = nullptr;
-  size_t *OutputLengths = nullptr;
+  uint64_t *OutputLengths = nullptr;
   char **OutputNames = nullptr;
 
   const byte *Sources[] = {reinterpret_cast<const byte *>(Source.c_str())};

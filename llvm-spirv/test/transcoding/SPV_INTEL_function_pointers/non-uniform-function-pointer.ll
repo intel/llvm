@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_INTEL_function_pointers -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 ;
@@ -48,10 +48,10 @@
 ; CHECK-SPIRV: FunctionPointerCallINTEL {{[0-9]+}} {{[0-9]+}} [[LOADED_FOO_PTR]]
 ;
 ; CHECK-LLVM: define spir_kernel void @test
-; CHECK-LLVM: %fp = alloca i32 (i32)*
-; CHECK-LLVM: store i32 (i32)* @foo, i32 (i32)** %fp
-; CHECK-LLVM: store i32 (i32)* @bar, i32 (i32)** %fp
-; CHECK-LLVM: %[[FP:.*]] = load i32 (i32)*, i32 (i32)** %fp
+; CHECK-LLVM: %fp = alloca ptr
+; CHECK-LLVM: store ptr @foo, ptr %fp
+; CHECK-LLVM: store ptr @bar, ptr %fp
+; CHECK-LLVM: %[[FP:.*]] = load ptr, ptr %fp
 ; CHECK-LLVM: call spir_func i32 %[[FP]](i32 %{{.*}})
 
 

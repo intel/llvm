@@ -11,7 +11,6 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
@@ -107,55 +106,46 @@ static pi_result redefinedKernelRelease(pi_kernel kernel) {
 
 class MultipleDeviceCacheTest : public ::testing::Test {
 public:
-  MultipleDeviceCacheTest() : Plt{default_selector()} {}
+  MultipleDeviceCacheTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      return;
-    }
-
-    Mock = std::make_unique<unittest::PiMock>(Plt);
-
-    setupDefaultMockAPIs(*Mock);
-    Mock->redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
-    Mock->redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-    Mock->redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-    Mock->redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
-    Mock->redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-    Mock->redefine<detail::PiApiKind::piContextRelease>(
-        redefinedContextRelease);
-    Mock->redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-    Mock->redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
-    Mock->redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-    Mock->redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
-    Mock->redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    Mock.redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
+    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
+    Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+    Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
+    Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
+    Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
+    Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+    Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
+    Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
+    Mock.redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
+    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
   }
 
 protected:
-  std::unique_ptr<unittest::PiMock> Mock;
+  unittest::PiMock Mock;
   platform Plt;
 };
 
 // Test that program is retained for each device and each kernel is released
 // once
 TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
   {
     std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
     sycl::context Context(Devices);
     sycl::queue Queue(Context, Devices[0]);
-    assert(Devices.size() == 2);
+    assert(Devices.size() == 2 && Context.get_devices().size() == 2);
 
-    auto Bundle =
-        sycl::get_kernel_bundle<sycl::bundle_state::input>(Queue.get_context());
+    auto KernelID = sycl::get_kernel_id<TestKernel<>>();
+    auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+        Queue.get_context(), {KernelID});
+    assert(Bundle.get_devices().size() == 2);
+
     Queue.submit(
         [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 
     auto BundleObject = sycl::build(Bundle, Bundle.get_devices());
-    auto KernelID = sycl::get_kernel_id<TestKernel<>>();
     auto Kernel = BundleObject.get_kernel(KernelID);
 
     // Because of emulating 2 devices program is retained for each one in
@@ -172,13 +162,17 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     detail::KernelProgramCache::KernelCacheT &KernelCache =
         CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
 
-    EXPECT_EQ(KernelCache.size(), (size_t)2) << "Expect 2 kernels in cache";
+    EXPECT_EQ(KernelCache.size(), (size_t)1)
+        << "Expect 1 program in kernel cache";
+    for (auto &KernelProgIt : KernelCache)
+      EXPECT_EQ(KernelProgIt.second.size(), (size_t)1)
+          << "Expect 1 kernel cache";
   }
-  // First kernel creating is called in handler::single_task().
+  // The kernel creating is called in handler::single_task().
   // kernel_bundle::get_kernel() creates a kernel and shares it with created
   // programs. Also the kernel is retained in kernel_bundle::get_kernel(). A
   // kernel is removed from cache if piKernelRelease was called for it, so it
   // will not be removed twice for the other programs. As a result we must
-  // expect 3 piKernelRelease calls.
-  EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
+  // expect 2 piKernelRelease calls.
+  EXPECT_EQ(KernelReleaseCounter, 2) << "Expect 2 piKernelRelease calls";
 }

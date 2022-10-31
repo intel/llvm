@@ -1,4 +1,4 @@
-//===- Attributes.h - Construct LLVMIR attributes ---------------*- C++ -*-===//
+//===- Attributes.h - Construct MLIR attributes -----------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,14 +20,13 @@ class AttrBuilder;
 
 /// \class
 /// This class holds the attributes for a function, its return value, and
-/// its parameters. You access the attributes for each of them via an index into
-/// the AttributeList object. The function attributes are at index
-/// `AttributeList::FunctionIndex', the return value is at index
-/// `AttributeList::ReturnIndex', and the attributes for the parameters start at
-/// index `AttributeList::FirstArgIndex'.
+/// its parameters.
 class AttributeList {
 public:
   AttributeList() = default;
+  AttributeList(const mlir::NamedAttrList &FnAttrs,
+                const mlir::NamedAttrList &RetAttrs,
+                llvm::ArrayRef<mlir::NamedAttrList> ParamAttrs);
 
   //===--------------------------------------------------------------------===//
   // AttributeList Mutation
@@ -40,12 +39,16 @@ public:
 
   /// Add function attributes to the list.
   AttributeList &addFnAttrs(const AttrBuilder &B);
+  AttributeList &addFnAttrs(const mlir::NamedAttrList &Attrs,
+                            mlir::MLIRContext &Ctx);
 
   /// Add return value attributes to the list.
   AttributeList &addRetAttrs(const AttrBuilder &B);
+  AttributeList &addRetAttrs(const mlir::NamedAttrList &Attrs,
+                             mlir::MLIRContext &Ctx);
 
   /// Add parameters attributes to the list.
-  AttributeList &addParmAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs);
+  AttributeList &addParamAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs);
 
   /// The function attributes are returned.
   mlir::NamedAttrList getFnAttrs() const { return FnAttrs; }
@@ -54,16 +57,15 @@ public:
   mlir::NamedAttrList getRetAttrs() const { return RetAttrs; }
 
   /// The attributes for the parameters are returned.
-  mlir::ArrayRef<mlir::NamedAttrList> getParmAttrs() const { return ParmAttrs; }
-
-  /// The attributes for the parameter at the given index are returned.
-  mlir::NamedAttrList getParmAttrs(unsigned Index) const;
+  mlir::ArrayRef<mlir::NamedAttrList> getParamAttrs() const {
+    return ParamAttrs;
+  }
 
 private:
   /// The attributes that we are managing.
   mlir::NamedAttrList FnAttrs;
   mlir::NamedAttrList RetAttrs;
-  llvm::SmallVector<mlir::NamedAttrList, 8> ParmAttrs;
+  llvm::SmallVector<mlir::NamedAttrList, 8> ParamAttrs;
 };
 
 /// \class
@@ -75,49 +77,29 @@ public:
   AttrBuilder(const AttrBuilder &) = delete;
   AttrBuilder(AttrBuilder &&) = default;
 
-  using AddAttrFuncPtr =
-      AttrBuilder &(AttrBuilder::*)(mlir::NamedAttribute Attr);
-  using AddRawIntAttrFuncPtr = AttrBuilder &(
-      AttrBuilder::*)(llvm::Attribute::AttrKind Kind, uint64_t Value);
+  /// Add the LLVM attribute identified by \p Kind to the builder.
+  AttrBuilder &addAttribute(llvm::Attribute::AttrKind Kind);
 
-  /// Add the LLVM attribute identified by \p Kind to the builder, optionally
-  /// prefixing the attribute name with \p Dialect.
-  /// Note: \p AddAttrPtr is used to provide a concrete implementation of where
-  /// to add the attribute (to the builder 'passthrough' named attribute or
-  /// not).
-  AttrBuilder &
-  addAttribute(llvm::Attribute::AttrKind Kind,
-               llvm::Optional<llvm::StringLiteral> Dialect =
-                   mlir::LLVM::LLVMDialect::getDialectNamespace(),
-               AddAttrFuncPtr AddAttrPtr = &AttrBuilder::addAttribute);
+  /// Add the LLVM attribute identified by \p Kind with a type given by \p Ty
+  /// to the builder.
+  AttrBuilder &addAttribute(llvm::Attribute::AttrKind Kind, mlir::Type Ty);
 
   /// Add the LLVM attribute identified by \p Kind with a value given by \p Val
   /// to the builder.
-  /// Note: \p AddRawIntAttrPtr is used to provide a concrete implementation of
-  /// where to add the attribute (to the builder 'passthrough' named attribute
-  /// or not).
-  AttrBuilder &addAttribute(
-      llvm::Attribute::AttrKind Kind, uint64_t Val,
-      AddRawIntAttrFuncPtr AddRawIntAttrPtr = &AttrBuilder::addRawIntAttr);
+  AttrBuilder &addAttribute(llvm::Attribute::AttrKind Kind, uint64_t Val);
 
-  /// Create a NamedAttribute with name \p AttrName and value \p Attr and
-  /// add it to the builder.
-  /// Note: \p AddAttrPtr is used to provide a concrete implementation of where
-  /// to add the attribute (to the builder 'passthrough' named attribute or
-  /// not).
-  AttrBuilder &
-  addAttribute(llvm::StringRef AttrName, mlir::Attribute Attr,
-               AddAttrFuncPtr AddAttrPtr = &AttrBuilder::addAttribute);
-
-  /// Add the given named attribute \p Attr to the builder.
-  AttrBuilder &addAttribute(mlir::NamedAttribute Attr) {
-    Attrs.set(Attr.getName(), Attr.getValue());
-    return *this;
-  }
+  /// Create a NamedAttribute with name \p AttrName and value \p Attr and add it
+  /// to the builder.
+  AttrBuilder &addAttribute(llvm::Twine AttrName, mlir::Attribute Attr);
 
   /// Add the LLVM attribute identified by \p Kind to the builder "passthrough"
   /// named attribute.
   AttrBuilder &addPassThroughAttribute(llvm::Attribute::AttrKind Kind);
+
+  /// Add the LLVM attribute identified by \p Kind with a type given by \p Ty
+  /// to the builder "passthrough" named attribute.
+  AttrBuilder &addPassThroughAttribute(llvm::Attribute::AttrKind Kind,
+                                       mlir::Type Ty);
 
   /// Add the LLVM attribute identified by \p Kind with a value given by \p Val
   /// to the builder "passthrough" named attribute.
@@ -128,24 +110,6 @@ public:
   /// to the builder "passthrough" named attribute.
   AttrBuilder &addPassThroughAttribute(llvm::StringRef AttrName,
                                        mlir::Attribute Attr);
-
-  /// Add the given named attribute \p Attr to the builder "passthrough" named
-  /// attribute.
-  AttrBuilder &addPassThroughAttribute(mlir::NamedAttribute Attr);
-
-  /// Add \p Attr to the \p PassThroughAttr list.
-  /// Note: \p PassThroughAttr must have name "passthrough" and value of type
-  /// ArrayAttr.
-  static void addToPassThroughAttr(mlir::NamedAttribute &PassThroughAttr,
-                                   mlir::NamedAttribute Attr,
-                                   mlir::MLIRContext &Ctx);
-
-  /// Add \p NewAttrs into the attribute list of \p PassThroughAttr.
-  /// Note: \p PassThroughAttr must have name "passthrough" and value of type
-  /// ArrayAttr.
-  static void addToPassThroughAttr(mlir::NamedAttribute &PassThroughAttr,
-                                   mlir::ArrayAttr NewAttrs,
-                                   mlir::MLIRContext &Ctx);
 
   /// Remove an attribute from the builder (if present).
   /// Note: the given attribute will be removed even if it is contained by the
@@ -173,14 +137,6 @@ public:
 
   mlir::MLIRContext &getContext() const { return Ctx; }
 
-  /// returns a NamedAttribute with name \p AttrName , and value \p Attr.
-  static mlir::NamedAttribute createNamedAttr(mlir::StringAttr AttrName,
-                                              mlir::Attribute Attr);
-
-  /// Returns a StringAttr of the form 'AttrName'.
-  static mlir::StringAttr createStringAttr(llvm::Twine AttrName,
-                                           mlir::MLIRContext &Ctx);
-
   /// Returns a StringAttr of the form 'prefix.AttrName'.
   static mlir::StringAttr
   createStringAttr(llvm::Twine AttrName,
@@ -188,6 +144,48 @@ public:
                    mlir::MLIRContext &Ctx);
 
 private:
+  using AddAttrFuncPtr =
+      AttrBuilder &(AttrBuilder::*)(mlir::NamedAttribute Attr);
+  using AddRawIntAttrFuncPtr = AttrBuilder &(
+      AttrBuilder::*)(llvm::Attribute::AttrKind Kind, uint64_t Value);
+
+  /// Add the LLVM attribute identified by \p Kind to the builder, optionally
+  /// prefixing the attribute name with \p Dialect.
+  /// Note: \p AddAttrPtr is used to provide a concrete implementation
+  /// controlling where to add the attribute (to the 'passthrough' list or not).
+  AttrBuilder &addAttributeImpl(llvm::Attribute::AttrKind Kind,
+                                llvm::Optional<llvm::StringLiteral> Dialect,
+                                AddAttrFuncPtr AddAttrPtr);
+
+  /// Add the LLVM attribute identified by \p Kind with a type given by \p Ty
+  /// to the builder, optionally prefixing the attribute name with \p Dialect.
+  /// Note: \p AddAttrPtr is used to provide a concrete implementation
+  /// controlling where to add the attribute (to the 'passthrough' list or not).
+  AttrBuilder &addAttributeImpl(llvm::Attribute::AttrKind Kind, mlir::Type Ty,
+                                llvm::Optional<llvm::StringLiteral> Dialect,
+                                AddAttrFuncPtr AddAttrPtr);
+
+  /// Add the LLVM attribute identified by \p Kind with a value given by \p Val
+  /// to the builder.
+  /// Note: \p AddRawIntAttrPtr is used to provide a concrete implementation
+  /// controlling where to add the attribute (to the 'passthrough' list or not).
+  AttrBuilder &addAttributeImpl(llvm::Attribute::AttrKind Kind, uint64_t Val,
+                                AddRawIntAttrFuncPtr AddRawIntAttrPtr);
+
+  /// Create a NamedAttribute with name \p AttrName and value \p Attr and add it
+  /// to the builder.
+  /// Note: \p AddAttrPtr is used to provide a concrete implementation
+  /// controlling where to add the attribute (to the 'passthrough' list or not).
+  AttrBuilder &addAttributeImpl(llvm::Twine AttrName, mlir::Attribute Attr,
+                                AddAttrFuncPtr AddAttrPtr);
+
+  /// Add the given named attribute \p Attr to the builder.
+  AttrBuilder &addAttributeImpl(mlir::NamedAttribute Attr);
+
+  /// Add the given named attribute \p Attr to the builder "passthrough" named
+  /// attribute.
+  AttrBuilder &addPassThroughAttributeImpl(mlir::NamedAttribute Attr);
+
   /// Add integer attribute with raw value (packed/encoded if necessary).
   AttrBuilder &addRawIntAttr(llvm::Attribute::AttrKind Kind, uint64_t Value);
 

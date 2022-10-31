@@ -72,7 +72,7 @@
 ; RUN: llvm-spirv -to-text %t.spv -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 
 ; CHECK-LLVM is the base prefix, which includes simple checks for
@@ -169,13 +169,13 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %16 = load i32, i32* %3, align 4, !tbaa !9
   %17 = load i32, i32* %3, align 4, !tbaa !9
   %18 = sext i32 %17 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[EMB_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_A_IDX_GR_DIM_1:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[EMB_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_A_IDX_GR_DIM_1:[0-9]+]]
   %19 = getelementptr inbounds [10 x i32], [10 x i32]* %1, i64 0, i64 %18, !llvm.index.group !11
   store i32 %16, i32* %19, align 4, !tbaa !9
   %20 = load i32, i32* %3, align 4, !tbaa !9
   %21 = load i32, i32* %3, align 4, !tbaa !9
   %22 = sext i32 %21 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[EMB_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_B_IDX_GR_DIM_1:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[EMB_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_B_IDX_GR_DIM_1:[0-9]+]]
   %23 = getelementptr inbounds [10 x i32], [10 x i32]* %2, i64 0, i64 %22, !llvm.index.group !12
   store i32 %20, i32* %23, align 4, !tbaa !9
   %24 = bitcast i32* %5 to i8*
@@ -202,7 +202,7 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %31 = load i32, i32* %5, align 4, !tbaa !9
   %32 = load i32, i32* %5, align 4, !tbaa !9
   %33 = sext i32 %32 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[EMB_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_A_IDX_GR_DIM_2:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[EMB_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_A_IDX_GR_DIM_2:[0-9]+]]
   %34 = getelementptr inbounds [10 x i32], [10 x i32]* %1, i64 0, i64 %33, !llvm.index.group !13
   %35 = load i32, i32* %34, align 4, !tbaa !9
   %36 = add nsw i32 %35, %31
@@ -210,7 +210,7 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %37 = load i32, i32* %5, align 4, !tbaa !9
   %38 = load i32, i32* %5, align 4, !tbaa !9
   %39 = sext i32 %38 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[EMB_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_B_IDX_GR_DIM_2:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[EMB_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_B_IDX_GR_DIM_2:[0-9]+]]
   %40 = getelementptr inbounds [10 x i32], [10 x i32]* %2, i64 0, i64 %39, !llvm.index.group !15
   %41 = load i32, i32* %40, align 4, !tbaa !9
   %42 = add nsw i32 %41, %37
@@ -239,7 +239,7 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %50 = load i32, i32* %6, align 4, !tbaa !9
   %51 = load i32, i32* %6, align 4, !tbaa !9
   %52 = sext i32 %51 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[EMB_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_A_IDX_GR_DIM_3:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[EMB_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_A_IDX_GR_DIM_3:[0-9]+]]
   %53 = getelementptr inbounds [10 x i32], [10 x i32]* %1, i64 0, i64 %52, !llvm.index.group !17
   %54 = load i32, i32* %53, align 4, !tbaa !9
   %55 = add nsw i32 %54, %50
@@ -247,7 +247,7 @@ define dso_local spir_func void @_Z34ivdep_embedded_multiple_dimensionsv() #3 {
   %56 = load i32, i32* %6, align 4, !tbaa !9
   %57 = load i32, i32* %6, align 4, !tbaa !9
   %58 = sext i32 %57 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[EMB_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_B_IDX_GR_DIM_3:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[EMB_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_B_IDX_GR_DIM_3:[0-9]+]]
   %59 = getelementptr inbounds [10 x i32], [10 x i32]* %2, i64 0, i64 %58, !llvm.index.group !19
   %60 = load i32, i32* %59, align 4, !tbaa !9
   %61 = add nsw i32 %60, %56
@@ -335,22 +335,22 @@ define dso_local spir_func void @_Z27ivdep_mul_arrays_and_globalv() #3 {
 16:                                               ; preds = %11
   %17 = load i32, i32* %5, align 4, !tbaa !9
   %18 = sext i32 %17 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_A]], {{.*}}, !llvm.index.group ![[SIMPLE_A_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[SIMPLE_ARRAY_A]], {{.*}}, !llvm.index.group ![[SIMPLE_A_IDX_GR:[0-9]+]]
   %19 = getelementptr inbounds [10 x i32], [10 x i32]* %1, i64 0, i64 %18, !llvm.index.group !28
   store i32 0, i32* %19, align 4, !tbaa !9
   %20 = load i32, i32* %5, align 4, !tbaa !9
   %21 = sext i32 %20 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_B]], {{.*}}, !llvm.index.group ![[SIMPLE_B_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[SIMPLE_ARRAY_B]], {{.*}}, !llvm.index.group ![[SIMPLE_B_IDX_GR:[0-9]+]]
   %22 = getelementptr inbounds [10 x i32], [10 x i32]* %2, i64 0, i64 %21, !llvm.index.group !29
   store i32 0, i32* %22, align 4, !tbaa !9
   %23 = load i32, i32* %5, align 4, !tbaa !9
   %24 = sext i32 %23 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_C]], {{.*}}, !llvm.index.group ![[SIMPLE_C_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[SIMPLE_ARRAY_C]], {{.*}}, !llvm.index.group ![[SIMPLE_C_IDX_GR:[0-9]+]]
   %25 = getelementptr inbounds [10 x i32], [10 x i32]* %3, i64 0, i64 %24, !llvm.index.group !30
   store i32 0, i32* %25, align 4, !tbaa !9
   %26 = load i32, i32* %5, align 4, !tbaa !9
   %27 = sext i32 %26 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32]* %[[SIMPLE_ARRAY_D]], {{.*}}, !llvm.index.group ![[SIMPLE_D_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr %[[SIMPLE_ARRAY_D]], {{.*}}, !llvm.index.group ![[SIMPLE_D_IDX_GR:[0-9]+]]
   %28 = getelementptr inbounds [10 x i32], [10 x i32]* %4, i64 0, i64 %27, !llvm.index.group !31
   store i32 0, i32* %28, align 4, !tbaa !9
   br label %29
@@ -455,7 +455,7 @@ define dso_local spir_func void @_Z27ivdep_embedded_inner_accessv() #3 {
 29:                                               ; preds = %24
   %30 = load i32, i32* %3, align 4, !tbaa !9
   %31 = sext i32 %30 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %[[EMB_INNER_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_INNER_B_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x [10 x [10 x i32]]], ptr %[[EMB_INNER_ARRAY_B]], {{.*}}, !llvm.index.group ![[EMB_INNER_B_IDX_GR:[0-9]+]]
   %32 = getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %2, i64 0, i64 %31, !llvm.index.group !37
   %33 = load i32, i32* %5, align 4, !tbaa !9
   %34 = sext i32 %33 to i64
@@ -466,7 +466,7 @@ define dso_local spir_func void @_Z27ivdep_embedded_inner_accessv() #3 {
   %39 = load i32, i32* %38, align 4, !tbaa !9
   %40 = load i32, i32* %3, align 4, !tbaa !9
   %41 = sext i32 %40 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %[[EMB_INNER_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_INNER_A_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x [10 x [10 x i32]]], ptr %[[EMB_INNER_ARRAY_A]], {{.*}}, !llvm.index.group ![[EMB_INNER_A_IDX_GR:[0-9]+]]
   %42 = getelementptr inbounds [10 x [10 x [10 x i32]]], [10 x [10 x [10 x i32]]]* %1, i64 0, i64 %41, !llvm.index.group !41
   %43 = load i32, i32* %5, align 4, !tbaa !9
   %44 = sext i32 %43 to i64

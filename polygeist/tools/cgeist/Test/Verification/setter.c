@@ -17,11 +17,11 @@ void kernel_deriche() {
 // CHECK-NEXT:  }
 
 // CHECK:  func @kernel_deriche()
-// CHECK-NEXT:    %0 = memref.alloca() : memref<1xi32>
-// CHECK-NEXT:    %1 = llvm.mlir.undef : i32
-// CHECK-NEXT:    affine.store %1, %0[0] : memref<1xi32>
-// CHECK-NEXT:    %2 = memref.cast %0 : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:    call @sub0(%2) : (memref<?xi32>) -> ()
+// CHECK-NEXT:    %alloca = memref.alloca() : memref<1xi32>
+// CHECK-NEXT:    %0 = llvm.mlir.undef : i32
+// CHECK-NEXT:    affine.store %0, %alloca[0] : memref<1xi32>
+// CHECK-NEXT:    %cast = memref.cast %alloca : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:    call @sub0(%cast) : (memref<?xi32>) -> ()
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 
