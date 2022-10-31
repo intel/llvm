@@ -99,6 +99,7 @@ static bool IsBannedPlatform(platform Platform) {
 std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
   std::vector<plugin> &Plugins = RT::initialize();
+  info::device_type ForcedType = detail::get_forced_type();
   for (plugin &Plugin : Plugins) {
     pi_uint32 NumPlatforms = 0;
     // Move to the next plugin if the plugin fails to initialize.
@@ -126,7 +127,9 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        Platforms.push_back(Platform);
+        // Skip platforms which do not contain requested device types
+        if (!Platform.get_devices(ForcedType).empty())
+          Platforms.push_back(Platform);
       }
     }
   }

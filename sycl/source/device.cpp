@@ -54,9 +54,12 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
       detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   detail::ods_target_list *OdsTargetList =
       detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
-
+  
   auto thePlatforms = platform::get_platforms();
   for (const auto &plt : thePlatforms) {
+  //  if (!detail::getSyclObjImpl(plt)->is_host()) {
+    //  continue;
+    //}
     // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
     // with the filter specification.
     backend platformBackend = plt.get_backend();
