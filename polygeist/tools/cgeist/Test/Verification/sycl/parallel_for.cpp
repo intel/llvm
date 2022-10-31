@@ -1,6 +1,6 @@
-// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.out 2>&1 | FileCheck %s --implicit-check-not="{{error|Error}}:"
+// RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -Xcgeist -gen-all-sycl-funcs %s -o %t.out 2>&1 | FileCheck %s --implicit-check-not="{{error|Error}}:"
 
-// RUN: clang++ -fsycl -fsycl-device-only -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc 2>/dev/null
+// RUN: clang++ -fsycl -fsycl-device-only -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir -Xcgeist -gen-all-sycl-funcs %s -o %t.bc 2>/dev/null
 
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -verify -disable-output < %t.bc
@@ -8,15 +8,13 @@
 // Verify that LLVMIR generated is translatable to SPIRV.
 // RUN: llvm-spirv %t.bc
 
+// Test that all referenced sycl header functions are generated.
 // RUN: llvm-dis %t.bc
-// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM
+// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func{{^__builtin_}}"
 
 // Test that the kernel named `kernel_parallel_for` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_parallel_for(
 // LLVM-SAME:  i32 addrspace(1)* {{.*}}, [[RANGE_TY:%"class.sycl::_V1::range.1"]]* noundef byval([[RANGE_TY]]) {{.*}}, [[RANGE_TY]]* noundef byval([[RANGE_TY]]) {{.*}}, [[ID_TY:%"class.sycl::_V1::id.1"]]* noundef byval([[ID_TY]]) {{.*}})
-
-// Test that all referenced sycl header functions are generated.
-// LLVM-NOT: declare {{.*}} spir_func
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

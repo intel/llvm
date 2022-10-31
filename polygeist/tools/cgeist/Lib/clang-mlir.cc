@@ -301,21 +301,6 @@ void MLIRScanner::initSupportedFunctions() {
       "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
       "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
       "2idIXT_EEEEUlmE_EEvSt16integer_sequenceImJXspT_EEEOT0_");
-
-  // Additional functions needed for parallel_for with one dimensional write
-  // buffer.
-
-  supportedFuncs.insert("_ZN4sycl3_V12idILi1EEC1ILi1ELb1EEERNSt9enable_ifIXeqT_"
-                        "Li1EEKNS0_4itemILi1EXT0_EEEE4typeE");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_"
-      "EEEEPNS0_4itemIXT_EXT0_EEE");
-  supportedFuncs.insert(
-      "_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v");
-  supportedFuncs.insert(
-      "_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_"
-      "4itemILi1ELb1EEELi1EZZ17host_parallel_forRSt5arrayIiLm1EEENKUlRNS0_"
-      "7handlerEE_clES9_EUlNS0_2idILi1EEEE_EclES4_");
 }
 
 static void checkFunctionParent(const FunctionOpInterface F,
