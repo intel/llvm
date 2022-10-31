@@ -687,13 +687,13 @@ The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system.
 In this case, the behavior of the `default_selector` can be altered
-using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
-the usage of the CUDA backend (if available), `PI_HIP` forces
-the usage of the HIP backend (if available), `PI_OPENCL` will
+using the `SYCL_DEVICE_FILTER` environment variable, setting `cuda` forces
+the usage of the CUDA backend (if available), `hip` forces
+the usage of the HIP backend (if available), `opencl` will
 force the usage of the OpenCL backend.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+SYCL_DEVICE_FILTER=cuda ./simple-sycl-app-cuda.exe
 ```
 
 The default is the OpenCL backend if available.
@@ -709,11 +709,11 @@ The results are correct!
 ```
 
 **NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `SYCL_BE` environment
+the CUDA backend must be selected at runtime using the `SYCL_DEVICE_FILTER` environment
 variable.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+SYCL_DEVICE_FILTER=cuda ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
