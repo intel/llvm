@@ -1808,52 +1808,8 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for_impl(nd_range<Dims> Range, PropertiesT Properties,
                     Reduction Redu, _KERNELFUNCPARAM(KernelFunc)) {
-    if constexpr (!Reduction::has_fast_atomics &&
-                  !Reduction::has_float64_atomics) {
-      // The most basic implementation.
-      detail::reduction_parallel_for_basic_impl<KernelName>(
-          *this, MQueue, Range, Properties, Redu, KernelFunc);
-      return;
-    } else { // Can't "early" return for "if constexpr".
-      if constexpr (Reduction::has_float64_atomics) {
-        /// This version is a specialization for the add
-        /// operator. It performs runtime checks for device aspect "atomic64";
-        /// if found, fast sycl::atomic_ref operations are used to update the
-        /// reduction at the end of each work-group work. Otherwise the
-        /// default implementation is used.
-        device D = detail::getDeviceFromHandler(*this);
-
-        if (D.has(aspect::atomic64)) {
-
-          detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc, Range,
-                                                 Properties, Redu);
-        } else {
-          // Resort to basic implementation as well.
-          detail::reduction_parallel_for_basic_impl<KernelName>(
-              *this, MQueue, Range, Properties, Redu, KernelFunc);
-          return;
-        }
-      } else {
-        // Use fast sycl::atomic operations to update reduction variable at the
-        // end of each work-group work.
-        detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Properties,
-                                       Redu);
-      }
-      // If the reduction variable must be initialized with the identity value
-      // before the kernel run, then an additional working accessor is created,
-      // initialized with the identity value and used in the kernel. That
-      // working accessor is then copied to user's accessor or USM pointer after
-      // the kernel run.
-      // For USM pointers without initialize_to_identity properties the same
-      // scheme with working accessor is used as re-using user's USM pointer in
-      // the kernel would require creation of another variant of user's kernel,
-      // which does not seem efficient.
-      if (Reduction::is_usm || Redu.initializeToIdentity()) {
-        withAuxHandler([&](handler &CopyHandler) {
-          detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
-        });
-      }
-    }
+    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
+                                               Redu, KernelFunc);
   }
 
   // This version of parallel_for may handle one or more reductions packed in

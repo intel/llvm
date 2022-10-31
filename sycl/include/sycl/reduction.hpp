@@ -2364,6 +2364,58 @@ void reduction_parallel_for_basic_impl(
   }
 }
 
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename KernelType, typename Reduction>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            nd_range<Dims> Range, PropertiesT Properties,
+                            Reduction Redu, KernelType KernelFunc) {
+  if constexpr (!Reduction::has_fast_atomics &&
+                !Reduction::has_float64_atomics) {
+    // The most basic implementation.
+    detail::reduction_parallel_for_basic_impl<KernelName>(
+        CGH, Queue, Range, Properties, Redu, KernelFunc);
+    return;
+  } else { // Can't "early" return for "if constexpr".
+    if constexpr (Reduction::has_float64_atomics) {
+      /// This version is a specialization for the add
+      /// operator. It performs runtime checks for device aspect "atomic64";
+      /// if found, fast sycl::atomic_ref operations are used to update the
+      /// reduction at the end of each work-group work. Otherwise the
+      /// default implementation is used.
+      device D = detail::getDeviceFromHandler(CGH);
+
+      if (D.has(aspect::atomic64)) {
+        reduCGFuncAtomic64<KernelName>(CGH, KernelFunc, Range, Properties,
+                                       Redu);
+      } else {
+        // Resort to basic implementation as well.
+        reduction_parallel_for_basic_impl<KernelName>(
+            CGH, Queue, Range, Properties, Redu, KernelFunc);
+        return;
+      }
+    } else {
+      // Use fast sycl::atomic operations to update reduction variable at the
+      // end of each work-group work.
+      reduCGFunc<KernelName>(CGH, KernelFunc, Range, Properties, Redu);
+    }
+    // If the reduction variable must be initialized with the identity value
+    // before the kernel run, then an additional working accessor is created,
+    // initialized with the identity value and used in the kernel. That
+    // working accessor is then copied to user's accessor or USM pointer after
+    // the kernel run.
+    // For USM pointers without initialize_to_identity properties the same
+    // scheme with working accessor is used as re-using user's USM pointer in
+    // the kernel would require creation of another variant of user's kernel,
+    // which does not seem efficient.
+    if (Reduction::is_usm || Redu.initializeToIdentity()) {
+      reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+        reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+      });
+    }
+  }
+}
+
 } // namespace detail
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
