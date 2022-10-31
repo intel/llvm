@@ -1658,89 +1658,6 @@ public:
 #endif
   }
 
-  /// Defines and invokes a SYCL kernel function for the specified nd_range.
-  ///
-  /// The SYCL kernel function is defined as a lambda function or a named
-  /// function object type and given an id or item for indexing in the indexing
-  /// space defined by range.
-  /// If it is a named function object and the function object type is
-  /// globally visible, there is no need for the developer to provide
-  /// a kernel name for it.
-  ///
-  /// \param ExecutionRange is a ND-range defining global and local sizes as
-  /// well as offset.
-  /// \param Rest any number of reduction variables followed byt a SYCL kernel
-  /// function.
-  template <typename KernelName = detail::auto_name, int Dims,
-            typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(nd_range<Dims> Range, RestT... Rest) {
-    parallel_for_impl<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{},
-        Rest...);
-  }
-
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  std::enable_if_t<detail::IsReduction<Reduction>::value>
-  parallel_for(range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_impl<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{}, Redu,
-        KernelFunc);
-  }
-
-  /// Defines and invokes a SYCL kernel function for the specified nd_range.
-  ///
-  /// The SYCL kernel function is defined as a lambda function or a named
-  /// function object type and given an id for indexing in the indexing
-  /// space defined by range \p Range.
-  /// The parameter \p Redu contains the object creted by the reduction()
-  /// function and defines the type and operation used in the corresponding
-  /// argument of 'reducer' type passed to lambda/functor function.
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
-  std::enable_if_t<
-      detail::IsReduction<Reduction>::value &&
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for_impl(range<Dims> Range, PropertiesT Properties, Reduction Redu,
-                    _KERNELFUNCPARAM(KernelFunc)) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
-                                               Redu, KernelFunc);
-  }
-
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename KernelType, typename Reduction>
-  std::enable_if_t<
-      detail::IsReduction<Reduction>::value &&
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for_impl(nd_range<Dims> Range, PropertiesT Properties,
-                    Reduction Redu, _KERNELFUNCPARAM(KernelFunc)) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
-                                               Redu, KernelFunc);
-  }
-
-  // This version of parallel_for may handle one or more reductions packed in
-  // \p Rest argument. The last element in \p Rest pack is the kernel function,
-  // everything else is reduction(s).
-  // TODO: this variant is currently enabled for 2+ reductions only as the
-  // versions handling 1 reduction variable are more efficient right now.
-  //
-  // This is basically a tree reduction where we re-use user's reduction
-  // variable instead of creating temporary storage for the last iteration
-  // (#WG == 1).
-  template <typename KernelName, int Dims, typename PropertiesT,
-            typename... RestT>
-  std::enable_if_t<
-      (sizeof...(RestT) >= 3 &&
-       detail::AreAllButLastReductions<RestT...>::value &&
-       ext::oneapi::experimental::is_property_list<PropertiesT>::value)>
-  parallel_for_impl(nd_range<Dims> Range, PropertiesT Properties,
-                    RestT... Rest) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
-                                               Rest...);
-  }
-
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
   /// encoding the body of each work-group to launch.
   ///
@@ -2123,23 +2040,58 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
+            typename PropertiesT, int Dims>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(nd_range<Dims> Range, PropertiesT Properties,
+               _KERNELFUNCPARAM(KernelFunc)) {
+    parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
+  }
+
+  /// Reductions @{
+
+  template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT, int Dims, typename Reduction>
   std::enable_if_t<
       detail::IsReduction<Reduction>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<Dims> Range, PropertiesT Properties, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_impl<KernelName>(Range, Properties, Redu, KernelFunc);
+    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
+                                               Redu, std::move(KernelFunc));
+  }
+
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims, typename Reduction>
+  std::enable_if_t<detail::IsReduction<Reduction>::value>
+  parallel_for(range<Dims> Range, Reduction Redu,
+               _KERNELFUNCPARAM(KernelFunc)) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{}, Redu,
+        std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
   std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT... Rest) {
-    parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&... Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
   }
+
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(nd_range<Dims> Range, RestT &&... Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  /// }@
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename PropertiesT>
