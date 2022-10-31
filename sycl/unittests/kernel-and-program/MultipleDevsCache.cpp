@@ -131,6 +131,8 @@ protected:
 // Test that program is retained for each device and each kernel is released
 // once
 TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
+// Temporarily disabled on Windows due to sporadic failures.
+#ifndef _WIN32
   {
     std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
     sycl::context Context(Devices);
@@ -175,4 +177,5 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
   // will not be removed twice for the other programs. As a result we must
   // expect 2 piKernelRelease calls.
   EXPECT_EQ(KernelReleaseCounter, 2) << "Expect 2 piKernelRelease calls";
+#endif // _WIN32
 }
