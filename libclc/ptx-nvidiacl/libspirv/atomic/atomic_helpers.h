@@ -72,14 +72,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   }                                                                            \
   }
 
-#define __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV,   \
-                               OP, NAME_MANGLED, ADDR_SPACE,                   \
-                               POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV)  \
-  __CLC_NVVM_ATOMIC_IMPL_SUBSTITUTION(                                         \
-      TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, NAME_MANGLED,          \
-      ADDR_SPACE, POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV, 1)
-
-#define __CLC_NVVM_ATOMIC_IMPL_SUBSTITUTION(                                   \
+#define __CLC_NVVM_ATOMIC_IMPL(                                                \
     TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, NAME_MANGLED,            \
     ADDR_SPACE, POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV, SUBSTITUTION)   \
   __attribute__((always_inline)) _CLC_DECL TYPE                                \
@@ -131,13 +124,10 @@ Memory order is stored in the lowest 5 bits */                                 \
 
 #define __CLC_NVVM_ATOMIC(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,    \
                           NAME_MANGLED)                                        \
-  __CLC_NVVM_ATOMIC_IMPL_SUBSTITUTION(TYPE, TYPE_MANGLED, TYPE_NV,             \
-                                      TYPE_MANGLED_NV, OP, NAME_MANGLED,       \
-                                      __global, PU3AS1, _global_, 1)           \
-  __CLC_NVVM_ATOMIC_IMPL_SUBSTITUTION(TYPE, TYPE_MANGLED, TYPE_NV,             \
-                                      TYPE_MANGLED_NV, OP, NAME_MANGLED,       \
-                                      __local, PU3AS3, _shared_, 1)            \
-  __CLC_NVVM_ATOMIC_IMPL_SUBSTITUTION(TYPE, TYPE_MANGLED, TYPE_NV,             \
-                                      TYPE_MANGLED_NV, OP, NAME_MANGLED, , P,  \
-                                      _gen_, 0)
+  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
+                         NAME_MANGLED, __global, PU3AS1, _global_, 1)          \
+  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
+                         NAME_MANGLED, __local, PU3AS3, _shared_, 1)           \
+  __CLC_NVVM_ATOMIC_IMPL(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,     \
+                         NAME_MANGLED, , P, _gen_, 0)
 #endif
