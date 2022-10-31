@@ -44,8 +44,8 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 %"class.cl::sycl::detail::half_impl::half" = type { half }
-%"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" = type { %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* }
-%"struct.__spv::__spirv_JointMatrixINTEL" = type { [8 x [16 x [1 x [4 x %"class.cl::sycl::detail::half_impl::half"]]]] addrspace(4)* }
+%"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" = type { %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* }
+%spirv.JointMatrixINTEL._half_8_16_0_3 = type opaque
 %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" = type { %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" addrspace(4)*, i64 }
 
 $_ZN2cl4sycl3ext6oneapi12experimental6matrixplERKNS4_10wi_elementINS0_6detail9half_impl4halfELm8ELm16ELNS4_13matrix_layoutE0ENS2_9sub_groupEEERKS8_ = comdat any
@@ -63,11 +63,11 @@ entry:
   %M = getelementptr inbounds %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element", %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" addrspace(4)* %0, i32 0, i32 0
   %1 = load %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" addrspace(4)*, %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" addrspace(4)* addrspace(4)* %M, align 8, !tbaa !15
   %spvm = getelementptr inbounds %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix", %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" addrspace(4)* %1, i32 0, i32 0
-  %2 = load %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* addrspace(4)* %spvm, align 8, !tbaa !13
+  %2 = load %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)*, %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* addrspace(4)* %spvm, align 8, !tbaa !13
   %3 = load %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" addrspace(4)*, %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" addrspace(4)* addrspace(4)* %lhs.addr.ascast, align 8, !tbaa !8
   %idx = getelementptr inbounds %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element", %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" addrspace(4)* %3, i32 0, i32 1
   %4 = load i64, i64 addrspace(4)* %idx, align 8, !tbaa !17
-  call spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EET_PNS5_24__spirv_JointMatrixINTELIS9_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::detail::half_impl::half" addrspace(4)* sret(%"class.cl::sycl::detail::half_impl::half") align 2 %ref.tmp1.ascast, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %2, i64 %4) #2
+  call spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EET_PNS5_24__spirv_JointMatrixINTELIS9_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::detail::half_impl::half" addrspace(4)* sret(%"class.cl::sycl::detail::half_impl::half") align 2 %ref.tmp1.ascast, %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* %2, i64 %4) #2
   ret void
 }
 
@@ -82,19 +82,19 @@ entry:
   %M = getelementptr inbounds %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element", %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" addrspace(4)* %this1, i32 0, i32 0
   %0 = load %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" addrspace(4)*, %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" addrspace(4)* addrspace(4)* %M, align 8, !tbaa !15
   %spvm = getelementptr inbounds %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix", %"struct.cl::sycl::ext::oneapi::experimental::matrix::joint_matrix" addrspace(4)* %0, i32 0, i32 0
-  %1 = load %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* addrspace(4)* %spvm, align 8, !tbaa !13
+  %1 = load %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)*, %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* addrspace(4)* %spvm, align 8, !tbaa !13
   %idx = getelementptr inbounds %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element", %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" addrspace(4)* %this1, i32 0, i32 1
   %2 = load i64, i64 addrspace(4)* %idx, align 8, !tbaa !17
   %agg.tmp.ascast.ascast = addrspacecast %"class.cl::sycl::detail::half_impl::half" addrspace(4)* %agg.tmp.ascast to %"class.cl::sycl::detail::half_impl::half"*
-  %call = call spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESC_SA_m(%"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* %1, %"class.cl::sycl::detail::half_impl::half"* byval(%"class.cl::sycl::detail::half_impl::half") align 2 %agg.tmp.ascast.ascast, i64 %2) #2
+  %call = call spir_func %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESC_SA_m(%spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* %1, %"class.cl::sycl::detail::half_impl::half"* byval(%"class.cl::sycl::detail::half_impl::half") align 2 %agg.tmp.ascast.ascast, i64 %2) #2
   ret %"class.cl::sycl::ext::oneapi::experimental::matrix::wi_element" addrspace(4)* %this1
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESC_SA_m(%"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, %"class.cl::sycl::detail::half_impl::half"* byval(%"class.cl::sycl::detail::half_impl::half") align 2, i64) #1
+declare dso_local spir_func %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EEPNS5_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESC_SA_m(%spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)*, %"class.cl::sycl::detail::half_impl::half"* byval(%"class.cl::sycl::detail::half_impl::half") align 2, i64) #1
 
 ; Function Attrs: convergent
-declare dso_local spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EET_PNS5_24__spirv_JointMatrixINTELIS9_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::detail::half_impl::half" addrspace(4)* sret(%"class.cl::sycl::detail::half_impl::half") align 2, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)*, i64) #1
+declare dso_local spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EET_PNS5_24__spirv_JointMatrixINTELIS9_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::detail::half_impl::half" addrspace(4)* sret(%"class.cl::sycl::detail::half_impl::half") align 2, %spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)*, i64) #1
 
 attributes #0 = { convergent mustprogress norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #1 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

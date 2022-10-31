@@ -13,6 +13,7 @@
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Path.h"
 
 using AIX = clang::driver::toolchains::AIX;
@@ -191,6 +192,12 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Specify linker input file(s).
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 
+  if (D.isUsingLTO()) {
+    assert(!Inputs.empty() && "Must have at least one input.");
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs[0],
+                  D.getLTOMode() == LTOK_Thin);
+  }
+
   if (Args.hasArg(options::OPT_shared) && !hasExportListLinkerOpts(CmdArgs)) {
 
     const char *CreateExportListExec = Args.MakeArgString(
@@ -340,6 +347,16 @@ void AIX::AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
   }
 
   llvm_unreachable("Unexpected C++ library type; only libc++ is supported.");
+}
+
+void AIX::addProfileRTLibs(const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) const {
+  // Add linker option -u__llvm_profile_runtime to cause runtime
+  // initialization to occur.
+  if (needsProfileRT(Args))
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("-u", llvm::getInstrProfRuntimeHookVarName())));
+  ToolChain::addProfileRTLibs(Args, CmdArgs);
 }
 
 ToolChain::CXXStdlibType AIX::GetDefaultCXXStdlibType() const {
