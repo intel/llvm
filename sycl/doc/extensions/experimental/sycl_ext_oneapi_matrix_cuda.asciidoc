@@ -59,18 +59,26 @@ value to determine which of the extension's APIs the implementation supports.
 
 
 --
-[options="header"]
+[.center]
 |======================
-|Tm |Tc | M | N | K
-.3+|half  .3+| float
-|16 |16 |16
-|8 |32 |16
-|32 |8 |16
-.3+|half  .3+| half
-|16 |16 |16
-|8 |32 |16
-|32 |8 |16
-
+|Tm (`use::a` or `use::b`) |Tc (`use::accumulator`) |M |N |K | Minimum Compute Capability
+.3+|half  .3+|float
+|16 |16 |16| sm_70
+|8 |32 |16| sm_70
+|32 |8 |16| sm_70
+.3+|half  .3+|half
+|16 |16 |16| sm_70
+|8 |32 |16| sm_70
+|32 |8 |16| sm_70
+.3+|int8_t  .3+|int32_t
+|16 |16 |16| sm_72
+|8 |32 |16| sm_72
+|32 |8 |16| sm_72
+.3+|uint8_t  .3+|int32_t
+|16 |16 |16| sm_72
+|8 |32 |16| sm_72
+|32 |8 |16| sm_72
+|precision::b1  | int32_t |8 |8 |128| sm_75 for XOR (deprecated), sm_80 for AND
 |======================
 --
 
