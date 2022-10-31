@@ -166,7 +166,8 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
         builder.create<polygeist::Pointer2MemrefOp>(
             loc, MT,
             builder.create<mlir::LLVM::NullOp>(
-                loc, LLVM::LLVMPointerType::get(builder.getI8Type()))),
+                loc, LLVM::LLVMPointerType::get(builder.getI8Type(),
+                                                MT.getMemorySpaceAsInt()))),
         false);
   if (auto PT = Mty.dyn_cast<mlir::LLVM::LLVMPointerType>())
     return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, PT), false);
@@ -735,7 +736,8 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr) {
         builder.create<polygeist::Pointer2MemrefOp>(
             loc, MT,
             builder.create<mlir::LLVM::NullOp>(
-                loc, LLVM::LLVMPointerType::get(builder.getI8Type()))),
+                loc, LLVM::LLVMPointerType::get(builder.getI8Type(),
+                                                MT.getMemorySpaceAsInt()))),
         false);
   else if (auto PT = melem.dyn_cast<mlir::LLVM::LLVMPointerType>())
     return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, PT), false);
@@ -1457,7 +1459,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
           builder.create<polygeist::Pointer2MemrefOp>(
               loc, MT,
               builder.create<mlir::LLVM::NullOp>(
-                  loc, LLVM::LLVMPointerType::get(MT.getElementType(),
+                  loc, LLVM::LLVMPointerType::get(builder.getI8Type(),
                                                   MT.getMemorySpaceAsInt()))),
           false);
     }
