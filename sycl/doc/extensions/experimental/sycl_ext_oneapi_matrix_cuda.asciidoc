@@ -53,7 +53,6 @@ value to determine which of the extension's APIs the implementation supports.
 |======================
 |Value |Description
 |1     |Introduced joint_matrix_bmad and marray wi_data.
- interface are supported 
 |======================
 
 #### Valid `joint_matrix` types and shapes
