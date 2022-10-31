@@ -70,11 +70,6 @@ public:
   AttrBuilder(const AttrBuilder &) = delete;
   AttrBuilder(AttrBuilder &&) = default;
 
-  using AddAttrFuncPtr =
-      AttrBuilder &(AttrBuilder::*)(mlir::NamedAttribute Attr);
-  using AddRawIntAttrFuncPtr = AttrBuilder &(
-      AttrBuilder::*)(llvm::Attribute::AttrKind Kind, uint64_t Value);
-
   /// Add the LLVM attribute identified by \p Kind to the builder.
   AttrBuilder &addAttribute(llvm::Attribute::AttrKind Kind);
 
@@ -142,6 +137,11 @@ public:
                    mlir::MLIRContext &Ctx);
 
 private:
+  using AddAttrFuncPtr =
+      AttrBuilder &(AttrBuilder::*)(mlir::NamedAttribute Attr);
+  using AddRawIntAttrFuncPtr = AttrBuilder &(
+      AttrBuilder::*)(llvm::Attribute::AttrKind Kind, uint64_t Value);
+
   /// Add the LLVM attribute identified by \p Kind to the builder, optionally
   /// prefixing the attribute name with \p Dialect.
   /// Note: \p AddAttrPtr is used to provide a concrete implementation

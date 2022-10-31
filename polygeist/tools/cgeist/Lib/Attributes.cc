@@ -292,8 +292,10 @@ AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind, uint64_t Val,
 
   switch (Kind) {
   case llvm::Attribute::AttrKind::Alignment:
-  case llvm::Attribute::AttrKind::StackAlignment:
     assert(Val <= llvm::Value::MaximumAlignment && "Alignment too large");
+    LLVM_FALLTHROUGH;
+  case llvm::Attribute::AttrKind::StackAlignment:
+    assert(Val <= 0x100 && "Alignment too large.");
     LLVM_FALLTHROUGH;
   case llvm::Attribute::AttrKind::Dereferenceable:
   case llvm::Attribute::AttrKind::DereferenceableOrNull:
