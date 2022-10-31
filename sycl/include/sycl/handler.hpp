@@ -304,87 +304,6 @@ void reduction_parallel_for(handler &CGH,
                             nd_range<Dims> Range, PropertiesT Properties,
                             RestT... Rest);
 
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for_basic_impl(
-    handler &CGH, std::shared_ptr<detail::queue_impl> Queue,
-    nd_range<Dims> Range, PropertiesT Properties, Reduction Redu,
-    KernelType KernelFunc);
-
-// Kernels with single reduction
-
-/// If we are given sycl::range and not sycl::nd_range we have more freedom in
-/// how to split the iteration space.
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction>
-bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
-                        const range<Dims> &Range, size_t MaxWGSize,
-                        uint32_t NumConcurrentWorkGroups,
-                        PropertiesT Properties, Reduction &Redu);
-
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction>
-void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
-                        const nd_range<Dims> &Range, PropertiesT Properties,
-                        Reduction &Redu);
-
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction>
-void reduCGFunc(handler &CGH, KernelType KernelFunc,
-                const nd_range<Dims> &Range, PropertiesT Properties,
-                Reduction &Redu);
-
-// Kernels with multiple reductions
-
-// sycl::nd_range version
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, typename... Reductions, size_t... Is>
-void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
-                     const nd_range<Dims> &Range, PropertiesT Properties,
-                     std::tuple<Reductions...> &ReduTuple,
-                     std::index_sequence<Is...>);
-
-template <typename KernelName, typename KernelType, class Reduction>
-size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
-                     Reduction &Redu);
-
-template <typename KernelName, typename KernelType, typename... Reductions,
-          size_t... Is>
-size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
-                     std::tuple<Reductions...> &ReduTuple,
-                     std::index_sequence<Is...>);
-
-template <typename KernelName, class Reduction>
-std::enable_if_t<!Reduction::is_usm>
-reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu);
-
-template <typename KernelName, class Reduction>
-std::enable_if_t<Reduction::is_usm>
-reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu);
-
-template <typename... Reduction, size_t... Is>
-std::shared_ptr<event>
-reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
-                             bool IsHost, std::tuple<Reduction...> &ReduTuple,
-                             std::index_sequence<Is...>);
-
-__SYCL_EXPORT uint32_t
-reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
-
-__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
-                                      size_t LocalMemBytesPerWorkItem);
-
-__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
-                                            size_t LocalMemBytesPerWorkItem);
-
-template <typename... ReductionT, size_t... Is>
-size_t reduGetMemPerWorkItem(std::tuple<ReductionT...> &ReduTuple,
-                             std::index_sequence<Is...>);
-
-template <typename TupleT, std::size_t... Is>
-std::tuple<std::tuple_element_t<Is, TupleT>...>
-tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
-
 template <typename T> struct IsReduction;
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 } // namespace detail
@@ -513,17 +432,6 @@ private:
   /// \param Stream is a pointer to SYCL stream.
   void addStream(const std::shared_ptr<detail::stream_impl> &Stream) {
     MStreamStorage.push_back(Stream);
-  }
-
-  /// Helper utility for operation widely used through different reduction
-  /// implementations.
-  template <class FunctorTy> void withAuxHandler(FunctorTy Func) {
-    this->finalize();
-    handler AuxHandler(MQueue, MIsHost);
-    AuxHandler.saveCodeLoc(MCodeLoc);
-    Func(AuxHandler);
-    MLastEvent = AuxHandler.finalize();
-    return;
   }
 
   /// Saves buffers created by handling reduction feature in handler.
