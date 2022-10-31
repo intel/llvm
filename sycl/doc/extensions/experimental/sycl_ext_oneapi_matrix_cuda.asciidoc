@@ -62,12 +62,14 @@ value to determine which of the extension's APIs the implementation supports.
 [options="header"]
 |======================
 |Tm |Tc | M | N | K
-.3+|half  .3+| float  |16 |16 |16
-|  |   |8 |32 |16
-|  |   |32 |8 |16
-.3+|half  .3+| half  |16 |16 |16
-|  |   |8 |32 |16
-|  |   |32 |8 |16
+.3+|half  .3+| float
+|16 |16 |16
+|8 |32 |16
+|32 |8 |16
+.3+|half  .3+| half
+|16 |16 |16
+|8 |32 |16
+|32 |8 |16
 
 |======================
 --
