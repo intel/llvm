@@ -55,6 +55,21 @@ value to determine which of the extension's APIs the implementation supports.
  interface are supported 
 |======================
 
+#### Data types and shapes supported in the CUDA
+
+
+--
+[options="header"]
+|======================
+|Tm |Tc | M | N | K
+|half  | float  |16 |16 |16
+|  |   |8 |32 |16
+|half  | half  |16 |16 |16
+
+|======================
+--
+
+
 #### Binary Multiply and Add - `joint_matrix_bmad`
 
 ```c++
@@ -118,7 +133,7 @@ queue q;
         });});
 ```
 
-##### `wi_data` as an `marray`
+#### `wi_data` as an `marray`
 
 In the Nvidia® Tensor Cores case it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member, `joint_matrix.wi_marray`, to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables operations to be identically performed on every element of the `joint_matrix` without requiring a loop. In DPC++ some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the context of the matrix extension is given in the following code snippet:
 
