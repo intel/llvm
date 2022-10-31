@@ -781,6 +781,18 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
                                            std::forward<RestTy>(Rest)...};
 }
 
+namespace reduction {
+inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
+template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
+  CGH.finalize();
+  handler AuxHandler(CGH.MQueue, CGH.MIsHost);
+  AuxHandler.saveCodeLoc(CGH.MCodeLoc);
+  Func(AuxHandler);
+  CGH.MLastEvent = AuxHandler.finalize();
+  return;
+}
+} // namespace reduction
+
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
 /// must do that to avoid name collisions.
 template <template <typename...> class Namer, class KernelName, class... Ts>
@@ -2244,6 +2256,40 @@ template <typename TupleT, std::size_t... Is>
 std::tuple<std::tuple_element_t<Is, TupleT>...>
 tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
   return {std::get<Is>(std::move(Tuple))...};
+}
+
+__SYCL_EXPORT uint32_t
+reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
+
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename KernelType, typename Reduction>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            range<Dims> Range, PropertiesT Properties,
+                            Reduction Redu, KernelType KernelFunc) {
+  // Before running the kernels, check that device has enough local memory
+  // to hold local arrays required for the tree-reduction algorithm.
+  constexpr bool IsTreeReduction =
+      !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
+  size_t OneElemSize =
+      IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+  uint32_t NumConcurrentWorkGroups =
+#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
+      __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
+#else
+      reduGetMaxNumConcurrentWorkGroups(Queue);
+#endif
+  // TODO: currently the preferred work group size is determined for the given
+  // queue/device, while it is safer to use queries to the kernel pre-compiled
+  // for the device.
+  size_t PrefWGSize = reduGetPreferredWGSize(Queue, OneElemSize);
+  if (reduCGFuncForRange<KernelName>(CGH, KernelFunc, Range, PrefWGSize,
+                                     NumConcurrentWorkGroups, Properties,
+                                     Redu)) {
+    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+    });
+  }
 }
 } // namespace detail
 

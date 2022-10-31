@@ -275,6 +275,35 @@ class reduction_impl_algo;
 using sycl::detail::enable_if_t;
 using sycl::detail::queue_impl;
 
+// Reductions implementation need access to private members of handler. Those
+// are limited to those below.
+namespace reduction {
+inline void finalizeHandler(handler &CGH);
+template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
+} // namespace reduction
+
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename KernelType, typename Reduction>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            range<Dims> Range, PropertiesT Properties,
+                            Reduction Redu, KernelType KernelFunc);
+
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename KernelType, typename Reduction>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            nd_range<Dims> Range,
+                            PropertiesT Properties, Reduction Redu,
+                            KernelType KernelFunc);
+
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename... RestT>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            nd_range<Dims> Range, PropertiesT Properties,
+                            RestT... Rest);
+
 // Kernels with single reduction
 
 /// If we are given sycl::range and not sycl::nd_range we have more freedom in
@@ -1761,29 +1790,8 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for_impl(range<Dims> Range, PropertiesT Properties, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
-    // Before running the kernels, check that device has enough local memory
-    // to hold local arrays required for the tree-reduction algorithm.
-    constexpr bool IsTreeReduction =
-        !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
-    size_t OneElemSize =
-        IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
-    uint32_t NumConcurrentWorkGroups =
-#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
-        __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
-#else
-        detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
-#endif
-    // TODO: currently the preferred work group size is determined for the given
-    // queue/device, while it is safer to use queries to the kernel pre-compiled
-    // for the device.
-    size_t PrefWGSize = detail::reduGetPreferredWGSize(MQueue, OneElemSize);
-    if (detail::reduCGFuncForRange<KernelName>(
-            *this, KernelFunc, Range, PrefWGSize, NumConcurrentWorkGroups,
-            Properties, Redu)) {
-      withAuxHandler([&](handler &CopyHandler) {
-        detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
-      });
-    }
+    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
+                                               Redu, KernelFunc);
   }
 
   template <typename KernelName, int Dims, typename PropertiesT,
@@ -2804,6 +2812,10 @@ private:
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
             typename RedOutVar>
   friend class detail::reduction_impl_algo;
+
+  friend inline void detail::reduction::finalizeHandler(handler &CGH);
+  template <class FunctorTy>
+  friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
 
 #ifndef __SYCL_DEVICE_ONLY__
   friend void detail::associateWithHandler(handler &,
