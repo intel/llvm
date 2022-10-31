@@ -2416,6 +2416,42 @@ void reduction_parallel_for(handler &CGH,
   }
 }
 
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename... RestT>
+void reduction_parallel_for(handler &CGH,
+                            std::shared_ptr<detail::queue_impl> Queue,
+                            nd_range<Dims> Range, PropertiesT Properties,
+                            RestT... Rest) {
+  std::tuple<RestT...> ArgsTuple(Rest...);
+  constexpr size_t NumArgs = sizeof...(RestT);
+  auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
+  auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
+  auto ReduTuple = detail::tuple_select_elements(ArgsTuple, ReduIndices);
+
+  size_t LocalMemPerWorkItem = reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+  // TODO: currently the maximal work group size is determined for the given
+  // queue/device, while it is safer to use queries to the kernel compiled
+  // for the device.
+  size_t MaxWGSize = reduGetMaxWGSize(Queue, LocalMemPerWorkItem);
+  if (Range.get_local_range().size() > MaxWGSize)
+    throw sycl::runtime_error("The implementation handling parallel_for with"
+                              " reduction requires work group size not bigger"
+                              " than " +
+                                  std::to_string(MaxWGSize),
+                              PI_ERROR_INVALID_WORK_GROUP_SIZE);
+
+  reduCGFuncMulti<KernelName>(CGH, KernelFunc, Range, Properties, ReduTuple,
+                              ReduIndices);
+  reduction::finalizeHandler(CGH);
+
+  size_t NWorkItems = Range.get_group_range().size();
+  while (NWorkItems > 1) {
+    reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
+      NWorkItems = reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
+          AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
+    });
+  } // end while (NWorkItems > 1)
+}
 } // namespace detail
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
