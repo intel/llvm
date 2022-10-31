@@ -118,8 +118,8 @@ inline __SYCL_ALWAYS_INLINE
 // sycl::native::tanh is only implemented on nvptx backend so far. For other
 // backends we revert to the sycl::tanh impl.
 template <typename T, size_t N>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<std::is_same<T, half>::value ||
-                                                 std::is_same<T, float>::value,
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<std::is_same_v<T, half> ||
+                                                 std::is_same_v<T, float>,
                                              sycl::marray<T, N>>
 tanh(sycl::marray<T, N> x) __NOEXC {
   sycl::marray<T, N> res;
@@ -188,7 +188,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 } // namespace native
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fabs(x.raw()));
 #else
@@ -220,7 +220,7 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
 #else
@@ -258,7 +258,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
 }
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
 #else
@@ -295,7 +295,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
 }
 
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
+std::enable_if_t<std::is_same_v<T, bfloat16>, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
 #else

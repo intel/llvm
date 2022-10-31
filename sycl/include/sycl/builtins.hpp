@@ -37,7 +37,7 @@ namespace __sycl_std = __host_std;
 #define __FAST_MATH_GENFLOAT(T)                                                \
   (detail::is_svgenfloatd<T>::value || detail::is_svgenfloath<T>::value)
 #define __FAST_MATH_SGENFLOAT(T)                                               \
-  (std::is_same<T, double>::value || std::is_same<T, half>::value)
+  (std::is_same_v<T, double> || std::is_same_v<T, half>)
 #else
 #define __FAST_MATH_GENFLOAT(T) (detail::is_svgenfloat<T>::value)
 #define __FAST_MATH_SGENFLOAT(T) (detail::is_sgenfloat<T>::value)
@@ -1853,7 +1853,7 @@ detail::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 #define __SYCL_MATH_FUNCTION_OVERLOAD_FM(NAME)                                 \
   template <typename T, size_t N>                                              \
   inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<std::is_same<T, float>::value, marray<T, N>>            \
+      std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>                 \
       NAME(marray<T, N> x) __NOEXC {                                           \
     return native::NAME(x);                                                    \
   }
@@ -1873,7 +1873,7 @@ __SYCL_MATH_FUNCTION_OVERLOAD_FM(rsqrt)
 
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<std::is_same<T, float>::value, marray<T, N>>
+    std::enable_if_t<std::is_same_v<T, float>, marray<T, N>>
     powr(marray<T, N> x, marray<T, N> y) __NOEXC {
   return native::powr(x, y);
 }
