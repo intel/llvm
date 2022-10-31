@@ -1453,8 +1453,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (llvmType.isa<LLVM::LLVMPointerType>())
       return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, llvmType),
                            /*isReference*/ false);
-    else {
-      auto MT = llvmType.cast<MemRefType>();
+    else if (auto MT = llvmType.dyn_cast<MemRefType>())
       return ValueCategory(
           builder.create<polygeist::Pointer2MemrefOp>(
               loc, MT,
@@ -1462,7 +1461,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                   loc, LLVM::LLVMPointerType::get(builder.getI8Type(),
                                                   MT.getMemorySpaceAsInt()))),
           false);
-    }
+    llvm_unreachable("illegal type for cast");
   }
   case clang::CastKind::CK_UserDefinedConversion: {
     return Visit(E->getSubExpr());
