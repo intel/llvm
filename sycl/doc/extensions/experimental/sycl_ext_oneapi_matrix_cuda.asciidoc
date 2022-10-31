@@ -31,12 +31,13 @@ references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 
-**_NOTE:_** This document describes the current design and API for the additional CUDA only features matrix
+**_NOTE:_** This document describes the current design and API for the CUDA only features matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
 and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**.
 
 ## Introduction
-This document presents some supplementary CUDA backend features not contained within the sycl_ext_oneapi_matrix extension. The additional features are built on top of the sycl_ext_oneapi_matrix extension but are only supported by the CUDA backend.
+The CUDA backend supports `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad` and `joint_matrix_fill` as they are defined in the sycl_ext_oneapi_matrix extension. Only `row_major`, `col_major` and `dynamic` layouts are supported in the CUDA backend. The complete set of `joint_matrix` types and shapes that are valid in the CUDA backend are listed in this document.
+This extension presents some supplementary CUDA backend features not contained within the sycl_ext_oneapi_matrix extension. The additional features are built on top of the sycl_ext_oneapi_matrix extension but are only supported by the CUDA backend.
 
 ## Feature test macro
 
@@ -51,13 +52,13 @@ value to determine which of the extension's APIs the implementation supports.
 [frame="none",options="header"]
 |======================
 |Value |Description
-|1     |Initial version supporting joint_matrix_bmad and marray wi_data.
+|1     |Introduced joint_matrix_bmad and marray wi_data.
  interface are supported 
 |======================
 
-#### Data types and shapes supported in the CUDA
+#### Valid `joint_matrix` types and shapes
 
-
+The complete set of matrix data types and shapes that are supported by the CUDA backend are represented in the following table. Tm indicates the matrix element data type held by a "multiplicand" `joint_matrix`: i.e requiring `use::a` or `use::b`. Tc indicates the matrix element data type held by an "accumulator" `joint_matrix`: i.e requiring `use::accumulator`.
 --
 [.center]
 |======================
@@ -78,7 +79,24 @@ value to determine which of the extension's APIs the implementation supports.
 |16 |16 |16| sm_72
 |8 |32 |16| sm_72
 |32 |8 |16| sm_72
-|precision::b1  | int32_t |8 |8 |128| sm_75 for XOR (deprecated), sm_80 for AND
+|precision::b1  |int32_t |8 |8 |128| sm_75 for XOR (deprecated), sm_80 for AND
+|precision::tf32  |float |16 |16 |8| sm_80
+.3+|bfloat16  .3+|float
+|16 |16 |16 |sm_80
+|8 |32 |16 |sm_80
+|32 |8 |16 |sm_80
+|double  |double |8 |8 |4 |sm_80
+|======================
+--
+
+The M, N, K triple from the above table defines the complete set of matrix shapes constructible:
+--
+[.center]
+|======================
+|use |NumRows | NumCols
+|a |M |K
+|b |K |N
+|accumulator | M| N
 |======================
 --
 
@@ -97,8 +115,8 @@ joint_matrix_bmad(
 }
 ```
 
-Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (`use::a` with shape M by K) with a column of matrix B (`use::b` with shape K by N). Instead, a sequence of logical operations are performed. There are two available logical operations, "AND" and "XOR". The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
-The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the matrix C (`use::accumulator`). Currently only the shape M = 8, N = 8, K = 128 is supported.
+Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of a `use::a` matrix with a column of a `use::b` matrix. Instead, a sequence of logical operations are performed. There are two available logical operations, "AND" and "XOR". The AND or XOR logical operations operate on the ith bit of a K bit row of the `use::a` matrix with the ith bit of a K bit column of the `use::b` matrix, to produce a 128 bit intermediate output.
+The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the `use::accumulator` matrix.
 An important difference with respect to the `joint_matrix_mad` interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
 
 `sycl::bit_and<precision::b1>()`
@@ -108,12 +126,14 @@ or
 `sycl::bit_xor<precision::b1>()`
 
 The A, B, and C `joint_matrix` objects are constructed and loaded/stored in the normal way, using the `joint_matrix`, `joint_matrix_load`, and `joint_matrix_store` interfaces that are defined in the sycl_ext_oneapi_matrix extension document.
-The C matrix must be loaded from an array of 32 bit signed integers, and the A, B single bit `joint_matrix` structs must be loaded from an array of unsigned 32-bit integers storing the packed binary matrix.
+The C matrix must be loaded from an array of 32-bit signed integers, and the A, B single bit `joint_matrix` structs must be loaded from an array of unsigned 32-bit integers storing the packed binary matrix.
 Each element of the array of unsigned 32-bit integers, from which a `joint_matrix` of type `use::a` or `use::b` is loaded, should contain 32 elements of a matrix row in packed format.
 
 IMPORTANT: When using Binary Multiply and Add, a `joint_matrix` of type `use::a` must have `layout::row_major`, and a `joint_matrix` of type `use::b` must have `layout::col_major`. In both cases the first template parameter of `joint_matrix` must be `precision::b1`.
 
 IMPORTANT: Binary Multiply and Add operations are an experimental hardware feature and all implementation details are subject to change.
+
+IMPORTANT: `joint_matrix_bmad` with `sycl::bit_xor<precision::b1>()` is deprecated.
 
 ##### Example using bitwise operations with `joint_matrix_bmad`
 
