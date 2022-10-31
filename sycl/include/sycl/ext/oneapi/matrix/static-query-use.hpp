@@ -24,400 +24,404 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental::matrix {
+  namespace ext {
+  namespace oneapi {
+  namespace experimental::matrix {
 
-enum class tpu {
-  dpas,
-  amx,
-};
-enum class matrix_type {
-  bf8,
-  bf16,
-  fp16,
-  fp19, // tfloat32
-  fp32,
-  fp64,
-  sint2,
-  sint4,
-  sint8,
-  sint16,
-  sint32,
-  sint64,
-  uint2,
-  uint4,
-  uint8,
-  uint16,
-  uint32,
-  uint64
-};
+  enum class tpu {
+    dpas,
+    amx,
+  };
+  enum class matrix_type {
+    bf8,
+    bf16,
+    fp16,
+    fp19, // tfloat32
+    fp32,
+    fp64,
+    sint2,
+    sint4,
+    sint8,
+    sint16,
+    sint32,
+    sint64,
+    uint2,
+    uint4,
+    uint8,
+    uint16,
+    uint32,
+    uint64
+  };
 
-enum class scope_t { sub_group, work_group };
+  enum class scope_t { sub_group, work_group };
 
-template <tpu u, typename Ta = void, typename Tb = void, typename Tc = void,
-          int sM = 0, int sN = 0, int sK = 0, typename Enabled = void>
-struct tpu_params;
+  template <tpu u, typename Ta = void, typename Tb = void, typename Tc = void,
+            int sM = 0, int sN = 0, int sK = 0, typename Enabled = void>
+  struct tpu_params;
 
 #if __cplusplus >= 201703L
-template <typename Ta, typename Tb, typename Tc>
-constexpr bool is_combination_valid_amx(int sM, int sN, int sK) {
-  // is_same_v is a C++17 feature
-  if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
-      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
-      // bf16
-      (std::is_same_v<Ta, unsigned short> &&
-       std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
-       sM <= 16 && sN <= 16 && sK <= 32))
-    return true;
-  else
-    return false;
-}
+  template <typename Ta, typename Tb, typename Tc>
+  constexpr bool is_combination_valid_amx(int sM, int sN, int sK) {
+    // is_same_v is a C++17 feature
+    if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
+        (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int> && sM <= 16 && sN <= 16 && sK <= 64) ||
+        // bf16
+        (std::is_same_v<Ta, unsigned short> &&
+         std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
+         sM <= 16 && sN <= 16 && sK <= 32))
+      return true;
+    else
+      return false;
+  }
 
-template <typename Ta, typename Tb, typename Tc>
-constexpr bool are_types_valid_amx() {
-  if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, unsigned short> &&
-       std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float>))
-    return true;
-  else
-    return false;
-}
+  template <typename Ta, typename Tb, typename Tc>
+  constexpr bool are_types_valid_amx() {
+    if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, unsigned short> &&
+         std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float>))
+      return true;
+    else
+      return false;
+  }
 #endif
 
-// General query:
-// types are not given, no default sizes and no implicit matrix construction
-template <int sM, int sN, int sK>
-struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
-  static constexpr std::size_t M = -1; // depends on the type
-  static constexpr std::size_t N = -1;
-  static constexpr std::size_t K = -1;
+  // General query:
+  // types are not given, no default sizes and no implicit matrix construction
+  template <int sM, int sN, int sK>
+  struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
+    static constexpr std::size_t M = -1; // depends on the type
+    static constexpr std::size_t N = -1;
+    static constexpr std::size_t K = -1;
 
-  bool dynamic_p = false; // should be true in future implementations because
-                          // AMX hardware supports dynamic sizes
-  uint32_t numtiles = 8;
-  scope_t scope = scope_t::sub_group;
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type accumulatortype;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
+    bool dynamic_p = false; // should be true in future implementations because
+                            // AMX hardware supports dynamic sizes
+    uint32_t numtiles = 8;
+    scope_t scope = scope_t::sub_group;
+    struct combination {
+      uint32_t max_msize;
+      uint32_t max_nsize;
+      uint32_t max_ksize;
+      matrix_type atype;
+      matrix_type btype;
+      matrix_type accumulatortype;
+      uint32_t msize;
+      uint32_t nsize;
+      uint32_t ksize;
+    };
+    using mt = matrix_type;
+    static constexpr combination combinations[] = {
+        {16, 16, 64, mt::sint8, mt::sint8, mt::sint32},
+        {16, 16, 64, mt::sint8, mt::uint8, mt::sint32},
+        {16, 16, 64, mt::uint8, mt::sint8, mt::sint32},
+        {16, 16, 64, mt::uint8, mt::uint8, mt::sint32},
+        {16, 16, 32, mt::bf16, mt::bf16, mt::fp32}};
+    static constexpr int num_combinations =
+        sizeof(combinations) / sizeof(combination);
   };
-  using mt = matrix_type;
-  static constexpr combination combinations[] = {
-      {16, 16, 64, mt::sint8, mt::sint8, mt::sint32},
-      {16, 16, 64, mt::sint8, mt::uint8, mt::sint32},
-      {16, 16, 64, mt::uint8, mt::sint8, mt::sint32},
-      {16, 16, 64, mt::uint8, mt::uint8, mt::sint32},
-      {16, 16, 32, mt::bf16, mt::bf16, mt::fp32}};
-  static constexpr int num_combinations =
-      sizeof(combinations) / sizeof(combination);
-};
 
 #if __cplusplus >= 201703L
-// Sizes-only query
-// Specialization for when only types are given, need to query only sizes
-template <typename Ta, typename Tb, typename Tc>
-struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
-                  typename std::enable_if<(!std::is_same_v<Ta, void> &&
-                                           !std::is_same_v<Tb, void> &&
-                                           !std::is_same_v<Tc, void>)>::type> {
-  static_assert((are_types_valid_amx<Ta, Tb, Tc>()),
-                "Invalid types for AMX, supported types are int8_t, uint8_t, "
-                "and bf16 (Note that unsigned short should be used in the"
-                "DPC++ code to implement bf16) ");
+  // Sizes-only query
+  // Specialization for when only types are given, need to query only sizes
+  template <typename Ta, typename Tb, typename Tc>
+  struct tpu_params<
+      tpu::amx, Ta, Tb, Tc, 0, 0, 0,
+      typename std::enable_if<(!std::is_same_v<Ta, void> &&
+                               !std::is_same_v<Tb, void> &&
+                               !std::is_same_v<Tc, void>)>::type> {
+    static_assert((are_types_valid_amx<Ta, Tb, Tc>()),
+                  "Invalid types for AMX, supported types are int8_t, uint8_t, "
+                  "and bf16 (Note that unsigned short should be used in the"
+                  "DPC++ code to implement bf16) ");
 
-  // construct the matrices using the default sizes
-  static constexpr std::size_t M = 16;
-  static constexpr std::size_t N = 16;
-  static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 64 : 32);
+    // construct the matrices using the default sizes
+    static constexpr std::size_t M = 16;
+    static constexpr std::size_t N = 16;
+    static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Ta, M, K, use::a, layout::row_major, Group>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Tb, K, N, use::b, layout::packed_b, Group>;
-  template <typename Group>
-  using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::row_major, Group>;
+    template <typename Group>
+    using joint_matrix_a =
+        joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_b =
+        joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_accumulator =
+        joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
 
-  bool dynamic_p = false; // should be true in future implementations because
-                          // AMX hardware supports dynamic sizes
-  uint32_t numtiles = 8;
-  scope_t scope = scope_t::sub_group;
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type accumulatortype;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
+    bool dynamic_p = false; // should be true in future implementations because
+                            // AMX hardware supports dynamic sizes
+    uint32_t numtiles = 8;
+    scope_t scope = scope_t::sub_group;
+    struct combination {
+      uint32_t max_msize;
+      uint32_t max_nsize;
+      uint32_t max_ksize;
+      matrix_type atype;
+      matrix_type btype;
+      matrix_type accumulatortype;
+      uint32_t msize;
+      uint32_t nsize;
+      uint32_t ksize;
+    };
+    static constexpr combination combinations[] = {
+        {16, 16, (sizeof(Ta) == 1) ? 64 : 32}};
+    static constexpr int num_combinations =
+        sizeof(combinations) / sizeof(combination);
   };
-  static constexpr combination combinations[] = {
-      {16, 16, (sizeof(Ta) == 1) ? 64 : 32}};
-  static constexpr int num_combinations =
-      sizeof(combinations) / sizeof(combination);
-};
 
-// Valid or not:
-// Specialization when both types and sizes are given
-template <typename Ta, typename Tb, typename Tc, int sM, int sN, int sK>
-struct tpu_params<
-    tpu::amx, Ta, Tb, Tc, sM, sN, sK,
-    typename std::enable_if<(
-        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
-        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
-  // Validate that parameters are supported
-  static_assert(
-      (sM == 0 && sN == 0 && sK == 0) ||
-          (is_combination_valid_amx<Ta, Tb, Tc>(sM, sN, sK)),
-      "Invalid parameters for AMX, query valid types and maximum sizes "
-      "using: tpu_params<tpu::amx> myparams; and then check out "
-      "myparams.combinations array");
+  // Valid or not:
+  // Specialization when both types and sizes are given
+  template <typename Ta, typename Tb, typename Tc, int sM, int sN, int sK>
+  struct tpu_params<
+      tpu::amx, Ta, Tb, Tc, sM, sN, sK,
+      typename std::enable_if<(
+          !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+          !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
+    // Validate that parameters are supported
+    static_assert(
+        (sM == 0 && sN == 0 && sK == 0) ||
+            (is_combination_valid_amx<Ta, Tb, Tc>(sM, sN, sK)),
+        "Invalid parameters for AMX, query valid types and maximum sizes "
+        "using: tpu_params<tpu::amx> myparams; and then check out "
+        "myparams.combinations array");
 
-  // if combination is valid, construct the matrices
+    // if combination is valid, construct the matrices
 
-  static constexpr std::size_t M = (sM != 0) ? sM : 16;
-  static constexpr std::size_t N = (sN != 0) ? sN : 16;
-  static constexpr std::size_t K =
-      (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 64 : 32);
+    static constexpr std::size_t M = (sM != 0) ? sM : 16;
+    static constexpr std::size_t N = (sN != 0) ? sN : 16;
+    static constexpr std::size_t K =
+        (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Ta, M, K, use::a, layout::row_major, Group>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Tb, K, N, use::b, layout::packed_b, Group>;
-  template <typename Group>
-  using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::row_major, Group>;
+    template <typename Group>
+    using joint_matrix_a =
+        joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_b =
+        joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_accumulator =
+        joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
 
-  bool dynamic_p = false; // should be true in future implementations
-                          // because AMX hardware supports dynamic sizes
-  uint32_t numtiles = 8;
-  scope_t scope = scope_t::sub_group;
-};
+    bool dynamic_p = false; // should be true in future implementations
+                            // because AMX hardware supports dynamic sizes
+    uint32_t numtiles = 8;
+    scope_t scope = scope_t::sub_group;
+  };
 
-// DPAS case
-// The DPAS implementation supports the logical capability support of the HW
-// So in this case, M, N, K sizes returned by the query represent the logical
-// capabilities of the DPAS hardware.
+  // DPAS case
+  // The DPAS implementation supports the logical capability support of the HW
+  // So in this case, M, N, K sizes returned by the query represent the logical
+  // capabilities of the DPAS hardware.
 
-template <typename Ta, typename Tb, typename Tc>
-constexpr bool is_combination_valid_dpas(int sM, int sN, int sK) {
-  if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
-      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
-      (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
-       std::is_same_v<Tc, float> &&
-       (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 16) ||
-      (std::is_same_v<Ta, unsigned short> &&
-       std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
-       (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 16))
-    return true;
-  else
-    return false;
-}
+  template <typename Ta, typename Tb, typename Tc>
+  constexpr bool is_combination_valid_dpas(int sM, int sN, int sK) {
+    if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int> &&
+         (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 32) ||
+        (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int> &&
+         (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 32) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int> &&
+         (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 32) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int> &&
+         (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 32) ||
+        (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
+         std::is_same_v<Tc, float> &&
+         (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 16) ||
+        (std::is_same_v<Ta, unsigned short> &&
+         std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
+         (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 16))
+      return true;
+    else
+      return false;
+  }
 
-template <typename Ta, typename Tb, typename Tc>
-constexpr bool are_types_valid_dpas() {
-  if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int>) ||
-      (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
-       std::is_same_v<Tc, float>) ||
-      (std::is_same_v<Ta, unsigned short> &&
-       std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float>))
-    return true;
-  else
-    return false;
-}
+  template <typename Ta, typename Tb, typename Tc>
+  constexpr bool are_types_valid_dpas() {
+    if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
+         std::is_same_v<Tc, int>) ||
+        (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
+         std::is_same_v<Tc, float>) ||
+        (std::is_same_v<Ta, unsigned short> &&
+         std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float>))
+      return true;
+    else
+      return false;
+  }
 #endif
 
-// General Query
-// specialization for when types are not given --> no default values
-template <int sM, int sN, int sK>
-struct tpu_params<tpu::dpas, void, void, void, sM, sN, sK> {
-  static constexpr std::size_t M = -1; // depends on the type
-  static constexpr std::size_t N = -1;
-  static constexpr std::size_t K = -1;
+  // General Query
+  // specialization for when types are not given --> no default values
+  template <int sM, int sN, int sK>
+  struct tpu_params<tpu::dpas, void, void, void, sM, sN, sK> {
+    static constexpr std::size_t M = -1; // depends on the type
+    static constexpr std::size_t N = -1;
+    static constexpr std::size_t K = -1;
 
-  bool dynamic_p = false; // no dynamic allocation on the GPU
-  uint32_t numtiles = -1; // does not apply for DPAS
-  scope_t scope = scope_t::sub_group;
+    bool dynamic_p = false; // no dynamic allocation on the GPU
+    uint32_t numtiles = -1; // does not apply for DPAS
+    scope_t scope = scope_t::sub_group;
 
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type accumulatortype;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
+    struct combination {
+      uint32_t max_msize;
+      uint32_t max_nsize;
+      uint32_t max_ksize;
+      matrix_type atype;
+      matrix_type btype;
+      matrix_type accumulatortype;
+      uint32_t msize;
+      uint32_t nsize;
+      uint32_t ksize;
+    };
+    using mt = matrix_type;
+    static constexpr combination combinations[] = {
+        {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 1, 8, 32},
+        {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 2, 8, 32},
+        {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 4, 8, 32},
+        {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 8, 8, 32},
+        {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 1, 8, 32},
+        {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 2, 8, 32},
+        {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 4, 8, 32},
+        {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 8, 8, 32},
+        {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 1, 8, 32},
+        {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 2, 8, 32},
+        {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 4, 8, 32},
+        {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 8, 8, 32},
+        {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 1, 8, 32},
+        {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 2, 8, 32},
+        {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 4, 8, 32},
+        {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 8, 8, 32},
+        {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 1, 8, 16},
+        {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 2, 8, 16},
+        {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 4, 8, 16},
+        {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 8, 8, 16},
+        {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 1, 8, 16},
+        {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 2, 8, 16},
+        {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 4, 8, 16},
+        {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 8, 8, 16},
+    };
+    static constexpr int num_combinations =
+        sizeof(combinations) / sizeof(combination);
   };
-  using mt = matrix_type;
-  static constexpr combination combinations[] = {
-      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 1, 8, 32},
-      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 2, 8, 32},
-      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 4, 8, 32},
-      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 8, 8, 32},
-      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 1, 8, 32},
-      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 2, 8, 32},
-      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 4, 8, 32},
-      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 8, 8, 32},
-      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 1, 8, 32},
-      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 2, 8, 32},
-      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 4, 8, 32},
-      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 8, 8, 32},
-      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 1, 8, 32},
-      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 2, 8, 32},
-      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 4, 8, 32},
-      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 8, 8, 32},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 1, 8, 16},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 2, 8, 16},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 4, 8, 16},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 8, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 1, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 2, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 4, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 8, 8, 16},
-  };
-  static constexpr int num_combinations =
-      sizeof(combinations) / sizeof(combination);
-};
 
-// Sizes-only query:
-// Specialization for when only types are given, need to query only sizes
+  // Sizes-only query:
+  // Specialization for when only types are given, need to query only sizes
 
 #if __cplusplus >= 201703L
-template <typename Ta, typename Tb, typename Tc>
-struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
-                  typename std::enable_if<(!std::is_same_v<Ta, void> &&
-                                           !std::is_same_v<Tb, void> &&
-                                           !std::is_same_v<Tc, void>)>::type> {
-  static_assert((are_types_valid_dpas<Ta, Tb, Tc>()),
-                "Invalid types for DPAS, supported types are int8_t, uint8_t, "
-                "half, and bf16 (Note that unsigned short should be used in the"
-                "DPC++ code to implement bf16)");
+  template <typename Ta, typename Tb, typename Tc>
+  struct tpu_params<
+      tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
+      typename std::enable_if<(!std::is_same_v<Ta, void> &&
+                               !std::is_same_v<Tb, void> &&
+                               !std::is_same_v<Tc, void>)>::type> {
+    static_assert(
+        (are_types_valid_dpas<Ta, Tb, Tc>()),
+        "Invalid types for DPAS, supported types are int8_t, uint8_t, "
+        "half, and bf16 (Note that unsigned short should be used in the"
+        "DPC++ code to implement bf16)");
 
-  // construct the matrices using the default sizes
+    // construct the matrices using the default sizes
 
-  static constexpr std::size_t M = 8;
-  static constexpr std::size_t N = 8;
-  static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 32 : 16);
+    static constexpr std::size_t M = 8;
+    static constexpr std::size_t N = 8;
+    static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 32 : 16);
 
-  template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Ta, M, K, use::a, layout::row_major, Group>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Tb, K, N, use::b, layout::packed_b, Group>;
-  template <typename Group>
-  using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::row_major, Group>;
+    template <typename Group>
+    using joint_matrix_a =
+        joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_b =
+        joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_accumulator =
+        joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
 
-  bool dynamic_p = false; // no dynamic allocation on the GPU
-  uint32_t numtiles = -1; // does not apply for DPAS
-  scope_t scope = scope_t::sub_group;
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type acuumulatortype;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
+    bool dynamic_p = false; // no dynamic allocation on the GPU
+    uint32_t numtiles = -1; // does not apply for DPAS
+    scope_t scope = scope_t::sub_group;
+    struct combination {
+      uint32_t max_msize;
+      uint32_t max_nsize;
+      uint32_t max_ksize;
+      matrix_type atype;
+      matrix_type btype;
+      matrix_type accumulatortype;
+      uint32_t msize;
+      uint32_t nsize;
+      uint32_t ksize;
+    };
+    using mt = matrix_type;
+    static constexpr combination combinations[] = {
+        // The types used in the initialization below are fake and not used. In
+        // this case, users already chose the types, they are only looking for
+        // the
+        // sizes
+        {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 1, 8, (sizeof(Ta) == 1) ? 32 : 16},
+        {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 2, 8, (sizeof(Ta) == 1) ? 32 : 16},
+        {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 4, 8, (sizeof(Ta) == 1) ? 32 : 16},
+        {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 8, 8, (sizeof(Ta) == 1) ? 32 : 16},
+    };
+    static constexpr int num_combinations =
+        sizeof(combinations) / sizeof(combination);
   };
-  using mt = matrix_type;
-  static constexpr combination combinations[] = {
-      // The types used in the initialization below are fake and not used. In
-      // this case, users already chose the types, they are only looking for the
-      // sizes
-      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 1, 8, (sizeof(Ta) == 1) ? 32 : 16},
-      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 2, 8, (sizeof(Ta) == 1) ? 32 : 16},
-      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 4, 8, (sizeof(Ta) == 1) ? 32 : 16},
-      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 8, 8, (sizeof(Ta) == 1) ? 32 : 16},
+
+  // Valid or not:
+  // Specialization when both types and sizes are given
+  template <typename Ta, typename Tb, typename Tc, int sM, int sN, int sK>
+  struct tpu_params<
+      tpu::dpas, Ta, Tb, Tc, sM, sN, sK,
+      typename std::enable_if<((!std::is_same_v<Ta, void> && sM != 0))>::type> {
+    // Validate that parameters are supported
+    static_assert((sM == 0 && sN == 0 && sK == 0) ||
+                      (is_combination_valid_dpas<Ta, Tb, Tc>(sM, sN, sK)),
+                  "Invalid parameters for DPAS, query valid combinations "
+                  "using: tpu_params<tpu::dpas> myparams; and then check out "
+                  "myparams.combinations array");
+
+    // if combination is valid, construct the matrices
+    static constexpr std::size_t M = (sM != 0) ? sM : 8;
+    static constexpr std::size_t N = (sN != 0) ? sN : 8;
+    static constexpr std::size_t K =
+        (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 32 : 16);
+
+    template <typename Group>
+    using joint_matrix_a =
+        joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_b =
+        joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+    template <typename Group>
+    using joint_matrix_accumulator =
+        joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
+
+    bool dynamic_p = false; // no dynamic allocation on the GPU
+    uint32_t numtiles = -1; // does not apply for DPAS
+    scope_t scope = scope_t::sub_group;
   };
-  static constexpr int num_combinations =
-      sizeof(combinations) / sizeof(combination);
-};
-
-// Valid or not:
-// Specialization when both types and sizes are given
-template <typename Ta, typename Tb, typename Tc, int sM, int sN, int sK>
-struct tpu_params<
-    tpu::dpas, Ta, Tb, Tc, sM, sN, sK,
-    typename std::enable_if<((!std::is_same_v<Ta, void> && sM != 0))>::type> {
-  // Validate that parameters are supported
-  static_assert((sM == 0 && sN == 0 && sK == 0) ||
-                    (is_combination_valid_dpas<Ta, Tb, Tc>(sM, sN, sK)),
-                "Invalid parameters for DPAS, query valid combinations "
-                "using: tpu_params<tpu::dpas> myparams; and then check out "
-                "myparams.combinations array");
-
-  // if combination is valid, construct the matrices
-  static constexpr std::size_t M = (sM != 0) ? sM : 8;
-  static constexpr std::size_t N = (sN != 0) ? sN : 8;
-  static constexpr std::size_t K =
-      (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 32 : 16);
-
-  template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Ta, M, K, use::a, layout::row_major, Group>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Tb, K, N, use::b, layout::packed_b, Group>;
-  template <typename Group>
-  using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::row_major, Group>;
-
-  bool dynamic_p = false; // no dynamic allocation on the GPU
-  uint32_t numtiles = -1; // does not apply for DPAS
-  scope_t scope = scope_t::sub_group;
-};
 #endif
-} // namespace experimental::matrix
-} // namespace oneapi
-} // namespace ext
+  } // namespace experimental::matrix
+  } // namespace oneapi
+  } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
