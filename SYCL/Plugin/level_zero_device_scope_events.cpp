@@ -24,7 +24,7 @@
 //
 // MODE2: ze_event_pool_desc_t flags set to: 1
 // MODE2: ZE ---> zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent)
-// MODE2: ZE ---> zeCommandListAppendSignalEvent(CommandList->first, HostVisibleEvent->ZeEvent)
+// MODE2: ZE ---> zeCommandListAppendBarrier(CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr)
 // MODE2: ZE ---> zeCommandListClose(CommandList->first)
 // MODE2: ZE ---> zeCommandQueueExecuteCommandLists(ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence)
 // clang-format on
