@@ -2291,6 +2291,79 @@ void reduction_parallel_for(handler &CGH,
     });
   }
 }
+
+template <typename KernelName, int Dims, typename PropertiesT,
+          typename KernelType, typename Reduction>
+void reduction_parallel_for_basic_impl(
+    handler &CGH, std::shared_ptr<detail::queue_impl> Queue,
+    nd_range<Dims> Range, PropertiesT Properties, Reduction Redu,
+    KernelType KernelFunc) {
+  // This parallel_for() is lowered to the following sequence:
+  // 1) Call a kernel that a) call user's lambda function and b) performs
+  //    one iteration of reduction, storing the partial reductions/sums
+  //    to either a newly created global buffer or to user's reduction
+  //    accessor. So, if the original 'Range' has totally
+  //    N1 elements and work-group size is W, then after the first iteration
+  //    there will be N2 partial sums where N2 = N1 / W.
+  //    If (N2 == 1) then the partial sum is written to user's accessor.
+  //    Otherwise, a new global buffer is created and partial sums are written
+  //    to it.
+  // 2) Call an aux kernel (if necessary, i.e. if N2 > 1) as many times as
+  //    necessary to reduce all partial sums into one final sum.
+
+  // Before running the kernels, check that device has enough local memory
+  // to hold local arrays that may be required for the reduction algorithm.
+  // TODO: If the work-group-size is limited by the local memory, then
+  // a special version of the main kernel may be created. The one that would
+  // not use local accessors, which means it would not do the reduction in
+  // the main kernel, but simply generate Range.get_global_range.size() number
+  // of partial sums, leaving the reduction work to the additional/aux
+  // kernels.
+  constexpr bool HFR = Reduction::has_fast_reduce;
+  size_t OneElemSize = HFR ? 0 : sizeof(typename Reduction::result_type);
+  // TODO: currently the maximal work group size is determined for the given
+  // queue/device, while it may be safer to use queries to the kernel compiled
+  // for the device.
+  size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
+  if (Range.get_local_range().size() > MaxWGSize)
+    throw sycl::runtime_error("The implementation handling parallel_for with"
+                              " reduction requires work group size not bigger"
+                              " than " +
+                                  std::to_string(MaxWGSize),
+                              PI_ERROR_INVALID_WORK_GROUP_SIZE);
+
+  // 1. Call the kernel that includes user's lambda function.
+  reduCGFunc<KernelName>(CGH, KernelFunc, Range, Properties, Redu);
+  reduction::finalizeHandler(CGH);
+
+  // 2. Run the additional kernel as many times as needed to reduce
+  // all partial sums into one scalar.
+
+  // TODO: Create a special slow/sequential version of the kernel that would
+  // handle the reduction instead of reporting an assert below.
+  if (MaxWGSize <= 1)
+    throw sycl::runtime_error("The implementation handling parallel_for with "
+                              "reduction requires the maximal work group "
+                              "size to be greater than 1 to converge. "
+                              "The maximal work group size depends on the "
+                              "device and the size of the objects passed to "
+                              "the reduction.",
+                              PI_ERROR_INVALID_WORK_GROUP_SIZE);
+  size_t NWorkItems = Range.get_group_range().size();
+  while (NWorkItems > 1) {
+    reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
+      NWorkItems = reduAuxCGFunc<KernelName, KernelType>(AuxHandler, NWorkItems,
+                                                         MaxWGSize, Redu);
+    });
+  } // end while (NWorkItems > 1)
+
+  if (Reduction::is_usm) {
+    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+    });
+  }
+}
+
 } // namespace detail
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
