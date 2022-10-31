@@ -127,7 +127,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_PARENT_DEVICE: {
     if (param_value)
-      *static_cast<pi_device **>(param_value) = nullptr;
+      *static_cast<pi_device *>(param_value) = nullptr;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(pi_device *);
     return PI_SUCCESS;
@@ -407,7 +407,7 @@ inline pi_result mock_piProgramGetInfo(pi_program program,
   switch (param_name) {
   case PI_PROGRAM_INFO_NUM_DEVICES: {
     if (param_value)
-      *static_cast<size_t *>(param_value) = 1;
+      *static_cast<unsigned int *>(param_value) = 1;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(size_t);
     return PI_SUCCESS;
