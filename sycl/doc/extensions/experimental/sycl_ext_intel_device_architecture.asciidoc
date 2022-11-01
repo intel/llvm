@@ -1,4 +1,4 @@
-= sycl_ext_intel_device_architecture
+= sycl_ext_oneapi_device_architecture
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -78,7 +78,7 @@ extension enables such applications.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_INTEL_DEVICE_ARCHITECTURE` to one of the values defined in the
+macro `SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE` to one of the values defined in the
 table below.  Applications can test for the existence of this macro to
 determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
@@ -98,7 +98,7 @@ implementation supports.
 This extension adds a new enumeration of the architectures that can be tested.
 
 ```
-namespace sycl::ext::intel::experimental {
+namespace sycl::ext::oneapi::experimental {
 
 enum class architecture : /* unspecified */ {
   x86_64,
@@ -137,10 +137,52 @@ enum class architecture : /* unspecified */ {
   intel_gpu_11_0_0 = intel_gpu_icllp,
   intel_gpu_11_2_0 = intel_gpu_ehl,
   intel_gpu_12_0_0 = intel_gpu_tgllp,
-  intel_gpu_12_10_0 = intel_gpu_dg1
+  intel_gpu_12_10_0 = intel_gpu_dg1,
+
+  nvidia_gpu_sm20,
+  nvidia_gpu_sm30,
+  nvidia_gpu_sm32,
+  nvidia_gpu_sm35,
+  nvidia_gpu_sm37,
+  nvidia_gpu_sm50,
+  nvidia_gpu_sm52,
+  nvidia_gpu_sm53,
+  nvidia_gpu_sm60,
+  nvidia_gpu_sm61,
+  nvidia_gpu_sm62,
+  nvidia_gpu_sm70,
+  nvidia_gpu_sm72,
+  nvidia_gpu_sm75,
+  nvidia_gpu_sm80,
+  nvidia_gpu_sm86,
+  nvidia_gpu_sm87,
+  nvidia_gpu_sm89,
+  nvidia_gpu_sm90,
+
+  amd_gpu_gfx700,
+  amd_gpu_gfx701,
+  amd_gpu_gfx702,
+  amd_gpu_gfx801,
+  amd_gpu_gfx802,
+  amd_gpu_gfx803,
+  amd_gpu_gfx805,
+  amd_gpu_gfx810,
+  amd_gpu_gfx900,
+  amd_gpu_gfx902,
+  amd_gpu_gfx904,
+  amd_gpu_gfx906,
+  amd_gpu_gfx908,
+  amd_gpu_gfx90a,
+  amd_gpu_gfx1010,
+  amd_gpu_gfx1011,
+  amd_gpu_gfx1012,
+  amd_gpu_gfx1013,
+  amd_gpu_gfx1030,
+  amd_gpu_gfx1031,
+  amd_gpu_gfx1032
 };
 
-} // namespace sycl::ext::intel::experimental
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 The following table tells which version of this extension first included each
@@ -295,6 +337,167 @@ of these enumerators, and it provides a brief description of their meanings.
 |`intel_gpu_12_10_0`
 |1
 |Alias for `intel_gpu_dg1`.
+
+|`nvidia_gpu_sm20`
+|1
+|NVIDIA Fermi architecture.
+
+|`nvidia_gpu_sm30`
+|1
+|NVIDIA Kepler architecture.
+
+|`nvidia_gpu_sm32`
+|1
+|NVIDIA Kepler architecture.
+
+|`nvidia_gpu_sm35`
+|1
+|NVIDIA Kepler architecture.
+
+|`nvidia_gpu_sm37`
+|1
+|NVIDIA Kepler architecture.
+
+|`nvidia_gpu_sm50`
+|1
+|NVIDIA Maxwell architecture.
+
+|`nvidia_gpu_sm52`
+|1
+|NVIDIA Maxwell architecture.
+
+|`nvidia_gpu_sm53`
+|1
+|NVIDIA Maxwell architecture.
+
+|`nvidia_gpu_sm60`
+|1
+|NVIDIA Pascal architecture.
+
+|`nvidia_gpu_sm61`
+|1
+|NVIDIA Pascal architecture.
+
+|`nvidia_gpu_sm62`
+|1
+|NVIDIA Pascal architecture.
+
+|`nvidia_gpu_sm70`
+|1
+|NVIDIA Volta architecture.
+
+|`nvidia_gpu_sm72`
+|1
+|NVIDIA Volta architecture.
+
+|`nvidia_gpu_sm75`
+|1
+|NVIDIA Turing architecture.
+
+|`nvidia_gpu_sm80`
+|1
+|NVIDIA Ampere architecture.
+
+|`nvidia_gpu_sm86`
+|1
+|NVIDIA Ampere architecture.
+
+|`nvidia_gpu_sm87`
+|1
+|Jetson/Drive AGX Orin architecture.
+
+|`nvidia_gpu_sm89`
+|1
+|NVIDIA Ada Lovelace architecture.
+
+|`nvidia_gpu_sm90`
+|1
+|NVIDIA Hopper architecture.
+
+|`amd_gpu_gfx700`
+|1
+|AMD GCN GFX7 (Sea Islands (CI)) architecture.
+
+|`amd_gpu_gfx701`
+|1
+|AMD GCN GFX7 (Sea Islands (CI)) architecture.
+
+|`amd_gpu_gfx702`
+|1
+|AMD GCN GFX7 (Sea Islands (CI)) architecture.
+
+|`amd_gpu_gfx801`
+|1
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx802`
+|1
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx803`
+|1
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx805`
+|1
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx810`
+|1
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx900`
+|1
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx902`
+|1
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx904`
+|1
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx906`
+|1
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx908`
+|1
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx90a`
+|1
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx1010`
+|1
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1011`
+|1
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1012`
+|1
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1013`
+|1
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1030`
+|1
+|AMD GCN GFX10.3 (RDNA 2) architecture.
+
+|`amd_gpu_gfx1031`
+|1
+|GCN GFX10.3 (RDNA 2) architecture.
+
+|`amd_gpu_gfx1032`
+|1
+|GCN GFX10.3 (RDNA 2) architecture.
+
 |===
 
 [NOTE]
@@ -310,12 +513,12 @@ This extension adds one new free function which may be called from device
 code.  This function is not available in host code.
 
 ```
-namespace sycl::ext::intel::experimental {
+namespace sycl::ext::oneapi::experimental {
 
 template<architecture ...Archs, typename ...Args, typename T>
 /* unspecified */ if_architecture_is(T fn, Args ...args);
 
-} // namespace sycl::ext::intel::experimental
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 This function operates exactly like `if_device_has` from the
@@ -362,8 +565,8 @@ will include the following:
 namespace sycl {
 
 class device {
-  bool ext_intel_architecture_is(
-    ext::intel::experimental::architecture arch);
+  bool ext_oneapi_architecture_is(
+    ext::oneapi::experimental::architecture arch);
 };
 
 // namespace sycl
@@ -373,12 +576,12 @@ This provides a way to query a device's architecture from host code.
 --
 
 * An extended device information descriptor named
-  `sycl::ext::intel::experimental::info::device::architecture`, which returns
+  `sycl::ext::oneapi::experimental::info::device::architecture`, which returns
   the architecture of the device.  This allows host code such as:
 +
 --
 ```
-using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
 
 architecture arch = dev.get_info<info::device::architecture>();
 switch (arch) {
@@ -398,7 +601,7 @@ case architecture::intel_gpu_bdw:
 +
 --
 ```
-namespace sycl::ext::intel::experimental {
+namespace sycl::ext::oneapi::experimental {
 
 struct device_architecture_is_key {
   template <architecture... Archs>
@@ -417,7 +620,7 @@ template <architecture... Archs>
 inline constexpr device_architecture_is_key::value_t<Archs...>
   device_architecture_is;
 
-} // namespace sycl::ext::intel::experimental
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 This property indicates that a kernel or non-kernel device function uses
