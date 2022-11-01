@@ -29,6 +29,19 @@ static pi_result redefinedDeviceGetInfo(pi_device Device,
     auto *Result = reinterpret_cast<_pi_device_type *>(ParamValue);
     *Result = PI_DEVICE_TYPE_CPU;
   }
+
+  // This mock device has no sub-devices
+  if (ParamName == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = 0;
+    }
+  }
+  if (ParamName == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(ParamValueSize == sizeof(pi_device_affinity_domain));
+    if (ParamValue) {
+      *static_cast<pi_device_affinity_domain *>(ParamValue) = 0;
+    }
+  }
   return PI_SUCCESS;
 }
 
