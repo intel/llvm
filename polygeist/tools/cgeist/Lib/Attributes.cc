@@ -40,7 +40,6 @@ static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
   std::vector<mlir::Attribute> Vec =
       PassThroughAttr.getValue().cast<ArrayAttr>().getValue().vec();
 
-  // TODO: find a way to add the attributes only if one does not exist already.
   if (Attr.getValue().isa<UnitAttr>())
     Vec.push_back(Attr.getName());
   else
