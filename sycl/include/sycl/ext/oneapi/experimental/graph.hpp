@@ -104,9 +104,9 @@ struct graph_impl {
   }
 
   void exec_and_wait(sycl::queue q) {
-    if(first) {
-        exec(q);
-        first=false;
+    if (first) {
+      exec(q);
+      first = false;
     }
     q.wait();
   }
@@ -143,20 +143,15 @@ struct node {
   void set_root() { my_graph->add_root(my_node); }
 };
 
-enum class graph_state{
-  modifiable,
-  executable
-};
+enum class graph_state { modifiable, executable };
 
-template<graph_state State=graph_state::modifiable>
-class command_graph {
+template <graph_state State = graph_state::modifiable> class command_graph {
 public:
   // Adding empty node with [0..n] predecessors:
   node add(const std::vector<node> &dep = {});
 
   // Adding device node:
-  template <typename T>
-  node add(T cgf, const std::vector<node> &dep = {});
+  template <typename T> node add(T cgf, const std::vector<node> &dep = {});
 
   // Adding dependency between two nodes.
   void make_edge(node sender, node receiver);
@@ -164,7 +159,8 @@ public:
   // TODO: Extend queue to directly submit graph
   void exec_and_wait(sycl::queue q);
 
-  command_graph<graph_state::executable> finalize(const sycl::context &syclContext) const;
+  command_graph<graph_state::executable>
+  finalize(const sycl::context &syclContext) const;
 
   command_graph() : my_graph(new detail::graph_impl()) {}
 
@@ -172,25 +168,26 @@ private:
   detail::graph_ptr my_graph;
 };
 
-template<>
-class command_graph<graph_state::executable>{
+template <> class command_graph<graph_state::executable> {
 public:
   int my_tag;
-  const sycl::context& my_ctx;
+  const sycl::context &my_ctx;
 
   void exec_and_wait(sycl::queue q);
 
   command_graph() = delete;
 
-  command_graph(detail::graph_ptr g, const sycl::context& ctx)
-      : my_graph(g) , my_ctx(ctx), my_tag(rand()) {}
+  command_graph(detail::graph_ptr g, const sycl::context &ctx)
+      : my_graph(g), my_ctx(ctx), my_tag(rand()) {}
 
 private:
   detail::graph_ptr my_graph;
 };
 
-template<> template<typename T>
-node command_graph<graph_state::modifiable>::add(T cgf, const std::vector<node> &dep) {
+template <>
+template <typename T>
+node command_graph<graph_state::modifiable>::add(T cgf,
+                                                 const std::vector<node> &dep) {
   node _node(my_graph, cgf);
   if (!dep.empty()) {
     for (auto n : dep)
@@ -201,19 +198,24 @@ node command_graph<graph_state::modifiable>::add(T cgf, const std::vector<node> 
   return _node;
 }
 
-template<>
-void command_graph<graph_state::modifiable>::make_edge(node sender, node receiver) {
+template <>
+void command_graph<graph_state::modifiable>::make_edge(node sender,
+                                                       node receiver) {
   sender.register_successor(receiver);     // register successor
   my_graph->remove_root(receiver.my_node); // remove receiver from root node
                                            // list
 }
 
-template<>
-command_graph<graph_state::executable> command_graph<graph_state::modifiable>::finalize(const sycl::context &ctx) const {
-  return command_graph<graph_state::executable>{ this->my_graph, ctx };
+template <>
+command_graph<graph_state::executable>
+command_graph<graph_state::modifiable>::finalize(
+    const sycl::context &ctx) const {
+  return command_graph<graph_state::executable>{this->my_graph, ctx};
 }
 
-void command_graph<graph_state::executable>::exec_and_wait(sycl::queue q) { my_graph->exec_and_wait(q); };
+void command_graph<graph_state::executable>::exec_and_wait(sycl::queue q) {
+  my_graph->exec_and_wait(q);
+};
 
 } // namespace experimental
 } // namespace oneapi
