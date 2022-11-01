@@ -53,17 +53,21 @@ template <typename T, int N> void check(queue &Queue) {
         if (SGid % N == 0 && (SGid + N) * SGsize <= L) {
           size_t SGOffset = SGid * SGsize;
           size_t WGSGoffset = NdItem.get_group(0) * L + SGOffset;
-          multi_ptr<T, access::address_space::global_space> mp(
+          auto mp = address_space_cast<access::address_space::global_space,
+                                       sycl::access::decorated::yes>(
               &acc[WGSGoffset]);
-          multi_ptr<T, access::address_space::local_space> MPL(
+          auto MPL = address_space_cast<access::address_space::local_space,
+                                        sycl::access::decorated::yes>(
               &LocalMem[SGOffset]);
 
           // half does not have full support for volatile type qualifier
           using CVT = std::conditional_t<std::is_same_v<T, half>, const T,
                                          const volatile T>;
 
-          multi_ptr<CVT, mp.address_space> mp_cv(mp);
-          multi_ptr<CVT, MPL.address_space> MPL_CV(MPL);
+          multi_ptr<CVT, mp.address_space, sycl::access::decorated::yes> mp_cv(
+              mp);
+          multi_ptr<CVT, MPL.address_space, sycl::access::decorated::yes>
+              MPL_CV(MPL);
           // Add all values in read block
           vec<T, N> v(SG.load<N, T>(mp));
           vec<T, N> v_cv(SG.load<N, CVT>(mp_cv));
@@ -139,16 +143,21 @@ template <typename T> void check(queue &Queue) {
         size_t SGOffset =
             SG.get_group_id().get(0) * SG.get_max_local_range().get(0);
         size_t WGSGoffset = NdItem.get_group(0) * L + SGOffset;
-        multi_ptr<T, access::address_space::global_space> mp(&acc[WGSGoffset]);
-        multi_ptr<T, access::address_space::local_space> MPL(
+        auto mp =
+            address_space_cast<access::address_space::global_space,
+                               sycl::access::decorated::yes>(&acc[WGSGoffset]);
+        auto MPL = address_space_cast<access::address_space::local_space,
+                                      sycl::access::decorated::yes>(
             &LocalMem[SGOffset]);
 
         // half does not have full support for volatile type qualifier
         using CVT = std::conditional_t<std::is_same_v<T, half>, const T,
                                        const volatile T>;
 
-        multi_ptr<CVT, mp.address_space> mp_cv(mp);
-        multi_ptr<CVT, MPL.address_space> MPL_CV(MPL);
+        multi_ptr<CVT, mp.address_space, sycl::access::decorated::yes> mp_cv(
+            mp);
+        multi_ptr<CVT, MPL.address_space, sycl::access::decorated::yes> MPL_CV(
+            MPL);
         T s = SG.load<T>(mp) + (T)SG.get_local_id().get(0);
         T s_cv = SG.load<CVT>(mp_cv) + (T)SG.get_local_id().get(0);
         if (s == s_cv) // Store result only if same for non-cv and cv

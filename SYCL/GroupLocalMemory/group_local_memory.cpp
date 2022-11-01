@@ -46,9 +46,11 @@ int main() {
             // would be:
             // auto Ptr = group_local_memory<Foo>(Item.get_group(), ...);
             // Foo &Ref = *group_local_memory<Foo>(Item.get_group(), ...);
-            multi_ptr<Foo, access::address_space::local_space> Ptr =
-                group_local_memory<Foo>(Item.get_group(), 1,
-                                        CounterAcc[Item.get_group_linear_id()]);
+            multi_ptr<Foo, access::address_space::local_space,
+                      sycl::access::decorated::legacy>
+                Ptr = group_local_memory<Foo>(
+                    Item.get_group(), 1,
+                    CounterAcc[Item.get_group_linear_id()]);
             Ptr->Values[Item.get_local_linear_id()] *=
                 Item.get_local_linear_id();
 
@@ -78,8 +80,10 @@ int main() {
       auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
       Cgh.parallel_for<KernelB>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
-            multi_ptr<int[WgSize], access::address_space::local_space> Ptr =
-                group_local_memory_for_overwrite<int[WgSize]>(Item.get_group());
+            multi_ptr<int[WgSize], access::address_space::local_space,
+                      sycl::access::decorated::legacy>
+                Ptr = group_local_memory_for_overwrite<int[WgSize]>(
+                    Item.get_group());
             (*Ptr)[Item.get_local_linear_id()] = Item.get_local_linear_id();
 
             Item.barrier();

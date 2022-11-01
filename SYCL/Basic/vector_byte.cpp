@@ -59,8 +59,9 @@ int main() {
           cgh.single_task<class st>([=]() {
             // load
             sycl::multi_ptr<std::byte,
-                            sycl::access::address_space::global_space>
-                mp(&Acc[0]);
+                            sycl::access::address_space::global_space,
+                            sycl::access::decorated::yes>
+                mp(Acc);
             sycl::vec<std::byte, 8> sycl_vec;
             sycl_vec.load(0, mp);
             sycl_vec[0] = std::byte{2};
