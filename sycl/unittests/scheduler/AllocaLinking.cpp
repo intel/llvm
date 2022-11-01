@@ -17,10 +17,11 @@ using namespace sycl;
 
 static bool HostUnifiedMemory = false;
 
-static pi_result redefinedDeviceGetInfo(pi_device Device,
-                                        pi_device_info ParamName,
-                                        size_t ParamValueSize, void *ParamValue,
-                                        size_t *ParamValueSizeRet) {
+static pi_result redefinedDeviceGetInfoAfter(pi_device Device,
+                                             pi_device_info ParamName,
+                                             size_t ParamValueSize,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
   if (ParamName == PI_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
     auto *Result = reinterpret_cast<pi_bool *>(ParamValue);
     *Result = HostUnifiedMemory;
@@ -30,16 +31,6 @@ static pi_result redefinedDeviceGetInfo(pi_device Device,
   }
   return PI_SUCCESS;
 }
-
-static pi_result
-redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                         void *host_ptr, pi_mem *ret_mem,
-                         const pi_mem_properties *properties = nullptr) {
-  *ret_mem = nullptr;
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
 TEST_F(SchedulerTest, AllocaLinking) {
   // This host device constructor should be placed before Mock.redefine
@@ -52,9 +43,8 @@ TEST_F(SchedulerTest, AllocaLinking) {
 
   sycl::unittest::PiMock Mock;
   sycl::queue Q{Mock.getPlatform().get_devices()[0]};
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
+  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAfter);
   sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;
