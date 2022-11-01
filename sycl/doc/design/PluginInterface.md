@@ -100,7 +100,7 @@ During device selection, the user can prefer selection of a device from a
 specific Plugin or Backend using the env ONEAPI_DEVICE_SELECTOR. The correspondence between
 a plugin and a ONEAPI_DEVICE_SELECTOR value is currently hardcoded in the runtime.
 ( TBD: Make this a part of configuration file).
-Eg: ONEAPI_DEVICE_SELECTOR=opencl corresponds to OpenCL Plugin.
+Eg: ONEAPI_DEVICE_SELECTOR=opencl:* corresponds to OpenCL Plugin.
 
 #### OpenCL plugin
 

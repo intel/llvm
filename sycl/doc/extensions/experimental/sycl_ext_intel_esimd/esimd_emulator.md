@@ -86,7 +86,7 @@ mkdir build && cd build
 cmake \
  -DCMAKE_CXX_COMPILER=clang++ \
  -DTEST_SUITE_SUBDIRS=SYCL \
- -DONEAPI_DEVICE_SELECTOR="esimd_emulator" \
+ -DONEAPI_DEVICE_SELECTOR="esimd_emulator:*" \
  -DSYCL_TARGET_DEVICES="gpu" \
  ..
 
@@ -97,7 +97,7 @@ make check
 cmake -G Ninja \
  -DCMAKE_CXX_COMPILER=clang++ \
  -DTEST_SUITE_SUBDIRS=SYCL \
- -DONEAPI_DEVICE_SELECTOR="esimd_emulator" \
+ -DONEAPI_DEVICE_SELECTOR="esimd_emulator:*" \
  -DSYCL_TARGET_DEVICES="gpu" \
  ..
 
