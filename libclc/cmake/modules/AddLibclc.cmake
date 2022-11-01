@@ -116,7 +116,7 @@ macro(add_libclc_builtin_set arch_suffix)
       set( obj_suffix_mangled "libspirv-amdgcn-amd-amdhsa.bc")
     else()
       set( obj_suffix_mangled "${obj_suffix}")
-		endif()
+    endif()
     # All permutations of [l32, l64] and [signed, unsigned]
     foreach(long_width ${long_widths})
       foreach(signedness ${char_signedness})
