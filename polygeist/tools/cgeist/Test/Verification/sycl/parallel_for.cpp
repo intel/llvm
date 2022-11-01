@@ -10,7 +10,7 @@
 
 // Test that all referenced sycl header functions are generated.
 // RUN: llvm-dis %t.bc
-// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func{{^__builtin_}}"
+// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
 
 // Test that the kernel named `kernel_parallel_for` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_parallel_for(
@@ -38,10 +38,7 @@ void host_parallel_for(std::array<int, N> &A) {
 }
 
 int main() {
-  std::array<int, N> A;
-  for (unsigned i = 0; i < N; ++i) {
-    A[i] = 0;
-  }
+  std::array<int, N> A{0};
   host_parallel_for(A);
   for (unsigned i = 0; i < N; ++i) {
     assert(A[i] == i);

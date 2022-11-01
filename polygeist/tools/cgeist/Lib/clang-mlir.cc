@@ -1806,7 +1806,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     } else {
       res = builder.create<arith::CmpIOp>(loc, IPred, lhs_v, rhs_v);
     }
-    return fixInteger(res);
+    return ValueCategory(res, /*isReference*/ false);
   }
 
   case clang::BinaryOperator::Opcode::BO_Comma: {
