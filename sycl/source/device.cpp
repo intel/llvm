@@ -69,6 +69,7 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
     if (!found_devices.empty())
       devices.insert(devices.end(), found_devices.begin(), found_devices.end());
   }
+
   return devices;
 }
 
