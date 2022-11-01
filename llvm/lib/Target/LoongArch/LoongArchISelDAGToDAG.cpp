@@ -77,6 +77,59 @@ void LoongArchDAGToDAGISel::Select(SDNode *Node) {
   SelectCode(Node);
 }
 
+bool LoongArchDAGToDAGISel::SelectInlineAsmMemoryOperand(
+    const SDValue &Op, unsigned ConstraintID, std::vector<SDValue> &OutOps) {
+  switch (ConstraintID) {
+  default:
+    llvm_unreachable("unexpected asm memory constraint");
+  // Reg+Reg addressing.
+  case InlineAsm::Constraint_k:
+    OutOps.push_back(Op.getOperand(0));
+    OutOps.push_back(Op.getOperand(1));
+    return false;
+  // Reg+simm12 addressing.
+  case InlineAsm::Constraint_m: {
+    SDValue Base = Op;
+    SDValue Offset =
+        CurDAG->getTargetConstant(0, SDLoc(Op), Subtarget->getGRLenVT());
+    if (CurDAG->isBaseWithConstantOffset(Op)) {
+      ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Op.getOperand(1));
+      if (isIntN(12, CN->getSExtValue())) {
+        Base = Op.getOperand(0);
+        Offset = CurDAG->getTargetConstant(CN->getZExtValue(), SDLoc(Op),
+                                           Op.getValueType());
+      }
+    }
+    OutOps.push_back(Base);
+    OutOps.push_back(Offset);
+    return false;
+  }
+  case InlineAsm::Constraint_ZB:
+    OutOps.push_back(Op);
+    // No offset.
+    return false;
+  // Reg+(simm14<<2) addressing.
+  case InlineAsm::Constraint_ZC: {
+    SDValue Base = Op;
+    SDValue Offset =
+        CurDAG->getTargetConstant(0, SDLoc(Op), Subtarget->getGRLenVT());
+    if (CurDAG->isBaseWithConstantOffset(Op)) {
+      ConstantSDNode *CN = dyn_cast<ConstantSDNode>(Op.getOperand(1));
+      if (isIntN(16, CN->getSExtValue()) &&
+          isAligned(Align(4ULL), CN->getZExtValue())) {
+        Base = Op.getOperand(0);
+        Offset = CurDAG->getTargetConstant(CN->getZExtValue(), SDLoc(Op),
+                                           Op.getValueType());
+      }
+    }
+    OutOps.push_back(Base);
+    OutOps.push_back(Offset);
+    return false;
+  }
+  }
+  return true;
+}
+
 bool LoongArchDAGToDAGISel::SelectBaseAddr(SDValue Addr, SDValue &Base) {
   // If this is FrameIndex, select it directly. Otherwise just let it get
   // selected to a register independently.
@@ -85,6 +138,14 @@ bool LoongArchDAGToDAGISel::SelectBaseAddr(SDValue Addr, SDValue &Base) {
         CurDAG->getTargetFrameIndex(FIN->getIndex(), Subtarget->getGRLenVT());
   else
     Base = Addr;
+  return true;
+}
+
+bool LoongArchDAGToDAGISel::selectNonFIBaseAddr(SDValue Addr, SDValue &Base) {
+  // If this is FrameIndex, don't select it.
+  if (isa<FrameIndexSDNode>(Addr))
+    return false;
+  Base = Addr;
   return true;
 }
 

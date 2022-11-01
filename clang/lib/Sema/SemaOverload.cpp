@@ -12,14 +12,17 @@
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/CXXInheritance.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DependenceFlags.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
@@ -34,6 +37,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Casting.h"
 #include <algorithm>
 #include <cstdlib>
 
@@ -890,7 +894,77 @@ llvm::Optional<unsigned> DeductionFailureInfo::getCallArgIndex() {
   }
 }
 
-bool OverloadCandidateSet::OperatorRewriteInfo::shouldAddReversed(
+static bool FunctionsCorrespond(ASTContext &Ctx, const FunctionDecl *X,
+                                const FunctionDecl *Y) {
+  if (!X || !Y)
+    return false;
+  if (X->getNumParams() != Y->getNumParams())
+    return false;
+  for (unsigned I = 0; I < X->getNumParams(); ++I)
+    if (!Ctx.hasSameUnqualifiedType(X->getParamDecl(I)->getType(),
+                                    Y->getParamDecl(I)->getType()))
+      return false;
+  if (auto *FTX = X->getDescribedFunctionTemplate()) {
+    auto *FTY = Y->getDescribedFunctionTemplate();
+    if (!FTY)
+      return false;
+    if (!Ctx.isSameTemplateParameterList(FTX->getTemplateParameters(),
+                                         FTY->getTemplateParameters()))
+      return false;
+  }
+  return true;
+}
+
+static bool shouldAddReversedEqEq(Sema &S, SourceLocation OpLoc,
+                                  Expr *FirstOperand, FunctionDecl *EqFD) {
+  assert(EqFD->getOverloadedOperator() ==
+         OverloadedOperatorKind::OO_EqualEqual);
+  // C++2a [over.match.oper]p4:
+  // A non-template function or function template F named operator== is a
+  // rewrite target with first operand o unless a search for the name operator!=
+  // in the scope S from the instantiation context of the operator expression
+  // finds a function or function template that would correspond
+  // ([basic.scope.scope]) to F if its name were operator==, where S is the
+  // scope of the class type of o if F is a class member, and the namespace
+  // scope of which F is a member otherwise. A function template specialization
+  // named operator== is a rewrite target if its function template is a rewrite
+  // target.
+  DeclarationName NotEqOp = S.Context.DeclarationNames.getCXXOperatorName(
+      OverloadedOperatorKind::OO_ExclaimEqual);
+  if (isa<CXXMethodDecl>(EqFD)) {
+    // If F is a class member, search scope is class type of first operand.
+    QualType RHS = FirstOperand->getType();
+    auto *RHSRec = RHS->getAs<RecordType>();
+    if (!RHSRec)
+      return true;
+    LookupResult Members(S, NotEqOp, OpLoc,
+                         Sema::LookupNameKind::LookupMemberName);
+    S.LookupQualifiedName(Members, RHSRec->getDecl());
+    Members.suppressDiagnostics();
+    for (NamedDecl *Op : Members)
+      if (FunctionsCorrespond(S.Context, EqFD, Op->getAsFunction()))
+        return false;
+    return true;
+  }
+  // Otherwise the search scope is the namespace scope of which F is a member.
+  LookupResult NonMembers(S, NotEqOp, OpLoc,
+                          Sema::LookupNameKind::LookupOperatorName);
+  S.LookupName(NonMembers,
+               S.getScopeForContext(EqFD->getEnclosingNamespaceContext()));
+  NonMembers.suppressDiagnostics();
+  for (NamedDecl *Op : NonMembers) {
+    auto *FD = Op->getAsFunction();
+    if(auto* UD = dyn_cast<UsingShadowDecl>(Op))
+      FD = UD->getUnderlyingDecl()->getAsFunction();
+    if (FunctionsCorrespond(S.Context, EqFD, FD) &&
+        declaresSameEntity(cast<Decl>(EqFD->getDeclContext()),
+                           cast<Decl>(Op->getDeclContext())))
+      return false;
+  }
+  return true;
+}
+
+bool OverloadCandidateSet::OperatorRewriteInfo::allowsReversed(
     OverloadedOperatorKind Op) {
   if (!AllowRewrittenCandidates)
     return false;
@@ -898,14 +972,21 @@ bool OverloadCandidateSet::OperatorRewriteInfo::shouldAddReversed(
 }
 
 bool OverloadCandidateSet::OperatorRewriteInfo::shouldAddReversed(
-    ASTContext &Ctx, const FunctionDecl *FD) {
-  if (!shouldAddReversed(FD->getDeclName().getCXXOverloadedOperator()))
+    Sema &S, ArrayRef<Expr *> OriginalArgs, FunctionDecl *FD) {
+  auto Op = FD->getOverloadedOperator();
+  if (!allowsReversed(Op))
     return false;
+  if (Op == OverloadedOperatorKind::OO_EqualEqual) {
+    assert(OriginalArgs.size() == 2);
+    if (!shouldAddReversedEqEq(
+            S, OpLoc, /*FirstOperand in reversed args*/ OriginalArgs[1], FD))
+      return false;
+  }
   // Don't bother adding a reversed candidate that can never be a better
   // match than the non-reversed version.
   return FD->getNumParams() != 2 ||
-         !Ctx.hasSameUnqualifiedType(FD->getParamDecl(0)->getType(),
-                                     FD->getParamDecl(1)->getType()) ||
+         !S.Context.hasSameUnqualifiedType(FD->getParamDecl(0)->getType(),
+                                           FD->getParamDecl(1)->getType()) ||
          FD->hasAttr<EnableIfAttr>();
 }
 
@@ -2104,9 +2185,9 @@ bool Sema::IsIntegralPromotion(Expr *From, QualType FromType, QualType ToType) {
   // int can represent all the values of the source type; otherwise,
   // the source rvalue can be converted to an rvalue of type unsigned
   // int (C++ 4.5p1).
-  if (FromType->isPromotableIntegerType() && !FromType->isBooleanType() &&
+  if (Context.isPromotableIntegerType(FromType) && !FromType->isBooleanType() &&
       !FromType->isEnumeralType()) {
-    if (// We can promote any signed, promotable integer type to an int
+    if ( // We can promote any signed, promotable integer type to an int
         (FromType->isSignedIntegerType() ||
          // We can promote any unsigned integer type whose size is
          // less than int to an int.
@@ -7766,7 +7847,7 @@ void Sema::AddNonMemberOperatorCandidates(
     if (FunTmpl) {
       AddTemplateOverloadCandidate(FunTmpl, F.getPair(), ExplicitTemplateArgs,
                                    FunctionArgs, CandidateSet);
-      if (CandidateSet.getRewriteInfo().shouldAddReversed(Context, FD))
+      if (CandidateSet.getRewriteInfo().shouldAddReversed(*this, Args, FD))
         AddTemplateOverloadCandidate(
             FunTmpl, F.getPair(), ExplicitTemplateArgs,
             {FunctionArgs[1], FunctionArgs[0]}, CandidateSet, false, false,
@@ -7775,7 +7856,7 @@ void Sema::AddNonMemberOperatorCandidates(
       if (ExplicitTemplateArgs)
         continue;
       AddOverloadCandidate(FD, F.getPair(), FunctionArgs, CandidateSet);
-      if (CandidateSet.getRewriteInfo().shouldAddReversed(Context, FD))
+      if (CandidateSet.getRewriteInfo().shouldAddReversed(*this, Args, FD))
         AddOverloadCandidate(FD, F.getPair(),
                              {FunctionArgs[1], FunctionArgs[0]}, CandidateSet,
                              false, false, true, false, ADLCallKind::NotADL,
@@ -7826,12 +7907,17 @@ void Sema::AddMemberOperatorCandidates(OverloadedOperatorKind Op,
     Operators.suppressDiagnostics();
 
     for (LookupResult::iterator Oper = Operators.begin(),
-                             OperEnd = Operators.end();
-         Oper != OperEnd;
-         ++Oper)
+                                OperEnd = Operators.end();
+         Oper != OperEnd; ++Oper) {
+      if (Oper->getAsFunction() &&
+          PO == OverloadCandidateParamOrder::Reversed &&
+          !CandidateSet.getRewriteInfo().shouldAddReversed(
+              *this, {Args[1], Args[0]}, Oper->getAsFunction()))
+        continue;
       AddMethodCandidate(Oper.getPair(), Args[0]->getType(),
                          Args[0]->Classify(Context), Args.slice(1),
                          CandidateSet, /*SuppressUserConversion=*/false, PO);
+    }
   }
 }
 
@@ -9527,7 +9613,7 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
           FD, FoundDecl, Args, CandidateSet, /*SuppressUserConversions=*/false,
           PartialOverloading, /*AllowExplicit=*/true,
           /*AllowExplicitConversion=*/false, ADLCallKind::UsesADL);
-      if (CandidateSet.getRewriteInfo().shouldAddReversed(Context, FD)) {
+      if (CandidateSet.getRewriteInfo().shouldAddReversed(*this, Args, FD)) {
         AddOverloadCandidate(
             FD, FoundDecl, {Args[1], Args[0]}, CandidateSet,
             /*SuppressUserConversions=*/false, PartialOverloading,
@@ -9541,7 +9627,7 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
           /*SuppressUserConversions=*/false, PartialOverloading,
           /*AllowExplicit=*/true, ADLCallKind::UsesADL);
       if (CandidateSet.getRewriteInfo().shouldAddReversed(
-              Context, FTD->getTemplatedDecl())) {
+              *this, Args, FTD->getTemplatedDecl())) {
         AddTemplateOverloadCandidate(
             FTD, FoundDecl, ExplicitTemplateArgs, {Args[1], Args[0]},
             CandidateSet, /*SuppressUserConversions=*/false, PartialOverloading,
@@ -9707,19 +9793,13 @@ static bool haveSameParameterTypes(ASTContext &Context, const FunctionDecl *F1,
 
 /// We're allowed to use constraints partial ordering only if the candidates
 /// have the same parameter types:
-/// [temp.func.order]p6.2.2 [...] or if the function parameters that
-/// positionally correspond between the two templates are not of the same type,
-/// neither template is more specialized than the other.
 /// [over.match.best]p2.6
 /// F1 and F2 are non-template functions with the same parameter-type-lists,
 /// and F1 is more constrained than F2 [...]
-static bool canCompareFunctionConstraints(Sema &S,
+static bool sameFunctionParameterTypeLists(Sema &S,
                                           const OverloadCandidate &Cand1,
                                           const OverloadCandidate &Cand2) {
-  // FIXME: Per P2113R0 we also need to compare the template parameter lists
-  // when comparing template functions. 
-  if (Cand1.Function && Cand2.Function && Cand1.Function->hasPrototype() &&
-      Cand2.Function->hasPrototype()) {
+  if (Cand1.Function && Cand2.Function) {
     auto *PT1 = cast<FunctionProtoType>(Cand1.Function->getFunctionType());
     auto *PT2 = cast<FunctionProtoType>(Cand2.Function->getFunctionType());
     if (PT1->getNumParams() == PT2->getNumParams() &&
@@ -9962,15 +10042,14 @@ bool clang::isBetterOverloadCandidate(
             isa<CXXConversionDecl>(Cand1.Function) ? TPOC_Conversion
                                                    : TPOC_Call,
             Cand1.ExplicitCallArguments, Cand2.ExplicitCallArguments,
-            Cand1.isReversed() ^ Cand2.isReversed(),
-            canCompareFunctionConstraints(S, Cand1, Cand2)))
+            Cand1.isReversed() ^ Cand2.isReversed()))
       return BetterTemplate == Cand1.Function->getPrimaryTemplate();
   }
 
   //   -— F1 and F2 are non-template functions with the same
   //      parameter-type-lists, and F1 is more constrained than F2 [...],
   if (!Cand1IsSpecialization && !Cand2IsSpecialization &&
-      canCompareFunctionConstraints(S, Cand1, Cand2)) {
+      sameFunctionParameterTypeLists(S, Cand1, Cand2)) {
     Expr *RC1 = Cand1.Function->getTrailingRequiresClause();
     Expr *RC2 = Cand2.Function->getTrailingRequiresClause();
     if (RC1 && RC2) {
@@ -13663,14 +13742,14 @@ void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
 
   // Add operator candidates that are member functions.
   AddMemberOperatorCandidates(Op, OpLoc, Args, CandidateSet);
-  if (CandidateSet.getRewriteInfo().shouldAddReversed(Op))
+  if (CandidateSet.getRewriteInfo().allowsReversed(Op))
     AddMemberOperatorCandidates(Op, OpLoc, {Args[1], Args[0]}, CandidateSet,
                                 OverloadCandidateParamOrder::Reversed);
 
   // In C++20, also add any rewritten member candidates.
   if (ExtraOp) {
     AddMemberOperatorCandidates(ExtraOp, OpLoc, Args, CandidateSet);
-    if (CandidateSet.getRewriteInfo().shouldAddReversed(ExtraOp))
+    if (CandidateSet.getRewriteInfo().allowsReversed(ExtraOp))
       AddMemberOperatorCandidates(ExtraOp, OpLoc, {Args[1], Args[0]},
                                   CandidateSet,
                                   OverloadCandidateParamOrder::Reversed);
@@ -13801,9 +13880,9 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     return CreateBuiltinBinOp(OpLoc, Opc, Args[0], Args[1]);
 
   // Build the overload set.
-  OverloadCandidateSet CandidateSet(
-      OpLoc, OverloadCandidateSet::CSK_Operator,
-      OverloadCandidateSet::OperatorRewriteInfo(Op, AllowRewrittenCandidates));
+  OverloadCandidateSet CandidateSet(OpLoc, OverloadCandidateSet::CSK_Operator,
+                                    OverloadCandidateSet::OperatorRewriteInfo(
+                                        Op, OpLoc, AllowRewrittenCandidates));
   if (DefaultedFn)
     CandidateSet.exclude(DefaultedFn);
   LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL);
@@ -13878,6 +13957,22 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
             if (AmbiguousWithSelf) {
               Diag(FnDecl->getLocation(),
                    diag::note_ovl_ambiguous_oper_binary_reversed_self);
+              // Mark member== const or provide matching != to disallow reversed
+              // args. Eg. 
+              // struct S { bool operator==(const S&); }; 
+              // S()==S();
+              if (auto *MD = dyn_cast<CXXMethodDecl>(FnDecl))
+                if (Op == OverloadedOperatorKind::OO_EqualEqual &&
+                    !MD->isConst() &&
+                    Context.hasSameUnqualifiedType(
+                        MD->getThisObjectType(),
+                        MD->getParamDecl(0)->getType().getNonReferenceType()) &&
+                    Context.hasSameUnqualifiedType(MD->getThisObjectType(),
+                                                   Args[0]->getType()) &&
+                    Context.hasSameUnqualifiedType(MD->getThisObjectType(),
+                                                   Args[1]->getType()))
+                  Diag(FnDecl->getLocation(),
+                       diag::note_ovl_ambiguous_eqeq_reversed_self_non_const);
             } else {
               Diag(FnDecl->getLocation(),
                    diag::note_ovl_ambiguous_oper_binary_selected_candidate);
@@ -14604,7 +14699,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
       Method = cast<CXXMethodDecl>(Best->Function);
       FoundDecl = Best->FoundDecl;
       CheckUnresolvedMemberAccess(UnresExpr, Best->FoundDecl);
-      if (DiagnoseUseOfDecl(Best->FoundDecl, UnresExpr->getNameLoc()))
+      if (DiagnoseUseOfOverloadedDecl(Best->FoundDecl, UnresExpr->getNameLoc()))
         break;
       // If FoundDecl is different from Method (such as if one is a template
       // and the other a specialization), make sure DiagnoseUseOfDecl is
@@ -14613,7 +14708,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
       // DiagnoseUseOfDecl to accept both the FoundDecl and the decl
       // being used.
       if (Method != FoundDecl.getDecl() &&
-                      DiagnoseUseOfDecl(Method, UnresExpr->getNameLoc()))
+          DiagnoseUseOfOverloadedDecl(Method, UnresExpr->getNameLoc()))
         break;
       Succeeded = true;
       break;

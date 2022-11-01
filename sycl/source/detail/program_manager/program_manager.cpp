@@ -642,7 +642,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   const RT::PiDevice PiDevice = Dev->getHandleRef();
 
-  std::uintptr_t ImgId = reinterpret_cast<uintptr_t>(&Img);
+  uint32_t ImgId = Img.getImageID();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
@@ -1996,14 +1996,14 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
-  std::uintptr_t ImgId = reinterpret_cast<uintptr_t>(ImgPtr);
+  uint32_t ImgId = Img.getImageID();
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
+  auto CacheKey =
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
+                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
   // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
-      Cache,
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts)),
-      AcquireF, GetF, BuildF);
+      Cache, CacheKey, AcquireF, GetF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2024,11 +2024,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     const RT::PiDevice PiDeviceAdd =
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
-    getOrBuild<PiProgramT, compile_program_error>(
-        Cache,
-        std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                       std::make_pair(PiDeviceAdd, CompileOpts + LinkOpts)),
-        AcquireF, GetF, CacheOtherDevices);
+    // Change device in the cache key to reduce copying of spec const data.
+    CacheKey.second.first = PiDeviceAdd;
+    getOrBuild<PiProgramT, compile_program_error>(Cache, CacheKey, AcquireF,
+                                                  GetF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }

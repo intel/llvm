@@ -1,3 +1,7 @@
+def CpuSetT : NamedType<"cpu_set_t">;
+def CpuSetPtr : PtrType<CpuSetT>;
+def ConstCpuSetPtr : ConstType<CpuSetPtr>;
+
 def GnuExtensions : StandardSpec<"GNUExtensions"> {
   NamedType CookieIOFunctionsT = NamedType<"cookie_io_functions_t">;
   HeaderSpec CType = HeaderSpec<
@@ -29,9 +33,6 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
       ]
   >;
  
-  NamedType CpuSetT = NamedType<"cpu_set_t">;
-  PtrType CpuSetPtr = PtrType<CpuSetT>;
-  ConstType ConstCpuSetPtr = ConstType<CpuSetPtr>;
   HeaderSpec Sched = HeaderSpec<
       "sched.h",
       [], // Macros
@@ -61,6 +62,11 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
             "memrchr",
             RetValSpec<VoidPtr>,
             [ArgSpec<VoidPtr>, ArgSpec<IntType>, ArgSpec<SizeTType>]
+        >,
+        FunctionSpec<
+            "strerror_r",
+            RetValSpec<CharPtr>,
+            [ArgSpec<IntType>, ArgSpec<CharPtr>, ArgSpec<SizeTType>]
         >,
       ]
   >;
@@ -153,6 +159,14 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
       ]
   >;
 
+  HeaderSpec SysAuxv = HeaderSpec<
+      "sys/auxv.h",
+      [], // Macros
+      [], // Types
+      [], // Enumerations
+      []  // Functions
+  >;
+
   HeaderSpec SendFile = HeaderSpec<
       "sys/sendfile.h",
       [], // Macros
@@ -188,6 +202,7 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
     PThread,
     Sched,
     SendFile,
+    SysAuxv,
     StdIO,
     String,
     UniStd,

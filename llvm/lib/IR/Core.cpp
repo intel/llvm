@@ -147,18 +147,6 @@ LLVMAttributeRef LLVMCreateEnumAttribute(LLVMContextRef C, unsigned KindID,
                                          uint64_t Val) {
   auto &Ctx = *unwrap(C);
   auto AttrKind = (Attribute::AttrKind)KindID;
-
-  if (AttrKind == Attribute::AttrKind::ByVal) {
-    // After r362128, byval attributes need to have a type attribute. Provide a
-    // NULL one until a proper API is added for this.
-    return wrap(Attribute::getWithByValType(Ctx, nullptr));
-  }
-
-  if (AttrKind == Attribute::AttrKind::StructRet) {
-    // Same as byval.
-    return wrap(Attribute::getWithStructRetType(Ctx, nullptr));
-  }
-
   return wrap(Attribute::get(Ctx, AttrKind, Val));
 }
 
@@ -2818,7 +2806,7 @@ LLVMValueRef LLVMIsATerminatorInst(LLVMValueRef Inst) {
 
 unsigned LLVMGetNumArgOperands(LLVMValueRef Instr) {
   if (FuncletPadInst *FPI = dyn_cast<FuncletPadInst>(unwrap(Instr))) {
-    return FPI->getNumArgOperands();
+    return FPI->arg_size();
   }
   return unwrap<CallBase>(Instr)->arg_size();
 }

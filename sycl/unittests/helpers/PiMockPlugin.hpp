@@ -34,10 +34,20 @@ inline pi_result mock_piPlatformGetInfo(pi_platform platform,
                                         size_t param_value_size,
                                         void *param_value,
                                         size_t *param_value_size_ret) {
+  constexpr char MockPlatformName[] = "Mock platform";
   constexpr char MockSupportedExtensions[] =
       "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
       "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
   switch (param_name) {
+  case PI_PLATFORM_INFO_NAME: {
+    if (param_value) {
+      assert(param_value_size == sizeof(MockPlatformName));
+      std::memcpy(param_value, MockPlatformName, sizeof(MockPlatformName));
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(MockPlatformName);
+    return PI_SUCCESS;
+  }
   case PI_PLATFORM_INFO_EXTENSIONS: {
     if (param_value) {
       assert(param_value_size == sizeof(MockSupportedExtensions));
@@ -117,7 +127,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_PARENT_DEVICE: {
     if (param_value)
-      *static_cast<pi_device **>(param_value) = nullptr;
+      *static_cast<pi_device *>(param_value) = nullptr;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(pi_device *);
     return PI_SUCCESS;
@@ -397,7 +407,7 @@ inline pi_result mock_piProgramGetInfo(pi_program program,
   switch (param_name) {
   case PI_PROGRAM_INFO_NUM_DEVICES: {
     if (param_value)
-      *static_cast<size_t *>(param_value) = 1;
+      *static_cast<unsigned int *>(param_value) = 1;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(size_t);
     return PI_SUCCESS;

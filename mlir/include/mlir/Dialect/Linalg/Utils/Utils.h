@@ -41,10 +41,6 @@ bool hasOnlyScalarElementwiseOp(Region &r);
 /// Check if a LinalgOp is an element-wise operation.
 bool isElementwise(LinalgOp op);
 
-/// Check if `permutation` is a permutation of the range
-/// `[0, permutation.size())`.
-bool isPermutation(ArrayRef<int64_t> permutation);
-
 /// Check if iterator type has "parallel" semantics.
 bool isParallelIterator(StringRef iteratorType);
 
@@ -444,14 +440,6 @@ private:
   SmallVector<scf::ForOp> tileLoopOps;
   DenseMap<Operation *, SmallVector<int64_t>> tiledRootAndFusedOpsLoops;
 };
-
-/// Tiles `consumerOp` and fuses its dependencies if possible. Uses the
-/// `tileSizes`, `tileInterchange`, and `tileDistribution` parameters to control
-/// the tiling.
-FailureOr<TileLoopNest> tileConsumerAndFuseProducers(
-    OpBuilder &b, LinalgOp consumerOp, ArrayRef<int64_t> tileSizes,
-    ArrayRef<int64_t> tileInterchange,
-    const Optional<LinalgLoopDistributionOptions> &tileDistribution);
 
 //===----------------------------------------------------------------------===//
 // Generic op region utilities

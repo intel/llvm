@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include <cassert>
 
@@ -264,7 +265,8 @@ struct ConvertAddI final : OpConversionPattern<arith::AddIOp> {
                      ->convertType(op.getType())
                      .dyn_cast_or_null<VectorType>();
     if (!newTy)
-      return rewriter.notifyMatchFailure(loc, "expected scalar or vector type");
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
 
     Type newElemTy = reduceInnermostDim(newTy);
 
@@ -288,6 +290,41 @@ struct ConvertAddI final : OpConversionPattern<arith::AddIOp> {
 };
 
 //===----------------------------------------------------------------------===//
+// ConvertBitwiseBinary
+//===----------------------------------------------------------------------===//
+
+/// Conversion pattern template for bitwise binary ops, e.g., `arith.andi`.
+template <typename BinaryOp>
+struct ConvertBitwiseBinary final : OpConversionPattern<BinaryOp> {
+  using OpConversionPattern<BinaryOp>::OpConversionPattern;
+  using OpAdaptor = typename OpConversionPattern<BinaryOp>::OpAdaptor;
+
+  LogicalResult
+  matchAndRewrite(BinaryOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    auto newTy = this->getTypeConverter()
+                     ->convertType(op.getType())
+                     .template dyn_cast_or_null<VectorType>();
+    if (!newTy)
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
+
+    auto [lhsElem0, lhsElem1] =
+        extractLastDimHalves(rewriter, loc, adaptor.getLhs());
+    auto [rhsElem0, rhsElem1] =
+        extractLastDimHalves(rewriter, loc, adaptor.getRhs());
+
+    Value resElem0 = rewriter.create<BinaryOp>(loc, lhsElem0, rhsElem0);
+    Value resElem1 = rewriter.create<BinaryOp>(loc, lhsElem1, rhsElem1);
+    Value resultVec =
+        constructResultVector(rewriter, loc, newTy, {resElem0, resElem1});
+    rewriter.replaceOp(op, resultVec);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ConvertMulI
 //===----------------------------------------------------------------------===//
 
@@ -302,7 +339,8 @@ struct ConvertMulI final : OpConversionPattern<arith::MulIOp> {
                      ->convertType(op.getType())
                      .dyn_cast_or_null<VectorType>();
     if (!newTy)
-      return rewriter.notifyMatchFailure(loc, "expected scalar or vector type");
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
 
     Type newElemTy = reduceInnermostDim(newTy);
     unsigned newBitWidth = newTy.getElementTypeBitWidth();
@@ -396,7 +434,8 @@ struct ConvertExtSI final : OpConversionPattern<arith::ExtSIOp> {
                      ->convertType(op.getType())
                      .dyn_cast_or_null<VectorType>();
     if (!newTy)
-      return rewriter.notifyMatchFailure(loc, "unsupported type");
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
 
     Type newResultComponentTy = reduceInnermostDim(newTy);
 
@@ -435,7 +474,8 @@ struct ConvertExtUI final : OpConversionPattern<arith::ExtUIOp> {
                      ->convertType(op.getType())
                      .dyn_cast_or_null<VectorType>();
     if (!newTy)
-      return rewriter.notifyMatchFailure(loc, "unsupported type");
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
 
     Type newResultComponentTy = reduceInnermostDim(newTy);
 
@@ -447,6 +487,96 @@ struct ConvertExtUI final : OpConversionPattern<arith::ExtUIOp> {
     Value zeroCst = createScalarOrSplatConstant(rewriter, loc, newTy, 0);
     Value newRes = insertLastDimSlice(rewriter, loc, extended, zeroCst, 0);
     rewriter.replaceOp(op, newRes);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// ConvertShLI
+//===----------------------------------------------------------------------===//
+
+struct ConvertShLI final : OpConversionPattern<arith::ShLIOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(arith::ShLIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+
+    Type oldTy = op.getType();
+    auto newTy =
+        getTypeConverter()->convertType(oldTy).dyn_cast_or_null<VectorType>();
+    if (!newTy)
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
+
+    Type newOperandTy = reduceInnermostDim(newTy);
+    // `oldBitWidth` == `2 * newBitWidth`
+    unsigned newBitWidth = newTy.getElementTypeBitWidth();
+
+    auto [lhsElem0, lhsElem1] =
+        extractLastDimHalves(rewriter, loc, adaptor.getLhs());
+    Value rhsElem0 = extractLastDimSlice(rewriter, loc, adaptor.getRhs(), 0);
+
+    // Assume that the shift amount is < 2 * newBitWidth. Calculate the low and
+    // high halves of the results separately:
+    //   1. low := LHS.low shli RHS
+    //
+    //   2. high := a or b or c, where:
+    //     a) Bits from LHS.high, shifted by the RHS.
+    //     b) Bits from LHS.low, shifted right. These come into play when
+    //        RHS < newBitWidth, e.g.:
+    //         [0000][llll] shli 3 --> [0lll][l000]
+    //                                    ^
+    //                                    |
+    //                           [llll] shrui (4 - 3)
+    //     c) Bits from LHS.low, shifted left. These matter when
+    //        RHS > newBitWidth, e.g.:
+    //         [0000][llll] shli 7 --> [l000][0000]
+    //                                   ^
+    //                                   |
+    //                          [llll] shli (7 - 4)
+    //
+    // Because shifts by values >= newBitWidth are undefined, we ignore the high
+    // half of RHS, and introduce 'bounds checks' to account for
+    // RHS.low > newBitWidth.
+    //
+    // TODO: Explore possible optimizations.
+    Value zeroCst = createScalarOrSplatConstant(rewriter, loc, newOperandTy, 0);
+    Value elemBitWidth =
+        createScalarOrSplatConstant(rewriter, loc, newOperandTy, newBitWidth);
+
+    Value illegalElemShift = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::uge, rhsElem0, elemBitWidth);
+
+    Value shiftedElem0 =
+        rewriter.create<arith::ShLIOp>(loc, lhsElem0, rhsElem0);
+    Value resElem0 = rewriter.create<arith::SelectOp>(loc, illegalElemShift,
+                                                      zeroCst, shiftedElem0);
+
+    Value cappedShiftAmount = rewriter.create<arith::SelectOp>(
+        loc, illegalElemShift, elemBitWidth, rhsElem0);
+    Value rightShiftAmount =
+        rewriter.create<arith::SubIOp>(loc, elemBitWidth, cappedShiftAmount);
+    Value shiftedRight =
+        rewriter.create<arith::ShRUIOp>(loc, lhsElem0, rightShiftAmount);
+    Value overshotShiftAmount =
+        rewriter.create<arith::SubIOp>(loc, rhsElem0, elemBitWidth);
+    Value shiftedLeft =
+        rewriter.create<arith::ShLIOp>(loc, lhsElem0, overshotShiftAmount);
+
+    Value shiftedElem1 =
+        rewriter.create<arith::ShLIOp>(loc, lhsElem1, rhsElem0);
+    Value resElem1High = rewriter.create<arith::SelectOp>(
+        loc, illegalElemShift, zeroCst, shiftedElem1);
+    Value resElem1Low = rewriter.create<arith::SelectOp>(
+        loc, illegalElemShift, shiftedLeft, shiftedRight);
+    Value resElem1 =
+        rewriter.create<arith::OrIOp>(loc, resElem1Low, resElem1High);
+
+    Value resultVec =
+        constructResultVector(rewriter, loc, newTy, {resElem0, resElem1});
+    rewriter.replaceOp(op, resultVec);
     return success();
   }
 };
@@ -464,8 +594,14 @@ struct ConvertShRUI final : OpConversionPattern<arith::ShRUIOp> {
     Location loc = op->getLoc();
 
     Type oldTy = op.getType();
-    auto newTy = getTypeConverter()->convertType(oldTy).cast<VectorType>();
+    auto newTy =
+        getTypeConverter()->convertType(oldTy).dyn_cast_or_null<VectorType>();
+    if (!newTy)
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported type: {0}", op.getType()));
+
     Type newOperandTy = reduceInnermostDim(newTy);
+    // `oldBitWidth` == `2 * newBitWidth`
     unsigned newBitWidth = newTy.getElementTypeBitWidth();
 
     auto [lhsElem0, lhsElem1] =
@@ -549,8 +685,9 @@ struct ConvertTruncI final : OpConversionPattern<arith::TruncIOp> {
     // Check if the result type is legal for this target. Currently, we do not
     // support truncation to types wider than supported by the target.
     if (!getTypeConverter()->isLegal(op.getType()))
-      return rewriter.notifyMatchFailure(loc,
-                                         "unsupported truncation result type");
+      return rewriter.notifyMatchFailure(
+          loc, llvm::formatv("unsupported truncation result type: {0}",
+                             op.getType()));
 
     // Discard the high half of the input. Truncate the low half, if necessary.
     Value extracted = extractLastDimSlice(rewriter, loc, adaptor.getIn(), 0);
@@ -608,7 +745,7 @@ struct EmulateWideIntPass final
             opLegalCallback);
 
     RewritePatternSet patterns(ctx);
-    arith::populateWideIntEmulationPatterns(typeConverter, patterns);
+    arith::populateArithWideIntEmulationPatterns(typeConverter, patterns);
 
     if (failed(applyPartialConversion(op, target, std::move(patterns))))
       signalPassFailure();
@@ -626,6 +763,9 @@ arith::WideIntEmulationConverter::WideIntEmulationConverter(
   assert(llvm::isPowerOf2_32(widestIntSupportedByTarget) &&
          "Only power-of-two integers with are supported");
   assert(widestIntSupportedByTarget >= 2 && "Integer type too narrow");
+
+  // Allow unknown types.
+  addConversion([](Type ty) -> Optional<Type> { return ty; });
 
   // Scalar case.
   addConversion([this](IntegerType ty) -> Optional<Type> {
@@ -677,7 +817,7 @@ arith::WideIntEmulationConverter::WideIntEmulationConverter(
   });
 }
 
-void arith::populateWideIntEmulationPatterns(
+void arith::populateArithWideIntEmulationPatterns(
     WideIntEmulationConverter &typeConverter, RewritePatternSet &patterns) {
   // Populate `func.*` conversion patterns.
   populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(patterns,
@@ -690,7 +830,10 @@ void arith::populateWideIntEmulationPatterns(
       // Misc ops.
       ConvertConstant, ConvertVectorPrint,
       // Binary ops.
-      ConvertAddI, ConvertMulI, ConvertShRUI,
+      ConvertAddI, ConvertMulI, ConvertShLI, ConvertShRUI,
+      // Bitwise binary ops.
+      ConvertBitwiseBinary<arith::AndIOp>, ConvertBitwiseBinary<arith::OrIOp>,
+      ConvertBitwiseBinary<arith::XOrIOp>,
       // Extension and truncation ops.
       ConvertExtSI, ConvertExtUI, ConvertTruncI>(typeConverter,
                                                  patterns.getContext());

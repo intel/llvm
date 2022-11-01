@@ -90,6 +90,7 @@ static inline TyFP __integral2FP_host(TyINT x, int rdMode) {
   fesetround(roundingOriginal);
   return res;
 }
+#pragma STDC FENV_ACCESS OFF
 #endif // __LIBDEVICE_HOST_IMPL__
 
 template <typename Ty> static inline Ty __imax(Ty x, Ty y) {
