@@ -15,7 +15,6 @@
 #include "utils.h"
 
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
-#include "clang/../../lib/CodeGen/TargetInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 
