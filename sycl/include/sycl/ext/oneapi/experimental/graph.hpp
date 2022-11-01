@@ -13,7 +13,6 @@
 #include <list>
 #include <set>
 
-//__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
@@ -30,55 +29,55 @@ using graph_ptr = std::shared_ptr<graph_impl>;
 
 class wrapper {
   using T = std::function<void(sycl::handler &)>;
-  T my_func;
-  std::vector<sycl::event> my_deps;
+  T MFunc;
+  std::vector<sycl::event> MDeps;
 
 public:
   wrapper(T t, const std::vector<sycl::event> &deps)
-      : my_func(t), my_deps(deps){};
+      : MFunc(t), MDeps(deps){};
 
   void operator()(sycl::handler &cgh) {
-    cgh.depends_on(my_deps);
-    std::invoke(my_func, cgh);
+    cgh.depends_on(MDeps);
+    std::invoke(MFunc, cgh);
   }
 };
 
 struct node_impl {
-  bool is_scheduled;
+  bool MScheduled;
 
-  graph_ptr my_graph;
-  sycl::event my_event;
+  graph_ptr MGraph;
+  sycl::event MEvent;
 
-  std::vector<node_ptr> my_successors;
-  std::vector<node_ptr> my_predecessors;
+  std::vector<node_ptr> MSuccessors;
+  std::vector<node_ptr> MPredecessors;
 
-  std::function<void(sycl::handler &)> my_body;
+  std::function<void(sycl::handler &)> MBody;
 
   void exec(sycl::queue q) {
-    std::vector<sycl::event> __deps;
-    for (auto i : my_predecessors)
-      __deps.push_back(i->get_event());
-    my_event = q.submit(wrapper{my_body, __deps});
+    std::vector<sycl::event> deps;
+    for (auto i : MPredecessors)
+      deps.push_back(i->get_event());
+    MEvent = q.submit(wrapper{MBody, deps});
   }
 
   void register_successor(node_ptr n) {
-    my_successors.push_back(n);
+    MSuccessors.push_back(n);
     n->register_predecessor(node_ptr(this));
   }
 
-  void register_predecessor(node_ptr n) { my_predecessors.push_back(n); }
+  void register_predecessor(node_ptr n) { MPredecessors.push_back(n); }
 
-  sycl::event get_event(void) { return my_event; }
+  sycl::event get_event(void) { return MEvent; }
 
   template <typename T>
   node_impl(graph_ptr g, T cgf)
-      : is_scheduled(false), my_graph(g), my_body(cgf) {}
+      : MScheduled(false), MGraph(g), MBody(cgf) {}
 
   // Recursively adding nodes to execution stack:
   void topology_sort(std::list<node_ptr> &schedule) {
-    is_scheduled = true;
-    for (auto i : my_successors) {
-      if (!i->is_scheduled)
+    MScheduled = true;
+    for (auto i : MSuccessors) {
+      if (!i->MScheduled)
         i->topology_sort(schedule);
     }
     schedule.push_front(node_ptr(this));
@@ -86,61 +85,61 @@ struct node_impl {
 };
 
 struct graph_impl {
-  std::set<node_ptr> my_roots;
-  std::list<node_ptr> my_schedule;
+  std::set<node_ptr> MRoots;
+  std::list<node_ptr> MSchedule;
   // TODO: Change one time initialization to per executable object
-  bool first;
+  bool MFirst;
 
-  graph_ptr parent;
+  graph_ptr MParent;
 
   void exec(sycl::queue q) {
-    if (my_schedule.empty()) {
-      for (auto n : my_roots) {
-        n->topology_sort(my_schedule);
+    if (MSchedule.empty()) {
+      for (auto n : MRoots) {
+        n->topology_sort(MSchedule);
       }
     }
-    for (auto n : my_schedule)
+    for (auto n : MSchedule)
       n->exec(q);
   }
 
   void exec_and_wait(sycl::queue q) {
-    if (first) {
+    if (MFirst) {
       exec(q);
-      first = false;
+      MFirst = false;
     }
     q.wait();
   }
 
   void add_root(node_ptr n) {
-    my_roots.insert(n);
-    for (auto n : my_schedule)
-      n->is_scheduled = false;
-    my_schedule.clear();
+    MRoots.insert(n);
+    for (auto n : MSchedule)
+      n->MScheduled = false;
+    MSchedule.clear();
   }
 
   void remove_root(node_ptr n) {
-    my_roots.erase(n);
-    for (auto n : my_schedule)
-      n->is_scheduled = false;
-    my_schedule.clear();
+    MRoots.erase(n);
+    for (auto n : MSchedule)
+      n->MScheduled = false;
+    MSchedule.clear();
   }
 
-  graph_impl() : first(true) {}
+  graph_impl() : MFirst(true) {}
 };
 
 } // namespace detail
 
 struct node {
-  detail::node_ptr my_node;
-  detail::graph_ptr my_graph;
+  detail::node_ptr MNode;
+  detail::graph_ptr MGraph;
 
   template <typename T>
   node(detail::graph_ptr g, T cgf)
-      : my_graph(g), my_node(new detail::node_impl(g, cgf)){};
-  void register_successor(node n) { my_node->register_successor(n.my_node); }
-  void exec(sycl::queue q, sycl::event = sycl::event()) { my_node->exec(q); }
+      : MGraph(g), MNode(new detail::node_impl(g, cgf)){};
+  void register_successor(node n) { MNode->register_successor(n.MNode); }
+  void exec(sycl::queue q, sycl::event = sycl::event()) { MNode->exec(q); }
 
-  void set_root() { my_graph->add_root(my_node); }
+  void set_root() { MGraph->add_root(MNode); }
 };
 
 enum class graph_state { modifiable, executable };
@@ -162,47 +161,47 @@ public:
   command_graph<graph_state::executable>
   finalize(const sycl::context &syclContext) const;
 
-  command_graph() : my_graph(new detail::graph_impl()) {}
+  command_graph() : MGraph(new detail::graph_impl()) {}
 
 private:
-  detail::graph_ptr my_graph;
+  detail::graph_ptr MGraph;
 };
 
 template <> class command_graph<graph_state::executable> {
 public:
-  int my_tag;
-  const sycl::context &my_ctx;
+  int MTag;
+  const sycl::context &MCtx;
 
   void exec_and_wait(sycl::queue q);
 
   command_graph() = delete;
 
   command_graph(detail::graph_ptr g, const sycl::context &ctx)
-      : my_graph(g), my_ctx(ctx), my_tag(rand()) {}
+      : MGraph(g), MCtx(ctx), MTag(rand()) {}
 
 private:
-  detail::graph_ptr my_graph;
+  detail::graph_ptr MGraph;
 };
 
 template <>
 template <typename T>
 node command_graph<graph_state::modifiable>::add(T cgf,
                                                  const std::vector<node> &dep) {
-  node _node(my_graph, cgf);
+  node ret_val(MGraph, cgf);
   if (!dep.empty()) {
     for (auto n : dep)
-      this->make_edge(n, _node);
+      this->make_edge(n, ret_val);
   } else {
-    _node.set_root();
+    ret_val.set_root();
   }
-  return _node;
+  return ret_val;
 }
 
 template <>
 void command_graph<graph_state::modifiable>::make_edge(node sender,
                                                        node receiver) {
   sender.register_successor(receiver);     // register successor
-  my_graph->remove_root(receiver.my_node); // remove receiver from root node
+  MGraph->remove_root(receiver.MNode); // remove receiver from root node
                                            // list
 }
 
@@ -210,15 +209,15 @@ template <>
 command_graph<graph_state::executable>
 command_graph<graph_state::modifiable>::finalize(
     const sycl::context &ctx) const {
-  return command_graph<graph_state::executable>{this->my_graph, ctx};
+  return command_graph<graph_state::executable>{this->MGraph, ctx};
 }
 
 void command_graph<graph_state::executable>::exec_and_wait(sycl::queue q) {
-  my_graph->exec_and_wait(q);
+  MGraph->exec_and_wait(q);
 };
 
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
-//} // __SYCL_INLINE_NAMESPACE(cl)
+
