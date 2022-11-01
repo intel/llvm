@@ -1131,12 +1131,8 @@ struct _pi_buffer final : _pi_mem {
       }
     }
 
-    // Make first device in the context be the master. Mark that
-    // allocation (yet to be made) having "valid" data. And real
-    // allocation and initialization should follow the buffer
-    // construction with a "write_only" access copy.
-    LastDeviceWithValidAllocation = Context->Devices[0];
-    Allocations[LastDeviceWithValidAllocation].Valid = true;
+    // This initialization does not end up with any valid allocation yet.
+    LastDeviceWithValidAllocation = nullptr;
   }
 
   // Sub-buffer constructor

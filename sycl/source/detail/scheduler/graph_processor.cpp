@@ -52,6 +52,29 @@ Scheduler::GraphProcessor::collectEventsForRecToFinish(MemObjRecord *Record) {
     DepEvents.push_back(ReleaseCmd->getEvent());
   }
   return DepEvents;
+/* void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event, */
+/*                                              ReadLockT &GraphReadLock, */
+/*                                              std::vector<Command *> &ToCleanUp, */
+/*                                              bool LockTheLock) { */
+/*   Command *Cmd = getCommand(Event); */
+/*   // Command can be nullptr if user creates sycl::event explicitly or the */
+/*   // event has been waited on by another thread */
+/*   if (!Cmd) */
+/*     return; */
+
+/*   EnqueueResultT Res; */
+/*   bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, BLOCKING); */
+/*   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) */
+/*     // TODO: Reschedule commands. */
+/*     throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION); */
+
+/*   assert(Cmd->getEvent() == Event); */
+
+/*   GraphReadLock.unlock(); */
+/*   Event->waitInternal(); */
+
+/*   if (LockTheLock) */
+/*     GraphReadLock.lock(); */
 }
 
 /* bool Scheduler::GraphProcessor::enqueueCommand( */

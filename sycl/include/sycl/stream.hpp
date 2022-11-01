@@ -739,7 +739,7 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT __SYCL_SPECIAL_CLASS stream {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.

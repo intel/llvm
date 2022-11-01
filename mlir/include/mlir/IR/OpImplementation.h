@@ -215,7 +215,7 @@ public:
 protected:
   /// Initialize the printer with no internal implementation. In this case, all
   /// virtual methods of this class must be overriden.
-  AsmPrinter() {}
+  AsmPrinter() = default;
 
 private:
   AsmPrinter(const AsmPrinter &) = delete;
@@ -379,6 +379,10 @@ public:
   virtual void
   printOptionalAttrDictWithKeyword(ArrayRef<NamedAttribute> attrs,
                                    ArrayRef<StringRef> elidedAttrs = {}) = 0;
+
+  /// Prints the entire operation with the custom assembly form, if available,
+  /// or the generic assembly form, otherwise.
+  virtual void printCustomOrGenericOp(Operation *op) = 0;
 
   /// Print the entire operation with the default generic assembly form.
   /// If `printOpName` is true, then the operation name is printed (the default)

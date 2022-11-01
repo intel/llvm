@@ -2489,7 +2489,7 @@ static QualType adjustFunctionTypeForInstantiation(ASTContext &Context,
 /// Normal class members are of more specific types and therefore
 /// don't make it here.  This function serves three purposes:
 ///   1) instantiating function templates
-///   2) substituting friend declarations
+///   2) substituting friend and local function declarations
 ///   3) substituting deduction guide declarations for nested class templates
 Decl *TemplateDeclInstantiator::VisitFunctionDecl(
     FunctionDecl *D, TemplateParameterList *TemplateParams,
@@ -2618,6 +2618,9 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
   if (!isFriend && D->isOutOfLine() && !D->isLocalExternDecl()) {
     assert(D->getDeclContext()->isFileContext());
     LexicalDC = D->getDeclContext();
+  }
+  else if (D->isLocalExternDecl()) {
+    LexicalDC = SemaRef.CurContext;
   }
 
   Function->setLexicalDeclContext(LexicalDC);
@@ -2756,9 +2759,42 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
     // Filter out previous declarations that don't match the scope. The only
     // effect this has is to remove declarations found in inline namespaces
     // for friend declarations with unqualified names.
-    SemaRef.FilterLookupForScope(Previous, DC, /*Scope*/ nullptr,
-                                 /*ConsiderLinkage*/ true,
-                                 QualifierLoc.hasQualifier());
+    if (isFriend && !QualifierLoc && !FunctionTemplate) {
+      SemaRef.FilterLookupForScope(Previous, DC, /*Scope=*/ nullptr,
+                                   /*ConsiderLinkage=*/ true,
+                                   QualifierLoc.hasQualifier());
+    }
+  }
+
+  // Per [temp.inst], default arguments in function declarations at local scope
+  // are instantiated along with the enclosing declaration. For example:
+  //
+  //   template<typename T>
+  //   void ft() {
+  //     void f(int = []{ return T::value; }());
+  //   }
+  //   template void ft<int>(); // error: type 'int' cannot be used prior
+  //                                      to '::' because it has no members
+  //
+  // The error is issued during instantiation of ft<int>() because substitution
+  // into the default argument fails; the default argument is instantiated even
+  // though it is never used.
+  if (Function->isLocalExternDecl()) {
+    for (ParmVarDecl *PVD : Function->parameters()) {
+      if (!PVD->hasDefaultArg())
+        continue;
+      if (SemaRef.SubstDefaultArgument(D->getInnerLocStart(), PVD, TemplateArgs)) {
+        // If substitution fails, the default argument is set to a
+        // RecoveryExpr that wraps the uninstantiated default argument so
+        // that downstream diagnostics are omitted.
+        Expr *UninstExpr = PVD->getUninstantiatedDefaultArg();
+        ExprResult ErrorResult = SemaRef.CreateRecoveryExpr(
+            UninstExpr->getBeginLoc(), UninstExpr->getEndLoc(),
+            { UninstExpr }, UninstExpr->getType());
+        if (ErrorResult.isUsable())
+          PVD->setDefaultArg(ErrorResult.get());
+      }
+    }
   }
 
   SemaRef.CheckFunctionDeclaration(/*Scope*/ nullptr, Function, Previous,
@@ -3112,6 +3148,39 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
     // typedef (C++ [dcl.typedef]p4).
     if (Previous.isSingleTagDecl())
       Previous.clear();
+  }
+
+  // Per [temp.inst], default arguments in member functions of local classes
+  // are instantiated along with the member function declaration. For example:
+  //
+  //   template<typename T>
+  //   void ft() {
+  //     struct lc {
+  //       int operator()(int p = []{ return T::value; }());
+  //     };
+  //   }
+  //   template void ft<int>(); // error: type 'int' cannot be used prior
+  //                                      to '::'because it has no members
+  //
+  // The error is issued during instantiation of ft<int>()::lc::operator()
+  // because substitution into the default argument fails; the default argument
+  // is instantiated even though it is never used.
+  if (D->isInLocalScopeForInstantiation()) {
+    for (unsigned P = 0; P < Params.size(); ++P) {
+      if (!Params[P]->hasDefaultArg())
+        continue;
+      if (SemaRef.SubstDefaultArgument(StartLoc, Params[P], TemplateArgs)) {
+        // If substitution fails, the default argument is set to a
+        // RecoveryExpr that wraps the uninstantiated default argument so
+        // that downstream diagnostics are omitted.
+        Expr *UninstExpr = Params[P]->getUninstantiatedDefaultArg();
+        ExprResult ErrorResult = SemaRef.CreateRecoveryExpr(
+            UninstExpr->getBeginLoc(), UninstExpr->getEndLoc(),
+            { UninstExpr }, UninstExpr->getType());
+        if (ErrorResult.isUsable())
+          Params[P]->setDefaultArg(ErrorResult.get());
+      }
+    }
   }
 
   SemaRef.CheckFunctionDeclaration(nullptr, Method, Previous,
@@ -3712,9 +3781,11 @@ Decl *TemplateDeclInstantiator::VisitUsingEnumDecl(UsingEnumDecl *D) {
   if (SemaRef.RequireCompleteEnumDecl(EnumD, EnumD->getLocation()))
     return nullptr;
 
+  TypeSourceInfo *TSI = SemaRef.SubstType(D->getEnumType(), TemplateArgs,
+                                          D->getLocation(), D->getDeclName());
   UsingEnumDecl *NewUD =
       UsingEnumDecl::Create(SemaRef.Context, Owner, D->getUsingLoc(),
-                            D->getEnumLoc(), D->getLocation(), EnumD);
+                            D->getEnumLoc(), D->getLocation(), TSI);
 
   SemaRef.Context.setInstantiatedFromUsingEnumDecl(NewUD, D);
   NewUD->setAccess(D->getAccess());
@@ -4381,6 +4452,11 @@ Decl *TemplateDeclInstantiator::VisitConceptDecl(ConceptDecl *D) {
   llvm_unreachable("Concept definitions cannot reside inside a template");
 }
 
+Decl *TemplateDeclInstantiator::VisitImplicitConceptSpecializationDecl(
+    ImplicitConceptSpecializationDecl *D) {
+  llvm_unreachable("Concept specializations cannot reside inside a template");
+}
+
 Decl *
 TemplateDeclInstantiator::VisitRequiresExprBodyDecl(RequiresExprBodyDecl *D) {
   return RequiresExprBodyDecl::Create(SemaRef.Context, D->getDeclContext(),
@@ -4945,10 +5021,6 @@ bool Sema::addInstantiatedParametersToScope(
 bool Sema::InstantiateDefaultArgument(SourceLocation CallLoc, FunctionDecl *FD,
                                       ParmVarDecl *Param) {
   assert(Param->hasUninstantiatedDefaultArg());
-  Expr *UninstExpr = Param->getUninstantiatedDefaultArg();
-
-  EnterExpressionEvaluationContext EvalContext(
-      *this, ExpressionEvaluationContext::PotentiallyEvaluated, Param);
 
   // Instantiate the expression.
   //
@@ -4970,59 +5042,9 @@ bool Sema::InstantiateDefaultArgument(SourceLocation CallLoc, FunctionDecl *FD,
   MultiLevelTemplateArgumentList TemplateArgs
     = getTemplateInstantiationArgs(FD, nullptr, /*RelativeToPrimary=*/true);
 
-  InstantiatingTemplate Inst(*this, CallLoc, Param,
-                             TemplateArgs.getInnermost());
-  if (Inst.isInvalid())
-    return true;
-  if (Inst.isAlreadyInstantiating()) {
-    Diag(Param->getBeginLoc(), diag::err_recursive_default_argument) << FD;
-    Param->setInvalidDecl();
-    return true;
-  }
-
-  ExprResult Result;
-  {
-    // C++ [dcl.fct.default]p5:
-    //   The names in the [default argument] expression are bound, and
-    //   the semantic constraints are checked, at the point where the
-    //   default argument expression appears.
-    ContextRAII SavedContext(*this, FD);
-    LocalInstantiationScope Local(*this);
-
-    FunctionDecl *Pattern = FD->getTemplateInstantiationPattern(
-        /*ForDefinition*/ false);
-    if (addInstantiatedParametersToScope(FD, Pattern, Local, TemplateArgs))
-      return true;
-
-    runWithSufficientStackSpace(CallLoc, [&] {
-      Result = SubstInitializer(UninstExpr, TemplateArgs,
-                                /*DirectInit*/false);
-    });
-  }
-  if (Result.isInvalid())
+  if (SubstDefaultArgument(CallLoc, Param, TemplateArgs, /*ForCallExpr*/ true))
     return true;
 
-  // Check the expression as an initializer for the parameter.
-  InitializedEntity Entity
-    = InitializedEntity::InitializeParameter(Context, Param);
-  InitializationKind Kind = InitializationKind::CreateCopy(
-      Param->getLocation(),
-      /*FIXME:EqualLoc*/ UninstExpr->getBeginLoc());
-  Expr *ResultE = Result.getAs<Expr>();
-
-  InitializationSequence InitSeq(*this, Entity, Kind, ResultE);
-  Result = InitSeq.Perform(*this, Entity, Kind, ResultE);
-  if (Result.isInvalid())
-    return true;
-
-  Result =
-      ActOnFinishFullExpr(Result.getAs<Expr>(), Param->getOuterLocStart(),
-                          /*DiscardedValue*/ false);
-  if (Result.isInvalid())
-    return true;
-
-  // Remember the instantiated default argument.
-  Param->setDefaultArg(Result.getAs<Expr>());
   if (ASTMutationListener *L = getASTMutationListener())
     L->DefaultArgumentInstantiated(Param);
 
@@ -5231,7 +5253,7 @@ Sema::InstantiateFunctionDeclaration(FunctionTemplateDecl *FTD,
     return nullptr;
 
   ContextRAII SavedContext(*this, FD);
-  MultiLevelTemplateArgumentList MArgs(*Args);
+  MultiLevelTemplateArgumentList MArgs(FTD, Args->asArray());
 
   return cast_or_null<FunctionDecl>(SubstDecl(FD, FD->getParent(), MArgs));
 }
@@ -5567,8 +5589,7 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
     const TemplateArgumentList &TemplateArgList,
     const TemplateArgumentListInfo &TemplateArgsInfo,
     SmallVectorImpl<TemplateArgument> &Converted,
-    SourceLocation PointOfInstantiation,
-    LateInstantiatedAttrVec *LateAttrs,
+    SourceLocation PointOfInstantiation, LateInstantiatedAttrVec *LateAttrs,
     LocalInstantiationScope *StartingScope) {
   if (FromVar->isInvalidDecl())
     return nullptr;
@@ -5576,9 +5597,6 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   InstantiatingTemplate Inst(*this, PointOfInstantiation, FromVar);
   if (Inst.isInvalid())
     return nullptr;
-
-  MultiLevelTemplateArgumentList TemplateArgLists;
-  TemplateArgLists.addOuterTemplateArguments(&TemplateArgList);
 
   // Instantiate the first declaration of the variable template: for a partial
   // specialization of a static data member template, the first declaration may
@@ -5590,15 +5608,21 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   // partial specialization, don't do this. The member specialization completely
   // replaces the original declaration in this case.
   bool IsMemberSpec = false;
-  if (VarTemplatePartialSpecializationDecl *PartialSpec =
-          dyn_cast<VarTemplatePartialSpecializationDecl>(FromVar))
+  MultiLevelTemplateArgumentList MultiLevelList;
+  if (auto *PartialSpec =
+          dyn_cast<VarTemplatePartialSpecializationDecl>(FromVar)) {
     IsMemberSpec = PartialSpec->isMemberSpecialization();
-  else if (VarTemplateDecl *FromTemplate = FromVar->getDescribedVarTemplate())
-    IsMemberSpec = FromTemplate->isMemberSpecialization();
+    MultiLevelList.addOuterTemplateArguments(PartialSpec,
+                                             TemplateArgList.asArray());
+  } else {
+    assert(VarTemplate == FromVar->getDescribedVarTemplate());
+    IsMemberSpec = VarTemplate->isMemberSpecialization();
+    MultiLevelList.addOuterTemplateArguments(VarTemplate,
+                                             TemplateArgList.asArray());
+  }
   if (!IsMemberSpec)
     FromVar = FromVar->getFirstDecl();
 
-  MultiLevelTemplateArgumentList MultiLevelList(TemplateArgList);
   TemplateDeclInstantiator Instantiator(*this, FromVar->getDeclContext(),
                                         MultiLevelList);
 

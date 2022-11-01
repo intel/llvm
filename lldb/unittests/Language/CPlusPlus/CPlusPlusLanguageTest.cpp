@@ -52,6 +52,13 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
       {"llvm::Optional<llvm::MCFixupKind>::operator*() const &",
        "llvm::Optional<llvm::MCFixupKind>", "operator*", "()", "const &",
        "llvm::Optional<llvm::MCFixupKind>::operator*"},
+      {"auto std::__1::ranges::__begin::__fn::operator()[abi:v160000]<char "
+       "const, 18ul>(char const (&) [18ul]) const",
+       "std::__1::ranges::__begin::__fn",
+       "operator()[abi:v160000]<char const, 18ul>", "(char const (&) [18ul])",
+       "const",
+       "std::__1::ranges::__begin::__fn::operator()[abi:v160000]<char const, "
+       "18ul>"},
       // Internal classes
       {"operator<<(Cls, Cls)::Subclass::function()",
        "operator<<(Cls, Cls)::Subclass", "function", "()", "",
@@ -65,8 +72,10 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
        "XX::(anonymous namespace)::anon_class::anon_func"},
 
       // Lambda
-      {"main::{lambda()#1}::operator()() const::{lambda()#1}::operator()() const",
-       "main::{lambda()#1}::operator()() const::{lambda()#1}", "operator()", "()", "const",
+      {"main::{lambda()#1}::operator()() const::{lambda()#1}::operator()() "
+       "const",
+       "main::{lambda()#1}::operator()() const::{lambda()#1}", "operator()",
+       "()", "const",
        "main::{lambda()#1}::operator()() const::{lambda()#1}::operator()"},
 
       // Function pointers
@@ -110,8 +119,82 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
        "f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>", "()", "",
        "f<A<operator<(X,Y)::Subclass>, sizeof(B)<sizeof(C)>"},
       {"llvm::Optional<llvm::MCFixupKind>::operator*() const volatile &&",
-       "llvm::Optional<llvm::MCFixupKind>", "operator*", "()", "const volatile &&",
-       "llvm::Optional<llvm::MCFixupKind>::operator*"}};
+       "llvm::Optional<llvm::MCFixupKind>", "operator*", "()",
+       "const volatile &&", "llvm::Optional<llvm::MCFixupKind>::operator*"},
+      {"void foo<Dummy<char [10]>>()", "", "foo<Dummy<char [10]>>", "()", "",
+       "foo<Dummy<char [10]>>"},
+      {"void foo<Bar<Bar<int>[10]>>()", "", "foo<Bar<Bar<int>[10]>>", "()", "",
+       "foo<Bar<Bar<int>[10]>>"},
+      {"void foo<Bar[10]>()", "", "foo<Bar[10]>", "()", "",
+       "foo<Bar[10]>"},
+      {"void foo<Bar[]>()", "", "foo<Bar[]>", "()", "",
+       "foo<Bar[]>"},
+
+      // auto return type
+      {"auto std::test_return_auto<int>() const", "std",
+       "test_return_auto<int>", "()", "const", "std::test_return_auto<int>"},
+      {"decltype(auto) std::test_return_auto<int>(int) const", "std",
+       "test_return_auto<int>", "(int)", "const", "std::test_return_auto<int>"},
+
+      // abi_tag on class method
+      {"v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>> "
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>"
+       "::method2<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "int>>>(int, v1::v2::Dummy<int>) const &&",
+       // Context
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>",
+       // Basename
+       "method2<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "int>>>",
+       // Args, qualifiers
+       "(int, v1::v2::Dummy<int>)", "const &&",
+       // Full scope-qualified name without args
+       "v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>>"
+       "::method2<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "int>>>"},
+
+      // abi_tag on free function and template argument
+      {"v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::Dummy[abi:c1][abi:c2]<int>> "
+       "v1::v2::with_tag_in_ns[abi:f1][abi:f2]<v1::v2::Dummy[abi:c1][abi:c2]"
+       "<v1::v2::Dummy[abi:c1][abi:c2]<int>>>(int, v1::v2::Dummy<int>) const "
+       "&&",
+       // Context
+       "v1::v2",
+       // Basename
+       "with_tag_in_ns[abi:f1][abi:f2]<v1::v2::Dummy[abi:c1][abi:c2]<v1::v2::"
+       "Dummy[abi:c1][abi:c2]<int>>>",
+       // Args, qualifiers
+       "(int, v1::v2::Dummy<int>)", "const &&",
+       // Full scope-qualified name without args
+       "v1::v2::with_tag_in_ns[abi:f1][abi:f2]<v1::v2::Dummy[abi:c1][abi:c2]<"
+       "v1::v2::Dummy[abi:c1][abi:c2]<int>>>"},
+
+      // abi_tag with special characters
+      {"auto ns::with_tag_in_ns[abi:special tag,0.0][abi:special "
+       "tag,1.0]<Dummy<int>>"
+       "(float) const &&",
+       // Context
+       "ns",
+       // Basename
+       "with_tag_in_ns[abi:special tag,0.0][abi:special tag,1.0]<Dummy<int>>",
+       // Args, qualifiers
+       "(float)", "const &&",
+       // Full scope-qualified name without args
+       "ns::with_tag_in_ns[abi:special tag,0.0][abi:special "
+       "tag,1.0]<Dummy<int>>"},
+
+      // abi_tag on operator overloads
+      {"std::__1::error_code::operator bool[abi:v160000]() const",
+       "std::__1::error_code", "operator bool[abi:v160000]", "()", "const",
+       "std::__1::error_code::operator bool[abi:v160000]"},
+
+      {"auto ns::foo::operator[][abi:v160000](size_t) const", "ns::foo",
+       "operator[][abi:v160000]", "(size_t)", "const",
+       "ns::foo::operator[][abi:v160000]"},
+
+      {"auto Foo[abi:abc]<int>::operator<<<Foo[abi:abc]<int>>(int) &",
+       "Foo[abi:abc]<int>", "operator<<<Foo[abi:abc]<int>>", "(int)", "&",
+       "Foo[abi:abc]<int>::operator<<<Foo[abi:abc]<int>>"}};
 
   for (const auto &test : test_cases) {
     CPlusPlusLanguage::MethodName method(ConstString(test.input));
@@ -126,6 +209,30 @@ TEST(CPlusPlusLanguage, MethodNameParsing) {
   }
 }
 
+TEST(CPlusPlusLanguage, InvalidMethodNameParsing) {
+  // Tests that we correctly reject malformed function names
+
+  std::string test_cases[] = {
+      "int Foo::operator[]<[10>()",
+      "Foo::operator bool[10]()",
+      "auto A::operator<=>[abi:tag]<A::B>()",
+      "auto A::operator<<<(int)",
+      "auto A::operator>>>(int)",
+      "auto A::operator<<<Type[abi:tag]<>(int)",
+      "auto A::operator<<<Type[abi:tag]<Type<int>>(int)",
+      "auto A::foo[(int)",
+      "auto A::foo[](int)",
+      "auto A::foo[bar](int)",
+      "auto A::foo[abi](int)",
+      "auto A::foo[abi:(int)",
+  };
+
+  for (const auto &name : test_cases) {
+    CPlusPlusLanguage::MethodName method{ConstString(name)};
+    EXPECT_FALSE(method.IsValid()) << name;
+  }
+}
+
 TEST(CPlusPlusLanguage, ContainsPath) {
   CPlusPlusLanguage::MethodName 
       reference_1(ConstString("int foo::bar::func01(int a, double b)"));
@@ -134,7 +241,12 @@ TEST(CPlusPlusLanguage, ContainsPath) {
   CPlusPlusLanguage::MethodName reference_3(ConstString("int func01()"));
   CPlusPlusLanguage::MethodName 
       reference_4(ConstString("bar::baz::operator bool()"));
-  
+  CPlusPlusLanguage::MethodName reference_5(
+      ConstString("bar::baz::operator bool<int, Type<double>>()"));
+  CPlusPlusLanguage::MethodName reference_6(ConstString(
+      "bar::baz::operator<<<Type<double>, Type<std::vector<double>>>()"));
+
+  EXPECT_TRUE(reference_1.ContainsPath(""));
   EXPECT_TRUE(reference_1.ContainsPath("func01"));
   EXPECT_TRUE(reference_1.ContainsPath("bar::func01"));
   EXPECT_TRUE(reference_1.ContainsPath("foo::bar::func01"));
@@ -144,17 +256,35 @@ TEST(CPlusPlusLanguage, ContainsPath) {
   EXPECT_FALSE(reference_1.ContainsPath("::foo::baz::func01"));
   EXPECT_FALSE(reference_1.ContainsPath("foo::bar::baz::func01"));
   
+  EXPECT_TRUE(reference_2.ContainsPath(""));
   EXPECT_TRUE(reference_2.ContainsPath("foofoo::bar::func01"));
   EXPECT_FALSE(reference_2.ContainsPath("foo::bar::func01"));
   
+  EXPECT_TRUE(reference_3.ContainsPath(""));
   EXPECT_TRUE(reference_3.ContainsPath("func01"));
   EXPECT_FALSE(reference_3.ContainsPath("func"));
   EXPECT_FALSE(reference_3.ContainsPath("bar::func01"));
 
+  EXPECT_TRUE(reference_4.ContainsPath(""));
+  EXPECT_TRUE(reference_4.ContainsPath("operator"));
   EXPECT_TRUE(reference_4.ContainsPath("operator bool"));
   EXPECT_TRUE(reference_4.ContainsPath("baz::operator bool"));
   EXPECT_TRUE(reference_4.ContainsPath("bar::baz::operator bool"));
   EXPECT_FALSE(reference_4.ContainsPath("az::operator bool"));
+
+  EXPECT_TRUE(reference_5.ContainsPath(""));
+  EXPECT_TRUE(reference_5.ContainsPath("operator"));
+  EXPECT_TRUE(reference_5.ContainsPath("operator bool"));
+  EXPECT_TRUE(reference_5.ContainsPath("operator bool<int, Type<double>>"));
+  EXPECT_FALSE(reference_5.ContainsPath("operator bool<int, double>"));
+  EXPECT_FALSE(reference_5.ContainsPath("operator bool<int, Type<int>>"));
+
+  EXPECT_TRUE(reference_6.ContainsPath(""));
+  EXPECT_TRUE(reference_6.ContainsPath("operator"));
+  EXPECT_TRUE(reference_6.ContainsPath("operator<<"));
+  EXPECT_TRUE(reference_6.ContainsPath(
+      "bar::baz::operator<<<Type<double>, Type<std::vector<double>>>()"));
+  EXPECT_FALSE(reference_6.ContainsPath("operator<<<Type<double>>"));
 }
 
 TEST(CPlusPlusLanguage, ExtractContextAndIdentifier) {

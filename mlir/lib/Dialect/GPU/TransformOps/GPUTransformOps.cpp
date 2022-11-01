@@ -41,25 +41,25 @@ checkGpuLimits(TransformOpInterface transformOp, Optional<int64_t> gridDimX,
                Optional<int64_t> blockDimX, Optional<int64_t> blockDimY,
                Optional<int64_t> blockDimZ) {
 
-  static constexpr int max_total_blockdim = 1024;
-  static constexpr int max_blockdimx = 1024;
-  static constexpr int max_blockdimy = 1024;
-  static constexpr int max_blockdimz = 64;
-  static constexpr int max_total_griddim = 2147483647;
-  static constexpr int max_griddimx = 2147483647;
-  static constexpr int max_griddimy = 65535;
-  static constexpr int max_griddimz = 65535;
+  static constexpr int maxTotalBlockdim = 1024;
+  static constexpr int maxBlockdimx = 1024;
+  static constexpr int maxBlockdimy = 1024;
+  static constexpr int maxBlockdimz = 64;
+  static constexpr int maxTotalGriddim = 2147483647;
+  static constexpr int maxGriddimx = 2147483647;
+  static constexpr int maxGriddimy = 65535;
+  static constexpr int maxGriddimz = 65535;
 
   if ((blockDimX.value_or(1) * blockDimY.value_or(1) * blockDimZ.value_or(1)) >
-          max_total_blockdim ||
+          maxTotalBlockdim ||
       (gridDimX.value_or(1) * gridDimY.value_or(1) * gridDimZ.value_or(1)) >
-          max_total_griddim ||
-      blockDimX.value_or(1) > max_blockdimx ||
-      blockDimY.value_or(1) > max_blockdimy ||
-      blockDimZ.value_or(1) > max_blockdimz ||
-      gridDimY.value_or(1) > max_griddimy ||
-      gridDimZ.value_or(1) > max_griddimz ||
-      gridDimX.value_or(1) > max_griddimx) {
+          maxTotalGriddim ||
+      blockDimX.value_or(1) > maxBlockdimx ||
+      blockDimY.value_or(1) > maxBlockdimy ||
+      blockDimZ.value_or(1) > maxBlockdimz ||
+      gridDimY.value_or(1) > maxGriddimy ||
+      gridDimZ.value_or(1) > maxGriddimz ||
+      gridDimX.value_or(1) > maxGriddimx) {
     return transformOp.emitSilenceableError()
            << "Trying to launch a GPU kernel with gridDim = ("
            << gridDimX.value_or(1) << ", " << gridDimY.value_or(1) << ", "
@@ -151,7 +151,7 @@ alterGpuLaunch(SimpleRewriter &rewriter, LaunchOp gpuLaunch,
 // MapForeachToBlocks
 //===----------------------------------------------------------------------===//
 
-DiagnosedSilenceableFailure mlir::transform::gpu::mapForeachToBlocksImp(
+DiagnosedSilenceableFailure mlir::transform::gpu::mapForeachToBlocksImpl(
     RewriterBase &rewriter, scf::ForeachThreadOp foreachThreadOp,
     function_ref<void(RewriterBase &, scf::ForeachThreadOp,
                       SmallVectorImpl<Value> &)>
@@ -291,7 +291,7 @@ transform::MapForeachToBlocks::applyToOne(Operation *target,
   }
 
   SmallVector<int64_t> gridDim = extractFromI64ArrayAttr(getGridDim());
-  diag = mlir::transform::gpu::mapForeachToBlocksImp(
+  diag = mlir::transform::gpu::mapForeachToBlocksImpl(
       rewriter, topLevelForeachThreadOp, generateGpuBlockIds, gridDim,
       transformOp);
   if (diag.succeeded()) {
@@ -324,8 +324,7 @@ static DiagnosedSilenceableFailure rewriteOneForeachThreadToGpuThreads(
     if (transformOp.has_value()) {
       return transformOp->emitSilenceableError() << message;
     }
-    foreachThreadOp->emitError() << message;
-    return DiagnosedSilenceableFailure::definiteFailure();
+    return emitDefiniteFailure(foreachThreadOp, message);
   };
 
   if (foreachThreadOp.getNumResults() > 0)
@@ -365,8 +364,9 @@ static DiagnosedSilenceableFailure rewriteOneForeachThreadToGpuThreads(
        llvm::zip(threadOps, blockDim, globalBlockDims)) {
     if (blockDim > globalBlockDim) {
       return failureHelper(
-          "The GPU threads are fewer than the loop trip counts. "
-          "Try to tile scf.foreach_thread before mapping.");
+          "The requested GPU threads are fewer than the number of loop trip "
+          "counts. Try to tile scf.foreach_thread before mapping or set small "
+          "blockDim.");
     }
     if (blockDim == globalBlockDim)
       continue;
@@ -422,7 +422,7 @@ static DiagnosedSilenceableFailure rewriteOneForeachThreadToGpuThreads(
   return DiagnosedSilenceableFailure::success();
 }
 
-DiagnosedSilenceableFailure mlir::transform::gpu::mapNestedForeachToThreadsImp(
+DiagnosedSilenceableFailure mlir::transform::gpu::mapNestedForeachToThreadsImpl(
     RewriterBase &rewriter, Operation *target,
     const SmallVectorImpl<int64_t> &blockDim, bool syncAfterDistribute,
     llvm::Optional<TransformOpInterface> transformOp) {
@@ -463,8 +463,8 @@ DiagnosedSilenceableFailure transform::MapNestedForeachToThreads::applyToOne(
   SimpleRewriter rewriter(getContext());
   rewriter.setInsertionPoint(target);
 
-  diag = mlir::transform::gpu::mapNestedForeachToThreadsImp(
-      rewriter, target, blockDim, getSyncAfterDistribute(), llvm::None);
+  diag = mlir::transform::gpu::mapNestedForeachToThreadsImpl(
+      rewriter, target, blockDim, getSyncAfterDistribute(), transformOp);
   if (diag.succeeded()) {
     diag =
         alterGpuLaunch(rewriter, gpuLaunch, transformOp, llvm::None, llvm::None,

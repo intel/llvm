@@ -11,7 +11,6 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-REGULARIZED: %spirv.JointMatrixINTEL._bfloat16_8_16_0_3
 ; CHECK-REGULARIZED: %[[Alloca:.*]] = alloca %"class.cl::sycl::ext::intel::experimental::bfloat16", align 2
 ; CHECK-REGULARIZED: %[[ASCast:.*]] = addrspacecast %"class.cl::sycl::ext::intel::experimental::bfloat16"* %[[Alloca]] to %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)*
 ; CHECK-REGULARIZED: %[[GEP1:.*]] = getelementptr inbounds %"class.cl::sycl::ext::intel::experimental::bfloat16", %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* %[[ASCast]], i64 0, i32 0
@@ -65,7 +64,7 @@ target triple = "spir64-unknown-unknown"
 %"class.cl::sycl::item.0" = type { %"struct.cl::sycl::detail::ItemBase.1" }
 %"struct.cl::sycl::detail::ItemBase.1" = type { %"class.cl::sycl::range", %"class.cl::sycl::id" }
 %"class.cl::sycl::group" = type { %"class.cl::sycl::range", %"class.cl::sycl::range", %"class.cl::sycl::range", %"class.cl::sycl::id" }
-%"struct.__spv::__spirv_JointMatrixINTEL" = type { [8 x [16 x [1 x [4 x %"class.cl::sycl::ext::intel::experimental::bfloat16"]]]] addrspace(4)* }
+%spirv.JointMatrixINTEL._bfloat16_8_16_0_3 = type opaque
 
 $_ZZZ17matrix_verify_addIN2cl4sycl3ext5intel12experimental8bfloat16ELm16ELm16EEvNS1_5queueER10big_matrixIT_XT0_EXT1_EERNS1_8nd_rangeILi2EEEfENKUlRNS1_7handlerEE_clESF_ENKUlNS1_7nd_itemILi2EEEE_clESI_ = comdat any
 
@@ -101,7 +100,7 @@ entry:
   %call.i.i.i = tail call spir_func noundef zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float noundef 5.000000e+00) #6
   %value.i.i = getelementptr inbounds %"class.cl::sycl::ext::intel::experimental::bfloat16", %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* %agg.tmp.ascast.i, i64 0, i32 0
   store i16 %call.i.i.i, i16 addrspace(4)* %value.i.i, align 2, !tbaa !9
-  %call.i = tail call spir_func noundef %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z26__spirv_CompositeConstructIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESB_(%"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef nonnull byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2 %agg.tmp.i) #7
+  %call.i = tail call spir_func noundef %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* @_Z26__spirv_CompositeConstructIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESB_(%"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef nonnull byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2 %agg.tmp.i) #7
   call void @llvm.lifetime.end.p0i8(i64 2, i8* nonnull %4)
   %ref.tmp.ascast.i = addrspacecast %"class.cl::sycl::ext::intel::experimental::bfloat16"* %ref.tmp.i to %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)*
   %5 = bitcast %"class.cl::sycl::ext::intel::experimental::bfloat16"* %ref.tmp.i to i8*
@@ -112,10 +111,10 @@ entry:
   br label %for.cond
 
 for.cond:                                         ; preds = %for.body, %entry
-  %sub_a.sroa.0.0 = phi %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* [ %call.i, %entry ], [ %call.i58, %for.body ]
+  %sub_a.sroa.0.0 = phi %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* [ %call.i, %entry ], [ %call.i58, %for.body ]
   %i.0 = phi i32 [ 0, %entry ], [ %inc, %for.body ]
   %conv = zext i32 %i.0 to i64
-  %call.i41 = call spir_func noundef i64 @_Z38__spirv_JointMatrixWorkItemLengthINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEmPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEE(%"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef %sub_a.sroa.0.0) #7
+  %call.i41 = call spir_func noundef i64 @_Z38__spirv_JointMatrixWorkItemLengthINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEmPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEE(%spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef %sub_a.sroa.0.0) #7
   %cmp = icmp ugt i64 %call.i41, %conv
   br i1 %cmp, label %for.body, label %for.cond.cleanup
 
@@ -129,13 +128,13 @@ for.cond.cleanup:                                 ; preds = %for.cond
   %div = and i64 %sub5, -8
   %add.ptr.i45 = getelementptr inbounds %"class.cl::sycl::ext::intel::experimental::bfloat16", %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(1)* %add.ptr.i, i64 %div
   %call.ascast.i = addrspacecast %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(1)* %add.ptr.i45 to %"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)*
-  call spir_func void @_Z29__spirv_JointMatrixStoreINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEvPT_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEmS7_S9_i(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* noundef %call.ascast.i, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef %sub_a.sroa.0.0, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #7
+  call spir_func void @_Z29__spirv_JointMatrixStoreINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEvPT_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEmS7_S9_i(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* noundef %call.ascast.i, %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef %sub_a.sroa.0.0, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #7
   ret void
 
 for.body:                                         ; preds = %for.cond
   %call.i.i = call spir_func noundef zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float noundef 2.000000e+00) #6
   call void @llvm.lifetime.start.p0i8(i64 2, i8* nonnull %5) #8, !noalias !16
-  call spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EET_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* sret(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2 %ref.tmp.ascast.i, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef %sub_a.sroa.0.0, i64 noundef %conv) #7, !noalias !16
+  call spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EET_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* sret(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2 %ref.tmp.ascast.i, %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef %sub_a.sroa.0.0, i64 noundef %conv) #7, !noalias !16
   %10 = load i16, i16 addrspace(4)* %value.i.i.i, align 2, !tbaa !19, !noalias !20
   %call.i.i.i.i = call spir_func noundef float @_Z27__spirv_ConvertBF16ToFINTELt(i16 noundef zeroext %10) #6, !noalias !20
   %call.i.i3.i.i = call spir_func noundef float @_Z27__spirv_ConvertBF16ToFINTELt(i16 noundef zeroext %call.i.i) #6, !noalias !20
@@ -144,7 +143,7 @@ for.body:                                         ; preds = %for.cond
   call void @llvm.lifetime.end.p0i8(i64 2, i8* nonnull %5) #8, !noalias !16
   call void @llvm.lifetime.start.p0i8(i64 2, i8* nonnull %6)
   store i16 %call.i.i4.i.i, i16 addrspace(4)* %8, align 2, !tbaa !19
-  %call.i58 = call spir_func noundef %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESD_SB_m(%"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef %sub_a.sroa.0.0, %"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef nonnull byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2 %agg.tmp.i54, i64 noundef %conv) #7
+  %call.i58 = call spir_func noundef %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESD_SB_m(%spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef %sub_a.sroa.0.0, %"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef nonnull byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2 %agg.tmp.i54, i64 noundef %conv) #7
   call void @llvm.lifetime.end.p0i8(i64 2, i8* nonnull %6)
   %inc = add nuw nsw i32 %i.0, 1
   br label %for.cond, !llvm.loop !23
@@ -157,13 +156,13 @@ declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #0
 declare void @llvm.assume(i1 noundef) #3
 
 ; Function Attrs: convergent
-declare dso_local spir_func noundef %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z26__spirv_CompositeConstructIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESB_(%"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2) local_unnamed_addr #4
+declare dso_local spir_func noundef %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* @_Z26__spirv_CompositeConstructIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESB_(%"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2) local_unnamed_addr #4
 
 ; Function Attrs: convergent
-declare dso_local spir_func noundef i64 @_Z38__spirv_JointMatrixWorkItemLengthINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEmPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEE(%"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef) local_unnamed_addr #4
+declare dso_local spir_func noundef i64 @_Z38__spirv_JointMatrixWorkItemLengthINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEmPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEE(%spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef) local_unnamed_addr #4
 
 ; Function Attrs: convergent
-declare dso_local spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EET_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* sret(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef, i64 noundef) local_unnamed_addr #4
+declare dso_local spir_func void @_Z28__spirv_VectorExtractDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EET_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEm(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* sret(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2, %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef, i64 noundef) local_unnamed_addr #4
 
 ; Function Attrs: convergent nounwind
 declare dso_local spir_func noundef float @_Z27__spirv_ConvertBF16ToFINTELt(i16 noundef zeroext) local_unnamed_addr #5
@@ -172,10 +171,10 @@ declare dso_local spir_func noundef float @_Z27__spirv_ConvertBF16ToFINTELt(i16 
 declare dso_local spir_func noundef zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float noundef) local_unnamed_addr #5
 
 ; Function Attrs: convergent
-declare dso_local spir_func noundef %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESD_SB_m(%"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef, %"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2, i64 noundef) local_unnamed_addr #4
+declare dso_local spir_func noundef %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* @_Z27__spirv_VectorInsertDynamicIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEPNS6_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT2_EXT3_EEESD_SB_m(%spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef, %"class.cl::sycl::ext::intel::experimental::bfloat16"* noundef byval(%"class.cl::sycl::ext::intel::experimental::bfloat16") align 2, i64 noundef) local_unnamed_addr #4
 
 ; Function Attrs: convergent
-declare dso_local spir_func void @_Z29__spirv_JointMatrixStoreINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEvPT_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEmS7_S9_i(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* noundef, %"struct.__spv::__spirv_JointMatrixINTEL" addrspace(4)* noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #4
+declare dso_local spir_func void @_Z29__spirv_JointMatrixStoreINTELIN2cl4sycl3ext5intel12experimental8bfloat16ELm8ELm16ELN5__spv12MatrixLayoutE0ELNS6_5Scope4FlagE3EEvPT_PNS6_24__spirv_JointMatrixINTELISA_XT0_EXT1_EXT2_EXT3_EEEmS7_S9_i(%"class.cl::sycl::ext::intel::experimental::bfloat16" addrspace(4)* noundef, %spirv.JointMatrixINTEL._bfloat16_8_16_0_3 addrspace(4)* noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #4
 
 attributes #0 = { argmemonly nofree nosync nounwind willreturn }
 attributes #1 = { convergent inlinehint norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

@@ -125,6 +125,11 @@ OPTIONS
   Specify the target architecture when disassembling. Use :option:`--version`
   for a list of available targets.
 
+.. option:: --build-id=<string>
+
+  Look up the object using the given build ID, specified as a hexadecimal
+  string. The found object is handled as if it were an input filename.
+
 .. option:: -C, --demangle
 
   Demangle symbol names in the output.
@@ -184,9 +189,10 @@ OPTIONS
   Enable/disable target-specific attributes. Specify ``--mattr=help`` to display
   the available attributes.
 
-.. option:: --no-leading-addr
+.. option:: --no-leading-addr, --no-addresses
 
-  When disassembling, do not print leading addresses.
+  When disassembling, do not print leading addresses for instructions or inline
+  relocations.
 
 .. option:: --no-print-imm-hex
 
@@ -350,9 +356,12 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Display exported symbols.
 
-.. option:: --function-starts
+.. option:: --function-starts [=<addrs|names|both>]
 
-  Print the function starts table for Mach-O objects.
+  Print the function starts table for Mach-O objects. Either ``addrs``
+  (default) to print only the addresses of functions, ``names`` to print only
+  the names of the functions (when available), or ``both`` to print the
+  names beside the addresses.
 
 .. option:: -g
 

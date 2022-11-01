@@ -1111,7 +1111,7 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      auto lambda = [](int a) {}
+      auto lambda = [](int a) {};
       auto lambda2 = [](int a) {
           return a;
       };
@@ -1124,14 +1124,14 @@ the configuration (without a prefix: ``Auto``).
       auto lambda = [](int a) {
           return a;
       };
-      sort(a.begin(), a.end(), ()[] { return x < y; })
+      sort(a.begin(), a.end(), []() { return x < y; });
 
   * ``SLS_All`` (in configuration: ``All``)
     Merge all lambdas fitting on a single line.
 
     .. code-block:: c++
 
-      auto lambda = [](int a) {}
+      auto lambda = [](int a) {};
       auto lambda2 = [](int a) { return a; };
 
 
@@ -3758,6 +3758,23 @@ the configuration (without a prefix: ``Auto``).
       }
     }
 
+**RemoveSemicolon** (``Boolean``) :versionbadge:`clang-format 16`
+  Remove semicolons after the closing brace of a non-empty function.
+
+  .. warning:: 
+
+   Setting this option to `true` could lead to incorrect code formatting due
+   to clang-format's lack of complete semantic information. As such, extra
+   care should be taken to review code changes made by this option.
+
+  .. code-block:: c++
+
+    false:                                     true:
+
+    int max(int a, int b) {                    int max(int a, int b) {
+      return a > b ? a : b;                      return a > b ? a : b;
+    };                                         }
+
 **RequiresClausePosition** (``RequiresClausePositionStyle``) :versionbadge:`clang-format 15`
   The position of the ``requires`` clause.
 
@@ -3841,6 +3858,35 @@ the configuration (without a prefix: ``Auto``).
       template <typename LongName>
       void bar(LongName ln)
           requires C<LongName> {
+
+
+
+**RequiresExpressionIndentation** (``RequiresExpressionIndentationKind``) :versionbadge:`clang-format 16`
+  The indentation used for requires expression bodies.
+
+  Possible values:
+
+  * ``REI_OuterScope`` (in configuration: ``OuterScope``)
+    Align requires expression body relative to the indentation level of the
+    outer scope the requires expression resides in.
+    This is the default.
+
+    .. code-block:: c++
+
+       template <typename T>
+       concept C = requires(T t) {
+         ...
+       }
+
+  * ``REI_Keyword`` (in configuration: ``Keyword``)
+    Align requires expression body relative to the `requires` keyword.
+
+    .. code-block:: c++
+
+       template <typename T>
+       concept C = requires(T t) {
+                     ...
+                   }
 
 
 

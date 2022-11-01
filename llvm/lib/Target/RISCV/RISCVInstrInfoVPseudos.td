@@ -41,6 +41,7 @@ def DecImm : SDNodeXForm<imm, [{
 
 defvar TAIL_UNDISTURBED_MASK_UNDISTURBED = 0;
 defvar TAIL_AGNOSTIC = 1;
+defvar TA_MA = 3;
 
 //===----------------------------------------------------------------------===//
 // Utilities.
@@ -1606,14 +1607,14 @@ multiclass VPseudoUSLoad {
       let VLMul = lmul.value in {
         def "E" # eew # "_V_" # LInfo :
           VPseudoUSLoadNoMask<vreg, eew>,
-          VLESched<eew>;
+          VLESched;
         def "E" # eew # "_V_" # LInfo # "_TU":
           VPseudoUSLoadNoMaskTU<vreg, eew>,
-          VLESched<eew>;
+          VLESched;
         def "E" # eew # "_V_" # LInfo # "_MASK" :
           VPseudoUSLoadMask<vreg, eew>,
           RISCVMaskedPseudo</*MaskOpIdx*/ 2>,
-          VLESched<eew>;
+          VLESched;
       }
     }
   }
@@ -1627,14 +1628,14 @@ multiclass VPseudoFFLoad {
       let VLMul = lmul.value in {
         def "E" # eew # "FF_V_" # LInfo:
           VPseudoUSLoadFFNoMask<vreg, eew>,
-          VLFSched<eew>;
+          VLFSched;
         def "E" # eew # "FF_V_" # LInfo # "_TU":
           VPseudoUSLoadFFNoMaskTU<vreg, eew>,
-          VLFSched<eew>;
+          VLFSched;
         def "E" # eew # "FF_V_" # LInfo # "_MASK":
           VPseudoUSLoadFFMask<vreg, eew>,
           RISCVMaskedPseudo</*MaskOpIdx*/ 2>,
-          VLFSched<eew>;
+          VLFSched;
       }
     }
   }
@@ -1707,9 +1708,9 @@ multiclass VPseudoUSStore {
       defvar vreg = lmul.vrclass;
       let VLMul = lmul.value in {
         def "E" # eew # "_V_" # LInfo : VPseudoUSStoreNoMask<vreg, eew>,
-                                        VSESched<eew>;
+                                        VSESched;
         def "E" # eew # "_V_" # LInfo # "_MASK" : VPseudoUSStoreMask<vreg, eew>,
-                                                  VSESched<eew>;
+                                                  VSESched;
       }
     }
   }
@@ -2495,62 +2496,62 @@ multiclass VPseudoVMRG_VM_XM_IM {
 
 multiclass VPseudoVCALU_VM_XM_IM {
   defm "" : VPseudoBinaryV_VM,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   defm "" : VPseudoBinaryV_XM,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
   defm "" : VPseudoBinaryV_IM,
-            Sched<[WriteVICALUI, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUI, ReadVICALUV, ReadVMask]>;
   // Tied versions to allow codegen control over the tail elements
   defm "" : VPseudoTiedBinaryV_VM,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   defm "" : VPseudoTiedBinaryV_XM,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
   defm "" : VPseudoTiedBinaryV_IM,
-            Sched<[WriteVICALUI, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUI, ReadVICALUV, ReadVMask]>;
 }
 
 multiclass VPseudoVCALU_VM_XM {
   defm "" : VPseudoBinaryV_VM,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   defm "" : VPseudoBinaryV_XM,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
   // Tied versions to allow codegen control over the tail elements
   defm "" : VPseudoTiedBinaryV_VM,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   defm "" : VPseudoTiedBinaryV_XM,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
 }
 
 multiclass VPseudoVCALUM_VM_XM_IM<string Constraint> {
   defm "" : VPseudoBinaryV_VM</*CarryOut=*/1, /*CarryIn=*/1, Constraint>,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   defm "" : VPseudoBinaryV_XM</*CarryOut=*/1, /*CarryIn=*/1, Constraint>,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
   defm "" : VPseudoBinaryV_IM</*CarryOut=*/1, /*CarryIn=*/1, Constraint>,
-            Sched<[WriteVICALUI, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUI, ReadVICALUV, ReadVMask]>;
 }
 
 multiclass VPseudoVCALUM_VM_XM<string Constraint> {
   defm "" : VPseudoBinaryV_VM</*CarryOut=*/1, /*CarryIn=*/1, Constraint>,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV, ReadVMask]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV, ReadVMask]>;
   defm "" : VPseudoBinaryV_XM</*CarryOut=*/1, /*CarryIn=*/1, Constraint>,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX, ReadVMask]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX, ReadVMask]>;
 }
 
 multiclass VPseudoVCALUM_V_X_I<string Constraint> {
   defm "" : VPseudoBinaryV_VM</*CarryOut=*/1, /*CarryIn=*/0, Constraint>,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV]>;
   defm "" : VPseudoBinaryV_XM</*CarryOut=*/1, /*CarryIn=*/0, Constraint>,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX]>;
   defm "" : VPseudoBinaryV_IM</*CarryOut=*/1, /*CarryIn=*/0, Constraint>,
-            Sched<[WriteVICALUI, ReadVIALUCV]>;
+            Sched<[WriteVICALUI, ReadVICALUV]>;
 }
 
 multiclass VPseudoVCALUM_V_X<string Constraint> {
   defm "" : VPseudoBinaryV_VM</*CarryOut=*/1, /*CarryIn=*/0, Constraint>,
-            Sched<[WriteVICALUV, ReadVIALUCV, ReadVIALUCV]>;
+            Sched<[WriteVICALUV, ReadVICALUV, ReadVICALUV]>;
   defm "" : VPseudoBinaryV_XM</*CarryOut=*/1, /*CarryIn=*/0, Constraint>,
-            Sched<[WriteVICALUX, ReadVIALUCV, ReadVIALUCX]>;
+            Sched<[WriteVICALUX, ReadVICALUV, ReadVICALUX]>;
 }
 
 multiclass VPseudoVNCLP_WV_WX_WI {
@@ -4445,9 +4446,12 @@ let hasSideEffects = 1, mayLoad = 0, mayStore = 0, Defs = [VL, VTYPE] in {
 // the when we aren't using one of the special X0 encodings. Otherwise it could
 // be accidentally be made X0 by MachineIR optimizations. To satisfy the
 // verifier, we also need a GPRX0 instruction for the special encodings.
-def PseudoVSETVLI : Pseudo<(outs GPR:$rd), (ins GPRNoX0:$rs1, VTypeIOp11:$vtypei), []>;
-def PseudoVSETVLIX0 : Pseudo<(outs GPR:$rd), (ins GPRX0:$rs1, VTypeIOp11:$vtypei), []>;
-def PseudoVSETIVLI : Pseudo<(outs GPR:$rd), (ins uimm5:$rs1, VTypeIOp10:$vtypei), []>;
+def PseudoVSETVLI : Pseudo<(outs GPR:$rd), (ins GPRNoX0:$rs1, VTypeIOp11:$vtypei), []>,
+                    Sched<[WriteVSETVLI, ReadVSETVLI]>;
+def PseudoVSETVLIX0 : Pseudo<(outs GPR:$rd), (ins GPRX0:$rs1, VTypeIOp11:$vtypei), []>,
+                      Sched<[WriteVSETVLI, ReadVSETVLI]>;
+def PseudoVSETIVLI : Pseudo<(outs GPR:$rd), (ins uimm5:$rs1, VTypeIOp10:$vtypei), []>,
+                     Sched<[WriteVSETIVLI]>;
 }
 
 //===----------------------------------------------------------------------===//

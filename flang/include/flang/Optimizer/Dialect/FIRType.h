@@ -38,6 +38,9 @@ public:
   /// Returns the element type of this box type.
   mlir::Type getEleTy() const;
 
+  /// Unwrap element type from fir.heap, fir.ptr and fir.array.
+  mlir::Type unwrapInnerType() const;
+
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(mlir::Type type);
 };
@@ -200,7 +203,7 @@ inline unsigned getRankOfShapeType(mlir::Type t) {
 }
 
 /// Get the memory reference type of the data pointer from the box type,
-inline mlir::Type boxMemRefType(fir::BoxType t) {
+inline mlir::Type boxMemRefType(fir::BaseBoxType t) {
   auto eleTy = t.getEleTy();
   if (!eleTy.isa<fir::PointerType, fir::HeapType>())
     eleTy = fir::ReferenceType::get(t);
@@ -273,6 +276,14 @@ bool isPointerType(mlir::Type ty);
 /// Return true iff `ty` is the type of an ALLOCATABLE entity or value.
 bool isAllocatableType(mlir::Type ty);
 
+/// Return true iff `ty` is the type of a boxed record type.
+/// e.g. !fir.box<!fir.type<derived>>
+bool isBoxedRecordType(mlir::Type ty);
+
+/// Return true iff `ty` is the type of an polymorphic entity or
+/// value.
+bool isPolymorphicType(mlir::Type ty);
+
 /// Return true iff `ty` is the type of an unlimited polymorphic entity or
 /// value.
 bool isUnlimitedPolymorphicType(mlir::Type ty);
@@ -307,10 +318,19 @@ inline bool BaseBoxType::classof(mlir::Type type) {
   return type.isa<fir::BoxType, fir::ClassType>();
 }
 
-/// Return a fir.box<T> or fir.class<T> if the type is polymorphic.
+/// Return true iff `ty` is none or fir.array<none>.
+inline bool isNoneOrSeqNone(mlir::Type type) {
+  if (auto seqTy = type.dyn_cast<fir::SequenceType>())
+    return seqTy.getEleTy().isa<mlir::NoneType>();
+  return type.isa<mlir::NoneType>();
+}
+
+/// Return a fir.box<T> or fir.class<T> if the type is polymorphic. If the type
+/// is polymorphic and assumed shape return fir.box<T>.
 inline mlir::Type wrapInClassOrBoxType(mlir::Type eleTy,
-                                       bool isPolymorphic = false) {
-  if (isPolymorphic)
+                                       bool isPolymorphic = false,
+                                       bool isAssumedType = false) {
+  if (isPolymorphic && !isAssumedType)
     return fir::ClassType::get(eleTy);
   return fir::BoxType::get(eleTy);
 }

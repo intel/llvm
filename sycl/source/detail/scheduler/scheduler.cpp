@@ -27,7 +27,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                              QueueImplPtr Queue) {
+                              const QueueImplPtr &Queue) {
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
@@ -46,8 +46,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   }
 
   {
-    WriteLockT Lock(MGraphLock, std::defer_lock);
-    acquireWriteLock(Lock);
+    WriteLockT Lock = acquireWriteLock();
 
     Command *NewCmd = nullptr;
     switch (Type) {
@@ -68,7 +67,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   std::vector<Command *> ToCleanUp;
   {
-    ReadLockT Lock(MGraphLock);
+    ReadLockT Lock = acquireReadLock();
 
     Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
 
@@ -125,8 +124,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   std::vector<Command *> AuxiliaryCmds;
   Command *NewCmd = nullptr;
   {
-    WriteLockT Lock(MGraphLock, std::defer_lock);
-    acquireWriteLock(Lock);
+    WriteLockT Lock = acquireWriteLock();
     NewCmd = MGraphBuilder.addCopyBack(Req, AuxiliaryCmds);
     // Command was not creted because there were no operations with
     // buffer.
@@ -136,7 +134,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 
   std::vector<Command *> ToCleanUp;
   try {
-    ReadLockT Lock(MGraphLock);
+    ReadLockT Lock = acquireReadLock();
     EnqueueResultT Res;
     bool Enqueued;
 
@@ -209,6 +207,10 @@ bool Scheduler::enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
 }
 
 void Scheduler::waitForEvent(const EventImplPtr &Event) {
+/* void Scheduler::waitForEvent(const EventImplPtr &Event) { */
+/*   ReadLockT Lock = acquireReadLock(); */
+/*   // It's fine to leave the lock unlocked upon return from waitForEvent as */
+/*   // there's no more actions to do here with graph */
   std::vector<Command *> ToCleanUp;
 
   EnqueueResultT EnqueueResult;
@@ -230,7 +232,7 @@ static void deallocateStreams(
         StreamImplPtr->get());
 }
 
-void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
+void Scheduler::cleanupFinishedCommands(const EventImplPtr &FinishedEvent) {
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
   // objects, this is needed to guarantee that streamed data is printed and
@@ -277,7 +279,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
-      ReadLockT Lock(MGraphLock);
+      ReadLockT Lock = acquireReadLock();
 
       Record = MGraphBuilder.getMemObjRecord(MemObj);
       if (!Record)
@@ -292,8 +294,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
       Scheduler::waitForEvent(Event);
 
     {
-      WriteLockT Lock(MGraphLock, std::defer_lock);
-      acquireWriteLock(Lock);
+      WriteLockT Lock = acquireWriteLock();
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
                                              AuxResourcesToDeallocate);
@@ -308,8 +309,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   EventImplPtr NewCmdEvent = nullptr;
 
   {
-    WriteLockT Lock(MGraphLock, std::defer_lock);
-    acquireWriteLock(Lock);
+    WriteLockT Lock = acquireWriteLock();
 
     Command *NewCmd = MGraphBuilder.addHostAccessor(Req, AuxiliaryCmds);
     if (!NewCmd)
@@ -319,7 +319,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 
   std::vector<Command *> ToCleanUp;
   {
-    ReadLockT ReadLock(MGraphLock);
+    ReadLockT Lock = acquireReadLock();
     EnqueueResultT Res;
     bool Enqueued;
 
@@ -347,7 +347,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
   std::vector<Command *> ToCleanUp;
   {
-    ReadLockT Lock(MGraphLock);
+    ReadLockT Lock = acquireReadLock();
 
     assert(BlockedCmd && "Can't find appropriate command to unblock");
 
@@ -421,27 +421,6 @@ Scheduler::~Scheduler() {
   cleanupCommands({});
 }
 
-void Scheduler::acquireWriteLock(WriteLockT &Lock) {
-#ifdef _WIN32
-  // Avoiding deadlock situation for MSVC. std::shared_timed_mutex specification
-  // does not specify a priority for shared and exclusive accesses. It will be a
-  // deadlock in MSVC's std::shared_timed_mutex implementation, if exclusive
-  // access occurs after shared access.
-  // TODO: after switching to C++17, change std::shared_timed_mutex to
-  // std::shared_mutex and use std::lock_guard here both for Windows and Linux.
-  while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
-    // Without yield while loop acts like endless while loop and occupies the
-    // whole CPU when multiple command groups are created in multiple host
-    // threads
-    std::this_thread::yield();
-  }
-#else
-  // It is a deadlock on UNIX in implementation of lock and lock_shared, if
-  // try_lock in the loop above will be executed, so using a single lock here
-  Lock.lock();
-#endif // _WIN32
-}
-
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
   return Req->MSYCLMemObj->MRecord.get();
 }
@@ -475,6 +454,31 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
                                     Cmds.begin(), Cmds.end());
   }
+}
+
+void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
+  // Completing command's event along with unblocking enqueue readiness of
+  // empty command may lead to quick deallocation of MThisCmd by some cleanup
+  // process. Thus we'll copy deps prior to completing of event and unblocking
+  // of empty command.
+  // Also, it's possible to have record deallocated prior to enqueue process.
+  // Thus we employ read-lock of graph.
+
+  std::vector<Command *> ToCleanUp;
+  {
+    ReadLockT Lock = acquireReadLock();
+
+    std::vector<DepDesc> Deps = Cmd->MDeps;
+
+    // update self-event status
+    Cmd->getEvent()->setComplete();
+
+    BlockingCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+    for (const DepDesc &Dep : Deps)
+      Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
+  }
+  cleanupCommands(ToCleanUp);
 }
 
 } // namespace detail

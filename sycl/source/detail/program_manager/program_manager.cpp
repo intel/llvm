@@ -419,7 +419,9 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   if (isDoubleGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-    CompileOpts += "-ze-opt-large-register-file";
+    // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
+    // is fixed
+    CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
 }
 
@@ -640,7 +642,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   const RT::PiDevice PiDevice = Dev->getHandleRef();
 
-  std::uintptr_t ImgId = reinterpret_cast<uintptr_t>(&Img);
+  uint32_t ImgId = Img.getImageID();
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
       Cache,
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
@@ -1994,7 +1996,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
-  std::uintptr_t ImgId = reinterpret_cast<uintptr_t>(ImgPtr);
+  uint32_t ImgId = Img.getImageID();
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
   // TODO: Throw SYCL2020 style exception
   auto BuildResult = getOrBuild<PiProgramT, compile_program_error>(
