@@ -8,7 +8,6 @@
 
 #include "clang-mlir.h"
 #include "Attributes.h"
-#include "TargetInfo.h"
 #include "TypeUtils.h"
 #include "utils.h"
 
@@ -27,7 +26,6 @@
 #include "clang/Basic/FileSystemOptions.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/OperatorKinds.h"
-#include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Version.h"
 #include "clang/Driver/Compilation.h"
@@ -3524,22 +3522,24 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
   mlirclang::AttrBuilder B(*Ctx);
 
   if (CodeGenOpts.UnwindTables)
-    B.addAttribute(llvm::Attribute::UWTable,
-                   uint64_t(llvm::UWTableKind(CodeGenOpts.UnwindTables)));
+    B.addPassThroughAttribute(
+        llvm::Attribute::UWTable,
+        uint64_t(llvm::UWTableKind(CodeGenOpts.UnwindTables)));
 
   if (CodeGenOpts.StackClashProtector)
-    B.addAttribute("probe-stack", mlir::StringAttr::get(Ctx, "inline-asm"));
+    B.addPassThroughAttribute("probe-stack",
+                              mlir::StringAttr::get(Ctx, "inline-asm"));
 
   if (!hasUnwindExceptions(LangOpts))
-    B.addAttribute(llvm::Attribute::NoUnwind);
+    B.addPassThroughAttribute(llvm::Attribute::NoUnwind);
 
   if (!D || !D->hasAttr<NoStackProtectorAttr>()) {
     if (LangOpts.getStackProtector() == LangOptions::SSPOn)
-      B.addAttribute(llvm::Attribute::StackProtect);
+      B.addPassThroughAttribute(llvm::Attribute::StackProtect);
     else if (LangOpts.getStackProtector() == LangOptions::SSPStrong)
-      B.addAttribute(llvm::Attribute::StackProtectStrong);
+      B.addPassThroughAttribute(llvm::Attribute::StackProtectStrong);
     else if (LangOpts.getStackProtector() == LangOptions::SSPReq)
-      B.addAttribute(llvm::Attribute::StackProtectReq);
+      B.addPassThroughAttribute(llvm::Attribute::StackProtectReq);
   }
 
   if (!D) {
@@ -3549,7 +3549,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
     if (!F->hasAttr(llvm::Attribute::getNameFromAttrKind(
             llvm::Attribute::AlwaysInline)) &&
         CodeGenOpts.getInlining() == CodeGenOptions::OnlyAlwaysInlining)
-      B.addAttribute(llvm::Attribute::NoInline);
+      B.addPassThroughAttribute(llvm::Attribute::NoInline);
 
     mlir::NamedAttrList attrs(F->getAttrDictionary());
     attrs.append(B.getAttrs());
@@ -3570,15 +3570,15 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
   if ((ShouldAddOptNone || D->hasAttr<OptimizeNoneAttr>()) &&
       !F->hasAttr(llvm::Attribute::getNameFromAttrKind(
           llvm::Attribute::AlwaysInline))) {
-    B.addAttribute(llvm::Attribute::OptimizeNone);
+    B.addPassThroughAttribute(llvm::Attribute::OptimizeNone);
 
     // OptimizeNone implies noinline; we should not be inlining such functions.
-    B.addAttribute(llvm::Attribute::NoInline);
+    B.addPassThroughAttribute(llvm::Attribute::NoInline);
 
     // We still need to handle naked functions even though optnone subsumes
     // much of their semantics.
     if (D->hasAttr<NakedAttr>())
-      B.addAttribute(llvm::Attribute::Naked);
+      B.addPassThroughAttribute(llvm::Attribute::Naked);
 
     // OptimizeNone wins over OptimizeForSize and MinSize.
     F->removeAttr(
@@ -3587,26 +3587,26 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
         llvm::Attribute::getNameFromAttrKind(llvm::Attribute::MinSize));
   } else if (D->hasAttr<NakedAttr>()) {
     // Naked implies noinline: we should not be inlining such functions.
-    B.addAttribute(llvm::Attribute::Naked);
-    B.addAttribute(llvm::Attribute::NoInline);
+    B.addPassThroughAttribute(llvm::Attribute::Naked);
+    B.addPassThroughAttribute(llvm::Attribute::NoInline);
   } else if (D->hasAttr<NoDuplicateAttr>()) {
-    B.addAttribute(llvm::Attribute::NoDuplicate);
+    B.addPassThroughAttribute(llvm::Attribute::NoDuplicate);
   } else if (D->hasAttr<NoInlineAttr>() &&
              !F->hasAttr(llvm::Attribute::getNameFromAttrKind(
                  llvm::Attribute::AlwaysInline))) {
     // Add noinline if the function isn't always_inline.
-    B.addAttribute(llvm::Attribute::NoInline);
+    B.addPassThroughAttribute(llvm::Attribute::NoInline);
   } else if (D->hasAttr<AlwaysInlineAttr>() &&
              !F->hasAttr(llvm::Attribute::getNameFromAttrKind(
                  llvm::Attribute::NoInline))) {
     // (noinline wins over always_inline, and we can't specify both in IR)
-    B.addAttribute(llvm::Attribute::AlwaysInline);
+    B.addPassThroughAttribute(llvm::Attribute::AlwaysInline);
   } else if (CodeGenOpts.getInlining() == CodeGenOptions::OnlyAlwaysInlining) {
     // If we're not inlining, then force everything that isn't always_inline to
     // carry an explicit noinline attribute.
     if (!F->hasAttr(llvm::Attribute::getNameFromAttrKind(
             llvm::Attribute::AlwaysInline)))
-      B.addAttribute(llvm::Attribute::NoInline);
+      B.addPassThroughAttribute(llvm::Attribute::NoInline);
   } else {
     // Otherwise, propagate the inline hint attribute and potentially use its
     // absence to mark things as noinline.
@@ -3640,13 +3640,13 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
   if (!D->hasAttr<OptimizeNoneAttr>()) {
     if (D->hasAttr<ColdAttr>()) {
       if (!ShouldAddOptNone)
-        B.addAttribute(llvm::Attribute::OptimizeForSize);
-      B.addAttribute(llvm::Attribute::Cold);
+        B.addPassThroughAttribute(llvm::Attribute::OptimizeForSize);
+      B.addPassThroughAttribute(llvm::Attribute::Cold);
     }
     if (D->hasAttr<HotAttr>())
-      B.addAttribute(llvm::Attribute::Hot);
+      B.addPassThroughAttribute(llvm::Attribute::Hot);
     if (D->hasAttr<MinSizeAttr>())
-      B.addAttribute(llvm::Attribute::MinSize);
+      B.addPassThroughAttribute(llvm::Attribute::MinSize);
   }
 
   NamedAttrList attrs(F->getAttrDictionary());
@@ -3773,6 +3773,10 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     // function declaration.
     mlirclang::AttrBuilder attrBuilder(*ctx);
     {
+      LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+      attrBuilder.addAttribute("llvm.linkage",
+                               mlir::LLVM::LinkageAttr::get(ctx, lnk));
+
       if (FD.hasAttr<SYCLKernelAttr>())
         attrBuilder.addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
                                  UnitAttr::get(ctx));
@@ -3842,6 +3846,10 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
                                    ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
                                    : mlir::LLVM::cconv::CConv::SPIR_FUNC));
 
+    LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
+    attrBuilder.addAttribute("llvm.linkage",
+                             mlir::LLVM::LinkageAttr::get(ctx, lnk));
+
     // SYCL v1.2.1 s3.10:
     //   kernels and device function cannot include RTTI information,
     //   exception classes, recursive code, virtual functions or make use of
@@ -3868,6 +3876,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   const mlir::NamedAttrList &newFnAttrs = PAL.getFnAttrs();
   const mlir::NamedAttrList &oldFnAttrs = attrBuilder.getAttrs();
 
+#if 0
   llvm::dbgs() << "New Fn attributes: ";
   for (const NamedAttribute &attr : newFnAttrs)
     printAttrs(attr);
@@ -3878,6 +3887,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     llvm::dbgs() << "\nAttributes are different for " << FD.getNameAsString()
                  << "\n";
   }
+#endif
 
   mlirclang::AttributeList FnAttrs(function->getAttrDictionary(), {}, {});
   FnAttrs.addFnAttrs(UseOldAttributeImpl ? oldFnAttrs : newFnAttrs, *ctx);

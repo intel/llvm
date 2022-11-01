@@ -40,13 +40,29 @@ static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
   std::vector<mlir::Attribute> Vec =
       PassThroughAttr.getValue().cast<ArrayAttr>().getValue().vec();
 
-  // TODO: find a way to add the attributes only if one does not exist already,
-  // and keep the list in sorted order.
+  // TODO: find a way to add the attributes only if one does not exist already.
   if (Attr.getValue().isa<UnitAttr>())
     Vec.push_back(Attr.getName());
   else
     Vec.push_back(ArrayAttr::get(&Ctx, {Attr.getName(), Attr.getValue()}));
 
+  auto Comp = [&](const mlir::Attribute &A1, const mlir::Attribute &A2) {
+    assert(A1.isa<StringAttr>() || A1.isa<ArrayAttr>());
+    assert(A2.isa<StringAttr>() || A2.isa<ArrayAttr>());
+
+    if (auto StrA1 = A1.dyn_cast<StringAttr>()) {
+      if (auto StrA2 = A2.dyn_cast<StringAttr>())
+        return StrA1 < StrA2;
+      return true;
+    }
+    if (auto ArrA1 = A1.dyn_cast<ArrayAttr>()) {
+      if (auto ArrA2 = A2.dyn_cast<ArrayAttr>())
+        return ArrA1[0].cast<StringAttr>() < ArrA2[0].cast<StringAttr>();
+      return false;
+    }
+  };
+
+  llvm::sort(Vec.begin(), Vec.end(), Comp);
   PassThroughAttr.setValue(ArrayAttr::get(&Ctx, Vec));
 
   LLVM_DEBUG({

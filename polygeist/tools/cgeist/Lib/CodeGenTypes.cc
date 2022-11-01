@@ -65,45 +65,45 @@ constexpr bool AllowInAllocaRet = false;
 /******************************************************************************/
 
 static llvm::raw_ostream &
-operator<<(llvm::raw_ostream &os, clang::CodeGen::ABIArgInfo::Kind &ArgInfo) {
-  os << "ABIArgInfo::";
+operator<<(llvm::raw_ostream &OS, clang::CodeGen::ABIArgInfo::Kind &ArgInfo) {
+  OS << "ABIArgInfo::";
   switch (ArgInfo) {
   case clang::CodeGen::ABIArgInfo::Direct:
-    return os << "Direct";
+    return OS << "Direct";
   case clang::CodeGen::ABIArgInfo::Extend:
-    return os << "Extend";
+    return OS << "Extend";
   case clang::CodeGen::ABIArgInfo::Indirect:
-    return os << "Indirect";
+    return OS << "Indirect";
   case clang::CodeGen::ABIArgInfo::IndirectAliased:
-    return os << "IndirectAliased";
+    return OS << "IndirectAliased";
   case clang::CodeGen::ABIArgInfo::Ignore:
-    return os << "Ignore";
+    return OS << "Ignore";
   case clang::CodeGen::ABIArgInfo::Expand:
-    return os << "Expand";
+    return OS << "Expand";
   case clang::CodeGen::ABIArgInfo::CoerceAndExpand:
-    return os << "CoerceAndExpand";
+    return OS << "CoerceAndExpand";
   case clang::CodeGen::ABIArgInfo::InAlloca:
-    return os << "InAlloca";
+    return OS << "InAlloca";
   }
   llvm_unreachable("Invalid ABI kind");
-  return os;
+  return OS;
 }
 
 /// Iteratively get the size of each dim of the given ConstantArrayType inst.
 static void
-getConstantArrayShapeAndElemType(const clang::QualType &ty,
-                                 llvm::SmallVectorImpl<int64_t> &shape,
-                                 clang::QualType &elemTy) {
-  shape.clear();
+getConstantArrayShapeAndElemType(const clang::QualType &Ty,
+                                 llvm::SmallVectorImpl<int64_t> &Shape,
+                                 clang::QualType &ElemTy) {
+  Shape.clear();
 
-  clang::QualType curTy = ty;
-  while (curTy->isConstantArrayType()) {
-    auto cstArrTy = cast<clang::ConstantArrayType>(curTy);
-    shape.push_back(cstArrTy->getSize().getSExtValue());
-    curTy = cstArrTy->getElementType();
+  clang::QualType CurTy = Ty;
+  while (CurTy->isConstantArrayType()) {
+    auto CstArrTy = cast<clang::ConstantArrayType>(CurTy);
+    Shape.push_back(CstArrTy->getSize().getSExtValue());
+    CurTy = CstArrTy->getElementType();
   }
 
-  elemTy = curTy;
+  ElemTy = CurTy;
 }
 
 static constexpr unsigned AllocSizeNumElemsNotPresent = -1;
@@ -149,7 +149,7 @@ static void addAttributesFromAssumes(mlirclang::AttrBuilder &FuncAttrs,
 static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
                                    const LangOptions &LangOpts,
                                    const NoBuiltinAttr *NBA = nullptr) {
-  auto addNoBuiltinAttr = [&FuncAttrs](StringRef BuiltinName) {
+  auto AddNoBuiltinAttr = [&FuncAttrs](StringRef BuiltinName) {
     SmallString<32> AttributeName;
     AttributeName += "no-builtin-";
     AttributeName += BuiltinName;
@@ -164,7 +164,7 @@ static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
   }
 
   // Then, add attributes for builtins specified through -fno-builtin-<name>.
-  llvm::for_each(LangOpts.NoBuiltinFuncs, addNoBuiltinAttr);
+  llvm::for_each(LangOpts.NoBuiltinFuncs, AddNoBuiltinAttr);
 
   // Now, let's check the __attribute__((no_builtin("...")) attribute added to
   // the source.
@@ -179,7 +179,7 @@ static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
   }
 
   // And last, add the rest of the builtin names.
-  llvm::for_each(NBA->builtinNames(), addNoBuiltinAttr);
+  llvm::for_each(NBA->builtinNames(), AddNoBuiltinAttr);
 }
 
 namespace mlirclang {
@@ -335,8 +335,7 @@ void ClangToLLVMArgMapping::construct(const clang::ASTContext &Context,
 CodeGenTypes::CodeGenTypes(clang::CodeGen::CodeGenModule &CGM,
                            mlir::OwningOpRef<mlir::ModuleOp> &Module)
     : CGM(CGM), Context(CGM.getContext()), TheModule(Module),
-      TheCXXABI(CGM.getCXXABI()),
-      TheABIInfo(CGM.getTargetCodeGenInfo().getABIInfo()) {}
+      TheCXXABI(CGM.getCXXABI()) {}
 
 const CodeGenOptions &CodeGenTypes::getCodeGenOpts() const {
   return CGM.getCodeGenOpts();
@@ -362,7 +361,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 
   // This lambda function returns the declared type of a function parameter when
   // given the index of the parameter and the decayed type of the parameter.
-  auto getDeclArgTy = [&](int32_t ArgNo, QualType ABIArgTy) {
+  auto GetDeclArgTy = [&](int32_t ArgNo, QualType ABIArgTy) {
     if (IsMethodInstance) // account for the fact the 'this' type is not
       ArgNo--;            // present in the function declaration.
     const QualType DeclArgTy =
@@ -380,7 +379,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
 
   // This lambda function returns the MLIR type corresponding to the given clang
   // type.
-  auto getMLIRArgType = [this](QualType QT) {
+  auto GetMLIRArgType = [this](QualType QT) {
     bool IsRef = false;
     mlir::Type ArgTy = getMLIRType(QT, &IsRef);
     if (IsRef)
@@ -471,13 +470,13 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
   // Add in all of the required arguments.
   unsigned ArgNo = 0;
   clang::CodeGen::CGFunctionInfo::const_arg_iterator
-      it = FI.arg_begin(),
-      ie = it + FI.getNumRequiredArgs();
-  for (; it != ie; ++it, ++ArgNo) {
+      It = FI.arg_begin(),
+      Ie = It + FI.getNumRequiredArgs();
+  for (; It != Ie; ++It, ++ArgNo) {
     // Note: 'ArgTy' is the type of the parameter after it as been decayed to
     // abide to the ABI rules.
-    const QualType &ArgTy = it->type;
-    const clang::CodeGen::ABIArgInfo &ArgInfo = it->info;
+    const QualType &ArgTy = It->type;
+    const clang::CodeGen::ABIArgInfo &ArgInfo = It->info;
 
     // TODO: Currently cgeist does not handle inserting paddings. Need to
     // revisit.
@@ -502,7 +501,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     // Note: 'DeclArgTy' is the original type of the parameter in the
     // function declaration. In order to avoid premature loss of information
     // (e.g. extent of array dimensions) we want to use the original type.
-    const QualType DeclArgTy = getDeclArgTy(ArgNo, ArgTy);
+    const QualType DeclArgTy = GetDeclArgTy(ArgNo, ArgTy);
 
     clang::CodeGen::ABIArgInfo::Kind Kind = ArgInfo.getKind();
     LLVM_DEBUG(llvm::dbgs() << "ArgInfo: " << Kind << "\n");
@@ -515,7 +514,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     case clang::CodeGen::ABIArgInfo::Indirect: {
       assert(NumIRArgs == 1);
       // indirect arguments are always on the stack, which is alloca addr space.
-      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
+      mlir::Type MLIRArgTy = GetMLIRArgType(DeclArgTy);
       ArgTypes[FirstIRArg] = getPointerOrMemRefType(
           MLIRArgTy, CGM.getDataLayout().getAllocaAddrSpace());
       LLVM_DEBUG(llvm::dbgs().indent(2)
@@ -524,7 +523,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     }
     case clang::CodeGen::ABIArgInfo::IndirectAliased: {
       assert(NumIRArgs == 1);
-      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
+      mlir::Type MLIRArgTy = GetMLIRArgType(DeclArgTy);
       ArgTypes[FirstIRArg] =
           getPointerOrMemRefType(MLIRArgTy, ArgInfo.getIndirectAddrSpace());
       LLVM_DEBUG(llvm::dbgs().indent(2)
@@ -533,22 +532,23 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     }
     case clang::CodeGen::ABIArgInfo::Extend:
     case clang::CodeGen::ABIArgInfo::Direct: {
-      mlir::Type MLIRArgTy = getMLIRArgType(DeclArgTy);
+      mlir::Type MLIRArgTy = GetMLIRArgType(DeclArgTy);
 
       // Fast-isel and the optimizer generally like
       // scalar values better than FCAs, so we flatten them if this is safe to
       // do for this argument.
-      auto st = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
+      auto ST = MLIRArgTy.dyn_cast<mlir::LLVM::LLVMStructType>();
 
-      if (st && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
-        llvm::errs() << "Warning: struct should be flattened but MLIR codegen "
-                        "cannot yet handle it. Needs to be fixed.";
+      if (ST && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
+        llvm::WithColor::warning()
+            << "struct should be flattened but MLIR codegen "
+               "cannot yet handle it. Needs to be fixed.";
 
-      if (AllowStructFlattening && st && ArgInfo.isDirect() &&
+      if (AllowStructFlattening && ST && ArgInfo.isDirect() &&
           ArgInfo.getCanBeFlattened()) {
-        assert(NumIRArgs == st.getBody().size());
-        for (unsigned i = 0, e = st.getBody().size(); i != e; ++i)
-          ArgTypes[FirstIRArg + i] = st.getBody()[i];
+        assert(NumIRArgs == ST.getBody().size());
+        for (unsigned i = 0, e = ST.getBody().size(); i != e; ++i)
+          ArgTypes[FirstIRArg + i] = ST.getBody()[i];
       } else {
         assert(NumIRArgs == 1);
         ArgTypes[FirstIRArg] = MLIRArgTy;
@@ -649,7 +649,7 @@ void CodeGenTypes::constructAttributeList(
         auto Kind = Fn->getDeclName().getCXXOverloadedOperator();
         if (CGM.getCodeGenOpts().AssumeSaneOperatorNew &&
             (Kind == OO_New || Kind == OO_Array_New))
-          RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
+          RetAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
       }
       const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(Fn);
       const bool IsVirtualCall = MD && MD->isVirtual();
@@ -683,10 +683,10 @@ void CodeGenTypes::constructAttributeList(
       FuncAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUnwind);
     }
     if (TargetDecl->hasAttr<RestrictAttr>())
-      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
     if (TargetDecl->hasAttr<ReturnsNonNullAttr>() &&
         !CGM.getCodeGenOpts().NullPointerIsValid)
-      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
     if (TargetDecl->hasAttr<AnyX86NoCallerSavedRegistersAttr>())
       FuncAttrsBuilder.addPassThroughAttribute("no_caller_saved_registers",
                                                UnitAttr::get(Ctx));
@@ -815,12 +815,9 @@ void CodeGenTypes::constructAttributeList(
       FuncAttrsBuilder.addPassThroughAttribute("disable-tail-calls",
                                                StringAttr::get(Ctx, "true"));
 
-      // TODO
-#if 0
     // CPU/feature overrides.  addDefaultFunctionDefinitionAttributes
     // handles these separately to set them based on the global defaults.
     getCPUAndFeaturesAttributes(CalleeInfo.getCalleeDecl(), FuncAttrsBuilder);
-#endif
   }
 
   // Collect attributes from arguments and return values.
@@ -854,19 +851,19 @@ void CodeGenTypes::constructAttributeList(
     if (!RetTy->isVoidType() &&
         RetAI.getKind() != clang::CodeGen::ABIArgInfo::Indirect &&
         CodeGenUtils::determineNoUndef(RetTy, CGM.getTypes(), DL, RetAI))
-      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUndef);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
   }
 
   switch (RetAI.getKind()) {
   case clang::CodeGen::ABIArgInfo::Extend:
     if (RetAI.isSignExt())
-      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::SExt);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::SExt);
     else
-      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::ZExt);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::ZExt);
     LLVM_FALLTHROUGH;
   case clang::CodeGen::ABIArgInfo::Direct:
     if (RetAI.getInReg())
-      RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::InReg);
+      RetAttrsBuilder.addAttribute(llvm::Attribute::InReg);
     break;
   case clang::CodeGen::ABIArgInfo::Ignore:
     break;
@@ -892,17 +889,17 @@ void CodeGenTypes::constructAttributeList(
     if (const auto *RefTy = RetTy->getAs<ReferenceType>()) {
       QualType PTy = RefTy->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
-        RetAttrsBuilder.addPassThroughAttribute(
+        RetAttrsBuilder.addAttribute(
             llvm::Attribute::Dereferenceable,
             CGM.getMinimumObjectSize(PTy).getQuantity());
       if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
-        RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
+        RetAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
         llvm::Align Alignment =
             CGM.getNaturalPointeeTypeAlignment(RetTy).getAsAlign();
-        RetAttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                                Alignment.value());
+        RetAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
+                                     Alignment.value());
       }
     }
   }
@@ -913,27 +910,21 @@ void CodeGenTypes::constructAttributeList(
   // Attach attributes to sret.
   if (IRFunctionArgs.hasSRetArg()) {
     mlirclang::AttrBuilder SRETAttrs(*Ctx);
-#if 0
-    // TODO
-    auto val = mlir::Attribute::get(Ctx, llvm::Attribute::StructRet,
-                                    getMLIRType(RetTy));
-    SRETAttrs.addPassThroughAttribute(llvm::Attribute::StructRet, val);
-#endif
+    SRETAttrs.addAttribute(llvm::Attribute::StructRet, getMLIRType(RetTy));
     HasUsedSRet = true;
     if (RetAI.getInReg())
-      SRETAttrs.addPassThroughAttribute(llvm::Attribute::InReg);
-    SRETAttrs.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                      RetAI.getIndirectAlign().getQuantity());
+      SRETAttrs.addAttribute(llvm::Attribute::InReg);
+    SRETAttrs.addAttribute(llvm::Attribute::Alignment,
+                           RetAI.getIndirectAlign().getQuantity());
     ArgAttrs[IRFunctionArgs.getSRetArgNo()] = SRETAttrs.getAttrs();
   }
 
   // Attach attributes to inalloca argument.
   if (IRFunctionArgs.hasInallocaArg()) {
     mlirclang::AttrBuilder Attrs(*Ctx);
-#if 0
-    // TODO
-    Attrs.addInAllocaAttr(FI.getArgStruct());
-#endif
+    assert(false && "TODO");
+    //    Attrs.addAttribute(llvm::Attribute::InAlloca,
+    //                     getMLIRType(FI.getArgStruct()));
     ArgAttrs[IRFunctionArgs.getInallocaArgNo()] = Attrs.getAttrs();
   }
 
@@ -946,15 +937,15 @@ void CodeGenTypes::constructAttributeList(
 
     assert(IRArgs.second == 1 && "Expected only a single `this` pointer.");
 
-    mlirclang::AttrBuilder AttrsBuilder(*Ctx);
+    mlirclang::AttrBuilder ParamAttrsBuilder(*Ctx);
 
     QualType ThisTy =
         FI.arg_begin()->type.castAs<clang::PointerType>()->getPointeeType();
 
     if (!CGM.getCodeGenOpts().NullPointerIsValid &&
         CGM.getContext().getTargetAddressSpace(FI.arg_begin()->type) == 0) {
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
-      AttrsBuilder.addPassThroughAttribute(
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
+      ParamAttrsBuilder.addPassThroughAttribute(
           llvm::Attribute::Dereferenceable,
           CGM.getMinimumObjectSize(ThisTy).getQuantity());
     } else {
@@ -962,7 +953,7 @@ void CodeGenTypes::constructAttributeList(
       // NullPointerIsValid. However, dereferenceable currently does not always
       // respect NullPointerIsValid and may imply nonnull and break the program.
       // See https://reviews.llvm.org/D66618 for discussions.
-      AttrsBuilder.addPassThroughAttribute(
+      ParamAttrsBuilder.addAttribute(
           llvm::Attribute::DereferenceableOrNull,
           CGM.getMinimumObjectSize(FI.arg_begin()
                                        ->type.castAs<clang::PointerType>()
@@ -975,9 +966,9 @@ void CodeGenTypes::constructAttributeList(
                                     /*TBAAInfo=*/nullptr,
                                     /*forPointeeType=*/true)
             .getAsAlign();
-    AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                         Alignment.value());
-    ArgAttrs[IRArgs.first] = AttrsBuilder.getAttrs();
+    ParamAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
+                                   Alignment.value());
+    ArgAttrs[IRArgs.first] = ParamAttrsBuilder.getAttrs();
   }
 
   unsigned ArgNo = 0;
@@ -986,14 +977,14 @@ void CodeGenTypes::constructAttributeList(
        I != E; ++I, ++ArgNo) {
     QualType ParamType = I->type;
     const clang::CodeGen::ABIArgInfo &AI = I->info;
-    mlirclang::AttrBuilder AttrsBuilder(*Ctx);
+    mlirclang::AttrBuilder ParamAttrsBuilder(*Ctx);
 
     // Add attribute for padding argument, if necessary.
     if (IRFunctionArgs.hasPaddingArg(ArgNo)) {
       if (AI.getPaddingInReg()) {
         ArgAttrs[IRFunctionArgs.getPaddingArgNo(ArgNo)] =
             mlirclang::AttrBuilder(*Ctx)
-                .addPassThroughAttribute(llvm::Attribute::InReg)
+                .addAttribute(llvm::Attribute::InReg)
                 .getAttrs();
       }
     }
@@ -1001,7 +992,7 @@ void CodeGenTypes::constructAttributeList(
     // Decide whether the argument we're handling could be partially undef
     if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
         CodeGenUtils::determineNoUndef(ParamType, CGM.getTypes(), DL, AI)) {
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoUndef);
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
     }
 
     // 'restrict' -> 'noalias' is done in EmitFunctionProlog when we
@@ -1010,35 +1001,33 @@ void CodeGenTypes::constructAttributeList(
     switch (AI.getKind()) {
     case clang::CodeGen::ABIArgInfo::Extend:
       if (AI.isSignExt())
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SExt);
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::SExt);
       else
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::ZExt);
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::ZExt);
       LLVM_FALLTHROUGH;
     case clang::CodeGen::ABIArgInfo::Direct:
       if (ArgNo == 0 && FI.isChainCall())
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Nest);
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::Nest);
       else if (AI.getInReg())
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::InReg);
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::StackAlignment,
-                                           AI.getDirectAlign());
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::InReg);
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::StackAlignment,
+                                     AI.getDirectAlign());
       break;
 
     case clang::CodeGen::ABIArgInfo::Indirect: {
       if (AI.getInReg())
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::InReg);
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::InReg);
 
-#if 0
-// TODO
       if (AI.getIndirectByVal())
-        AttrsBuilder.addByValAttr(CGM.getTypes().ConvertTypeForMem(ParamType));
-#endif
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::ByVal,
+                                       getMLIRType(ParamType));
 
       auto *Decl = ParamType->getAsRecordDecl();
       if (CGM.getCodeGenOpts().PassByValueIsNoAlias && Decl &&
           Decl->getArgPassingRestrictions() == RecordDecl::APK_CanPassInRegs)
         // When calling the function, the pointer passed in will be the only
         // reference to the underlying object. Mark it accordingly.
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
 
       // TODO: We could add the byref attribute if not byval, but it would
       // require updating many testcases.
@@ -1060,8 +1049,8 @@ void CodeGenTypes::constructAttributeList(
       // For now, only add this when we have a byval argument.
       // TODO: be less lazy about updating test cases.
       if (AI.getIndirectByVal())
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                             Align.getQuantity());
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
+                                       Align.getQuantity());
 
       // byval disables readnone and readonly.
       FuncAttrsBuilder.removeAttribute(llvm::Attribute::ReadOnly)
@@ -1071,12 +1060,9 @@ void CodeGenTypes::constructAttributeList(
     }
     case clang::CodeGen::ABIArgInfo::IndirectAliased: {
       CharUnits Align = AI.getIndirectAlign();
-#if 0
-      //TODO
-      AttrsBuilder.addByRefAttr(CGM.getTypes().ConvertTypeForMem(ParamType));
-#endif
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                           Align.getQuantity());
+      ParamAttrsBuilder
+          .addAttribute(llvm::Attribute::ByRef, getMLIRType(ParamType))
+          .addAttribute(llvm::Attribute::Alignment, Align.getQuantity());
       break;
     }
     case clang::CodeGen::ABIArgInfo::Ignore:
@@ -1094,17 +1080,17 @@ void CodeGenTypes::constructAttributeList(
     if (const auto *RefTy = ParamType->getAs<ReferenceType>()) {
       QualType PTy = RefTy->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType())
-        AttrsBuilder.addPassThroughAttribute(
+        ParamAttrsBuilder.addAttribute(
             llvm::Attribute::Dereferenceable,
             CGM.getMinimumObjectSize(PTy).getQuantity());
       if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NonNull);
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
         llvm::Align Alignment =
             CGM.getNaturalPointeeTypeAlignment(ParamType).getAsAlign();
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                             Alignment.value());
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
+                                       Alignment.value());
       }
     }
 
@@ -1117,8 +1103,8 @@ void CodeGenTypes::constructAttributeList(
       QualType PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         CharUnits Alignment = CGM.getNaturalPointeeTypeAlignment(ParamType);
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                             Alignment.getQuantity());
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
+                                       Alignment.getQuantity());
       }
     }
 
@@ -1129,49 +1115,48 @@ void CodeGenTypes::constructAttributeList(
     case ParameterABI::SwiftIndirectResult: {
       // Add 'sret' if we haven't already used it for something, but
       // only if the result is void.
-#if 0      
-      if (!hasUsedSRet && RetTy->isVoidType()) {
-        //TODO
-        AttrsBuilder.addStructRetAttr(getTypes().ConvertTypeForMem(ParamType));
-        hasUsedSRet = true;
-    }
-#endif
+      if (!HasUsedSRet && RetTy->isVoidType()) {
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::StructRet,
+                                       getMLIRType(ParamType));
+        HasUsedSRet = true;
+      }
+
       // Add 'noalias' in either case.
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoAlias);
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
 
       // Add 'dereferenceable' and 'alignment'.
       auto PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
-        auto info = CGM.getContext().getTypeInfoInChars(PTy);
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Dereferenceable,
-                                             info.Width.getQuantity());
-        AttrsBuilder.addPassThroughAttribute(llvm::Attribute::Alignment,
-                                             info.Align.getQuantity());
+        auto Info = CGM.getContext().getTypeInfoInChars(PTy);
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::Dereferenceable,
+                                       Info.Width.getQuantity());
+        ParamAttrsBuilder.addAttribute(llvm::Attribute::Alignment,
+                                       Info.Align.getQuantity());
       }
       break;
     }
 
     case ParameterABI::SwiftErrorResult:
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SwiftError);
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::SwiftError);
       break;
 
     case ParameterABI::SwiftContext:
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SwiftSelf);
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::SwiftSelf);
       break;
 
     case ParameterABI::SwiftAsyncContext:
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::SwiftAsync);
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::SwiftAsync);
       break;
     }
 
     if (FI.getExtParameterInfo(ArgNo).isNoEscape())
-      AttrsBuilder.addPassThroughAttribute(llvm::Attribute::NoCapture);
+      ParamAttrsBuilder.addAttribute(llvm::Attribute::NoCapture);
 
-    if (AttrsBuilder.hasAttributes()) {
+    if (ParamAttrsBuilder.hasAttributes()) {
       unsigned FirstIRArg, NumIRArgs;
       std::tie(FirstIRArg, NumIRArgs) = IRFunctionArgs.getIRArgs(ArgNo);
       for (unsigned i = 0; i < NumIRArgs; i++)
-        ArgAttrs[FirstIRArg + i].append(AttrsBuilder.getAttrs());
+        ArgAttrs[FirstIRArg + i].append(ParamAttrsBuilder.getAttrs());
     }
   }
   assert(ArgNo == FI.arg_size());
@@ -1256,7 +1241,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
                                                   types);
   }
 
-  mlir::LLVM::TypeFromLLVMIRTranslator typeTranslator(*TheModule->getContext());
+  mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
 
   if (auto RT = dyn_cast<clang::RecordType>(qt)) {
     if (RT->getDecl()->isInvalidDecl()) {
@@ -1299,13 +1284,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       // No need special handling for types that don't have record declaration
       // name.
       if (TypeName != "")
-        llvm::errs() << "Warning: SYCL type '" << ST->getName()
-                     << "' has not been converted to SYCL MLIR\n";
+        llvm::WithColor::warning() << "SYCL type '" << ST->getName()
+                                   << "' has not been converted to SYCL MLIR\n";
     }
 
     auto CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
     if (CodeGenUtils::isLLVMStructABI(RT->getDecl(), ST))
-      return typeTranslator.translateType(anonymize(ST));
+      return TypeTranslator.translateType(anonymize(ST));
 
     /* TODO
     if (ST->getNumElements() == 1 && !recursive &&
@@ -1346,7 +1331,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
 
     if (types.empty())
       if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
-        return typeTranslator.translateType(anonymize(ST));
+        return TypeTranslator.translateType(anonymize(ST));
 
     if (recursive) {
       auto LR = TypeCache[RT].setBody(types, /*isPacked*/ false);
@@ -1391,7 +1376,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
     auto PTT = AT->getElementType()->getUnqualifiedDesugaredType();
     if (PTT->isCharType()) {
       llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
-      return typeTranslator.translateType(T);
+      return TypeTranslator.translateType(T);
     }
     bool subRef = false;
     auto ET = getMLIRType(AT->getElementType(), &subRef, allowMerge);
@@ -1469,7 +1454,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
 
     if (PTT->isCharType() || PTT->isVoidType()) {
       llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
-      return typeTranslator.translateType(T);
+      return TypeTranslator.translateType(T);
     }
     bool subRef = false;
     auto subType = getMLIRType(pointeeType, &subRef, /*allowMerge*/ true);
@@ -1559,11 +1544,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
 
 // Note: In principle we should always create a memref here because we want to
 // avoid lowering the abstraction level at this point in the compilation flow.
-// However, cgeist treats type inconsistently, it expects memref for SYCL types
-// and pointers for every other struct type.
+// However, cgeist treats type inconsistently, it expects memref for SYCL
+// types and pointers for every other struct type.
 mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 unsigned AddressSpace,
-                                                bool IsAlloc) {
+                                                bool IsAlloc) const {
   auto ST = Ty.dyn_cast<mlir::LLVM::LLVMStructType>();
 
   bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
@@ -1583,7 +1568,7 @@ CodeGenTypes::arrangeGlobalDeclaration(clang::GlobalDecl GD) {
 
 void CodeGenTypes::getDefaultFunctionAttributes(
     StringRef Name, bool HasOptnone, bool AttrOnCallSite,
-    mlirclang::AttrBuilder &FuncAttrs) {
+    mlirclang::AttrBuilder &FuncAttrs) const {
   MLIRContext *Ctx = TheModule->getContext();
   const LangOptions &LangOpts = CGM.getLangOpts();
 
@@ -1748,8 +1733,7 @@ void CodeGenTypes::getDefaultFunctionAttributes(
   }
 
   // TODO: NoUnwind attribute should be added for other GPU modes OpenCL, HIP,
-  // SYCL, OpenMP offload. AFAIK, none of them support exceptions in device
-  // code.
+  // OpenMP offload. AFAIK, none of them support exceptions in device code.
   if ((LangOpts.CUDA && LangOpts.CUDAIsDevice) ||
       (LangOpts.isSYCL() && LangOpts.SYCLIsDevice))
     FuncAttrs.addPassThroughAttribute(llvm::Attribute::NoUnwind);
@@ -1759,6 +1743,79 @@ void CodeGenTypes::getDefaultFunctionAttributes(
     std::tie(Var, Value) = Attr.split('=');
     FuncAttrs.addPassThroughAttribute(Var, StringAttr::get(Ctx, Value));
   }
+}
+
+bool CodeGenTypes::getCPUAndFeaturesAttributes(
+    GlobalDecl GD, AttrBuilder &FuncAttrsBuilder) const {
+  // Add target-cpu and target-features attributes to functions. If
+  // we have a decl for the function and it has a target attribute then
+  // parse that and add it to the feature set.
+  StringRef TargetCPU = CGM.getTarget().getTargetOpts().CPU;
+  StringRef TuneCPU = CGM.getTarget().getTargetOpts().TuneCPU;
+  std::vector<std::string> Features;
+  const auto *FD = dyn_cast_or_null<FunctionDecl>(GD.getDecl());
+  FD = FD ? FD->getMostRecentDecl() : FD;
+  const auto *TD = FD ? FD->getAttr<TargetAttr>() : nullptr;
+  const auto *SD = FD ? FD->getAttr<CPUSpecificAttr>() : nullptr;
+  const auto *TC = FD ? FD->getAttr<TargetClonesAttr>() : nullptr;
+  bool AddedAttr = false;
+  if (TD || SD || TC) {
+    llvm::StringMap<bool> FeatureMap;
+    getContext().getFunctionFeatureMap(FeatureMap, GD);
+
+    // Produce the canonical string for this set of features.
+    for (const llvm::StringMap<bool>::value_type &Entry : FeatureMap)
+      Features.push_back((Entry.getValue() ? "+" : "-") + Entry.getKey().str());
+
+    // Now add the target-cpu and target-features to the function.
+    // While we populated the feature map above, we still need to
+    // get and parse the target attribute so we can get the cpu for
+    // the function.
+    if (TD) {
+      ParsedTargetAttr ParsedAttr =
+          CGM.getTarget().parseTargetAttr(TD->getFeaturesStr());
+      if (!ParsedAttr.CPU.empty() &&
+          CGM.getTarget().isValidCPUName(ParsedAttr.CPU)) {
+        TargetCPU = ParsedAttr.CPU;
+        TuneCPU = ""; // Clear the tune CPU.
+      }
+      if (!ParsedAttr.Tune.empty() &&
+          CGM.getTarget().isValidCPUName(ParsedAttr.Tune))
+        TuneCPU = ParsedAttr.Tune;
+    }
+
+    if (SD) {
+      // Apply the given CPU name as the 'tune-cpu' so that the optimizer can
+      // favor this processor.
+      TuneCPU = CGM.getTarget().getCPUSpecificTuneName(
+          SD->getCPUName(GD.getMultiVersionIndex())->getName());
+    }
+  } else {
+    // Otherwise just add the existing target cpu and target features to the
+    // function.
+    Features = CGM.getTarget().getTargetOpts().Features;
+  }
+
+  MLIRContext *Ctx = TheModule->getContext();
+
+  if (!TargetCPU.empty()) {
+    FuncAttrsBuilder.addPassThroughAttribute("target-cpu",
+                                             StringAttr::get(Ctx, TargetCPU));
+    AddedAttr = true;
+  }
+  if (!TuneCPU.empty()) {
+    FuncAttrsBuilder.addPassThroughAttribute("tune-cpu",
+                                             StringAttr::get(Ctx, TuneCPU));
+    AddedAttr = true;
+  }
+  if (!Features.empty()) {
+    llvm::sort(Features);
+    FuncAttrsBuilder.addPassThroughAttribute(
+        "target-features", StringAttr::get(Ctx, llvm::join(Features, ",")));
+    AddedAttr = true;
+  }
+
+  return AddedAttr;
 }
 
 } // namespace CodeGen

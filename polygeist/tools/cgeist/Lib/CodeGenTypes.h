@@ -56,7 +56,6 @@ class CodeGenTypes {
   clang::ASTContext &Context;
   mlir::OwningOpRef<mlir::ModuleOp> &TheModule;
   clang::CodeGen::CGCXXABI &TheCXXABI;
-  const clang::CodeGen::ABIInfo &TheABIInfo;
 
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> TypeCache;
 
@@ -66,8 +65,7 @@ public:
 
   clang::CodeGen::CodeGenModule &getCGM() const { return CGM; }
   clang::ASTContext &getContext() const { return Context; }
-  const clang::CodeGen::ABIInfo &getABIInfo() const { return TheABIInfo; }
-  mlir::OwningOpRef<mlir::ModuleOp> &getModule() { return TheModule; }
+  mlir::OwningOpRef<mlir::ModuleOp> &getModule() const { return TheModule; }
   clang::CodeGen::CGCXXABI &getCXXABI() const { return TheCXXABI; }
   const clang::CodeGenOptions &getCodeGenOpts() const;
 
@@ -87,7 +85,7 @@ public:
                          bool AllowMerge = true);
 
   mlir::Type getPointerOrMemRefType(mlir::Type Ty, unsigned AddressSpace,
-                                    bool IsAlloca = false);
+                                    bool IsAlloca = false) const;
 
   const clang::CodeGen::CGFunctionInfo &
   arrangeGlobalDeclaration(clang::GlobalDecl GD);
@@ -95,7 +93,10 @@ public:
 private:
   void getDefaultFunctionAttributes(llvm::StringRef Name, bool HasOptnone,
                                     bool AttrOnCallSite,
-                                    mlirclang::AttrBuilder &FuncAttrs);
+                                    mlirclang::AttrBuilder &FuncAttrs) const;
+
+  bool getCPUAndFeaturesAttributes(clang::GlobalDecl GD,
+                                   AttrBuilder &Attrs) const;
 };
 
 } // namespace CodeGen

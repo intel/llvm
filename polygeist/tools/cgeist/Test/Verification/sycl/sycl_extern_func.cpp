@@ -7,13 +7,11 @@
 
 // CHECK-MLIR-LABEL: gpu.func @_ZTSZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_E18kernel_single_task
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
-// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 
 // CHECK-MLIR-LABEL: func.func private @_ZZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv
-// CHECK-MLIR-SAME: attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<internal>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
 // CHECK-MLIR: call @cons_5() : () -> ()
 
-// CHECK-MLIR-LABEL: func.func @cons_5() attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-MLIR-LABEL: func.func @cons_5() attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<external>
 // CHECK-MLIR:           sycl.constructor(%{{.*}})
 // CHECK-MLIR-NEXT:      return
 
@@ -21,10 +19,10 @@
 // CHECK-SAME: #1
 
 // CHECK-LLVM-LABEL: define internal spir_func void @_ZZZ16host_single_taskvENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv
-// CHECK-LLVM-SAME: #0
+// CHECK-LLVM-SAME: #2
 // CHECK: call void @cons_5()
 
-// CHECK-LLVM-LABEL: define spir_func void @cons_5() #0 {
+// CHECK-LLVM-LABEL: define spir_func void @cons_5() #1 {
 // CHECK-LLVM-NEXT:  [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
 // CHECK-LLVM-NEXT:  [[ACAST:%.*]] = addrspacecast %"class.sycl::_V1::accessor.1"* [[ACCESSOR]] to %"class.sycl::_V1::accessor.1" addrspace(4)*
 // CHECK-LLVM-NEXT:  call void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.sycl::_V1::accessor.1" addrspace(4)* [[ACAST]])
@@ -47,5 +45,5 @@ void host_single_task() {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM:          attributes #0 = { convergent mustprogress norecurse nounwind }
-// CHECK-LLVM-NEXT:     attributes #1 = { convergent mustprogress norecurse nounwind "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" }
+// CHECK-LLVM: attributes #1 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" }
+// CHECK-LLVM-NEXT: attributes #2 = { alwaysinline convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/sycl_extern_func.cpp" }
