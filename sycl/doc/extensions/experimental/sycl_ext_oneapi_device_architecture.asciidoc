@@ -629,4 +629,4 @@ may not be available on devices with other architectures.
 --
 
 * Additional enumerators in the `architecture` enumeration.  This could include
-  entries for different x86_64 architectures or entries for CUDA devices.
+  entries for different x86_64 architectures.
