@@ -687,7 +687,7 @@ The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system.
 In this case, the behavior of the `default_selector` can be altered
-using the `SYCL_DEVICE_FILTER` environment variable, setting `cuda` forces
+using the `ONEAPI_DEVICE_SELECTOR` environment variable, setting `cuda` forces
 the usage of the CUDA backend (if available), `hip` forces
 the usage of the HIP backend (if available), `opencl` will
 force the usage of the OpenCL backend.
