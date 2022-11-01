@@ -172,7 +172,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       if (this->getToolChain().getTriple().isNVPTX()) {
         // Linking SYCL Device libs requires libclc as well as libdevice
-        if ((InputFilename.find("nvidiacl") != InputFilename.npos ||
+        if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
         LibPostfix = ".cubin";
