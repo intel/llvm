@@ -66,10 +66,6 @@ static cl::opt<bool>
     UseOldFunctionType("old-func-type", cl::init(false),
                        cl::desc("Use old way to compute the function type"));
 
-static cl::opt<bool> UseOldAttributeImpl(
-    "old-func-attrs", cl::init(false),
-    cl::desc("Use old way to compute function attributes "));
-
 cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
                                    cl::desc("Generate all SYCL functions"));
 
@@ -3669,7 +3665,6 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
                                  1ull << LangOpts.FunctionAlignment));
     }
 
-#if 0
   // Some C++ ABIs require 2-byte alignment for member functions, in order to
   // reserve a bit for differentiating between virtual and non-virtual member
   // functions. If the current target's C++ ABI requires this and this is a
@@ -3677,27 +3672,24 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
   if (CGM.getTarget().getCXXABI().areMemberFunctionsAligned()) {
     StringRef AlignAttrName =
         llvm::Attribute::getNameFromAttrKind(llvm::Attribute::Alignment);
-    if (auto AlignmentAttr =
-            F->getAttrOfType<mlir::NamedAttribute>(AlignAttrName)) {
-      //      assert(isa<NamedAttribute>(AlignmentAttr));
-      mlir::Attribute AlignValAttr =
-          static_cast<mlir::NamedAttribute>(AlignmentAttr).getValue();
-      unsigned AlignVal = AlignValAttr.cast<mlir::IntegerAttr>().getInt();
+
+    if (auto AlignmentAttr = F->getAttrOfType<ArrayAttr>(AlignAttrName)) {
+      assert(AlignmentAttr.size() == 2);
+      unsigned AlignVal = AlignmentAttr[1].cast<mlir::IntegerAttr>().getInt();
       if (AlignVal < 2 && isa<CXXMethodDecl>(D)) {
         OpBuilder Builder(Ctx);
-        F->setAttr(
-            llvm::Attribute::getNameFromAttrKind(llvm::Attribute::Alignment),
-            Builder.getIntegerAttr(Builder.getIntegerType(64), 2));
+        F->setAttr(AlignAttrName,
+                   Builder.getIntegerAttr(Builder.getIntegerType(64), 2));
       }
     }
   }
-#endif
 
 #if 0
+  // TODO: handle metadata generation.
   // In the cross-dso CFI mode with canonical jump tables, we want !type
   // attributes on definitions only.
-  if (CodeGenOpts.SanitizeCfiCrossDso &&
-      CodeGenOpts.SanitizeCfiCanonicalJumpTables) {
+  if (CGM.getCodeGenOpts().SanitizeCfiCrossDso &&
+      CGM.getCodeGenOpts().SanitizeCfiCanonicalJumpTables) {
     if (auto *FD = dyn_cast<FunctionDecl>(D)) {
       // Skip available_externally functions. They won't be codegen'ed in the
       // current module anyway.
@@ -3706,7 +3698,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
         CreateFunctionTypeMetadataForIcall(FD, F);
     }
   }
-  
+
   // Emit type metadata on member functions for member function pointer checks.
   // These are only ever necessary on definitions; we're guaranteed that the
   // definition will be present in the LTO unit as a result of LTO visibility.
@@ -3726,13 +3718,6 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
     const clang::CodeGen::CGFunctionInfo &FI, bool IsThunk, bool ShouldEmit) {
   using Attribute = llvm::Attribute;
-
-  auto printAttrs = [&](const mlir::NamedAttribute &attr) {
-    llvm::dbgs() << attr.getName();
-    if (attr.getValue() != UnitAttr::get(module->getContext()))
-      llvm::dbgs() << " = " << attr.getValue();
-    llvm::dbgs() << ", ";
-  };
 
   const FunctionDecl &FD = FTE.getDecl();
   MLIRContext *ctx = module->getContext();
@@ -3760,7 +3745,6 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
   LLVM_DEBUG(llvm::dbgs() << "Setting attributes for " << FD.getNameAsString()
                           << "\n");
 
-  // New way to compute function attributes.
   mlirclang::AttributeList PAL;
   {
     const auto *FPT = FD.getType()->getAs<FunctionProtoType>();
@@ -3824,73 +3808,8 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     PAL.addFnAttrs(attrBuilder);
   }
 
-  // Old way to compute function attributes.
-  // TODO: remove once we are happy with the new way to compute function
-  // attributes.
-  mlirclang::AttrBuilder attrBuilder(*ctx);
-  {
-    // Mark a SYCL kernel as a SPIRV kernel.
-    if (FD.hasAttr<SYCLKernelAttr>()) {
-      attrBuilder
-          .addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
-                        UnitAttr::get(ctx))
-          .addPassThroughAttribute(
-              "sycl-module-id",
-              StringAttr::get(ctx, llvmMod.getModuleIdentifier()));
-    }
-
-    // Calling conventions for SPIRV functions.
-    attrBuilder.addAttribute(
-        "llvm.cconv", mlir::LLVM::CConvAttr::get(
-                          ctx, FD.hasAttr<SYCLKernelAttr>()
-                                   ? mlir::LLVM::cconv::CConv::SPIR_KERNEL
-                                   : mlir::LLVM::cconv::CConv::SPIR_FUNC));
-
-    LLVM::Linkage lnk = getMLIRLinkage(getLLVMLinkageType(FD, ShouldEmit));
-    attrBuilder.addAttribute("llvm.linkage",
-                             mlir::LLVM::LinkageAttr::get(ctx, lnk));
-
-    // SYCL v1.2.1 s3.10:
-    //   kernels and device function cannot include RTTI information,
-    //   exception classes, recursive code, virtual functions or make use of
-    //   C++ libraries that are not compiled for the device.
-    attrBuilder.addPassThroughAttribute(Attribute::AttrKind::NoRecurse)
-        .addPassThroughAttribute(Attribute::AttrKind::NoUnwind);
-
-    if (CGM.getLangOpts().assumeFunctionsAreConvergent())
-      attrBuilder.addPassThroughAttribute(Attribute::AttrKind::Convergent);
-
-    auto functionMustProgress =
-        [](const clang::CodeGen::CodeGenModule &CGM) -> bool {
-      if (CGM.getCodeGenOpts().getFiniteLoops() ==
-          CodeGenOptions::FiniteLoopsKind::Never)
-        return false;
-      return CGM.getLangOpts().CPlusPlus11;
-    };
-
-    if (functionMustProgress(CGM))
-      attrBuilder.addPassThroughAttribute(Attribute::AttrKind::MustProgress);
-  }
-
-  // Compare the 2 attribute computations.
-  const mlir::NamedAttrList &newFnAttrs = PAL.getFnAttrs();
-  const mlir::NamedAttrList &oldFnAttrs = attrBuilder.getAttrs();
-
-#if 0
-  llvm::dbgs() << "New Fn attributes: ";
-  for (const NamedAttribute &attr : newFnAttrs)
-    printAttrs(attr);
-  llvm::dbgs() << "\nOld Fn attributes: ";
-  for (const NamedAttribute &attr : oldFnAttrs)
-    printAttrs(attr);
-  if (newFnAttrs != oldFnAttrs) {
-    llvm::dbgs() << "\nAttributes are different for " << FD.getNameAsString()
-                 << "\n";
-  }
-#endif
-
   mlirclang::AttributeList FnAttrs(function->getAttrDictionary(), {}, {});
-  FnAttrs.addFnAttrs(UseOldAttributeImpl ? oldFnAttrs : newFnAttrs, *ctx);
+  FnAttrs.addFnAttrs(PAL.getFnAttrs(), *ctx);
   function->setAttrs(FnAttrs.getFnAttrs().getDictionary(ctx));
 }
 
@@ -4176,8 +4095,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
     // Inform the target of the language options.
     //
-    // FIXME: We shouldn't need to do this, the target should be immutable
-    // once created. This complexity should be lifted elsewhere.
+    // FIXME: We shouldn't need to do this, the target should be immutable once
+    // created. This complexity should be lifted elsewhere.
     Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
 
     // Adjust target options based on codegen options.
