@@ -344,63 +344,63 @@ of these enumerators, and it provides a brief description of their meanings.
 
 |`nvidia_gpu_sm30`
 |1
-|NVIDIA Kepler architecture.
+|NVIDIA Kepler architecture (compute capability 3.0).
 
 |`nvidia_gpu_sm32`
 |1
-|NVIDIA Kepler architecture.
+|NVIDIA Kepler architecture (compute capability 3.2).
 
 |`nvidia_gpu_sm35`
 |1
-|NVIDIA Kepler architecture.
+|NVIDIA Kepler architecture (compute capability 3.5).
 
 |`nvidia_gpu_sm37`
 |1
-|NVIDIA Kepler architecture.
+|NVIDIA Kepler architecture (compute capability 3.7).
 
 |`nvidia_gpu_sm50`
 |1
-|NVIDIA Maxwell architecture.
+|NVIDIA Maxwell architecture (compute capability 5.0).
 
 |`nvidia_gpu_sm52`
 |1
-|NVIDIA Maxwell architecture.
+|NVIDIA Maxwell architecture (compute capability 5.2).
 
 |`nvidia_gpu_sm53`
 |1
-|NVIDIA Maxwell architecture.
+|NVIDIA Maxwell architecture (compute capability 5.3).
 
 |`nvidia_gpu_sm60`
 |1
-|NVIDIA Pascal architecture.
+|NVIDIA Pascal architecture (compute capability 6.0).
 
 |`nvidia_gpu_sm61`
 |1
-|NVIDIA Pascal architecture.
+|NVIDIA Pascal architecture (compute capability 6.1).
 
 |`nvidia_gpu_sm62`
 |1
-|NVIDIA Pascal architecture.
+|NVIDIA Pascal architecture (compute capability 6.2).
 
 |`nvidia_gpu_sm70`
 |1
-|NVIDIA Volta architecture.
+|NVIDIA Volta architecture (compute capability 7.0).
 
 |`nvidia_gpu_sm72`
 |1
-|NVIDIA Volta architecture.
+|NVIDIA Volta architecture (compute capability 7.2).
 
 |`nvidia_gpu_sm75`
 |1
-|NVIDIA Turing architecture.
+|NVIDIA Turing architecture (compute capability 7.5).
 
 |`nvidia_gpu_sm80`
 |1
-|NVIDIA Ampere architecture.
+|NVIDIA Ampere architecture (compute capability 8.0).
 
 |`nvidia_gpu_sm86`
 |1
-|NVIDIA Ampere architecture.
+|NVIDIA Ampere architecture (compute capability 8.6).
 
 |`nvidia_gpu_sm87`
 |1
@@ -502,8 +502,11 @@ of these enumerators, and it provides a brief description of their meanings.
 
 [NOTE]
 ====
-An "alias" enumerator is generally added for new devices only after hardware
+* An "alias" enumerator is generally added for new devices only after hardware
 has finalized and the exact version is known.
+* For NVIDIA GPUs, the architecture enumerator corresponds to the
+https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities[compute capability]
+of the device, and ext_oneapi_architecture_is can be used similarly to the \\__CUDA_ARCH__ macro in CUDA.
 ====
 
 
