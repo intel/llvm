@@ -693,7 +693,7 @@ the usage of the HIP backend (if available), `opencl` will
 force the usage of the OpenCL backend.
 
 ```bash
-SYCL_DEVICE_FILTER=cuda ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda ./simple-sycl-app-cuda.exe
 ```
 
 The default is the OpenCL backend if available.
@@ -709,11 +709,11 @@ The results are correct!
 ```
 
 **NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `SYCL_DEVICE_FILTER` environment
+the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
 variable.
 
 ```bash
-SYCL_DEVICE_FILTER=cuda ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
