@@ -128,20 +128,6 @@ enum class architecture : /* unspecified */ {
   intel_gpu_acm_g12,
   intel_gpu_pvc,
 
-  intel_gpu_8_0_0 = intel_gpu_bdw,
-  intel_gpu_9_0_9 = intel_gpu_skl,
-  intel_gpu_9_1_9 = intel_gpu_kbl
-  intel_gpu_9_2_9 = intel_gpu_cfl,
-  intel_gpu_9_3_0 = intel_gpu_apl,
-  intel_gpu_9_4_0 = intel_gpu_glk,
-  intel_gpu_9_5_0 = intel_gpu_whl,
-  intel_gpu_9_6_0 = intel_gpu_aml,
-  intel_gpu_9_7_0 = intel_gpu_cml,
-  intel_gpu_11_0_0 = intel_gpu_icllp,
-  intel_gpu_11_2_0 = intel_gpu_ehl,
-  intel_gpu_12_0_0 = intel_gpu_tgllp,
-  intel_gpu_12_10_0 = intel_gpu_dg1,
-
   nvidia_gpu_sm20,
   nvidia_gpu_sm30,
   nvidia_gpu_sm32,
@@ -182,7 +168,23 @@ enum class architecture : /* unspecified */ {
   amd_gpu_gfx1013,
   amd_gpu_gfx1030,
   amd_gpu_gfx1031,
-  amd_gpu_gfx1032
+  amd_gpu_gfx1032,
+
+  intel_gpu_8_0_0 = intel_gpu_bdw,
+  intel_gpu_9_0_9 = intel_gpu_skl,
+  intel_gpu_9_1_9 = intel_gpu_kbl
+  intel_gpu_9_2_9 = intel_gpu_cfl,
+  intel_gpu_9_3_0 = intel_gpu_apl,
+  intel_gpu_9_4_0 = intel_gpu_glk,
+  intel_gpu_9_5_0 = intel_gpu_whl,
+  intel_gpu_9_6_0 = intel_gpu_aml,
+  intel_gpu_9_7_0 = intel_gpu_cml,
+  intel_gpu_11_0_0 = intel_gpu_icllp,
+  intel_gpu_11_2_0 = intel_gpu_ehl,
+  intel_gpu_12_0_0 = intel_gpu_tgllp,
+  intel_gpu_12_10_0 = intel_gpu_dg1,
+
+ 
 };
 
 } // namespace sycl::ext::oneapi::experimental

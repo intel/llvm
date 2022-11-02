@@ -337,8 +337,8 @@ constexpr static auto if_architecture_is(T fnTrue, Args ...args) {
 
 The header file code presented above triggers a `static_assert` if the
 `if_architecture_is` function is used in a translation unit that is compiled
-for an unsupported target.  The only supported targets are `spir64_x86_64` and
-the new `intel_gpu_*` GPU device names.
+for an unsupported target. The supported targets are `spir64_x86_64`,
+the new `intel_gpu_*`, `nvidia_gpu_*` and `amd_gpu_*` GPU device names.
 
 The error checking relies on the fact that the device compiler is invoked
 separately for each target listed in `-fsycl-target`.  If any target is
