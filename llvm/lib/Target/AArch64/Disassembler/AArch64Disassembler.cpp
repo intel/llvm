@@ -137,6 +137,9 @@ static DecodeStatus DecodePPRRegisterClass(MCInst &Inst, unsigned RegNo,
 static DecodeStatus DecodePPR_3bRegisterClass(MCInst &Inst, unsigned RegNo,
                                               uint64_t Address,
                                               const MCDisassembler *Decoder);
+static DecodeStatus
+DecodePPR_p8to15RegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Address,
+                              const MCDisassembler *Decoder);
 
 static DecodeStatus DecodeFixedPointScaleImm32(MCInst &Inst, unsigned Imm,
                                                uint64_t Address,
@@ -267,21 +270,6 @@ static DecodeStatus DecodeCPYMemOpInstruction(MCInst &Inst, uint32_t insn,
 static DecodeStatus DecodeSETMemOpInstruction(MCInst &Inst, uint32_t insn,
                                               uint64_t Addr,
                                               const MCDisassembler *Decoder);
-
-static bool Check(DecodeStatus &Out, DecodeStatus In) {
-  switch (In) {
-    case MCDisassembler::Success:
-      // Out stays the same.
-      return true;
-    case MCDisassembler::SoftFail:
-      Out = In;
-      return true;
-    case MCDisassembler::Fail:
-      Out = In;
-      return false;
-  }
-  llvm_unreachable("Invalid DecodeStatus!");
-}
 
 #include "AArch64GenDisassemblerTables.inc"
 #include "AArch64GenInstrInfo.inc"
@@ -707,6 +695,16 @@ static DecodeStatus DecodePPR_3bRegisterClass(MCInst &Inst, unsigned RegNo,
 
   // Just reuse the PPR decode table
   return DecodePPRRegisterClass(Inst, RegNo, Addr, Decoder);
+}
+
+static DecodeStatus
+DecodePPR_p8to15RegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Addr,
+                              const MCDisassembler *Decoder) {
+  if (RegNo > 7)
+    return Fail;
+
+  // Just reuse the PPR decode table
+  return DecodePPRRegisterClass(Inst, RegNo + 8, Addr, Decoder);
 }
 
 static DecodeStatus DecodeQQRegisterClass(MCInst &Inst, unsigned RegNo,

@@ -239,11 +239,11 @@ SDValue LoongArchTargetLowering::lowerFRAMEADDR(SDValue Op,
   }
 
   // Currently only support lowering frame address for current frame.
-  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
-  assert((Depth == 0) &&
-         "Frame address can only be determined for current frame.");
-  if (Depth != 0)
+  if (cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue() != 0) {
+    DAG.getContext()->emitError(
+        "frame address can only be determined for the current frame");
     return SDValue();
+  }
 
   MachineFunction &MF = DAG.getMachineFunction();
   MF.getFrameInfo().setFrameAddressIsTaken(true);
@@ -259,11 +259,11 @@ SDValue LoongArchTargetLowering::lowerRETURNADDR(SDValue Op,
     return SDValue();
 
   // Currently only support lowering return address for current frame.
-  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
-  assert((Depth == 0) &&
-         "Return address can only be determined for current frame.");
-  if (Depth != 0)
+  if (cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue() != 0) {
+    DAG.getContext()->emitError(
+        "return address can only be determined for the current frame");
     return SDValue();
+  }
 
   MachineFunction &MF = DAG.getMachineFunction();
   MF.getFrameInfo().setReturnAddressIsTaken(true);
@@ -2084,6 +2084,35 @@ getIntrinsicForMaskedAtomicRMWBinOp(unsigned GRLen,
   llvm_unreachable("Unexpected GRLen\n");
 }
 
+TargetLowering::AtomicExpansionKind
+LoongArchTargetLowering::shouldExpandAtomicCmpXchgInIR(
+    AtomicCmpXchgInst *CI) const {
+  unsigned Size = CI->getCompareOperand()->getType()->getPrimitiveSizeInBits();
+  if (Size == 8 || Size == 16)
+    return AtomicExpansionKind::MaskedIntrinsic;
+  return AtomicExpansionKind::None;
+}
+
+Value *LoongArchTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
+    IRBuilderBase &Builder, AtomicCmpXchgInst *CI, Value *AlignedAddr,
+    Value *CmpVal, Value *NewVal, Value *Mask, AtomicOrdering Ord) const {
+  Value *Ordering =
+      Builder.getIntN(Subtarget.getGRLen(), static_cast<uint64_t>(Ord));
+
+  // TODO: Support cmpxchg on LA32.
+  Intrinsic::ID CmpXchgIntrID = Intrinsic::loongarch_masked_cmpxchg_i64;
+  CmpVal = Builder.CreateSExt(CmpVal, Builder.getInt64Ty());
+  NewVal = Builder.CreateSExt(NewVal, Builder.getInt64Ty());
+  Mask = Builder.CreateSExt(Mask, Builder.getInt64Ty());
+  Type *Tys[] = {AlignedAddr->getType()};
+  Function *MaskedCmpXchg =
+      Intrinsic::getDeclaration(CI->getModule(), CmpXchgIntrID, Tys);
+  Value *Result = Builder.CreateCall(
+      MaskedCmpXchg, {AlignedAddr, CmpVal, NewVal, Mask, Ordering});
+  Result = Builder.CreateTrunc(Result, Builder.getInt32Ty());
+  return Result;
+}
+
 Value *LoongArchTargetLowering::emitMaskedAtomicRMWIntrinsic(
     IRBuilderBase &Builder, AtomicRMWInst *AI, Value *AlignedAddr, Value *Incr,
     Value *Mask, Value *ShiftAmt, AtomicOrdering Ord) const {
@@ -2155,6 +2184,7 @@ LoongArchTargetLowering::getConstraintType(StringRef Constraint) const {
   //       offset that is suitable for use in instructions with the same
   //       addressing mode as st.w and ld.w.
   // 'I':  A signed 12-bit constant (for arithmetic instructions).
+  // 'J':  Integer zero.
   // 'K':  An unsigned 12-bit constant (for logic instructions).
   // "ZB": An address that is held in a general-purpose register. The offset is
   //       zero.
@@ -2169,6 +2199,7 @@ LoongArchTargetLowering::getConstraintType(StringRef Constraint) const {
       return C_RegisterClass;
     case 'l':
     case 'I':
+    case 'J':
     case 'K':
       return C_Immediate;
     case 'k':
@@ -2271,6 +2302,13 @@ void LoongArchTargetLowering::LowerAsmOperandForConstraint(
           Ops.push_back(
               DAG.getTargetConstant(CVal, SDLoc(Op), Subtarget.getGRLenVT()));
       }
+      return;
+    case 'J':
+      // Validate & create an integer zero operand.
+      if (auto *C = dyn_cast<ConstantSDNode>(Op))
+        if (C->getZExtValue() == 0)
+          Ops.push_back(
+              DAG.getTargetConstant(0, SDLoc(Op), Subtarget.getGRLenVT()));
       return;
     case 'K':
       // Validate & create a 12-bit unsigned immediate operand.
