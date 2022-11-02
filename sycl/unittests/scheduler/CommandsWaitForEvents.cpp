@@ -8,7 +8,10 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
+#include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+
+#include <cassert>
 
 using namespace sycl;
 
@@ -19,15 +22,23 @@ struct TestCtx {
   std::shared_ptr<detail::context_impl> Ctx1;
   std::shared_ptr<detail::context_impl> Ctx2;
 
-  pi_event EventCtx1 = reinterpret_cast<pi_event>(0x01);
-  pi_event EventCtx2 = reinterpret_cast<pi_event>(0x02);
+  pi_event EventCtx1 = nullptr;
+
+  pi_event EventCtx2 = nullptr;
 
   bool EventCtx1WasWaited = false;
   bool EventCtx2WasWaited = false;
 
   TestCtx(queue &Queue1, queue &Queue2)
       : Q1(Queue1), Q2(Queue2), Ctx1{detail::getSyclObjImpl(Q1.get_context())},
-        Ctx2{detail::getSyclObjImpl(Q2.get_context())} {}
+        Ctx2{detail::getSyclObjImpl(Q2.get_context())} {
+
+    pi_result Res = mock_piEventCreate((pi_context)0x0, &EventCtx1);
+    assert(PI_SUCCESS == Res);
+
+    Res = mock_piEventCreate((pi_context)0x0, &EventCtx2);
+    assert(PI_SUCCESS == Res);
+  }
 };
 
 std::unique_ptr<TestCtx> TestContext;
@@ -48,8 +59,6 @@ pi_result waitFunc(pi_uint32 N, const pi_event *List) {
   return PI_SUCCESS;
 }
 
-pi_result retainReleaseFunc(pi_event) { return PI_SUCCESS; }
-
 pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
                            void *PV, size_t *PVSizeRet) {
   EXPECT_EQ(PName, PI_EVENT_INFO_CONTEXT) << "Unknown param name";
@@ -68,10 +77,8 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
 
-  Mock.redefine<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(retainReleaseFunc);
-  Mock.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
+  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(waitFunc);
+  Mock.redefineBefore<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
 
   context Ctx1{Plt.get_devices()[0]};
   queue Q1{Ctx1, default_selector_v};
