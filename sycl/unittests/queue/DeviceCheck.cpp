@@ -36,9 +36,11 @@ pi_result redefinedContextRelease(pi_context context) { return PI_SUCCESS; }
 pi_device ParentDevice = nullptr;
 pi_platform PiPlatform = nullptr;
 
-pi_result redefinedDeviceGetInfo(pi_device device, pi_device_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+pi_result redefinedDeviceGetInfoAfter(pi_device device,
+                                      pi_device_info param_name,
+                                      size_t param_value_size,
+                                      void *param_value,
+                                      size_t *param_value_size_ret) {
   if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
     if (param_value) {
       auto *Result =
@@ -107,8 +109,8 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       redefinedContextCreate);
   Mock.redefineBefore<detail::PiApiKind::piContextRelease>(
       redefinedContextRelease);
-  Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfo);
+  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAfter);
   Mock.redefineBefore<detail::PiApiKind::piDevicePartition>(
       redefinedDevicePartition);
   Mock.redefineBefore<detail::PiApiKind::piDeviceRelease>(
