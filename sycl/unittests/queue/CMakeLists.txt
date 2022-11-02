@@ -4,5 +4,4 @@ add_sycl_unittest(QueueTests OBJECT
   USM.cpp
   Wait.cpp
   GetProfilingInfo.cpp
-  PlaceholderShortcuts.cpp
 )
