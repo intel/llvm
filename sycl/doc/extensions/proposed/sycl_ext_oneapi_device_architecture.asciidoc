@@ -182,9 +182,7 @@ enum class architecture : /* unspecified */ {
   intel_gpu_11_0_0 = intel_gpu_icllp,
   intel_gpu_11_2_0 = intel_gpu_ehl,
   intel_gpu_12_0_0 = intel_gpu_tgllp,
-  intel_gpu_12_10_0 = intel_gpu_dg1,
-
- 
+  intel_gpu_12_10_0 = intel_gpu_dg1 
 };
 
 } // namespace sycl::ext::oneapi::experimental
