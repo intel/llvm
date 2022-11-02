@@ -293,9 +293,8 @@ template <typename KernelName, int Dims, typename PropertiesT,
           typename KernelType, typename Reduction>
 void reduction_parallel_for(handler &CGH,
                             std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> Range,
-                            PropertiesT Properties, Reduction Redu,
-                            KernelType KernelFunc);
+                            nd_range<Dims> Range, PropertiesT Properties,
+                            Reduction Redu, KernelType KernelFunc);
 
 template <typename KernelName, int Dims, typename PropertiesT,
           typename... RestT>
@@ -2077,7 +2076,7 @@ public:
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&... Rest) {
+  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
     detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2085,7 +2084,7 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(nd_range<Dims> Range, RestT &&... Rest) {
+  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
