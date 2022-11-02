@@ -351,13 +351,13 @@ These synchronization rules only apply between calls to
 
 * _Buffer destruction_: In order to adhere to the SYCL standard, destruction of
   a buffer which is to be accessed by kernels in the fusion list implies an
-  implicit call to `queue::ext_codeplay_cancel_fusion`. This way, the kernels
-  would be executed in submission order, ensuring correct semantics, pending
-  work would be completed and the data would be copied back on completion.
+  implicit fusion cancellation. This way, the kernels would be executed in
+  submission order, ensuring correct semantics, pending work would be completed
+  and the data would be copied back on completion.
 * _Host accessors_: Similarly, to obtain correct semantics, when a host accessor
   accessing a buffer to be accessed by a kernel submitted to the fusion list is
-  created, a call to `queue::ext_codeplay_cancel_fusion` is executed to be able
-  to obtain the expected contents of the buffer.
+  created, kernel fusion is implicitly canceled to be able to obtain the
+  expected contents of the buffer.
 * _Command group enqueue_: Submission of command groups to (at least)
   two different queues, of which at least one is in fusion mode, can
   lead to _circular dependencies_ between the fused kernel and the
