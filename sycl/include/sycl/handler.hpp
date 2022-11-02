@@ -481,13 +481,13 @@ private:
 
   /// Helper utility for operation widely used through different reduction
   /// implementations.
-  template <class FunctorTy>
-  event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
-                       FunctorTy Func) {
-    handler AuxHandler(Queue, MIsHost);
+  template <class FunctorTy> void withAuxHandler(FunctorTy Func) {
+    this->finalize();
+    handler AuxHandler(MQueue, MIsHost);
     AuxHandler.saveCodeLoc(MCodeLoc);
     Func(AuxHandler);
-    return AuxHandler.finalize();
+    MLastEvent = AuxHandler.finalize();
+    return;
   }
 
   /// Saves buffers created by handling reduction feature in handler.
@@ -1761,8 +1761,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for_impl(range<Dims> Range, PropertiesT Properties, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
-    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-
     // Before running the kernels, check that device has enough local memory
     // to hold local arrays required for the tree-reduction algorithm.
     constexpr bool IsTreeReduction =
@@ -1782,8 +1780,7 @@ public:
     if (detail::reduCGFuncForRange<KernelName>(
             *this, KernelFunc, Range, PrefWGSize, NumConcurrentWorkGroups,
             Properties, Redu)) {
-      this->finalize();
-      MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
+      withAuxHandler([&](handler &CopyHandler) {
         detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
@@ -1802,7 +1799,6 @@ public:
       parallel_for_basic_impl<KernelName>(Range, Properties, Redu, KernelFunc);
       return;
     } else { // Can't "early" return for "if constexpr".
-      std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
       if constexpr (Reduction::has_float64_atomics) {
         /// This version is a specialization for the add
         /// operator. It performs runtime checks for device aspect "atomic64";
@@ -1837,8 +1833,7 @@ public:
       // the kernel would require creation of another variant of user's kernel,
       // which does not seem efficient.
       if (Reduction::is_usm || Redu.initializeToIdentity()) {
-        this->finalize();
-        MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
+        withAuxHandler([&](handler &CopyHandler) {
           detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
         });
       }
@@ -1888,7 +1883,6 @@ public:
 
     // 1. Call the kernel that includes user's lambda function.
     detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Properties, Redu);
-    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     // 2. Run the additional kernel as many times as needed to reduce
@@ -1906,14 +1900,14 @@ public:
                                 PI_ERROR_INVALID_WORK_GROUP_SIZE);
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
-      MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
+      withAuxHandler([&](handler &AuxHandler) {
         NWorkItems = detail::reduAuxCGFunc<KernelName, KernelType>(
             AuxHandler, NWorkItems, MaxWGSize, Redu);
       });
     } // end while (NWorkItems > 1)
 
     if (Reduction::is_usm) {
-      MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
+      withAuxHandler([&](handler &CopyHandler) {
         detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
       });
     }
@@ -1957,12 +1951,11 @@ public:
 
     detail::reduCGFuncMulti<KernelName>(*this, KernelFunc, Range, Properties,
                                         ReduTuple, ReduIndices);
-    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
-      MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
+      withAuxHandler([&](handler &AuxHandler) {
         NWorkItems = detail::reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
             AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
       });

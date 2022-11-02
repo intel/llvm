@@ -3177,12 +3177,16 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   }
 }
 
-static bool runBundler(const SmallVectorImpl<StringRef> &BundlerArgs,
+static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
                        Compilation &C) {
   // Find bundler.
   StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
   llvm::ErrorOr<std::string> BundlerBinary =
       llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
+  SmallVector<StringRef, 6> BundlerArgs;
+  BundlerArgs.push_back(BundlerBinary.getError() ? "clang-offload-bundler"
+                                                 : BundlerBinary.get().c_str());
+  BundlerArgs.append(InputArgs);
   // Since this is run in real time and not in the toolchain, output the
   // command line if requested.
   bool OutputOnly = C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
@@ -3223,8 +3227,8 @@ static bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + Object);
   // Always use -type=ao for aocx/aocr bundle checking.  The 'bundles' are
   // actually archives.
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler", "-type=ao",
-                                           Targets, Inputs, "-check-section"};
+  SmallVector<StringRef, 6> BundlerArgs = {"-type=ao", Targets, Inputs,
+                                           "-check-section"};
   return runBundler(BundlerArgs, C);
 }
 
@@ -3309,8 +3313,7 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   const char *Targets =
       C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
   const char *Inputs = C.getArgs().MakeArgString(Twine("-input=") + File.str());
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
-                                           IsArchive ? "-type=ao" : "-type=o",
+  SmallVector<StringRef, 6> BundlerArgs = {IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
@@ -3332,8 +3335,7 @@ static bool hasOffloadSections(Compilation &C, const StringRef &File,
   // of the generic host availability.
   const char *Targets = Args.MakeArgString(Twine("-targets=host-") + TT.str());
   const char *Inputs = Args.MakeArgString(Twine("-input=") + File.str());
-  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
-                                           IsArchive ? "-type=ao" : "-type=o",
+  SmallVector<StringRef, 6> BundlerArgs = {IsArchive ? "-type=ao" : "-type=o",
                                            Targets, Inputs, "-check-section"};
   return runBundler(BundlerArgs, C);
 }
@@ -5259,9 +5261,9 @@ class OffloadingActionBuilder final {
           // Select remangled libclc variant
           std::string LibSpirvTargetName =
               (TC->getAuxTriple()->isOSWindows())
-                  ? "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl."
+                  ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc"
-                  : "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl."
+                  : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc";
 
           for (StringRef LibraryPath : LibraryPaths) {
@@ -6781,14 +6783,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                                         /*BoundArch=*/nullptr);
   }
 
-  OffloadBuilder->appendTopLevelLinkAction(Actions);
+  if (!UseNewOffloadingDriver) {
+    OffloadBuilder->appendTopLevelLinkAction(Actions);
 
-  // With static fat archives we need to create additional steps for
-  // generating dependence objects for device link actions.
-  if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
-    OffloadBuilder->addDeviceLinkDependenciesFromHost(LinkerInputs);
+    // With static fat archives we need to create additional steps for
+    // generating dependence objects for device link actions.
+    if (!LinkerInputs.empty() && C.getDriver().getOffloadStaticLibSeen())
+      OffloadBuilder->addDeviceLinkDependenciesFromHost(LinkerInputs);
 
-  OffloadBuilder->unbundleStaticArchives(C, Args, PL);
+    OffloadBuilder->unbundleStaticArchives(C, Args, PL);
+  }
 
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
