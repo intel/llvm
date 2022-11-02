@@ -3516,7 +3516,7 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
   MLIRContext *Ctx = module->getContext();
   mlirclang::AttrBuilder B(*Ctx);
 
-  if (CodeGenOpts.UnwindTables)
+  if ((!D || !D->hasAttr<NoUwtableAttr>()) && CodeGenOpts.UnwindTables)
     B.addPassThroughAttribute(
         llvm::Attribute::UWTable,
         uint64_t(llvm::UWTableKind(CodeGenOpts.UnwindTables)));
