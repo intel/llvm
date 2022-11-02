@@ -51,13 +51,13 @@ public:
   AttributeList &addParamAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs);
 
   /// The function attributes are returned.
-  mlir::NamedAttrList getFnAttrs() const { return FnAttrs; }
+  const mlir::NamedAttrList &getFnAttrs() const { return FnAttrs; }
 
   /// The attributes for the ret value are returned.
-  mlir::NamedAttrList getRetAttrs() const { return RetAttrs; }
+  const mlir::NamedAttrList &getRetAttrs() const { return RetAttrs; }
 
   /// The attributes for the parameters are returned.
-  mlir::ArrayRef<mlir::NamedAttrList> getParamAttrs() const {
+  const mlir::ArrayRef<mlir::NamedAttrList> getParamAttrs() const {
     return ParamAttrs;
   }
 

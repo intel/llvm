@@ -114,52 +114,6 @@ private:
   const FunctionContext funcContext;
 };
 
-class CodeGenUtils {
-public:
-  /// This class groups the type and attributes of a value (e.g. a parameter or
-  /// return value).
-  class TypeAndAttrs {
-  public:
-    mlir::Type type;
-    std::vector<mlir::NamedAttribute> attrs;
-
-    TypeAndAttrs(mlir::Type type) : type(type), attrs() {}
-    TypeAndAttrs(mlir::Type type, std::vector<mlir::NamedAttribute> attrs)
-        : type(type), attrs(attrs) {}
-
-    // Collect the types of the given \p descriptors in \p types.
-    static void getTypes(const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
-                         llvm::SmallVectorImpl<mlir::Type> &types);
-
-    // Collect the attributes of the given \p descriptors in \p attrs.
-    static void
-    getAttributes(const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
-                  llvm::SmallVectorImpl<mlir::NamedAttrList> &attrs);
-  };
-
-  using ParmDesc = TypeAndAttrs;
-  using ResultDesc = TypeAndAttrs;
-
-  /// Wraps \p memorySpace into an integer attribute.
-  static mlir::IntegerAttr wrapIntegerMemorySpace(unsigned memorySpace,
-                                                  mlir::MLIRContext *ctx);
-
-  /// Returns true if the given qual type is considered to be an aggregate for
-  /// ABI compliance.
-  static bool isAggregateTypeForABI(clang::QualType qt);
-
-  static bool isLLVMStructABI(const clang::RecordDecl *RD,
-                              llvm::StructType *ST);
-
-  /// Determine whether to use the "noundef" attribute on a parameter or
-  /// function return value.
-  static bool determineNoUndef(clang::QualType qt,
-                               clang::CodeGen::CodeGenTypes &Types,
-                               const llvm::DataLayout &DL,
-                               const clang::CodeGen::ABIArgInfo &AI,
-                               bool CheckCoerce = true);
-};
-
 class MLIRASTConsumer : public clang::ASTConsumer {
 private:
   std::set<std::string> &emitIfFound;
@@ -279,18 +233,6 @@ private:
                                                std::string mangledName,
                                                bool ShouldEmit);
 
-  /// Fill in \p parmDescriptors with the MLIR types of the \p FD function
-  /// declaration's parameters.
-  void createMLIRParameterDescriptors(
-      const clang::FunctionDecl &FD,
-      llvm::SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors);
-
-  /// Fill in \p resDescriptors with the MLIR types of the \p FD function
-  /// declaration's return value(s).
-  void createMLIRResultDescriptors(
-      const clang::FunctionDecl &FD,
-      llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors);
-
   /// Set the symbol visibility on the given \p function.
   void setMLIRFunctionVisibility(mlir::FunctionOpInterface function,
                                  const FunctionToEmit &FTE, bool shouldEmit);
@@ -298,19 +240,6 @@ private:
   /// Set the MLIR function attributes for the given \p function.
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
                                  const FunctionToEmit &FTE, bool ShouldEmit);
-
-  /// Set the MLIR function parameters attributes for the given \p function.
-  void setMLIRFunctionParmsAttributes(
-      mlir::FunctionOpInterface function,
-      const llvm::SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors)
-      const;
-
-  /// Set the MLIR function result value(s) attributes for the given \p
-  /// function.
-  void setMLIRFunctionResultAttributes(
-      mlir::FunctionOpInterface function,
-      const llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors)
-      const;
 
   void setMLIRFunctionAttributesForDefinition(
       const clang::Decl *D, mlir::FunctionOpInterface function) const;

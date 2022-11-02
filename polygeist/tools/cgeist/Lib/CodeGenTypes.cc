@@ -44,6 +44,10 @@ static cl::opt<bool>
 static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
                                cl::desc("Use memrefs when possible"));
 
+static cl::opt<bool>
+    CombinedStructABI("struct-abi", cl::init(true),
+                      cl::desc("Use literal LLVM ABI for structs"));
+
 /******************************************************************************/
 /*            Flags affecting code generation of function types.              */
 /******************************************************************************/
@@ -179,6 +183,56 @@ static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
 
   // And last, add the rest of the builtin names.
   llvm::for_each(NBA->builtinNames(), AddNoBuiltinAttr);
+}
+
+static bool DetermineNoUndef(QualType QT, clang::CodeGen::CodeGenTypes &Types,
+                             const llvm::DataLayout &DL,
+                             const clang::CodeGen::ABIArgInfo &AI,
+                             bool CheckCoerce = true) {
+  llvm::Type *Ty = Types.ConvertTypeForMem(QT);
+  if (AI.getKind() == clang::CodeGen::ABIArgInfo::Indirect)
+    return true;
+  if (AI.getKind() == clang::CodeGen::ABIArgInfo::Extend)
+    return true;
+  if (!DL.typeSizeEqualsStoreSize(Ty))
+    // TODO: This will result in a modest amount of values not marked noundef
+    // when they could be. We care about values that *invisibly* contain undef
+    // bits from the perspective of LLVM IR.
+    return false;
+  if (CheckCoerce && AI.canHaveCoerceToType()) {
+    llvm::Type *CoerceTy = AI.getCoerceToType();
+    if (llvm::TypeSize::isKnownGT(DL.getTypeSizeInBits(CoerceTy),
+                                  DL.getTypeSizeInBits(Ty)))
+      // If we're coercing to a type with a greater size than the canonical one,
+      // we're introducing new undef bits.
+      // Coercing to a type of smaller or equal size is ok, as we know that
+      // there's no internal padding (typeSizeEqualsStoreSize).
+      return false;
+  }
+  if (QT->isBitIntType())
+    return true;
+  if (QT->isReferenceType())
+    return true;
+  if (QT->isNullPtrType())
+    return false;
+  if (QT->isMemberPointerType())
+    // TODO: Some member pointers are `noundef`, but it depends on the ABI. For
+    // now, never mark them.
+    return false;
+  if (QT->isScalarType()) {
+    if (const auto *complex = dyn_cast<clang::ComplexType>(QT))
+      return DetermineNoUndef(complex->getElementType(), Types, DL, AI, false);
+    return true;
+  }
+  if (const auto *vector = dyn_cast<clang::VectorType>(QT))
+    return DetermineNoUndef(vector->getElementType(), Types, DL, AI, false);
+  if (const auto *matrix = dyn_cast<clang::MatrixType>(QT))
+    return DetermineNoUndef(matrix->getElementType(), Types, DL, AI, false);
+  if (const auto *array = dyn_cast<clang::ArrayType>(QT))
+    return DetermineNoUndef(array->getElementType(), Types, DL, AI, false);
+
+  // TODO: Some structs may be `noundef`, in specific situations.
+  return false;
 }
 
 namespace mlirclang {
@@ -849,7 +903,7 @@ void CodeGenTypes::constructAttributeList(
   if (CGM.getCodeGenOpts().EnableNoundefAttrs && HasStrictReturn) {
     if (!RetTy->isVoidType() &&
         RetAI.getKind() != clang::CodeGen::ABIArgInfo::Indirect &&
-        CodeGenUtils::determineNoUndef(RetTy, CGM.getTypes(), DL, RetAI))
+        DetermineNoUndef(RetTy, CGM.getTypes(), DL, RetAI))
       RetAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
   }
 
@@ -944,7 +998,7 @@ void CodeGenTypes::constructAttributeList(
     if (!CGM.getCodeGenOpts().NullPointerIsValid &&
         CGM.getContext().getTargetAddressSpace(FI.arg_begin()->type) == 0) {
       ParamAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
-      ParamAttrsBuilder.addPassThroughAttribute(
+      ParamAttrsBuilder.addAttribute(
           llvm::Attribute::Dereferenceable,
           CGM.getMinimumObjectSize(ThisTy).getQuantity());
     } else {
@@ -990,7 +1044,7 @@ void CodeGenTypes::constructAttributeList(
 
     // Decide whether the argument we're handling could be partially undef
     if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
-        CodeGenUtils::determineNoUndef(ParamType, CGM.getTypes(), DL, AI)) {
+        DetermineNoUndef(ParamType, CGM.getTypes(), DL, AI)) {
       ParamAttrsBuilder.addAttribute(llvm::Attribute::NoUndef);
     }
 
@@ -1163,34 +1217,34 @@ void CodeGenTypes::constructAttributeList(
   AttrList.addAttrs(FuncAttrsBuilder, RetAttrsBuilder, ArgAttrs);
 }
 
-mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
+mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *implicitRef,
                                      bool allowMerge) {
-  if (auto ET = dyn_cast<clang::ElaboratedType>(qt)) {
+  if (auto ET = dyn_cast<clang::ElaboratedType>(QT)) {
     return getMLIRType(ET->getNamedType(), implicitRef, allowMerge);
   }
-  if (auto ET = dyn_cast<clang::UsingType>(qt)) {
+  if (auto ET = dyn_cast<clang::UsingType>(QT)) {
     return getMLIRType(ET->getUnderlyingType(), implicitRef, allowMerge);
   }
-  if (auto ET = dyn_cast<clang::ParenType>(qt)) {
+  if (auto ET = dyn_cast<clang::ParenType>(QT)) {
     return getMLIRType(ET->getInnerType(), implicitRef, allowMerge);
   }
-  if (auto ET = dyn_cast<clang::DeducedType>(qt)) {
+  if (auto ET = dyn_cast<clang::DeducedType>(QT)) {
     return getMLIRType(ET->getDeducedType(), implicitRef, allowMerge);
   }
-  if (auto ST = dyn_cast<clang::SubstTemplateTypeParmType>(qt)) {
+  if (auto ST = dyn_cast<clang::SubstTemplateTypeParmType>(QT)) {
     return getMLIRType(ST->getReplacementType(), implicitRef, allowMerge);
   }
-  if (auto ST = dyn_cast<clang::TemplateSpecializationType>(qt)) {
+  if (auto ST = dyn_cast<clang::TemplateSpecializationType>(QT)) {
     return getMLIRType(ST->desugar(), implicitRef, allowMerge);
   }
-  if (auto ST = dyn_cast<clang::TypedefType>(qt)) {
+  if (auto ST = dyn_cast<clang::TypedefType>(QT)) {
     return getMLIRType(ST->desugar(), implicitRef, allowMerge);
   }
-  if (auto DT = dyn_cast<clang::DecltypeType>(qt)) {
+  if (auto DT = dyn_cast<clang::DecltypeType>(QT)) {
     return getMLIRType(DT->desugar(), implicitRef, allowMerge);
   }
 
-  if (auto DT = dyn_cast<clang::DecayedType>(qt)) {
+  if (auto DT = dyn_cast<clang::DecayedType>(QT)) {
     bool assumeRef = false;
     auto mlirty = getMLIRType(DT->getOriginalType(), &assumeRef, allowMerge);
     if (memRefABI && assumeRef) {
@@ -1225,7 +1279,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
     return mlirty;
   }
 
-  if (auto CT = dyn_cast<clang::ComplexType>(qt)) {
+  if (auto CT = dyn_cast<clang::ComplexType>(QT)) {
     bool assumeRef = false;
     auto subType =
         getMLIRType(CT->getElementType(), &assumeRef, /*allowMerge*/ false);
@@ -1242,7 +1296,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
 
   mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
 
-  if (auto RT = dyn_cast<clang::RecordType>(qt)) {
+  if (auto RT = dyn_cast<clang::RecordType>(QT)) {
     if (RT->getDecl()->isInvalidDecl()) {
       RT->getDecl()->dump();
       RT->dump();
@@ -1250,9 +1304,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
     assert(!RT->getDecl()->isInvalidDecl());
     if (TypeCache.find(RT) != TypeCache.end())
       return TypeCache[RT];
-    llvm::Type *LT = CGM.getTypes().ConvertType(qt);
+    llvm::Type *LT = CGM.getTypes().ConvertType(QT);
     if (!isa<llvm::StructType>(LT)) {
-      qt->dump();
+      QT->dump();
       llvm::errs() << "LT: " << *LT << "\n";
     }
     llvm::StructType *ST = cast<llvm::StructType>(LT);
@@ -1288,7 +1342,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
 
     auto CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
-    if (CodeGenUtils::isLLVMStructABI(RT->getDecl(), ST))
+    if (CodeGenTypes::IsLLVMStructABI(RT->getDecl(), ST))
       return TypeTranslator.translateType(anonymize(ST));
 
     /* TODO
@@ -1361,7 +1415,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
     return mlir::MemRefType::get(types.size(), types[0]);
   }
 
-  auto t = qt->getUnqualifiedDesugaredType();
+  auto t = QT->getUnqualifiedDesugaredType();
   if (t->isVoidType()) {
     mlir::OpBuilder builder(TheModule->getContext());
     return builder.getNoneType();
@@ -1537,7 +1591,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
       return builder.getIntegerType(IT->getBitWidth());
     }
   }
-  qt->dump();
+  QT->dump();
   assert(0 && "unhandled type");
 }
 
@@ -1563,6 +1617,33 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
 const clang::CodeGen::CGFunctionInfo &
 CodeGenTypes::arrangeGlobalDeclaration(clang::GlobalDecl GD) {
   return CGM.getTypes().arrangeGlobalDeclaration(GD);
+}
+
+bool CodeGenTypes::IsLLVMStructABI(const clang::RecordDecl *RD,
+                                   llvm::StructType *ST) {
+  if (!CombinedStructABI || RD->isUnion())
+    return true;
+
+  if (auto CXRD = dyn_cast<CXXRecordDecl>(RD)) {
+    if (!CXRD->hasDefinition() || CXRD->getNumVBases())
+      return true;
+    for (const auto M : CXRD->methods())
+      if (M->isVirtualAsWritten() || M->isPure())
+        return true;
+    for (const auto &Base : CXRD->bases())
+      if (Base.getType()->getAsCXXRecordDecl()->isEmpty())
+        return true;
+  }
+
+  if (ST && !ST->isLiteral() &&
+      (ST->getName() == "struct._IO_FILE" ||
+       ST->getName() == "class.std::basic_ifstream" ||
+       ST->getName() == "class.std::basic_istream" ||
+       ST->getName() == "class.std::basic_ostream" ||
+       ST->getName() == "class.std::basic_ofstream"))
+    return true;
+
+  return false;
 }
 
 void CodeGenTypes::getDefaultFunctionAttributes(

@@ -17,10 +17,11 @@
 // CHECK-LLVM-DAG: %"struct.sycl::_V1::detail::ItemBase.1.true" = type { %"class.sycl::_V1::range.1", %"class.sycl::_V1::id.1", %"class.sycl::_V1::id.1" }
 
 // CHECK-MLIR: gpu.module @device_functions
-// CHECK-MLIR: gpu.func @_ZTS8kernel_1(%arg0: memref<?xi32, 1>, 
-// CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS:{llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef}]],
-// CHECK-MLIR-SAME:    %arg2: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS]],
-// CHECK-MLIR-SAME:    %arg3: memref<?x!sycl_id_1_> [[PARM_ID_ATTRS:{llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef}]])
+// CHECK-MLIR-LABEL: gpu.func @_ZTS8kernel_1(
+// CHECK-MLIR:         %arg0: memref<?xi32, 1> {llvm.noundef},
+// CHECK-MLIR-SAME:    %arg1: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
+// CHECK-MLIR-SAME:    %arg2: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
+// CHECK-MLIR-SAME:    %arg3: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})
 // CHECK-MLIR-SAME:  kernel attributes {[[CCONV:llvm.cconv = #llvm.cconv<spir_kernelcc>]], [[LINKAGE:llvm.linkage = #llvm.linkage<weak_odr>]],
 // CHECK-MLIR-NOT: gpu.func kernel
 
@@ -51,10 +52,11 @@ void host_1() {
   }
 }
 
-// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(%arg0: memref<?xi32, 1>, 
-// CHECK-MLIR-SAME:     %arg1: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS]],
-// CHECK-MLIR-SAME:     %arg2: memref<?x!sycl_range_1_> [[PARM_RANGE_ATTRS]],
-// CHECK-MLIR-SAME:     %arg3: memref<?x!sycl_id_1_> [[PARM_ID_ATTRS]])
+// CHECK-MLIR: gpu.func @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2(
+// CHECK-MLIR:          %arg0: memref<?xi32, 1> {llvm.noundef},
+// CHECK-MLIR-SAME:     %arg1: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
+// CHECK-MLIR-SAME:     %arg2: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
+// CHECK-MLIR-SAME:     %arg3: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef}
 // CHECK-MLIR-SAME:     kernel attributes {[[CCONV]], [[LINKAGE]], {{.*}}}
 // CHECK-MLIR-NOT: gpu.func kernel
 
