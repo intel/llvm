@@ -110,6 +110,11 @@ New checks
 
   Warns when a struct or class uses const or reference (lvalue or rvalue) data members.
 
+- New :doc:`cppcoreguidelines-avoid-do-while
+  <clang-tidy/checks/cppcoreguidelines/avoid-do-while>` check.
+
+  Warns when using ``do-while`` loops.
+
 New check aliases
 ^^^^^^^^^^^^^^^^^
 
@@ -153,11 +158,24 @@ Changes in existing checks
   The check now skips unions/union-like classes since in this case a default constructor
   with empty body is not equivalent to the explicitly defaulted one, variadic constructors
   since they cannot be explicitly defaulted. The check also skips copy assignment operators
-  with nonstandard return types. The check is restricted to c++11-or-later.
+  with nonstandard return types, private/protected default constructors for C++17 or earlier.
+  The automatic fixit has been adjusted to avoid adding superfluous semicolon.
+  The check is restricted to C++11 or later.
 
 - Change the default behavior of :doc:`readability-avoid-const-params-in-decls
   <clang-tidy/checks/readability/avoid-const-params-in-decls>` to not
   warn about `const` value parameters of declarations inside macros.
+
+- Fixed crashes in :doc:`readability-braces-around-statements
+  <clang-tidy/checks/readability/braces-around-statements>` and
+  :doc:`readability-simplify-boolean-expr <clang-tidy/checks/readability/simplify-boolean-expr>`
+  when using a C++23 ``if consteval`` statement.
+
+- Improved :doc:`misc-redundant-expression <clang-tidy/checks/misc/redundant-expression>`
+  check.
+
+  The check now skips concept definitions since redundant expressions still make sense
+  inside them.
 
 Removed checks
 ^^^^^^^^^^^^^^

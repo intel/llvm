@@ -96,6 +96,12 @@ static MaskFormat getMaskFormat(Value mask) {
   return MaskFormat::Unknown;
 }
 
+/// Default callback to build a region with a 'vector.yield' terminator with no
+/// arguments.
+void mlir::vector::buildTerminatedBody(OpBuilder &builder, Location loc) {
+  builder.create<vector::YieldOp>(loc);
+}
+
 // Helper for verifying combining kinds in contractions and reductions.
 static bool isSupportedCombiningKind(CombiningKind combiningKind,
                                      Type elementType) {
@@ -307,6 +313,50 @@ LogicalResult MultiDimReductionOp::verify() {
                          << getSourceVectorType();
 
   return success();
+}
+
+namespace {
+// Only unit dimensions that are being reduced are folded. If the dimension is
+// unit, but not reduced, it is not folded, thereby keeping the output type the
+// same. If not all dimensions which are reduced are of unit dimension, this
+// transformation does nothing. This is just a generalization of
+// ElideSingleElementReduction for ReduceOp.
+struct ElideUnitDimsInMultiDimReduction
+    : public OpRewritePattern<MultiDimReductionOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(MultiDimReductionOp reductionOp,
+                                PatternRewriter &rewriter) const override {
+    ArrayRef<int64_t> shape = reductionOp.getSourceVectorType().getShape();
+    for (const auto &dim : enumerate(shape)) {
+      if (reductionOp.isReducedDim(dim.index()) && dim.value() != 1)
+        return failure();
+    }
+    Location loc = reductionOp.getLoc();
+    Value acc = reductionOp.getAcc();
+    Value cast;
+    if (reductionOp.getDestType().isa<VectorType>()) {
+      cast = rewriter.create<vector::ShapeCastOp>(
+          loc, reductionOp.getDestType(), reductionOp.getSource());
+    } else {
+      // This means we are reducing all the dimensions, and all reduction
+      // dimensions are of size 1. So a simple extraction would do.
+      cast = rewriter.create<vector::ExtractOp>(
+          loc, reductionOp.getDestType(), reductionOp.getSource(),
+          rewriter.getI64ArrayAttr(SmallVector<int64_t>(shape.size(), 0)));
+    }
+
+    Value result = vector::makeArithReduction(rewriter, loc,
+                                              reductionOp.getKind(), acc, cast);
+    rewriter.replaceOp(reductionOp, result);
+    return success();
+  }
+};
+} // namespace
+
+void MultiDimReductionOp::getCanonicalizationPatterns(
+    RewritePatternSet &results, MLIRContext *context) {
+  results.add<ElideUnitDimsInMultiDimReduction>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3035,35 +3085,6 @@ LogicalResult TransferReadOp::verify() {
                               [&](Twine t) { return emitOpError(t); });
 }
 
-/// This is a common class used for patterns of the form
-/// ```
-///    someop(memrefcast) -> someop
-/// ```
-/// It folds the source of the memref.cast into the root operation directly.
-static LogicalResult foldMemRefCast(Operation *op) {
-  bool folded = false;
-  for (OpOperand &operand : op->getOpOperands()) {
-    auto castOp = operand.get().getDefiningOp<memref::CastOp>();
-    if (castOp && memref::CastOp::canFoldIntoConsumerOp(castOp)) {
-      operand.set(castOp.getOperand());
-      folded = true;
-    }
-  }
-  return success(folded);
-}
-
-static LogicalResult foldTensorCast(Operation *op) {
-  bool folded = false;
-  for (OpOperand &operand : op->getOpOperands()) {
-    auto castOp = operand.get().getDefiningOp<tensor::CastOp>();
-    if (castOp && tensor::canFoldIntoConsumerOp(castOp)) {
-      operand.set(castOp.getOperand());
-      folded = true;
-    }
-  }
-  return success(folded);
-}
-
 template <typename TransferOp>
 static bool isInBounds(TransferOp op, int64_t resultIdx, int64_t indicesIdx) {
   // TODO: support more aggressive createOrFold on:
@@ -3148,9 +3169,9 @@ OpFoldResult TransferReadOp::fold(ArrayRef<Attribute>) {
   /// transfer_read(memrefcast) -> transfer_read
   if (succeeded(foldTransferInBoundsAttribute(*this)))
     return getResult();
-  if (succeeded(foldMemRefCast(*this)))
+  if (succeeded(memref::foldMemRefCast(*this)))
     return getResult();
-  if (succeeded(foldTensorCast(*this)))
+  if (succeeded(tensor::foldTensorCast(*this)))
     return getResult();
   return OpFoldResult();
 }
@@ -3598,7 +3619,7 @@ LogicalResult TransferWriteOp::fold(ArrayRef<Attribute> operands,
     return success();
   if (succeeded(foldTransferInBoundsAttribute(*this)))
     return success();
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 Optional<SmallVector<int64_t, 4>> TransferWriteOp::getShapeForUnroll() {
@@ -3898,7 +3919,7 @@ LogicalResult vector::LoadOp::verify() {
 }
 
 OpFoldResult LoadOp::fold(ArrayRef<Attribute>) {
-  if (succeeded(foldMemRefCast(*this)))
+  if (succeeded(memref::foldMemRefCast(*this)))
     return getResult();
   return OpFoldResult();
 }
@@ -3932,7 +3953,7 @@ LogicalResult vector::StoreOp::verify() {
 
 LogicalResult StoreOp::fold(ArrayRef<Attribute> operands,
                             SmallVectorImpl<OpFoldResult> &results) {
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3984,7 +4005,7 @@ void MaskedLoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 OpFoldResult MaskedLoadOp::fold(ArrayRef<Attribute>) {
-  if (succeeded(foldMemRefCast(*this)))
+  if (succeeded(memref::foldMemRefCast(*this)))
     return getResult();
   return OpFoldResult();
 }
@@ -4036,7 +4057,7 @@ void MaskedStoreOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 LogicalResult MaskedStoreOp::fold(ArrayRef<Attribute> operands,
                                   SmallVectorImpl<OpFoldResult> &results) {
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -4814,6 +4835,172 @@ public:
 void CreateMaskOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                MLIRContext *context) {
   results.add<CreateMaskFolder>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// MaskOp
+//===----------------------------------------------------------------------===//
+
+void MaskOp::build(
+    OpBuilder &builder, OperationState &result, Value mask,
+    function_ref<void(OpBuilder &, Location)> maskRegionBuilder) {
+  assert(maskRegionBuilder &&
+         "builder callback for 'maskRegion' must be present");
+
+  result.addOperands(mask);
+  OpBuilder::InsertionGuard guard(builder);
+  Region *maskRegion = result.addRegion();
+  builder.createBlock(maskRegion);
+  maskRegionBuilder(builder, result.location);
+}
+
+void MaskOp::build(
+    OpBuilder &builder, OperationState &result, Type resultType, Value mask,
+    function_ref<void(OpBuilder &, Location)> maskRegionBuilder) {
+  build(builder, result, resultType, mask, /*passthru=*/Value(),
+        maskRegionBuilder);
+}
+
+void MaskOp::build(
+    OpBuilder &builder, OperationState &result, Type resultType, Value mask,
+    Value passthru,
+    function_ref<void(OpBuilder &, Location)> maskRegionBuilder) {
+  build(builder, result, mask, maskRegionBuilder);
+  if (passthru)
+    result.addOperands(passthru);
+  result.addTypes(resultType);
+}
+
+ParseResult MaskOp::parse(OpAsmParser &parser, OperationState &result) {
+  // Create the op region.
+  result.regions.reserve(1);
+  Region &maskRegion = *result.addRegion();
+
+  auto &builder = parser.getBuilder();
+
+  // Parse all the operands.
+  OpAsmParser::UnresolvedOperand mask;
+  if (parser.parseOperand(mask))
+    return failure();
+
+  // Optional passthru operand.
+  OpAsmParser::UnresolvedOperand passthru;
+  ParseResult parsePassthru = parser.parseOptionalComma();
+  if (parsePassthru.succeeded() && parser.parseOperand(passthru))
+    return failure();
+
+  // Parse op region.
+  if (parser.parseRegion(maskRegion, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+
+  MaskOp::ensureTerminator(maskRegion, builder, result.location);
+
+  // Parse the optional attribute list.
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+
+  // Parse all the types.
+  Type maskType;
+  if (parser.parseColonType(maskType))
+    return failure();
+
+  SmallVector<Type> resultTypes;
+  if (parser.parseOptionalArrowTypeList(resultTypes))
+    return failure();
+  result.types.append(resultTypes);
+
+  // Resolve operands.
+  if (parser.resolveOperand(mask, maskType, result.operands))
+    return failure();
+
+  if (parsePassthru.succeeded())
+    if (parser.resolveOperand(passthru, resultTypes[0], result.operands))
+      return failure();
+
+  return success();
+}
+
+void mlir::vector::MaskOp::print(OpAsmPrinter &p) {
+  p << " " << getMask();
+  if (getPassthru())
+    p << ", " << getPassthru();
+
+  // Print single masked operation and skip terminator.
+  p << " { ";
+  Block *singleBlock = &getMaskRegion().getBlocks().front();
+  if (singleBlock && singleBlock->getOperations().size() > 1)
+    p.printCustomOrGenericOp(&singleBlock->front());
+  p << " }";
+
+  p.printOptionalAttrDict(getOperation()->getAttrs());
+
+  p << " : " << getMask().getType();
+  if (getNumResults() > 0)
+    p << " -> " << getResultTypes();
+}
+
+void MaskOp::ensureTerminator(Region &region, Builder &builder, Location loc) {
+  OpTrait::SingleBlockImplicitTerminator<vector::YieldOp>::Impl<
+      MaskOp>::ensureTerminator(region, builder, loc);
+  // Keep the default yield terminator if the number of masked operations is not
+  // the expected. This case will trigger a verification failure.
+  if (region.front().getOperations().size() != 2)
+    return;
+
+  // Replace default yield terminator with a new one that returns the results
+  // from the masked operation.
+  OpBuilder opBuilder(builder.getContext());
+  Operation *maskedOp = &region.front().front();
+  Operation *oldYieldOp = &region.front().back();
+  assert(isa<vector::YieldOp>(oldYieldOp) && "Expected vector::YieldOp");
+
+  opBuilder.setInsertionPoint(oldYieldOp);
+  opBuilder.create<vector::YieldOp>(maskedOp->getLoc(), maskedOp->getResults());
+  oldYieldOp->dropAllReferences();
+  oldYieldOp->erase();
+}
+
+LogicalResult MaskOp::verify() {
+  // Structural checks.
+  Block &block = getMaskRegion().getBlocks().front();
+  if (block.getOperations().size() < 2)
+    return emitOpError("expects an operation to mask");
+  if (block.getOperations().size() > 2)
+    return emitOpError("expects only one operation to mask");
+
+  auto maskableOp = dyn_cast<MaskableOpInterface>(block.front());
+  if (!maskableOp)
+    return emitOpError("expects a maskable operation");
+
+  // Result checks.
+  if (maskableOp->getNumResults() != getNumResults())
+    return emitOpError("expects number of results to match maskable operation "
+                       "number of results");
+
+  if (!llvm::equal(maskableOp->getResultTypes(), getResultTypes()))
+    return emitOpError(
+        "expects result type to match maskable operation result type");
+
+  // Mask checks.
+  if (getMask().getType() != maskableOp.getExpectedMaskType())
+    return emitOpError("expects a ") << maskableOp.getExpectedMaskType()
+                                     << " mask for the maskable operation";
+
+  // Passthru checks.
+  Value passthru = getPassthru();
+  if (passthru) {
+    if (!maskableOp.supportsPassthru())
+      return emitOpError(
+          "doesn't expect a passthru argument for this maskable operation");
+
+    if (maskableOp->getNumResults() != 1)
+      return emitOpError("expects result when passthru argument is provided");
+
+    if (passthru.getType() != maskableOp->getResultTypes()[0])
+      return emitOpError("expects passthru type to match result type");
+  }
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

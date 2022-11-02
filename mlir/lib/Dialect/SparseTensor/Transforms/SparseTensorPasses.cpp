@@ -21,6 +21,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 namespace mlir {
+#define GEN_PASS_DEF_SPARSETENSORREWRITE
 #define GEN_PASS_DEF_SPARSIFICATIONPASS
 #define GEN_PASS_DEF_SPARSETENSORCONVERSIONPASS
 #define GEN_PASS_DEF_SPARSETENSORCODEGEN
@@ -37,6 +38,26 @@ namespace {
 // Passes implementation.
 //===----------------------------------------------------------------------===//
 
+struct SparseTensorRewritePass
+    : public impl::SparseTensorRewriteBase<SparseTensorRewritePass> {
+
+  SparseTensorRewritePass() = default;
+  SparseTensorRewritePass(const SparseTensorRewritePass &pass) = default;
+  SparseTensorRewritePass(bool enableRT, bool foreach, bool convert) {
+    enableRuntimeLibrary = enableRT;
+    enableForeach = foreach;
+    enableConvert = convert;
+  }
+
+  void runOnOperation() override {
+    auto *ctx = &getContext();
+    RewritePatternSet patterns(ctx);
+    populateSparseTensorRewriting(patterns, enableRuntimeLibrary, enableForeach,
+                                  enableConvert);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
 struct SparsificationPass
     : public impl::SparsificationPassBase<SparsificationPass> {
 
@@ -44,23 +65,12 @@ struct SparsificationPass
   SparsificationPass(const SparsificationPass &pass) = default;
   SparsificationPass(const SparsificationOptions &options) {
     parallelization = options.parallelizationStrategy;
-    vectorization = options.vectorizationStrategy;
-    vectorLength = options.vectorLength;
-    enableSIMDIndex32 = options.enableSIMDIndex32;
-    enableVLAVectorization = options.enableVLAVectorization;
-    enableRuntimeLibrary = options.enableRuntimeLibrary;
   }
 
   void runOnOperation() override {
     auto *ctx = &getContext();
-    RewritePatternSet prePatterns(ctx);
     // Translate strategy flags to strategy options.
-    SparsificationOptions options(parallelization, vectorization, vectorLength,
-                                  enableSIMDIndex32, enableVLAVectorization,
-                                  enableRuntimeLibrary);
-    // Apply pre-rewriting.
-    populateSparseTensorRewriting(prePatterns, options.enableRuntimeLibrary);
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(prePatterns));
+    SparsificationOptions options(parallelization);
     // Apply sparsification and vector cleanup rewriting.
     RewritePatternSet patterns(ctx);
     populateSparsificationPatterns(patterns, options);
@@ -235,6 +245,17 @@ mlir::sparseToSparseConversionStrategy(int32_t flag) {
 //===----------------------------------------------------------------------===//
 // Pass creation methods.
 //===----------------------------------------------------------------------===//
+
+std::unique_ptr<Pass> mlir::createSparseTensorRewritePass() {
+  return std::make_unique<SparseTensorRewritePass>();
+}
+
+std::unique_ptr<Pass> mlir::createSparseTensorRewritePass(bool enableRT,
+                                                          bool enableForeach,
+                                                          bool enableConvert) {
+  return std::make_unique<SparseTensorRewritePass>(enableRT, enableForeach,
+                                                   enableConvert);
+}
 
 std::unique_ptr<Pass> mlir::createSparsificationPass() {
   return std::make_unique<SparsificationPass>();

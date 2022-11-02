@@ -21,24 +21,11 @@
 
 using namespace sycl;
 
-static pi_result redefinedContextCreate(
-    const pi_context_properties *properties, pi_uint32 num_devices,
-    const pi_device *devices,
-    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
-                       void *user_data),
-    void *user_data, pi_context *ret_context) {
-  *ret_context = reinterpret_cast<pi_context>(123);
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedContextRelease(pi_context context) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedDevicesGet(pi_platform platform,
-                                     pi_device_type device_type,
-                                     pi_uint32 num_entries, pi_device *devices,
-                                     pi_uint32 *num_devices) {
+static pi_result redefinedDevicesGetAfter(pi_platform platform,
+                                          pi_device_type device_type,
+                                          pi_uint32 num_entries,
+                                          pi_device *devices,
+                                          pi_uint32 *num_devices) {
   if (num_devices) {
     *num_devices = static_cast<pi_uint32>(2);
     return PI_SUCCESS;
@@ -64,31 +51,19 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
     auto *Result = reinterpret_cast<pi_bool *>(param_value);
     *Result = true;
   }
-  return PI_SUCCESS;
-}
 
-static pi_result redefinedDeviceRetain(pi_device device) { return PI_SUCCESS; }
-
-static pi_result redefinedDeviceRelease(pi_device device) { return PI_SUCCESS; }
-
-static pi_result redefinedQueueCreate(pi_context context, pi_device device,
-                                      pi_queue_properties properties,
-                                      pi_queue *queue) {
-  *queue = reinterpret_cast<pi_queue>(1234);
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedQueueRelease(pi_queue command_queue) {
-  return PI_SUCCESS;
-}
-
-static size_t ProgramNum = 12345;
-static pi_result redefinedProgramCreate(pi_context context, const void *il,
-                                        size_t length,
-                                        pi_program *res_program) {
-  size_t CurrentProgram = ProgramNum;
-  *res_program = reinterpret_cast<pi_program>(CurrentProgram);
-  ++ProgramNum;
+  // This mock device has no sub-devices
+  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+  }
+  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+    }
+  }
   return PI_SUCCESS;
 }
 
@@ -110,17 +85,14 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefine<detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
-    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-    Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-    Mock.redefine<detail::PiApiKind::piDeviceRelease>(redefinedDeviceRelease);
-    Mock.redefine<detail::PiApiKind::piContextCreate>(redefinedContextCreate);
-    Mock.redefine<detail::PiApiKind::piContextRelease>(redefinedContextRelease);
-    Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
-    Mock.redefine<detail::PiApiKind::piQueueRelease>(redefinedQueueRelease);
-    Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-    Mock.redefine<detail::PiApiKind::piProgramCreate>(redefinedProgramCreate);
-    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
+    Mock.redefineAfter<detail::PiApiKind::piDevicesGet>(
+        redefinedDevicesGetAfter);
+    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
+        redefinedDeviceGetInfo);
+    Mock.redefineBefore<detail::PiApiKind::piProgramRetain>(
+        redefinedProgramRetain);
+    Mock.redefineBefore<detail::PiApiKind::piKernelRelease>(
+        redefinedKernelRelease);
   }
 
 protected:

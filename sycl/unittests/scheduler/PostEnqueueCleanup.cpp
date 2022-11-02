@@ -205,10 +205,11 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
       detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferMap>(
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferMap>(
       redefinedEnqueueMemBufferMap);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemUnmap>(redefinedEnqueueMemUnmap);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemUnmap>(
+      redefinedEnqueueMemUnmap);
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferFill>(
       redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};

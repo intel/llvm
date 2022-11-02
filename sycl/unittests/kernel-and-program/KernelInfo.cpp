@@ -38,32 +38,6 @@ static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedProgramCreateWithSource(pi_context context,
-                                                  pi_uint32 count,
-                                                  const char **strings,
-                                                  const size_t *lengths,
-                                                  pi_program *ret_program) {
-  return PI_SUCCESS;
-}
-
-static pi_result
-redefinedProgramBuild(pi_program program, pi_uint32 num_devices,
-                      const pi_device *device_list, const char *options,
-                      void (*pfn_notify)(pi_program program, void *user_data),
-                      void *user_data) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelRetain(pi_kernel kernel) { return PI_SUCCESS; }
-
-static pi_result redefinedKernelRelease(pi_kernel kernel) { return PI_SUCCESS; }
-
 static pi_result redefinedKernelGetInfo(pi_kernel kernel,
                                         pi_kernel_info param_name,
                                         size_t param_value_size,
@@ -78,30 +52,16 @@ static pi_result redefinedKernelGetInfo(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
-                                            pi_kernel_exec_info param_name,
-                                            size_t param_value_size,
-                                            const void *param_value) {
-  return PI_SUCCESS;
-}
-
 class KernelInfoTest : public ::testing::Test {
 public:
   KernelInfoTest() : Mock{}, Plt{Mock.getPlatform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefine<detail::PiApiKind::piKernelGetGroupInfo>(
+    Mock.redefineBefore<detail::PiApiKind::piKernelGetGroupInfo>(
         redefinedKernelGetGroupInfo);
-    Mock.redefine<detail::PiApiKind::piclProgramCreateWithSource>(
-        redefinedProgramCreateWithSource);
-    Mock.redefine<detail::PiApiKind::piProgramBuild>(redefinedProgramBuild);
-    Mock.redefine<detail::PiApiKind::piKernelCreate>(redefinedKernelCreate);
-    Mock.redefine<detail::PiApiKind::piKernelRetain>(redefinedKernelRetain);
-    Mock.redefine<detail::PiApiKind::piKernelRelease>(redefinedKernelRelease);
-    Mock.redefine<detail::PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
-    Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
-        redefinedKernelSetExecInfo);
+    Mock.redefineBefore<detail::PiApiKind::piKernelGetInfo>(
+        redefinedKernelGetInfo);
   }
 
 protected:

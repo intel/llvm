@@ -296,18 +296,6 @@ static bool isMaskRegOp(const MachineInstr &MI) {
   return Log2SEW == 0;
 }
 
-static unsigned getSEWLMULRatio(unsigned SEW, RISCVII::VLMUL VLMul) {
-  unsigned LMul;
-  bool Fractional;
-  std::tie(LMul, Fractional) = RISCVVType::decodeVLMUL(VLMul);
-
-  // Convert LMul to a fixed point value with 3 fractional bits.
-  LMul = Fractional ? (8 / LMul) : (LMul * 8);
-
-  assert(SEW >= 8 && "Unexpected SEW value");
-  return (SEW * 8) / LMul;
-}
-
 /// Which subfields of VL or VTYPE have values we need to preserve?
 struct DemandedFields {
   bool VL = false;
@@ -347,10 +335,10 @@ static bool areCompatibleVTYPEs(uint64_t VType1,
     return false;
 
   if (Used.SEWLMULRatio) {
-    auto Ratio1 = getSEWLMULRatio(RISCVVType::getSEW(VType1),
-                                  RISCVVType::getVLMUL(VType1));
-    auto Ratio2 = getSEWLMULRatio(RISCVVType::getSEW(VType2),
-                                  RISCVVType::getVLMUL(VType2));
+    auto Ratio1 = RISCVVType::getSEWLMULRatio(RISCVVType::getSEW(VType1),
+                                              RISCVVType::getVLMUL(VType1));
+    auto Ratio2 = RISCVVType::getSEWLMULRatio(RISCVVType::getSEW(VType2),
+                                              RISCVVType::getVLMUL(VType2));
     if (Ratio1 != Ratio2)
       return false;
   }
@@ -384,6 +372,10 @@ static DemandedFields getDemanded(const MachineInstr &MI) {
     Res.demandVTYPE();
     if (RISCVII::hasVLOp(TSFlags))
       Res.VL = true;
+
+    // Behavior is independent of mask policy.
+    if (!RISCVII::usesMaskPolicy(TSFlags))
+      Res.MaskPolicy = false;
   }
 
   // Loads and stores with implicit EEW do not demand SEW or LMUL directly.
@@ -548,7 +540,7 @@ public:
   unsigned getSEWLMULRatio() const {
     assert(isValid() && !isUnknown() &&
            "Can't use VTYPE for uninitialized or unknown");
-    return ::getSEWLMULRatio(SEW, VLMul);
+    return RISCVVType::getSEWLMULRatio(SEW, VLMul);
   }
 
   // Check if the VTYPE for these two VSETVLIInfos produce the same VLMAX.
@@ -776,46 +768,44 @@ static VSETVLIInfo computeInfoForInstr(const MachineInstr &MI, uint64_t TSFlags,
                                        const MachineRegisterInfo *MRI) {
   VSETVLIInfo InstrInfo;
 
-  // If the instruction has policy argument, use the argument.
-  // If there is no policy argument, default to tail agnostic unless the
-  // destination is tied to a source. Unless the source is undef. In that case
-  // the user would have some control over the policy values.
-  bool TailAgnostic = true;
-  bool UsesMaskPolicy = RISCVII::usesMaskPolicy(TSFlags);
-  // FIXME: Could we look at the above or below instructions to choose the
-  // matched mask policy to reduce vsetvli instructions? Default mask policy is
-  // agnostic if instructions use mask policy, otherwise is undisturbed. Because
-  // most mask operations are mask undisturbed, so we could possibly reduce the
-  // vsetvli between mask and nomasked instruction sequence.
-  bool MaskAgnostic = UsesMaskPolicy;
+  bool TailAgnostic, MaskAgnostic;
   unsigned UseOpIdx;
-  if (RISCVII::hasVecPolicyOp(TSFlags)) {
-    const MachineOperand &Op = MI.getOperand(MI.getNumExplicitOperands() - 1);
-    uint64_t Policy = Op.getImm();
-    assert(Policy <= (RISCVII::TAIL_AGNOSTIC | RISCVII::MASK_AGNOSTIC) &&
-           "Invalid Policy Value");
-    // Although in some cases, mismatched passthru/maskedoff with policy value
-    // does not make sense (ex. tied operand is IMPLICIT_DEF with non-TAMA
-    // policy, or tied operand is not IMPLICIT_DEF with TAMA policy), but users
-    // have set the policy value explicitly, so compiler would not fix it.
-    TailAgnostic = Policy & RISCVII::TAIL_AGNOSTIC;
-    MaskAgnostic = Policy & RISCVII::MASK_AGNOSTIC;
-  } else if (MI.isRegTiedToUseOperand(0, &UseOpIdx)) {
+  if (MI.isRegTiedToUseOperand(0, &UseOpIdx)) {
+    // Start with undisturbed.
     TailAgnostic = false;
-    if (UsesMaskPolicy)
-      MaskAgnostic = false;
-    // If the tied operand is an IMPLICIT_DEF we can keep TailAgnostic.
+    MaskAgnostic = false;
+
+    // If there is a policy operand, use it.
+    if (RISCVII::hasVecPolicyOp(TSFlags)) {
+      const MachineOperand &Op = MI.getOperand(MI.getNumExplicitOperands() - 1);
+      uint64_t Policy = Op.getImm();
+      assert(Policy <= (RISCVII::TAIL_AGNOSTIC | RISCVII::MASK_AGNOSTIC) &&
+             "Invalid Policy Value");
+      TailAgnostic = Policy & RISCVII::TAIL_AGNOSTIC;
+      MaskAgnostic = Policy & RISCVII::MASK_AGNOSTIC;
+    }
+
+    // If the tied operand is an IMPLICIT_DEF we can use TailAgnostic and
+    // MaskAgnostic.
     const MachineOperand &UseMO = MI.getOperand(UseOpIdx);
     MachineInstr *UseMI = MRI->getVRegDef(UseMO.getReg());
     if (UseMI && UseMI->isImplicitDef()) {
       TailAgnostic = true;
-      if (UsesMaskPolicy)
-        MaskAgnostic = true;
+      MaskAgnostic = true;
     }
     // Some pseudo instructions force a tail agnostic policy despite having a
     // tied def.
     if (RISCVII::doesForceTailAgnostic(TSFlags))
       TailAgnostic = true;
+
+    if (!RISCVII::usesMaskPolicy(TSFlags))
+      MaskAgnostic = true;
+  } else {
+    // If there is no tied operand,, there shouldn't be a policy operand.
+    assert(!RISCVII::hasVecPolicyOp(TSFlags) && "Unexpected policy operand");
+    // No tied operand use agnostic policies.
+    TailAgnostic = true;
+    MaskAgnostic = true;
   }
 
   RISCVII::VLMUL VLMul = RISCVII::getLMul(TSFlags);

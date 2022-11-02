@@ -134,6 +134,9 @@ def FeatureVPOPCNTDQ : SubtargetFeature<"avx512vpopcntdq", "HasVPOPCNTDQ",
 def FeaturePFI      : SubtargetFeature<"avx512pf", "HasPFI", "true",
                       "Enable AVX-512 PreFetch Instructions",
                                       [FeatureAVX512]>;
+def FeaturePREFETCHI  : SubtargetFeature<"prefetchi", "HasPREFETCHI",
+                                   "true",
+                                   "Prefetch instruction with T0 or T1 Hint">;
 def FeaturePREFETCHWT1  : SubtargetFeature<"prefetchwt1", "HasPREFETCHWT1",
                                    "true",
                                    "Prefetch with Intent to Write and T1 Hint">;
@@ -254,6 +257,11 @@ def FeatureAMXINT8     : SubtargetFeature<"amx-int8", "HasAMXINT8", "true",
 def FeatureAMXBF16     : SubtargetFeature<"amx-bf16", "HasAMXBF16", "true",
                                       "Support AMX-BF16 instructions",
                                       [FeatureAMXTILE]>;
+def FeatureAMXFP16     : SubtargetFeature<"amx-fp16", "HasAMXFP16", "true",
+                                      "Support AMX amx-fp16 instructions",
+                                      [FeatureAMXTILE]>;
+def FeatureCMPCCXADD : SubtargetFeature<"cmpccxadd", "HasCMPCCXADD", "true",
+                                        "Support CMPCCXADD instructions">;
 def FeatureINVPCID : SubtargetFeature<"invpcid", "HasINVPCID", "true",
                                       "Invalidate Process-Context Identifier">;
 def FeatureSGX     : SubtargetFeature<"sgx", "HasSGX", "true",
@@ -910,7 +918,6 @@ def ProcessorFeatures {
                                                   FeatureTSXLDTRK,
                                                   FeatureENQCMD,
                                                   FeatureSHSTK,
-                                                  FeatureVP2INTERSECT,
                                                   FeatureMOVDIRI,
                                                   FeatureMOVDIR64B,
                                                   FeatureUINTR];
