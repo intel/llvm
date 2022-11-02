@@ -1084,8 +1084,7 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
-#pragma unroll
-    for (int I = 0; I < AdjustedDim; ++I) {
+    detail::dim_loop<AdjustedDim>([&, this](size_t I) {
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
@@ -1096,7 +1095,7 @@ protected:
 #endif
       getAccessRange()[I] = AccessRange[I];
       getMemoryRange()[I] = MemRange[I];
-    }
+    });
 
     // Adjust for offsets as that part is invariant for all invocations of
     // operator[]. Will have to re-adjust in get_pointer.
@@ -2415,9 +2414,8 @@ protected:
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {
     MData = Ptr;
-#pragma unroll
-    for (int I = 0; I < AdjustedDim; ++I)
-      getSize()[I] = AccessRange[I];
+    detail::dim_loop<AdjustedDim>(
+        [&, this](size_t I) { getSize()[I] = AccessRange[I]; });
   }
 
 public:
