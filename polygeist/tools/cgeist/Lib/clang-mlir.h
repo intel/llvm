@@ -60,6 +60,8 @@ struct LoopContext {
   mlir::Value noBreak;
 };
 
+class BinOpInfo;
+
 /// Context in which a function is located.
 enum class FunctionContext {
   Host,      ///< Host function
@@ -463,6 +465,12 @@ public:
 
   ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
   ValueCategory VisitBinAssign(clang::BinaryOperator *BO);
+  BinOpInfo EmitBinOps(clang::BinaryOperator *E);
+#define HANDLEBINOP(OP)                                                        \
+  ValueCategory EmitBin##OP(const BinOpInfo &E);                               \
+  ValueCategory VisitBin##OP(clang::BinaryOperator *E);
+#include "Expressions.def"
+#undef HANDLEBINOP
 
   ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
 
