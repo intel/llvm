@@ -134,9 +134,9 @@ public:
                          llvm::SmallVectorImpl<mlir::Type> &types);
 
     // Collect the attributes of the given \p descriptors in \p attrs.
-    static void getAttributes(
-        const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
-        llvm::SmallVectorImpl<std::vector<mlir::NamedAttribute>> &attrs);
+    static void
+    getAttributes(const llvm::SmallVectorImpl<TypeAndAttrs> &descriptors,
+                  llvm::SmallVectorImpl<mlir::NamedAttrList> &attrs);
   };
 
   using ParmDesc = TypeAndAttrs;
@@ -155,8 +155,11 @@ public:
 
   /// Determine whether to use the "noundef" attribute on a parameter or
   /// function return value.
-  static bool determineNoUndef(clang::QualType QTy,
-                               const clang::CodeGen::ABIArgInfo &AI);
+  static bool determineNoUndef(clang::QualType qt,
+                               clang::CodeGen::CodeGenTypes &Types,
+                               const llvm::DataLayout &DL,
+                               const clang::CodeGen::ABIArgInfo &AI,
+                               bool CheckCoerce = true);
 };
 
 class MLIRASTConsumer : public clang::ASTConsumer {
@@ -310,6 +313,9 @@ private:
       mlir::FunctionOpInterface function,
       const llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors)
       const;
+
+  void setMLIRFunctionAttributesForDefinition(
+      const clang::Decl *D, mlir::FunctionOpInterface function) const;
 };
 
 class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {

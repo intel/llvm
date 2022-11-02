@@ -24,6 +24,9 @@ class AttrBuilder;
 class AttributeList {
 public:
   AttributeList() = default;
+  AttributeList(const mlir::NamedAttrList &FnAttrs,
+                const mlir::NamedAttrList &RetAttrs,
+                llvm::ArrayRef<mlir::NamedAttrList> ParamAttrs);
 
   //===--------------------------------------------------------------------===//
   // AttributeList Mutation
@@ -36,9 +39,13 @@ public:
 
   /// Add function attributes to the list.
   AttributeList &addFnAttrs(const AttrBuilder &B);
+  AttributeList &addFnAttrs(const mlir::NamedAttrList &Attrs,
+                            mlir::MLIRContext &Ctx);
 
   /// Add return value attributes to the list.
   AttributeList &addRetAttrs(const AttrBuilder &B);
+  AttributeList &addRetAttrs(const mlir::NamedAttrList &Attrs,
+                             mlir::MLIRContext &Ctx);
 
   /// Add parameters attributes to the list.
   AttributeList &addParamAttrs(llvm::ArrayRef<mlir::NamedAttrList> Attrs);

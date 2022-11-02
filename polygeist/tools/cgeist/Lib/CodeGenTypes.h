@@ -13,9 +13,9 @@
 #ifndef CGEIST_LIB_CODEGEN_CODEGENTYPES_H
 #define CGEIST_LIB_CODEGEN_CODEGENTYPES_H
 
+#include "Attributes.h"
 #include "mlir/IR/OwningOpRef.h"
 #include "clang/Basic/ABI.h"
-
 #include <map>
 
 namespace clang {
@@ -30,6 +30,7 @@ class GlobalDecl;
 namespace CodeGen {
 class ABIInfo;
 class CGCXXABI;
+class CGCalleeInfo;
 class CGFunctionInfo;
 class CodeGenModule;
 } // namespace CodeGen
@@ -55,7 +56,6 @@ class CodeGenTypes {
   clang::ASTContext &Context;
   mlir::OwningOpRef<mlir::ModuleOp> &TheModule;
   clang::CodeGen::CGCXXABI &TheCXXABI;
-  const clang::CodeGen::ABIInfo &TheABIInfo;
 
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> TypeCache;
 
@@ -65,23 +65,38 @@ public:
 
   clang::CodeGen::CodeGenModule &getCGM() const { return CGM; }
   clang::ASTContext &getContext() const { return Context; }
-  const clang::CodeGen::ABIInfo &getABIInfo() const { return TheABIInfo; }
-  mlir::OwningOpRef<mlir::ModuleOp> &getModule() { return TheModule; }
+  mlir::OwningOpRef<mlir::ModuleOp> &getModule() const { return TheModule; }
   clang::CodeGen::CGCXXABI &getCXXABI() const { return TheCXXABI; }
   const clang::CodeGenOptions &getCodeGenOpts() const;
 
+  /// Construct the MLIR function type.
   mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
                                      const clang::FunctionDecl &FD);
+
+  /// Construct the IR attribute list of a function type or function call.
+  void constructAttributeList(llvm::StringRef Name,
+                              const clang::CodeGen::CGFunctionInfo &FI,
+                              clang::CodeGen::CGCalleeInfo CalleeInfo,
+                              mlirclang::AttributeList &AttrList,
+                              bool AttrOnCallSite, bool IsThunk);
 
   // TODO: Possibly create a SYCLTypeCache
   mlir::Type getMLIRType(clang::QualType QT, bool *ImplicitRef = nullptr,
                          bool AllowMerge = true);
 
   mlir::Type getPointerOrMemRefType(mlir::Type Ty, unsigned AddressSpace,
-                                    bool IsAlloca = false);
+                                    bool IsAlloca = false) const;
 
   const clang::CodeGen::CGFunctionInfo &
   arrangeGlobalDeclaration(clang::GlobalDecl GD);
+
+private:
+  void getDefaultFunctionAttributes(llvm::StringRef Name, bool HasOptnone,
+                                    bool AttrOnCallSite,
+                                    mlirclang::AttrBuilder &FuncAttrs) const;
+
+  bool getCPUAndFeaturesAttributes(clang::GlobalDecl GD,
+                                   AttrBuilder &Attrs) const;
 };
 
 } // namespace CodeGen

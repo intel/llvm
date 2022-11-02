@@ -6,18 +6,17 @@
 
 // CHECK-MLIR:      gpu.func {{.*}}vec_add_simple({{.*}})
 // CHECK-MLIR-SAME: kernel attributes {llvm.cconv = #llvm.cconv<spir_kernelcc>, llvm.linkage = #llvm.linkage<weak_odr>,
-// CHECK-MLIR-SAME: [[PASSTHROUGH:passthrough = \[\["sycl-module-id", ".*/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp"\], "norecurse", "nounwind", "convergent", "mustprogress"\]]]} {
 // CHECK-MLIR:      func.call [[FUNC:@.*vec_add_device_simple.*]]({{.*}}) :
 // CHECK-MLIR-NEXT: gpu.return
 
 // CHECK-MLIR:      func.func private [[FUNC]]({{.*}})
-// CHECK-SAME:      attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<internal>, passthrough = ["norecurse", "nounwind", "convergent", "mustprogress"]} {
+// CHECK-SAME:      attributes {llvm.cconv = #llvm.cconv<spir_funccc>, llvm.linkage = #llvm.linkage<internal>
 // CHECK-MLIR-DAG:  [[V1:%.*]] = affine.load {{.*}}[0] : memref<?xf32, 4>
 // CHECK-MLIR-DAG:  [[V2:%.*]] = affine.load {{.*}}[0] : memref<?xf32, 4>
 // CHECK-MLIR-NEXT: [[RESULT:%.*]] = arith.addf [[V1]], [[V2]] : f32
 // CHECK-MLIR:      affine.store [[RESULT]], {{.*}}[0] : memref<?xf32, 4>
 
-// CHECK-LLVM:       define internal spir_func void [[FUNC:@.*vec_add_device_simple.*_]]({{.*}}) #0
+// CHECK-LLVM:       define internal spir_func void [[FUNC:@.*vec_add_device_simple.*_]]({{.*}}) #2
 // CHECK-LLVM-DAG:   [[V1:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM-DAG:   [[V2:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
@@ -96,5 +95,5 @@ int main() {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM:          attributes #0 = { convergent mustprogress norecurse nounwind }
-// CHECK-LLVM-NEXT:     attributes #1 = { convergent mustprogress norecurse nounwind "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
+// CHECK-LLVM: attributes #1 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
+// CHECK-LLVM-NEXT: attributes #2 = { alwaysinline convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }

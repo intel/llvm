@@ -40,13 +40,29 @@ static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
   std::vector<mlir::Attribute> Vec =
       PassThroughAttr.getValue().cast<ArrayAttr>().getValue().vec();
 
-  // TODO: find a way to add the attributes only if one does not exist already,
-  // and keep the list in sorted order.
+  // TODO: find a way to add the attributes only if one does not exist already.
   if (Attr.getValue().isa<UnitAttr>())
     Vec.push_back(Attr.getName());
   else
     Vec.push_back(ArrayAttr::get(&Ctx, {Attr.getName(), Attr.getValue()}));
 
+  auto Comp = [&](const mlir::Attribute &A1, const mlir::Attribute &A2) {
+    assert(A1.isa<StringAttr>() || A1.isa<ArrayAttr>());
+    assert(A2.isa<StringAttr>() || A2.isa<ArrayAttr>());
+
+    if (auto StrA1 = A1.dyn_cast<StringAttr>()) {
+      if (auto StrA2 = A2.dyn_cast<StringAttr>())
+        return StrA1 < StrA2;
+      return true;
+    }
+
+    auto ArrA1 = A1.cast<ArrayAttr>();
+    if (auto ArrA2 = A2.dyn_cast<ArrayAttr>())
+      return ArrA1[0].cast<StringAttr>() < ArrA2[0].cast<StringAttr>();
+    return false;
+  };
+
+  llvm::sort(Vec.begin(), Vec.end(), Comp);
   PassThroughAttr.setValue(ArrayAttr::get(&Ctx, Vec));
 
   LLVM_DEBUG({
@@ -81,6 +97,11 @@ static void addToPassThroughAttr(mlir::NamedAttribute &PassThroughAttr,
 // AttributeList Method Implementations
 //===----------------------------------------------------------------------===//
 
+AttributeList::AttributeList(const mlir::NamedAttrList &FnAttrs,
+                             const mlir::NamedAttrList &RetAttrs,
+                             llvm::ArrayRef<mlir::NamedAttrList> ParamAttrs)
+    : FnAttrs(FnAttrs), RetAttrs(RetAttrs), ParamAttrs(ParamAttrs) {}
+
 AttributeList &
 AttributeList::addAttrs(const AttrBuilder &FnAttrB, const AttrBuilder &RetAttrB,
                         llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
@@ -88,19 +109,24 @@ AttributeList::addAttrs(const AttrBuilder &FnAttrB, const AttrBuilder &RetAttrB,
 }
 
 AttributeList &AttributeList::addFnAttrs(const AttrBuilder &B) {
-  for (const NamedAttribute &NewNamedAttr : B.getAttrs()) {
-    Optional<NamedAttribute> ExistingAttr =
-        FnAttrs.getNamed(NewNamedAttr.getName());
-    if (!ExistingAttr) {
-      FnAttrs.append(NewNamedAttr);
+  return addFnAttrs(B.getAttrs(), B.getContext());
+}
+
+AttributeList &AttributeList::addFnAttrs(const NamedAttrList &Attrs,
+                                         MLIRContext &Ctx) {
+  for (const NamedAttribute &NewFnAttr : Attrs) {
+    Optional<NamedAttribute> ExistingFnAttr =
+        FnAttrs.getNamed(NewFnAttr.getName());
+    if (!ExistingFnAttr) {
+      FnAttrs.append(NewFnAttr);
       continue;
     }
 
     // Merge the 'passthrough' attribute lists.
-    if (ExistingAttr->getName() == PassThroughAttrName) {
-      auto Attrs = NewNamedAttr.getValue().cast<ArrayAttr>();
-      addToPassThroughAttr(*ExistingAttr, Attrs, B.getContext());
-      FnAttrs.set(ExistingAttr->getName(), ExistingAttr->getValue());
+    if (ExistingFnAttr->getName() == PassThroughAttrName) {
+      auto Attrs = NewFnAttr.getValue().cast<ArrayAttr>();
+      addToPassThroughAttr(*ExistingFnAttr, Attrs, Ctx);
+      FnAttrs.set(ExistingFnAttr->getName(), ExistingFnAttr->getValue());
       continue;
     }
 
@@ -111,7 +137,12 @@ AttributeList &AttributeList::addFnAttrs(const AttrBuilder &B) {
 }
 
 AttributeList &AttributeList::addRetAttrs(const AttrBuilder &B) {
-  for (const NamedAttribute &NewNamedAttr : B.getAttrs()) {
+  return addRetAttrs(B.getAttrs(), B.getContext());
+}
+
+AttributeList &AttributeList::addRetAttrs(const mlir::NamedAttrList &Attrs,
+                                          mlir::MLIRContext &Ctx) {
+  for (const NamedAttribute &NewNamedAttr : Attrs) {
     Optional<NamedAttribute> ExistingAttr =
         RetAttrs.getNamed(NewNamedAttr.getName());
     if (!ExistingAttr) {
