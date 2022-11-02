@@ -5261,9 +5261,9 @@ class OffloadingActionBuilder final {
           // Select remangled libclc variant
           std::string LibSpirvTargetName =
               (TC->getAuxTriple()->isOSWindows())
-                  ? "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl."
+                  ? "remangled-l32-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc"
-                  : "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl."
+                  : "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda."
                     "bc";
 
           for (StringRef LibraryPath : LibraryPaths) {
