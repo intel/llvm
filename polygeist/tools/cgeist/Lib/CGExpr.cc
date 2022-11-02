@@ -940,8 +940,8 @@ const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
 
 std::pair<ValueCategory, bool>
 MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee())) {
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr()))
       if (sr->getDecl()->getIdentifier() &&
           sr->getDecl()->getName() == "__log2f") {
         std::vector<mlir::Value> args;
@@ -953,74 +953,177 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
                           /*isReference*/ false),
             true);
       }
-      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "log") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return std::make_pair(
-            ValueCategory(builder.create<mlir::math::LogOp>(loc, args[0]),
-                          /*isReference*/ false),
-            true);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "ceil")) {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return std::make_pair(
-            ValueCategory(builder.create<math::CeilOp>(loc, args[0]),
-                          /*isReference*/ false),
-            true);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "sqrtf" ||
-           sr->getDecl()->getName() == "sqrt")) {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return std::make_pair(
-            ValueCategory(builder.create<mlir::math::SqrtOp>(loc, args[0]),
-                          /*isReference*/ false),
-            true);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "expf" ||
-           sr->getDecl()->getName() == "exp")) {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return std::make_pair(
-            ValueCategory(builder.create<mlir::math::ExpOp>(loc, args[0]),
-                          /*isReference*/ false),
-            true);
-      }
-      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "sin") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return std::make_pair(
-            ValueCategory(builder.create<mlir::math::SinOp>(loc, args[0]),
-                          /*isReference*/ false),
-            true);
-      }
 
-      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "cos") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return std::make_pair(
-            ValueCategory(builder.create<mlir::math::CosOp>(loc, args[0]),
-                          /*isReference*/ false),
-            true);
-      }
-    }
+  std::vector<mlir::Value> args;
+  auto VisitArgs = [&]() {
+    assert(args.empty() && "Expecting empty args");
+    for (auto a : expr->arguments())
+      args.push_back(Visit(a).getValue(builder));
+  };
+  Optional<Value> V = None;
+  switch (expr->getBuiltinCallee()) {
+  case Builtin::BIceil: {
+    VisitArgs();
+    V = builder.create<math::CeilOp>(loc, args[0]);
+  } break;
+  case Builtin::BIcos: {
+    VisitArgs();
+    V = builder.create<mlir::math::CosOp>(loc, args[0]);
+  } break;
+  case Builtin::BIexp:
+  case Builtin::BIexpf: {
+    VisitArgs();
+    V = builder.create<mlir::math::ExpOp>(loc, args[0]);
+  } break;
+  case Builtin::BIlog: {
+    VisitArgs();
+    V = builder.create<mlir::math::LogOp>(loc, args[0]);
+  } break;
+  case Builtin::BIsin: {
+    VisitArgs();
+    V = builder.create<mlir::math::SinOp>(loc, args[0]);
+  } break;
+  case Builtin::BIsqrt:
+  case Builtin::BIsqrtf: {
+    VisitArgs();
+    V = builder.create<mlir::math::SqrtOp>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_atanh:
+  case Builtin::BI__builtin_atanhf:
+  case Builtin::BI__builtin_atanhl: {
+    VisitArgs();
+    V = builder.create<math::AtanOp>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_copysign:
+  case Builtin::BI__builtin_copysignf:
+  case Builtin::BI__builtin_copysignl: {
+    VisitArgs();
+    V = builder.create<LLVM::CopySignOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_exp2:
+  case Builtin::BI__builtin_exp2f:
+  case Builtin::BI__builtin_exp2l: {
+    VisitArgs();
+    V = builder.create<math::Exp2Op>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_expm1:
+  case Builtin::BI__builtin_expm1f:
+  case Builtin::BI__builtin_expm1l: {
+    VisitArgs();
+    V = builder.create<math::ExpM1Op>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_fma:
+  case Builtin::BI__builtin_fmaf:
+  case Builtin::BI__builtin_fmal: {
+    VisitArgs();
+    V = builder.create<LLVM::FMAOp>(loc, args[0], args[1], args[2]);
+  } break;
+  case Builtin::BI__builtin_fmax:
+  case Builtin::BI__builtin_fmaxf:
+  case Builtin::BI__builtin_fmaxl: {
+    VisitArgs();
+    V = builder.create<LLVM::MaxNumOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_fmin:
+  case Builtin::BI__builtin_fminf:
+  case Builtin::BI__builtin_fminl: {
+    VisitArgs();
+    V = builder.create<LLVM::MinNumOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_log1p:
+  case Builtin::BI__builtin_log1pf:
+  case Builtin::BI__builtin_log1pl: {
+    VisitArgs();
+    V = builder.create<math::Log1pOp>(loc, args[0]);
+  } break;
+  case Builtin::BI__builtin_pow:
+  case Builtin::BI__builtin_powf:
+  case Builtin::BI__builtin_powl: {
+    VisitArgs();
+    V = builder.create<math::PowFOp>(loc, args[0], args[1]);
+  } break;
+  case Builtin::BI__builtin_assume: {
+    VisitArgs();
+    V = builder.create<LLVM::AssumeOp>(loc, args[0])->getResult(0);
+  } break;
+  case Builtin::BI__builtin_isgreater: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OGT, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_isgreaterequal: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OGE, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_isless: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OLT, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_islessequal: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::OLE, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_islessgreater: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::ONE, args[0], args[1]));
+  } break;
+  case Builtin::BI__builtin_isunordered: {
+    VisitArgs();
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    V = builder.create<ExtUIOp>(
+        loc, postTy,
+        builder.create<CmpFOp>(loc, CmpFPredicate::UNO, args[0], args[1]));
+  } break;
+  case Builtin::BImemmove:
+  case Builtin::BI__builtin_memmove: {
+    VisitArgs();
+    builder.create<LLVM::MemmoveOp>(
+        loc, args[0], args[1], args[2],
+        /*isVolatile*/ builder.create<ConstantIntOp>(loc, false, 1));
+    V = args[0];
+  } break;
+  case Builtin::BImemset:
+  case Builtin::BI__builtin_memset: {
+    VisitArgs();
+    builder.create<LLVM::MemsetOp>(
+        loc, args[0],
+        builder.create<TruncIOp>(loc, builder.getI8Type(), args[1]), args[2],
+        /*isVolatile*/ builder.create<ConstantIntOp>(loc, false, 1));
+    V = args[0];
+  } break;
+  case Builtin::BImemcpy:
+  case Builtin::BI__builtin_memcpy: {
+    VisitArgs();
+    builder.create<LLVM::MemcpyOp>(
+        loc, args[0], args[1], args[2],
+        /*isVolatile*/ builder.create<ConstantIntOp>(loc, false, 1));
+    V = args[0];
+  } break;
   }
+  if (V.has_value())
+    return std::make_pair(ValueCategory(V.value(),
+                                        /*isReference*/ false),
+                          true);
 
   return std::make_pair(ValueCategory(), false);
 }
