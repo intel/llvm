@@ -783,8 +783,57 @@ namespace AArch64II {
     /// SP-relative load or store instruction (which do not check tags), or to
     /// an LDG instruction to obtain the tag value.
     MO_TAGGED = 0x400,
+
+    /// MO_DLLIMPORTAUX - Symbol refers to "auxilliary" import stub. On
+    /// Arm64EC, there are two kinds of import stubs used for DLL import of
+    /// functions: MO_DLLIMPORT refers to natively callable Arm64 code, and
+    /// MO_DLLIMPORTAUX refers to the original address which can be compared
+    /// for equality.
+    MO_DLLIMPORTAUX = 0x800,
   };
 } // end namespace AArch64II
+
+//===----------------------------------------------------------------------===//
+// v8.3a Pointer Authentication
+//
+
+namespace AArch64PACKey {
+enum ID : uint8_t {
+  IA = 0,
+  IB = 1,
+  DA = 2,
+  DB = 3,
+  LAST = DB
+};
+} // namespace AArch64PACKey
+
+/// Return 2-letter identifier string for numeric key ID.
+inline static StringRef AArch64PACKeyIDToString(AArch64PACKey::ID KeyID) {
+  switch (KeyID) {
+  case AArch64PACKey::IA:
+    return StringRef("ia");
+  case AArch64PACKey::IB:
+    return StringRef("ib");
+  case AArch64PACKey::DA:
+    return StringRef("da");
+  case AArch64PACKey::DB:
+    return StringRef("db");
+  }
+}
+
+/// Return numeric key ID for 2-letter identifier string.
+inline static Optional<AArch64PACKey::ID>
+AArch64StringToPACKeyID(StringRef Name) {
+  if (Name == "ia")
+    return AArch64PACKey::IA;
+  if (Name == "ib")
+    return AArch64PACKey::IB;
+  if (Name == "da")
+    return AArch64PACKey::DA;
+  if (Name == "db")
+    return AArch64PACKey::DB;
+  return None;
+}
 
 namespace AArch64 {
 // The number of bits in a SVE register is architecturally defined

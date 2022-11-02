@@ -194,7 +194,7 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCreate>(
+  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
       redefinedProgramCreateEAM);
 
   const sycl::device Dev = Plt.get_devices()[0];

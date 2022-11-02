@@ -21,38 +21,41 @@ struct {
 } TestContext;
 
 // Dummy event values for bookkeeping
-pi_event WAIT = nullptr;
-pi_event MEMCPY = nullptr;
-pi_event MEMSET = nullptr;
+pi_event WAIT = reinterpret_cast<pi_event>(1);
+pi_event MEMCPY = reinterpret_cast<pi_event>(2);
+pi_event MEMSET = reinterpret_cast<pi_event>(3);
 
 template <typename T> auto getVal(T obj) {
   return detail::getSyclObjImpl(obj)->getHandleRef();
 }
 
-pi_result redefinedEnqueueEventsWaitAfter(pi_queue, pi_uint32 NumDeps,
-                                          const pi_event *Deps,
-                                          pi_event *Event) {
+pi_result redefinedEnqueueEventsWait(pi_queue, pi_uint32 NumDeps,
+                                     const pi_event *Deps, pi_event *Event) {
   EXPECT_EQ(NumDeps, TestContext.Deps.size());
   for (size_t i = 0; i < NumDeps; ++i) {
     EXPECT_EQ(Deps[i], getVal(TestContext.Deps[i]));
   }
-  WAIT = *Event;
+  *Event = WAIT;
   return PI_SUCCESS;
 }
 
-pi_result redefinedUSMEnqueueMemcpyAfter(pi_queue, pi_bool, void *,
-                                         const void *, size_t, pi_uint32,
-                                         const pi_event *, pi_event *Event) {
-  // Set MEMCPY to the event produced by the original USMEnqueueMemcpy
-  MEMCPY = *Event;
+pi_result redefinedUSMEnqueueMemcpy(pi_queue, pi_bool, void *, const void *,
+                                    size_t, pi_uint32, const pi_event *,
+                                    pi_event *Event) {
+  *Event = MEMCPY;
   return PI_SUCCESS;
 }
 
-pi_result redefinedUSMEnqueueMemsetAfter(pi_queue, void *, pi_int32, size_t,
-                                         pi_uint32, const pi_event *,
-                                         pi_event *Event) {
-  // Set MEMSET to the event produced by the original USMEnqueueMemcpy
-  MEMSET = *Event;
+pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
+                                    pi_uint32, const pi_event *,
+                                    pi_event *Event) {
+  *Event = MEMSET;
+  return PI_SUCCESS;
+}
+
+pi_result redefinedEventRelease(pi_event) { return PI_SUCCESS; }
+pi_result redefinedEventsWait(pi_uint32 /* num_events */,
+                              const pi_event * /* event_list  */) {
   return PI_SUCCESS;
 }
 
@@ -60,12 +63,14 @@ pi_result redefinedUSMEnqueueMemsetAfter(pi_queue, void *, pi_int32, size_t,
 TEST(USM, NoOpPreservesDependencyChain) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineAfter<detail::PiApiKind::piEnqueueEventsWait>(
-      redefinedEnqueueEventsWaitAfter);
-  Mock.redefineAfter<detail::PiApiKind::piextUSMEnqueueMemcpy>(
-      redefinedUSMEnqueueMemcpyAfter);
-  Mock.redefineAfter<detail::PiApiKind::piextUSMEnqueueMemset>(
-      redefinedUSMEnqueueMemsetAfter);
+  Mock.redefine<detail::PiApiKind::piEnqueueEventsWait>(
+      redefinedEnqueueEventsWait);
+  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(
+      redefinedUSMEnqueueMemcpy);
+  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
+      redefinedUSMEnqueueMemset);
+  Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
   context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};

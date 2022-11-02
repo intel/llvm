@@ -165,11 +165,15 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::VP_SUB:
   case ISD::VP_MUL:      Res = PromoteIntRes_SimpleIntBinOp(N); break;
 
+  case ISD::VP_SMIN:
+  case ISD::VP_SMAX:
   case ISD::SDIV:
   case ISD::SREM:
   case ISD::VP_SDIV:
   case ISD::VP_SREM:     Res = PromoteIntRes_SExtIntBinOp(N); break;
 
+  case ISD::VP_UMIN:
+  case ISD::VP_UMAX:
   case ISD::UDIV:
   case ISD::UREM:
   case ISD::VP_UDIV:
@@ -3274,6 +3278,14 @@ void DAGTypeLegalizer::ExpandIntRes_ABS(SDNode *N, SDValue &Lo, SDValue &Hi) {
   GetExpandedInteger(N0, Lo, Hi);
   EVT NVT = Lo.getValueType();
 
+  // If the upper half is all sign bits, then we can perform the ABS on the
+  // lower half and zero-extend.
+  if (DAG.ComputeNumSignBits(N0) > NVT.getScalarSizeInBits()) {
+    Lo = DAG.getNode(ISD::ABS, dl, NVT, Lo);
+    Hi = DAG.getConstant(0, dl, NVT);
+    return;
+  }
+
   // If we have SUBCARRY, use the expanded form of the sra+xor+sub sequence we
   // use in LegalizeDAG. The SUB part of the expansion is based on
   // ExpandIntRes_ADDSUB which also uses SUBCARRY/USUBO after checking that
@@ -5238,7 +5250,6 @@ SDValue DAGTypeLegalizer::PromoteIntRes_VECTOR_SHUFFLE(SDNode *N) {
 
   return DAG.getVectorShuffle(OutVT, dl, V0, V1, NewMask);
 }
-
 
 SDValue DAGTypeLegalizer::PromoteIntRes_BUILD_VECTOR(SDNode *N) {
   EVT OutVT = N->getValueType(0);

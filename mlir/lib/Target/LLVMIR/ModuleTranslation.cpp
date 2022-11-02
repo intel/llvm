@@ -917,6 +917,13 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
                            .addAttribute(llvm::Attribute::Nest));
     }
 
+    if (auto attr = func.getArgAttrOfType<UnitAttr>(
+            argIdx, LLVMDialect::getNoUndefAttrName())) {
+      // llvm.noundef can be added to any argument type.
+      llvmArg.addAttrs(llvm::AttrBuilder(llvmArg.getContext())
+                           .addAttribute(llvm::Attribute::NoUndef));
+    }
+
     mapValue(mlirArg, &llvmArg);
     argIdx++;
   }
@@ -977,7 +984,7 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     addRuntimePreemptionSpecifier(function.getDsoLocal(), llvmFunc);
 
     if (function->getAttrOfType<UnitAttr>(LLVMDialect::getReadnoneAttrName()))
-      llvmFunc->addFnAttr(llvm::Attribute::ReadNone);
+      llvmFunc->setDoesNotAccessMemory();
 
     // Forward the pass-through attributes to LLVM.
     if (failed(forwardPassthroughAttributes(
@@ -1132,6 +1139,10 @@ ModuleTranslation::translateLoc(Location loc, llvm::DILocalScope *scope) {
   return debugTranslation->translateLoc(loc, scope);
 }
 
+llvm::Metadata *ModuleTranslation::translateDebugInfo(LLVM::DINodeAttr attr) {
+  return debugTranslation->translate(attr);
+}
+
 llvm::NamedMDNode *
 ModuleTranslation::getOrInsertNamedModuleMetadata(StringRef name) {
   return llvmModule->getOrInsertNamedMetadata(name);
@@ -1182,8 +1193,10 @@ prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
 std::unique_ptr<llvm::Module>
 mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
                               StringRef name) {
-  if (!satisfiesLLVMModule(module))
+  if (!satisfiesLLVMModule(module)) {
+    module->emitOpError("can not be translated to an LLVMIR module");
     return nullptr;
+  }
 
   std::unique_ptr<llvm::Module> llvmModule =
       prepareLLVMModule(module, llvmContext, name);

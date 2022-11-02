@@ -465,13 +465,16 @@ static bool hasMappingSymbols(const ObjectFile &Obj) {
 static void printRelocation(formatted_raw_ostream &OS, StringRef FileName,
                             const RelocationRef &Rel, uint64_t Address,
                             bool Is64Bits) {
-  StringRef Fmt = Is64Bits ? "\t\t%016" PRIx64 ":  " : "\t\t\t%08" PRIx64 ":  ";
+  StringRef Fmt = Is64Bits ? "%016" PRIx64 ":  " : "%08" PRIx64 ":  ";
   SmallString<16> Name;
   SmallString<32> Val;
   Rel.getTypeName(Name);
   if (Error E = getRelocationValueString(Rel, Val))
     reportError(std::move(E), FileName);
-  OS << format(Fmt.data(), Address) << Name << "\t" << Val;
+  OS << (Is64Bits || !LeadingAddr ? "\t\t" : "\t\t\t");
+  if (LeadingAddr)
+    OS << format(Fmt.data(), Address);
+  OS << Name << "\t" << Val;
 }
 
 static void AlignToInstStartColumn(size_t Start, const MCSubtargetInfo &STI,
@@ -1187,8 +1190,9 @@ static void addSymbolizer(
   for (size_t Index = 0; Index != Bytes.size();) {
     MCInst Inst;
     uint64_t Size;
-    ArrayRef<uint8_t> ThisBytes = Bytes.slice(Index - SectionAddr);
-    DisAsm->getInstruction(Inst, Size, ThisBytes, Index, nulls());
+    ArrayRef<uint8_t> ThisBytes = Bytes.slice(Index);
+    const uint64_t ThisAddr = SectionAddr + Index;
+    DisAsm->getInstruction(Inst, Size, ThisBytes, ThisAddr, nulls());
     if (Size == 0)
       Size = std::min<uint64_t>(ThisBytes.size(),
                                 DisAsm->suggestBytesToSkip(ThisBytes, Index));
@@ -1284,7 +1288,8 @@ fetchBinaryByBuildID(const ObjectFile &Obj) {
 }
 
 static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
-                              MCContext &Ctx, MCDisassembler *PrimaryDisAsm,
+                              const ObjectFile &DbgObj, MCContext &Ctx,
+                              MCDisassembler *PrimaryDisAsm,
                               MCDisassembler *SecondaryDisAsm,
                               const MCInstrAnalysis *MIA, MCInstPrinter *IP,
                               const MCSubtargetInfo *PrimarySTI,
@@ -1409,7 +1414,7 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
   LiveVariablePrinter LVP(*Ctx.getRegisterInfo(), *STI);
 
   if (DbgVariables != DVDisabled) {
-    DICtx = DWARFContext::create(Obj);
+    DICtx = DWARFContext::create(DbgObj);
     for (const std::unique_ptr<DWARFUnit> &CU : DICtx->compile_units())
       LVP.addCompileUnit(CU->getUnitDIE(false));
   }
@@ -1966,6 +1971,22 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
 }
 
 static void disassembleObject(ObjectFile *Obj, bool InlineRelocs) {
+  // If information useful for showing the disassembly is missing, try to find a
+  // more complete binary and disassemble that instead.
+  OwningBinary<Binary> FetchedBinary;
+  if (Obj->symbols().empty()) {
+    if (Optional<OwningBinary<Binary>> FetchedBinaryOpt =
+            fetchBinaryByBuildID(*Obj)) {
+      if (auto *O = dyn_cast<ObjectFile>(FetchedBinaryOpt->getBinary())) {
+        if (!O->symbols().empty() ||
+            (!O->sections().empty() && Obj->sections().empty())) {
+          FetchedBinary = std::move(*FetchedBinaryOpt);
+          Obj = O;
+        }
+      }
+    }
+  }
+
   const Target *TheTarget = getTarget(Obj);
 
   // Package up features to be passed to target/subtarget
@@ -2068,20 +2089,32 @@ static void disassembleObject(ObjectFile *Obj, bool InlineRelocs) {
   IP->setMCInstrAnalysis(MIA.get());
 
   PrettyPrinter &PIP = selectPrettyPrinter(Triple(TripleName));
-  ObjectFile *DbgObj = Obj;
-  OwningBinary<Binary> DebugBinary;
-  if (!Obj->hasDebugInfo()) {
+
+  const ObjectFile *DbgObj = Obj;
+  if (!FetchedBinary.getBinary() && !Obj->hasDebugInfo()) {
     if (Optional<OwningBinary<Binary>> DebugBinaryOpt =
             fetchBinaryByBuildID(*Obj)) {
-      if (ObjectFile *FetchedObj =
-              dyn_cast<ObjectFile>(DebugBinaryOpt->getBinary())) {
+      if (auto *FetchedObj =
+              dyn_cast<const ObjectFile>(DebugBinaryOpt->getBinary())) {
         if (FetchedObj->hasDebugInfo()) {
-          DebugBinary = std::move(*DebugBinaryOpt);
+          FetchedBinary = std::move(*DebugBinaryOpt);
           DbgObj = FetchedObj;
         }
       }
     }
   }
+
+  std::unique_ptr<object::Binary> DSYMBinary;
+  std::unique_ptr<MemoryBuffer> DSYMBuf;
+  if (!DbgObj->hasDebugInfo()) {
+    if (const MachOObjectFile *MachOOF = dyn_cast<MachOObjectFile>(&*Obj)) {
+      DbgObj = objdump::getMachODSymObject(MachOOF, Obj->getFileName(),
+                                           DSYMBinary, DSYMBuf);
+      if (!DbgObj)
+        return;
+    }
+  }
+
   SourcePrinter SP(DbgObj, TheTarget->getName());
 
   for (StringRef Opt : DisassemblerOptions)
@@ -2089,9 +2122,9 @@ static void disassembleObject(ObjectFile *Obj, bool InlineRelocs) {
       reportError(Obj->getFileName(),
                   "Unrecognized disassembler option: " + Opt);
 
-  disassembleObject(TheTarget, *Obj, Ctx, DisAsm.get(), SecondaryDisAsm.get(),
-                    MIA.get(), IP.get(), STI.get(), SecondarySTI.get(), PIP, SP,
-                    InlineRelocs);
+  disassembleObject(TheTarget, *Obj, *DbgObj, Ctx, DisAsm.get(),
+                    SecondaryDisAsm.get(), MIA.get(), IP.get(), STI.get(),
+                    SecondarySTI.get(), PIP, SP, InlineRelocs);
 }
 
 void objdump::printRelocations(const ObjectFile *Obj) {
@@ -2884,7 +2917,18 @@ static void parseIntArg(const llvm::opt::InputArgList &InputArgs, int ID,
   }
 }
 
-static void invalidArgValue(const opt::Arg *A) {
+static object::BuildID parseBuildIDArg(const opt::Arg *A) {
+  StringRef V(A->getValue());
+  std::string Bytes;
+  if (!tryGetFromHex(V, Bytes))
+    reportCmdLineError(A->getSpelling() + ": expected a build ID, but got '" +
+                       V + "'");
+  ArrayRef<uint8_t> BuildID(reinterpret_cast<const uint8_t *>(Bytes.data()),
+                            Bytes.size());
+  return object::BuildID(BuildID.begin(), BuildID.end());
+}
+
+void objdump::invalidArgValue(const opt::Arg *A) {
   reportCmdLineError("'" + StringRef(A->getValue()) +
                      "' is not a valid value for '" + A->getSpelling() + "'");
 }
@@ -3052,6 +3096,17 @@ static void parseObjdumpOptions(const llvm::opt::InputArgList &InputArgs) {
     llvm::cl::ParseCommandLineOptions(2, Argv);
   }
 
+  // Look up any provided build IDs, then append them to the input filenames.
+  for (const opt::Arg *A : InputArgs.filtered(OBJDUMP_build_id)) {
+    object::BuildID BuildID = parseBuildIDArg(A);
+    Optional<std::string> Path = BIDFetcher->fetch(BuildID);
+    if (!Path) {
+      reportCmdLineError(A->getSpelling() + ": could not find build ID '" +
+                         A->getValue() + "'");
+    }
+    InputFilenames.push_back(std::move(*Path));
+  }
+
   // objdump defaults to a.out if no filenames specified.
   if (InputFilenames.empty())
     InputFilenames.push_back("a.out");
@@ -3121,8 +3176,9 @@ int main(int argc, char **argv) {
 
   // Initialize debuginfod.
   const bool ShouldUseDebuginfodByDefault =
-      HTTPClient::isAvailable() &&
-      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
+      InputArgs.hasArg(OBJDUMP_build_id) ||
+      (HTTPClient::isAvailable() &&
+       !ExitOnErr(getDefaultDebuginfodUrls()).empty());
   std::vector<std::string> DebugFileDirectories =
       InputArgs.getAllArgValues(OBJDUMP_debug_file_directory);
   if (InputArgs.hasFlag(OBJDUMP_debuginfod, OBJDUMP_no_debuginfod,
@@ -3161,10 +3217,10 @@ int main(int argc, char **argv) {
       !DynamicSymbolTable && !UnwindInfo && !FaultMapSection && !Offloading &&
       !(MachOOpt &&
         (Bind || DataInCode || ChainedFixups || DyldInfo || DylibId ||
-         DylibsUsed || ExportsTrie || FirstPrivateHeader || FunctionStarts ||
-         IndirectSymbols || InfoPlist || LazyBind || LinkOptHints ||
-         ObjcMetaData || Rebase || Rpaths || UniversalHeaders || WeakBind ||
-         !FilterSections.empty()))) {
+         DylibsUsed || ExportsTrie || FirstPrivateHeader ||
+         FunctionStartsType != FunctionStartsMode::None || IndirectSymbols ||
+         InfoPlist || LazyBind || LinkOptHints || ObjcMetaData || Rebase ||
+         Rpaths || UniversalHeaders || WeakBind || !FilterSections.empty()))) {
     T->printHelp(ToolName);
     return 2;
   }

@@ -45,6 +45,19 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
     TestContext->FreeMemoryInfoCalled = true;
   }
 
+  // This mock device has no sub-devices
+  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+  }
+  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+    }
+  }
+
   return PI_SUCCESS;
 }
 
@@ -54,8 +67,7 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfo);
+    Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
   }
 
 protected:

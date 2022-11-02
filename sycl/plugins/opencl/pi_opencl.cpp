@@ -973,8 +973,13 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
 pi_result piEventCreate(pi_context context, pi_event *ret_event) {
 
   pi_result ret_err = PI_ERROR_INVALID_OPERATION;
-  *ret_event = cast<pi_event>(
-      clCreateUserEvent(cast<cl_context>(context), cast<cl_int *>(&ret_err)));
+  auto *cl_err = cast<cl_int *>(&ret_err);
+
+  cl_event e = clCreateUserEvent(cast<cl_context>(context), cl_err);
+  *ret_event = cast<pi_event>(e);
+  if (*cl_err != CL_SUCCESS)
+    return ret_err;
+  *cl_err = clSetUserEventStatus(e, CL_COMPLETE);
   return ret_err;
 }
 

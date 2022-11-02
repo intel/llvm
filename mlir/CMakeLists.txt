@@ -30,6 +30,8 @@ if(MLIR_STANDALONE_BUILD)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
+
+  set(LLVM_LIT_ARGS "-sv" CACHE STRING "Default options for lit")
 endif()
 
 set(MLIR_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
@@ -259,4 +261,8 @@ add_subdirectory(cmake/modules)
 
 if (MLIR_ENABLE_PYTHON_BENCHMARKS)
   add_subdirectory(utils/mbr)
+endif()
+
+if(MLIR_STANDALONE_BUILD)
+  llvm_distribution_add_targets()
 endif()

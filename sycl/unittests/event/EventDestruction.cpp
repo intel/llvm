@@ -33,9 +33,8 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piEventRelease>(
-        redefinedEventRelease);
-    Mock.redefineBefore<detail::PiApiKind::piMemBufferCreate>(
+    Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+    Mock.redefine<detail::PiApiKind::piMemBufferCreate>(
         redefinedMemBufferCreate);
   }
 

@@ -1049,6 +1049,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FSIN:
   case ISD::FSQRT: case ISD::VP_SQRT:
   case ISD::FTRUNC:
+  case ISD::VP_FROUNDTOZERO:
   case ISD::SINT_TO_FP:
   case ISD::VP_SINT_TO_FP:
   case ISD::TRUNCATE:
@@ -1092,10 +1093,10 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::UREM: case ISD::VP_UREM:
   case ISD::SREM: case ISD::VP_SREM:
   case ISD::FREM: case ISD::VP_FREM:
-  case ISD::SMIN:
-  case ISD::SMAX:
-  case ISD::UMIN:
-  case ISD::UMAX:
+  case ISD::SMIN: case ISD::VP_SMIN:
+  case ISD::SMAX: case ISD::VP_SMAX:
+  case ISD::UMIN: case ISD::VP_UMIN:
+  case ISD::UMAX: case ISD::VP_UMAX:
   case ISD::SADDSAT:
   case ISD::UADDSAT:
   case ISD::SSUBSAT:
@@ -3933,10 +3934,10 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FMAXNUM: case ISD::VP_FMAXNUM:
   case ISD::FMINIMUM:
   case ISD::FMAXIMUM:
-  case ISD::SMIN:
-  case ISD::SMAX:
-  case ISD::UMIN:
-  case ISD::UMAX:
+  case ISD::SMIN: case ISD::VP_SMIN:
+  case ISD::SMAX: case ISD::VP_SMAX:
+  case ISD::UMIN: case ISD::VP_UMIN:
+  case ISD::UMAX: case ISD::VP_UMAX:
   case ISD::UADDSAT:
   case ISD::SADDSAT:
   case ISD::USUBSAT:
@@ -4094,6 +4095,7 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::VP_FFLOOR:
   case ISD::VP_FROUND:
   case ISD::VP_FROUNDEVEN:
+  case ISD::VP_FROUNDTOZERO:
   case ISD::FREEZE:
   case ISD::ARITH_FENCE:
   case ISD::FCANONICALIZE:
@@ -7034,7 +7036,7 @@ SDValue DAGTypeLegalizer::ModifyToType(SDValue InOp, EVT NVT,
   unsigned InNumElts = InEC.getFixedValue();
   unsigned WidenNumElts = WidenEC.getFixedValue();
 
-  // Fall back to extract and build.
+  // Fall back to extract and build (+ mask, if padding with zeros).
   SmallVector<SDValue, 16> Ops(WidenNumElts);
   EVT EltVT = NVT.getVectorElementType();
   unsigned MinNumElts = std::min(WidenNumElts, InNumElts);
@@ -7043,9 +7045,21 @@ SDValue DAGTypeLegalizer::ModifyToType(SDValue InOp, EVT NVT,
     Ops[Idx] = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, EltVT, InOp,
                            DAG.getVectorIdxConstant(Idx, dl));
 
-  SDValue FillVal = FillWithZeroes ? DAG.getConstant(0, dl, EltVT) :
-    DAG.getUNDEF(EltVT);
-  for ( ; Idx < WidenNumElts; ++Idx)
-    Ops[Idx] = FillVal;
-  return DAG.getBuildVector(NVT, dl, Ops);
+  SDValue UndefVal = DAG.getUNDEF(EltVT);
+  for (; Idx < WidenNumElts; ++Idx)
+    Ops[Idx] = UndefVal;
+
+  SDValue Widened = DAG.getBuildVector(NVT, dl, Ops);
+  if (!FillWithZeroes)
+    return Widened;
+
+  assert(NVT.isInteger() &&
+         "We expect to never want to FillWithZeroes for non-integral types.");
+
+  SmallVector<SDValue, 16> MaskOps;
+  MaskOps.append(MinNumElts, DAG.getAllOnesConstant(dl, EltVT));
+  MaskOps.append(WidenNumElts - MinNumElts, DAG.getConstant(0, dl, EltVT));
+
+  return DAG.getNode(ISD::AND, dl, NVT, Widened,
+                     DAG.getBuildVector(NVT, dl, MaskOps));
 }

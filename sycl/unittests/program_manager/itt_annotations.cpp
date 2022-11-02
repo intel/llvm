@@ -64,8 +64,7 @@ TEST(ITTNotify, UseKernelBundle) {
 
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<
-      sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
+  Mock.redefine<sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
       redefinedProgramSetSpecializationConstant);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -92,8 +91,7 @@ TEST(ITTNotify, VarNotSet) {
 
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<
-      sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
+  Mock.redefine<sycl::detail::PiApiKind::piextProgramSetSpecializationConstant>(
       redefinedProgramSetSpecializationConstant);
 
   const sycl::device Dev = Plt.get_devices()[0];
