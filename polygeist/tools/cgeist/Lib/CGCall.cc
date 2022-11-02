@@ -630,6 +630,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return val;
   };
 
+  switch (expr->getBuiltinCallee()) {
+  case clang::Builtin::BI__builtin_assume:
+    mlir::Value V0 = getLLVM(expr->getArg(0));
+    return ValueCategory(builder.create<LLVM::AssumeOp>(loc, V0)->getResult(0),
+                         false);
+  };
+
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
