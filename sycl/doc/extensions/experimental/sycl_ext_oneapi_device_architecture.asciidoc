@@ -91,6 +91,9 @@ implementation supports.
 
 |1
 |Initial version of this extension.
+
+|2
+|NVIDIA and AMD architectures are added.
 |===
 
 === New enumeration of architectures
@@ -339,163 +342,163 @@ of these enumerators, and it provides a brief description of their meanings.
 |Alias for `intel_gpu_dg1`.
 
 |`nvidia_gpu_sm20`
-|1
+|2
 |NVIDIA Fermi architecture.
 
 |`nvidia_gpu_sm30`
-|1
+|2
 |NVIDIA Kepler architecture (compute capability 3.0).
 
 |`nvidia_gpu_sm32`
-|1
+|2
 |NVIDIA Kepler architecture (compute capability 3.2).
 
 |`nvidia_gpu_sm35`
-|1
+|2
 |NVIDIA Kepler architecture (compute capability 3.5).
 
 |`nvidia_gpu_sm37`
-|1
+|2
 |NVIDIA Kepler architecture (compute capability 3.7).
 
 |`nvidia_gpu_sm50`
-|1
+|2
 |NVIDIA Maxwell architecture (compute capability 5.0).
 
 |`nvidia_gpu_sm52`
-|1
+|2
 |NVIDIA Maxwell architecture (compute capability 5.2).
 
 |`nvidia_gpu_sm53`
-|1
+|2
 |NVIDIA Maxwell architecture (compute capability 5.3).
 
 |`nvidia_gpu_sm60`
-|1
+|2
 |NVIDIA Pascal architecture (compute capability 6.0).
 
 |`nvidia_gpu_sm61`
-|1
+|2
 |NVIDIA Pascal architecture (compute capability 6.1).
 
 |`nvidia_gpu_sm62`
-|1
+|2
 |NVIDIA Pascal architecture (compute capability 6.2).
 
 |`nvidia_gpu_sm70`
-|1
+|2
 |NVIDIA Volta architecture (compute capability 7.0).
 
 |`nvidia_gpu_sm72`
-|1
+|2
 |NVIDIA Volta architecture (compute capability 7.2).
 
 |`nvidia_gpu_sm75`
-|1
+|2
 |NVIDIA Turing architecture (compute capability 7.5).
 
 |`nvidia_gpu_sm80`
-|1
+|2
 |NVIDIA Ampere architecture (compute capability 8.0).
 
 |`nvidia_gpu_sm86`
-|1
+|2
 |NVIDIA Ampere architecture (compute capability 8.6).
 
 |`nvidia_gpu_sm87`
-|1
+|2
 |Jetson/Drive AGX Orin architecture.
 
 |`nvidia_gpu_sm89`
-|1
+|2
 |NVIDIA Ada Lovelace architecture.
 
 |`nvidia_gpu_sm90`
-|1
+|2
 |NVIDIA Hopper architecture.
 
 |`amd_gpu_gfx700`
-|1
+|2
 |AMD GCN GFX7 (Sea Islands (CI)) architecture.
 
 |`amd_gpu_gfx701`
-|1
+|2
 |AMD GCN GFX7 (Sea Islands (CI)) architecture.
 
 |`amd_gpu_gfx702`
-|1
+|2
 |AMD GCN GFX7 (Sea Islands (CI)) architecture.
 
 |`amd_gpu_gfx801`
-|1
+|2
 |AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
 
 |`amd_gpu_gfx802`
-|1
+|2
 |AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
 
 |`amd_gpu_gfx803`
-|1
+|2
 |AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
 
 |`amd_gpu_gfx805`
-|1
+|2
 |AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
 
 |`amd_gpu_gfx810`
-|1
+|2
 |AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
 
 |`amd_gpu_gfx900`
-|1
+|2
 |AMD GCN GFX9 (Vega) architecture.
 
 |`amd_gpu_gfx902`
-|1
+|2
 |AMD GCN GFX9 (Vega) architecture.
 
 |`amd_gpu_gfx904`
-|1
+|2
 |AMD GCN GFX9 (Vega) architecture.
 
 |`amd_gpu_gfx906`
-|1
+|2
 |AMD GCN GFX9 (Vega) architecture.
 
 |`amd_gpu_gfx908`
-|1
+|2
 |AMD GCN GFX9 (Vega) architecture.
 
 |`amd_gpu_gfx90a`
-|1
+|2
 |AMD GCN GFX9 (Vega) architecture.
 
 |`amd_gpu_gfx1010`
-|1
+|2
 |AMD GCN GFX10.1 (RDNA 1) architecture.
 
 |`amd_gpu_gfx1011`
-|1
+|2
 |AMD GCN GFX10.1 (RDNA 1) architecture.
 
 |`amd_gpu_gfx1012`
-|1
+|2
 |AMD GCN GFX10.1 (RDNA 1) architecture.
 
 |`amd_gpu_gfx1013`
-|1
+|2
 |AMD GCN GFX10.1 (RDNA 1) architecture.
 
 |`amd_gpu_gfx1030`
-|1
+|2
 |AMD GCN GFX10.3 (RDNA 2) architecture.
 
 |`amd_gpu_gfx1031`
-|1
+|2
 |GCN GFX10.3 (RDNA 2) architecture.
 
 |`amd_gpu_gfx1032`
-|1
+|2
 |GCN GFX10.3 (RDNA 2) architecture.
 
 |===
