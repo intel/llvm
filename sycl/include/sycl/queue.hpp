@@ -1059,6 +1059,12 @@ public:
         CodeLoc);
   }
 
+  /// Copies data from a memory region pointed to by a placeholder accessor to
+  /// another memory region pointed to by a shared_ptr.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a shared_ptr to the destination memory.
+  /// \return an event representing copy operation.
   template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
             access::placeholder IsPlaceholder, typename DestT>
   event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
@@ -1069,6 +1075,12 @@ public:
     });
   }
 
+  /// Copies data from a memory region pointed to by a shared_ptr to another
+  /// memory region pointed to by a placeholder accessor.
+  ///
+  /// \param Src is a shared_ptr to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
   template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
             target DestTgt, access::placeholder IsPlaceholder>
   event copy(std::shared_ptr<SrcT> Src,
@@ -1079,6 +1091,12 @@ public:
     });
   }
 
+  /// Copies data from a memory region pointed to by a placeholder accessor to
+  /// another memory region pointed to by a raw pointer.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a raw pointer to the destination memory.
+  /// \return an event representing copy operation.
   template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
             access::placeholder IsPlaceholder, typename DestT>
   event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
@@ -1089,6 +1107,12 @@ public:
     });
   }
 
+  /// Copies data from a memory region pointed to by a raw pointer to another
+  /// memory region pointed to by a placeholder accessor.
+  ///
+  /// \param Src is a raw pointer to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
   template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
             target DestTgt, access::placeholder IsPlaceholder>
   event copy(const SrcT *Src,
@@ -1099,6 +1123,12 @@ public:
     });
   }
 
+  /// Copies data from one memory region to another, both pointed by placeholder
+  /// accessors.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
   template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
             access::placeholder IsSrcPlaceholder, typename DestT, int DestDims,
             access_mode DestMode, target DestTgt,
@@ -1113,6 +1143,11 @@ public:
     });
   }
 
+  /// Provides guarantees that the memory object accessed via Acc is updated
+  /// on the host after operation is complete.
+  ///
+  /// \param Acc is a SYCL accessor that needs to be updated on host.
+  /// \return an event representing update_host operation.
   template <typename T, int Dims, access_mode Mode, target Tgt,
             access::placeholder IsPlaceholder>
   event update_host(accessor<T, Dims, Mode, Tgt, IsPlaceholder> Acc) {
@@ -1122,6 +1157,12 @@ public:
     });
   }
 
+  /// Fills the specified memory with the specified data.
+  ///
+  /// \param Dest is the placeholder accessor to the memory to fill.
+  /// \param Src is the data to fill the memory with. T should be
+  /// trivially copyable.
+  /// \return an event representing fill operation.
   template <typename T, int Dims, access_mode Mode, target Tgt,
             access::placeholder IsPlaceholder>
   event fill(accessor<T, Dims, Mode, Tgt, IsPlaceholder> Dest, const T &Src) {
