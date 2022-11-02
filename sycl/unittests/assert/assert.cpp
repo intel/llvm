@@ -290,7 +290,7 @@ static pi_result redefinedKernelGetInfo(pi_kernel Kernel,
     pi_program PIProgram = nullptr;
     pi_result Res = mock_piProgramCreate(/*pi_context=*/0x0, /**il*/ nullptr,
                                          /*length=*/0, &PIProgram);
-    assert(PI_SUCCESS == Res);
+    EXPECT_TRUE(PI_SUCCESS == Res);
 
     if (ParamValue)
       memcpy(ParamValue, &PIProgram, sizeof(PIProgram));
@@ -553,7 +553,7 @@ TEST(Assert, TestInteropKernelNegative) {
 
   pi_result Res = mock_piKernelCreate(
       /*pi_program=*/0x0, /*kernel_name=*/"dummy_kernel", &PIKernel);
-  assert(PI_SUCCESS == Res);
+  EXPECT_TRUE(PI_SUCCESS == Res);
 
   // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
   // from context instead of free getPlugin to alllow for mocking of its methods

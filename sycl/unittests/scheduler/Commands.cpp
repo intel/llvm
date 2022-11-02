@@ -65,7 +65,7 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
 
   pi_event PIEvent = nullptr;
   pi_result Res = mock_piEventCreate(/*context = */ (pi_context)0x1, &PIEvent);
-  assert(PI_SUCCESS == Res);
+  EXPECT_TRUE(PI_SUCCESS == Res);
 
   auto Event =
       std::make_shared<detail::event_impl>(PIEvent, Queue.get_context());
