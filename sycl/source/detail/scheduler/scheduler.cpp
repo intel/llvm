@@ -214,8 +214,11 @@ void Scheduler::waitForEvent(const EventImplPtr &Event) {
   std::vector<Command *> ToCleanUp;
 
   EnqueueResultT EnqueueResult;
-  enqueueCommand(GraphProcessor::getCommand(Event), EnqueueResult, ToCleanUp,
-                 BLOCKING);
+  bool Enqueued = enqueueCommand(GraphProcessor::getCommand(Event),
+                                 EnqueueResult, ToCleanUp, BLOCKING);
+  if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == EnqueueResult.MResult)
+    // TODO: Reschedule commands.
+    throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
 
   // Wait for the target command to complete
   Event->waitInternal();

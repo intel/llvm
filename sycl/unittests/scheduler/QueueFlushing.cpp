@@ -290,7 +290,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
                               access::mode::read_write};
     MockCommand DepCmd(QueueImplB);
     (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
-    MockScheduler::enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
+    MS.enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
     EXPECT_FALSE(EventStatusQueried);
   }
 }
