@@ -523,29 +523,27 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   return PI_SUCCESS;
 }
 
-pi_result _pi_context::decrementUnreleasedEventsInPool(
-    pi_queue Queue, ze_event_pool_handle_t ZeEventPool, bool HostVisible) {
-  std::lock_guard<pi_mutex> LockAll(ZeEventPoolCacheMutex);
-  if (!ZeEventPool) {
+pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
+  std::shared_lock<pi_shared_mutex> EventLock(Event->Mutex, std::defer_lock);
+  std::scoped_lock<pi_mutex, std::shared_lock<pi_shared_mutex>> LockAll(
+      ZeEventPoolCacheMutex, EventLock);
+  if (!Event->ZeEventPool) {
     // This must be an interop event created on a users's pool.
     // Do nothing.
     return PI_SUCCESS;
   }
 
-  bool ProfilingEnabled =
-      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
-
   std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(HostVisible, ProfilingEnabled);
+      getZeEventPoolCache(Event->isHostVisible(), Event->isProfilingEnabled());
 
   // Put the empty pool to the cache of the pools.
-  if (NumEventsUnreleasedInEventPool[ZeEventPool] == 0)
+  if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
     die("Invalid event release: event pool doesn't have unreleased events");
-  if (--NumEventsUnreleasedInEventPool[ZeEventPool] == 0) {
-    if (ZePoolCache->front() != ZeEventPool) {
-      ZePoolCache->push_back(ZeEventPool);
+  if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
+    if (ZePoolCache->front() != Event->ZeEventPool) {
+      ZePoolCache->push_back(Event->ZeEventPool);
     }
-    NumEventsAvailableInEventPool[ZeEventPool] = MaxNumEventsPerPool;
+    NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
   }
 
   return PI_SUCCESS;
@@ -663,13 +661,14 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 
 pi_result
 _pi_queue::resetLastDiscardedEvent(pi_command_list_ptr_t CommandList) {
-  if (DiscardedLastCommandEvent.Handle && CommandList != CommandListMap.end()) {
-    ZE_CALL(zeCommandListAppendBarrier, (CommandList->first, nullptr, 1,
-                                         &(DiscardedLastCommandEvent.Handle)));
+  if (DiscardedLastCommandEvent && CommandList != CommandListMap.end()) {
+    ZE_CALL(zeCommandListAppendBarrier,
+            (CommandList->first, nullptr, 1,
+             &(DiscardedLastCommandEvent->ZeEvent)));
     ZE_CALL(zeCommandListAppendEventReset,
-            (CommandList->first, DiscardedLastCommandEvent.Handle));
+            (CommandList->first, DiscardedLastCommandEvent->ZeEvent));
     addEventToCache(DiscardedLastCommandEvent);
-    DiscardedLastCommandEvent = {nullptr, nullptr, false};
+    DiscardedLastCommandEvent = nullptr;
   }
   return PI_SUCCESS;
 }
@@ -746,8 +745,7 @@ pi_result _pi_queue::signalEvent(pi_command_list_ptr_t CommandList) {
   return PI_SUCCESS;
 }
 
-pi_result _pi_queue::getEventFromCache(bool HostVisible,
-                                       ze_event_handle_t *Event) {
+pi_result _pi_queue::getEventFromCache(bool HostVisible, pi_event *Event) {
   auto Cache = getEventCache(HostVisible);
 
   if (Cache->empty()) {
@@ -756,14 +754,14 @@ pi_result _pi_queue::getEventFromCache(bool HostVisible,
   }
 
   auto It = Cache->begin();
-  *Event = (*It).Handle;
+  *Event = *It;
   Cache->erase(It);
 
   return PI_SUCCESS;
 }
 
-void _pi_queue::addEventToCache(ze_event Event) {
-  auto Cache = getEventCache(Event.HostVisible);
+void _pi_queue::addEventToCache(pi_event Event) {
+  auto Cache = getEventCache(Event->isHostVisible());
   Cache->emplace_back(Event);
 }
 
@@ -777,39 +775,12 @@ getOrCreateDiscardedEvent(pi_queue Queue, ze_event_handle_t *ZeEvent,
                           bool HostVisible = false) {
   if (!HostVisible)
     HostVisible = DeviceEventsSetting == AllHostVisible;
-  bool ProfilingEnabled =
-      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
-  Queue->getEventFromCache(HostVisible, ZeEvent);
+  pi_event Event = nullptr;
+  Queue->getEventFromCache(HostVisible, &Event);
 
-  ze_event_pool_handle_t ZeEventPool = {};
-  if (*ZeEvent == nullptr) {
-    size_t Index = 0;
-
-    if (auto Res = Queue->Context->getFreeSlotInExistingOrNewPool(
-            ZeEventPool, Index, HostVisible, ProfilingEnabled))
-      return Res;
-
-    ZeStruct<ze_event_desc_t> ZeEventDesc;
-    ZeEventDesc.index = Index;
-    ZeEventDesc.wait = 0;
-
-    if (HostVisible) {
-      ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-    } else {
-      //
-      // Set the scope to "device" for every event. This is sufficient for
-      // global device access and peer device access. If needed to be seen on
-      // the host we are doing special handling, see EventsScope options.
-      //
-      // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
-      //       used in some circumstances.
-      //
-      ZeEventDesc.signal = 0;
-    }
-
-    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, ZeEvent));
-  }
+  if (!Event)
+    PI_CALL(EventCreate(Queue->Context, Queue, HostVisible, &Event));
 
   // We don't have pi_event object for discarded event, so store waitlist in the
   // command list. Events from the waitlist will be released after command list
@@ -819,8 +790,9 @@ getOrCreateDiscardedEvent(pi_queue Queue, ze_event_handle_t *ZeEvent,
   // We've got event for the next command above, it is time to reset the last
   // disarded event and put it to the cache.
   Queue->resetLastDiscardedEvent(CommandList);
-  Queue->DiscardedLastCommandEvent = {*ZeEvent, ZeEventPool, HostVisible};
+  Queue->DiscardedLastCommandEvent = Event;
   Queue->LastCommandEvent = nullptr;
+  *ZeEvent = Event->ZeEvent;
 
   // We need to keep track of number of discarded events for batching purposes.
   // Otherwise discarded events won't be taken into account which will affect
@@ -1716,12 +1688,12 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // ansyway, and many regression tests use it.
   //
   bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr &&
-                        this->DiscardedLastCommandEvent.Handle == nullptr;
+                        this->DiscardedLastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
   if (!CommandList->second.EventList.empty() &&
-      !this->DiscardedLastCommandEvent.Handle)
+      !this->DiscardedLastCommandEvent)
     this->LastCommandEvent = CommandList->second.EventList.back();
 
   this->LastCommandList = CommandList;
@@ -1841,11 +1813,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // completion.
         ZE_CALL(zeCommandListAppendBarrier,
                 (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
-      } else if (this->DiscardedLastCommandEvent.Handle) {
+      } else if (this->DiscardedLastCommandEvent) {
         this->resetLastDiscardedEvent(CommandList);
         this->signalEvent(CommandList);
       }
-    } else if (this->DiscardedLastCommandEvent.Handle) {
+    } else if (this->DiscardedLastCommandEvent) {
       this->resetLastDiscardedEvent(CommandList);
       this->signalEvent(CommandList);
     }
@@ -2119,7 +2091,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
         auto NextImmCmdList = QueueGroup.ImmCmdLists[QueueGroup.NextIndex];
         if (CurQueue->LastCommandEvent == nullptr &&
-            CurQueue->DiscardedLastCommandEvent.Handle != nullptr &&
+            CurQueue->DiscardedLastCommandEvent != nullptr &&
             CurQueue->LastCommandList != CurQueue->CommandListMap.end() &&
             CurQueue->LastCommandList != NextImmCmdList) {
           CurQueue->resetLastDiscardedEvent(CurQueue->LastCommandList);
@@ -2130,7 +2102,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
       // Close open command list if command is going to be submitted to a
       // different command list.
       if ((CurQueue->LastCommandEvent != nullptr ||
-           CurQueue->DiscardedLastCommandEvent.Handle != nullptr) &&
+           CurQueue->DiscardedLastCommandEvent != nullptr) &&
           CurQueue->LastCommandList != CurQueue->CommandListMap.end() &&
           CurQueue->LastCommandList->second.isCopy(CurQueue) != UseCopyEngine) {
         if (auto Res = CurQueue->executeOpenCommandList(
@@ -3898,10 +3870,9 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
 
   for (auto Cache : Queue->EventCaches) {
     for (auto Event : Cache) {
-      ZE_CALL(zeEventDestroy, (Event.Handle));
-      if (auto Res = Queue->Context->decrementUnreleasedEventsInPool(
-              Queue, Event.Pool, Event.HostVisible))
+      if (auto Res = Queue->Context->decrementUnreleasedEventsInPool(Event))
         return Res;
+      PI_CALL(piEventRelease(Event));
     }
   }
 
@@ -6234,8 +6205,7 @@ static pi_result piEventReleaseInternal(pi_event Event) {
     if (DisableEventsCaching) {
       ZE_CALL(zeEventDestroy, (Event->ZeEvent));
       auto Context = Event->Context;
-      if (auto Res = Context->decrementUnreleasedEventsInPool(
-              Event->Queue, Event->ZeEventPool, Event->isHostVisible()))
+      if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
         return Res;
     }
   }

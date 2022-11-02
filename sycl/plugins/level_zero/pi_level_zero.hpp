@@ -748,9 +748,7 @@ struct _pi_context : _pi_object {
 
   // Decrement number of events living in the pool upon event destroy
   // and return the pool to the cache if there are no unreleased events.
-  pi_result decrementUnreleasedEventsInPool(pi_queue Queue,
-                                            ze_event_pool_handle_t ZeEventPool,
-                                            bool HostVisible);
+  pi_result decrementUnreleasedEventsInPool(pi_event Event);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
@@ -842,16 +840,6 @@ private:
     else
       return WithProfiling ? &EventCaches[2] : &EventCaches[3];
   }
-};
-
-struct ze_event {
-  // Level Zero event handle.
-  ze_event_handle_t Handle;
-
-  // Level Zero event pool handle.
-  ze_event_pool_handle_t Pool;
-
-  bool HostVisible = false;
 };
 
 struct _pi_queue : _pi_object {
@@ -947,16 +935,16 @@ struct _pi_queue : _pi_object {
   pi_command_list_ptr_t LastCommandList = CommandListMap.end();
 
   // Caches of events for reuse.
-  std::vector<std::list<ze_event>> EventCaches{2};
+  std::vector<std::list<pi_event>> EventCaches{2};
   auto getEventCache(bool HostVisible) {
     return HostVisible ? &EventCaches[0] : &EventCaches[1];
   }
 
   // Get event from the queue's cache.
-  pi_result getEventFromCache(bool HostVisible, ze_event_handle_t *Event);
+  pi_result getEventFromCache(bool HostVisible, pi_event *Event);
 
   // Add event to the queue's cache.
-  void addEventToCache(ze_event Event);
+  void addEventToCache(pi_event Event);
 
   // Append command to provided command list to reset the last discarded event.
   // If we have in-order and discard_events mode we reset and reuse events in
@@ -971,9 +959,8 @@ struct _pi_queue : _pi_object {
   // command list. This new event will be waited in new command list.
   pi_result signalEvent(pi_command_list_ptr_t);
 
-  // We store the last discarded event here. We also store additional
-  // information with it: host visibility and event pool where it was created.
-  ze_event DiscardedLastCommandEvent{nullptr, nullptr, false};
+  // We store the last discarded event here.
+  pi_event DiscardedLastCommandEvent = nullptr;
 
   // Kernel is not necessarily submitted for execution during
   // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
