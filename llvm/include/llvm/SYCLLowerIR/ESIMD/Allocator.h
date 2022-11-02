@@ -17,7 +17,6 @@
 #include "llvm/Demangle/ItaniumDemangle.h"
 
 namespace llvm {
-namespace id = itanium_demangle;
 
 // Simplest possible implementation of an allocator for the Itanium demangler
 class SimpleAllocator {
@@ -41,7 +40,7 @@ public:
   }
 
   void *allocateNodeArray(size_t sz) {
-    void *Ptr = std::calloc(sz, sizeof(id::Node *));
+    void *Ptr = std::calloc(sz, sizeof(itanium_demangle::Node *));
     Ptrs.push_back(Ptr);
     return Ptr;
   }
