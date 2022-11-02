@@ -631,24 +631,114 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   };
 
   switch (expr->getBuiltinCallee()) {
-  case clang::Builtin::BI__builtin_assume:
+  case Builtin::BI__builtin_strlen:
+  case Builtin::BIstrlen: {
     mlir::Value V0 = getLLVM(expr->getArg(0));
-    return ValueCategory(builder.create<LLVM::AssumeOp>(loc, V0)->getResult(0),
-                         false);
-  };
+
+    const auto *name = "strlen";
+
+    if (Glob.getFunctions().find(name) == Glob.getFunctions().end()) {
+      std::vector<mlir::Type> types{V0.getType()};
+
+      mlir::Type RT = Glob.getTypes().getMLIRType(expr->getType());
+      std::vector<mlir::Type> rettypes{RT};
+      mlir::OpBuilder mbuilder(module->getContext());
+      auto funcType = mbuilder.getFunctionType(types, rettypes);
+      Glob.getFunctions()[name] = mlir::func::FuncOp(
+          mlir::func::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+      SymbolTable::setSymbolVisibility(Glob.getFunctions()[name],
+                                       SymbolTable::Visibility::Private);
+      module->push_back(Glob.getFunctions()[name]);
+    }
+
+    mlir::Value vals[] = {V0};
+    return ValueCategory(
+        builder.create<CallOp>(loc, Glob.getFunctions()[name], vals)
+            .getResult(0),
+        false);
+  }
+  case Builtin::BI__builtin_isnormal: {
+    mlir::Value V = getLLVM(expr->getArg(0));
+    auto Ty = V.getType().cast<mlir::FloatType>();
+    mlir::Value Eq = builder.create<CmpFOp>(loc, CmpFPredicate::OEQ, V, V);
+
+    mlir::Value Abs = builder.create<math::AbsFOp>(loc, V);
+    auto Infinity = builder.create<ConstantFloatOp>(
+        loc, APFloat::getInf(Ty.getFloatSemantics()), Ty);
+    mlir::Value IsLessThanInf =
+        builder.create<CmpFOp>(loc, CmpFPredicate::ULT, Abs, Infinity);
+    APFloat Smallest = APFloat::getSmallestNormalized(Ty.getFloatSemantics());
+    auto SmallestV = builder.create<ConstantFloatOp>(loc, Smallest, Ty);
+    mlir::Value IsNormal =
+        builder.create<CmpFOp>(loc, CmpFPredicate::UGE, Abs, SmallestV);
+    V = builder.create<AndIOp>(loc, Eq, IsLessThanInf);
+    V = builder.create<AndIOp>(loc, V, IsNormal);
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
+    return ValueCategory(res, /*isRef*/ false);
+  }
+  case Builtin::BI__builtin_signbit: {
+    mlir::Value V = getLLVM(expr->getArg(0));
+    auto Ty = V.getType().cast<mlir::FloatType>();
+    auto ITy = builder.getIntegerType(Ty.getWidth());
+    mlir::Value BC = builder.create<BitcastOp>(loc, ITy, V);
+    auto ZeroV = builder.create<ConstantIntOp>(loc, 0, ITy);
+    V = builder.create<CmpIOp>(loc, CmpIPredicate::slt, BC, ZeroV);
+    auto postTy =
+        Glob.getTypes().getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
+    return ValueCategory(res, /*isRef*/ false);
+  }
+  case Builtin::BI__builtin_addressof: {
+    auto V = Visit(expr->getArg(0));
+    assert(V.isReference);
+    mlir::Value val = V.val;
+    mlir::Type T = Glob.getTypes().getMLIRType(expr->getType());
+    if (T == val.getType())
+      return ValueCategory(val, /*isRef*/ false);
+    if (T.isa<LLVM::LLVMPointerType>()) {
+      if (val.getType().isa<MemRefType>()) {
+        assert(val.getType().cast<MemRefType>().getMemorySpaceAsInt() ==
+                   T.cast<LLVM::LLVMPointerType>().getAddressSpace() &&
+               "val does not have the same memory space as T");
+        val = builder.create<polygeist::Memref2PointerOp>(loc, T, val);
+      } else if (T != val.getType())
+        val = builder.create<LLVM::BitcastOp>(loc, T, val);
+      return ValueCategory(val, /*isRef*/ false);
+    } else {
+      assert(T.isa<MemRefType>());
+      if (val.getType().isa<MemRefType>())
+        val = builder.create<polygeist::Memref2PointerOp>(
+            loc,
+            LLVM::LLVMPointerType::get(
+                builder.getI8Type(),
+                val.getType().cast<MemRefType>().getMemorySpaceAsInt()),
+            val);
+      if (val.getType().isa<LLVM::LLVMPointerType>())
+        val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
+      return ValueCategory(val, /*isRef*/ false);
+    }
+    expr->dump();
+    llvm::errs() << " val: " << val << " T: " << T << "\n";
+    assert(0 && "unhandled builtin addressof");
+  }
+  }
+
+  auto BuiltinCallee = expr->getBuiltinCallee();
 
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__powf" ||
-           sr->getDecl()->getName() == "pow" ||
+           BuiltinCallee == Builtin::BIpow ||
            sr->getDecl()->getName() == "__nv_pow" ||
            sr->getDecl()->getName() == "__nv_powf" ||
            sr->getDecl()->getName() == "__powi" ||
            sr->getDecl()->getName() == "powi" ||
            sr->getDecl()->getName() == "__nv_powi" ||
            sr->getDecl()->getName() == "__nv_powi" ||
-           sr->getDecl()->getName() == "powf")) {
+           BuiltinCallee == Builtin::BIpowf)) {
         mlir::Type mlirType = Glob.getTypes().getMLIRType(expr->getType());
         std::vector<mlir::Value> args;
         for (auto *a : expr->arguments()) {
@@ -668,51 +758,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_addressof") {
-        auto V = Visit(expr->getArg(0));
-        assert(V.isReference);
-        mlir::Value val = V.val;
-        mlir::Type T = Glob.getTypes().getMLIRType(expr->getType());
-        if (T == val.getType())
-          return ValueCategory(val, /*isRef*/ false);
-        if (T.isa<LLVM::LLVMPointerType>()) {
-          if (val.getType().isa<MemRefType>()) {
-            assert(val.getType().cast<MemRefType>().getMemorySpaceAsInt() ==
-                       T.cast<LLVM::LLVMPointerType>().getAddressSpace() &&
-                   "val does not have the same memory space as T");
-            val = builder.create<polygeist::Memref2PointerOp>(loc, T, val);
-          } else if (T != val.getType())
-            val = builder.create<LLVM::BitcastOp>(loc, T, val);
-          return ValueCategory(val, /*isRef*/ false);
-        } else {
-          assert(T.isa<MemRefType>());
-          if (val.getType().isa<MemRefType>())
-            val = builder.create<polygeist::Memref2PointerOp>(
-                loc,
-                LLVM::LLVMPointerType::get(
-                    builder.getI8Type(),
-                    val.getType().cast<MemRefType>().getMemorySpaceAsInt()),
-                val);
-          if (val.getType().isa<LLVM::LLVMPointerType>())
-            val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
-          return ValueCategory(val, /*isRef*/ false);
-        }
-        expr->dump();
-        llvm::errs() << " val: " << val << " T: " << T << "\n";
-        assert(0 && "unhandled builtin addressof");
-      }
-    }
-
-  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__nv_fabsf" ||
            sr->getDecl()->getName() == "__nv_fabs" ||
            sr->getDecl()->getName() == "__nv_abs" ||
-           sr->getDecl()->getName() == "fabs" ||
-           sr->getDecl()->getName() == "fabsf" ||
-           sr->getDecl()->getName() == "__builtin_fabs" ||
-           sr->getDecl()->getName() == "__builtin_fabsf")) {
+           BuiltinCallee == Builtin::BIfabs ||
+           BuiltinCallee == Builtin::BIfabsf ||
+           BuiltinCallee == Builtin::BI__builtin_fabs ||
+           BuiltinCallee == Builtin::BI__builtin_fabsf)) {
         // isinf(x)    --> fabs(x) == infinity
         // isfinite(x) --> fabs(x) != infinity
         // x != NaN via the ordered compare in either case.
@@ -741,11 +793,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         V1 = builder.create<arith::ShRUIOp>(loc, V1, c8);
         return ValueCategory(builder.create<MulIOp>(loc, V0, V1), false);
       }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_frexp" ||
-           sr->getDecl()->getName() == "__builtin_frexpf" ||
-           sr->getDecl()->getName() == "__builtin_frexpl" ||
-           sr->getDecl()->getName() == "__builtin_frexpf128")) {
+      if (BuiltinCallee == Builtin::BI__builtin_frexp ||
+          BuiltinCallee == Builtin::BI__builtin_frexpf ||
+          BuiltinCallee == Builtin::BI__builtin_frexpl ||
+          BuiltinCallee == Builtin::BI__builtin_frexpf128) {
         mlir::Value V0 = getLLVM(expr->getArg(0));
         mlir::Value V1 = getLLVM(expr->getArg(1));
 
@@ -776,36 +827,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             false);
       }
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_strlen" ||
-           sr->getDecl()->getName() == "strlen")) {
-        mlir::Value V0 = getLLVM(expr->getArg(0));
-
-        const auto *name = "strlen";
-
-        if (Glob.getFunctions().find(name) == Glob.getFunctions().end()) {
-          std::vector<mlir::Type> types{V0.getType()};
-
-          mlir::Type RT = Glob.getTypes().getMLIRType(expr->getType());
-          std::vector<mlir::Type> rettypes{RT};
-          mlir::OpBuilder mbuilder(module->getContext());
-          auto funcType = mbuilder.getFunctionType(types, rettypes);
-          Glob.getFunctions()[name] =
-              mlir::func::FuncOp(mlir::func::FuncOp::create(
-                  builder.getUnknownLoc(), name, funcType));
-          SymbolTable::setSymbolVisibility(Glob.getFunctions()[name],
-                                           SymbolTable::Visibility::Private);
-          module->push_back(Glob.getFunctions()[name]);
-        }
-
-        mlir::Value vals[] = {V0};
-        return ValueCategory(
-            builder.create<CallOp>(loc, Glob.getFunctions()[name], vals)
-                .getResult(0),
-            false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_isfinite" ||
-           sr->getDecl()->getName() == "__builtin_isinf" ||
+          (BuiltinCallee == Builtin::BI__builtin_isfinite ||
+           BuiltinCallee == Builtin::BI__builtin_isinf ||
            sr->getDecl()->getName() == "__nv_isinff")) {
         // isinf(x)    --> fabs(x) == infinity
         // isfinite(x) --> fabs(x) != infinity
@@ -815,7 +838,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         mlir::Value Fabs = builder.create<math::AbsFOp>(loc, V);
         auto Infinity = builder.create<ConstantFloatOp>(
             loc, APFloat::getInf(Ty.getFloatSemantics()), Ty);
-        auto Pred = (sr->getDecl()->getName() == "__builtin_isinf" ||
+        auto Pred = (BuiltinCallee == Builtin::BI__builtin_isinf ||
                      sr->getDecl()->getName() == "__nv_isinff")
                         ? CmpFPredicate::OEQ
                         : CmpFPredicate::ONE;
@@ -827,7 +850,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(res, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_isnan" ||
+          (BuiltinCallee == Builtin::BI__builtin_isnan ||
            sr->getDecl()->getName() == "__nv_isnanf")) {
         mlir::Value V = getLLVM(expr->getArg(0));
         mlir::Value Eq = builder.create<CmpFOp>(loc, CmpFPredicate::UNO, V, V);
@@ -838,131 +861,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(res, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_isnormal")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        auto Ty = V.getType().cast<mlir::FloatType>();
-        mlir::Value Eq = builder.create<CmpFOp>(loc, CmpFPredicate::OEQ, V, V);
-
-        mlir::Value Abs = builder.create<math::AbsFOp>(loc, V);
-        auto Infinity = builder.create<ConstantFloatOp>(
-            loc, APFloat::getInf(Ty.getFloatSemantics()), Ty);
-        mlir::Value IsLessThanInf =
-            builder.create<CmpFOp>(loc, CmpFPredicate::ULT, Abs, Infinity);
-        APFloat Smallest =
-            APFloat::getSmallestNormalized(Ty.getFloatSemantics());
-        auto SmallestV = builder.create<ConstantFloatOp>(loc, Smallest, Ty);
-        mlir::Value IsNormal =
-            builder.create<CmpFOp>(loc, CmpFPredicate::UGE, Abs, SmallestV);
-        V = builder.create<AndIOp>(loc, Eq, IsLessThanInf);
-        V = builder.create<AndIOp>(loc, V, IsNormal);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_signbit") {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        auto Ty = V.getType().cast<mlir::FloatType>();
-        auto ITy = builder.getIntegerType(Ty.getWidth());
-        mlir::Value BC = builder.create<BitcastOp>(loc, ITy, V);
-        auto ZeroV = builder.create<ConstantIntOp>(loc, 0, ITy);
-        V = builder.create<CmpIOp>(loc, CmpIPredicate::slt, BC, ZeroV);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_isgreater") {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<CmpFOp>(loc, CmpFPredicate::OGT, V, V2);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_isgreaterequal") {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<CmpFOp>(loc, CmpFPredicate::OGE, V, V2);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_isless") {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<CmpFOp>(loc, CmpFPredicate::OLT, V, V2);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_islessequal") {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<CmpFOp>(loc, CmpFPredicate::OLE, V, V2);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_islessgreater") {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<CmpFOp>(loc, CmpFPredicate::ONE, V, V2);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_isunordered") {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<CmpFOp>(loc, CmpFPredicate::UNO, V, V2);
-        auto postTy = Glob.getTypes()
-                          .getMLIRType(expr->getType())
-                          .cast<mlir::IntegerType>();
-        mlir::Value res = builder.create<ExtUIOp>(loc, postTy, V);
-        return ValueCategory(res, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_pow" ||
-           sr->getDecl()->getName() == "__builtin_powf" ||
-           sr->getDecl()->getName() == "__builtin_powl")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<math::PowFOp>(loc, V, V2);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__nv_fmodf")) {
         mlir::Value V = getLLVM(expr->getArg(0));
         mlir::Value V2 = getLLVM(expr->getArg(1));
         V = builder.create<mlir::LLVM::FRemOp>(loc, V.getType(), V, V2);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_atanh" ||
-           sr->getDecl()->getName() == "__builtin_atanhf" ||
-           sr->getDecl()->getName() == "__builtin_atanhl")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        V = builder.create<math::AtanOp>(loc, V);
         return ValueCategory(V, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
@@ -1013,9 +915,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(V, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_log2" ||
-           sr->getDecl()->getName() == "__builtin_log2f" ||
-           sr->getDecl()->getName() == "__builtin_log2l" ||
+          (BuiltinCallee == Builtin::BI__builtin_log2 ||
+           BuiltinCallee == Builtin::BI__builtin_log2f ||
+           BuiltinCallee == Builtin::BI__builtin_log2l ||
            sr->getDecl()->getName() == "__nv_log2" ||
            sr->getDecl()->getName() == "__nv_log2f" ||
            sr->getDecl()->getName() == "__nv_log2l")) {
@@ -1024,9 +926,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(V, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_log10" ||
-           sr->getDecl()->getName() == "__builtin_log10f" ||
-           sr->getDecl()->getName() == "__builtin_log10l" ||
+          (BuiltinCallee == Builtin::BI__builtin_log10 ||
+           BuiltinCallee == Builtin::BI__builtin_log10f ||
+           BuiltinCallee == Builtin::BI__builtin_log10l ||
            sr->getDecl()->getName() == "__nv_log10" ||
            sr->getDecl()->getName() == "__nv_log10f" ||
            sr->getDecl()->getName() == "__nv_log10l")) {
@@ -1034,85 +936,15 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         V = builder.create<math::Log10Op>(loc, V);
         return ValueCategory(V, /*isRef*/ false);
       }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_log1p" ||
-           sr->getDecl()->getName() == "__builtin_log1pf" ||
-           sr->getDecl()->getName() == "__builtin_log1pl")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        V = builder.create<math::Log1pOp>(loc, V);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_exp2" ||
-           sr->getDecl()->getName() == "__builtin_exp2f" ||
-           sr->getDecl()->getName() == "__builtin_exp2l")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        V = builder.create<math::Exp2Op>(loc, V);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_expm1" ||
-           sr->getDecl()->getName() == "__builtin_expm1f" ||
-           sr->getDecl()->getName() == "__builtin_expm1l")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        V = builder.create<math::ExpM1Op>(loc, V);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_copysign" ||
-           sr->getDecl()->getName() == "__builtin_copysignf" ||
-           sr->getDecl()->getName() == "__builtin_copysignl")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<LLVM::CopySignOp>(loc, V, V2);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_copysign" ||
-           sr->getDecl()->getName() == "__builtin_copysignf" ||
-           sr->getDecl()->getName() == "__builtin_copysignl")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<LLVM::CopySignOp>(loc, V, V2);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_fmax" ||
-           sr->getDecl()->getName() == "__builtin_fmaxf" ||
-           sr->getDecl()->getName() == "__builtin_fmaxl")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<LLVM::MaxNumOp>(loc, V, V2);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_fmin" ||
-           sr->getDecl()->getName() == "__builtin_fminf" ||
-           sr->getDecl()->getName() == "__builtin_fminl")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        V = builder.create<LLVM::MinNumOp>(loc, V, V2);
-        return ValueCategory(V, /*isRef*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_fma" ||
-           sr->getDecl()->getName() == "__builtin_fmaf" ||
-           sr->getDecl()->getName() == "__builtin_fmal")) {
-        mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value V2 = getLLVM(expr->getArg(1));
-        mlir::Value V3 = getLLVM(expr->getArg(2));
-        V = builder.create<LLVM::FMAOp>(loc, V, V2, V3);
-        return ValueCategory(V, /*isRef*/ false);
-      }
     }
 
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if ((sr->getDecl()->getIdentifier() &&
-           (sr->getDecl()->getName() == "fscanf" ||
-            sr->getDecl()->getName() == "scanf" ||
+           (BuiltinCallee == Builtin::BIfscanf ||
+            BuiltinCallee == Builtin::BIscanf ||
             sr->getDecl()->getName() == "__isoc99_sscanf" ||
-            sr->getDecl()->getName() == "sscanf")) ||
+            BuiltinCallee == Builtin::BIsscanf)) ||
           (isa<CXXOperatorCallExpr>(expr) &&
            cast<CXXOperatorCallExpr>(expr)->getOperator() ==
                OO_GreaterGreater)) {
@@ -1147,44 +979,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "memmove" ||
-           sr->getDecl()->getName() == "__builtin_memmove")) {
-        std::vector<mlir::Value> args = {
-            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
-            getLLVM(expr->getArg(2)), /*isVolatile*/
-            builder.create<ConstantIntOp>(loc, false, 1)};
-        builder.create<LLVM::MemmoveOp>(loc, args[0], args[1], args[2],
-                                        args[3]);
-        return ValueCategory(args[0], /*isReference*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "memset" ||
-           sr->getDecl()->getName() == "__builtin_memset")) {
-        std::vector<mlir::Value> args = {
-            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
-            getLLVM(expr->getArg(2)), /*isVolatile*/
-            builder.create<ConstantIntOp>(loc, false, 1)};
-
-        args[1] = builder.create<TruncIOp>(loc, builder.getI8Type(), args[1]);
-        builder.create<LLVM::MemsetOp>(loc, args[0], args[1], args[2], args[3]);
-        return ValueCategory(args[0], /*isReference*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "memcpy" ||
-           sr->getDecl()->getName() == "__builtin_memcpy")) {
-        std::vector<mlir::Value> args = {
-            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
-            getLLVM(expr->getArg(2)), /*isVolatile*/
-            builder.create<ConstantIntOp>(loc, false, 1)};
-        builder.create<LLVM::MemcpyOp>(loc, args[0], args[1], args[2], args[3]);
-        return ValueCategory(args[0], /*isReference*/ false);
-      }
-      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMemcpy" ||
            sr->getDecl()->getName() == "cudaMemcpyAsync" ||
            sr->getDecl()->getName() == "cudaMemcpyToSymbol" ||
-           sr->getDecl()->getName() == "memcpy" ||
-           sr->getDecl()->getName() == "__builtin_memcpy")) {
+           BuiltinCallee == Builtin::BImemcpy ||
+           BuiltinCallee == Builtin::BI__builtin_memcpy)) {
         auto *dstSub = expr->getArg(0);
         while (auto *BC = dyn_cast<clang::CastExpr>(dstSub))
           dstSub = BC->getSubExpr();
@@ -1374,7 +1173,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               builder.setInsertionPoint(oldblock, oldpoint);
 
               mlir::Type retTy = Glob.getTypes().getMLIRType(expr->getType());
-              if (sr->getDecl()->getName() == "__builtin_memcpy" ||
+              if (BuiltinCallee == Builtin::BI__builtin_memcpy ||
                   retTy.isa<LLVM::LLVMPointerType>()) {
                 if (dst.getType().isa<MemRefType>()) {
                   auto mt = dst.getType().cast<MemRefType>();
