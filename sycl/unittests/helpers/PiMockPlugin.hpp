@@ -127,7 +127,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_PARENT_DEVICE: {
     if (param_value)
-      *static_cast<pi_device **>(param_value) = nullptr;
+      *static_cast<pi_device *>(param_value) = nullptr;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(pi_device *);
     return PI_SUCCESS;
@@ -152,6 +152,20 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
       *static_cast<pi_bool *>(param_value) = PI_TRUE;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_TRUE);
+    return PI_SUCCESS;
+  }
+  // This mock GPU device has no sub-devices
+  case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 0;
+    }
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    assert(param_value_size == sizeof(pi_device_affinity_domain));
+    if (param_value) {
+      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+    }
     return PI_SUCCESS;
   }
   default:
@@ -407,7 +421,7 @@ inline pi_result mock_piProgramGetInfo(pi_program program,
   switch (param_name) {
   case PI_PROGRAM_INFO_NUM_DEVICES: {
     if (param_value)
-      *static_cast<size_t *>(param_value) = 1;
+      *static_cast<unsigned int *>(param_value) = 1;
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(size_t);
     return PI_SUCCESS;

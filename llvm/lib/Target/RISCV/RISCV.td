@@ -388,6 +388,10 @@ def HasStdExtZicbop : Predicate<"Subtarget->hasStdExtZicbop()">,
                                 AssemblerPredicate<(all_of FeatureStdExtZicbop),
                                 "'Zicbop' (Cache-Block Prefetch Instructions)">;
 
+def FeatureStdExtSvnapot
+    : SubtargetFeature<"svnapot", "HasStdExtSvnapot", "true",
+                       "'Svnapot' (NAPOT Translation Contiguity)">;
+
 def FeatureStdExtZtso
     : SubtargetFeature<"experimental-ztso", "HasStdExtZtso", "true",
                        "'Ztso' (Memory Model - Total Store Order)">;
@@ -449,9 +453,18 @@ def TuneNoDefaultUnroll
     : SubtargetFeature<"no-default-unroll", "EnableDefaultUnroll", "false",
                        "Disable default unroll preference.">;
 
+// SiFive 7 is able to fuse integer ALU operations with a preceding branch
+// instruction.
+def TuneShortForwardBranchOpt
+    : SubtargetFeature<"short-forward-branch-opt", "HasShortForwardBranchOpt",
+                       "true", "Enable short forward branch optimization">;
+def HasShortForwardBranchOpt : Predicate<"Subtarget->hasShortForwardBranchOpt()">;
+def NoShortForwardBranchOpt : Predicate<"!Subtarget->hasShortForwardBranchOpt()">;
+
 def TuneSiFive7 : SubtargetFeature<"sifive7", "RISCVProcFamily", "SiFive7",
                                    "SiFive 7-Series processors",
-                                   [TuneNoDefaultUnroll]>;
+                                   [TuneNoDefaultUnroll,
+                                    TuneShortForwardBranchOpt]>;
 
 // Assume that lock-free native-width atomics are available, even if the target
 // and operating system combination would not usually provide them. The user

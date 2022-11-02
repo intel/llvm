@@ -91,7 +91,31 @@ bool CheckThis(InterpState &S, CodePtr OpPC, const Pointer &This);
 /// Checks if a method is pure virtual.
 bool CheckPure(InterpState &S, CodePtr OpPC, const CXXMethodDecl *MD);
 
+/// Checks if Div/Rem operation on LHS and RHS is valid.
+template <typename T>
+bool CheckDivRem(InterpState &S, CodePtr OpPC, const T &LHS, const T &RHS) {
+  if (RHS.isZero()) {
+    const SourceInfo &Loc = S.Current->getSource(OpPC);
+    S.FFDiag(Loc, diag::note_expr_divide_by_zero);
+    return false;
+  }
+
+  if (LHS.isSigned() && LHS.isMin() && RHS.isNegative() && RHS.isMinusOne()) {
+    APSInt LHSInt = LHS.toAPSInt();
+    SmallString<32> Trunc;
+    (-LHSInt.extend(LHSInt.getBitWidth() + 1)).toString(Trunc, 10);
+    const SourceInfo &Loc = S.Current->getSource(OpPC);
+    const Expr *E = S.Current->getExpr(OpPC);
+    S.CCEDiag(Loc, diag::note_constexpr_overflow) << Trunc << E->getType();
+    return false;
+  }
+  return true;
+}
+
 template <typename T> inline bool IsTrue(const T &V) { return !V.isZero(); }
+
+/// Interpreter entry point.
+bool Interpret(InterpState &S, APValue &Result);
 
 //===----------------------------------------------------------------------===//
 // Add, Sub, Mul
@@ -153,6 +177,80 @@ bool Mul(InterpState &S, CodePtr OpPC) {
   return AddSubMulHelper<T, T::mul, std::multiplies>(S, OpPC, Bits, LHS, RHS);
 }
 
+/// 1) Pops the RHS from the stack.
+/// 2) Pops the LHS from the stack.
+/// 3) Pushes 'LHS & RHS' on the stack
+template <PrimType Name, class T = typename PrimConv<Name>::T>
+bool BitAnd(InterpState &S, CodePtr OpPC) {
+  const T &RHS = S.Stk.pop<T>();
+  const T &LHS = S.Stk.pop<T>();
+
+  unsigned Bits = RHS.bitWidth();
+  T Result;
+  if (!T::bitAnd(LHS, RHS, Bits, &Result)) {
+    S.Stk.push<T>(Result);
+    return true;
+  }
+  return false;
+}
+
+/// 1) Pops the RHS from the stack.
+/// 2) Pops the LHS from the stack.
+/// 3) Pushes 'LHS | RHS' on the stack
+template <PrimType Name, class T = typename PrimConv<Name>::T>
+bool BitOr(InterpState &S, CodePtr OpPC) {
+  const T &RHS = S.Stk.pop<T>();
+  const T &LHS = S.Stk.pop<T>();
+
+  unsigned Bits = RHS.bitWidth();
+  T Result;
+  if (!T::bitOr(LHS, RHS, Bits, &Result)) {
+    S.Stk.push<T>(Result);
+    return true;
+  }
+  return false;
+}
+
+/// 1) Pops the RHS from the stack.
+/// 2) Pops the LHS from the stack.
+/// 3) Pushes 'LHS % RHS' on the stack (the remainder of dividing LHS by RHS).
+template <PrimType Name, class T = typename PrimConv<Name>::T>
+bool Rem(InterpState &S, CodePtr OpPC) {
+  const T &RHS = S.Stk.pop<T>();
+  const T &LHS = S.Stk.pop<T>();
+
+  if (!CheckDivRem(S, OpPC, LHS, RHS))
+    return false;
+
+  const unsigned Bits = RHS.bitWidth() * 2;
+  T Result;
+  if (!T::rem(LHS, RHS, Bits, &Result)) {
+    S.Stk.push<T>(Result);
+    return true;
+  }
+  return false;
+}
+
+/// 1) Pops the RHS from the stack.
+/// 2) Pops the LHS from the stack.
+/// 3) Pushes 'LHS / RHS' on the stack
+template <PrimType Name, class T = typename PrimConv<Name>::T>
+bool Div(InterpState &S, CodePtr OpPC) {
+  const T &RHS = S.Stk.pop<T>();
+  const T &LHS = S.Stk.pop<T>();
+
+  if (!CheckDivRem(S, OpPC, LHS, RHS))
+    return false;
+
+  const unsigned Bits = RHS.bitWidth() * 2;
+  T Result;
+  if (!T::div(LHS, RHS, Bits, &Result)) {
+    S.Stk.push<T>(Result);
+    return true;
+  }
+  return false;
+}
+
 //===----------------------------------------------------------------------===//
 // Inv
 //===----------------------------------------------------------------------===//
@@ -181,6 +279,20 @@ bool Neg(InterpState &S, CodePtr OpPC) {
 
   S.Stk.push<T>(Result);
   return true;
+}
+
+/// 1) Pops the value from the stack.
+/// 2) Pushes the bitwise complemented value on the stack (~V).
+template <PrimType Name, class T = typename PrimConv<Name>::T>
+bool Comp(InterpState &S, CodePtr OpPC) {
+  const T &Val = S.Stk.pop<T>();
+  T Result;
+  if (!T::comp(Val, &Result)) {
+    S.Stk.push<T>(Result);
+    return true;
+  }
+
+  return false;
 }
 
 //===----------------------------------------------------------------------===//
@@ -492,6 +604,9 @@ bool InitThisFieldActive(InterpState &S, CodePtr OpPC, uint32_t I) {
   return true;
 }
 
+/// 1) Pops the value from the stack
+/// 2) Pops a pointer from the stack
+/// 3) Pushes the value to field I of the pointer on the stack
 template <PrimType Name, class T = typename PrimConv<Name>::T>
 bool InitField(InterpState &S, CodePtr OpPC, uint32_t I) {
   const T &Value = S.Stk.pop<T>();
@@ -545,6 +660,8 @@ inline bool GetPtrGlobal(InterpState &S, CodePtr OpPC, uint32_t I) {
   return true;
 }
 
+/// 1) Pops a Pointer from the stack
+/// 2) Pushes Pointer.atField(Off) on the stack
 inline bool GetPtrField(InterpState &S, CodePtr OpPC, uint32_t Off) {
   const Pointer &Ptr = S.Stk.pop<Pointer>();
   if (!CheckNull(S, OpPC, Ptr, CSK_Field))
@@ -989,6 +1106,34 @@ inline bool ExpandPtr(InterpState &S, CodePtr OpPC) {
   return true;
 }
 
+inline bool Call(InterpState &S, CodePtr &PC, const Function *Func) {
+  auto NewFrame = std::make_unique<InterpFrame>(S, Func, PC);
+  if (Func->hasThisPointer()) {
+    if (!CheckInvoke(S, PC, NewFrame->getThis())) {
+      return false;
+    }
+    // TODO: CheckCallable
+  }
+
+  InterpFrame *FrameBefore = S.Current;
+  S.Current = NewFrame.get();
+
+  APValue CallResult;
+  // Note that we cannot assert(CallResult.hasValue()) here since
+  // Ret() above only sets the APValue if the curent frame doesn't
+  // have a caller set.
+  if (Interpret(S, CallResult)) {
+    NewFrame.release(); // Frame was delete'd already.
+    assert(S.Current == FrameBefore);
+    return true;
+  }
+
+  // Interpreting the function failed somehow. Reset to
+  // previous state.
+  S.Current = FrameBefore;
+  return false;
+}
+
 //===----------------------------------------------------------------------===//
 // Read opcode arguments
 //===----------------------------------------------------------------------===//
@@ -1001,9 +1146,6 @@ template <typename T> inline T ReadArg(InterpState &S, CodePtr &OpPC) {
     return OpPC.read<T>();
   }
 }
-
-/// Interpreter entry point.
-bool Interpret(InterpState &S, APValue &Result);
 
 } // namespace interp
 } // namespace clang

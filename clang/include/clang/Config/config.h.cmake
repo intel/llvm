@@ -14,24 +14,6 @@
 /* Default linker to use. */
 #define CLANG_DEFAULT_LINKER "${CLANG_DEFAULT_LINKER}"
 
-/* Default C/ObjC standard to use. */
-#cmakedefine CLANG_DEFAULT_STD_C LangStandard::lang_${CLANG_DEFAULT_STD_C}
-/* Always #define something so that missing the config.h #include at use sites
- * becomes a compile error.
- */
-#ifndef CLANG_DEFAULT_STD_C
-#define CLANG_DEFAULT_STD_C LangStandard::lang_unspecified
-#endif
-
-/* Default C++/ObjC++ standard to use. */
-#cmakedefine CLANG_DEFAULT_STD_CXX LangStandard::lang_${CLANG_DEFAULT_STD_CXX}
-/* Always #define something so that missing the config.h #include at use sites
- * becomes a compile error.
- */
-#ifndef CLANG_DEFAULT_STD_CXX
-#define CLANG_DEFAULT_STD_CXX LangStandard::lang_unspecified
-#endif
-
 /* Default C++ stdlib to use. */
 #define CLANG_DEFAULT_CXX_STDLIB "${CLANG_DEFAULT_CXX_STDLIB}"
 
@@ -77,9 +59,6 @@
 
 /* Define if we have sys/resource.h (rlimits) */
 #cmakedefine CLANG_HAVE_RLIMITS ${CLANG_HAVE_RLIMITS}
-
-/* The LLVM product name and version */
-#define BACKEND_PACKAGE_STRING "${BACKEND_PACKAGE_STRING}"
 
 /* Linker version detected at compile time. */
 #cmakedefine HOST_LINK_VERSION "${HOST_LINK_VERSION}"

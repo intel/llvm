@@ -37,6 +37,12 @@ class TestTraceLoad(TraceIntelPTTestCaseBase):
       "totalCount": 0,
       "individualCounts": {}
     },
+    "errors": {
+      "totalCount": 0,
+      "libiptErrors": {},
+      "fatalErrors": 0,
+      "otherErrors": 0
+    },
     "continuousExecutions": 0,
     "PSBBlocks": 0
   },
@@ -68,9 +74,15 @@ class TestTraceLoad(TraceIntelPTTestCaseBase):
       "individualCounts": {
         "software disabled tracing": 1,
         "trace synchronization point": 1,
-        "HW clock tick": 8,
-        "CPU core changed": 1
+        "CPU core changed": 1,
+        "HW clock tick": 8
       }
+    },
+    "errors": {
+      "totalCount": 1,
+      "libiptErrors": {},
+      "fatalErrors": 0,
+      "otherErrors": 1
     },
     "continuousExecutions": 1,
     "PSBBlocks": 1

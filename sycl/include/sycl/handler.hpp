@@ -351,10 +351,6 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
 
 template <typename T> struct IsReduction;
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
-
-template <class FunctorTy>
-event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
-                     FunctorTy Func);
 } // namespace detail
 
 /// Command group handler class.
@@ -485,7 +481,6 @@ private:
 
   /// Helper utility for operation widely used through different reduction
   /// implementations.
-  /// @{
   template <class FunctorTy>
   event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
                        FunctorTy Func) {
@@ -494,11 +489,6 @@ private:
     Func(AuxHandler);
     return AuxHandler.finalize();
   }
-
-  template <class FunctorTy>
-  friend event detail::withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
-                                      bool IsHost, FunctorTy Func);
-  /// }@
 
   /// Saves buffers created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after

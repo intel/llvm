@@ -226,9 +226,9 @@ static void setGlobalPtr(DefinedGlobal *g, uint64_t memoryPtr) {
 // to each of the input data sections as well as the explicit stack region.
 // The default memory layout is as follows, from low to high.
 //
-//  - initialized data (starting at Config->globalBase)
+//  - initialized data (starting at config->globalBase)
 //  - BSS data (not currently implemented in llvm)
-//  - explicit stack (Config->ZStackSize)
+//  - explicit stack (config->ZStackSize)
 //  - heap start / unallocated
 //
 // The --stack-first option means that stack is placed before any static data.
@@ -242,22 +242,40 @@ void Writer::layoutMemory() {
     if (config->relocatable || config->isPic)
       return;
     memoryPtr = alignTo(memoryPtr, stackAlignment);
+    if (WasmSym::stackLow)
+      WasmSym::stackLow->setVA(memoryPtr);
     if (config->zStackSize != alignTo(config->zStackSize, stackAlignment))
       error("stack size must be " + Twine(stackAlignment) + "-byte aligned");
     log("mem: stack size  = " + Twine(config->zStackSize));
     log("mem: stack base  = " + Twine(memoryPtr));
     memoryPtr += config->zStackSize;
     setGlobalPtr(cast<DefinedGlobal>(WasmSym::stackPointer), memoryPtr);
+    if (WasmSym::stackHigh)
+      WasmSym::stackHigh->setVA(memoryPtr);
     log("mem: stack top   = " + Twine(memoryPtr));
   };
 
   if (config->stackFirst) {
     placeStack();
+    if (config->globalBase) {
+      if (config->globalBase < memoryPtr) {
+        error("--global-base cannot be less than stack size when --stack-first is used");
+        return;
+      }
+      memoryPtr = config->globalBase;
+    }
   } else {
+    if (!config->globalBase && !config->relocatable && !config->isPic) {
+      // The default offset for static/global data, for when --global-base is
+      // not specified on the command line.  The precise value of 1024 is
+      // somewhat arbitrary, and pre-dates wasm-ld (Its the value that
+      // emscripten used prior to wasm-ld).
+      config->globalBase = 1024;
+    }
     memoryPtr = config->globalBase;
-    log("mem: global base = " + Twine(config->globalBase));
   }
 
+  log("mem: global base = " + Twine(memoryPtr));
   if (WasmSym::globalBase)
     WasmSym::globalBase->setVA(memoryPtr);
 
@@ -340,9 +358,19 @@ void Writer::layoutMemory() {
             Twine(maxMemorySetting));
     memoryPtr = config->initialMemory;
   }
-  out.memorySec->numMemoryPages =
-      alignTo(memoryPtr, WasmPageSize) / WasmPageSize;
+
+  memoryPtr = alignTo(memoryPtr, WasmPageSize);
+
+  out.memorySec->numMemoryPages = memoryPtr / WasmPageSize;
   log("mem: total pages = " + Twine(out.memorySec->numMemoryPages));
+
+  if (WasmSym::heapEnd) {
+    // Set `__heap_end` to follow the end of the statically allocated linear
+    // memory. The fact that this comes last means that a malloc/brk
+    // implementation can grow the heap at runtime.
+    log("mem: heap end    = " + Twine(memoryPtr));
+    WasmSym::heapEnd->setVA(memoryPtr);
+  }
 
   if (config->maxMemory != 0) {
     if (config->maxMemory != alignTo(config->maxMemory, WasmPageSize))
@@ -363,7 +391,7 @@ void Writer::layoutMemory() {
       if (config->isPic)
         max = maxMemorySetting;
       else
-        max = alignTo(memoryPtr, WasmPageSize);
+        max = memoryPtr;
     }
     out.memorySec->maxMemoryPages = max / WasmPageSize;
     log("mem: max pages   = " + Twine(out.memorySec->maxMemoryPages));
@@ -443,6 +471,11 @@ void Writer::populateTargetFeatures() {
     // contain the mutable-globals feature.
     // TODO(https://bugs.llvm.org/show_bug.cgi?id=52339)
     allowed.insert("mutable-globals");
+  }
+
+  if (config->extraFeatures.has_value()) {
+    auto &extraFeatures = config->extraFeatures.value();
+    allowed.insert(extraFeatures.begin(), extraFeatures.end());
   }
 
   // Only infer used features if user did not specify features
@@ -1504,9 +1537,6 @@ void Writer::createSyntheticSectionsPostLayout() {
 }
 
 void Writer::run() {
-  if (config->relocatable || config->isPic)
-    config->globalBase = 0;
-
   // For PIC code the table base is assigned dynamically by the loader.
   // For non-PIC, we start at 1 so that accessing table index 0 always traps.
   if (!config->isPic) {

@@ -52,6 +52,27 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  fork
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.fork
+)
+
+add_entrypoint_object(
+  execv
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.execv
+)
+
+add_entrypoint_object(
+  execve
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.execve
+)
+
+add_entrypoint_object(
   fsync
   ALIAS
   DEPENDS
@@ -63,6 +84,13 @@ add_entrypoint_object(
   ALIAS
   DEPENDS
     .${LIBC_TARGET_OS}.ftruncate
+)
+
+add_entrypoint_object(
+  getcwd
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.getcwd
 )
 
 add_entrypoint_object(
@@ -91,6 +119,13 @@ add_entrypoint_object(
   ALIAS
   DEPENDS
     .${LIBC_TARGET_OS}.getuid
+)
+
+add_entrypoint_object(
+  isatty
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.isatty
 )
 
 add_entrypoint_object(
@@ -178,6 +213,13 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  sysconf
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.sysconf
+)
+
+add_entrypoint_object(
   truncate
   ALIAS
   DEPENDS
@@ -203,4 +245,12 @@ add_entrypoint_object(
   ALIAS
   DEPENDS
     .${LIBC_TARGET_OS}.write
+)
+
+add_entrypoint_object(
+  environ
+  SRCS
+    environ.cpp
+  HDRS
+    environ.h
 )

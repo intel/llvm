@@ -11,6 +11,31 @@
 
 include "mlir/Pass/PassBase.td"
 
+def SparseTensorRewrite : Pass<"sparse-tensor-rewrite", "ModuleOp"> {
+  let summary = "Applies sparse tensor rewriting rules prior to sparsification";
+  let description = [{
+    A pass that applies rewriting rules to sparse tensor operations prior
+    to running the actual sparsification pass.
+  }];
+  let constructor = "mlir::createSparseTensorRewritePass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "bufferization::BufferizationDialect",
+    "linalg::LinalgDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
+    "sparse_tensor::SparseTensorDialect",
+  ];
+  let options = [
+    Option<"enableRuntimeLibrary", "enable-runtime-library", "bool",
+           "true", "Enable runtime library for manipulating sparse tensors">,
+    Option<"enableForeach", "enable-foreach", "bool",
+           "true", "Enable rewriting rules for the foreach operator">,
+    Option<"enableConvert", "enable-convert", "bool",
+           "true", "Enable rewriting rules for the convert operator">,
+  ];
+}
+
 def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   let summary = "Automatically generate sparse tensor code from sparse tensor types";
   let description = [{
@@ -57,10 +82,10 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
     "arith::ArithDialect",
     "bufferization::BufferizationDialect",
     "LLVM::LLVMDialect",
+    "linalg::LinalgDialect",
     "memref::MemRefDialect",
     "scf::SCFDialect",
     "sparse_tensor::SparseTensorDialect",
-    "vector::VectorDialect",
   ];
   // TODO(57514): These enum options are duplicated in Passes.h.
   let options = [
@@ -80,26 +105,7 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
                         "Enable dense parallelization for any loop."),
              clEnumValN(mlir::SparseParallelizationStrategy::kAnyStorageAnyLoop,
                         "any-storage-any-loop",
-                        "Enable sparse parallelization for any storage and loop."))}]>,
-    Option<"vectorization", "vectorization-strategy", "mlir::SparseVectorizationStrategy",
-           "mlir::SparseVectorizationStrategy::kNone",
-           "Set the vectorization strategy", [{llvm::cl::values(
-             clEnumValN(mlir::SparseVectorizationStrategy::kNone, "none",
-                        "Turn off sparse vectorization."),
-             clEnumValN(mlir::SparseVectorizationStrategy::kDenseInnerLoop,
-                        "dense-inner-loop",
-                        "Enable vectorization for dense inner loops."),
-             clEnumValN(mlir::SparseVectorizationStrategy::kAnyStorageInnerLoop,
-                        "any-storage-inner-loop",
-                        "Enable sparse vectorization for inner loops with any storage."))}]>,
-    Option<"vectorLength", "vl", "int32_t", "1",
-           "Set the vector length">,
-    Option<"enableSIMDIndex32", "enable-simd-index32", "bool", "false",
-           "Enable i32 indexing into vectors (for efficiency)">,
-    Option<"enableVLAVectorization", "enable-vla-vectorization", "bool",
-           "false", "Enable vector length agnostic vectorization">,
-    Option<"enableRuntimeLibrary", "enable-runtime-library", "bool",
-           "true", "Enable runtime library for manipulating sparse tensors">
+                        "Enable sparse parallelization for any storage and loop."))}]>
   ];
 }
 
@@ -141,7 +147,6 @@ def SparseTensorConversionPass : Pass<"sparse-tensor-conversion", "ModuleOp"> {
     "memref::MemRefDialect",
     "scf::SCFDialect",
     "sparse_tensor::SparseTensorDialect",
-    "vector::VectorDialect",
   ];
   let options = [
     Option<"sparseToSparse", "s2s-strategy", "int32_t", "0",
@@ -193,4 +198,5 @@ def SparseBufferRewrite : Pass<"sparse-buffer-rewrite", "ModuleOp"> {
     "sparse_tensor::SparseTensorDialect",
   ];
 }
+
 #endif // MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_PASSES
