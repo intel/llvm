@@ -158,8 +158,8 @@ code bases.
       }
     }
 
-  - The ``-fexperimental-new-pass-manager`` and ``-fno-legacy-pass-manager``
-    flags have been removed. These have been no-ops since 15.0.0.
+- The ``-fexperimental-new-pass-manager`` and ``-fno-legacy-pass-manager``
+  flags have been removed. These have been no-ops since 15.0.0.
 
 What's New in Clang |release|?
 ==============================
@@ -264,6 +264,16 @@ Bug Fixes
   constraint, which re-evaluated the same constraint.
   `Issue 53213 <https://github.com/llvm/llvm-project/issues/53213>`_
   `Issue 45736 <https://github.com/llvm/llvm-project/issues/45736>`_
+- Fix an issue when performing constraints partial ordering on non-template
+  functions. `Issue 56154 <https://github.com/llvm/llvm-project/issues/56154>`_
+- Fix handling of unexpanded packs in template argument expressions.
+  `Issue 58679 <https://github.com/llvm/llvm-project/issues/58679>`_
+- Fix a crash when a ``btf_type_tag`` attribute is applied to the pointee of
+  a function pointer.
+- Fix a number of recursively-instantiated constraint issues, which would possibly
+  result in a stack overflow.
+  `Issue 44304 <https://github.com/llvm/llvm-project/issues/44304>`_
+  `Issue 50891 <https://github.com/llvm/llvm-project/issues/50891>`_
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -344,6 +354,10 @@ Improvements to Clang's diagnostics
   potentially problematic function type casts.
 - Clang will now disambiguate NTTP types when printing diagnostic that contain NTTP types.
   Fixes `Issue 57562 <https://github.com/llvm/llvm-project/issues/57562>`_.
+- Better error recovery for pack expansion of expressions.
+  `Issue 58673 <https://github.com/llvm/llvm-project/issues/58673>`_.
+- Better diagnostics when the user has missed `auto` in a declaration.
+  `Issue 49129 <https://github.com/llvm/llvm-project/issues/49129>`_.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -660,6 +674,14 @@ X86 Support in Clang
   * Support intrinsic of ``_mm(256)_dpbssd(s)_epi32``.
   * Support intrinsic of ``_mm(256)_dpbsud(s)_epi32``.
   * Support intrinsic of ``_mm(256)_dpbuud(s)_epi32``.
+- Support ISA of ``AVX-NE-CONVERT``.
+  * Support intrinsic of ``_mm(256)_bcstnebf16_ps``.
+  * Support intrinsic of ``_mm(256)_bcstnesh_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneebf16_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneeph_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneobf16_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneoph_ps``.
+  * Support intrinsic of ``_mm(256)_cvtneps_avx_pbh``.
 
 WebAssembly Support in Clang
 ----------------------------

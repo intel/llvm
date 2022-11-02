@@ -209,9 +209,7 @@ decomposeGEP(GetElementPtrInst &GEP,
              const DataLayout &DL) {
   // Do not reason about pointers where the index size is larger than 64 bits,
   // as the coefficients used to encode constraints are 64 bit integers.
-  unsigned AS =
-      cast<PointerType>(GEP.getPointerOperand()->getType())->getAddressSpace();
-  if (DL.getIndexSizeInBits(AS) > 64)
+  if (DL.getIndexTypeSizeInBits(GEP.getPointerOperand()->getType()) > 64)
     return {};
 
   if (!GEP.isInBounds())
@@ -220,7 +218,7 @@ decomposeGEP(GetElementPtrInst &GEP,
   // Handle the (gep (gep ....), C) case by incrementing the constant
   // coefficient of the inner GEP, if C is a constant.
   auto *InnerGEP = dyn_cast<GetElementPtrInst>(GEP.getPointerOperand());
-  if (InnerGEP && InnerGEP->getNumOperands() == 2 &&
+  if (InnerGEP && GEP.getNumOperands() == 2 &&
       isa<ConstantInt>(GEP.getOperand(1))) {
     APInt Offset = cast<ConstantInt>(GEP.getOperand(1))->getValue();
     auto Result = decompose(InnerGEP, Preconditions, IsSigned, DL);
