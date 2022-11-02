@@ -3091,18 +3091,23 @@ SourceRange UsingDecl::getSourceRange() const {
 void UsingEnumDecl::anchor() {}
 
 UsingEnumDecl *UsingEnumDecl::Create(ASTContext &C, DeclContext *DC,
-                                     SourceLocation UL, SourceLocation EL,
-                                     SourceLocation NL, EnumDecl *Enum) {
-  return new (C, DC) UsingEnumDecl(DC, Enum->getDeclName(), UL, EL, NL, Enum);
+                                     SourceLocation UL,
+                                     SourceLocation EL,
+                                     SourceLocation NL,
+                                     TypeSourceInfo *EnumType) {
+  assert(isa<EnumDecl>(EnumType->getType()->getAsTagDecl()));
+  return new (C, DC)
+      UsingEnumDecl(DC, EnumType->getType()->getAsTagDecl()->getDeclName(), UL, EL, NL, EnumType);
 }
 
 UsingEnumDecl *UsingEnumDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
-  return new (C, ID) UsingEnumDecl(nullptr, DeclarationName(), SourceLocation(),
-                                   SourceLocation(), SourceLocation(), nullptr);
+  return new (C, ID)
+      UsingEnumDecl(nullptr, DeclarationName(), SourceLocation(),
+                    SourceLocation(), SourceLocation(), nullptr);
 }
 
 SourceRange UsingEnumDecl::getSourceRange() const {
-  return SourceRange(EnumLocation, getLocation());
+  return SourceRange(UsingLocation, EnumType->getTypeLoc().getEndLoc());
 }
 
 void UsingPackDecl::anchor() {}
@@ -3264,16 +3269,17 @@ DecompositionDecl *DecompositionDecl::CreateDeserialized(ASTContext &C,
   return Result;
 }
 
-void DecompositionDecl::printName(llvm::raw_ostream &os) const {
-  os << '[';
+void DecompositionDecl::printName(llvm::raw_ostream &OS,
+                                  const PrintingPolicy &Policy) const {
+  OS << '[';
   bool Comma = false;
   for (const auto *B : bindings()) {
     if (Comma)
-      os << ", ";
-    B->printName(os);
+      OS << ", ";
+    B->printName(OS, Policy);
     Comma = true;
   }
-  os << ']';
+  OS << ']';
 }
 
 void MSPropertyDecl::anchor() {}
@@ -3309,7 +3315,8 @@ MSGuidDecl *MSGuidDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
   return new (C, ID) MSGuidDecl(nullptr, QualType(), Parts());
 }
 
-void MSGuidDecl::printName(llvm::raw_ostream &OS) const {
+void MSGuidDecl::printName(llvm::raw_ostream &OS,
+                           const PrintingPolicy &) const {
   OS << llvm::format("GUID{%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 "-",
                      PartVal.Part1, PartVal.Part2, PartVal.Part3);
   unsigned I = 0;
@@ -3418,7 +3425,8 @@ UnnamedGlobalConstantDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
       UnnamedGlobalConstantDecl(C, nullptr, QualType(), APValue());
 }
 
-void UnnamedGlobalConstantDecl::printName(llvm::raw_ostream &OS) const {
+void UnnamedGlobalConstantDecl::printName(llvm::raw_ostream &OS,
+                                          const PrintingPolicy &) const {
   OS << "unnamed-global-constant";
 }
 

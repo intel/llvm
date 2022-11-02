@@ -8,7 +8,7 @@
 // CHECK-SPIRV: Extension "SPV_KHR_bit_instructions"
 
 // CHECK-LLVM-LABEL: @testInsert
-// CHECK-LLVM: call spir_func <2 x i32> @_Z15bitfield_insertDv2_iS_jj
+// CHECK-LLVM: call spir_func <2 x i32> @_Z15bitfield_insertDv2_iS_jj(
 // CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[insbase:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[insins:[0-9]+]]
@@ -18,8 +18,8 @@ kernel void testInsert(int2 b, int2 i, global int2 *res) {
 }
 
 // CHECK-LLVM-LABEL: @testExtractS
-// CHECK-LLVM: call spir_func i16 @_Z23bitfield_extract_signedsjj
-// CHECK-LLVM: call spir_func i16 @_Z23bitfield_extract_signedsjj
+// CHECK-LLVM: call spir_func i16 @_Z23bitfield_extract_signedsjj(
+// CHECK-LLVM: call spir_func i16 @_Z23bitfield_extract_signedsjj(
 // CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[sextrbase:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[sextrbaseu:[0-9]+]]
@@ -31,8 +31,8 @@ kernel void testExtractS(short b, ushort bu, global short *res) {
 }
 
 // CHECK-LLVM-LABEL: @testExtractU
-// CHECK-LLVM: call spir_func <8 x i8> @_Z25bitfield_extract_unsignedDv8_cjj
-// CHECK-LLVM: call spir_func <8 x i8> @_Z25bitfield_extract_unsignedDv8_cjj
+// CHECK-LLVM: call spir_func <8 x i8> @_Z25bitfield_extract_unsignedDv8_cjj(
+// CHECK-LLVM: call spir_func <8 x i8> @_Z25bitfield_extract_unsignedDv8_cjj(
 // CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[uextrbase:[0-9]+]]
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[uextrbaseu:[0-9]+]]
@@ -44,7 +44,7 @@ kernel void testExtractU(char8 b, uchar8 bu, global uchar8 *res) {
 }
 
 // CHECK-LLVM-LABEL: @testBitReverse
-// CHECK-LLVM: call <4 x i64> @llvm.bitreverse.v4i64
+// CHECK-LLVM: call <4 x i64> @llvm.bitreverse.v4i64(
 // CHECK-SPIRV: Function
 // CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[revbase:[0-9]+]]
 // CHECK-SPIRV: BitReverse {{[0-9]+}} {{[0-9]+}} [[revbase]]

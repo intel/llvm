@@ -690,7 +690,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   // i.e. check smaller-numbered bits first.
   // Unroll and UnrollCount loop controls can't be applied simultaneously with
   // DontUnroll loop control.
-  if (LC & LoopControlUnrollMask)
+  if (LC & LoopControlUnrollMask && !(LC & LoopControlPartialCountMask))
     Metadata.push_back(getMetadataFromName("llvm.loop.unroll.enable"));
   else if (LC & LoopControlDontUnrollMask)
     Metadata.push_back(getMetadataFromName("llvm.loop.unroll.disable"));
@@ -728,9 +728,11 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
            "Missing loop control parameter!");
   }
   if (LC & LoopControlPartialCountMask && !(LC & LoopControlDontUnrollMask)) {
-    // If unroll factor is set as '1' - disable loop unrolling
-    if (1 == LoopControlParameters[NumParam])
-      Metadata.push_back(getMetadataFromName("llvm.loop.unroll.disable"));
+    // If unroll factor is set as '1' and Unroll mask is applied attempt to do
+    // full unrolling and disable it if the trip count is not known at compile
+    // time.
+    if (1 == LoopControlParameters[NumParam] && (LC & LoopControlUnrollMask))
+      Metadata.push_back(getMetadataFromName("llvm.loop.unroll.full"));
     else
       Metadata.push_back(llvm::MDNode::get(
           *Context,
@@ -3328,8 +3330,9 @@ bool SPIRVToLLVM::transAddressingModel() {
   return true;
 }
 
-void generateIntelFPGAAnnotation(const SPIRVEntry *E,
-                                 llvm::SmallString<256> &AnnotStr) {
+void generateIntelFPGAAnnotation(
+    const SPIRVEntry *E, std::vector<llvm::SmallString<256>> &AnnotStrVec) {
+  llvm::SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
   if (E->hasDecorate(DecorationRegisterINTEL))
     Out << "{register:1}";
@@ -3367,8 +3370,6 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
   }
   if (E->hasDecorate(DecorationForcePow2DepthINTEL, 0, &Result))
     Out << "{force_pow2_depth:" << Result << '}';
-  if (E->hasDecorate(DecorationUserSemantic))
-    Out << E->getDecorationStringLiteral(DecorationUserSemantic).front();
 
   unsigned LSUParamsBitmask = 0;
   llvm::SmallString<32> AdditionalParamsStr;
@@ -3386,14 +3387,29 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
     // TODO: Enable prefetch size backwards translation
     // once it is supported
   }
-  if (LSUParamsBitmask == 0)
-    return;
-  Out << "{params:" << LSUParamsBitmask << "}" << AdditionalParamsStr;
+  if (LSUParamsBitmask)
+    Out << "{params:" << LSUParamsBitmask << "}" << AdditionalParamsStr;
+  if (!AnnotStr.empty())
+    AnnotStrVec.emplace_back(AnnotStr);
+
+  if (E->hasDecorate(DecorationUserSemantic)) {
+    auto Annotations =
+        E->getAllDecorationStringLiterals(DecorationUserSemantic);
+    for (size_t I = 0; I != Annotations.size(); ++I) {
+      // UserSemantic has a single literal string
+      llvm::SmallString<256> UserSemanticStr;
+      llvm::raw_svector_ostream UserSemanticOut(UserSemanticStr);
+      for (auto Str : Annotations[I])
+        UserSemanticOut << Str;
+      AnnotStrVec.emplace_back(UserSemanticStr);
+    }
+  }
 }
 
 void generateIntelFPGAAnnotationForStructMember(
     const SPIRVEntry *E, SPIRVWord MemberNumber,
-    llvm::SmallString<256> &AnnotStr) {
+    std::vector<llvm::SmallString<256>> &AnnotStrVec) {
+  llvm::SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
   if (E->hasMemberDecorate(DecorationRegisterINTEL, 0, MemberNumber))
     Out << "{register:1}";
@@ -3439,11 +3455,21 @@ void generateIntelFPGAAnnotationForStructMember(
   if (E->hasMemberDecorate(DecorationForcePow2DepthINTEL, 0, MemberNumber,
                            &Result))
     Out << "{force_pow2_depth:" << Result << '}';
+  if (!AnnotStr.empty())
+    AnnotStrVec.emplace_back(AnnotStr);
 
-  if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber))
-    Out << E->getMemberDecorationStringLiteral(DecorationUserSemantic,
-                                               MemberNumber)
-               .front();
+  if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber)) {
+    auto Annotations = E->getAllMemberDecorationStringLiterals(
+        DecorationUserSemantic, MemberNumber);
+    for (size_t I = 0; I != Annotations.size(); ++I) {
+      // UserSemantic has a single literal string
+      llvm::SmallString<256> UserSemanticStr;
+      llvm::raw_svector_ostream UserSemanticOut(UserSemanticStr);
+      for (auto Str : Annotations[I])
+        UserSemanticOut << Str;
+      AnnotStrVec.emplace_back(UserSemanticStr);
+    }
+  }
 }
 
 void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
@@ -3467,9 +3493,9 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       SPIRVTypeStruct *STS = static_cast<SPIRVTypeStruct *>(ST);
 
       for (SPIRVWord I = 0; I < STS->getMemberCount(); ++I) {
-        SmallString<256> AnnotStr;
-        generateIntelFPGAAnnotationForStructMember(ST, I, AnnotStr);
-        if (!AnnotStr.empty()) {
+        std::vector<SmallString<256>> AnnotStrVec;
+        generateIntelFPGAAnnotationForStructMember(ST, I, AnnotStrVec);
+        for (auto AnnotStr : AnnotStrVec) {
           auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
 
           auto *GEP = cast<GetElementPtrInst>(
@@ -3491,9 +3517,9 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       }
     }
 
-    SmallString<256> AnnotStr;
-    generateIntelFPGAAnnotation(BV, AnnotStr);
-    if (!AnnotStr.empty()) {
+    std::vector<SmallString<256>> AnnotStrVec;
+    generateIntelFPGAAnnotation(BV, AnnotStrVec);
+    for (auto AnnotStr : AnnotStrVec) {
       Constant *GS = nullptr;
       std::string StringAnnotStr = AnnotStr.c_str();
       auto AnnotItr = AnnotationsMap.find(StringAnnotStr);
@@ -3527,10 +3553,10 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       Builder.CreateCall(AnnotationFn, Args);
     }
   } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-    SmallString<256> AnnotStr;
-    generateIntelFPGAAnnotation(BV, AnnotStr);
+    std::vector<SmallString<256>> AnnotStrVec;
+    generateIntelFPGAAnnotation(BV, AnnotStrVec);
 
-    if (AnnotStr.empty()) {
+    if (AnnotStrVec.empty()) {
       // Check if IO pipe decoration is applied to the global
       SPIRVWord ID;
       if (BV->hasDecorate(DecorationIOPipeStorageINTEL, 0, &ID)) {
@@ -3542,29 +3568,31 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       return;
     }
 
-    Constant *StrConstant =
-        ConstantDataArray::getString(*Context, StringRef(AnnotStr));
+    for (auto AnnotStr : AnnotStrVec) {
+      Constant *StrConstant =
+          ConstantDataArray::getString(*Context, StringRef(AnnotStr));
 
-    auto *GS = new GlobalVariable(*GV->getParent(), StrConstant->getType(),
-                                  /*IsConstant*/ true,
-                                  GlobalValue::PrivateLinkage, StrConstant, "");
+      auto *GS = new GlobalVariable(
+          *GV->getParent(), StrConstant->getType(),
+          /*IsConstant*/ true, GlobalValue::PrivateLinkage, StrConstant, "");
 
-    GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-    GS->setSection("llvm.metadata");
+      GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+      GS->setSection("llvm.metadata");
 
-    Type *ResType = PointerType::getInt8PtrTy(
-        GV->getContext(), GV->getType()->getPointerAddressSpace());
-    Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
+      Type *ResType = PointerType::getInt8PtrTy(
+          GV->getContext(), GV->getType()->getPointerAddressSpace());
+      Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
 
-    Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
-    IntegerType *Int32Ty = Type::getInt32Ty(*Context);
+      Type *Int8PtrTyPrivate = Type::getInt8PtrTy(*Context, SPIRAS_Private);
+      IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
-    llvm::Constant *Fields[5] = {
-        C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
-        UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty),
-        UndefValue::get(Int8PtrTyPrivate)};
+      llvm::Constant *Fields[5] = {
+          C, ConstantExpr::getBitCast(GS, Int8PtrTyPrivate),
+          UndefValue::get(Int8PtrTyPrivate), UndefValue::get(Int32Ty),
+          UndefValue::get(Int8PtrTyPrivate)};
 
-    GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
+      GlobalAnnotations.push_back(ConstantStruct::getAnon(Fields));
+    }
   }
 }
 

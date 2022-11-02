@@ -857,6 +857,26 @@ public:
     return R;
   }
 
+  /// relative logical shift right
+  APInt relativeLShr(int RelativeShift) const {
+    return RelativeShift > 0 ? lshr(RelativeShift) : shl(-RelativeShift);
+  }
+
+  /// relative logical shift left
+  APInt relativeLShl(int RelativeShift) const {
+    return relativeLShr(-RelativeShift);
+  }
+
+  /// relative arithmetic shift right
+  APInt relativeAShr(int RelativeShift) const {
+    return RelativeShift > 0 ? ashr(RelativeShift) : shl(-RelativeShift);
+  }
+
+  /// relative arithmetic shift left
+  APInt relativeAShl(int RelativeShift) const {
+    return relativeAShr(-RelativeShift);
+  }
+
   /// Rotate left by rotateAmt.
   APInt rotl(unsigned rotateAmt) const;
 
