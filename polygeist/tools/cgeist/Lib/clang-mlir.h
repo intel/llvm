@@ -221,7 +221,6 @@ public:
   ScopLocList &getScopLocList() { return scopLocList; }
 
   mlir::FunctionOpInterface GetOrCreateMLIRFunction(FunctionToEmit &FTE,
-                                                    const bool IsThunk,
                                                     const bool ShouldEmit,
                                                     bool getDeviceStub = false);
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const clang::FunctionDecl *FD);
@@ -278,7 +277,7 @@ private:
   /// in the FTE).
   mlir::FunctionOpInterface createMLIRFunction(const FunctionToEmit &FTE,
                                                std::string mangledName,
-                                               bool IsThunk, bool ShouldEmit);
+                                               bool ShouldEmit);
 
   /// Fill in \p parmDescriptors with the MLIR types of the \p FD function
   /// declaration's parameters.
@@ -298,9 +297,7 @@ private:
 
   /// Set the MLIR function attributes for the given \p function.
   void setMLIRFunctionAttributes(mlir::FunctionOpInterface function,
-                                 const FunctionToEmit &FTE,
-                                 const clang::CodeGen::CGFunctionInfo &FI,
-                                 bool IsThunk, bool ShouldEmit);
+                                 const FunctionToEmit &FTE, bool ShouldEmit);
 
   /// Set the MLIR function parameters attributes for the given \p function.
   void setMLIRFunctionParmsAttributes(

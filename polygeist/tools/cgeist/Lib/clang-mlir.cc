@@ -413,9 +413,9 @@ void MLIRScanner::init(mlir::FunctionOpInterface func,
   if (FD->hasAttr<CUDAGlobalAttr>() && Glob.getCGM().getLangOpts().CUDA &&
       !Glob.getCGM().getLangOpts().CUDAIsDevice) {
     FunctionToEmit FTE(*FD);
-    auto deviceStub = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(
-        FTE, false /* IsThunk*/, true /* ShouldEmit*/,
-        /* getDeviceStub */ true));
+    auto deviceStub = cast<func::FuncOp>(
+        Glob.GetOrCreateMLIRFunction(FTE, true /* ShouldEmit*/,
+                                     /* getDeviceStub */ true));
 
     builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
     builder.create<ReturnOp>(loc);
@@ -2956,8 +2956,8 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 }
 
 mlir::FunctionOpInterface
-MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
-                                         bool ShouldEmit, bool getDeviceStub) {
+MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool ShouldEmit,
+                                         bool getDeviceStub) {
   assert(FTE.getDecl().getTemplatedKind() !=
              FunctionDecl::TemplatedKind::TK_FunctionTemplate &&
          FTE.getDecl().getTemplatedKind() !=
@@ -2981,7 +2981,7 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(FunctionToEmit &FTE, bool IsThunk,
 
   // Create the MLIR function and set its various attributes.
   FunctionOpInterface function =
-      createMLIRFunction(FTE, mangledName, IsThunk, ShouldEmit);
+      createMLIRFunction(FTE, mangledName, ShouldEmit);
   checkFunctionParent(function, FTE.getContext(), module);
 
   // Decide whether the MLIR function should be emitted.
@@ -3056,8 +3056,8 @@ void MLIRASTConsumer::run() {
 
     done.insert(doneKey);
     MLIRScanner ms(*this, module, LTInfo);
-    FunctionOpInterface function = GetOrCreateMLIRFunction(
-        FTE, false /* IsThunk */, true /* ShouldEmit */);
+    FunctionOpInterface function =
+        GetOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
     ms.init(function, FTE);
 
     LLVM_DEBUG({
@@ -3391,8 +3391,7 @@ void MLIRASTConsumer::createMLIRParameterDescriptors(
 
 mlir::FunctionOpInterface
 MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
-                                    std::string mangledName, bool IsThunk,
-                                    bool ShouldEmit) {
+                                    std::string mangledName, bool ShouldEmit) {
   const FunctionDecl &FD = FTE.getDecl();
   Location loc = getMLIRLocation(FD.getLocation());
   mlir::OpBuilder Builder(module->getContext());
@@ -3433,7 +3432,7 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
           : Builder.create<func::FuncOp>(loc, mangledName, funcTy);
 
   setMLIRFunctionVisibility(function, FTE, ShouldEmit);
-  setMLIRFunctionAttributes(function, FTE, FI, IsThunk, ShouldEmit);
+  setMLIRFunctionAttributes(function, FTE, ShouldEmit);
   setMLIRFunctionParmsAttributes(function, parmDescriptors);
   setMLIRFunctionResultAttributes(function, resDescriptors);
 
@@ -3529,14 +3528,17 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
   if (!hasUnwindExceptions(LangOpts))
     B.addPassThroughAttribute(llvm::Attribute::NoUnwind);
 
-  if (!D || !D->hasAttr<NoStackProtectorAttr>()) {
-    if (LangOpts.getStackProtector() == LangOptions::SSPOn)
-      B.addPassThroughAttribute(llvm::Attribute::StackProtect);
-    else if (LangOpts.getStackProtector() == LangOptions::SSPStrong)
-      B.addPassThroughAttribute(llvm::Attribute::StackProtectStrong);
-    else if (LangOpts.getStackProtector() == LangOptions::SSPReq)
-      B.addPassThroughAttribute(llvm::Attribute::StackProtectReq);
-  }
+  if (D && D->hasAttr<NoStackProtectorAttr>())
+    ; // Do Nothing.
+  else if (D && D->hasAttr<StrictGuardStackCheckAttr>() &&
+           LangOpts.getStackProtector() == LangOptions::SSPOn)
+    B.addPassThroughAttribute(llvm::Attribute::StackProtectStrong);
+  else if (LangOpts.getStackProtector() == LangOptions::SSPOn)
+    B.addPassThroughAttribute(llvm::Attribute::StackProtect);
+  else if (LangOpts.getStackProtector() == LangOptions::SSPStrong)
+    B.addPassThroughAttribute(llvm::Attribute::StackProtectStrong);
+  else if (LangOpts.getStackProtector() == LangOptions::SSPReq)
+    B.addPassThroughAttribute(llvm::Attribute::StackProtectReq);
 
   if (!D) {
     // If we don't have a declaration to control inlining, the function isn't
@@ -3550,7 +3552,6 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
     mlir::NamedAttrList attrs(F->getAttrDictionary());
     attrs.append(B.getAttrs());
     F->setAttrs(attrs.getDictionary(Ctx));
-
     return;
   }
 
@@ -3716,10 +3717,11 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
 
 void MLIRASTConsumer::setMLIRFunctionAttributes(
     mlir::FunctionOpInterface function, const FunctionToEmit &FTE,
-    const clang::CodeGen::CGFunctionInfo &FI, bool IsThunk, bool ShouldEmit) {
+    bool ShouldEmit) {
   using Attribute = llvm::Attribute;
 
   const FunctionDecl &FD = FTE.getDecl();
+  const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
   MLIRContext *ctx = module->getContext();
 
   bool isDeviceContext = (FTE.getContext() == FunctionContext::SYCLDevice);
@@ -3751,7 +3753,8 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     clang::CodeGen::CGCalleeInfo CalleeInfo(FPT);
 
     getTypes().constructAttributeList(function.getName(), FI, CalleeInfo, PAL,
-                                      /*AttrOnCallSite=*/false, IsThunk);
+                                      /*IsThunk*/ false,
+                                      /*AttrOnCallSite=*/false);
 
     // Set additional function attributes that are not derivable from the
     // function declaration.
@@ -3890,8 +3893,7 @@ public:
 mlir::FunctionOpInterface
 MLIRScanner::EmitDirectCallee(const FunctionDecl *FD, FunctionContext Context) {
   FunctionToEmit FTE(*FD, Context);
-  return Glob.GetOrCreateMLIRFunction(FTE, false /* IsThunk */,
-                                      true /* ShouldEmit */);
+  return Glob.GetOrCreateMLIRFunction(FTE, true /* ShouldEmit */);
 }
 
 mlir::Location MLIRScanner::getMLIRLocation(clang::SourceLocation loc) {

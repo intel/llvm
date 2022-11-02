@@ -859,8 +859,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     ShouldEmit = true;
 
   FunctionToEmit F(*ctorDecl, mlirclang::getInputContext(builder));
-  auto tocall = cast<func::FuncOp>(
-      Glob.GetOrCreateMLIRFunction(F, false /*IsThunk*/, ShouldEmit));
+  auto tocall = cast<func::FuncOp>(Glob.GetOrCreateMLIRFunction(F, ShouldEmit));
 
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
   args.emplace_back(std::make_pair(obj, (clang::Expr *)nullptr));
