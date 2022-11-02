@@ -205,7 +205,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     pi_result PIRes = mock_piMemBufferCreate(
         /*pi_context=*/0x0, /*pi_mem_flags=*/PI_MEM_FLAGS_ACCESS_RW, /*size=*/1,
         /*host_ptr=*/nullptr, &MockInteropBuffer);
-    assert(PI_SUCCESS == PIRes);
+    EXPECT_TRUE(PI_SUCCESS == PIRes);
 
     context InteropContext = Q.get_context();
     InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();

@@ -34,10 +34,10 @@ struct TestCtx {
         Ctx2{detail::getSyclObjImpl(Q2.get_context())} {
 
     pi_result Res = mock_piEventCreate((pi_context)0x0, &EventCtx1);
-    assert(PI_SUCCESS == Res);
+    EXPECT_TRUE(PI_SUCCESS == Res);
 
     Res = mock_piEventCreate((pi_context)0x0, &EventCtx2);
-    assert(PI_SUCCESS == Res);
+    EXPECT_TRUE(PI_SUCCESS == Res);
   }
 };
 
