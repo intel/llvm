@@ -612,7 +612,7 @@ struct pi_command_list_info_t {
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
 
-  std::list<_pi_ze_event_list_t> WaitLists;
+  pi_event SpecialEvent = nullptr;
 
   size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }

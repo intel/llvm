@@ -743,12 +743,8 @@ pi_result _pi_queue::signalEvent(pi_command_list_ptr_t CommandList) {
       this, &SpecialEvent, PI_COMMAND_TYPE_USER, CommandList,
       /* IsDiscarded */ false, /* ForceHostVisible */ false));
 
-  // We want a barrier in the beginning  of a next command list waiting for this
-  // special event.
-  ActiveBarriers.push_back(SpecialEvent);
-
-  // We don't need additional dependency through LastCommandEvent.
-  LastCommandEvent = nullptr;
+  PI_CALL(piEventRelease(SpecialEvent));
+  LastCommandEvent = SpecialEvent;
 
   ZE_CALL(zeCommandListAppendSignalEvent,
           (CommandList->first, SpecialEvent->ZeEvent));
@@ -1098,24 +1094,9 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                             std::vector<pi_event> &EventListToCleanup) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
-  if (isInOrderQueue() && isDiscardEvents()) {
-    // If there were discarded events in the command list then we have to
-    // release events from wait lists associated with them.
-    for (auto WaitList : CommandList->second.WaitLists) {
-      std::list<pi_event> EventsToBeReleased;
-      WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
-          EventsToBeReleased);
-
-      // Event may be in the wait list of more than one event. But we have to
-      // cleanup it only once, that's why use unordered_set to make it happen.
-      std::unordered_set<pi_event> Events;
-      std::copy(EventsToBeReleased.begin(), EventsToBeReleased.end(),
-                std::inserter(Events, Events.begin()));
-
-      for (auto Event : Events)
-        EventListToCleanup.push_back(Event);
-    }
-    CommandList->second.WaitLists.clear();
+  if (CommandList->second.SpecialEvent) {
+    EventListToCleanup.push_back(CommandList->second.SpecialEvent);
+    CommandList->second.SpecialEvent = nullptr;
   }
 
   // Immediate commandlists do not have an associated fence.
@@ -1995,6 +1976,20 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
   if (ActiveBarriers.empty())
     return PI_SUCCESS;
 
+  // For in-order queue every command depends on the previous one so we don't
+  // need to insert active barriers for every next command list.
+  // But we have to handle LastCommandEvent as an active barrier if we have
+  // discard_events mode.
+  if (isInOrderQueue() && isDiscardEvents() && LastCommandEvent) {
+    ZE_CALL(zeCommandListAppendBarrier,
+            (CmdList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
+    CmdList->second.SpecialEvent = LastCommandEvent;
+    // This event will be released on command list completion.
+    PI_CALL(piEventRetain(CmdList->second.SpecialEvent));
+    LastCommandEvent = nullptr;
+    return PI_SUCCESS;
+  }
+
   // Create a wait-list and retain events. This will filter out finished events.
   _pi_ze_event_list_t ActiveBarriersWaitList;
   if (auto Res = ActiveBarriersWaitList.createAndRetainPiZeEventList(
@@ -2007,12 +2002,9 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
     PI_CALL(piEventReleaseInternal(BarrierEvent));
   ActiveBarriers.clear();
 
-  // For in-order queue every command depends on the previous one so we don't
-  // need to insert active barriers for every next command list.
-  if (!isInOrderQueue())
-    ActiveBarriers.insert(
-        ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
-        ActiveBarriersWaitList.PiEventList + ActiveBarriersWaitList.Length);
+  ActiveBarriers.insert(
+      ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
+      ActiveBarriersWaitList.PiEventList + ActiveBarriersWaitList.Length);
 
   // If there are more active barriers, insert a barrier on the command-list. We
   // do not need an event for finishing so we pass nullptr.
@@ -2020,12 +2012,6 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
     ZE_CALL(zeCommandListAppendBarrier,
             (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
              ActiveBarriersWaitList.ZeEventList));
-
-  // Active barriers are released at queue synchronization, but for in-order
-  // queue we don't keep them till that point so store them in the command list,
-  // they will be released on completion of command list.
-  if (isInOrderQueue())
-    CmdList->second.WaitLists.push_back(ActiveBarriersWaitList);
 
   return PI_SUCCESS;
 }
