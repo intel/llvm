@@ -176,13 +176,3 @@ q.submit([&](sycl::handler& h) {
 
 In future versions of this extension we may add a query function which would
 help to calculate the exact amount of memory needed for doing the reduction.
-
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|===
-|Rev|Date      |Author        |Changes
-|1  |2022-10-27|Alexey Sachkov|Initial working draft
-|===
