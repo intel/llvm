@@ -62,15 +62,15 @@ void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
     // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-  } else if (MState != HES_Complete) {
-    // Wait for the host event
-    std::unique_lock<std::mutex> lock(MMutex);
-    cv.wait(lock, [this] { return MState == HES_Complete; });
   } else if (MState == HES_Discarded) {
     // Waiting for the discarded event is invalid
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
+  } else if (MState != HES_Complete) {
+    // Wait for the host event
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] { return MState == HES_Complete; });
   }
 
   // Wait for connected events(e.g. streams prints)
