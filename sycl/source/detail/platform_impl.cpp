@@ -14,6 +14,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -253,13 +254,17 @@ static bool supportsPartitionProperty(const device &dev,
 
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
-    ods_target_list *OdsTargetList, int PlatformDeviceIndex) {
+    ods_target_list *OdsTargetList, int PlatformDeviceIndex,
+    PlatformImplPtr PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
   constexpr info::partition_affinity_domain affinityDomain =
       info::partition_affinity_domain::next_partitionable;
 
   std::vector<device> FinalResult;
+  // (Only) when amending sub-devices for ONEAPI_DEVICE_SELECTOR, all
+  // sub-devices are treated as root.
+  TempAssignGuard<bool> TAG(PlatformImpl->MAlwaysRootDevice, true);
 
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
@@ -311,9 +316,8 @@ static std::vector<device> amendDeviceAndSubDevices(
             // -- Add sub sub device.
             if (wantSubSubDevice) {
 
-              auto subDevicesToPartition = dev.create_sub_devices<
-                  info::partition_property::partition_by_affinity_domain>(
-                  affinityDomain);
+              auto subDevicesToPartition =
+                  dev.create_sub_devices<partitionProperty>(affinityDomain);
               if (target.SubDeviceNum) {
                 if (subDevicesToPartition.size() >
                     target.SubDeviceNum.value()) {
@@ -341,9 +345,9 @@ static std::vector<device> amendDeviceAndSubDevices(
                   continue;
                 }
                 // Allright, lets get them sub-sub-devices.
-                auto subSubDevices = subDev.create_sub_devices<
-                    info::partition_property::partition_by_affinity_domain>(
-                    affinityDomain);
+                auto subSubDevices =
+                    subDev.create_sub_devices<partitionProperty>(
+                        affinityDomain);
                 if (target.HasSubSubDeviceWildCard) {
                   FinalResult.insert(FinalResult.end(), subSubDevices.begin(),
                                      subSubDevices.end());
@@ -476,7 +480,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // Otherwise, our last step is to revisit the devices, possibly replacing
   // them with subdevices (which have been ignored until now)
   return amendDeviceAndSubDevices(Backend, Res, OdsTargetList,
-                                  PlatformDeviceIndex);
+                                  PlatformDeviceIndex, PlatformImpl);
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
