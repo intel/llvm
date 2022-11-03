@@ -24,6 +24,7 @@ class CodeGenOptions;
 class FunctionDecl;
 class QualType;
 class RecordType;
+class RecordDecl;
 class Type;
 class GlobalDecl;
 
@@ -89,6 +90,9 @@ public:
 
   const clang::CodeGen::CGFunctionInfo &
   arrangeGlobalDeclaration(clang::GlobalDecl GD);
+
+  static bool IsLLVMStructABI(const clang::RecordDecl *RD,
+                              llvm::StructType *ST);
 
 private:
   void getDefaultFunctionAttributes(llvm::StringRef Name, bool HasOptnone,

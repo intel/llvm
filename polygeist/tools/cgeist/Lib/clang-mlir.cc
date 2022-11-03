@@ -8,6 +8,7 @@
 
 #include "clang-mlir.h"
 #include "Attributes.h"
+#include "CodeGenTypes.h"
 #include "TypeUtils.h"
 #include "utils.h"
 
@@ -58,14 +59,6 @@ using namespace mlirclang;
 cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
                                cl::desc("Prefix for emitted symbols"));
 
-static cl::opt<bool>
-    CombinedStructABI("struct-abi", cl::init(true),
-                      cl::desc("Use literal LLVM ABI for structs"));
-
-static cl::opt<bool>
-    UseOldFunctionType("old-func-type", cl::init(false),
-                       cl::desc("Use old way to compute the function type"));
-
 cl::opt<bool> GenerateAllSYCLFuncs("gen-all-sycl-funcs", cl::init(false),
                                    cl::desc("Generate all SYCL functions"));
 
@@ -75,140 +68,11 @@ constexpr llvm::StringLiteral MLIRASTConsumer::DeviceModuleName;
 /*                             CodeGenUtils                                   */
 /******************************************************************************/
 
-mlir::IntegerAttr CodeGenUtils::wrapIntegerMemorySpace(unsigned memorySpace,
-                                                       MLIRContext *ctx) {
+static mlir::IntegerAttr wrapIntegerMemorySpace(unsigned memorySpace,
+                                                MLIRContext *ctx) {
   return memorySpace ? mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64),
                                               memorySpace)
                      : nullptr;
-}
-
-bool CodeGenUtils::isAggregateTypeForABI(QualType qt) {
-  auto hasScalarEvaluationKind = [](QualType qt) {
-    qt = qt.getCanonicalType();
-    while (true) {
-      switch (qt->getTypeClass()) {
-      // We operate on atomic values according to their underlying type.
-      case clang::Type::Atomic:
-        qt = cast<AtomicType>(qt)->getValueType();
-        continue;
-      case clang::Type::Builtin:
-      case clang::Type::Pointer:
-      case clang::Type::BlockPointer:
-      case clang::Type::LValueReference:
-      case clang::Type::RValueReference:
-      case clang::Type::MemberPointer:
-      case clang::Type::Vector:
-      case clang::Type::ExtVector:
-      case clang::Type::ConstantMatrix:
-      case clang::Type::FunctionProto:
-      case clang::Type::FunctionNoProto:
-      case clang::Type::Enum:
-      case clang::Type::ObjCObjectPointer:
-      case clang::Type::Pipe:
-      case clang::Type::BitInt:
-        return true;
-      default:
-        return false;
-      }
-    }
-  };
-
-  return !hasScalarEvaluationKind(qt) || qt->isMemberFunctionPointerType();
-}
-
-bool CodeGenUtils::isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
-  if (!CombinedStructABI || RD->isUnion())
-    return true;
-
-  if (auto CXRD = dyn_cast<CXXRecordDecl>(RD)) {
-    if (!CXRD->hasDefinition() || CXRD->getNumVBases())
-      return true;
-    for (const auto m : CXRD->methods())
-      if (m->isVirtualAsWritten() || m->isPure())
-        return true;
-    for (const auto &Base : CXRD->bases())
-      if (Base.getType()->getAsCXXRecordDecl()->isEmpty())
-        return true;
-  }
-
-  if (ST && !ST->isLiteral() &&
-      (ST->getName() == "struct._IO_FILE" ||
-       ST->getName() == "class.std::basic_ifstream" ||
-       ST->getName() == "class.std::basic_istream" ||
-       ST->getName() == "class.std::basic_ostream" ||
-       ST->getName() == "class.std::basic_ofstream"))
-    return true;
-
-  return false;
-}
-
-bool CodeGenUtils::determineNoUndef(QualType qt,
-                                    clang::CodeGen::CodeGenTypes &Types,
-                                    const llvm::DataLayout &DL,
-                                    const clang::CodeGen::ABIArgInfo &AI,
-                                    bool CheckCoerce) {
-  llvm::Type *Ty = Types.ConvertTypeForMem(qt);
-  if (AI.getKind() == clang::CodeGen::ABIArgInfo::Indirect)
-    return true;
-  if (AI.getKind() == clang::CodeGen::ABIArgInfo::Extend)
-    return true;
-  if (!DL.typeSizeEqualsStoreSize(Ty))
-    // TODO: This will result in a modest amount of values not marked noundef
-    // when they could be. We care about values that *invisibly* contain undef
-    // bits from the perspective of LLVM IR.
-    return false;
-  if (CheckCoerce && AI.canHaveCoerceToType()) {
-    llvm::Type *CoerceTy = AI.getCoerceToType();
-    if (llvm::TypeSize::isKnownGT(DL.getTypeSizeInBits(CoerceTy),
-                                  DL.getTypeSizeInBits(Ty)))
-      // If we're coercing to a type with a greater size than the canonical one,
-      // we're introducing new undef bits.
-      // Coercing to a type of smaller or equal size is ok, as we know that
-      // there's no internal padding (typeSizeEqualsStoreSize).
-      return false;
-  }
-  if (qt->isBitIntType())
-    return true;
-  if (qt->isReferenceType())
-    return true;
-  if (qt->isNullPtrType())
-    return false;
-  if (qt->isMemberPointerType())
-    // TODO: Some member pointers are `noundef`, but it depends on the ABI. For
-    // now, never mark them.
-    return false;
-  if (qt->isScalarType()) {
-    if (const auto *complex = dyn_cast<clang::ComplexType>(qt))
-      return determineNoUndef(complex->getElementType(), Types, DL, AI, false);
-    return true;
-  }
-  if (const auto *vector = dyn_cast<clang::VectorType>(qt))
-    return determineNoUndef(vector->getElementType(), Types, DL, AI, false);
-  if (const auto *matrix = dyn_cast<clang::MatrixType>(qt))
-    return determineNoUndef(matrix->getElementType(), Types, DL, AI, false);
-  if (const auto *array = dyn_cast<clang::ArrayType>(qt))
-    return determineNoUndef(array->getElementType(), Types, DL, AI, false);
-
-  // TODO: Some structs may be `noundef`, in specific situations.
-  return false;
-}
-
-void CodeGenUtils::TypeAndAttrs::getTypes(
-    const SmallVectorImpl<TypeAndAttrs> &descriptors,
-    SmallVectorImpl<mlir::Type> &types) {
-  assert(types.empty() && "Expecting 'types' to be empty");
-
-  for (const TypeAndAttrs &desc : descriptors)
-    types.push_back(desc.type);
-}
-
-void CodeGenUtils::TypeAndAttrs::getAttributes(
-    const SmallVectorImpl<TypeAndAttrs> &descriptors,
-    SmallVectorImpl<mlir::NamedAttrList> &attrs) {
-  assert(attrs.empty() && "Expecting 'attrs' to be empty");
-
-  for (const TypeAndAttrs &desc : descriptors)
-    attrs.push_back(desc.attrs);
 }
 
 /******************************************************************************/
@@ -690,7 +554,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         assert(shape[0] == -1);
         mr = mlir::MemRefType::get(
             shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-            CodeGenUtils::wrapIntegerMemorySpace(memspace, mt.getContext()));
+            wrapIntegerMemorySpace(memspace, mt.getContext()));
         auto len = Visit(var->getSizeExpr()).getValue(builder);
         len = builder.create<IndexCastOp>(varLoc, builder.getIndexType(), len);
         alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr, len);
@@ -709,7 +573,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         shape[0] = 1;
       mr = mlir::MemRefType::get(
           shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-          CodeGenUtils::wrapIntegerMemorySpace(memspace, mt.getContext()));
+          wrapIntegerMemorySpace(memspace, mt.getContext()));
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       if (memspace != 0) {
         alloc = abuilder.create<polygeist::Pointer2MemrefOp>(
@@ -938,10 +802,10 @@ mlir::Value MLIRScanner::castToMemSpace(mlir::Value val, unsigned memSpace) {
             newVal);
         return builder.create<polygeist::Pointer2MemrefOp>(
             loc,
-            mlir::MemRefType::get(valType.getShape(), valType.getElementType(),
-                                  MemRefLayoutAttrInterface(),
-                                  CodeGenUtils::wrapIntegerMemorySpace(
-                                      memSpace, valType.getContext())),
+            mlir::MemRefType::get(
+                valType.getShape(), valType.getElementType(),
+                MemRefLayoutAttrInterface(),
+                wrapIntegerMemorySpace(memSpace, valType.getContext())),
             newVal);
       })
       .Case<LLVM::LLVMPointerType>(
@@ -1146,8 +1010,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                       ? mlir::MemRefType::get(
                             shape, mt.getElementType(),
                             MemRefLayoutAttrInterface(),
-                            CodeGenUtils::wrapIntegerMemorySpace(
-                                1, mt.getContext()))
+                            wrapIntegerMemorySpace(1, mt.getContext()))
                       : mt,
                   args);
               ValueCategory(dst, /*isReference*/ true)
@@ -2071,7 +1934,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
 
-  if (CodeGenUtils::isLLVMStructABI(rd, ST)) {
+  if (mlirclang::CodeGen::CodeGenTypes::IsLLVMStructABI(rd, ST)) {
     auto &layout = Glob.getCGM().getTypes().getCGRecordLayout(rd);
     fnum = layout.getLLVMFieldNo(FD);
   } else {
@@ -2283,7 +2146,7 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
         Glob.getCGM().getContext().getLValueReferenceType(Base->getType()));
 
     mlir::Value Offset = nullptr;
-    if (CodeGenUtils::isLLVMStructABI(RD, /*ST*/ nullptr)) {
+    if (mlirclang::CodeGen::CodeGenTypes::IsLLVMStructABI(RD, /*ST*/ nullptr)) {
       Offset = builder.create<arith::ConstantIntOp>(
           loc, -(ssize_t)Layout.getBaseClassOffset(BaseDecl).getQuantity(), 32);
     } else {
@@ -2357,7 +2220,7 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
     size_t fnum;
     bool subIndex = true;
 
-    if (CodeGenUtils::isLLVMStructABI(RD, /*ST*/ nullptr)) {
+    if (mlirclang::CodeGen::CodeGenTypes::IsLLVMStructABI(RD, /*ST*/ nullptr)) {
       auto &layout = Glob.getCGM().getTypes().getCGRecordLayout(RD);
       if (std::get<1>(tup))
         fnum = layout.getVirtualBaseIndex(BaseDecl);
@@ -2659,7 +2522,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
     auto mt = rt.cast<mlir::MemRefType>();
     mr = mlir::MemRefType::get(
         mt.getShape(), mt.getElementType(), MemRefLayoutAttrInterface(),
-        CodeGenUtils::wrapIntegerMemorySpace(memspace, mt.getContext()));
+        wrapIntegerMemorySpace(memspace, mt.getContext()));
   }
 
   mlir::SymbolTable::Visibility lnk;
@@ -3102,117 +2965,6 @@ MLIRASTConsumer::getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV) {
   llvm_unreachable("Unexpected linkage");
 }
 
-void MLIRASTConsumer::createMLIRParameterDescriptors(
-    const clang::FunctionDecl &FD,
-    SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) {
-  assert(parmDescriptors.empty() && "Expecting 'parmDescriptors' to be empty");
-  LLVM_DEBUG(
-      llvm::dbgs() << "\n-- Entering createMLIRParameterDescriptors --\n");
-
-  bool isMethodDecl = isa<CXXMethodDecl>(FD);
-  bool isMethodInstance = isMethodDecl && cast<CXXMethodDecl>(FD).isInstance();
-
-  // Handle the this pointer of a method instance.
-  if (isMethodInstance) {
-    auto &CC = cast<CXXMethodDecl>(FD);
-    QualType thisType = CC.getThisType();
-    auto mlirThisType = getTypes().getMLIRType(thisType);
-
-    if (auto mt = mlirThisType.dyn_cast<MemRefType>())
-      mlirThisType = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
-                                           MemRefLayoutAttrInterface(),
-                                           mt.getMemorySpace());
-
-    LLVM_DEBUG(if (!mlirThisType.isa<LLVM::LLVMPointerType, MemRefType>()) {
-      bool isArray = false;
-      getTypes().getMLIRType(CC.getThisObjectType(), &isArray);
-
-      FD.dump();
-      thisType->dump();
-      llvm::dbgs() << " mlirThisType: " << mlirThisType
-                   << " isArray: " << (int)isArray
-                   << " LLTy: " << *getLLVMType(thisType, CGM) << "\n";
-    });
-    assert((mlirThisType.isa<LLVM::LLVMPointerType, MemRefType>()) &&
-           "Unexpected type");
-
-    LLVM_DEBUG({
-      llvm::dbgs() << "Adding this type to function parameters: ";
-      thisType.dump();
-      llvm::dbgs().indent(2) << "mlir type: " << mlirThisType << "\n";
-    });
-
-    parmDescriptors.push_back(mlirThisType);
-  }
-
-  const bool isKernel = FD.hasAttr<SYCLKernelAttr>();
-  mlir::MLIRContext *ctx = module->getContext();
-
-  // Handle the remaining parameters.
-  for (const ParmVarDecl *parm : FD.parameters()) {
-    QualType parmType = parm->getType();
-    mlirclang::AttrBuilder attrBuilder(*ctx);
-
-    // SPIR ABI compliance: aggregates need to be passed indirectly as pointers
-    // (in MLIR, we pass it as MemRefs with unknown size).
-    // Note: indirect arguments are always on the stack (i.e. using alloca addr
-    // space).
-    if (isKernel && CodeGenUtils::isAggregateTypeForABI(parmType)) {
-      auto mt = mlir::MemRefType::get(-1, getTypes().getMLIRType(parmType), {},
-                                      CGM.getDataLayout().getAllocaAddrSpace());
-      attrBuilder.addAttribute(llvm::Attribute::AttrKind::ByVal,
-                               getTypes().getMLIRType(parmType));
-      attrBuilder.addAttribute(
-          llvm::Attribute::AttrKind::Alignment,
-          CGM.getContext().getTypeAlignInChars(parmType).getQuantity());
-
-      const llvm::DataLayout &DL = CGM.getDataLayout();
-      if (CGM.getCodeGenOpts().EnableNoundefAttrs &&
-          CodeGenUtils::determineNoUndef(
-              parmType, CGM.getTypes(), DL,
-              clang::CodeGen::ABIArgInfo::Indirect)) {
-        attrBuilder.addAttribute(llvm::Attribute::AttrKind::NoUndef);
-      }
-
-      CodeGenUtils::ParmDesc parmDesc(mt, attrBuilder.getAttrs());
-      parmDescriptors.push_back(parmDesc);
-
-      continue;
-    }
-
-    bool ArrayStruct = false;
-    auto mlirType = getTypes().getMLIRType(parmType, &ArrayStruct);
-    if (ArrayStruct)
-      mlirType = getTypes().getMLIRType(
-          CGM.getContext().getLValueReferenceType(parmType));
-
-    LLVM_DEBUG({
-      llvm::dbgs() << "Processing parameter\n";
-      llvm::dbgs() << "parmType: ";
-      parmType.dump();
-      llvm::dbgs().indent(2) << "mlir type: " << mlirType << "\n";
-    });
-
-    parmDescriptors.push_back(mlirType);
-  }
-
-  bool isArrayReturn = false;
-  getTypes().getMLIRType(FD.getReturnType(), &isArrayReturn);
-
-  if (isArrayReturn) {
-    auto mt = getTypes()
-                  .getMLIRType(CGM.getContext().getLValueReferenceType(
-                      FD.getReturnType()))
-                  .cast<MemRefType>();
-    assert(mt.getShape().size() == 2);
-    parmDescriptors.push_back(mt);
-    LLVM_DEBUG({
-      llvm::dbgs() << "Adding parameter for array return\n";
-      llvm::dbgs().indent(2) << "mlir type: " << mt << "\n";
-    });
-  }
-}
-
 mlir::FunctionOpInterface
 MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
                                     std::string mangledName, bool ShouldEmit) {
@@ -3223,33 +2975,6 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   const clang::CodeGen::CGFunctionInfo &FI = GetOrCreateCGFunctionInfo(&FD);
   mlir::FunctionType funcTy = getTypes().getFunctionType(FI, FD);
 
-  SmallVector<CodeGenUtils::ParmDesc, 4> parmDescriptors;
-  createMLIRParameterDescriptors(FD, parmDescriptors);
-
-  SmallVector<CodeGenUtils::ResultDesc, 4> resDescriptors;
-  createMLIRResultDescriptors(FD, resDescriptors);
-
-  // TODO: remove once we are happy with the new way to compute the function
-  // type.
-  if (UseOldFunctionType) {
-    SmallVector<mlir::Type, 4> parmTypes, retTypes;
-    CodeGenUtils::ParmDesc::getTypes(parmDescriptors, parmTypes);
-    CodeGenUtils::ResultDesc::getTypes(resDescriptors, retTypes);
-
-    auto oldFuncTy = Builder.getFunctionType(parmTypes, retTypes);
-
-    LLVM_DEBUG({
-      llvm::dbgs() << "New funcTy: " << funcTy << "\n";
-      llvm::dbgs() << "Old funcTy: " << oldFuncTy << "\n";
-      if (funcTy != oldFuncTy) {
-        llvm::dbgs() << "Function types are different for " << mangledName
-                     << "\n";
-      }
-    });
-
-    funcTy = oldFuncTy;
-  }
-
   mlir::FunctionOpInterface function =
       FD.hasAttr<SYCLKernelAttr>()
           ? Builder.create<gpu::GPUFuncOp>(loc, mangledName, funcTy)
@@ -3257,8 +2982,6 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
 
   setMLIRFunctionVisibility(function, FTE, ShouldEmit);
   setMLIRFunctionAttributes(function, FTE, ShouldEmit);
-  setMLIRFunctionParmsAttributes(function, parmDescriptors);
-  setMLIRFunctionResultAttributes(function, resDescriptors);
 
   /// Inject the MLIR function created in either the device module or in the
   /// host module, depending on the calling context.
@@ -3276,21 +2999,6 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
   LLVM_DEBUG(llvm::dbgs() << "Created MLIR function: " << function << "\n");
 
   return function;
-}
-
-void MLIRASTConsumer::createMLIRResultDescriptors(
-    const clang::FunctionDecl &FD,
-    llvm::SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors) {
-  assert(resDescriptors.empty() && "Expecting 'resDescriptors' to be empty");
-
-  bool isArrayReturn = false;
-  getTypes().getMLIRType(FD.getReturnType(), &isArrayReturn);
-
-  if (!isArrayReturn) {
-    auto rt = getTypes().getMLIRType(FD.getReturnType());
-    if (!rt.isa<mlir::NoneType>())
-      resDescriptors.push_back(rt);
-  }
 }
 
 void MLIRASTConsumer::setMLIRFunctionVisibility(
@@ -3577,8 +3285,8 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     clang::CodeGen::CGCalleeInfo CalleeInfo(FPT);
 
     getTypes().constructAttributeList(function.getName(), FI, CalleeInfo, PAL,
-                                      /*IsThunk*/ false,
-                                      /*AttrOnCallSite=*/false);
+                                      /*AttrOnCallSite=*/false,
+                                      /*IsThunk*/ false);
 
     // Set additional function attributes that are not derivable from the
     // function declaration.
@@ -3635,35 +3343,22 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(
     PAL.addFnAttrs(attrBuilder);
   }
 
+  // Set function attributes.
   mlirclang::AttributeList FnAttrs(function->getAttrDictionary(), {}, {});
   FnAttrs.addFnAttrs(PAL.getFnAttrs(), *ctx);
   function->setAttrs(FnAttrs.getFnAttrs().getDictionary(ctx));
-}
 
-void MLIRASTConsumer::setMLIRFunctionParmsAttributes(
-    mlir::FunctionOpInterface function,
-    const SmallVectorImpl<CodeGenUtils::ParmDesc> &parmDescriptors) const {
-  assert(function.getNumArguments() == parmDescriptors.size() && "Mismatch");
+  // Set parameters attributes.
+  const ArrayRef<NamedAttrList> ParamAttrs = PAL.getParamAttrs();
+  assert(ParamAttrs.size() == function.getNumArguments());
+  for (unsigned Index : llvm::seq<unsigned>(0, function.getNumArguments())) {
+    for (NamedAttribute Attr : ParamAttrs[Index])
+      function.setArgAttr(Index, Attr.getName(), Attr.getValue());
+  }
 
-  SmallVector<mlir::NamedAttrList> parmAttrs;
-  CodeGenUtils::ParmDesc::getAttributes(parmDescriptors, parmAttrs);
-
-  for (unsigned argIndex : llvm::seq<unsigned>(0, function.getNumArguments()))
-    for (mlir::NamedAttribute attr : parmAttrs[argIndex])
-      function.setArgAttr(argIndex, attr.getName(), attr.getValue());
-}
-
-void MLIRASTConsumer::setMLIRFunctionResultAttributes(
-    mlir::FunctionOpInterface function,
-    const SmallVectorImpl<CodeGenUtils::ResultDesc> &resDescriptors) const {
-  assert(function.getNumResults() == resDescriptors.size() && "Mismatch");
-
-  SmallVector<mlir::NamedAttrList> resAttrs;
-  CodeGenUtils::ResultDesc::getAttributes(resDescriptors, resAttrs);
-
-  for (unsigned resIndex : llvm::seq<unsigned>(0, function.getNumResults()))
-    for (mlir::NamedAttribute attr : resAttrs[resIndex])
-      function.setResultAttr(resIndex, attr.getName(), attr.getValue());
+  // Set function result attributes.
+  for (NamedAttribute Attr : PAL.getRetAttrs())
+    function.setResultAttr(0, Attr.getName(), Attr.getValue());
 }
 
 llvm::Optional<mlir::FunctionOpInterface>
