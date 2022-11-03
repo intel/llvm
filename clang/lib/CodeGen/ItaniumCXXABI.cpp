@@ -3568,7 +3568,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
 
   auto VTableTy =
       CGM.getLangOpts().SYCLIsDevice &&
-      CGM.getLangOpts().SYCLAllowVirtualFunctions &&
+              CGM.getLangOpts().SYCLAllowVirtualFunctions &&
               (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo)
           ? CGM.Int8Ty->getPointerTo(
                 static_cast<unsigned>(LangAS::opencl_global))

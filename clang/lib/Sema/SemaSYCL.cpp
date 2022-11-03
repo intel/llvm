@@ -579,7 +579,8 @@ public:
       }
 
       if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
-        if (Method->isVirtual() && !SemaRef.getLangOpts().SYCLAllowVirtualFunctions)
+        if (Method->isVirtual() &&
+            !SemaRef.getLangOpts().SYCLAllowVirtualFunctions)
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
               << Sema::KernelCallVirtualFunction;
 
