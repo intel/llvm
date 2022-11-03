@@ -659,6 +659,26 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
+
+pi_result
+_pi_queue::setLastDiscardedEvent(pi_event Event) {
+  try {
+    // We expect previous event to be in the cache.
+    assert(LastDiscardedEvent == nullptr);
+    LastDiscardedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool, Context,
+                               PI_COMMAND_TYPE_USER, true);
+  } catch (const std::bad_alloc &) {
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  if (Event->isHostVisible())
+    LastDiscardedEvent->HostVisibleEvent = LastDiscardedEvent;
+
+  return PI_SUCCESS;
+}
+
 pi_result
 _pi_queue::resetLastDiscardedEvent(pi_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded &&
@@ -667,8 +687,10 @@ _pi_queue::resetLastDiscardedEvent(pi_command_list_ptr_t CommandList) {
             (CommandList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
     ZE_CALL(zeCommandListAppendEventReset,
             (CommandList->first, LastCommandEvent->ZeEvent));
-    PI_CALL(addEventToCache(LastCommandEvent));
-    LastCommandEvent = nullptr;
+
+    // Remember last discarded event. Can't put it to the cache right now to avoid taking it as the next discarded event which will cause using same event two times in a row.
+    // We need to round robin between two events.
+    setLastDiscardedEvent(LastCommandEvent);
   }
   return PI_SUCCESS;
 }
@@ -694,10 +716,12 @@ inline static pi_result createEventAndAssociateQueue(
   // If event is discarded then try to get event from the queue cache.
   *Event = IsInternal ? Queue->getEventFromCache(ForceHostVisible) : nullptr;
 
-  if (Queue->isInOrderQueue() && Queue->isDiscardEvents())
+  if (IsInternal && Queue->LastDiscardedEvent) {
     // We've possibly got discarded event above so it is time to reset the last
     // disarded event (if any) and put it to the cache.
-    Queue->resetLastDiscardedEvent(CommandList);
+    PI_CALL(Queue->addEventToCache(Queue->LastDiscardedEvent));
+    Queue->LastDiscardedEvent = nullptr;
+  }
 
   if (*Event == nullptr)
     PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
@@ -764,21 +788,8 @@ pi_event _pi_queue::getEventFromCache(bool HostVisible) {
 }
 
 pi_result _pi_queue::addEventToCache(pi_event Event) {
-  pi_event CacheEvent;
-  try {
-    CacheEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool, Context,
-                               PI_COMMAND_TYPE_USER, true);
-  } catch (const std::bad_alloc &) {
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return PI_ERROR_UNKNOWN;
-  }
-
-  if (Event->isHostVisible())
-    CacheEvent->HostVisibleEvent = CacheEvent;
-
-  auto Cache = getEventCache(CacheEvent->isHostVisible());
-  Cache->emplace_back(CacheEvent);
+  auto Cache = getEventCache(Event->isHostVisible());
+  Cache->emplace_back(Event);
   return PI_SUCCESS;
 }
 
@@ -1045,10 +1056,16 @@ pi_result _pi_context::finalize() {
     }
   }
   {
+    std::unordered_set<ze_event_pool_handle_t> Pools;
     std::scoped_lock<pi_mutex> Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
-      for (auto &ZePool : ZePoolCache)
+      for (auto &ZePool : ZePoolCache) {
+        if (Pools.find(ZePool) != Pools.end())
+          std::cout << "Removing two times" << std::endl;
+
         ZE_CALL(zeEventPoolDestroy, (ZePool));
+        Pools.insert(ZePool);
+      }
       ZePoolCache.clear();
     }
   }
@@ -1649,8 +1666,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
-  if (!CommandList->second.EventList.empty())
+  if (!CommandList->second.EventList.empty() && this->LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
+    if (this->LastCommandEvent->IsDiscarded)
+      PI_CALL(resetLastDiscardedEvent(CommandList));
+  }
 
   this->LastCommandList = CommandList;
 
@@ -1762,8 +1782,6 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // Indicate no cleanup is needed for this PI event as it is special.
         HostVisibleEvent->CleanedUp = true;
 
-        this->resetLastDiscardedEvent(CommandList);
-
         // Finally set to signal the host-visible event at the end of the
         // command-list after a barrier that waits for all commands
         // completion.
@@ -1771,11 +1789,9 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                 (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
       } else if (this->LastCommandEvent &&
                  this->LastCommandEvent->IsDiscarded) {
-        this->resetLastDiscardedEvent(CommandList);
         this->signalEvent(CommandList);
       }
     } else if (this->LastCommandEvent && this->LastCommandEvent->IsDiscarded) {
-      this->resetLastDiscardedEvent(CommandList);
       this->signalEvent(CommandList);
     }
 
@@ -2056,7 +2072,6 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
             CurQueue->LastCommandEvent->IsDiscarded &&
             CurQueue->LastCommandList != CurQueue->CommandListMap.end() &&
             CurQueue->LastCommandList != NextImmCmdList) {
-          CurQueue->resetLastDiscardedEvent(CurQueue->LastCommandList);
           CurQueue->signalEvent(CurQueue->LastCommandList);
         }
       }
@@ -3830,14 +3845,13 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
 
   if (!Queue->RefCount.decrementAndTest())
     return PI_SUCCESS;
+  
+  if (Queue->LastDiscardedEvent)
+    PI_CALL(Queue->addEventToCache(Queue->LastDiscardedEvent));
 
-  for (auto Cache : Queue->EventCaches) {
-    for (auto Event : Cache) {
-      if (auto Res = Queue->Context->decrementUnreleasedEventsInPool(Event))
-        return Res;
+  for (auto Cache : Queue->EventCaches)
+    for (auto Event : Cache)
       PI_CALL(piEventReleaseInternal(Event));
-    }
-  }
 
   if (Queue->OwnZeCommandQueue) {
     for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
@@ -5993,10 +6007,8 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
       // If we don't do this, the event can get released and freed leaving
       // a dangling pointer to this event.  It could also cause unneeded
       // already finished events to show up in the wait list.
-      if (AssociatedQueue->LastCommandEvent == Event) {
-        assert(!AssociatedQueue->LastCommandEvent->IsDiscarded);
+      if (AssociatedQueue->LastCommandEvent == Event)
         AssociatedQueue->LastCommandEvent = nullptr;
-      }
     }
 
     // Release this event since we explicitly retained it on creation and

@@ -922,6 +922,10 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
+  pi_event LastDiscardedEvent = nullptr;
+
+  pi_result setLastDiscardedEvent(pi_event Event);
+
   // Keep track of the last command list used by in-order queue.
   // This is needed because we need to handle the change of the command list in
   // a specific way.
