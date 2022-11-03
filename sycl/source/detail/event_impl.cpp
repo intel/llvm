@@ -75,7 +75,7 @@ void event_impl::waitInternal() {
 
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
-    Event->waitInternal();
+    Event->wait(Event);
 }
 
 void event_impl::setComplete() {
