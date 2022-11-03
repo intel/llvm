@@ -46,7 +46,7 @@ set(SYCL_TEST_EXCLUDE "")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   # Debug compiler is very slow on sycl tests, tests may timeout sporadically
   set(SYCL_TEST_EXCLUDE EXCLUDE_FROM_CHECK_ALL)
-  message(STATUS "Note: SYCL tests are excluded in check-all for Debug compiler on Windows")
+  message(STATUS "Note: SYCL tests are excluded in check-all for Debug compiler")
 endif()
 
 add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
