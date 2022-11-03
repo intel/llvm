@@ -793,6 +793,43 @@ template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
 }
 } // namespace reduction
 
+// This method is used for implementation of parallel_for accepting 1 reduction.
+// TODO: remove this method when everything is switched to general algorithm
+// implementing arbitrary number of reductions in parallel_for().
+/// Copies the final reduction result kept in read-write accessor to user's
+/// accessor. This method is not called for user's read-write accessors
+/// requiring update-write to it.
+template <typename KernelName, class Reduction>
+std::enable_if_t<!Reduction::is_usm>
+reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
+  auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
+  associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
+  CGH.copy(InAcc, Redu.getUserRedVar());
+}
+
+// This method is used for implementation of parallel_for accepting 1 reduction.
+// TODO: remove this method when everything is switched to general algorithm
+// implementing arbitrary number of reductions in parallel_for().
+/// Copies the final reduction result kept in read-write accessor to user's
+/// USM memory.
+template <typename KernelName, class Reduction>
+std::enable_if_t<Reduction::is_usm>
+reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
+  size_t NElements = Reduction::num_elements;
+  auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
+  auto UserVarPtr = Redu.getUserRedVar();
+  bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
+  auto BOp = Redu.getBinaryOperation();
+  CGH.single_task<KernelName>([=] {
+    for (int i = 0; i < NElements; ++i) {
+      if (IsUpdateOfUserVar)
+        UserVarPtr[i] = BOp(UserVarPtr[i], InAcc.get_pointer()[i]);
+      else
+        UserVarPtr[i] = InAcc.get_pointer()[i];
+    }
+  });
+}
+
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
 /// must do that to avoid name collisions.
 template <template <typename...> class Namer, class KernelName, class... Ts>
@@ -834,7 +871,7 @@ template <class KernelName> struct RangeFastAtomics;
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, class Reduction>
-bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
+void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                    const range<Dims> &Range,
                                    const nd_range<1> &NDRange,
                                    PropertiesT Properties, Reduction &Redu) {
@@ -871,7 +908,11 @@ bool reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
       Reducer.template atomic_combine(&Out[0]);
     }
   });
-  return Reduction::is_usm || Redu.initializeToIdentity();
+
+  if (Reduction::is_usm || Redu.initializeToIdentity())
+    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+    });
 }
 
 namespace reduction {
@@ -881,7 +922,7 @@ template <class KernelName, class NWorkGroupsFinished> struct RangeFastReduce;
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, class Reduction>
-bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
+void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
                                   const range<Dims> &Range,
                                   const nd_range<1> &NDRange,
                                   PropertiesT Properties, Reduction &Redu) {
@@ -972,9 +1013,6 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
     Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));
   else
     Rest(Redu.getGroupsCounterAccDiscrete(CGH));
-
-  // We've updated user's variable, no extra work needed.
-  return false;
 }
 
 namespace reduction {
@@ -984,7 +1022,7 @@ template <class KernelName> struct RangeBasic;
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, class Reduction>
-bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
+void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
                              const range<Dims> &Range,
                              const nd_range<1> &NDRange, PropertiesT Properties,
                              Reduction &Redu) {
@@ -1088,14 +1126,18 @@ bool reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
       }
     }
   });
-  return Reduction::is_usm;
+
+  if (Reduction::is_usm)
+    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+    });
 }
 
 /// Returns "true" if the result has to be saved to user's variable by
 /// reduSaveFinalResultToUserMem.
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, class Reduction>
-bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
                         uint32_t NumConcurrentWorkGroups,
                         PropertiesT Properties, Reduction &Redu) {
@@ -1110,14 +1152,14 @@ bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
   if constexpr (Reduction::has_fast_reduce)
-    return reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range,
-                                                    NDRange, Properties, Redu);
+    reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range, NDRange,
+                                             Properties, Redu);
   else if constexpr (Reduction::has_fast_atomics)
-    return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
-                                                     NDRange, Properties, Redu);
+    reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range, NDRange,
+                                              Properties, Redu);
   else
-    return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                               Properties, Redu);
+    reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
+                                        Properties, Redu);
 }
 
 namespace reduction {
@@ -1158,6 +1200,12 @@ void reduCGFuncForNDRangeBothFastReduceAndAtomics(handler &CGH,
     if (NDIt.get_local_linear_id() == 0)
       Reducer.atomic_combine(&Out[0]);
   });
+
+  if (Reduction::is_usm || Redu.initializeToIdentity()) {
+    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+    });
+  }
 }
 
 namespace reduction {
@@ -1242,6 +1290,12 @@ void reduCGFuncForNDRangeFastAtomicsOnly(handler &CGH, KernelType KernelFunc,
       Reducer.atomic_combine(&Out[0]);
     }
   });
+
+  if (Reduction::is_usm || Redu.initializeToIdentity()) {
+    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
+      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
+    });
+  }
 }
 
 namespace reduction {
@@ -1542,43 +1596,6 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
         CGH, HasUniformWG, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
   }
   return NWorkGroups;
-}
-
-// This method is used for implementation of parallel_for accepting 1 reduction.
-// TODO: remove this method when everything is switched to general algorithm
-// implementing arbitrary number of reductions in parallel_for().
-/// Copies the final reduction result kept in read-write accessor to user's
-/// accessor. This method is not called for user's read-write accessors
-/// requiring update-write to it.
-template <typename KernelName, class Reduction>
-std::enable_if_t<!Reduction::is_usm>
-reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
-  auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-  associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
-  CGH.copy(InAcc, Redu.getUserRedVar());
-}
-
-// This method is used for implementation of parallel_for accepting 1 reduction.
-// TODO: remove this method when everything is switched to general algorithm
-// implementing arbitrary number of reductions in parallel_for().
-/// Copies the final reduction result kept in read-write accessor to user's
-/// USM memory.
-template <typename KernelName, class Reduction>
-std::enable_if_t<Reduction::is_usm>
-reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
-  size_t NElements = Reduction::num_elements;
-  auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-  auto UserVarPtr = Redu.getUserRedVar();
-  bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
-  auto BOp = Redu.getBinaryOperation();
-  CGH.single_task<KernelName>([=] {
-    for (int i = 0; i < NElements; ++i) {
-      if (IsUpdateOfUserVar)
-        UserVarPtr[i] = BOp(UserVarPtr[i], InAcc.get_pointer()[i]);
-      else
-        UserVarPtr[i] = InAcc.get_pointer()[i];
-    }
-  });
 }
 
 /// For the given 'Reductions' types pack and indices enumerating them this
@@ -2220,13 +2237,8 @@ void reduction_parallel_for(handler &CGH,
   // queue/device, while it is safer to use queries to the kernel pre-compiled
   // for the device.
   size_t PrefWGSize = reduGetPreferredWGSize(Queue, OneElemSize);
-  if (reduCGFuncForRange<KernelName>(CGH, KernelFunc, Range, PrefWGSize,
-                                     NumConcurrentWorkGroups, Properties,
-                                     Redu)) {
-    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
-    });
-  }
+  reduCGFuncForRange<KernelName>(CGH, KernelFunc, Range, PrefWGSize,
+                                 NumConcurrentWorkGroups, Properties, Redu);
 }
 
 template <typename KernelName, int Dims, typename PropertiesT,
@@ -2317,43 +2329,25 @@ void reduction_parallel_for(handler &CGH,
                             nd_range<Dims> Range, PropertiesT Properties,
                             Reduction Redu, KernelType KernelFunc) {
   if constexpr (Reduction::has_float64_atomics) {
-    device D = detail::getDeviceFromHandler(CGH);
-
-    if (D.has(aspect::atomic64)) {
-      reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName>(
+    if (detail::getDeviceFromHandler(CGH).has(aspect::atomic64))
+      return reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName>(
           CGH, KernelFunc, Range, Properties, Redu);
-    } else {
-      reduction_parallel_for_basic_impl<KernelName>(
-          CGH, Queue, Range, Properties, Redu, KernelFunc);
-      return;
-    }
+
+    return reduction_parallel_for_basic_impl<KernelName>(
+        CGH, Queue, Range, Properties, Redu, KernelFunc);
   } else if constexpr (Reduction::has_fast_atomics) {
     if constexpr (Reduction::has_fast_reduce) {
-      reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName, KernelType>(
+      return reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName,
+                                                          KernelType>(
           CGH, KernelFunc, Range, Properties, Redu);
     } else {
-      reduCGFuncForNDRangeFastAtomicsOnly<KernelName, KernelType>(
+      return reduCGFuncForNDRangeFastAtomicsOnly<KernelName, KernelType>(
           CGH, KernelFunc, Range, Properties, Redu);
     }
   } else {
     reduction_parallel_for_basic_impl<KernelName>(CGH, Queue, Range, Properties,
                                                   Redu, KernelFunc);
     return;
-  }
-
-  // If the reduction variable must be initialized with the identity value
-  // before the kernel run, then an additional working accessor is created,
-  // initialized with the identity value and used in the kernel. That
-  // working accessor is then copied to user's accessor or USM pointer after
-  // the kernel run.
-  // For USM pointers without initialize_to_identity properties the same
-  // scheme with working accessor is used as re-using user's USM pointer in
-  // the kernel would require creation of another variant of user's kernel,
-  // which does not seem efficient.
-  if (Reduction::is_usm || Redu.initializeToIdentity()) {
-    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
-    });
   }
 }
 
