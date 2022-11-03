@@ -43,8 +43,8 @@ list(APPEND SYCL_DEPLOY_TEST_DEPS
   )
 
 set(SYCL_TEST_EXCLUDE "")
-if (WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-  # Debug compiler on Windows is very slow, tests may timeout sporadically
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  # Debug compiler is very slow on sycl tests, tests may timeout sporadically
   set(SYCL_TEST_EXCLUDE EXCLUDE_FROM_CHECK_ALL)
   message(STATUS "Note: SYCL tests are excluded in check-all for Debug compiler on Windows")
 endif()
