@@ -659,14 +659,12 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-
-pi_result
-_pi_queue::setLastDiscardedEvent(pi_event Event) {
+pi_result _pi_queue::setLastDiscardedEvent(pi_event Event) {
   try {
     // We expect previous event to be in the cache.
     assert(LastDiscardedEvent == nullptr);
-    LastDiscardedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool, Context,
-                               PI_COMMAND_TYPE_USER, true);
+    LastDiscardedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
+                                       Context, PI_COMMAND_TYPE_USER, true);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -688,8 +686,9 @@ _pi_queue::resetLastDiscardedEvent(pi_command_list_ptr_t CommandList) {
     ZE_CALL(zeCommandListAppendEventReset,
             (CommandList->first, LastCommandEvent->ZeEvent));
 
-    // Remember last discarded event. Can't put it to the cache right now to avoid taking it as the next discarded event which will cause using same event two times in a row.
-    // We need to round robin between two events.
+    // Remember last discarded event. Can't put it to the cache right now to
+    // avoid taking it as the next discarded event which will cause using same
+    // event two times in a row. We need to round robin between two events.
     setLastDiscardedEvent(LastCommandEvent);
   }
   return PI_SUCCESS;
@@ -1666,7 +1665,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
   // The list can be empty if command-list only contains signals of proxy
   // events.
-  if (!CommandList->second.EventList.empty() && this->LastCommandEvent != CommandList->second.EventList.back()) {
+  if (!CommandList->second.EventList.empty() &&
+      this->LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
     if (this->LastCommandEvent->IsDiscarded)
       PI_CALL(resetLastDiscardedEvent(CommandList));
@@ -1777,16 +1777,27 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
         // after createEventAndAssociateQueue ref count is 2 and then +1 for
         // each event in the EventList.
         PI_CALL(piEventReleaseInternal(HostVisibleEvent));
-        PI_CALL(piEventReleaseInternal(HostVisibleEvent));
 
-        // Indicate no cleanup is needed for this PI event as it is special.
-        HostVisibleEvent->CleanedUp = true;
+        if (isInOrderQueue() && isDiscardEvents()) {
+          // If we have in-order queue with discarded events then we want to treat this event as regular event and use it as a dependency for the next command.
+          LastCommandEvent = HostVisibleEvent;
+        } else {
+          // For all other queues treat this as a special event and indicate no cleanup is needed.
+          PI_CALL(piEventReleaseInternal(HostVisibleEvent));
+          HostVisibleEvent->CleanedUp = true;
+        }
 
         // Finally set to signal the host-visible event at the end of the
         // command-list after a barrier that waits for all commands
         // completion.
-        ZE_CALL(zeCommandListAppendBarrier,
-                (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
+        if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
+          // If we the last event is discarded then we already have a barrier inserted, so just signal event.
+          ZE_CALL(zeCommandListAppendSignalEvent,
+                  (CommandList->first, HostVisibleEvent->ZeEvent));
+        } else {
+          ZE_CALL(zeCommandListAppendBarrier,
+                  (CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr));
+        }
       } else if (this->LastCommandEvent &&
                  this->LastCommandEvent->IsDiscarded) {
         this->signalEvent(CommandList);
@@ -3845,7 +3856,7 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
 
   if (!Queue->RefCount.decrementAndTest())
     return PI_SUCCESS;
-  
+
   if (Queue->LastDiscardedEvent)
     PI_CALL(Queue->addEventToCache(Queue->LastDiscardedEvent));
 
