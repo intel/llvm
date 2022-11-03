@@ -3498,7 +3498,7 @@ public:
   bool enterArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
     const ConstantArrayType *CAT =
-        SemaRef.getASTContext().getAsConstantArrayType(ArrayTy);
+        SemaRef.getASTContext().getAsConstantArrayType(ArrayType);
     assert(CAT && "Should only be called on constant-size array.");
     uint64_t ArraySize = CAT->getSize().getZExtValue();
     addCollectionInitListExpr(ArrayType, ArraySize);
