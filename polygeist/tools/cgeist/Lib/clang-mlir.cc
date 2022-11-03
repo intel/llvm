@@ -260,6 +260,11 @@ void MLIRScanner::initSupportedFunctions() {
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEE");
   supportedFuncs.insert(
+      "_ZZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
+      "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
+      "listIJEEEE6__initEPU3AS1iNS0_5rangeILi1EEESE_NS0_2idILi1EEEENKUlmE_"
+      "clEm");
+  supportedFuncs.insert(
       "_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_"
       "6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_"
       "listIJEEEE14getAccessRangeEv");
@@ -301,6 +306,11 @@ void MLIRScanner::initSupportedFunctions() {
   supportedFuncs.insert("_ZN4sycl3_V16detail14InitializedValILi1ENS0_"
                         "5rangeEE3getILi0EEENS3_ILi1EEEv");
   supportedFuncs.insert(
+      "_ZN4sycl3_V16detail8dim_loopILm1EZNS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_"
+      "5rangeILi1EEESG_NS0_2idILi1EEEEUlmE_EEvOT0_");
+  supportedFuncs.insert(
       "_ZN4sycl3_V16detail8dim_loopILm1EZNKS0_8accessorIiLi1ELNS0_"
       "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
       "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
@@ -311,15 +321,21 @@ void MLIRScanner::initSupportedFunctions() {
       "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
       "EEvOT0_");
   supportedFuncs.insert(
-      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
+      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNS0_8accessorIiLi1ELNS0_"
       "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
-      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
-      "EEvSt16integer_sequenceImJXspT_EEEOT0_");
+      "3ext6oneapi22accessor_property_listIJEEEE6__initEPU3AS1iNS0_"
+      "5rangeILi1EEESG_NS0_2idILi1EEEEUlmE_EEvSt16integer_sequenceImJXspT_"
+      "EEEOT0_");
   supportedFuncs.insert(
       "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
       "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
       "3ext6oneapi22accessor_property_listIJEEEE14getLinearIndexILi1EEEmNS0_"
       "2idIXT_EEEEUlmE_EEvSt16integer_sequenceImJXspT_EEEOT0_");
+  supportedFuncs.insert(
+      "_ZN4sycl3_V16detail13dim_loop_implIJLm0EEZNKS0_8accessorIiLi1ELNS0_"
+      "6access4modeE1025ELNS4_6targetE2014ELNS4_11placeholderE0ENS0_"
+      "3ext6oneapi22accessor_property_listIJEEEE14getTotalOffsetEvEUlmE_"
+      "EEvSt16integer_sequenceImJXspT_EEEOT0_");
 }
 
 static void checkFunctionParent(const FunctionOpInterface F,
