@@ -581,8 +581,6 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
-struct _pi_ze_event_list_t;
-
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
