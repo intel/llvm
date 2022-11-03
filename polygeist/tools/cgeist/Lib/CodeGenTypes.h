@@ -15,6 +15,7 @@
 
 #include "Attributes.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/ABI.h"
 #include <map>
 
@@ -95,6 +96,7 @@ public:
                               llvm::StructType *ST);
 
   clang::QualType getPromotionType(clang::QualType Ty) const;
+  clang::CanQualType getCanonicalType(clang::QualType T) const;
 
 private:
   void getDefaultFunctionAttributes(llvm::StringRef Name, bool HasOptnone,

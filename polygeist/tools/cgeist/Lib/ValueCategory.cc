@@ -290,3 +290,59 @@ ValueCategory ValueCategory::FPExt(OpBuilder &Builder,
   warnUnconstrainedCast<arith::ExtFOp>();
   return Cast<arith::ExtFOp>(Builder, PromotionType);
 }
+
+ValueCategory ValueCategory::SIToFP(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  warnUnconstrainedCast<arith::SIToFPOp>();
+  return Cast<arith::SIToFPOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::UIToFP(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  warnUnconstrainedCast<arith::UIToFPOp>();
+  return Cast<arith::UIToFPOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::FPToUI(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  warnUnconstrainedCast<arith::FPToUIOp>();
+  return Cast<arith::FPToUIOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::FPToSI(OpBuilder &Builder,
+                                    Type PromotionType) const {
+  warnUnconstrainedCast<arith::FPToSIOp>();
+  return Cast<arith::FPToSIOp>(Builder, PromotionType);
+}
+
+ValueCategory ValueCategory::IntegerCast(OpBuilder &Builder, Type PromotionType,
+                                         bool IsSigned) const {
+  auto SrcIntTy = val.getType().dyn_cast<IntegerType>();
+  auto DstIntTy = PromotionType.dyn_cast<IntegerType>();
+
+  const unsigned SrcBits = SrcIntTy.getWidth();
+  const unsigned DstBits = DstIntTy.getWidth();
+
+  auto Res = [&]() -> Value {
+    if (SrcBits == DstBits)
+      return Builder.createOrFold<arith::BitcastOp>(Builder.getUnknownLoc(),
+                                                    PromotionType, val);
+    if (SrcBits > DstBits)
+      return Builder.createOrFold<arith::TruncIOp>(Builder.getUnknownLoc(),
+                                                   PromotionType, val);
+    if (IsSigned)
+      return Builder.createOrFold<arith::ExtSIOp>(Builder.getUnknownLoc(),
+                                                  PromotionType, val);
+    return Builder.createOrFold<arith::ExtUIOp>(Builder.getUnknownLoc(),
+                                                PromotionType, val);
+  }();
+
+  return {Res, /*IsReference*/ false};
+}
+
+ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
+                                     bool IsSigned) const {
+  if (val.getType() == PromotionType)
+    return *this;
+  return IntegerCast(Builder, PromotionType, IsSigned);
+}

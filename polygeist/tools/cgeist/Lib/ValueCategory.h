@@ -16,6 +16,9 @@
 // Represents a rhs or lhs value.
 class ValueCategory {
 private:
+  ValueCategory IntegerCast(mlir::OpBuilder &builder, mlir::Type PromotionType,
+                            bool IsSigned) const;
+
   template <typename OpTy>
   ValueCategory Cast(mlir::OpBuilder &builder, mlir::Type PromotionType) const {
     if (val.getType() == PromotionType)
@@ -28,6 +31,9 @@ private:
 public:
   mlir::Value val;
   bool isReference;
+  // TODO: Set these values when appropriate
+  bool isVolatile = false;
+  bool isBitField = false;
 
 public:
   ValueCategory() : val(nullptr), isReference(false) {}
@@ -46,6 +52,16 @@ public:
                         mlir::Type PromotionType) const;
 
   ValueCategory FPExt(mlir::OpBuilder &builder, mlir::Type PromotionType) const;
+  ValueCategory IntCast(mlir::OpBuilder &builder, mlir::Type PromotionType,
+                        bool IsSigned) const;
+  ValueCategory SIToFP(mlir::OpBuilder &builder,
+                       mlir::Type PromotionType) const;
+  ValueCategory UIToFP(mlir::OpBuilder &builder,
+                       mlir::Type PromotionType) const;
+  ValueCategory FPToUI(mlir::OpBuilder &builder,
+                       mlir::Type PromotionType) const;
+  ValueCategory FPToSI(mlir::OpBuilder &builder,
+                       mlir::Type PromotionType) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */

@@ -350,6 +350,15 @@ private:
                      llvm::Optional<mlir::Type> returnType,
                      llvm::StringRef mangledFunctionName);
 
+  /// TODO: Add ScalarConversion options
+  ValueCategory EmitScalarCast(ValueCategory Src, clang::QualType SrcType,
+                               clang::QualType DstType, mlir::Type SrcTy,
+                               mlir::Type DstTy);
+  /// TODO: Add ScalarConversion options
+  ValueCategory EmitScalarConversion(ValueCategory Src, clang::QualType SrcType,
+                                     clang::QualType DstType,
+                                     clang::SourceLocation Loc);
+
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
@@ -474,11 +483,23 @@ public:
   ValueCategory EmitUnPromotedValue(ValueCategory Result,
                                     clang::QualType PromotionType);
 
+  ValueCategory EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E);
+
+  ValueCategory EmitLValue(clang::Expr *E);
+  std::pair<ValueCategory, ValueCategory>
+  EmitCompoundAssignLValue(clang::CompoundAssignOperator *E,
+                           ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+
+  ValueCategory
+  EmitCompoundAssign(clang::CompoundAssignOperator *E,
+                     ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+
   BinOpInfo EmitBinOps(clang::BinaryOperator *E,
                        clang::QualType PromotionTy = clang::QualType());
 #define HANDLEBINOP(OP)                                                        \
   ValueCategory EmitBin##OP(const BinOpInfo &E);                               \
-  ValueCategory VisitBin##OP(clang::BinaryOperator *E);
+  ValueCategory VisitBin##OP(clang::BinaryOperator *E);                        \
+  ValueCategory VisitBin##OP##Assign(clang::BinaryOperator *E);
 #include "Expressions.def"
 #undef HANDLEBINOP
 

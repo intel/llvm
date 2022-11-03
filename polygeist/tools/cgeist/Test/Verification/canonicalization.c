@@ -14,16 +14,16 @@
 // CHECK-NEXT:       %1 = arith.addi %0, %c-1_i32 : i32
 // CHECK-NEXT:       %2 = arith.index_cast %1 : i32 to index
 // CHECK-NEXT:       scf.for %arg5 = %c0 to %c20 step %c1 {
-// CHECK-NEXT:         %3 = memref.load %arg1[%arg5] : memref<20xi32>
-// CHECK-NEXT:         %4 = arith.index_cast %3 : i32 to index
-// CHECK-NEXT:         %5 = memref.load %arg3[%arg5] : memref<20xi32>
-// CHECK-NEXT:         %6 = memref.load %arg2[%arg5] : memref<20xi32>
-// CHECK-NEXT:         %7 = arith.index_cast %6 : i32 to index
-// CHECK-NEXT:         %8 = memref.load %arg0[%2, %7] : memref<20x20xi32>
-// CHECK-NEXT:         %9 = arith.muli %5, %8 : i32
-// CHECK-NEXT:         %10 = memref.load %arg0[%arg4, %4] : memref<20x20xi32>
-// CHECK-NEXT:         %11 = arith.addi %10, %9 : i32
-// CHECK-NEXT:         memref.store %11, %arg0[%arg4, %4] : memref<20x20xi32>
+// CHECK-NEXT:         %3 = memref.load %arg3[%arg5] : memref<20xi32>
+// CHECK-NEXT:         %4 = memref.load %arg2[%arg5] : memref<20xi32>
+// CHECK-NEXT:         %5 = arith.index_cast %4 : i32 to index
+// CHECK-NEXT:         %6 = memref.load %arg0[%2, %5] : memref<20x20xi32>
+// CHECK-NEXT:         %7 = arith.muli %3, %6 : i32
+// CHECK-NEXT:         %8 = memref.load %arg1[%arg5] : memref<20xi32>
+// CHECK-NEXT:         %9 = arith.index_cast %8 : i32 to index
+// CHECK-NEXT:         %10 = memref.load %arg0[%arg4, %9] : memref<20x20xi32>
+// CHECK-NEXT:         %11 = arith.addi %10, %7 : i32
+// CHECK-NEXT:         memref.store %11, %arg0[%arg4, %9] : memref<20x20xi32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }     
 // CHECK-NEXT:     return
