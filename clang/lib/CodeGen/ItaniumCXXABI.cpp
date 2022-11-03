@@ -3565,20 +3565,26 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   // Check if the alias exists. If it doesn't, then get or create the global.
   if (CGM.getItaniumVTableContext().isRelativeLayout())
     VTable = CGM.getModule().getNamedAlias(VTableName);
+
+  auto VTableTy =
+      CGM.getLangOpts().SYCLIsDevice &&
+      CGM.getLangOpts().SYCLAllowVirtualFunctions &&
+              (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo)
+          ? CGM.Int8Ty->getPointerTo(
+                static_cast<unsigned>(LangAS::opencl_global))
+          : CGM.Int8PtrTy;
   if (!VTable) {
-    auto GVTy = VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo
-                    ? CGM.Int8Ty->getPointerTo(/*addrspace =*/1)
-                    : CGM.Int8PtrTy;
-    if (VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo) {
-      VTable = CGM.getModule().getOrInsertGlobal(VTableName, GVTy, [&] {
-        return new llvm::GlobalVariable(
-            CGM.getModule(), GVTy, false, llvm::GlobalVariable::ExternalLinkage,
-            nullptr, VTableName, nullptr,
-            llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
-            llvm::Optional<unsigned>(/*addrspace =*/1));
-      });
+    if (VTableTy == CGM.Int8PtrTy) {
+      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy);
     } else {
-      VTable = CGM.getModule().getOrInsertGlobal(VTableName, CGM.Int8PtrTy);
+      VTable = CGM.getModule().getOrInsertGlobal(VTableName, VTableTy, [&] {
+        return new llvm::GlobalVariable(
+            CGM.getModule(), VTableTy, false,
+            llvm::GlobalVariable::ExternalLinkage, nullptr, VTableName, nullptr,
+            llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
+            llvm::Optional<unsigned>(
+                static_cast<unsigned>(LangAS::opencl_global)));
+      });
     }
   }
 
@@ -3597,16 +3603,10 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
-    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(
-        VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo
-            ? CGM.Int8Ty->getPointerTo(/*addrspace =*/1)
-            : CGM.Int8PtrTy,
-        VTable, Two);
+    VTable =
+        llvm::ConstantExpr::getInBoundsGetElementPtr(VTableTy, VTable, Two);
   }
-  VTable = llvm::ConstantExpr::getBitCast(
-      VTable, VTableName == ClassTypeInfo || VTableName == SIClassTypeInfo
-                  ? CGM.Int8Ty->getPointerTo(/*addrspace =*/1)
-                  : CGM.Int8PtrTy);
+  VTable = llvm::ConstantExpr::getBitCast(VTable, VTableTy);
 
   Fields.push_back(VTable);
 }
