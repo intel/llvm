@@ -1055,16 +1055,10 @@ pi_result _pi_context::finalize() {
     }
   }
   {
-    std::unordered_set<ze_event_pool_handle_t> Pools;
     std::scoped_lock<pi_mutex> Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
-      for (auto &ZePool : ZePoolCache) {
-        if (Pools.find(ZePool) != Pools.end())
-          std::cout << "Removing two times" << std::endl;
-
+      for (auto &ZePool : ZePoolCache)
         ZE_CALL(zeEventPoolDestroy, (ZePool));
-        Pools.insert(ZePool);
-      }
       ZePoolCache.clear();
     }
   }
@@ -1409,7 +1403,6 @@ pi_result _pi_context::getAvailableCommandList(
   // Immediate commandlists have been pre-allocated and are always available.
   if (Queue->Device->useImmediateCommandLists()) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
-
     if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
       return Res;
     return PI_SUCCESS;
@@ -6837,6 +6830,7 @@ enqueueMemCopyHelper(pi_command_type CommandType, pi_queue Queue, void *Dst,
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
   if (WaitList.Length) {
+
     ZE_CALL(zeCommandListAppendWaitOnEvents,
             (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
