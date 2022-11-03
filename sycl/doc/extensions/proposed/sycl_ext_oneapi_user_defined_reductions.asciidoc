@@ -55,9 +55,9 @@ not rely on APIs defined in this specification.*
 == Overview
 
 The purpose of this extension is to expand functionality of `reduce_over_group`
-free function defined in section 4.17.4.5. `reduce` of the core SYCL
-specification by allowing user-defined binary operators and non-fundamental
-types.
+and `joint_reduce` free functions defined in section 4.17.4.5. `reduce` of the
+core SYCL specification by allowing user-defined binary operators and
+non-fundamental types.
 
 == Specification
 
@@ -88,11 +88,17 @@ SYCL specification.
 ----
 namespace sycl::ext::oneapi::experimental {
 
+  template <typename GroupHelper, typename Ptr, typename BinaryOperation>
+  std::iterator_traits<Ptr>::value_type joint_reduce(GroupHelper g, Ptr first, Ptr last, BinaryOperation binary_op); // (1)
+
+  template <typename GroupHelper, typename Ptr, typename T, typename BinaryOperation>
+  T joint_reduce(GroupHelper g, Ptr first, Ptr last, T init, BinaryOperation binary_op); // (2)
+
   template <typename GroupHelper, typename T, typename BinaryOperation>
-  T reduce_over_group(GroupHelper g, T x, BinaryOperation binary_op); // (1)
+  T reduce_over_group(GroupHelper g, T x, BinaryOperation binary_op); // (3)
 
   template <typename GroupHelper, typename V, typename T, typename BinaryOperation>
-  T reduce_over_group(GroupHelper g, V x, T init, BinaryOperation binary_op); // (2)
+  T reduce_over_group(GroupHelper g, V x, T init, BinaryOperation binary_op); // (4)
 }
 ----
 
@@ -100,6 +106,42 @@ namespace sycl::ext::oneapi::experimental {
 preconditions better.
 
 1._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+
+_Mandates_: `binary_op(*first, *first)` must return a value of type
+`std::iterator_traits<Ptr>::value_type`.
+
+_Preconditions_: `first`, `last` and the type of `binary_op` must be the same
+for all work-items in the group. `binary_op` must be an instance of a function
+object.
+
+_Returns_: The result of combining the values resulting from dereferencing all
+iterators in the range `[first, last)` using the operator `binary_op`, where the
+values are combined according to the generalized sum defined in standard C++.
+
+NOTE: If `T` is a fundamental type and `BinaryOperation` is a SYCL function
+object type, then memory attached to `GroupHelper` object `g` is not used and
+the call to this overload is equivalent to calling
+`sycl::joint_reduce(g.get_group(), first, last, binary_op)`.
+
+2._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+
+_Mandates_: `binary_op(init, *first)` must return a value of type `T`.
+
+_Preconditions_: `first`, `last`, `init` and the type of `binary_op` must be the
+same for all work-items in the group. `binary_op` must be an instance of a
+function object.
+
+_Returns_: The result of combining the values resulting from dereferencing all
+iterators in the range `[first, last)` and the initial value `init` using the
+operator `binary_op`, where the values are combined according to the generalized
+sum defined in standard C++.
+
+NOTE: If `T` and `V` are fundamental types and `BinaryOperation` is a SYCL
+function object type, then memory attached to `GroupHelper` object `g` is not
+used and the call to this overload is equivalent to calling
+`sycl::joint_reduce(g.get_group(), first, last, init, binary_op)`.
+
+3._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
 
 _Mandates_: `binary_op(x, x)` must return a value of type `T`.
 
@@ -114,9 +156,9 @@ combined according to the generalized sum defined in standard C++.
 NOTE: If `T` is a fundamental type and `BinaryOperation` is a SYCL function
 object type, then memory attached to `GroupHelper` object `g` is not used and
 the call to this overload is equivalent to calling
-`reduce_over_group(g.get_group(), x, binary_op)`.
+`sycl::reduce_over_group(g.get_group(), x, binary_op)`.
 
-2._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+4._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
 
 _Mandates_: `binary_op(init, x)` and `binary_op(x, x)` must return a value of
 type `T`.
@@ -133,9 +175,9 @@ defined in standard C++.
 NOTE: If `T` and `V` are fundamental types and `BinaryOperation` is a SYCL
 function object type, then memory attached to `GroupHelper` object `g` is not
 used and the call to this overload is equivalent to calling
-`reduce_over_group(g.get_group(), x, init, binary_op)`.
+`sycl::reduce_over_group(g.get_group(), x, init, binary_op)`.
 
-NOTE: Implementation of both overaloads may use less memory than passed
+NOTE: Implementation of all overaloads may use less memory than passed
 to the function depending on the exact algorithm which is used for doing the
 reduction.
 
