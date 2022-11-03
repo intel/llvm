@@ -946,7 +946,7 @@ struct _pi_queue : _pi_object {
   // Append command to provided command list to reset the last discarded event.
   // If we have in-order and discard_events mode we reset and reuse events in
   // scope of the same command lists. This method allows to wait for the last
-  // discarded event, reset it and put to the cache for future reuse.
+  // discarded event, reset it.
   pi_result resetLastDiscardedEvent(pi_command_list_ptr_t);
 
   // Append command to provided command list to signal new event.
@@ -1349,14 +1349,6 @@ struct _pi_ze_event_list_t {
     this->Length = other.Length;
     return *this;
   }
-
-  _pi_ze_event_list_t(const _pi_ze_event_list_t &other) {
-    this->ZeEventList = other.ZeEventList;
-    this->PiEventList = other.PiEventList;
-    this->Length = other.Length;
-  }
-
-  _pi_ze_event_list_t() {}
 };
 
 struct _pi_event : _pi_object {
