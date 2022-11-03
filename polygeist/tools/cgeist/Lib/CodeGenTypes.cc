@@ -43,11 +43,6 @@ static cl::opt<bool>
 
 static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
                                cl::desc("Use memrefs when possible"));
-// Remove this option when _Float16 promotion to float before operating works
-// for all cases.
-static llvm::cl::opt<bool>
-    Float16Support("ffloat16", llvm::cl::init(false),
-                   llvm::cl::desc("Enable _Float16 support."));
 
 /******************************************************************************/
 /*            Flags affecting code generation of function types.              */
@@ -1538,15 +1533,12 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (T->isFP128Ty())
       return builder.getF128Type();
     if (T->is16bitFPTy()) {
-      if (Float16Support) {
+      if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
         llvm::WithColor::warning()
             << "Experimental usage of _Float16. Code generated will be illegal "
-               "for some targets. Use with caution.\n";
-        return builder.getF16Type();
+               "for this target. Use with caution.\n";
       }
-      llvm::WithColor::warning()
-          << "Experimental usage of _Float16 disabled. Promoting to float.\n";
-      return builder.getF32Type();
+      return builder.getF16Type();
     }
 
     if (auto IT = dyn_cast<llvm::IntegerType>(T)) {
