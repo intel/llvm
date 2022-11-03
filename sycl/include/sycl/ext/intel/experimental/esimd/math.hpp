@@ -1608,7 +1608,7 @@ tanh_impl(__ESIMD_NS::simd<float, N> x) {
    */
 
   constexpr float xsmall = 0.000045f; // same as exp(-10.0f)
-  constexpr float xlarge = 88.f;
+  constexpr float xlarge = 44.f;
 
   using RT = __ESIMD_NS::simd<float, N>;
 
