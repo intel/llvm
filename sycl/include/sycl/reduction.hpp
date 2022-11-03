@@ -2274,11 +2274,11 @@ void reduction_parallel_for_basic_impl(
   // reduction.
   assert(!Reduction::has_fast_atomics);
   if constexpr (Reduction::has_fast_reduce) {
-      reduCGFuncForNDRangeFastReduceOnly<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Properties, Redu);
+    reduCGFuncForNDRangeFastReduceOnly<KernelName, KernelType>(
+        CGH, KernelFunc, Range, Properties, Redu);
   } else {
-      reduCGFuncForNDRangeBasic<KernelName, KernelType>(
-          CGH, KernelFunc, Range, Properties, Redu);
+    reduCGFuncForNDRangeBasic<KernelName, KernelType>(CGH, KernelFunc, Range,
+                                                      Properties, Redu);
   }
   reduction::finalizeHandler(CGH);
 
