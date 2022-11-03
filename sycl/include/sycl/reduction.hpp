@@ -986,122 +986,6 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
 
 namespace reduction {
 namespace main_krn {
-template <class KernelName> struct RangeBasic;
-} // namespace main_krn
-} // namespace reduction
-template <typename KernelName, typename KernelType, typename PropertiesT,
-          class Reduction>
-void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
-                             const nd_range<1> &NDRange, PropertiesT Properties,
-                             Reduction &Redu) {
-  size_t NElements = Reduction::num_elements;
-  size_t WGSize = NDRange.get_local_range().size();
-  size_t NWorkGroups = NDRange.get_group_range().size();
-
-  bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
-  auto PartialSums =
-      Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
-  auto Out = (NWorkGroups == 1)
-                 ? PartialSums
-                 : Redu.getWriteAccForPartialReds(NElements, CGH);
-  local_accessor<typename Reduction::result_type, 1> LocalReds{WGSize + 1, CGH};
-  auto NWorkGroupsFinished =
-      Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
-  local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
-
-  auto Identity = Redu.getIdentity();
-  auto BOp = Redu.getBinaryOperation();
-  using Name =
-      __sycl_reduction_kernel<reduction::main_krn::RangeBasic, KernelName>;
-  CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
-    // Call user's functions. Reducer.MValue gets initialized there.
-    typename Reduction::reducer_type Reducer(Identity, BOp);
-    KernelFunc(NDId, Reducer);
-
-    // If there are multiple values, reduce each separately
-    // This prevents local memory from scaling with elements
-    size_t LID = NDId.get_local_linear_id();
-    for (int E = 0; E < NElements; ++E) {
-
-      // Copy the element to local memory to prepare it for tree-reduction.
-      LocalReds[LID] = Reducer.getElement(E);
-      if (LID == 0)
-        LocalReds[WGSize] = Identity;
-      workGroupBarrier();
-
-      // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
-      // LocalReds[WGSize] accumulates last/odd elements when the step
-      // of tree-reduction loop is not even.
-      size_t PrevStep = WGSize;
-      for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-        if (LID < CurStep)
-          LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-        else if (LID == CurStep && (PrevStep & 0x1))
-          LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-        workGroupBarrier();
-        PrevStep = CurStep;
-      }
-
-      if (LID == 0) {
-        auto V = BOp(LocalReds[0], LocalReds[WGSize]);
-        if (NWorkGroups == 1 && IsUpdateOfUserVar)
-          V = BOp(V, Out[E]);
-        // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
-        PartialSums[NDId.get_group_linear_id() * NElements + E] = V;
-      }
-    }
-
-    // Signal this work-group has finished after all values are reduced
-    if (LID == 0) {
-      auto NFinished =
-          sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                           access::address_space::global_space>(
-              NWorkGroupsFinished[0]);
-      DoReducePartialSumsInLastWG[0] =
-          ++NFinished == NWorkGroups && NWorkGroups > 1;
-    }
-
-    workGroupBarrier();
-    if (DoReducePartialSumsInLastWG[0]) {
-      // Reduce each result separately
-      // TODO: Opportunity to parallelize across elements
-      for (int E = 0; E < NElements; ++E) {
-        auto LocalSum = Identity;
-        for (size_t I = LID; I < NWorkGroups; I += WGSize)
-          LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
-
-        LocalReds[LID] = LocalSum;
-        if (LID == 0)
-          LocalReds[WGSize] = Identity;
-        workGroupBarrier();
-
-        size_t PrevStep = WGSize;
-        for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          else if (LID == CurStep && (PrevStep & 0x1))
-            LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-          workGroupBarrier();
-          PrevStep = CurStep;
-        }
-        if (LID == 0) {
-          auto V = BOp(LocalReds[0], LocalReds[WGSize]);
-          if (IsUpdateOfUserVar)
-            V = BOp(V, Out[E]);
-          Out[E] = V;
-        }
-      }
-    }
-  });
-
-  if (Reduction::is_usm)
-    reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-      reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
-    });
-}
-
-namespace reduction {
-namespace main_krn {
 template <class KernelName> struct NDRangeBothFastReduceAndAtomics;
 } // namespace main_krn
 } // namespace reduction
@@ -2220,8 +2104,8 @@ void reduction_parallel_for(handler &CGH,
     reduCGFuncForRangeFastAtomics<KernelName>(CGH, UpdatedKernelFunc, NDRange,
                                               Properties, Redu);
   else
-    reduCGFuncForRangeBasic<KernelName>(CGH, UpdatedKernelFunc, NDRange,
-                                        Properties, Redu);
+    reduction_parallel_for<KernelName>(CGH, Queue, NDRange, Properties, Redu,
+                                       UpdatedKernelFunc);
 }
 
 template <typename KernelName, int Dims, typename PropertiesT,
