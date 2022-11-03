@@ -1906,5 +1906,18 @@ bool CodeGenTypes::getCPUAndFeaturesAttributes(
   return AddedAttr;
 }
 
+QualType CodeGenTypes::getPromotionType(QualType Ty) const {
+  if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
+    if (Ty->isAnyComplexType()) {
+      QualType ElementType = Ty->castAs<clang::ComplexType>()->getElementType();
+      if (ElementType->isFloat16Type())
+        return CGM.getContext().getComplexType(CGM.getContext().FloatTy);
+    }
+    if (Ty->isFloat16Type())
+      return CGM.getContext().FloatTy;
+  }
+  return QualType();
+}
+
 } // namespace CodeGen
 } // namespace mlirclang

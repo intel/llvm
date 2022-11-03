@@ -272,3 +272,13 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
     store(builder, toStore.getValue(builder));
   }
 }
+
+#define UNCONSTRAINED_CAST(FuncName, Op)                                       \
+  ValueCategory ValueCategory::FuncName(OpBuilder &Builder,                    \
+                                        Type PromotionType) const {            \
+    llvm::WithColor::warning() << "Creating unconstrained " #Op "\n";          \
+    return Cast<arith::Op>(Builder, PromotionType);                            \
+  }
+UNCONSTRAINED_CAST(FPTrunc, TruncFOp)
+UNCONSTRAINED_CAST(FPExt, ExtFOp)
+#undef UNCONSTRAINED_CAST

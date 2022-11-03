@@ -2339,6 +2339,61 @@ private:
   const BinaryOperator *Expr;
 };
 
+ValueCategory MLIRScanner::EmitPromoted(Expr *E, QualType PromotionType) {
+  E = E->IgnoreParens();
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    switch (BO->getOpcode()) {
+#define HANDLEBINOP(OP)                                                        \
+  case BO_##OP:                                                                \
+    return EmitBin##OP(EmitBinOps(BO, PromotionType));
+
+      HANDLEBINOP(Add)
+      HANDLEBINOP(Sub)
+      HANDLEBINOP(Mul)
+      HANDLEBINOP(Div)
+#undef HANDLEBINOP
+    default:
+      break;
+    }
+  } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    switch (UO->getOpcode()) {
+    case UO_Imag:
+    case UO_Real:
+    case UO_Minus:
+    case UO_Plus:
+      llvm::WithColor::warning() << "Default promotion for unary operation\n";
+      LLVM_FALLTHROUGH;
+    default:
+      break;
+    }
+  }
+
+  const ValueCategory Res = Visit(E);
+  if (Res.val) {
+    if (!PromotionType.isNull())
+      return EmitPromotedValue(Res, PromotionType);
+    return EmitUnPromotedValue(Res, E->getType());
+  }
+  return Res;
+}
+
+ValueCategory MLIRScanner::EmitPromotedValue(ValueCategory Result,
+                                             QualType PromotionType) {
+  return Result.FPExt(builder, Glob.getTypes().getMLIRType(PromotionType));
+}
+
+ValueCategory MLIRScanner::EmitUnPromotedValue(ValueCategory Result,
+                                               QualType PromotionType) {
+  return Result.FPTrunc(builder, Glob.getTypes().getMLIRType(PromotionType));
+}
+
+ValueCategory MLIRScanner::EmitPromotedScalarExpr(Expr *E,
+                                                  QualType PromotionType) {
+  if (!PromotionType.isNull())
+    return EmitPromoted(E, PromotionType);
+  return Visit(E);
+}
+
 #define HANDLEBINOP(OP)                                                        \
   ValueCategory MLIRScanner::VisitBin##OP(BinaryOperator *E) {                 \
     LLVM_DEBUG({                                                               \
@@ -2346,15 +2401,19 @@ private:
       E->dump();                                                               \
       llvm::dbgs() << "\n";                                                    \
     });                                                                        \
-    return EmitBin##OP(EmitBinOps(E));                                         \
+    QualType PromotionType = Glob.getTypes().getPromotionType(E->getType());   \
+    ValueCategory Result = EmitBin##OP(EmitBinOps(E, PromotionType));          \
+    if (Result.val && !PromotionType.isNull())                                 \
+      Result = EmitUnPromotedValue(Result, E->getType());                      \
+    return Result;                                                             \
   }
 #include "Expressions.def"
 #undef HANDLEBINOP
 
-BinOpInfo MLIRScanner::EmitBinOps(BinaryOperator *E) {
-  const ValueCategory LHS = Visit(E->getLHS());
-  const ValueCategory RHS = Visit(E->getRHS());
-  const QualType Ty = E->getType();
+BinOpInfo MLIRScanner::EmitBinOps(BinaryOperator *E, QualType PromotionType) {
+  const ValueCategory LHS = EmitPromotedScalarExpr(E->getLHS(), PromotionType);
+  const ValueCategory RHS = EmitPromotedScalarExpr(E->getRHS(), PromotionType);
+  const QualType Ty = !PromotionType.isNull() ? PromotionType : E->getType();
   const BinaryOperator::Opcode Opcode = E->getOpcode();
   return {LHS, RHS, Ty, Opcode, E};
 }

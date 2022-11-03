@@ -19,12 +19,18 @@ _Float16 type(_Float16 arg) {
 }
 
 // CHECK-EXTEND-LABEL:  func.func @arith(%arg0: f16, %arg1: f16, %arg2: f16, %arg3: f16, %arg4: f16) -> f16
-// CHECK-EXTEND-NEXT:     %[[ADD:.*]] = arith.addf %arg0, %arg1 : f16
+// CHECK-EXTEND-NEXT:     %[[EXT0:.*]] = arith.extf %arg0 : f16 to f32
+// CHECK-EXTEND-NEXT:     %[[EXT1:.*]] = arith.extf %arg1 : f16 to f32
+// CHECK-EXTEND-NEXT:     %[[ADD:.*]] = arith.addf %[[EXT0]], %[[EXT1]] : f32
+// CHECK-EXTEND-NEXT:     %[[EXT2:.*]] = arith.extf %arg2 : f16 to f32
 // CHECK-EXTEND-NEXT:     %[[NEG:.*]] = arith.negf %arg3 : f16
-// CHECK-EXTEND-NEXT:     %[[MUL:.*]] = arith.mulf %arg2, %[[NEG]] : f16
-// CHECK-EXTEND-NEXT:     %[[DIV:.*]] = arith.divf %[[MUL]], %arg4 : f16
-// CHECK-EXTEND-NEXT:     %[[SUB:.*]] = arith.subf %[[ADD]], %[[DIV]] : f16
-// CHECK-EXTEND-NEXT:     return %[[SUB]] : f16
+// CHECK-EXTEND-NEXT:     %[[EXTNEG:.*]] = arith.extf %[[NEG]] : f16 to f32
+// CHECK-EXTEND-NEXT:     %[[MUL:.*]] = arith.mulf %[[EXT2]], %[[EXTNEG]] : f32
+// CHECK-EXTEND-NEXT:     %[[EXT4:.*]] = arith.extf %arg4 : f16 to f32
+// CHECK-EXTEND-NEXT:     %[[DIV:.*]] = arith.divf %[[MUL]], %[[EXT4]] : f32
+// CHECK-EXTEND-NEXT:     %[[SUB:.*]] = arith.subf %[[ADD]], %[[DIV]] : f32
+// CHECK-EXTEND-NEXT:     %[[RES:.*]] = arith.truncf %[[SUB]] : f32 to f16
+// CHECK-EXTEND-NEXT:     return %[[RES]] : f16
 // CHECK-EXTEND-NEXT:   }
 
 // CHECK-NATIVE-LABEL:  func.func @arith(%arg0: f16, %arg1: f16, %arg2: f16, %arg3: f16, %arg4: f16) -> f16
