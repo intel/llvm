@@ -761,5 +761,58 @@ getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
     return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
+std::unique_ptr<ModuleSplitterBase>
+getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
+  EntryPointGroupVec Groups;
+  std::map<std::string, EntryPointSet> AspectsToFunctions;
+
+  Module &M = MD.getModule();
+
+  // Only process module entry points:
+  for (auto &F : M.functions()) {
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F)) {
+      continue;
+    }
+
+    if (!F.hasMetadata("sycl_used_aspects")) {
+      AspectsToFunctions["no-aspects"].insert(&F);
+      llvm::outs() << "Function " << F.getName() << " has no aspects\n";
+    } else {
+      auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
+                                                 unsigned OpNo) -> APInt {
+        Constant *C =
+            cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
+        return C->getUniqueInteger();
+      };
+      std::string Key = "aspects";
+      const MDNode *MDN = F.getMetadata("sycl_used_aspects");
+      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+        auto Int = ExtractIntegerFromMDNodeOperand(MDN, I);
+        SmallVector<char, 2> Str;
+        Int.toStringUnsigned(Str);
+        Key += "-" + std::string(Str.data(), Str.size()); 
+      }
+      llvm::outs() << "Function " << F.getName() << " has aspects. key: " << Key << "\n";
+      AspectsToFunctions[Key].insert(&F);
+    }
+  }
+
+  if (!AspectsToFunctions.empty()) {
+    Groups.reserve(AspectsToFunctions.size());
+    for (auto &EPG : AspectsToFunctions) {
+      Groups.emplace_back(EntryPointGroup{
+          EPG.first, std::move(EPG.second), MD.getEntryPointGroup().Props});
+    }
+  } else {
+    // No entry points met, record this.
+    Groups.push_back({GLOBAL_SCOPE_NAME, {}});
+  }
+  if (Groups.size() > 1)
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+  else
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
 } // namespace module_split
 } // namespace llvm

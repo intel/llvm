@@ -848,7 +848,18 @@ processInputModule(std::unique_ptr<Module> M) {
         DUMP_ENTRY_POINTS(MMs.back().entries(), MMs.back().Name.c_str(), 3);
         Modified = true;
       }
-      bool SplitOccurred = SplitByScope || SplitByDoubleGRF || SplitByESIMD;
+
+      SmallVector<module_split::ModuleDesc, 4> Modules;
+      for (auto &MD : MMs) {
+        auto Splitter = module_split::getPerAspectsSplitter(std::move(MD), EmitOnlyKernelsAsEntryPoints);
+       	while (Splitter->hasMoreSplits()) {
+          // FIXME: spec constants processing must occur at the lowest level
+	  module_split::ModuleDesc ModuleDesc = Splitter->nextSplit();
+          Modules.emplace_back(std::move(ModuleDesc));
+        } 
+      }
+
+      bool SplitOccurred = SplitByScope || SplitByDoubleGRF || SplitByESIMD || Modules.size() != MMs.size();
 
       if (IROutputOnly) {
         if (SplitOccurred) {
@@ -868,12 +879,13 @@ processInputModule(std::unique_ptr<Module> M) {
         errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
                   "have been made\n";
       }
-      for (module_split::ModuleDesc &IrMD : MMs) {
+      for (module_split::ModuleDesc &IrMD : Modules) {
         IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
         addTableRow(*Table, T);
+++ID;
       }
     }
-    ++ID;
+    //++ID;
   }
   return Table;
 }
