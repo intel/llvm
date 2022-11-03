@@ -18,10 +18,11 @@
 
 using namespace sycl;
 
-static pi_result redefinedDeviceGetInfo(pi_device Device,
-                                        pi_device_info ParamName,
-                                        size_t ParamValueSize, void *ParamValue,
-                                        size_t *ParamValueSizeRet) {
+static pi_result redefinedDeviceGetInfoAfter(pi_device Device,
+                                             pi_device_info ParamName,
+                                             size_t ParamValueSize,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
   if (ParamName == PI_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
     auto *Result = reinterpret_cast<pi_bool *>(ParamValue);
     *Result = false;
@@ -53,33 +54,11 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedEnqueueMemBufferReadRect(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_read,
-    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
-    pi_buff_rect_region region, size_t buffer_row_pitch,
-    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    void *ptr, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedEnqueueMemBufferWriteRect(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_write,
-    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
-    pi_buff_rect_region region, size_t buffer_row_pitch,
-    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    const void *ptr, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedMemRetain(pi_mem mem) { return PI_SUCCESS; }
-static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
-
 static pi_context InteropPiContext = nullptr;
-static pi_result redefinedMemGetInfo(pi_mem mem, pi_mem_info param_name,
-                                     size_t param_value_size, void *param_value,
-                                     size_t *param_value_size_ret) {
+static pi_result redefinedMemGetInfoAfter(pi_mem mem, pi_mem_info param_name,
+                                          size_t param_value_size,
+                                          void *param_value,
+                                          size_t *param_value_size_ret) {
   auto *Result = reinterpret_cast<pi_context *>(param_value);
   *Result = InteropPiContext;
   return PI_SUCCESS;
@@ -103,16 +82,12 @@ redefinedMemCreateWithNativeHandle(pi_native_handle native_handle,
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   unittest::PiMock Mock;
   queue Q{Mock.getPlatform().get_devices()[0]};
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferReadRect>(
-      redefinedEnqueueMemBufferReadRect);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
-      redefinedEnqueueMemBufferWriteRect);
-  Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
-  Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
-  Mock.redefine<detail::PiApiKind::piextMemCreateWithNativeHandle>(
+  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAfter);
+  Mock.redefineBefore<detail::PiApiKind::piMemBufferCreate>(
+      redefinedMemBufferCreate);
+  Mock.redefineAfter<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfoAfter);
+  Mock.redefineBefore<detail::PiApiKind::piextMemCreateWithNativeHandle>(
       redefinedMemCreateWithNativeHandle);
   sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
@@ -226,7 +201,12 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   }
   // Check that interoperability memory objects are initialized.
   {
-    cl_mem MockInteropBuffer = reinterpret_cast<cl_mem>(1);
+    pi_mem MockInteropBuffer = nullptr;
+    pi_result PIRes = mock_piMemBufferCreate(
+        /*pi_context=*/0x0, /*pi_mem_flags=*/PI_MEM_FLAGS_ACCESS_RW, /*size=*/1,
+        /*host_ptr=*/nullptr, &MockInteropBuffer);
+    EXPECT_TRUE(PI_SUCCESS == PIRes);
+
     context InteropContext = Q.get_context();
     InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
     auto BufI = std::make_shared<detail::buffer_impl>(
