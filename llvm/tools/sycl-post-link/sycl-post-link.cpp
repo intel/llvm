@@ -756,9 +756,33 @@ processInputModule(std::unique_ptr<Module> M) {
       module_split::getSplitterByMode(module_split::ModuleDesc{std::move(M)},
                                       SplitMode, IROutputOnly,
                                       EmitOnlyKernelsAsEntryPoints);
+
+  SmallVector<module_split::ModuleDesc, 8> TopLevelModules;
+  bool SplitByProperties = false;
+
+  while (ScopedSplitter->hasMoreSplits()) {
+    module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
+    std::unique_ptr<module_split::ModuleSplitterBase> PropertiesSplitter =
+        module_split::getPerAspectsSplitter(std::move(MD),
+                                            EmitOnlyKernelsAsEntryPoints);
+
+    // Here we perform second-level splitting based on device-specific
+    // features used/declared in entry points.
+    // This step is mandatory, because it is required for functional
+    // correctness, i.e. to prevent speculative compilation of kernels that use
+    // optional features on a HW which doesn't support them.
+    while (PropertiesSplitter->hasMoreSplits()) {
+      TopLevelModules.emplace_back(PropertiesSplitter->nextSplit());
+    }
+
+    SplitByProperties |= PropertiesSplitter->totalSplits() > 1;
+  }
+
   const bool SplitByScope = ScopedSplitter->totalSplits() > 1;
   Modified |= SplitByScope;
+  Modified |= SplitByProperties;
 
+  // FIXME: this check should be performed on all split levels
   if (DeviceGlobals)
     ScopedSplitter->verifyNoCrossModuleDeviceGlobalUsage();
 
@@ -769,11 +793,12 @@ processInputModule(std::unique_ptr<Module> M) {
   // "leaf" ModuleDesc's resulted from splitting. Some bookkeeping is needed for
   // ESIMD splitter to link back needed modules.
 
-  // Proceed with top-level splitting.
-  while (ScopedSplitter->hasMoreSplits()) {
-    module_split::ModuleDesc MDesc = ScopedSplitter->nextSplit();
+  // Based on results from a top-level splitting, we perform some lower-level
+  // splitting for various unique features.
+  for (module_split::ModuleDesc &MDesc : TopLevelModules) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
+    // FIXME: double grf should be handled by properties splitter above
     std::unique_ptr<module_split::ModuleSplitterBase> DoubleGRFSplitter =
         module_split::getDoubleGRFSplitter(std::move(MDesc),
                                            EmitOnlyKernelsAsEntryPoints);
@@ -849,17 +874,8 @@ processInputModule(std::unique_ptr<Module> M) {
         Modified = true;
       }
 
-      SmallVector<module_split::ModuleDesc, 4> Modules;
-      for (auto &MD : MMs) {
-        auto Splitter = module_split::getPerAspectsSplitter(std::move(MD), EmitOnlyKernelsAsEntryPoints);
-       	while (Splitter->hasMoreSplits()) {
-          // FIXME: spec constants processing must occur at the lowest level
-	  module_split::ModuleDesc ModuleDesc = Splitter->nextSplit();
-          Modules.emplace_back(std::move(ModuleDesc));
-        } 
-      }
-
-      bool SplitOccurred = SplitByScope || SplitByDoubleGRF || SplitByESIMD || Modules.size() != MMs.size();
+      bool SplitOccurred =
+          SplitByScope || SplitByDoubleGRF || SplitByESIMD || SplitByProperties;
 
       if (IROutputOnly) {
         if (SplitOccurred) {
@@ -879,13 +895,12 @@ processInputModule(std::unique_ptr<Module> M) {
         errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
                   "have been made\n";
       }
-      for (module_split::ModuleDesc &IrMD : Modules) {
+      for (module_split::ModuleDesc &IrMD : MMs) {
         IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
         addTableRow(*Table, T);
-++ID;
       }
     }
-    //++ID;
+    ++ID;
   }
   return Table;
 }

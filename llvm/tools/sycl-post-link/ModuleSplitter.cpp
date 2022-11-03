@@ -777,7 +777,6 @@ getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
 
     if (!F.hasMetadata("sycl_used_aspects")) {
       AspectsToFunctions["no-aspects"].insert(&F);
-      llvm::outs() << "Function " << F.getName() << " has no aspects\n";
     } else {
       auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
                                                  unsigned OpNo) -> APInt {
@@ -793,7 +792,6 @@ getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
         Int.toStringUnsigned(Str);
         Key += "-" + std::string(Str.data(), Str.size()); 
       }
-      llvm::outs() << "Function " << F.getName() << " has aspects. key: " << Key << "\n";
       AspectsToFunctions[Key].insert(&F);
     }
   }
