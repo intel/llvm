@@ -1586,6 +1586,14 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *implicitRef,
       return builder.getF80Type();
     if (T->isFP128Ty())
       return builder.getF128Type();
+    if (T->is16bitFPTy()) {
+      if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
+        llvm::WithColor::warning()
+            << "Experimental usage of _Float16. Code generated will be illegal "
+               "for this target. Use with caution.\n";
+      }
+      return builder.getF16Type();
+    }
 
     if (auto IT = dyn_cast<llvm::IntegerType>(T)) {
       return builder.getIntegerType(IT->getBitWidth());
