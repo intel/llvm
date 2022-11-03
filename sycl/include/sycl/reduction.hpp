@@ -837,42 +837,14 @@ using __sycl_reduction_kernel =
     std::conditional_t<std::is_same<KernelName, auto_name>::value, auto_name,
                        Namer<KernelName, Ts...>>;
 
-/// Called in device code. This function iterates through the index space
-/// by assigning contiguous chunks to each work-group, then iterating
-/// through each chunk using a stride equal to the work-group's local range,
-/// which gives much better performance than using stride equal to 1.
-/// For each of the index the given \p F function/functor is called and
-/// the reduction value hold in \p Reducer is accumulated in those calls.
-template <typename KernelFunc, int Dims, typename ReducerT>
-void reductionLoop(const range<Dims> &Range, const size_t PerGroup,
-                   ReducerT &Reducer, const nd_item<1> &NdId, KernelFunc &F) {
-  // Divide into contiguous chunks and assign each chunk to a Group
-  // Rely on precomputed division to avoid repeating expensive operations
-  // TODO: Some devices may prefer alternative remainder handling
-  auto Group = NdId.get_group();
-  size_t GroupId = Group.get_group_linear_id();
-  size_t NumGroups = Group.get_group_linear_range();
-  bool LastGroup = (GroupId == NumGroups - 1);
-  size_t GroupStart = GroupId * PerGroup;
-  size_t GroupEnd = LastGroup ? Range.size() : (GroupStart + PerGroup);
-
-  // Loop over the contiguous chunk
-  size_t Start = GroupStart + NdId.get_local_id(0);
-  size_t End = GroupEnd;
-  size_t Stride = NdId.get_local_range(0);
-  for (size_t I = Start; I < End; I += Stride)
-    F(getDelinearizedId(Range, I), Reducer);
-}
-
 namespace reduction {
 namespace main_krn {
 template <class KernelName> struct RangeFastAtomics;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction>
+template <typename KernelName, typename KernelType, typename PropertiesT,
+          class Reduction>
 void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
-                                   const range<Dims> &Range,
                                    const nd_range<1> &NDRange,
                                    PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
@@ -880,12 +852,10 @@ void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
   local_accessor<typename Reduction::result_type, 1> GroupSum{NElements, CGH};
   using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastAtomics,
                                        KernelName>;
-  size_t NWorkGroups = NDRange.get_group_range().size();
-  size_t PerGroup = Range.size() / NWorkGroups;
   CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
-    reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
+    KernelFunc(NDId, Reducer);
 
     // Work-group cooperates to initialize multiple reduction variables
     auto LID = NDId.get_local_id(0);
@@ -920,10 +890,9 @@ namespace main_krn {
 template <class KernelName, class NWorkGroupsFinished> struct RangeFastReduce;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction>
+template <typename KernelName, typename KernelType, typename PropertiesT,
+          class Reduction>
 void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
-                                  const range<Dims> &Range,
                                   const nd_range<1> &NDRange,
                                   PropertiesT Properties, Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
@@ -941,13 +910,13 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   auto Rest = [&](auto NWorkGroupsFinished) {
     local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
-    using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
-                                         KernelName, decltype(NWorkGroupsFinished)>;
-    size_t PerGroup = Range.size() / NWorkGroups;
+    using Name =
+        __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
+                                KernelName, decltype(NWorkGroupsFinished)>;
     CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
       // Call user's functions. Reducer.MValue gets initialized there.
       typename Reduction::reducer_type Reducer;
-      reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
+      KernelFunc(NDId, Reducer);
 
       typename Reduction::binary_operation BOp;
       auto Group = NDId.get_group();
@@ -1020,10 +989,9 @@ namespace main_krn {
 template <class KernelName> struct RangeBasic;
 } // namespace main_krn
 } // namespace reduction
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction>
+template <typename KernelName, typename KernelType, typename PropertiesT,
+          class Reduction>
 void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
-                             const range<Dims> &Range,
                              const nd_range<1> &NDRange, PropertiesT Properties,
                              Reduction &Redu) {
   size_t NElements = Reduction::num_elements;
@@ -1045,11 +1013,10 @@ void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
   auto BOp = Redu.getBinaryOperation();
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::RangeBasic, KernelName>;
-  size_t PerGroup = Range.size() / NWorkGroups;
   CGH.parallel_for<Name>(NDRange, Properties, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(Identity, BOp);
-    reductionLoop(Range, PerGroup, Reducer, NDId, KernelFunc);
+    KernelFunc(NDId, Reducer);
 
     // If there are multiple values, reduce each separately
     // This prevents local memory from scaling with elements
@@ -1131,35 +1098,6 @@ void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
     reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
       reduSaveFinalResultToUserMem<KernelName>(CopyHandler, Redu);
     });
-}
-
-/// Returns "true" if the result has to be saved to user's variable by
-/// reduSaveFinalResultToUserMem.
-template <typename KernelName, typename KernelType, int Dims,
-          typename PropertiesT, class Reduction>
-void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
-                        const range<Dims> &Range, size_t MaxWGSize,
-                        uint32_t NumConcurrentWorkGroups,
-                        PropertiesT Properties, Reduction &Redu) {
-  size_t NWorkItems = Range.size();
-  size_t WGSize = std::min(NWorkItems, MaxWGSize);
-  size_t NWorkGroups = NWorkItems / WGSize;
-  if (NWorkItems % WGSize)
-    NWorkGroups++;
-  size_t MaxNWorkGroups = NumConcurrentWorkGroups;
-  NWorkGroups = std::min(NWorkGroups, MaxNWorkGroups);
-  size_t NDRItems = NWorkGroups * WGSize;
-  nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
-
-  if constexpr (Reduction::has_fast_reduce)
-    reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                             Properties, Redu);
-  else if constexpr (Reduction::has_fast_atomics)
-    reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                              Properties, Redu);
-  else
-    reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                        Properties, Redu);
 }
 
 namespace reduction {
@@ -2233,12 +2171,57 @@ void reduction_parallel_for(handler &CGH,
 #else
       reduGetMaxNumConcurrentWorkGroups(Queue);
 #endif
+
   // TODO: currently the preferred work group size is determined for the given
   // queue/device, while it is safer to use queries to the kernel pre-compiled
   // for the device.
   size_t PrefWGSize = reduGetPreferredWGSize(Queue, OneElemSize);
-  reduCGFuncForRange<KernelName>(CGH, KernelFunc, Range, PrefWGSize,
-                                 NumConcurrentWorkGroups, Properties, Redu);
+
+  size_t NWorkItems = Range.size();
+  size_t WGSize = std::min(NWorkItems, PrefWGSize);
+  size_t NWorkGroups = NWorkItems / WGSize;
+  if (NWorkItems % WGSize)
+    NWorkGroups++;
+  size_t MaxNWorkGroups = NumConcurrentWorkGroups;
+  NWorkGroups = std::min(NWorkGroups, MaxNWorkGroups);
+  size_t NDRItems = NWorkGroups * WGSize;
+  nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
+
+  size_t PerGroup = Range.size() / NWorkGroups;
+  // Iterate through the index space by assigning contiguous chunks to each
+  // work-group, then iterating through each chunk using a stride equal to the
+  // work-group's local range, which gives much better performance than using
+  // stride equal to 1. For each of the index the given the original KernelFunc
+  // is called and the reduction value hold in \p Reducer is accumulated in
+  // those calls.
+  auto UpdatedKernelFunc = [=](auto NDId, auto &Reducer) {
+    // Divide into contiguous chunks and assign each chunk to a Group
+    // Rely on precomputed division to avoid repeating expensive operations
+    // TODO: Some devices may prefer alternative remainder handling
+    auto Group = NDId.get_group();
+    size_t GroupId = Group.get_group_linear_id();
+    size_t NumGroups = Group.get_group_linear_range();
+    bool LastGroup = (GroupId == NumGroups - 1);
+    size_t GroupStart = GroupId * PerGroup;
+    size_t GroupEnd = LastGroup ? Range.size() : (GroupStart + PerGroup);
+
+    // Loop over the contiguous chunk
+    size_t Start = GroupStart + NDId.get_local_id(0);
+    size_t End = GroupEnd;
+    size_t Stride = NDId.get_local_range(0);
+    for (size_t I = Start; I < End; I += Stride)
+      KernelFunc(getDelinearizedId(Range, I), Reducer);
+  };
+
+  if constexpr (Reduction::has_fast_reduce)
+    reduCGFuncForRangeFastReduce<KernelName>(CGH, UpdatedKernelFunc, NDRange,
+                                             Properties, Redu);
+  else if constexpr (Reduction::has_fast_atomics)
+    reduCGFuncForRangeFastAtomics<KernelName>(CGH, UpdatedKernelFunc, NDRange,
+                                              Properties, Redu);
+  else
+    reduCGFuncForRangeBasic<KernelName>(CGH, UpdatedKernelFunc, NDRange,
+                                        Properties, Redu);
 }
 
 template <typename KernelName, int Dims, typename PropertiesT,
