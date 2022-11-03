@@ -612,16 +612,9 @@ struct pi_command_list_info_t {
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
 
-  // List of kernels in this command list associated with discarded events.
-  std::list<pi_kernel> Kernels;
-
-  // List of dependent events associated with discarded events in this command
-  // list.
   std::list<_pi_ze_event_list_t> WaitLists;
 
-  size_t NumDiscardedEvents = 0;
-
-  size_t size() const { return EventList.size() + NumDiscardedEvents; }
+  size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }
 };
 
@@ -941,10 +934,10 @@ struct _pi_queue : _pi_object {
   }
 
   // Get event from the queue's cache.
-  pi_result getEventFromCache(bool HostVisible, pi_event *Event);
+  pi_event getEventFromCache(bool HostVisible);
 
   // Add event to the queue's cache.
-  void addEventToCache(pi_event Event);
+  pi_result addEventToCache(pi_event Event);
 
   // Append command to provided command list to reset the last discarded event.
   // If we have in-order and discard_events mode we reset and reuse events in
@@ -958,9 +951,6 @@ struct _pi_queue : _pi_object {
   // new event. This method is used to signal new event from the last used
   // command list. This new event will be waited in new command list.
   pi_result signalEvent(pi_command_list_ptr_t);
-
-  // We store the last discarded event here.
-  pi_event DiscardedLastCommandEvent = nullptr;
 
   // Kernel is not necessarily submitted for execution during
   // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
@@ -1432,6 +1422,10 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Indicates that this event is discarded, i.e. it is not visible outside of
+  // plugin.
+  bool IsDiscarded = {false};
 
   // Besides each PI object keeping a total reference count in
   // _pi_object::RefCount we keep special track of the event *external*
