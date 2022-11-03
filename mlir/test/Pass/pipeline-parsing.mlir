@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -mlir-disable-threading -pass-pipeline='builtin.module(test-module-pass,func.func(test-function-pass)),func.func(test-function-pass)' -pass-pipeline="func.func(cse,canonicalize)" -verify-each=false -mlir-timing -mlir-timing-display=tree 2>&1 | FileCheck %s
+// RUN: mlir-opt %s -mlir-disable-threading -pass-pipeline='builtin.module(test-module-pass,func.func(test-function-pass)),func.func(test-function-pass),func.func(cse,canonicalize)' -verify-each=false -mlir-timing -mlir-timing-display=tree 2>&1 | FileCheck %s
 // RUN: mlir-opt %s -mlir-disable-threading -test-textual-pm-nested-pipeline -verify-each=false -mlir-timing -mlir-timing-display=tree 2>&1 | FileCheck %s --check-prefix=TEXTUAL_CHECK
 // RUN: mlir-opt %s -mlir-disable-threading -pass-pipeline='builtin.module(test-module-pass),any(test-interface-pass),any(test-interface-pass),func.func(test-function-pass),any(canonicalize),func.func(cse)' -verify-each=false -mlir-timing -mlir-timing-display=tree 2>&1 | FileCheck %s --check-prefix=GENERIC_MERGE_CHECK
 // RUN: not mlir-opt %s -pass-pipeline='builtin.module(test-module-pass' 2>&1 | FileCheck --check-prefix=CHECK_ERROR_1 %s
@@ -12,6 +12,9 @@
 // CHECK_ERROR_3: expected ',' after parsing pipeline
 // CHECK_ERROR_4: does not refer to a registered pass or pass pipeline
 // CHECK_ERROR_5:  Can't add pass '{{.*}}TestModulePass' restricted to 'builtin.module' on a PassManager intended to run on 'func.func', did you intend to nest?
+
+// RUN: not mlir-opt %s -pass-pipeline='' -cse 2>&1 | FileCheck --check-prefix=CHECK_ERROR_6 %s
+// CHECK_ERROR_6: '-pass-pipeline' option can't be used with individual pass options
 
 func.func @foo() {
   return

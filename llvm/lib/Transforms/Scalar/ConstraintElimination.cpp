@@ -209,9 +209,7 @@ decomposeGEP(GetElementPtrInst &GEP,
              const DataLayout &DL) {
   // Do not reason about pointers where the index size is larger than 64 bits,
   // as the coefficients used to encode constraints are 64 bit integers.
-  unsigned AS =
-      cast<PointerType>(GEP.getPointerOperand()->getType())->getAddressSpace();
-  if (DL.getIndexSizeInBits(AS) > 64)
+  if (DL.getIndexTypeSizeInBits(GEP.getPointerOperand()->getType()) > 64)
     return {};
 
   if (!GEP.isInBounds())
@@ -220,7 +218,7 @@ decomposeGEP(GetElementPtrInst &GEP,
   // Handle the (gep (gep ....), C) case by incrementing the constant
   // coefficient of the inner GEP, if C is a constant.
   auto *InnerGEP = dyn_cast<GetElementPtrInst>(GEP.getPointerOperand());
-  if (InnerGEP && InnerGEP->getNumOperands() == 2 &&
+  if (InnerGEP && GEP.getNumOperands() == 2 &&
       isa<ConstantInt>(GEP.getOperand(1))) {
     APInt Offset = cast<ConstantInt>(GEP.getOperand(1))->getValue();
     auto Result = decompose(InnerGEP, Preconditions, IsSigned, DL);
@@ -748,6 +746,12 @@ void State::addInfoFor(BasicBlock &BB) {
     WorkList.emplace_back(DT.getNode(Br->getSuccessor(1)), CmpI, true);
 }
 
+static Constant *getScalarConstOrSplat(ConstantInt *C, Type *Ty) {
+  if (auto *VTy = dyn_cast<FixedVectorType>(Ty))
+    return ConstantVector::getSplat(VTy->getElementCount(), C);
+  return C;
+}
+
 static bool checkAndReplaceCondition(CmpInst *Cmp, ConstraintInfo &Info) {
   LLVM_DEBUG(dbgs() << "Checking " << *Cmp << "\n");
   CmpInst::Predicate Pred = Cmp->getPredicate();
@@ -782,7 +786,9 @@ static bool checkAndReplaceCondition(CmpInst *Cmp, ConstraintInfo &Info) {
       dbgs() << "Condition " << *Cmp << " implied by dominating constraints\n";
       dumpWithNames(CSToUse, Info.getValue2Index(R.IsSigned));
     });
-    Cmp->replaceUsesWithIf(ConstantInt::getTrue(Ctx), [](Use &U) {
+    Constant *TrueC =
+        getScalarConstOrSplat(ConstantInt::getTrue(Ctx), Cmp->getType());
+    Cmp->replaceUsesWithIf(TrueC, [](Use &U) {
       // Conditions in an assume trivially simplify to true. Skip uses
       // in assume calls to not destroy the available information.
       auto *II = dyn_cast<IntrinsicInst>(U.getUser());
@@ -799,7 +805,9 @@ static bool checkAndReplaceCondition(CmpInst *Cmp, ConstraintInfo &Info) {
       dbgs() << "Condition !" << *Cmp << " implied by dominating constraints\n";
       dumpWithNames(CSToUse, Info.getValue2Index(R.IsSigned));
     });
-    Cmp->replaceAllUsesWith(ConstantInt::getFalse(Ctx));
+    Constant *FalseC =
+        getScalarConstOrSplat(ConstantInt::getFalse(Ctx), Cmp->getType());
+    Cmp->replaceAllUsesWith(FalseC);
     NumCondsRemoved++;
     Changed = true;
   }

@@ -167,6 +167,7 @@ public:
   Instruction *visitInsertValueInst(InsertValueInst &IV);
   Instruction *visitInsertElementInst(InsertElementInst &IE);
   Instruction *visitExtractElementInst(ExtractElementInst &EI);
+  Instruction *simplifyBinOpSplats(ShuffleVectorInst &SVI);
   Instruction *visitShuffleVectorInst(ShuffleVectorInst &SVI);
   Instruction *visitExtractValueInst(ExtractValueInst &EV);
   Instruction *visitLandingPadInst(LandingPadInst &LI);
@@ -733,6 +734,7 @@ public:
   Instruction *foldICmpBitCast(ICmpInst &Cmp);
 
   // Helpers of visitSelectInst().
+  Instruction *foldSelectOfBools(SelectInst &SI);
   Instruction *foldSelectExtConst(SelectInst &Sel);
   Instruction *foldSelectOpOp(SelectInst &SI, Instruction *TI, Instruction *FI);
   Instruction *foldSelectIntoOp(SelectInst &SI, Value *, Value *);

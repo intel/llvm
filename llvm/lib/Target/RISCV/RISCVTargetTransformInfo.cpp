@@ -227,7 +227,8 @@ InstructionCost
 RISCVTTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *Src, Align Alignment,
                                     unsigned AddressSpace,
                                     TTI::TargetCostKind CostKind) {
-  if (!isa<ScalableVectorType>(Src))
+  if (!isLegalMaskedLoadStore(Src, Alignment) ||
+      CostKind != TTI::TCK_RecipThroughput)
     return BaseT::getMaskedMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
                                         CostKind);
 
@@ -522,6 +523,14 @@ RISCVTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     unsigned Cost = 1; // vid
     auto LT = getTypeLegalizationCost(RetTy);
     return Cost + (LT.first - 1);
+  }
+  case Intrinsic::vp_rint: {
+    // RISC-V target uses at least 5 instructions to lower rounding intrinsics.
+    unsigned Cost = 5;
+    auto LT = getTypeLegalizationCost(RetTy);
+    if (TLI->isOperationCustom(ISD::VP_FRINT, LT.second))
+      return Cost * LT.first;
+    break;
   }
   }
 

@@ -4431,9 +4431,14 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
 
   if (EmitCodeView) {
     CmdArgs.push_back("-gcodeview");
+
     Args.addOptInFlag(CmdArgs, options::OPT_gcodeview_ghash,
                       options::OPT_gno_codeview_ghash);
+
+    Args.addOptOutFlag(CmdArgs, options::OPT_gcodeview_command_line,
+                       options::OPT_gno_codeview_command_line);
   }
+
   Args.addOptOutFlag(CmdArgs, options::OPT_ginline_line_tables,
                      options::OPT_gno_inline_line_tables);
 
@@ -7563,18 +7568,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Forward -Xclang arguments to -cc1, and -mllvm arguments to the LLVM option
   // parser.
-  // -finclude-default-header flag is for preprocessor,
-  // do not pass it to other cc1 commands when save-temps is enabled
-  if (C.getDriver().isSaveTempsEnabled() &&
-      !isa<PreprocessJobAction>(JA)) {
-    for (auto *Arg : Args.filtered(options::OPT_Xclang)) {
-      Arg->claim();
-      if (StringRef(Arg->getValue()) != "-finclude-default-header")
-        CmdArgs.push_back(Arg->getValue());
+  for (auto Arg : Args.filtered(options::OPT_Xclang)) {
+    Arg->claim();
+    // -finclude-default-header flag is for preprocessor,
+    // do not pass it to other cc1 commands when save-temps is enabled
+    if (C.getDriver().isSaveTempsEnabled() &&
+        !isa<PreprocessJobAction>(JA)) {
+      if (StringRef(Arg->getValue()) == "-finclude-default-header")
+        continue;
     }
-  }
-  else {
-    Args.AddAllArgValues(CmdArgs, options::OPT_Xclang);
+    if (StringRef(Arg->getValue()) == "-fexperimental-assignment-tracking") {
+      // Add the llvm version of this flag too.
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-experimental-assignment-tracking");
+    }
+    CmdArgs.push_back(Arg->getValue());
   }
   for (const Arg *A : Args.filtered(options::OPT_mllvm)) {
     A->claim();
