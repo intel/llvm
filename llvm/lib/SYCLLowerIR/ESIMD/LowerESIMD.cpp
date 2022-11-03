@@ -14,7 +14,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
-#include "llvm/SYCLLowerIR/ESIMD/Allocator.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
@@ -42,6 +41,7 @@
 
 using namespace llvm;
 namespace id = itanium_demangle;
+using namespace llvm::esimd;
 
 #define DEBUG_TYPE "lower-esimd"
 

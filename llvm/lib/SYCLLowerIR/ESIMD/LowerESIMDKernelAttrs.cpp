@@ -12,7 +12,6 @@
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/SYCLLowerIR/ESIMD/Allocator.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -20,6 +19,7 @@
 #define DEBUG_TYPE "LowerESIMDKernelAttrs"
 
 using namespace llvm;
+using namespace llvm::esimd;
 
 namespace llvm {
 PreservedAnalyses

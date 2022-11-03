@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/IR/Function.h"
 
 namespace llvm {
@@ -67,6 +69,36 @@ void collectUsesLookThroughCastsAndZeroGEPs(const Value *V,
 /// Unwraps a presumably simd* type to extract the native vector type encoded
 /// in it. Returns nullptr if failed to do so.
 Type *getVectorTyOrNull(StructType *STy);
+
+// Simplest possible implementation of an allocator for the Itanium demangler
+class SimpleAllocator {
+protected:
+  SmallVector<void *, 128> Ptrs;
+
+public:
+  void reset() {
+    for (void *Ptr : Ptrs) {
+      // Destructors are not called, but that is OK for the
+      // itanium_demangle::Node subclasses
+      std::free(Ptr);
+    }
+    Ptrs.resize(0);
+  }
+
+  template <typename T, typename... Args> T *makeNode(Args &&...args) {
+    void *Ptr = std::calloc(1, sizeof(T));
+    Ptrs.push_back(Ptr);
+    return new (Ptr) T(std::forward<Args>(args)...);
+  }
+
+  void *allocateNodeArray(size_t sz) {
+    void *Ptr = std::calloc(sz, sizeof(itanium_demangle::Node *));
+    Ptrs.push_back(Ptr);
+    return Ptr;
+  }
+
+  ~SimpleAllocator() { reset(); }
+};
 
 } // namespace esimd
 } // namespace llvm

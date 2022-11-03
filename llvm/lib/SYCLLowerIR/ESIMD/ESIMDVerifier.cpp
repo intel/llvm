@@ -19,12 +19,13 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
-#include "llvm/SYCLLowerIR/ESIMD/Allocator.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
 using namespace llvm;
+using namespace llvm::esimd;
 namespace id = itanium_demangle;
 
 #define DEBUG_TYPE "esimd-verifier"
