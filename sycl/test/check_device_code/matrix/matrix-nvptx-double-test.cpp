@@ -48,9 +48,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<double, use::accumulator, M, N> sub_c;
-          joint_matrix<double, use::a, M, K, layout::row_major> sub_a;
-          joint_matrix<double, use::b, K, N, layout::row_major> sub_b;
+          joint_matrix<double, use::accumulator, M, N> sub_c(sg);
+          joint_matrix<double, use::a, M, K, layout::row_major> sub_a(sg);
+          joint_matrix<double, use::b, K, N, layout::row_major> sub_b(sg);
 
           //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.row.stride.f64.p1f64(double addrspace(1)* %_arg_accC, i32 8)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N,
@@ -71,9 +71,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<double, use::accumulator, M, N> sub_c;
-          joint_matrix<double, use::a, M, K, layout::col_major> sub_a;
-          joint_matrix<double, use::b, K, N, layout::col_major> sub_b;
+          joint_matrix<double, use::accumulator, M, N> sub_c(sg);
+          joint_matrix<double, use::a, M, K, layout::col_major> sub_a(sg);
+          joint_matrix<double, use::b, K, N, layout::col_major> sub_b(sg);
 
           //CHECK: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.load.c.col.stride.f64.p1f64(double addrspace(1)* %_arg_accC, i32 8)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), M,

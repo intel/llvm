@@ -180,7 +180,7 @@ public:
   };
 #endif
 
-    // get_wi_marray is only defined for the NVPTX backend.
+  // get_wi_marray is only defined for the NVPTX backend.
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   inline __SYCL_ALWAYS_INLINE auto get_wi_marray()

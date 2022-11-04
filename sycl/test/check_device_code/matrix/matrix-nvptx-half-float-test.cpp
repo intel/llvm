@@ -37,9 +37,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<float, use::accumulator, 16, 16> sub_c;
-          joint_matrix<half, use::a, 16, 16, layout::row_major> sub_a;
-          joint_matrix<half, use::b, 16, 16, layout::row_major> sub_b;
+          joint_matrix<float, use::accumulator, 16, 16> sub_c(sg);
+          joint_matrix<half, use::a, 16, 16, layout::row_major> sub_a(sg);
+          joint_matrix<half, use::b, 16, 16, layout::row_major> sub_b(sg);
 
           // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
@@ -60,9 +60,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<float, use::accumulator, 16, 16> sub_c;
-          joint_matrix<half, use::a, 16, 16, layout::col_major> sub_a;
-          joint_matrix<half, use::b, 16, 16, layout::col_major> sub_b;
+          joint_matrix<float, use::accumulator, 16, 16> sub_c(sg);
+          joint_matrix<half, use::a, 16, 16, layout::col_major> sub_a(sg);
+          joint_matrix<half, use::b, 16, 16, layout::col_major> sub_b(sg);
 
           // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
@@ -83,9 +83,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<float, use::accumulator, 32, 8> sub_c;
-          joint_matrix<half, use::a, 32, 16, layout::row_major> sub_a;
-          joint_matrix<half, use::b, 16, 8, layout::row_major> sub_b;
+          joint_matrix<float, use::accumulator, 32, 8> sub_c(sg);
+          joint_matrix<half, use::a, 32, 16, layout::row_major> sub_a(sg);
+          joint_matrix<half, use::b, 16, 8, layout::row_major> sub_b(sg);
 
           // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.load.c.row.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
@@ -106,9 +106,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<float, use::accumulator, 32, 8> sub_c;
-          joint_matrix<half, use::a, 32, 16, layout::col_major> sub_a;
-          joint_matrix<half, use::b, 16, 8, layout::col_major> sub_b;
+          joint_matrix<float, use::accumulator, 32, 8> sub_c(sg);
+          joint_matrix<half, use::a, 32, 16, layout::col_major> sub_a(sg);
+          joint_matrix<half, use::b, 16, 8, layout::col_major> sub_b(sg);
 
           // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m32n8k16.load.c.col.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
@@ -129,9 +129,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<float, use::accumulator, 8, 32> sub_c;
-          joint_matrix<half, use::a, 8, 16, layout::row_major> sub_a;
-          joint_matrix<half, use::b, 16, 32, layout::row_major> sub_b;
+          joint_matrix<float, use::accumulator, 8, 32> sub_c(sg);
+          joint_matrix<half, use::a, 8, 16, layout::row_major> sub_a(sg);
+          joint_matrix<half, use::b, 16, 32, layout::row_major> sub_b(sg);
 
           // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.load.c.row.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
@@ -152,9 +152,9 @@ int main() {
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
 
-          joint_matrix<float, use::accumulator, 8, 32> sub_c;
-          joint_matrix<half, use::a, 8, 16, layout::col_major> sub_a;
-          joint_matrix<half, use::b, 16, 32, layout::col_major> sub_b;
+          joint_matrix<float, use::accumulator, 8, 32> sub_c(sg);
+          joint_matrix<half, use::a, 8, 16, layout::col_major> sub_a(sg);
+          joint_matrix<half, use::b, 16, 32, layout::col_major> sub_b(sg);
 
           // CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m8n32k16.load.c.col.stride.f32.p1f32(float addrspace(1)* %_arg_accC, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
