@@ -581,6 +581,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
+struct _pi_ze_event_list_t;
+
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
@@ -610,7 +612,7 @@ struct pi_command_list_info_t {
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
 
-  pi_event SpecialEvent = nullptr;
+  std::list<_pi_ze_event_list_t> WaitLists;
 
   size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }
@@ -1347,6 +1349,14 @@ struct _pi_ze_event_list_t {
     this->Length = other.Length;
     return *this;
   }
+
+  _pi_ze_event_list_t(const _pi_ze_event_list_t &other) {
+    this->ZeEventList = other.ZeEventList;
+    this->PiEventList = other.PiEventList;
+    this->Length = other.Length;
+  }
+
+  _pi_ze_event_list_t() {}
 };
 
 struct _pi_event : _pi_object {
