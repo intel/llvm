@@ -763,8 +763,8 @@ processInputModule(std::unique_ptr<Module> M) {
   while (ScopedSplitter->hasMoreSplits()) {
     module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
     std::unique_ptr<module_split::ModuleSplitterBase> PropertiesSplitter =
-        module_split::getPerAspectsSplitter(std::move(MD),
-                                            EmitOnlyKernelsAsEntryPoints);
+        module_split::getPropertiesBasedSplitter(std::move(MD),
+                                                 EmitOnlyKernelsAsEntryPoints);
 
     // Here we perform second-level splitting based on device-specific
     // features used/declared in entry points.

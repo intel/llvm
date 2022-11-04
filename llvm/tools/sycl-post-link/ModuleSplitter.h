@@ -254,7 +254,7 @@ std::unique_ptr<ModuleSplitterBase>
 getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
-getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+getPropertiesBasedSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);

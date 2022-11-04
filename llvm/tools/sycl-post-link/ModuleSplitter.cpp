@@ -781,11 +781,11 @@ namespace {
       }
     }
 
-    std::string getName() const {
+    std::string getName(StringRef BaseName) const {
       if (Aspects.empty())
-        return "no-aspects";
+        return BaseName.str() + "-no-aspects";
 
-      std::string Ret = "aspects";
+      std::string Ret = BaseName.str() + "-aspects";
       for (int A : Aspects) {
         Ret += "-" + std::to_string(A);
       }
@@ -835,7 +835,7 @@ namespace {
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
+getPropertiesBasedSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups;
 
   DenseMap<KernelProperties, EntryPointSet, KernelPropertiesAsKeyInfo>
@@ -857,14 +857,15 @@ getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   if (!PropertiesToFunctionsMap.empty()) {
     Groups.reserve(PropertiesToFunctionsMap.size());
     for (auto &EPG : PropertiesToFunctionsMap) {
-      Groups.emplace_back(EntryPointGroup{EPG.first.getName(),
-                                          std::move(EPG.second),
-                                          MD.getEntryPointGroup().Props});
+      Groups.emplace_back(EntryPointGroup{
+          EPG.first.getName(MD.getEntryPointGroup().GroupId),
+          std::move(EPG.second), MD.getEntryPointGroup().Props});
     }
   } else {
     // No entry points met, record this.
     Groups.push_back({GLOBAL_SCOPE_NAME, {}});
   }
+
   if (Groups.size() > 1)
     return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
   else
