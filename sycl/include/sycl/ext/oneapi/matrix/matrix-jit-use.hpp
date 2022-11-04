@@ -261,7 +261,7 @@ public:
   std::tuple<uint32_t, uint32_t> get_coord() {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_vec_t<uint32_t, 2> coord =
-        __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
     const uint32_t row = coord[0];
     const uint32_t col = coord[1];
     return std::make_tuple(row, col);
@@ -523,7 +523,7 @@ public:
   std::tuple<uint32_t, uint32_t> get_coord() {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_vec_t<uint32_t, 2> coord =
-        __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
     const uint32_t row = coord[0];
     const uint32_t col = coord[1];
     return std::make_tuple(row, col);
