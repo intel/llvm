@@ -16,6 +16,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "polygeist/Ops.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/WithColor.h"
 
 using namespace mlir;
@@ -55,6 +56,19 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
 void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   assert(isReference && "must be a reference");
   assert(val && "expect not-null");
+  if (toStore.getType().isInteger(1)) {
+    // Ad-hoc extension of booleans
+    const auto GetElementType = [](auto Ty) -> Type {
+      return Ty.getElementType();
+    };
+    auto ElementType =
+        llvm::TypeSwitch<Type, Type>(val.getType())
+            .Case<LLVM::LLVMPointerType>(GetElementType)
+            .Case<MemRefType>(GetElementType)
+            .Default([](auto) -> Type { llvm_unreachable("Unhandled type"); });
+    toStore = builder.createOrFold<arith::ExtUIOp>(builder.getUnknownLoc(),
+                                                   ElementType, toStore);
+  }
   auto loc = builder.getUnknownLoc();
   if (auto pt = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
@@ -379,4 +393,36 @@ ValueCategory ValueCategory::IntCast(OpBuilder &Builder, Type PromotionType,
   }();
 
   return {Res, /*IsReference*/ false};
+}
+
+ValueCategory ValueCategory::ICmpNE(mlir::OpBuilder &builder,
+                                    ValueCategory RHS) const {
+  return ICmp(builder, arith::CmpIPredicate::ne, RHS);
+}
+
+ValueCategory ValueCategory::FCmpUNE(mlir::OpBuilder &builder,
+                                     ValueCategory RHS) const {
+  return FCmp(builder, arith::CmpFPredicate::UNE, RHS);
+}
+
+ValueCategory ValueCategory::ICmp(OpBuilder &builder,
+                                  arith::CmpIPredicate predicate,
+                                  ValueCategory RHS) const {
+  assert(val.getType() == RHS.val.getType() &&
+         "Cannot compare values of different types");
+  assert(val.getType().isa<IntegerType>() && "Expecting integer inputs");
+  return {builder.createOrFold<arith::CmpIOp>(builder.getUnknownLoc(),
+                                              predicate, val, RHS.val),
+          false};
+}
+
+ValueCategory ValueCategory::FCmp(OpBuilder &builder,
+                                  arith::CmpFPredicate predicate,
+                                  ValueCategory RHS) const {
+  assert(val.getType() == RHS.val.getType() &&
+         "Cannot compare values of different types");
+  assert(val.getType().isa<FloatType>() && "Expecting floatint point inputs");
+  return {builder.createOrFold<arith::CmpFOp>(builder.getUnknownLoc(),
+                                              predicate, val, RHS.val),
+          false};
 }

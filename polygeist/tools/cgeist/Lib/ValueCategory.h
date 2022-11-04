@@ -25,6 +25,13 @@ private:
         false};
   }
 
+  ValueCategory ICmp(mlir::OpBuilder &builder,
+                     mlir::arith::CmpIPredicate predicate,
+                     ValueCategory RHS) const;
+  ValueCategory FCmp(mlir::OpBuilder &builder,
+                     mlir::arith::CmpFPredicate predicate,
+                     ValueCategory RHS) const;
+
 public:
   mlir::Value val;
   bool isReference;
@@ -56,6 +63,9 @@ public:
                        mlir::Type PromotionType) const;
   ValueCategory FPToSI(mlir::OpBuilder &Builder,
                        mlir::Type PromotionType) const;
+
+  ValueCategory ICmpNE(mlir::OpBuilder &builder, ValueCategory RHS) const;
+  ValueCategory FCmpUNE(mlir::OpBuilder &builder, ValueCategory RHS) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */

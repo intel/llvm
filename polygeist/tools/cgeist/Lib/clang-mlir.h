@@ -362,6 +362,13 @@ private:
                                      clang::QualType DstType,
                                      clang::SourceLocation Loc);
 
+  ValueCategory EmitPointerToBoolConversion(ValueCategory Src,
+                                            clang::QualType SrcType);
+  ValueCategory EmitIntToBoolConversion(ValueCategory Src);
+  ValueCategory EmitFloatToBoolConversion(ValueCategory Src);
+  ValueCategory EmitConversionToBool(ValueCategory Src,
+                                     clang::QualType SrcType);
+
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
               LowerToInfo &LTInfo);
