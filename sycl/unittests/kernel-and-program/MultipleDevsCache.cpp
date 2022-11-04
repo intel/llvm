@@ -176,7 +176,7 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
 
     // Bundle should only contain a single image, specifically the one with
     // MultipleDevsCacheTestKernel.
-    EXPECT_EQ(BundleImpl->size(), 1ul);
+    EXPECT_EQ(BundleImpl->size(), size_t{1});
 
     int NumRetains = BundleImpl->size() * 2;
     EXPECT_EQ(RetainCounter, NumRetains)
