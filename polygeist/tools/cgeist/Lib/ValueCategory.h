@@ -16,10 +16,7 @@
 
 // Represents a rhs or lhs value.
 class ValueCategory {
-public:
-  mlir::Value val;
-  bool isReference;
-
+private:
   template <typename OpTy>
   ValueCategory Cast(mlir::OpBuilder &builder, mlir::Type PromotionType) const {
     if (val.getType() == PromotionType)
@@ -27,6 +24,10 @@ public:
     return {builder.createOrFold<OpTy>(val.getLoc(), PromotionType, val),
             false};
   }
+
+public:
+  mlir::Value val;
+  bool isReference;
 
 public:
   ValueCategory() : val(nullptr), isReference(false) {}
