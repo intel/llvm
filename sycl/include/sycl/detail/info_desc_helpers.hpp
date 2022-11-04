@@ -95,6 +95,9 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
     using return_type = info::DescType::Desc::return_type;                     \
   };
 #include <sycl/info/device_traits.def>
+// requires explicit handling
+__SYCL_PARAM_TRAITS_SPEC(device, parent_device, sycl::device,
+                         PI_DEVICE_INFO_PARENT_DEVICE)
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \

@@ -104,6 +104,9 @@ template <int Dimensions> struct max_work_item_sizes;
     using return_type = ReturnT;                                               \
   };
 #include <sycl/info/device_traits.def>
+// requires explicit handling
+__SYCL_PARAM_TRAITS_SPEC(device, parent_device, sycl::device,
+                         PI_DEVICE_INFO_PARENT_DEVICE)
 } // namespace device
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 
