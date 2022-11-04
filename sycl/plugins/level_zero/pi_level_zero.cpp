@@ -2072,6 +2072,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
             CurQueue->LastCommandList != CurQueue->CommandListMap.end() &&
             CurQueue->LastCommandList != NextImmCmdList) {
           CurQueue->signalEvent(CurQueue->LastCommandList);
+          CurQueue->LastCommandList = CurQueue->CommandListMap.end();
         }
       }
     } else {
