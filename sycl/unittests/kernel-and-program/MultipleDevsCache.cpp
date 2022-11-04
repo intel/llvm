@@ -13,13 +13,60 @@
 #include "detail/kernel_program_cache.hpp"
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
-#include <helpers/TestKernel.hpp>
 
 #include <gtest/gtest.h>
 
 #include <iostream>
 
 using namespace sycl;
+
+class MultipleDevsCacheTestKernel;
+
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace detail {
+template <> struct KernelInfo<MultipleDevsCacheTestKernel> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() {
+    return "MultipleDevsCacheTestKernel";
+  }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
+};
+
+} // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
+
+static sycl::unittest::PiImage generateDefaultImage() {
+  using namespace sycl::unittest;
+
+  PiPropertySet PropSet;
+
+  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+
+  PiArray<PiOffloadEntry> Entries =
+      makeEmptyKernels({"MultipleDevsCacheTestKernel"});
+
+  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                     // Compile options
+              "",                                     // Link options
+              std::move(Bin),
+              std::move(Entries),
+              std::move(PropSet)};
+
+  return Img;
+}
+
+static sycl::unittest::PiImage Img = generateDefaultImage();
+static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 static pi_result redefinedDevicesGetAfter(pi_platform platform,
                                           pi_device_type device_type,
@@ -109,13 +156,14 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     sycl::queue Queue(Context, Devices[0]);
     assert(Devices.size() == 2 && Context.get_devices().size() == 2);
 
-    auto KernelID = sycl::get_kernel_id<TestKernel<>>();
+    auto KernelID = sycl::get_kernel_id<MultipleDevsCacheTestKernel>();
     auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
         Queue.get_context(), {KernelID});
     assert(Bundle.get_devices().size() == 2);
 
-    Queue.submit(
-        [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+    Queue.submit([&](sycl::handler &cgh) {
+      cgh.single_task<MultipleDevsCacheTestKernel>([]() {});
+    });
 
     auto BundleObject = sycl::build(Bundle, Bundle.get_devices());
     auto Kernel = BundleObject.get_kernel(KernelID);
