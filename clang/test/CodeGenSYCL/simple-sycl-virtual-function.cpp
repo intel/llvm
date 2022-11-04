@@ -1,6 +1,3 @@
-// REQUIRES: CPU
-// Adjust when uninitialized global variables are supported on GPU
-
 // RUN: clang++ -cc1 -fsycl-allow-virtual-functions -fsycl-is-device -internal-isystem Inputs -emit-llvm %s -o - | FileCheck %s
 // RUN: clang++ -cc1 -fsycl-is-device -internal-isystem Inputs -emit-llvm %s -o - &> %t.txt | FileCheck %s --input-file %t.txt --check-prefix CHECK-WO-KEY
 
