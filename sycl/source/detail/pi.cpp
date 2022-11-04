@@ -265,6 +265,7 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 
 // GlobalPlugin is a global Plugin used with Interoperability constructors that
 // use OpenCL objects to construct SYCL class objects.
+// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
