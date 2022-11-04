@@ -581,8 +581,6 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
-struct _pi_ze_event_list_t;
-
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
@@ -611,8 +609,6 @@ struct pi_command_list_info_t {
   // TODO: use this for optimizing events in the same command-list, e.g.
   // only have last one visible to the host.
   std::vector<pi_event> EventList{};
-
-  std::list<_pi_ze_event_list_t> WaitLists;
 
   size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }
@@ -1093,6 +1089,8 @@ struct _pi_queue : _pi_object {
   pi_result insertActiveBarriers(pi_command_list_ptr_t &CmdList,
                                  bool UseCopyEngine);
 
+  pi_result insertLastCommandEventBarrier(pi_command_list_ptr_t &CmdList);
+
   // A collection of currently active barriers.
   // These should be inserted into a command list whenever an available command
   // list is needed for a command.
@@ -1349,14 +1347,6 @@ struct _pi_ze_event_list_t {
     this->Length = other.Length;
     return *this;
   }
-
-  _pi_ze_event_list_t(const _pi_ze_event_list_t &other) {
-    this->ZeEventList = other.ZeEventList;
-    this->PiEventList = other.PiEventList;
-    this->Length = other.Length;
-  }
-
-  _pi_ze_event_list_t() {}
 };
 
 struct _pi_event : _pi_object {

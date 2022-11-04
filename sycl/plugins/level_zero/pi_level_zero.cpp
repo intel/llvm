@@ -766,12 +766,8 @@ pi_result _pi_queue::signalEvent(pi_command_list_ptr_t CommandList) {
       this, &SpecialEvent, PI_COMMAND_TYPE_USER, CommandList,
       /* IsDiscarded */ false, /* ForceHostVisible */ false));
 
-  // We want a barrier in the beginning  of a next command list waiting for this
-  // special event.
-  ActiveBarriers.push_back(SpecialEvent);
-
-  // We don't need additional dependency through LastCommandEvent.
-  LastCommandEvent = nullptr;
+  PI_CALL(piEventRelease(SpecialEvent));
+  LastCommandEvent = SpecialEvent;
 
   ZE_CALL(zeCommandListAppendSignalEvent,
           (CommandList->first, SpecialEvent->ZeEvent));
@@ -1108,26 +1104,6 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                             std::vector<pi_event> &EventListToCleanup) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
-  if (isInOrderQueue() && isDiscardEvents()) {
-    // If there were discarded events in the command list then we have to
-    // release events from wait lists associated with them.
-    for (auto WaitList : CommandList->second.WaitLists) {
-      std::list<pi_event> EventsToBeReleased;
-      WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
-          EventsToBeReleased);
-
-      // Event may be in the wait list of more than one event. But we have to
-      // cleanup it only once, that's why use unordered_set to make it happen.
-      std::unordered_set<pi_event> Events;
-      std::copy(EventsToBeReleased.begin(), EventsToBeReleased.end(),
-                std::inserter(Events, Events.begin()));
-
-      for (auto Event : Events)
-        EventListToCleanup.push_back(Event);
-    }
-    CommandList->second.WaitLists.clear();
-  }
-
   // Immediate commandlists do not have an associated fence.
   if (CommandList->second.ZeFence != nullptr) {
     // Fence had been signalled meaning the associated command-list completed.
@@ -1437,6 +1413,7 @@ pi_result _pi_context::getAvailableCommandList(
         (!ForcedCmdQueue ||
          *ForcedCmdQueue == CommandBatch.OpenCommandList->second.ZeQueue)) {
       CommandList = CommandBatch.OpenCommandList;
+      PI_CALL(Queue->insertLastCommandEventBarrier(CommandList));
       return PI_SUCCESS;
     }
     // If this command isn't allowed to be batched or doesn't match the forced
@@ -1504,6 +1481,8 @@ pi_result _pi_context::getAvailableCommandList(
                 .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);
+      if (auto Res = Queue->insertLastCommandEventBarrier(CommandList))
+        return Res;
       if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
         return Res;
       return PI_SUCCESS;
@@ -1531,7 +1510,7 @@ pi_result _pi_context::getAvailableCommandList(
                                        true /* QueueLocked */);
       CommandList = it;
       CommandList->second.ZeFenceInUse = true;
-      if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
+      if (auto Res = Queue->insertLastCommandEventBarrier(CommandList))
         return Res;
       return PI_SUCCESS;
     }
@@ -1575,6 +1554,7 @@ _pi_queue::createCommandList(bool UseCopyEngine,
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
           ZeCommandList, {ZeFence, false, ZeCommandQueue, QueueGroupOrdinal}));
 
+  PI_CALL(insertLastCommandEventBarrier(CommandList));
   PI_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
   return PI_SUCCESS;
 }
@@ -2009,6 +1989,16 @@ pi_command_list_ptr_t _pi_queue::eventOpenCommandList(pi_event Event) {
   return CommandListMap.end();
 }
 
+pi_result _pi_queue::insertLastCommandEventBarrier(pi_command_list_ptr_t &CmdList) {
+  if (CmdList != LastCommandList && LastCommandEvent) {
+    CmdList->second.append(LastCommandEvent);
+    LastCommandEvent->RefCount.increment();
+    ZE_CALL(zeCommandListAppendBarrier, (CmdList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
+    LastCommandEvent = nullptr;
+  }
+  return PI_SUCCESS;
+}
+
 pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
                                           bool UseCopyEngine) {
   // Early exit if there are no active barriers.
@@ -2026,13 +2016,9 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
   for (pi_event &BarrierEvent : ActiveBarriers)
     PI_CALL(piEventReleaseInternal(BarrierEvent));
   ActiveBarriers.clear();
-
-  // For in-order queue every command depends on the previous one so we don't
-  // need to insert active barriers for every next command list.
-  if (!isInOrderQueue())
-    ActiveBarriers.insert(
-        ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
-        ActiveBarriersWaitList.PiEventList + ActiveBarriersWaitList.Length);
+  ActiveBarriers.insert(
+      ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
+      ActiveBarriersWaitList.PiEventList + ActiveBarriersWaitList.Length);
 
   // If there are more active barriers, insert a barrier on the command-list. We
   // do not need an event for finishing so we pass nullptr.
@@ -2040,12 +2026,6 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
     ZE_CALL(zeCommandListAppendBarrier,
             (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
              ActiveBarriersWaitList.ZeEventList));
-
-  // Active barriers are released at queue synchronization, but for in-order
-  // queue we don't keep them till that point so store them in the command list,
-  // they will be released on completion of command list.
-  if (isInOrderQueue())
-    CmdList->second.WaitLists.push_back(ActiveBarriersWaitList);
 
   return PI_SUCCESS;
 }
@@ -2108,7 +2088,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
   try {
     if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr &&
-        !CurQueue->LastCommandEvent->IsDiscarded) {
+        !CurQueue->LastCommandEvent->IsDiscarded && CurQueue->LastCommandList != CurQueue->CommandListMap.end()) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
     } else if (EventListLength > 0) {
@@ -2201,7 +2181,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     // previous command has finished. The event associated with the last
     // enqueued command is added into the waitlist to ensure in-order semantics.
     if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr &&
-        !CurQueue->LastCommandEvent->IsDiscarded) {
+        !CurQueue->LastCommandEvent->IsDiscarded && CurQueue->LastCommandList != CurQueue->CommandListMap.end()) {
       std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
