@@ -21,8 +21,9 @@ private:
   ValueCategory Cast(mlir::OpBuilder &builder, mlir::Type PromotionType) const {
     if (val.getType() == PromotionType)
       return *this;
-    return {builder.createOrFold<OpTy>(val.getLoc(), PromotionType, val),
-            false};
+    return {
+        builder.createOrFold<OpTy>(builder.getUnknownLoc(), PromotionType, val),
+        false};
   }
 
 public:
