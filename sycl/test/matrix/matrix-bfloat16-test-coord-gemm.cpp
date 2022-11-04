@@ -64,8 +64,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
      cgh.parallel_for<class imatrix>(
          sycl::nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K,
-          v](sycl::nd_item<2> spmd_item)
+         [accA, accB, accC, M, N, K, v](sycl::nd_item<2> spmd_item)
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -109,13 +108,11 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
              sum_local_rows[row] += tCData[i];
 
              sum_local_rows[row] = sycl::reduce_over_group(
-                 sg, sum_local_rows[row],
-                 sycl::plus<>());
-               // only Groups leader perform the global reduction
-                if (global_idy % SG_SZ == 0) {
-                  atomic_fetch_add(v[row],
-                                    sum_local_rows[row]);
-                }
+                 sg, sum_local_rows[row], sycl::plus<>());
+             // only Groups leader perform the global reduction
+             if (global_idy % SG_SZ == 0) {
+               atomic_fetch_add(v[row], sum_local_rows[row]);
+             }
            }
          }); // parallel for
    }).wait();

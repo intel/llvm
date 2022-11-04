@@ -69,26 +69,22 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
                                  sg_starty / SG_SZ * TN * 4,
                              N, layout::packed_b);
 
-
-           
-           int32_t sum_local_rows[M] = {0}; 
+           int32_t sum_local_rows[M] = {0};
            auto tBData = sub_b.get_wi_data();
 
            // each WI calculates local sum of rows
            for (int i = 0; i < tBData.length(); ++i) {
-               // row and col holds global co_ordinates of the matrix
-               auto [row, col] = tBData[i].get_coord();
-               sum_local_rows[row] += tBData[i];
+             // row and col holds global co_ordinates of the matrix
+             auto [row, col] = tBData[i].get_coord();
+             sum_local_rows[row] += tBData[i];
 
-               sum_local_rows[row] = reduce_over_group(
-                 sg, sum_local_rows[row],
-                 sycl::plus<>());
-               // only Groups leader perform the global reduction
-                if (global_idy % SG_SZ == 0) {
-                  atomic_fetch_add(v[row],
-                                    sum_local_rows[row]);
-                }
-            }
+             sum_local_rows[row] =
+                 reduce_over_group(sg, sum_local_rows[row], sycl::plus<>());
+             // only Groups leader perform the global reduction
+             if (global_idy % SG_SZ == 0) {
+               atomic_fetch_add(v[row], sum_local_rows[row]);
+             }
+           }
          }); // parallel for
    }).wait();
   sum_rows_ref<T, M, N>(bufB.get_access<access::mode::read>(),
