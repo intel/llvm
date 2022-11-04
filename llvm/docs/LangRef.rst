@@ -1730,6 +1730,46 @@ example:
     a new pointer for the original function, which means that code that depends
     on function-pointer identity can break. So, any function annotated with
     ``jumptable`` must also be ``unnamed_addr``.
+``memory(...)``
+    This attribute specifies the possible memory effects of the call-site or
+    function. It allows specifying the possible access kinds (``none``,
+    ``read``, ``write``, or ``readwrite``) for the possible memory location
+    kinds (``argmem``, ``inaccessiblemem``, as well as a default). It is best
+    understood by example:
+
+    - ``memory(none)``: Does not access any memory.
+    - ``memory(read)``: May read (but not write) any memory.
+    - ``memory(write)``: May write (but not read) any memory.
+    - ``memory(readwrite)``: May read or write any memory.
+    - ``memory(argmem: read)``: May only read argument memory.
+    - ``memory(argmem: read, inaccessiblemem: write)``: May only read argument
+      memory and only write inaccessible memory.
+    - ``memory(read, argmem: readwrite)``: May read any memory (default mode)
+      and additionally write argument memory.
+    - ``memory(readwrite, argmem: none)``: May access any memory apart from
+      argument memory.
+
+    The supported memory location kinds are:
+
+    - ``argmem``: This refers to accesses that are based on pointer arguments
+      to the function.
+    - ``inaccessiblemem``: This refers to accesses to memory which is not
+      accessible by the current module (before return from the function -- an
+      allocator function may return newly accessible memory while only
+      accessing inaccessible memory itself). Inaccessible memory is often used
+      to model control dependencies of intrinsics.
+    - The default access kind (specified without a location prefix) applies to
+      all locations that haven't been specified explicitly, including those that
+      don't currently have a dedicated location kind (e.g. accesses to globals
+      or captured pointers).
+
+    If the ``memory`` attribute is not specified, then ``memory(readwrite)``
+    is implied (all memory effects are possible).
+
+    The memory effects of a call can be computed as
+    ``CallSiteEffects & (FunctionEffects | OperandBundleEffects)``. Thus, the
+    call-site annotation takes precedence over the potential effects described
+    by either the function annotation or the operand bundles.
 ``minsize``
     This attribute suggests that optimization passes and code generator
     passes make choices that keep the code size of this function as small
@@ -3077,6 +3117,11 @@ operation may modify the memory at that address. A volatile operation
 may not modify any other memory accessible by the module being compiled.
 A volatile operation may not call any code in the current module.
 
+In general (without target specific context), the address space of a
+volatile operation may not be changed. Different address spaces may
+have different trapping behavior when dereferencing an invalid
+pointer.
+
 The compiler may assume execution will continue after a volatile operation,
 so operations which modify memory or may have undefined behavior can be
 hoisted past a volatile operation.
@@ -3302,7 +3347,7 @@ floating-point transformations.
 
 ``nsz``
    No Signed Zeros - Allow optimizations to treat the sign of a zero
-   argument or result as insignificant. This does not imply that -0.0
+   argument or zero result as insignificant. This does not imply that -0.0
    is poison and/or guaranteed to not exist in the operation.
 
 ``arcp``
@@ -3593,11 +3638,21 @@ Pointer Type
 The pointer type ``ptr`` is used to specify memory locations. Pointers are
 commonly used to reference objects in memory.
 
-Pointer types may have an optional address space attribute defining the
-numbered address space where the pointed-to object resides. The default
-address space is number zero. The semantics of non-zero address spaces
-are target-specific. For example, ``ptr addrspace(5)`` is a pointer
-to address space 5.
+Pointer types may have an optional address space attribute defining
+the numbered address space where the pointed-to object resides. For
+example, ``ptr addrspace(5)`` is a pointer to address space 5.
+
+The default address space is number zero.
+
+The semantics of non-zero address spaces are target-specific. Memory
+access through a non-dereferenceable pointer is undefined behavior in
+any address space. Pointers with the bit-value 0 are only assumed to
+be non-dereferenceable in address space 0, unless the function is
+marked with the ``null_pointer_is_valid attribute``.
+
+If an object can be proven accessible through a pointer with a
+different address space, the access may be modified to use that
+address space. Exceptions apply if the operation is ``volatile``.
 
 Prior to LLVM 15, pointer types also specified a pointee type, such as
 ``i8*``, ``[4 x i32]*`` or ``i32 (i32*)*``. In LLVM 15, such "typed
@@ -9699,7 +9754,7 @@ Arguments:
 The first operand of an '``extractelement``' instruction is a value of
 :ref:`vector <t_vector>` type. The second operand is an index indicating
 the position from which to extract the element. The index may be a
-variable of any integer type.
+variable of any integer type, and will be treated as an unsigned integer.
 
 Semantics:
 """"""""""
@@ -9744,7 +9799,8 @@ The first operand of an '``insertelement``' instruction is a value of
 :ref:`vector <t_vector>` type. The second operand is a scalar value whose
 type must equal the element type of the first operand. The third operand
 is an index indicating the position at which to insert the value. The
-index may be a variable of any integer type.
+index may be a variable of any integer type, and will be treated as an
+unsigned integer.
 
 Semantics:
 """"""""""
@@ -11268,9 +11324,19 @@ The '``addrspacecast``' instruction converts the pointer value
 ``ptrval`` to type ``pty2``. It can be a *no-op cast* or a complex
 value modification, depending on the target and the address space
 pair. Pointer conversions within the same address space must be
-performed with the ``bitcast`` instruction. Note that if the address space
-conversion is legal then both result and operand refer to the same memory
-location.
+performed with the ``bitcast`` instruction. Note that if the address
+space conversion produces a dereferenceable result then both result
+and operand refer to the same memory location. The conversion must
+have no side effects, and must not capture the value of the pointer.
+
+If the source is :ref:`poison <poisonvalues>`, the result is
+:ref:`poison <poisonvalues>`.
+
+If the source is not :ref:`poison <poisonvalues>`, and both source and
+destination are :ref:`integral pointers <nointptrtype>`, and the
+result pointer is dereferenceable, the cast is assumed to be
+reversible (i.e. casting the result back to the original address space
+should yield the original bit pattern).
 
 Example:
 """"""""
@@ -13641,6 +13707,8 @@ then the result is also ``INT_MIN`` if ``is_int_min_poison == 0`` and
 ``poison`` otherwise.
 
 
+.. _int_smax:
+
 '``llvm.smax.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -13669,6 +13737,8 @@ The arguments (``%a`` and ``%b``) may be of any integer type or a vector with
 integer element type. The argument types must match each other, and the return
 type must match the argument type.
 
+
+.. _int_smin:
 
 '``llvm.smin.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -13699,6 +13769,8 @@ integer element type. The argument types must match each other, and the return
 type must match the argument type.
 
 
+.. _int_umax:
+
 '``llvm.umax.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -13727,6 +13799,8 @@ The arguments (``%a`` and ``%b``) may be of any integer type or a vector with
 integer element type. The argument types must match each other, and the return
 type must match the argument type.
 
+
+.. _int_umin:
 
 '``llvm.umin.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -14806,6 +14880,9 @@ Semantics:
 This function returns the same values as the libm ``ceil`` functions
 would, and handles error conditions in the same way.
 
+
+.. _int_llvm_trunc:
+
 '``llvm.trunc.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -14841,6 +14918,8 @@ Semantics:
 
 This function returns the same values as the libm ``trunc`` functions
 would, and handles error conditions in the same way.
+
+.. _int_rint:
 
 '``llvm.rint.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -18868,6 +18947,198 @@ Examples:
       %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
 
 
+.. _int_vp_smax:
+
+'``llvm.vp.smax.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.smax.v16i32 (<16 x i32> <left_op>, <16 x i32> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.smax.nxv4i32 (<vscale x 4 x i32> <left_op>, <vscale x 4 x i32> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.smax.v256i64 (<256 x i64> <left_op>, <256 x i64> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated integer signed maximum of two vectors of integers.
+
+
+Arguments:
+""""""""""
+
+The first two operands and the result have the same vector of integer type. The
+third operand is the vector mask and has the same number of elements as the
+result vector type. The fourth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.smax``' intrinsic performs integer signed maximum (:ref:`smax <int_smax>`)
+of the first and second vector operand on each enabled lane.  The result on
+disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.smax.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.smax.v4i32(<4 x i32> %a, <4 x i32> %b)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_smin:
+
+'``llvm.vp.smin.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.smin.v16i32 (<16 x i32> <left_op>, <16 x i32> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.smin.nxv4i32 (<vscale x 4 x i32> <left_op>, <vscale x 4 x i32> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.smin.v256i64 (<256 x i64> <left_op>, <256 x i64> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated integer signed minimum of two vectors of integers.
+
+
+Arguments:
+""""""""""
+
+The first two operands and the result have the same vector of integer type. The
+third operand is the vector mask and has the same number of elements as the
+result vector type. The fourth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.smin``' intrinsic performs integer signed minimum (:ref:`smin <int_smin>`)
+of the first and second vector operand on each enabled lane.  The result on
+disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.smin.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.smin.v4i32(<4 x i32> %a, <4 x i32> %b)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_umax:
+
+'``llvm.vp.umax.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.umax.v16i32 (<16 x i32> <left_op>, <16 x i32> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.umax.nxv4i32 (<vscale x 4 x i32> <left_op>, <vscale x 4 x i32> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.umax.v256i64 (<256 x i64> <left_op>, <256 x i64> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated integer unsigned maximum of two vectors of integers.
+
+
+Arguments:
+""""""""""
+
+The first two operands and the result have the same vector of integer type. The
+third operand is the vector mask and has the same number of elements as the
+result vector type. The fourth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.umax``' intrinsic performs integer unsigned maximum (:ref:`umax <int_umax>`)
+of the first and second vector operand on each enabled lane.  The result on
+disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.umax.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.umax.v4i32(<4 x i32> %a, <4 x i32> %b)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_umin:
+
+'``llvm.vp.umin.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.umin.v16i32 (<16 x i32> <left_op>, <16 x i32> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.umin.nxv4i32 (<vscale x 4 x i32> <left_op>, <vscale x 4 x i32> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.umin.v256i64 (<256 x i64> <left_op>, <256 x i64> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated integer unsigned minimum of two vectors of integers.
+
+
+Arguments:
+""""""""""
+
+The first two operands and the result have the same vector of integer type. The
+third operand is the vector mask and has the same number of elements as the
+result vector type. The fourth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.umin``' intrinsic performs integer unsigned minimum (:ref:`umin <int_umin>`)
+of the first and second vector operand on each enabled lane.  The result on
+disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.umin.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.umin.v4i32(<4 x i32> %a, <4 x i32> %b)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
 .. _int_vp_copysign:
 
 '``llvm.vp.copysign.*``' Intrinsics
@@ -19390,7 +19661,8 @@ Semantics:
 
 The '``llvm.vp.sqrt``' intrinsic performs floating-point square root (:ref:`sqrt <int_sqrt>`) of
 the first vector operand on each enabled lane.  The result on disabled lanes is
-undefined. The operation is performed in the default floating-point environment.
+a :ref:`poison value <poisonvalues>`. The operation is performed in the default
+floating-point environment.
 
 Examples:
 """""""""
@@ -19401,7 +19673,7 @@ Examples:
       ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
 
       %t = call <4 x float> @llvm.sqrt.v4f32(<4 x float> %a)
-      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
 
 
 .. _int_vp_fma:
@@ -21508,8 +21780,8 @@ Semantics:
 """"""""""
 
 The '``llvm.vp.ceil``' intrinsic performs floating-point ceiling
-(:ref:`ceil <int_ceil>`) of the first vector operand on each enabled lane.  The
-result on disabled lanes is undefined.
+(:ref:`ceil <int_ceil>`) of the first vector operand on each enabled lane. The
+result on disabled lanes is a :ref:`poison value <poisonvalues>`.
 
 Examples:
 """""""""
@@ -21520,7 +21792,7 @@ Examples:
       ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
 
       %t = call <4 x float> @llvm.ceil.v4f32(<4 x float> %a)
-      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
 
 .. _int_vp_floor:
 
@@ -21555,8 +21827,8 @@ Semantics:
 """"""""""
 
 The '``llvm.vp.floor``' intrinsic performs floating-point floor
-(:ref:`floor <int_floor>`) of the first vector operand on each enabled lane.  The
-result on disabled lanes is undefined.
+(:ref:`floor <int_floor>`) of the first vector operand on each enabled lane.
+The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
 
 Examples:
 """""""""
@@ -21567,7 +21839,54 @@ Examples:
       ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
 
       %t = call <4 x float> @llvm.floor.v4f32(<4 x float> %a)
-      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
+
+.. _int_vp_rint:
+
+'``llvm.vp.rint.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.rint.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.rint.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.rint.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point rint of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.rint``' intrinsic performs floating-point rint
+(:ref:`rint <int_rint>`) of the first vector operand on each enabled lane.
+The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.rint.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.rint.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
 
 .. _int_vp_round:
 
@@ -21602,8 +21921,8 @@ Semantics:
 """"""""""
 
 The '``llvm.vp.round``' intrinsic performs floating-point round
-(:ref:`round <int_round>`) of the first vector operand on each enabled lane.  The
-result on disabled lanes is undefined.
+(:ref:`round <int_round>`) of the first vector operand on each enabled lane.
+The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
 
 Examples:
 """""""""
@@ -21614,7 +21933,7 @@ Examples:
       ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
 
       %t = call <4 x float> @llvm.round.v4f32(<4 x float> %a)
-      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
 
 .. _int_vp_roundeven:
 
@@ -21649,8 +21968,8 @@ Semantics:
 """"""""""
 
 The '``llvm.vp.roundeven``' intrinsic performs floating-point roundeven
-(:ref:`roundeven <int_roundeven>`) of the first vector operand on each enabled lane.  The
-result on disabled lanes is undefined.
+(:ref:`roundeven <int_roundeven>`) of the first vector operand on each enabled
+lane. The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
 
 Examples:
 """""""""
@@ -21661,7 +21980,54 @@ Examples:
       ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
 
       %t = call <4 x float> @llvm.roundeven.v4f32(<4 x float> %a)
-      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> undef
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
+
+.. _int_vp_roundtozero:
+
+'``llvm.vp.roundtozero.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.roundtozero.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.roundtozero.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.roundtozero.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point round-to-zero of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.roundtozero``' intrinsic performs floating-point roundeven
+(:ref:`llvm.trunc <int_llvm_trunc>`) of the first vector operand on each enabled lane.  The
+result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.roundtozero.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.trunc.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
 
 .. _int_mload_mstore:
 

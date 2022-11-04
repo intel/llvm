@@ -32,6 +32,18 @@ private:
   std::mutex GlobalLock;
 };
 
+// TempAssignGuard is the class for a guard object that will assign some OTHER
+// variable to a temporary value but restore it when the guard itself goes out
+// of scope.
+template <typename T> struct TempAssignGuard {
+  T &field;
+  T restoreValue;
+  TempAssignGuard(T &fld, T tempVal) : field(fld), restoreValue(fld) {
+    field = tempVal;
+  }
+  ~TempAssignGuard() { field = restoreValue; }
+};
+
 // const char* key hash for STL maps
 struct HashCStr {
   size_t operator()(const char *S) const {

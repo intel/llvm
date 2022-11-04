@@ -5,6 +5,7 @@ add_header_library(
   HDRS
     string_utils.h
   DEPENDS
+    libc.include.stdlib
     libc.src.__support.CPP.bitset
     .memory_utils.memcpy_implementation
     .memory_utils.bzero_implementation
@@ -96,6 +97,14 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strcoll
+  SRCS
+    strcoll.cpp
+  HDRS
+    strcoll.h
+)
+
+add_entrypoint_object(
   strcpy
   SRCS
     strcpy.cpp
@@ -135,8 +144,17 @@ add_entrypoint_object(
   HDRS
     strerror.h
   DEPENDS
-    libc.src.__support.error_to_string
-    libc.src.__support.CPP.span
+    libc.src.__support.StringUtil.error_to_string
+)
+
+add_entrypoint_object(
+  strerror_r
+  SRCS
+    strerror_r.cpp
+  HDRS
+    strerror_r.h
+  DEPENDS
+    libc.src.__support.StringUtil.error_to_string
 )
 
 add_entrypoint_object(
@@ -236,6 +254,16 @@ add_entrypoint_object(
     strrchr.cpp
   HDRS
     strrchr.h
+)
+
+add_entrypoint_object(
+  strsignal
+  SRCS
+    strsignal.cpp
+  HDRS
+    strsignal.h
+  DEPENDS
+    libc.src.__support.StringUtil.signal_to_string
 )
 
 add_entrypoint_object(

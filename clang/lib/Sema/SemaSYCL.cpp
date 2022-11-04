@@ -420,7 +420,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
 
   // variable length arrays
   if (Ty->isVariableArrayType()) {
-    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported);
+    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_vla_unsupported) << 0;
     Emitting = true;
   }
 
@@ -988,6 +988,28 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   return KernelParamTy.getUnqualifiedType();
 }
 
+static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
+  for (auto *MD : Rec->methods()) {
+    if (MD->getOverloadedOperator() == OO_Call)
+      return MD;
+  }
+  return nullptr;
+}
+
+// Fetch the associated call operator of the kernel object
+// (of either the lambda or the function object).
+static CXXMethodDecl *
+GetCallOperatorOfKernelObject(const CXXRecordDecl *KernelObjType) {
+  CXXMethodDecl *CallOperator = nullptr;
+  if (!KernelObjType)
+    return CallOperator;
+  if (KernelObjType->isLambda())
+    CallOperator = KernelObjType->getLambdaCallOperator();
+  else
+    CallOperator = getOperatorParens(KernelObjType);
+  return CallOperator;
+}
+
 /// Creates a kernel parameter descriptor
 /// \param Src  field declaration to construct name from
 /// \param Ty   the desired parameter type
@@ -1549,6 +1571,14 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool IsInvalid = false;
   DiagnosticsEngine &Diag;
   bool IsSIMD = false;
+  // Keeps track of whether we are currently handling fields inside a struct.
+  // Fields of kernel functor or direct kernel captures will have a depth 0.
+  int StructFieldDepth = 0;
+  // Initialize with -1 so that fields of a base class of the kernel functor
+  // has depth 0. Visitor method enterStruct increments this to 0 when the base
+  // class is entered.
+  int StructBaseDepth = -1;
+
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
@@ -1633,6 +1663,16 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   bool checkSyclSpecialType(QualType Ty, SourceRange Loc) {
     assert(isSyclSpecialType(Ty, SemaRef) &&
            "Should only be called on sycl special class types.");
+
+    // Annotated pointers and annotated arguments must be captured
+    // directly by the SYCL kernel.
+    if ((isSyclType(Ty, SYCLTypeAttr::annotated_ptr) ||
+         isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
+         (StructFieldDepth > 0 || StructBaseDepth > 0))
+      return SemaRef.Diag(Loc.getBegin(),
+                          diag::err_bad_kernel_param_data_members)
+             << Ty << /*Struct*/ 1;
+
     const RecordDecl *RecD = Ty->getAsRecordDecl();
     if (IsSIMD && !isSyclAccessorType(Ty))
       return SemaRef.Diag(Loc.getBegin(),
@@ -1702,7 +1742,7 @@ public:
     while (FieldTy->isAnyPointerType()) {
       FieldTy = QualType{FieldTy->getPointeeOrArrayElementType(), 0};
       if (FieldTy->isVariableArrayType()) {
-        Diag.Report(FD->getLocation(), diag::err_vla_unsupported);
+        Diag.Report(FD->getLocation(), diag::err_vla_unsupported) << 0;
         IsInvalid = true;
         break;
       }
@@ -1714,6 +1754,28 @@ public:
     Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
     IsInvalid = true;
     return isValid();
+  }
+
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
+    ++StructFieldDepth;
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
+    --StructFieldDepth;
+    return true;
+  }
+
+  bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                   QualType FieldTy) final {
+    ++StructBaseDepth;
+    return true;
+  }
+
+  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+                   QualType FieldTy) final {
+    --StructBaseDepth;
+    return true;
   }
 };
 
@@ -1734,7 +1796,8 @@ public:
   bool checkType(SourceLocation Loc, QualType Ty) {
     if (UnionCount) {
       IsInvalid = true;
-      Diag.Report(Loc, diag::err_bad_union_kernel_param_members) << Ty;
+      Diag.Report(Loc, diag::err_bad_kernel_param_data_members)
+          << Ty << /*Union*/ 0;
     }
     return isValid();
   }
@@ -2734,14 +2797,6 @@ public:
   }
 };
 
-static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (auto *MD : Rec->methods()) {
-    if (MD->getOverloadedOperator() == OO_Call)
-      return MD;
-  }
-  return nullptr;
-}
-
 static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
   const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
@@ -2830,13 +2885,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     // Fetch the kernel object and the associated call operator
     // (of either the lambda or the function object).
-    CXXRecordDecl *KernelObj =
+    const CXXRecordDecl *KernelObj =
         GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-    CXXMethodDecl *WGLambdaFn = nullptr;
-    if (KernelObj->isLambda())
-      WGLambdaFn = KernelObj->getLambdaCallOperator();
-    else
-      WGLambdaFn = getOperatorParens(KernelObj);
+    CXXMethodDecl *WGLambdaFn = GetCallOperatorOfKernelObject(KernelObj);
+
     assert(WGLambdaFn && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
     // NOTE: In case of parallel_for_work_item the marker call itself is
@@ -3445,10 +3497,10 @@ public:
 
   bool enterArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
-    uint64_t ArraySize = SemaRef.getASTContext()
-                             .getAsConstantArrayType(ArrayType)
-                             ->getSize()
-                             .getZExtValue();
+    const ConstantArrayType *CAT =
+        SemaRef.getASTContext().getAsConstantArrayType(ArrayType);
+    assert(CAT && "Should only be called on constant-size array.");
+    uint64_t ArraySize = CAT->getSize().getZExtValue();
     addCollectionInitListExpr(ArrayType, ArraySize);
     ArrayInfos.emplace_back(getFieldEntity(FD, ArrayType), 0);
 
@@ -3493,7 +3545,7 @@ public:
 static bool IsSYCLUnnamedKernel(Sema &SemaRef, const FunctionDecl *FD) {
   if (!SemaRef.getLangOpts().SYCLUnnamedLambda)
     return false;
-  QualType FunctorTy = GetSYCLKernelObjectType(FD);
+  const QualType FunctorTy = GetSYCLKernelObjectType(FD);
   QualType TmplArgTy = calculateKernelNameType(SemaRef.Context, FD);
   return SemaRef.Context.hasSameType(FunctorTy, TmplArgTy);
 }
@@ -3575,17 +3627,25 @@ public:
 
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::stream)) {
+      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+    } else if (isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
+               isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
+      CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+      assert(InitMethod && "type must have __init method");
+      const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
+      assert(InitArg && "Init method must have arguments");
+      QualType T = InitArg->getType();
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          isSyclType(FieldTy, SYCLTypeAttr::sampler)
+              ? SYCLIntegrationHeader::kind_sampler
+              : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
+                                    : SYCLIntegrationHeader::kind_std_layout);
+      addParam(T, ParamKind, offsetOf(FD, FieldTy));
     } else {
-      if (getMethodByName(ClassTy, FinalizeMethodName))
-        addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-      else {
-        CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
-        assert(InitMethod && "type must have __init method");
-        const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
-        assert(SamplerArg && "Init method must have arguments");
-        addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
-                 offsetOf(FD, FieldTy));
-      }
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating integration header");
     }
     return true;
   }
@@ -3894,7 +3954,7 @@ public:
   }
 };
 
-void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
+void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
                                ArrayRef<const Expr *> Args) {
   QualType KernelNameType =
       calculateKernelNameType(getASTContext(), KernelFunc);
@@ -3911,7 +3971,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
 
-  if (!KernelObj) {
+  if (!GetCallOperatorOfKernelObject(KernelObj)) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
     KernelFunc->setInvalidDecl();
     return;
@@ -4951,7 +5011,7 @@ public:
     DeclContext *DC = RD->getDeclContext();
     if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
       PrintNamespaceScopes(DC);
-      RD->printName(OS);
+      RD->printName(OS, Policy);
       return;
     }
 
@@ -5025,6 +5085,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   PrintingPolicy Policy(LO);
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  // Disable printing anonymous tag locations because on Windows
+  // file path separators are treated as escape sequences and cause errors
+  // when integration header is compiled with host compiler.
+  Policy.AnonymousTagLocations = 0;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
   // Predefines which need to be set for custom host compilation

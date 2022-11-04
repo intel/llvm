@@ -247,6 +247,31 @@ int host_selector::operator()(const device &dev) const {
   return detail::REJECT_DEVICE_SCORE;
 }
 
+__SYCL_EXPORT detail::DSelectorInvocableType
+aspect_selector(const std::vector<aspect> &RequireList,
+                const std::vector<aspect> &DenyList /* ={} */) {
+  return [=](const sycl::device &Dev) {
+    auto DevHas = [&](const aspect &Asp) -> bool { return Dev.has(Asp); };
+
+    // All aspects from require list are required.
+    if (!std::all_of(RequireList.begin(), RequireList.end(), DevHas))
+      return detail::REJECT_DEVICE_SCORE;
+
+    // No aspect from deny list is allowed
+    if (std::any_of(DenyList.begin(), DenyList.end(), DevHas))
+      return detail::REJECT_DEVICE_SCORE;
+
+    if (RequireList.size() > 0) {
+      return 1000 + detail::getDevicePreference(Dev);
+    } else {
+      // No required aspects specified.
+      // SYCL 2020 4.6.1.1 "If no aspects are passed in, the generated selector
+      // behaves like default_selector."
+      return default_selector_v(Dev);
+    }
+  };
+}
+
 // -------------- SYCL 1.2.1
 
 // SYCL 1.2.1 device_selector class and sub-classes

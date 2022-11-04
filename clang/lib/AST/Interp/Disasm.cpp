@@ -40,7 +40,7 @@ LLVM_DUMP_METHOD void Function::dump(llvm::raw_ostream &OS) const {
     } else {
       OS << F->getDeclName();
     }
-    OS << " " << (void*)this << ":\n";
+    OS << " " << (const void*)this << ":\n";
   } else {
     OS << "<<expr>>\n";
   }
@@ -48,6 +48,7 @@ LLVM_DUMP_METHOD void Function::dump(llvm::raw_ostream &OS) const {
   OS << "frame size: " << getFrameSize() << "\n";
   OS << "arg size:   " << getArgSize() << "\n";
   OS << "rvo:        " << hasRVO() << "\n";
+  OS << "this arg:   " << hasThisPointer() << "\n";
 
   auto PrintName = [&OS](const char *Name) {
     OS << Name;
@@ -71,6 +72,10 @@ LLVM_DUMP_METHOD void Function::dump(llvm::raw_ostream &OS) const {
 LLVM_DUMP_METHOD void Program::dump() const { dump(llvm::errs()); }
 
 LLVM_DUMP_METHOD void Program::dump(llvm::raw_ostream &OS) const {
+  OS << ":: Program\n";
+  OS << "Global Variables: " << Globals.size() << "\n";
+  OS << "Functions: " << Funcs.size() << "\n";
+  OS << "\n";
   for (auto &Func : Funcs) {
     Func.second->dump();
   }

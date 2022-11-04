@@ -19,7 +19,7 @@ struct sampler_impl {
 #endif
 };
 
-class __attribute__((sycl_special_class)) sampler {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
@@ -372,6 +372,22 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
 }
 
+template <typename T, typename... Props>
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
+  T obj;
+  #ifdef __SYCL_DEVICE_ONLY__
+    void __init(T _obj) {}
+  #endif
+};
+
+template <typename T, typename... Props>
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
+  T* obj;
+  #ifdef __SYCL_DEVICE_ONLY__
+    void __init(T* _obj) {}
+  #endif
+};
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
@@ -494,7 +510,7 @@ public:
   }
 };
 
-class __attribute__((sycl_special_class)) stream {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(stream) stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
