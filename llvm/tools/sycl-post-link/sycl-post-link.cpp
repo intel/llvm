@@ -760,6 +760,10 @@ processInputModule(std::unique_ptr<Module> M) {
   SmallVector<module_split::ModuleDesc, 8> TopLevelModules;
   bool SplitByProperties = false;
 
+  // FIXME: this check should be performed on all split levels
+  if (DeviceGlobals)
+    ScopedSplitter->verifyNoCrossModuleDeviceGlobalUsage();
+
   while (ScopedSplitter->hasMoreSplits()) {
     module_split::ModuleDesc MD = ScopedSplitter->nextSplit();
     std::unique_ptr<module_split::ModuleSplitterBase> PropertiesSplitter =
@@ -781,10 +785,6 @@ processInputModule(std::unique_ptr<Module> M) {
   const bool SplitByScope = ScopedSplitter->totalSplits() > 1;
   Modified |= SplitByScope;
   Modified |= SplitByProperties;
-
-  // FIXME: this check should be performed on all split levels
-  if (DeviceGlobals)
-    ScopedSplitter->verifyNoCrossModuleDeviceGlobalUsage();
 
   // TODO this nested splitting scheme will not scale well when other split
   // "dimensions" will be added. Some infra/"split manager" needs to be
