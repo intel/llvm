@@ -124,10 +124,10 @@ int main() {
           // CHECK: tail call i32 @llvm.nvvm.f2tf32.rna(float {{.*}}
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
-            sub_a.wi_marray[i] = round_to_tf32(sub_a.wi_marray[i]);
+            sub_a.get_wi_marray()[i] = round_to_tf32(sub_a.get_wi_marray()[i]);
 
           for (auto i = 0; i < 4; ++i)
-            sub_b.wi_marray[i] = round_to_tf32(sub_b.wi_marray[i]);
+            sub_b.get_wi_marray()[i] = round_to_tf32(sub_b.get_wi_marray()[i]);
 
           //CHECK: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k8.mma.col.col.tf32(i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, i32 {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}})
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
