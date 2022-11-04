@@ -22,7 +22,8 @@ int main(int argc, char **argv) {
             << "\n";
 
   bool passed = true;
-  passed &= test<half>(q);
+  if (dev.has(sycl::aspect::fp16))
+    passed &= test<half>(q);
   passed &= test<float>(q);
   if (dev.has(sycl::aspect::fp64))
     passed &= test<double>(q);

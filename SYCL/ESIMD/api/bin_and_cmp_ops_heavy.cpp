@@ -264,27 +264,35 @@ int main(void) {
   bool passed = true;
   using BinOp = esimd_test::BinaryOp;
 
+  bool SupportsDouble = dev.has(aspect::fp64);
+  bool SupportsHalf = dev.has(aspect::fp16);
+
   auto arith_ops = esimd_test::ArithBinaryOpsNoDiv;
   passed &= test<unsigned char, int, 1, BinOp, VSf, IDf>(arith_ops, q);
   passed &= test<char, float, 7, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
-  if (dev.has(aspect::fp64))
+  if (SupportsDouble)
     passed &= test<short, double, 7, BinOp, VEf, IDf>(arith_ops, q, 1e-15);
   passed &= test<float, float, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
-  passed &= test<half, char, 1, BinOp, verify_n, IDf>(arith_ops, q, 1);
-  passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(arith_ops, q, 1);
-  if (dev.has(aspect::fp64))
+  if (SupportsHalf)
+    passed &= test<half, char, 1, BinOp, verify_n, IDf>(arith_ops, q, 1);
+  if (SupportsHalf)
+    passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(arith_ops, q, 1);
+  if (SupportsDouble && SupportsHalf)
     passed &= test<double, half, 7, BinOp, VSf, IDf>(arith_ops, q);
   passed &= test<short, uint64_t, 7, BinOp, VSf, IDf>(arith_ops, q);
 #ifdef USE_BF16
   passed &= test<bfloat16, int, 8, BinOp, VSf, IDf>(arith_ops, q);
-  passed &= test<half, bfloat16, 7, BinOp, VEfa, IDf>(arith_ops, q, 0.03);
+  if (SupportsHalf)
+    passed &= test<half, bfloat16, 7, BinOp, VEfa, IDf>(arith_ops, q, 0.03);
 #endif // USE_BF16
 #ifdef USE_TF32
   passed &= test<tfloat32, float, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
   passed &=
       test<tfloat32, tfloat32, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
   passed &= test<char, tfloat32, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
-  passed &= test<tfloat32, half, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
+  if (SupportsHalf)
+    passed &=
+        test<tfloat32, half, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
   passed &= test<tfloat32, unsigned char, 32, BinOp, VEf, IDf>(arith_ops, q,
                                                                0.000001f);
   passed &= test<tfloat32, short, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
@@ -294,27 +302,31 @@ int main(void) {
   passed &= test<unsigned char, int, 1, BinOp, VSf, IDf>(div_op, q);
   passed &= test<char, float, 7, BinOp, VEf, IDf>(div_op, q, 0.000001f);
 #ifndef WA_BUG
-  if (dev.has(aspect::fp64))
+  if (SupportsDouble)
     passed &= test<short, double, 7, BinOp, VSf, IDf>(div_op, q);
 #endif // WA_BUG
   passed &= test<float, float, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-  passed &= test<half, char, 1, BinOp, verify_n, IDf>(div_op, q, 1);
-  passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(div_op, q, 1);
+  if (SupportsHalf)
+    passed &= test<half, char, 1, BinOp, verify_n, IDf>(div_op, q, 1);
+  if (SupportsHalf)
+    passed &= test<half, unsigned int, 32, BinOp, VSf, IDf>(div_op, q, 1);
 #ifndef WA_BUG
-  if (dev.has(aspect::fp64))
+  if (SupportsDouble && SupportsHalf)
     passed &= test<double, half, 7, BinOp, VSf, IDf>(div_op, q);
 #endif // WA_BUG
   passed &= test<short, uint64_t, 7, BinOp, VSf, IDf>(div_op, q);
 #ifdef USE_BF16
   passed &= test<bfloat16, short, 8, BinOp, VSf, IDf>(div_op, q);
-  passed &= test<half, bfloat16, 7, BinOp, VEfa, IDf>(div_op, q, 0.03);
+  if (SupportsHalf)
+    passed &= test<half, bfloat16, 7, BinOp, VEfa, IDf>(div_op, q, 0.03);
 #endif // USE_BF16
 
 #ifdef USE_TF32
   passed &= test<tfloat32, float, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
   passed &= test<tfloat32, tfloat32, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
   passed &= test<char, tfloat32, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-  passed &= test<tfloat32, half, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
+  if (SupportsHalf)
+    passed &= test<tfloat32, half, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
   passed &=
       test<tfloat32, unsigned char, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
   passed &= test<tfloat32, short, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
@@ -351,24 +363,28 @@ int main(void) {
   auto cmp_ops = esimd_test::CmpOps;
   passed &= test<unsigned char, int, 1, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<char, float, 7, CmpOp, VSf, IDf>(cmp_ops, q);
-  if (dev.has(aspect::fp64))
+  if (SupportsDouble)
     passed &= test<short, double, 7, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<float, float, 32, CmpOp, VSf, IDf>(cmp_ops, q);
-  passed &= test<half, char, 1, CmpOp, VSf, IDf>(cmp_ops, q, 1);
-  passed &= test<half, unsigned int, 32, CmpOp, VSf, IDf>(cmp_ops, q, 1);
-  if (dev.has(aspect::fp64))
+  if (SupportsHalf)
+    passed &= test<half, char, 1, CmpOp, VSf, IDf>(cmp_ops, q, 1);
+  if (SupportsHalf)
+    passed &= test<half, unsigned int, 32, CmpOp, VSf, IDf>(cmp_ops, q, 1);
+  if (SupportsDouble)
     passed &= test<double, half, 7, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<short, uint64_t, 7, CmpOp, VSf, IDf>(cmp_ops, q);
 #ifdef USE_BF16
   passed &= test<bfloat16, int, 32, CmpOp, VSf, IDf>(cmp_ops, q);
-  passed &= test<half, bfloat16, 7, CmpOp, VSf, IDf>(cmp_ops, q);
+  if (SupportsHalf)
+    passed &= test<half, bfloat16, 7, CmpOp, VSf, IDf>(cmp_ops, q);
 #endif // USE_BF16
 
 #ifdef USE_TF32
   passed &= test<tfloat32, float, 32, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<tfloat32, tfloat32, 32, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<char, tfloat32, 32, CmpOp, VSf, IDf>(cmp_ops, q);
-  passed &= test<tfloat32, half, 32, CmpOp, VSf, IDf>(cmp_ops, q);
+  if (SupportsHalf)
+    passed &= test<tfloat32, half, 32, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<tfloat32, unsigned char, 32, CmpOp, VSf, IDf>(cmp_ops, q);
   passed &= test<tfloat32, short, 32, CmpOp, VSf, IDf>(cmp_ops, q);
 #endif // USE_TF32

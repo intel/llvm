@@ -91,7 +91,8 @@ int main(void) {
   Passed &= test<uint64_t>(Q);
   Passed &= test<int64_t>(Q);
   Passed &= test<float>(Q);
-  Passed &= test<double>(Q);
+  if (Q.get_device().has(aspect::fp64))
+    Passed &= test<double>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

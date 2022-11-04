@@ -3,6 +3,11 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
 
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ %s -o %t_nonvar.out
+// RUN: %CPU_RUN_PLACEHOLDER %t_nonvar.out %CPU_CHECK_PLACEHOLDER
+// RUN: %GPU_RUN_PLACEHOLDER %t_nonvar.out %GPU_CHECK_PLACEHOLDER
+// RUN: %ACC_RUN_PLACEHOLDER %t_nonvar.out %ACC_CHECK_PLACEHOLDER
+
 // CUDA does not support printf.
 // UNSUPPORTED: cuda
 //
@@ -28,15 +33,25 @@ static const CONSTANT char format[] = "Hello, World! %d %f\n";
 int main() {
   s::queue q{};
 
+#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+  if (!q.get_device().has(sycl::aspect::fp64)) {
+    std::cout
+        << "Test without __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ defined is "
+           "skipped because the device did not have fp64."
+        << std::endl;
+    return 0;
+  }
+#endif
+
   // Test printf
   q.submit([&](s::handler &CGH) {
      CGH.single_task<class printf>([=]() {
-       s::ext::oneapi::experimental::printf(format, 123, 1.23);
+       s::ext::oneapi::experimental::printf(format, 123, 1.23f);
        // CHECK: {{(Hello, World! 123 1.23)?}}
      });
    }).wait();
 
-  s::ext::oneapi::experimental::printf(format, 321, 3.21);
+  s::ext::oneapi::experimental::printf(format, 321, 3.21f);
   // CHECK: {{(Hello, World! 123 1.23)?}}
 
   // Test common
@@ -47,7 +62,7 @@ int main() {
       auto AccMin = BufMin.get_access<s::access::mode::write>(cgh);
       auto AccMax = BufMax.get_access<s::access::mode::write>(cgh);
       cgh.single_task<class common>([=]() {
-        AccMax[0] = s::max(s::cl_float2{0.5f, 2.5}, s::cl_float2{2.3f, 2.3});
+        AccMax[0] = s::max(s::cl_float2{0.5f, 2.5f}, s::cl_float2{2.3f, 2.3f});
         AccMin[0] = s::min(s::cl_float{0.5f}, s::cl_float{2.3f});
       });
     });

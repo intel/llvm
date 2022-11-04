@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -13,11 +13,11 @@ constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
 
 template <typename To, typename From> class BitCastKernel;
 
-template <typename To, typename From> To doBitCast(const From &ValueToConvert) {
+template <typename To, typename From>
+To doBitCast(sycl::queue Queue, const From &ValueToConvert) {
   std::vector<To> Vec(1);
   {
     sycl::buffer<To, 1> Buf(Vec.data(), 1);
-    sycl::queue Queue;
     Queue.submit([&](sycl::handler &cgh) {
       auto acc = Buf.template get_access<sycl_write>(cgh);
       cgh.single_task<class BitCastKernel<To, From>>([=]() {
@@ -28,8 +28,10 @@ template <typename To, typename From> To doBitCast(const From &ValueToConvert) {
   return Vec[0];
 }
 
-template <typename To, typename From> int test(const From &Value) {
-  auto ValueConvertedTwoTimes = doBitCast<From>(doBitCast<To>(Value));
+template <typename To, typename From>
+int test(sycl::queue Queue, const From &Value) {
+  auto ValueConvertedTwoTimes =
+      doBitCast<From>(Queue, doBitCast<To>(Queue, Value));
   bool isOriginalValueEqualsToConvertedTwoTimes = false;
   if (std::is_integral<From>::value) {
     isOriginalValueEqualsToConvertedTwoTimes = Value == ValueConvertedTwoTimes;
@@ -54,31 +56,34 @@ template <typename To, typename From> int test(const From &Value) {
 }
 
 int main() {
+  sycl::queue Queue;
   int ReturnCode = 0;
 
-  std::cout << "sycl::half to unsigned short ...\n";
-  ReturnCode += test<unsigned short>(sycl::half(1.0f));
+  if (Queue.get_device().has(sycl::aspect::fp16)) {
+    std::cout << "sycl::half to unsigned short ...\n";
+    ReturnCode += test<unsigned short>(Queue, sycl::half(1.0f));
 
-  std::cout << "unsigned short to sycl::half ...\n";
-  ReturnCode += test<sycl::half>(static_cast<unsigned short>(16384));
+    std::cout << "unsigned short to sycl::half ...\n";
+    ReturnCode += test<sycl::half>(Queue, static_cast<unsigned short>(16384));
 
-  std::cout << "sycl::half to short ...\n";
-  ReturnCode += test<short>(sycl::half(1.0f));
+    std::cout << "sycl::half to short ...\n";
+    ReturnCode += test<short>(Queue, sycl::half(1.0f));
 
-  std::cout << "short to sycl::half ...\n";
-  ReturnCode += test<sycl::half>(static_cast<short>(16384));
+    std::cout << "short to sycl::half ...\n";
+    ReturnCode += test<sycl::half>(Queue, static_cast<short>(16384));
+  }
 
   std::cout << "int to float ...\n";
-  ReturnCode += test<float>(static_cast<int>(2));
+  ReturnCode += test<float>(Queue, static_cast<int>(2));
 
   std::cout << "float to int ...\n";
-  ReturnCode += test<int>(static_cast<float>(-2.4f));
+  ReturnCode += test<int>(Queue, static_cast<float>(-2.4f));
 
   std::cout << "unsigned int to float ...\n";
-  ReturnCode += test<float>(static_cast<unsigned int>(6));
+  ReturnCode += test<float>(Queue, static_cast<unsigned int>(6));
 
   std::cout << "float to unsigned int ...\n";
-  ReturnCode += test<unsigned int>(static_cast<float>(-2.4f));
+  ReturnCode += test<unsigned int>(Queue, static_cast<float>(-2.4f));
 
   return ReturnCode;
 }

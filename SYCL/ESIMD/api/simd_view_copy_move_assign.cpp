@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // This test checks the behavior of simd_view constructors
@@ -164,7 +164,8 @@ int main(void) {
   bool passed = true;
   passed &= testT<char>(q);
   passed &= testT<float>(q);
-  passed &= testT<half>(q);
+  if (dev.has(sycl::aspect::fp16))
+    passed &= testT<half>(q);
 
   return passed ? 0 : 1;
 }

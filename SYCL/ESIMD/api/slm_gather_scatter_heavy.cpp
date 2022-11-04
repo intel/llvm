@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks functionality of the slm gather/scatter ESIMD intrinsics.
@@ -463,8 +463,10 @@ int main(int argc, char **argv) {
   passed &= test<float, 16, 5>(q);
   passed &= test<float, 32, 3>(q);
   passed &= test_vl1<float, 7>(q);
-  passed &= test_vl1<half, 7>(q);
-  passed &= test<half, 16, 2>(q);
+  if (dev.has(aspect::fp16)) {
+    passed &= test_vl1<half, 7>(q);
+    passed &= test<half, 16, 2>(q);
+  }
 
   std::cout << (!passed ? "TEST FAILED\n" : "TEST Passed\n");
   return passed ? 0 : 1;

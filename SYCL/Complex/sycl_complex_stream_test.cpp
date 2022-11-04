@@ -55,27 +55,37 @@ template <typename T> struct test_istream_operator {
   }
 };
 
+template <typename T> bool test_common(sycl::queue Q) {
+  bool test_passes = true;
+  test_passes &=
+      test_valid_types<test_sycl_stream_operator>(Q, cmplx<T>(1.5, -1.0));
+  test_passes &= test_valid_types<test_sycl_stream_operator>(
+      Q, cmplx<T>(INFINITY, INFINITY));
+  test_passes &=
+      test_valid_types<test_sycl_stream_operator>(Q, cmplx<T>(NAN, NAN));
+
+  test_passes &= test_valid_types<test_ostream_operator>(cmplx<T>(1.5, -1.0));
+  test_passes &=
+      test_valid_types<test_ostream_operator>(cmplx<T>(INFINITY, INFINITY));
+  test_passes &= test_valid_types<test_ostream_operator>(cmplx<T>(NAN, NAN));
+
+  test_passes &= test_valid_types<test_istream_operator>(cmplx<T>(1.5, -1.0));
+  test_passes &=
+      test_valid_types<test_istream_operator>(cmplx<T>(INFINITY, INFINITY));
+  test_passes &= test_valid_types<test_istream_operator>(cmplx<T>(NAN, NAN));
+  return test_passes;
+}
+
 int main() {
   sycl::queue Q;
 
   bool test_passes = true;
 
-  test_passes &=
-      test_valid_types<test_sycl_stream_operator>(Q, cmplx(1.5, -1.0));
-  test_passes &=
-      test_valid_types<test_sycl_stream_operator>(Q, cmplx(INFINITY, INFINITY));
-  test_passes &=
-      test_valid_types<test_sycl_stream_operator>(Q, cmplx(NAN, NAN));
-
-  test_passes &= test_valid_types<test_ostream_operator>(cmplx(1.5, -1.0));
-  test_passes &=
-      test_valid_types<test_ostream_operator>(cmplx(INFINITY, INFINITY));
-  test_passes &= test_valid_types<test_ostream_operator>(cmplx(NAN, NAN));
-
-  test_passes &= test_valid_types<test_istream_operator>(cmplx(1.5, -1.0));
-  test_passes &=
-      test_valid_types<test_istream_operator>(cmplx(INFINITY, INFINITY));
-  test_passes &= test_valid_types<test_istream_operator>(cmplx(NAN, NAN));
+  test_passes &= test_common<float>(Q);
+  if (Q.get_device().has(sycl::aspect::fp16))
+    test_passes &= test_common<sycl::half>(Q);
+  if (Q.get_device().has(sycl::aspect::fp64))
+    test_passes &= test_common<double>(Q);
 
   if (!test_passes)
     std::cerr << "Stream operator with complex test fails\n";

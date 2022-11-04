@@ -522,9 +522,9 @@ int main() {
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class bitselectF4F4F4>([=]() {
-          AccR[0] = s::bitselect(s::cl_float4{112.112, 12.12, 0, 0.0},
-                                 s::cl_float4{34.34, 23.23, 1, 0.0},
-                                 s::cl_float4{3.3, 6.6, 1, 0.0});
+          AccR[0] = s::bitselect(s::cl_float4{112.112f, 12.12f, 0, 0.0f},
+                                 s::cl_float4{34.34f, 23.23f, 1, 0.0f},
+                                 s::cl_float4{3.3f, 6.6f, 1, 0.0f});
         }); // Using NAN/INFINITY as any float produced consistent results
             // between host and device.
       });

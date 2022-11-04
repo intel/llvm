@@ -2,10 +2,15 @@
 // HIP doesn't support printf.
 // CUDA doesn't support vector format specifiers ("%v").
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ %s -o %t_nonvar.out
+// RUN: %CPU_RUN_PLACEHOLDER %t_nonvar.out %CPU_CHECK_PLACEHOLDER
+// RUN: %GPU_RUN_PLACEHOLDER %t_nonvar.out %GPU_CHECK_PLACEHOLDER
+// RUN: %ACC_RUN_PLACEHOLDER %t_nonvar.out %ACC_CHECK_PLACEHOLDER
 
 #include <sycl/sycl.hpp>
 
@@ -34,9 +39,8 @@ static const CONSTANT char format_vec[] = "%d,%d,%d,%d\n";
 const CONSTANT char format_hello_world_2[] = "%lu: Hello, World!\n";
 
 int main() {
+  queue Queue(default_selector_v);
   {
-    queue Queue(default_selector_v);
-
     Queue.submit([&](handler &CGH) {
       CGH.single_task<class integral>([=]() {
         // String
@@ -53,17 +57,6 @@ int main() {
         ext::oneapi::experimental::printf(format_int, (int32_t)-123);
         // CHECK: 123
         // CHECK-NEXT: -123
-
-        // Floating point types
-        {
-          // You can declare format string in non-global scope, but in this case
-          // static keyword is required
-          static const CONSTANT char format[] = "%.1f\n";
-          ext::oneapi::experimental::printf(format, 33.4f);
-          ext::oneapi::experimental::printf(format, -33.4f);
-        }
-        // CHECK-NEXT: 33.4
-        // CHECK-NEXT: -33.4
 
         // Vectors
         sycl::vec<int, 4> v4{5, 6, 7, 8};
@@ -107,8 +100,38 @@ int main() {
     Queue.wait();
   }
 
+#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+  // Currently printf will promote floating point values to doubles.
+  // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ changes the behavior to not use
+  // a variadic function, so if it is defined it will not promote the floating
+  // point arguments.
+  if (Queue.get_device().has(sycl::aspect::fp64))
+#endif // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
   {
-    queue Queue(default_selector_v);
+    Queue.submit([&](handler &CGH) {
+      CGH.single_task<class floating_points>([=]() {
+        // Floating point types
+        {
+          // You can declare format string in non-global scope, but in this case
+          // static keyword is required
+          static const CONSTANT char format[] = "%.1f\n";
+          ext::oneapi::experimental::printf(format, 33.4f);
+          ext::oneapi::experimental::printf(format, -33.4f);
+        }
+      });
+    });
+    Queue.wait();
+  }
+#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+  else {
+    std::cout << "Skipped floating point test." << std::endl;
+    std::cout << "Skipped floating point test." << std::endl;
+  }
+#endif // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+  // CHECK-NEXT: {{(33.4|Skipped floating point test.)}}
+  // CHECK-NEXT: {{(-33.4|Skipped floating point test.)}}
+
+  {
     // printf in parallel_for
     Queue.submit([&](handler &CGH) {
       CGH.parallel_for<class stream_string>(range<1>(10), [=](id<1> i) {

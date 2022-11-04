@@ -20,19 +20,46 @@ template <typename T> class usm_aligned_device_transfer;
 
 static constexpr int N = 100;
 
-struct test_struct {
+struct test_struct_minimum {
   short a;
   int b;
   long c;
   long long d;
-  sycl::half e;
   float f;
+};
+
+bool operator==(const test_struct_minimum &lhs,
+                const test_struct_minimum &rhs) {
+  return lhs.a == rhs.a && lhs.b == rhs.b && lhs.c == rhs.c && lhs.d == rhs.d &&
+         lhs.f == rhs.f;
+}
+
+struct test_struct_all : public test_struct_minimum {
+  sycl::half e;
   double g;
 };
 
-bool operator==(const test_struct &lhs, const test_struct &rhs) {
+bool operator==(const test_struct_all &lhs, const test_struct_all &rhs) {
   return lhs.a == rhs.a && lhs.b == rhs.b && lhs.c == rhs.c && lhs.d == rhs.d &&
          lhs.e == rhs.e && lhs.f == rhs.f && lhs.g == rhs.g;
+}
+
+struct test_struct_half : public test_struct_minimum {
+  sycl::half e;
+};
+
+bool operator==(const test_struct_half &lhs, const test_struct_half &rhs) {
+  return lhs.a == rhs.a && lhs.b == rhs.b && lhs.c == rhs.c && lhs.d == rhs.d &&
+         lhs.e == rhs.e && lhs.f == rhs.f;
+}
+
+struct test_struct_double : public test_struct_minimum {
+  double g;
+};
+
+bool operator==(const test_struct_double &lhs, const test_struct_double &rhs) {
+  return lhs.a == rhs.a && lhs.b == rhs.b && lhs.c == rhs.c && lhs.d == rhs.d &&
+         lhs.f == rhs.f && lhs.g == rhs.g;
 }
 
 template <typename T>
@@ -125,20 +152,31 @@ int main() {
   auto ctxt = q.get_context();
 
   const bool DoublesSupported = dev.has(sycl::aspect::fp64);
+  const bool HalfsSupported = dev.has(sycl::aspect::fp16);
 
-  test_struct test_obj{4, 42, 424, 4242, 4.2f, 4.242, 4.24242};
+  test_struct_all test_obj_all{4, 42, 424, 4242, 4.2f, 4.242, 4.24242};
+  test_struct_half test_obj_half{4, 42, 424, 4242, 4.2f, 4.242};
+  test_struct_double test_obj_double{4, 42, 424, 4242, 4.242, 4.24242};
+  test_struct_minimum test_obj_minimum{4, 42, 424, 4242, 4.242};
 
   if (dev.get_info<info::device::usm_host_allocations>()) {
     runHostTests<short>(dev, ctxt, q, 4);
     runHostTests<int>(dev, ctxt, q, 42);
     runHostTests<long>(dev, ctxt, q, 424);
     runHostTests<long long>(dev, ctxt, q, 4242);
-    runHostTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
+    if (HalfsSupported)
+      runHostTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
     runHostTests<float>(dev, ctxt, q, 4.242f);
-    if (DoublesSupported) {
+    if (DoublesSupported)
       runHostTests<double>(dev, ctxt, q, 4.24242);
-      runHostTests<test_struct>(dev, ctxt, q, test_obj);
-    }
+    if (HalfsSupported && DoublesSupported)
+      runHostTests<test_struct_all>(dev, ctxt, q, test_obj_all);
+    else if (HalfsSupported)
+      runHostTests<test_struct_half>(dev, ctxt, q, test_obj_half);
+    else if (DoublesSupported)
+      runHostTests<test_struct_double>(dev, ctxt, q, test_obj_double);
+    else
+      runHostTests<test_struct_minimum>(dev, ctxt, q, test_obj_minimum);
   }
 
   if (dev.get_info<info::device::usm_shared_allocations>()) {
@@ -146,12 +184,19 @@ int main() {
     runSharedTests<int>(dev, ctxt, q, 42);
     runSharedTests<long>(dev, ctxt, q, 424);
     runSharedTests<long long>(dev, ctxt, q, 4242);
-    runSharedTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
+    if (HalfsSupported)
+      runSharedTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
     runSharedTests<float>(dev, ctxt, q, 4.242f);
-    if (DoublesSupported) {
+    if (DoublesSupported)
       runSharedTests<double>(dev, ctxt, q, 4.24242);
-      runSharedTests<test_struct>(dev, ctxt, q, test_obj);
-    }
+    if (HalfsSupported && DoublesSupported)
+      runSharedTests<test_struct_all>(dev, ctxt, q, test_obj_all);
+    else if (HalfsSupported)
+      runSharedTests<test_struct_half>(dev, ctxt, q, test_obj_half);
+    else if (DoublesSupported)
+      runSharedTests<test_struct_double>(dev, ctxt, q, test_obj_double);
+    else
+      runSharedTests<test_struct_minimum>(dev, ctxt, q, test_obj_minimum);
   }
 
   if (dev.get_info<info::device::usm_device_allocations>()) {
@@ -159,12 +204,19 @@ int main() {
     runDeviceTests<int>(dev, ctxt, q, 42);
     runDeviceTests<long>(dev, ctxt, q, 420);
     runDeviceTests<long long>(dev, ctxt, q, 4242);
-    runDeviceTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
+    if (HalfsSupported)
+      runDeviceTests<sycl::half>(dev, ctxt, q, sycl::half(4.2f));
     runDeviceTests<float>(dev, ctxt, q, 4.242f);
-    if (DoublesSupported) {
+    if (DoublesSupported)
       runDeviceTests<double>(dev, ctxt, q, 4.24242);
-      runDeviceTests<test_struct>(dev, ctxt, q, test_obj);
-    }
+    if (HalfsSupported && DoublesSupported)
+      runDeviceTests<test_struct_all>(dev, ctxt, q, test_obj_all);
+    else if (HalfsSupported)
+      runDeviceTests<test_struct_half>(dev, ctxt, q, test_obj_half);
+    else if (DoublesSupported)
+      runDeviceTests<test_struct_double>(dev, ctxt, q, test_obj_double);
+    else
+      runDeviceTests<test_struct_minimum>(dev, ctxt, q, test_obj_minimum);
   }
 
   return 0;

@@ -185,10 +185,13 @@ int main(int argc, char **argv) {
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
   const bool doublesSupported = dev.has(sycl::aspect::fp64);
+  const bool halfsSupported = dev.has(sycl::aspect::fp16);
 
   bool passed = true;
-  passed &= test<half, int, FpToInt>(q);
-  passed &= test<half, unsigned char, FpToInt>(q);
+  if (halfsSupported)
+    passed &= test<half, int, FpToInt>(q);
+  if (halfsSupported)
+    passed &= test<half, unsigned char, FpToInt>(q);
   passed &= test<float, int, FpToInt>(q);
   if (doublesSupported)
     passed &= test<double, short, FpToInt>(q);
@@ -207,7 +210,8 @@ int main(int argc, char **argv) {
   passed &= test<int, unsigned char, SIntToNarrowAnyInt>(q);
 
   passed &= test<float, float, FpToFp>(q);
-  passed &= test<half, half, FpToFp>(q);
+  if (halfsSupported)
+    passed &= test<half, half, FpToFp>(q);
   if (doublesSupported)
     passed &= test<double, double, FpToFp>(q);
 

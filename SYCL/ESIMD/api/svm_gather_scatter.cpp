@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu && !gpu-intel-pvc
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // Regression test for SVM gather/scatter API.
@@ -104,12 +104,14 @@ int main(void) {
   Pass &= test<int32_t, 16>(Q);
   Pass &= test<int32_t, 32>(Q);
 
-  Pass &= test<half, 1>(Q);
-  Pass &= test<half, 2>(Q);
-  Pass &= test<half, 4>(Q);
-  Pass &= test<half, 8>(Q);
-  Pass &= test<half, 16>(Q);
-  Pass &= test<half, 32>(Q);
+  if (Dev.has(aspect::fp16)) {
+    Pass &= test<half, 1>(Q);
+    Pass &= test<half, 2>(Q);
+    Pass &= test<half, 4>(Q);
+    Pass &= test<half, 8>(Q);
+    Pass &= test<half, 16>(Q);
+    Pass &= test<half, 32>(Q);
+  }
 
   Pass &= test<bfloat16, 1>(Q);
   Pass &= test<bfloat16, 2>(Q);

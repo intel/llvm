@@ -1,6 +1,6 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks functionality of the slm_gather/slm_scatter ESIMD APIs.
@@ -139,8 +139,10 @@ int main(void) {
   passed &= test<float, 16>(q);
   passed &= test<float, 32>(q);
 
-  passed &= test<half, 16>(q);
-  passed &= test<half, 32>(q);
+  if (dev.has(aspect::fp16)) {
+    passed &= test<half, 16>(q);
+    passed &= test<half, 32>(q);
+  }
 
   return passed ? 0 : 1;
 }

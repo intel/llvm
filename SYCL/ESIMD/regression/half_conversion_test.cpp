@@ -1,6 +1,6 @@
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //==- half_conversion_test.cpp - Test for half conversion under ESIMD_EMULATOR
 // backend -==/
@@ -81,7 +81,11 @@ int main(int argc, char *argv[]) {
   std::cout << "\n===================" << std::endl;
   passed &= test<short>(q, 1);
   std::cout << "\n===================" << std::endl;
-  passed &= test<half>(q, 1);
+  if (q.get_device().has(sycl::aspect::fp16))
+    passed &= test<half>(q, 1);
+  else
+    std::cout << "Half case skipped as the device does not support fp16."
+              << std::endl;
   std::cout << "\n===================" << std::endl;
   passed &= test<float>(q, 1);
   std::cout << "\n===================" << std::endl;

@@ -157,6 +157,8 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
+  const bool doublesSupported = dev.has(sycl::aspect::fp64);
+  const bool halfsSupported = dev.has(sycl::aspect::fp16);
   bool passed = true;
   using UnOp = esimd_test::UnaryOp;
 
@@ -171,10 +173,12 @@ int main(void) {
   passed &= test<unsigned int, 8>(mod_ops, q);
   passed &= test<int64_t, 16>(mod_ops, q);
   passed &= test<uint64_t, 1>(mod_ops, q);
-  passed &= test<half, 1>(mod_ops, q);
-  passed &= test<half, 32>(mod_ops, q);
+  if (halfsSupported)
+    passed &= test<half, 1>(mod_ops, q);
+  if (halfsSupported)
+    passed &= test<half, 32>(mod_ops, q);
   passed &= test<float, 32>(mod_ops, q);
-  if (dev.has(aspect::fp64))
+  if (doublesSupported)
     passed &= test<double, 7>(mod_ops, q);
 
   auto signed_ops = esimd_test::OpSeq<UnOp, UnOp::minus, UnOp::plus>{};
@@ -182,9 +186,10 @@ int main(void) {
   passed &= test<short, 7>(signed_ops, q);
   passed &= test<int, 16>(signed_ops, q);
   passed &= test<int64_t, 16>(signed_ops, q);
-  passed &= test<half, 16>(signed_ops, q);
+  if (halfsSupported)
+    passed &= test<half, 16>(signed_ops, q);
   passed &= test<float, 16>(signed_ops, q);
-  if (dev.has(aspect::fp64))
+  if (doublesSupported)
     passed &= test<double, 16>(signed_ops, q);
 
 #ifdef USE_BF16

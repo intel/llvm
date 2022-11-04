@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -225,11 +225,17 @@ int main() {
   check_struct<class KernelName_zHfIPOLOFsXiZiCvG, std::complex<float>>(
       Queue, ComplexFloatGenerator);
 
-  auto ComplexDoubleGenerator = [state = std::complex<double>(0, 1)]() mutable {
-    return state += std::complex<double>(2, 2);
-  };
-  check_struct<class KernelName_CjlHUmnuxWtyejZFD, std::complex<double>>(
-      Queue, ComplexDoubleGenerator);
+  if (Queue.get_device().has(sycl::aspect::fp64)) {
+    auto ComplexDoubleGenerator = [state =
+                                       std::complex<double>(0, 1)]() mutable {
+      return state += std::complex<double>(2, 2);
+    };
+    check_struct<class KernelName_CjlHUmnuxWtyejZFD, std::complex<double>>(
+        Queue, ComplexDoubleGenerator);
+  } else {
+    std::cout << "fp64 tests were skipped due to the device not supporting the "
+                 "aspect.";
+  }
 
   std::cout << "Test passed." << std::endl;
   return 0;

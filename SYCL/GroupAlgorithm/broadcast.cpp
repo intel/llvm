@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -84,7 +84,7 @@ int main() {
     std::fill(output.begin(), output.end(), std::complex<float>(0, 0));
     test<class KernelName_rCblcml>(q, input, output);
   }
-  {
+  if (q.get_device().has(sycl::aspect::fp64)) {
     std::array<std::complex<double>, N> input;
     std::array<std::complex<double>, 3> output;
     for (int i = 0; i < N; ++i) {

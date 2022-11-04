@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
@@ -97,26 +97,14 @@ int main() {
         // CHECK-NEXT: -12345678901245
         // CHECK-NEXT: 12345678901245
 
-        // Floating point types
+        // Floats
         Out << 33.4f << endl;
-        Out << 5.2 << endl;
         Out << -33.4f << endl;
-        Out << -5.2 << endl;
-        Out << 0.0003 << endl;
-        Out << -1.0 / 0.0 << endl;
-        Out << 1.0 / 0.0 << endl;
-        Out << sycl::sqrt(-1.0) << endl;
         Out << -1.0f / 0.0f << endl;
         Out << 1.0f / 0.0f << endl;
         Out << sycl::sqrt(-1.0f) << endl;
         // CHECK-NEXT: 33.4
-        // CHECK-NEXT: 5.2
         // CHECK-NEXT: -33.4
-        // CHECK-NEXT: -5.2
-        // CHECK-NEXT: 0.0003
-        // CHECK-NEXT: -inf
-        // CHECK-NEXT: inf
-        // CHECK-NEXT: nan
         // CHECK-NEXT: -inf
         // CHECK-NEXT: inf
         // CHECK-NEXT: nan
@@ -204,6 +192,33 @@ int main() {
       });
     });
     Queue.wait();
+
+    if (Queue.get_device().has(sycl::aspect::fp64)) {
+      Queue.submit([&](handler &CGH) {
+        stream Out(1024, 80, CGH);
+        CGH.single_task<class doubles>([=]() {
+          // Double
+          Out << 5.2 << endl;
+          Out << -5.2 << endl;
+          Out << 0.0003 << endl;
+          Out << -1.0 / 0.0 << endl;
+          Out << 1.0 / 0.0 << endl;
+          Out << sycl::sqrt(-1.0) << endl;
+        });
+      });
+      Queue.wait();
+    } else {
+      // Repeat skipped message same number of times as the number of skipped
+      // output lines.
+      for (size_t I = 0; I < 6; ++I)
+        std::cout << "Skipped double test." << std::endl;
+    }
+    // CHECK-NEXT: {{(5.2|Skipped double test.)}}
+    // CHECK-NEXT: {{(-5.2|Skipped double test.)}}
+    // CHECK-NEXT: {{(0.0003|Skipped double test.)}}
+    // CHECK-NEXT: {{(-inf|Skipped double test.)}}
+    // CHECK-NEXT: {{(inf|Skipped double test.)}}
+    // CHECK-NEXT: {{(nan|Skipped double test.)}}
 
     // Stream in parallel_for
     Queue.submit([&](handler &CGH) {
