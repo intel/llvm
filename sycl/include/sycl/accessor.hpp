@@ -1205,13 +1205,17 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
 public:
-  using value_type = DataT;
+  // 4.7.6.9.1. Interface for buffer command accessors
+  // value_type is defined as const DataT for read_only accessors, DataT
+  // otherwise
+  using value_type = typename std::conditional<AccessMode == access_mode::read,
+                                               const DataT, DataT>::type;
   using reference = DataT &;
   using const_reference = const DataT &;
 
-  using iterator = typename detail::accessor_iterator<DataT, Dimensions>;
+  using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
   using const_iterator =
-      typename detail::accessor_iterator<const DataT, Dimensions>;
+      typename detail::accessor_iterator<const value_type, Dimensions>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
 
@@ -1945,7 +1949,12 @@ public:
 #endif
   }
 
-  void swap(accessor &other) { std::swap(impl, other.impl); }
+  void swap(accessor &other) {
+    std::swap(impl, other.impl);
+#ifndef __SYCL_DEVICE_ONLY__
+    std::swap(MAccData, other.MAccData);
+#endif
+  }
 
   constexpr bool is_placeholder() const { return IsPlaceH; }
 

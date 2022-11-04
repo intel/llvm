@@ -161,7 +161,7 @@ public:
   /// \{
   TypeSystem *GetTypeSystem() const { return m_type_system; }
 
-  ConstString GetTypeName() const;
+  ConstString GetTypeName(bool BaseOnly = false) const;
 
   ConstString GetDisplayTypeName() const;
 

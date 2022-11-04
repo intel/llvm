@@ -40,6 +40,7 @@ if(${LIBC_TARGET_OS} STREQUAL "linux")
   add_subdirectory(fcntl)
   add_subdirectory(sched)
   add_subdirectory(sys)
+  add_subdirectory(termios)
   add_subdirectory(unistd)
 endif()
 
@@ -51,7 +52,9 @@ add_subdirectory(dirent)
 # The signal API is currently disabled as signal.h is incorrect.
 # since assert uses the signal API, we disable assert also.
 # add_subdirectory(assert)
+add_subdirectory(setjmp)
 add_subdirectory(signal)
+add_subdirectory(spawn)
 add_subdirectory(time)
 
 if(${LIBC_TARGET_OS} STREQUAL "linux")

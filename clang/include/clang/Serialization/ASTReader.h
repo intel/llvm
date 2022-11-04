@@ -1131,6 +1131,8 @@ private:
 
   using DataPointers =
       std::pair<CXXRecordDecl *, struct CXXRecordDecl::DefinitionData *>;
+  using ObjCProtocolDataPointers =
+      std::pair<ObjCProtocolDecl *, struct ObjCProtocolDecl::DefinitionData *>;
 
   /// Record definitions in which we found an ODR violation.
   llvm::SmallDenseMap<CXXRecordDecl *, llvm::SmallVector<DataPointers, 2>, 2>
@@ -1143,6 +1145,11 @@ private:
   /// Enum definitions in which we found an ODR violation.
   llvm::SmallDenseMap<EnumDecl *, llvm::SmallVector<EnumDecl *, 2>, 2>
       PendingEnumOdrMergeFailures;
+
+  /// ObjCProtocolDecl in which we found an ODR violation.
+  llvm::SmallDenseMap<ObjCProtocolDecl *,
+                      llvm::SmallVector<ObjCProtocolDataPointers, 2>, 2>
+      PendingObjCProtocolOdrMergeFailures;
 
   /// DeclContexts in which we have diagnosed an ODR violation.
   llvm::SmallPtrSet<DeclContext*, 2> DiagnosedOdrMergeFailures;
@@ -2187,6 +2194,18 @@ public:
                                     const RecordDataImpl &Record, unsigned &Idx,
                                     LocSeq *Seq = nullptr) {
     return ReadSourceLocation(ModuleFile, Record[Idx++], Seq);
+  }
+
+  /// Read a FileID.
+  FileID ReadFileID(ModuleFile &F, const RecordDataImpl &Record,
+                    unsigned &Idx) const {
+    return TranslateFileID(F, FileID::get(Record[Idx++]));
+  }
+
+  /// Translate a FileID from another module file's FileID space into ours.
+  FileID TranslateFileID(ModuleFile &F, FileID FID) const {
+    assert(FID.ID >= 0 && "Reading non-local FileID.");
+    return FileID::get(F.SLocEntryBaseID + FID.ID - 1);
   }
 
   /// Read a source range.

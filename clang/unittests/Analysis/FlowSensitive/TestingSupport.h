@@ -344,6 +344,7 @@ checkDataflow(AnalysisInputs<AnalysisT> AI,
         llvm::any_cast<typename AnalysisT::Lattice>(&State.Lattice.Value);
     auto [_, InsertSuccess] =
         AnnotationStates.insert({It->second, StateT{*Lattice, State.Env}});
+    (void)_;
     (void)InsertSuccess;
     assert(InsertSuccess);
   };
@@ -369,6 +370,12 @@ public:
   // Creates an atomic boolean value.
   BoolValue *atom() {
     Vals.push_back(std::make_unique<AtomicBoolValue>());
+    return Vals.back().get();
+  }
+
+  // Creates an instance of the Top boolean value.
+  BoolValue *top() {
+    Vals.push_back(std::make_unique<TopBoolValue>());
     return Vals.back().get();
   }
 

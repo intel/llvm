@@ -228,7 +228,7 @@ struct SGPRSpillBuilder {
       auto I = BuildMI(*MBB, MI, DL, TII.get(NotOpc), ExecReg).addReg(ExecReg);
       if (!TmpVGPRLive)
         I.addReg(TmpVGPR, RegState::ImplicitDefine);
-      I->getOperand(2).setIsDead(true); // Mark SCC as dead.
+      I->getOperand(2).setIsDead(); // Mark SCC as dead.
       TRI.buildVGPRSpillLoadStore(*this, TmpVGPRIndex, 0, /*IsLoad*/ false);
     }
   }
@@ -263,7 +263,7 @@ struct SGPRSpillBuilder {
       auto I = BuildMI(*MBB, MI, DL, TII.get(NotOpc), ExecReg).addReg(ExecReg);
       if (!TmpVGPRLive)
         I.addReg(TmpVGPR, RegState::ImplicitKill);
-      I->getOperand(2).setIsDead(true); // Mark SCC as dead.
+      I->getOperand(2).setIsDead(); // Mark SCC as dead.
 
       // Restore active lanes
       if (TmpVGPRLive)
@@ -1668,11 +1668,9 @@ void SIRegisterInfo::buildVGPRSpillLoadStore(SGPRSpillBuilder &SB, int Index,
   }
 }
 
-bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
-                               int Index,
-                               RegScavenger *RS,
-                               LiveIntervals *LIS,
-                               bool OnlyToVGPR) const {
+bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI, int Index,
+                               RegScavenger *RS, SlotIndexes *Indexes,
+                               LiveIntervals *LIS, bool OnlyToVGPR) const {
   SGPRSpillBuilder SB(*this, *ST.getInstrInfo(), isWave32, MI, Index, RS);
 
   ArrayRef<SpilledReg> VGPRSpills = SB.MFI.getSGPRToVGPRSpills(Index);
@@ -1704,11 +1702,11 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
                      .addReg(SubReg, getKillRegState(UseKill))
                      .addImm(Spill.Lane)
                      .addReg(Spill.VGPR);
-      if (LIS) {
+      if (Indexes) {
         if (i == 0)
-          LIS->ReplaceMachineInstrInMaps(*MI, *MIB);
+          Indexes->replaceMachineInstrInMaps(*MI, *MIB);
         else
-          LIS->InsertMachineInstrInMaps(*MIB);
+          Indexes->insertMachineInstrInMaps(*MIB);
       }
 
       if (i == 0 && SB.NumSubRegs > 1) {
@@ -1753,11 +1751,11 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
                 .addReg(SB.TmpVGPR, TmpVGPRFlags);
         TmpVGPRFlags = 0;
 
-        if (LIS) {
+        if (Indexes) {
           if (i == 0)
-            LIS->ReplaceMachineInstrInMaps(*MI, *WriteLane);
+            Indexes->replaceMachineInstrInMaps(*MI, *WriteLane);
           else
-            LIS->InsertMachineInstrInMaps(*WriteLane);
+            Indexes->insertMachineInstrInMaps(*WriteLane);
         }
 
         // There could be undef components of a spilled super register.
@@ -1787,11 +1785,9 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
   return true;
 }
 
-bool SIRegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
-                                 int Index,
-                                 RegScavenger *RS,
-                                 LiveIntervals *LIS,
-                                 bool OnlyToVGPR) const {
+bool SIRegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI, int Index,
+                                 RegScavenger *RS, SlotIndexes *Indexes,
+                                 LiveIntervals *LIS, bool OnlyToVGPR) const {
   SGPRSpillBuilder SB(*this, *ST.getInstrInfo(), isWave32, MI, Index, RS);
 
   ArrayRef<SpilledReg> VGPRSpills = SB.MFI.getSGPRToVGPRSpills(Index);
@@ -1813,13 +1809,12 @@ bool SIRegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
                      .addImm(Spill.Lane);
       if (SB.NumSubRegs > 1 && i == 0)
         MIB.addReg(SB.SuperReg, RegState::ImplicitDefine);
-      if (LIS) {
+      if (Indexes) {
         if (i == e - 1)
-          LIS->ReplaceMachineInstrInMaps(*MI, *MIB);
+          Indexes->replaceMachineInstrInMaps(*MI, *MIB);
         else
-          LIS->InsertMachineInstrInMaps(*MIB);
+          Indexes->insertMachineInstrInMaps(*MIB);
       }
-
     }
   } else {
     SB.prepare();
@@ -1847,11 +1842,11 @@ bool SIRegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
                        .addImm(i);
         if (SB.NumSubRegs > 1 && i == 0)
           MIB.addReg(SB.SuperReg, RegState::ImplicitDefine);
-        if (LIS) {
+        if (Indexes) {
           if (i == e - 1)
-            LIS->ReplaceMachineInstrInMaps(*MI, *MIB);
+            Indexes->replaceMachineInstrInMaps(*MI, *MIB);
           else
-            LIS->InsertMachineInstrInMaps(*MIB);
+            Indexes->insertMachineInstrInMaps(*MIB);
         }
       }
     }
@@ -1940,10 +1935,8 @@ bool SIRegisterInfo::spillEmergencySGPR(MachineBasicBlock::iterator MI,
 /// a VGPR and the stack slot can be safely eliminated when all other users are
 /// handled.
 bool SIRegisterInfo::eliminateSGPRToVGPRSpillFrameIndex(
-  MachineBasicBlock::iterator MI,
-  int FI,
-  RegScavenger *RS,
-  LiveIntervals *LIS) const {
+    MachineBasicBlock::iterator MI, int FI, RegScavenger *RS,
+    SlotIndexes *Indexes, LiveIntervals *LIS) const {
   switch (MI->getOpcode()) {
   case AMDGPU::SI_SPILL_S1024_SAVE:
   case AMDGPU::SI_SPILL_S512_SAVE:
@@ -1955,7 +1948,7 @@ bool SIRegisterInfo::eliminateSGPRToVGPRSpillFrameIndex(
   case AMDGPU::SI_SPILL_S96_SAVE:
   case AMDGPU::SI_SPILL_S64_SAVE:
   case AMDGPU::SI_SPILL_S32_SAVE:
-    return spillSGPR(MI, FI, RS, LIS, true);
+    return spillSGPR(MI, FI, RS, Indexes, LIS, true);
   case AMDGPU::SI_SPILL_S1024_RESTORE:
   case AMDGPU::SI_SPILL_S512_RESTORE:
   case AMDGPU::SI_SPILL_S256_RESTORE:
@@ -1966,7 +1959,7 @@ bool SIRegisterInfo::eliminateSGPRToVGPRSpillFrameIndex(
   case AMDGPU::SI_SPILL_S96_RESTORE:
   case AMDGPU::SI_SPILL_S64_RESTORE:
   case AMDGPU::SI_SPILL_S32_RESTORE:
-    return restoreSGPR(MI, FI, RS, LIS, true);
+    return restoreSGPR(MI, FI, RS, Indexes, LIS, true);
   default:
     llvm_unreachable("not an SGPR spill instruction");
   }
@@ -2204,7 +2197,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
 
         Register TmpReg = RS->scavengeRegister(RC, MI, 0, !UseSGPR);
         FIOp.setReg(TmpReg);
-        FIOp.setIsKill(true);
+        FIOp.setIsKill();
 
         if ((!FrameReg || !Offset) && TmpReg) {
           unsigned Opc = UseSGPR ? AMDGPU::S_MOV_B32 : AMDGPU::V_MOV_B32_e32;
@@ -2277,8 +2270,7 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
                            .addImm(ST.getWavefrontSizeLog2())
                            .addReg(FrameReg);
           if (IsSALU && !LiveSCC)
-            Shift.getInstr()->getOperand(3).setIsDead(
-                true); // Mark SCC as dead.
+            Shift.getInstr()->getOperand(3).setIsDead(); // Mark SCC as dead.
           if (IsSALU && LiveSCC) {
             Register NewDest =
                 RS->scavengeRegister(&AMDGPU::SReg_32RegClass, Shift, 0);

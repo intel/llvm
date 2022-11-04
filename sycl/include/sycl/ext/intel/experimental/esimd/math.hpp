@@ -988,8 +988,8 @@ template <typename RT, typename T0, int SZ,
 __ESIMD_API __ESIMD_NS::simd<RT, SZ> lzd(__ESIMD_NS::simd<T0, SZ> src0,
                                          Sat sat = {}) {
   // Saturation parameter ignored
-  __ESIMD_NS::simd<uint, SZ> Src0 = src0;
-  return __esimd_lzd<uint>(Src0.data());
+  __ESIMD_NS::simd<__ESIMD_NS::uint, SZ> Src0 = src0;
+  return __esimd_lzd<__ESIMD_NS::uint, SZ>(Src0.data());
 }
 
 template <typename RT, typename T0, class Sat = __ESIMD_NS::saturation_off_tag>
@@ -1399,7 +1399,7 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
   __ESIMD_NS::simd<float, N> reminder =
       abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
 
-  abs_x.merge(0.0, reminder >= 0);
+  abs_x.merge(0.0f, reminder >= 0);
   __ESIMD_NS::simd<float, N> fmod = reminder + abs_x;
   __ESIMD_NS::simd<float, N> fmod_abs = __ESIMD_NS::abs(fmod);
 

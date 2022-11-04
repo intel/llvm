@@ -14,6 +14,7 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/AsmParser/LLToken.h"
@@ -36,6 +37,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/ModRef.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
@@ -172,8 +174,8 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
 
       // If the alignment was parsed as an attribute, move to the alignment
       // field.
-      if (FnAttrs.hasAlignmentAttr()) {
-        Fn->setAlignment(FnAttrs.getAlignment());
+      if (MaybeAlign A = FnAttrs.getAlignment()) {
+        Fn->setAlignment(A);
         FnAttrs.removeAttribute(Attribute::Alignment);
       }
 
@@ -250,7 +252,7 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
     if (ResolveForwardRefDSOLocalEquivalents(Iter.first, Iter.second))
       return true;
   }
-  ForwardRefDSOLocalEquivalentNames.clear();
+  ForwardRefDSOLocalEquivalentIDs.clear();
   ForwardRefDSOLocalEquivalentNames.clear();
 
   for (const auto &NT : NumberedTypes)
@@ -302,16 +304,6 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
   // make_early_inc_range here because we may remove some functions.
   for (Function &F : llvm::make_early_inc_range(*M))
     UpgradeCallsToIntrinsic(&F);
-
-  // Some types could be renamed during loading if several modules are
-  // loaded in the same LLVMContext (LTO scenario). In this case we should
-  // remangle intrinsics names as well.
-  for (Function &F : llvm::make_early_inc_range(*M)) {
-    if (auto Remangled = Intrinsic::remangleIntrinsicFunction(&F)) {
-      F.replaceAllUsesWith(*Remangled);
-      F.eraseFromParent();
-    }
-  }
 
   if (UpgradeDebugInfo)
     llvm::UpgradeDebugInfo(*M);
@@ -1466,6 +1458,13 @@ bool LLParser::parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
     B.addAllocKindAttr(Kind);
     return false;
   }
+  case Attribute::Memory: {
+    Optional<MemoryEffects> ME = parseMemoryAttr();
+    if (!ME)
+      return true;
+    B.addMemoryAttr(*ME);
+    return false;
+  }
   default:
     B.addAttribute(Attr);
     Lex.Lex();
@@ -2185,6 +2184,87 @@ bool LLParser::parseAllocKind(AllocFnKind &Kind) {
   if (Kind == AllocFnKind::Unknown)
     return error(KindLoc, "expected allockind value");
   return false;
+}
+
+static Optional<MemoryEffects::Location> keywordToLoc(lltok::Kind Tok) {
+  switch (Tok) {
+  case lltok::kw_argmem:
+    return MemoryEffects::ArgMem;
+  case lltok::kw_inaccessiblemem:
+    return MemoryEffects::InaccessibleMem;
+  default:
+    return None;
+  }
+}
+
+static Optional<ModRefInfo> keywordToModRef(lltok::Kind Tok) {
+  switch (Tok) {
+  case lltok::kw_none:
+    return ModRefInfo::NoModRef;
+  case lltok::kw_read:
+    return ModRefInfo::Ref;
+  case lltok::kw_write:
+    return ModRefInfo::Mod;
+  case lltok::kw_readwrite:
+    return ModRefInfo::ModRef;
+  default:
+    return None;
+  }
+}
+
+Optional<MemoryEffects> LLParser::parseMemoryAttr() {
+  MemoryEffects ME = MemoryEffects::none();
+
+  // We use syntax like memory(argmem: read), so the colon should not be
+  // interpreted as a label terminator.
+  Lex.setIgnoreColonInIdentifiers(true);
+  auto _ = make_scope_exit([&] { Lex.setIgnoreColonInIdentifiers(false); });
+
+  Lex.Lex();
+  if (!EatIfPresent(lltok::lparen)) {
+    tokError("expected '('");
+    return None;
+  }
+
+  bool SeenLoc = false;
+  do {
+    Optional<MemoryEffects::Location> Loc = keywordToLoc(Lex.getKind());
+    if (Loc) {
+      Lex.Lex();
+      if (!EatIfPresent(lltok::colon)) {
+        tokError("expected ':' after location");
+        return None;
+      }
+    }
+
+    Optional<ModRefInfo> MR = keywordToModRef(Lex.getKind());
+    if (!MR) {
+      if (!Loc)
+        tokError("expected memory location (argmem, inaccessiblemem) "
+                 "or access kind (none, read, write, readwrite)");
+      else
+        tokError("expected access kind (none, read, write, readwrite)");
+      return None;
+    }
+
+    Lex.Lex();
+    if (Loc) {
+      SeenLoc = true;
+      ME = ME.getWithModRef(*Loc, *MR);
+    } else {
+      if (SeenLoc) {
+        tokError("default access kind must be specified first");
+        return None;
+      }
+      ME = MemoryEffects(*MR);
+    }
+
+    if (EatIfPresent(lltok::rparen))
+      return ME;
+  } while (EatIfPresent(lltok::comma));
+
+  tokError("unterminated memory attribute");
+  return None;
 }
 
 /// parseOptionalCommaAlign
@@ -5731,8 +5811,8 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
     return error(BuiltinLoc, "'builtin' attribute not valid on function");
 
   // If the alignment was parsed as an attribute, move to the alignment field.
-  if (FuncAttrs.hasAlignmentAttr()) {
-    Alignment = FuncAttrs.getAlignment();
+  if (MaybeAlign A = FuncAttrs.getAlignment()) {
+    Alignment = A;
     FuncAttrs.removeAttribute(Attribute::Alignment);
   }
 
@@ -6414,6 +6494,27 @@ bool LLParser::parseIndirectBr(Instruction *&Inst, PerFunctionState &PFS) {
   return false;
 }
 
+// If RetType is a non-function pointer type, then this is the short syntax
+// for the call, which means that RetType is just the return type.  Infer the
+// rest of the function argument types from the arguments that are present.
+bool LLParser::resolveFunctionType(Type *RetType,
+                                   const SmallVector<ParamInfo, 16> &ArgList,
+                                   FunctionType *&FuncTy) {
+  FuncTy = dyn_cast<FunctionType>(RetType);
+  if (!FuncTy) {
+    // Pull out the types of all of the arguments...
+    std::vector<Type*> ParamTypes;
+    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
+      ParamTypes.push_back(ArgList[i].V->getType());
+
+    if (!FunctionType::isValidReturnType(RetType))
+      return true;
+
+    FuncTy = FunctionType::get(RetType, ParamTypes, false);
+  }
+  return false;
+}
+
 /// parseInvoke
 ///   ::= 'invoke' OptionalCallingConv OptionalAttrs Type Value ParamList
 ///       OptionalAttrs 'to' TypeAndValue 'unwind' TypeAndValue
@@ -6447,18 +6548,9 @@ bool LLParser::parseInvoke(Instruction *&Inst, PerFunctionState &PFS) {
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
   // rest of the function argument types from the arguments that are present.
-  FunctionType *Ty = dyn_cast<FunctionType>(RetType);
-  if (!Ty) {
-    // Pull out the types of all of the arguments...
-    std::vector<Type*> ParamTypes;
-    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
-      ParamTypes.push_back(ArgList[i].V->getType());
-
-    if (!FunctionType::isValidReturnType(RetType))
-      return error(RetTypeLoc, "Invalid result type for LLVM function");
-
-    Ty = FunctionType::get(RetType, ParamTypes, false);
-  }
+  FunctionType *Ty;
+  if (resolveFunctionType(RetType, ArgList, Ty))
+    return error(RetTypeLoc, "Invalid result type for LLVM function");
 
   CalleeID.FTy = Ty;
 
@@ -6493,9 +6585,6 @@ bool LLParser::parseInvoke(Instruction *&Inst, PerFunctionState &PFS) {
 
   if (I != E)
     return error(CallLoc, "not enough parameters specified for call");
-
-  if (FnAttrs.hasAlignmentAttr())
-    return error(CallLoc, "invoke instructions may not have an alignment");
 
   // Finish off the Attribute and check them
   AttributeList PAL =
@@ -6773,18 +6862,9 @@ bool LLParser::parseCallBr(Instruction *&Inst, PerFunctionState &PFS) {
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
   // rest of the function argument types from the arguments that are present.
-  FunctionType *Ty = dyn_cast<FunctionType>(RetType);
-  if (!Ty) {
-    // Pull out the types of all of the arguments...
-    std::vector<Type *> ParamTypes;
-    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
-      ParamTypes.push_back(ArgList[i].V->getType());
-
-    if (!FunctionType::isValidReturnType(RetType))
-      return error(RetTypeLoc, "Invalid result type for LLVM function");
-
-    Ty = FunctionType::get(RetType, ParamTypes, false);
-  }
+  FunctionType *Ty;
+  if (resolveFunctionType(RetType, ArgList, Ty))
+    return error(RetTypeLoc, "Invalid result type for LLVM function");
 
   CalleeID.FTy = Ty;
 
@@ -6818,9 +6898,6 @@ bool LLParser::parseCallBr(Instruction *&Inst, PerFunctionState &PFS) {
 
   if (I != E)
     return error(CallLoc, "not enough parameters specified for call");
-
-  if (FnAttrs.hasAlignmentAttr())
-    return error(CallLoc, "callbr instructions may not have an alignment");
 
   // Finish off the Attribute and check them
   AttributeList PAL =
@@ -7178,18 +7255,9 @@ bool LLParser::parseCall(Instruction *&Inst, PerFunctionState &PFS,
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
   // rest of the function argument types from the arguments that are present.
-  FunctionType *Ty = dyn_cast<FunctionType>(RetType);
-  if (!Ty) {
-    // Pull out the types of all of the arguments...
-    std::vector<Type*> ParamTypes;
-    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
-      ParamTypes.push_back(ArgList[i].V->getType());
-
-    if (!FunctionType::isValidReturnType(RetType))
-      return error(RetTypeLoc, "Invalid result type for LLVM function");
-
-    Ty = FunctionType::get(RetType, ParamTypes, false);
-  }
+  FunctionType *Ty;
+  if (resolveFunctionType(RetType, ArgList, Ty))
+    return error(RetTypeLoc, "Invalid result type for LLVM function");
 
   CalleeID.FTy = Ty;
 
@@ -7225,9 +7293,6 @@ bool LLParser::parseCall(Instruction *&Inst, PerFunctionState &PFS,
 
   if (I != E)
     return error(CallLoc, "not enough parameters specified for call");
-
-  if (FnAttrs.hasAlignmentAttr())
-    return error(CallLoc, "call instructions may not have an alignment");
 
   // Finish off the Attribute and check them
   AttributeList PAL =

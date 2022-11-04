@@ -1326,26 +1326,6 @@ void AffineApplyOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 //===----------------------------------------------------------------------===//
-// Common canonicalization pattern support logic
-//===----------------------------------------------------------------------===//
-
-/// This is a common class used for patterns of the form
-/// "someop(memrefcast) -> someop".  It folds the source of any memref.cast
-/// into the root operation directly.
-static LogicalResult foldMemRefCast(Operation *op, Value ignore = nullptr) {
-  bool folded = false;
-  for (OpOperand &operand : op->getOpOperands()) {
-    auto cast = operand.get().getDefiningOp<memref::CastOp>();
-    if (cast && operand.get() != ignore &&
-        !cast.getOperand().getType().isa<UnrankedMemRefType>()) {
-      operand.set(cast.getOperand());
-      folded = true;
-    }
-  }
-  return success(folded);
-}
-
-//===----------------------------------------------------------------------===//
 // AffineDmaStartOp
 //===----------------------------------------------------------------------===//
 
@@ -1511,7 +1491,7 @@ LogicalResult AffineDmaStartOp::verifyInvariantsImpl() {
 LogicalResult AffineDmaStartOp::fold(ArrayRef<Attribute> cstOperands,
                                      SmallVectorImpl<OpFoldResult> &results) {
   /// dma_start(memrefcast) -> dma_start
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1589,7 +1569,7 @@ LogicalResult AffineDmaWaitOp::verifyInvariantsImpl() {
 LogicalResult AffineDmaWaitOp::fold(ArrayRef<Attribute> cstOperands,
                                     SmallVectorImpl<OpFoldResult> &results) {
   /// dma_wait(memrefcast) -> dma_wait
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2293,6 +2273,16 @@ Optional<OpFoldResult> AffineForOp::getSingleUpperBound() {
   return OpFoldResult(b.getI64IntegerAttr(getConstantUpperBound()));
 }
 
+Speculation::Speculatability AffineForOp::getSpeculatability() {
+  // `affine.for (I = Start; I < End; I += 1)` terminates for all values of
+  // Start and End.
+  //
+  // For Step != 1, the loop may not terminate.  We can add more smarts here if
+  // needed.
+  return getStep() == 1 ? Speculation::RecursivelySpeculatable
+                        : Speculation::NotSpeculatable;
+}
+
 /// Returns true if the provided value is the induction variable of a
 /// AffineForOp.
 bool mlir::isForInductionVar(Value val) {
@@ -2821,7 +2811,7 @@ void AffineLoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 OpFoldResult AffineLoadOp::fold(ArrayRef<Attribute> cstOperands) {
   /// load(memrefcast) -> load
-  if (succeeded(foldMemRefCast(*this)))
+  if (succeeded(memref::foldMemRefCast(*this)))
     return getResult();
 
   // Fold load from a global constant memref.
@@ -2939,7 +2929,7 @@ void AffineStoreOp::getCanonicalizationPatterns(RewritePatternSet &results,
 LogicalResult AffineStoreOp::fold(ArrayRef<Attribute> cstOperands,
                                   SmallVectorImpl<OpFoldResult> &results) {
   /// store(memrefcast) -> store
-  return foldMemRefCast(*this, getValueToStore());
+  return memref::foldMemRefCast(*this, getValueToStore());
 }
 
 //===----------------------------------------------------------------------===//
@@ -3392,7 +3382,7 @@ void AffinePrefetchOp::getCanonicalizationPatterns(RewritePatternSet &results,
 LogicalResult AffinePrefetchOp::fold(ArrayRef<Attribute> cstOperands,
                                      SmallVectorImpl<OpFoldResult> &results) {
   /// prefetch(memrefcast) -> prefetch
-  return foldMemRefCast(*this);
+  return memref::foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3576,22 +3566,6 @@ void AffineParallelOp::setUpperBounds(ValueRange ubOperands, AffineMap map) {
   newOperands.append(ubOperands.begin(), ubOperands.end());
   (*this)->setOperands(newOperands);
 
-  setUpperBoundsMapAttr(AffineMapAttr::get(map));
-}
-
-void AffineParallelOp::setLowerBoundsMap(AffineMap map) {
-  AffineMap lbMap = getLowerBoundsMap();
-  assert(lbMap.getNumDims() == map.getNumDims() &&
-         lbMap.getNumSymbols() == map.getNumSymbols());
-  (void)lbMap;
-  setLowerBoundsMapAttr(AffineMapAttr::get(map));
-}
-
-void AffineParallelOp::setUpperBoundsMap(AffineMap map) {
-  AffineMap ubMap = getUpperBoundsMap();
-  assert(ubMap.getNumDims() == map.getNumDims() &&
-         ubMap.getNumSymbols() == map.getNumSymbols());
-  (void)ubMap;
   setUpperBoundsMapAttr(AffineMapAttr::get(map));
 }
 
@@ -3807,7 +3781,9 @@ enum class MinMaxKind { Min, Max };
 static ParseResult parseAffineMapWithMinMax(OpAsmParser &parser,
                                             OperationState &result,
                                             MinMaxKind kind) {
-  constexpr llvm::StringLiteral tmpAttrStrName = "__pseudo_bound_map";
+  // Using `const` not `constexpr` below to workaround a MSVC optimizer bug,
+  // see: https://reviews.llvm.org/D134227#3821753
+  const llvm::StringLiteral tmpAttrStrName = "__pseudo_bound_map";
 
   StringRef mapName = kind == MinMaxKind::Min
                           ? AffineParallelOp::getUpperBoundsMapAttrStrName()

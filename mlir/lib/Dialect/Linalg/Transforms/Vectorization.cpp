@@ -150,7 +150,7 @@ mlir::linalg::getCombinerOpKind(Operation *combinerOp) {
 static Operation *matchLinalgReduction(OpOperand *outputOperand) {
   auto linalgOp = cast<LinalgOp>(outputOperand->getOwner());
   unsigned outputPos =
-      outputOperand->getOperandNumber() - linalgOp.getNumInputs();
+      outputOperand->getOperandNumber() - linalgOp.getNumDpsInputs();
   // Only single combiner operations are supported for now.
   SmallVector<Operation *, 4> combinerOps;
   if (!matchReduction(linalgOp.getRegionOutputArgs(), outputPos, combinerOps) ||
@@ -232,6 +232,12 @@ static Value buildVectorWrite(OpBuilder &b, Value value,
   return Value();
 }
 
+// Custom vectorization precondition function type. This is intented to be used
+// with CustomVectorizationHook. Returns success if the correpsonding custom
+// hook can vectorize the op.
+using CustomVectorizationPrecondition =
+    std::function<LogicalResult(Operation *)>;
+
 // Custom vectorization function type. Produce a vector form of Operation*
 // assuming all its vectorized operands are already in the BlockAndValueMapping.
 // Return nullptr if the Operation cannot be vectorized.
@@ -257,7 +263,7 @@ vectorizeLinalgYield(OpBuilder &b, Operation *op,
     // TODO: use a map.
     Value vectorValue = bvm.lookup(outputs.value());
     Value newResult = buildVectorWrite(
-        b, vectorValue, linalgOp.getOutputOperand(outputs.index()));
+        b, vectorValue, linalgOp.getDpsInitOperand(outputs.index()));
     if (newResult)
       newResults.push_back(newResult);
   }
@@ -298,6 +304,69 @@ static VectorizationResult vectorizeLinalgIndex(OpBuilder &b, Operation *op,
   auto transposeOp =
       b.create<vector::TransposeOp>(loc, broadCastOp, transposition);
   return VectorizationResult{VectorizationStatus::NewOp, transposeOp};
+}
+
+/// Helper function to check if the tensor.extract can be vectorized by the
+/// custom hook vectorizeTensorExtract.
+static LogicalResult tensorExtractVectorizationPrecondition(Operation *op) {
+  tensor::ExtractOp extractOp = dyn_cast<tensor::ExtractOp>(op);
+  if (!extractOp)
+    return failure();
+
+  // Currently only supports extraction with an 1-D index.
+  if (extractOp.getIndices().size() != 1)
+    return failure();
+
+  if (!VectorType::isValidElementType(extractOp.getIndices()[0].getType()))
+    return failure();
+
+  if (llvm::any_of(extractOp->getResultTypes(), [](Type type) {
+        return !VectorType::isValidElementType(type);
+      })) {
+    return failure();
+  }
+
+  return success();
+}
+
+/// Helper function to vectorize the tensor.extract operations. Returns
+/// VectorizationStatus::NewOp to signal the vectorization algorithm that it
+/// should map the produced operations. This function is meant to be used as a
+/// CustomVectorizationHook.
+static VectorizationResult
+vectorizeTensorExtract(OpBuilder &b, Operation *op, LinalgOp linalgOp,
+                       const BlockAndValueMapping &bvm) {
+  tensor::ExtractOp extractOp = dyn_cast<tensor::ExtractOp>(op);
+  if (!extractOp)
+    return VectorizationResult{VectorizationStatus::Failure, nullptr};
+  auto loc = extractOp.getLoc();
+
+  // Currently only supports extraction with an 1-D index. Checked in the
+  // tensorExtractVectorizationPrecondition.
+  assert(extractOp.getIndices().size() == 1);
+
+  auto indexVec = bvm.lookup(extractOp.getIndices()[0]);
+  // Compute the static loop sizes of the extract op.
+  auto targetShape = linalgOp.computeStaticLoopSizes();
+
+  SmallVector<Value> gatherIndices;
+  gatherIndices.push_back(b.create<arith::ConstantIndexOp>(loc, 0));
+
+  auto maskConstantOp = b.create<arith::ConstantOp>(
+      loc,
+      DenseIntElementsAttr::get(VectorType::get(targetShape, b.getI1Type()),
+                                /*value=*/true));
+
+  auto resultType =
+      VectorType::get(targetShape, extractOp.getResult().getType());
+  auto passThruConstantOp =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(resultType));
+
+  auto gatherOp = b.create<vector::GatherOp>(
+      loc, resultType, extractOp.getTensor(), gatherIndices, indexVec,
+      maskConstantOp, passThruConstantOp);
+
+  return VectorizationResult{VectorizationStatus::NewOp, gatherOp};
 }
 
 /// Emit reduction operations if the shapes of the value to reduce is different
@@ -366,12 +435,12 @@ vectorizeOneOp(OpBuilder &b, LinalgOp linalgOp, Operation *op,
   SmallVector<std::pair<Value, Value>> reductionOperands;
   for (Value operand : op->getOperands()) {
     auto arg = operand.dyn_cast<BlockArgument>();
-    if (!arg || arg.getArgNumber() < linalgOp.getNumInputs())
+    if (!arg || arg.getArgNumber() < linalgOp.getNumDpsInputs())
       continue;
     SmallVector<Operation *> reductionOps;
     Value reduceValue = matchReduction(
         linalgOp.getRegionOutputArgs(),
-        arg.getArgNumber() - linalgOp.getNumInputs(), reductionOps);
+        arg.getArgNumber() - linalgOp.getNumDpsInputs(), reductionOps);
     if (!reduceValue)
       continue;
     reductionOperands.push_back(std::make_pair(reduceValue, operand));
@@ -448,7 +517,7 @@ vectorizeAsLinalgGeneric(OpBuilder &b, LinalgOp linalgOp,
   mlir::getUsedValuesDefinedAbove(linalgOp->getRegion(0), valuesSet);
   bvm.map(valuesSet.getArrayRef(), valuesSet.getArrayRef());
 
-  if (linalgOp.getNumOutputs() == 0)
+  if (linalgOp.getNumDpsInits() == 0)
     return failure();
 
   // TODO: the common vector shape is equal to the static loop sizes only when
@@ -459,8 +528,8 @@ vectorizeAsLinalgGeneric(OpBuilder &b, LinalgOp linalgOp,
   // 3. Turn all BBArgs into vector.transfer_read / load.
   Location loc = linalgOp.getLoc();
   Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
-  for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
-    BlockArgument bbarg = block->getArgument(opOperand->getOperandNumber());
+  for (OpOperand *opOperand : linalgOp.getOpOperandsMatchingBBargs()) {
+    BlockArgument bbarg = linalgOp.getMatchingBlockArgument(opOperand);
     if (linalgOp.isScalar(opOperand)) {
       bvm.map(bbarg, opOperand->get());
       continue;
@@ -468,10 +537,10 @@ vectorizeAsLinalgGeneric(OpBuilder &b, LinalgOp linalgOp,
     VectorType readType;
     AffineMap map;
     // TODO: can we keep this simplification?
-    // if (linalgOp.getShape(opOperand).empty()) {
+    // if (linalgOp.getShape(&opOperand).empty()) {
     //   readType = VectorType::get({}, bbarg.getType());
     // } else {
-    if (opOperand->getOperandNumber() < linalgOp.getNumInputs()) {
+    if (opOperand->getOperandNumber() < linalgOp.getNumDpsInputs()) {
       map = inverseAndBroadcastProjectedPermutation(
           linalgOp.getMatchingIndexingMap(opOperand));
       readType = VectorType::get(commonVectorShape,
@@ -515,6 +584,14 @@ vectorizeAsLinalgGeneric(OpBuilder &b, LinalgOp linalgOp,
   };
   hooks.push_back(vectorizeIndex);
 
+  // 4c. Register CustomVectorizationHook for extractOp.
+  CustomVectorizationHook vectorizeExtract =
+      [&](Operation *op,
+          const BlockAndValueMapping &bvm) -> VectorizationResult {
+    return vectorizeTensorExtract(b, op, linalgOp, bvm);
+  };
+  hooks.push_back(vectorizeExtract);
+
   // 5. Iteratively call `vectorizeOneOp` to each op in the slice.
   for (Operation &op : block->getOperations()) {
     VectorizationResult result = vectorizeOneOp(b, linalgOp, &op, bvm, hooks);
@@ -538,7 +615,7 @@ static LogicalResult reductionPreconditions(LinalgOp op) {
     LDBG("reduction precondition failed: no reduction iterator");
     return failure();
   }
-  for (OpOperand *opOperand : op.getOutputOperands()) {
+  for (OpOperand *opOperand : op.getDpsInitOperands()) {
     AffineMap indexingMap = op.getMatchingIndexingMap(opOperand);
     if (indexingMap.isPermutation())
       continue;
@@ -552,9 +629,20 @@ static LogicalResult reductionPreconditions(LinalgOp op) {
   return success();
 }
 
-static LogicalResult vectorizeStaticLinalgOpPrecondition(linalg::LinalgOp op) {
+static LogicalResult vectorizeStaticLinalgOpPrecondition(
+    linalg::LinalgOp op,
+    ArrayRef<CustomVectorizationPrecondition> customPreconditions) {
+
   // All types in the body should be a supported element type for VectorType.
   for (Operation &innerOp : op->getRegion(0).front()) {
+    // Check if any custom hook can vectorize the inner op.
+    if (llvm::any_of(
+            customPreconditions,
+            [&](const CustomVectorizationPrecondition &customPrecondition) {
+              return succeeded(customPrecondition(&innerOp));
+            })) {
+      continue;
+    }
     if (llvm::any_of(innerOp.getOperandTypes(), [](Type type) {
           return !VectorType::isValidElementType(type);
         })) {
@@ -587,13 +675,19 @@ static LogicalResult vectorizeStaticLinalgOpPrecondition(linalg::LinalgOp op) {
   return success();
 }
 
-static LogicalResult vectorizeLinalgOpPrecondition(LinalgOp linalgOp) {
+LogicalResult mlir::linalg::vectorizeLinalgOpPrecondition(LinalgOp linalgOp) {
   // All types must be static shape to go to vector.
   if (linalgOp.hasDynamicShape()) {
     LDBG("precondition failed: dynamic shape");
     return failure();
   }
-  return vectorizeStaticLinalgOpPrecondition(linalgOp);
+
+  SmallVector<CustomVectorizationPrecondition> customPreconditions;
+
+  // Register CustomVectorizationPrecondition for extractOp.
+  customPreconditions.push_back(tensorExtractVectorizationPrecondition);
+
+  return vectorizeStaticLinalgOpPrecondition(linalgOp, customPreconditions);
 }
 
 LogicalResult mlir::linalg::vectorize(RewriterBase &rewriter,
@@ -1332,11 +1426,11 @@ struct Conv1DGenerator : public StructuredGenerator<LinalgOp> {
       : StructuredGenerator<LinalgOp>(builder, linalgOp), strideW(strideW),
         dilationW(dilationW) {
     // Determine whether `linalgOp` can be generated with this generator
-    if (linalgOp.getNumInputs() != 2 || linalgOp.getNumOutputs() != 1)
+    if (linalgOp.getNumDpsInputs() != 2 || linalgOp.getNumDpsInits() != 1)
       return;
-    lhsShaped = linalgOp.getInputs()[0];
-    rhsShaped = linalgOp.getInputs()[1];
-    resShaped = linalgOp.getOutputs()[0];
+    lhsShaped = linalgOp.getDpsInputOperand(0)->get();
+    rhsShaped = linalgOp.getDpsInputOperand(1)->get();
+    resShaped = linalgOp.getDpsInitOperand(0)->get();
     lhsShapedType = lhsShaped.getType().dyn_cast<ShapedType>();
     rhsShapedType = rhsShaped.getType().dyn_cast<ShapedType>();
     resShapedType = resShaped.getType().dyn_cast<ShapedType>();
@@ -1348,7 +1442,7 @@ struct Conv1DGenerator : public StructuredGenerator<LinalgOp> {
       return;
 
     // Check for reduction `add` preceded by `mul`.
-    Operation *reduceOp = matchLinalgReduction(linalgOp.getOutputOperand(0));
+    Operation *reduceOp = matchLinalgReduction(linalgOp.getDpsInitOperand(0));
     if (!reduceOp)
       return;
     llvm::Optional<vector::CombiningKind> maybeKind;

@@ -1,4 +1,4 @@
-//===- ArithOps.td - Arith op definitions -------------*- tablegen -*-===//
+//===- ArithOps.td - Arith op definitions ------------------*- tablegen -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,6 +10,7 @@
 #define ARITH_OPS
 
 include "mlir/Dialect/Arith/IR/ArithBase.td"
+include "mlir/Dialect/Arith/IR/ArithOpsInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/InferIntRangeInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
@@ -17,11 +18,17 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
+include "mlir/IR/EnumAttr.td"
+
+def Arith_FastMathAttr :
+    EnumAttr<Arith_Dialect, FastMathFlags, "fastmath"> {
+  let assemblyFormat = "`<` $value `>`";
+}
 
 // Base class for Arith dialect ops. Ops in this dialect have no side
 // effects and can be applied element-wise to vectors and tensors.
 class Arith_Op<string mnemonic, list<Trait> traits = []> :
-    Op<Arith_Dialect, mnemonic, traits # [NoSideEffect,
+    Op<Arith_Dialect, mnemonic, traits # [Pure,
     DeclareOpInterfaceMethods<VectorUnrollOpInterface>] #
     ElementwiseMappable.traits>;
 
@@ -58,15 +65,27 @@ class Arith_IntBinaryOp<string mnemonic, list<Trait> traits = []> :
 
 // Base class for floating point unary operations.
 class Arith_FloatUnaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_UnaryOp<mnemonic, traits>,
-    Arguments<(ins FloatLike:$operand)>,
-    Results<(outs FloatLike:$result)>;
+    Arith_UnaryOp<mnemonic,
+      !listconcat([DeclareOpInterfaceMethods<ArithFastMathInterface>],
+                  traits)>,
+    Arguments<(ins FloatLike:$operand,
+      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+    Results<(outs FloatLike:$result)> {
+  let assemblyFormat = [{ $operand custom<ArithFastMathAttr>($fastmath)
+                          attr-dict `:` type($result) }];
+}
 
 // Base class for floating point binary operations.
 class Arith_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_BinaryOp<mnemonic, traits>,
-    Arguments<(ins FloatLike:$lhs, FloatLike:$rhs)>,
-    Results<(outs FloatLike:$result)>;
+    Arith_BinaryOp<mnemonic,
+      !listconcat([DeclareOpInterfaceMethods<ArithFastMathInterface>],
+                  traits)>,
+    Arguments<(ins FloatLike:$lhs, FloatLike:$rhs,
+      DefaultValuedAttr<Arith_FastMathAttr, "FastMathFlags::none">:$fastmath)>,
+    Results<(outs FloatLike:$result)> {
+  let assemblyFormat = [{ $lhs `,` $rhs `` custom<ArithFastMathAttr>($fastmath)
+                          attr-dict `:` type($result) }];
+}
 
 // Base class for arithmetic cast operations. Requires a single operand and
 // result. If either is a shaped type, then the other must be of the same shape.
@@ -127,7 +146,7 @@ class Arith_CompareOpOfAnyRank<string mnemonic, list<Trait> traits = []> :
 //===----------------------------------------------------------------------===//
 
 def Arith_ConstantOp : Op<Arith_Dialect, "constant",
-    [ConstantLike, NoSideEffect,
+    [ConstantLike, Pure,
      DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
      AllTypesMatch<["value", "result"]>,
      DeclareOpInterfaceMethods<InferIntRangeInterface>]> {

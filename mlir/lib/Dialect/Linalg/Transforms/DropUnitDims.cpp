@@ -377,21 +377,21 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
     SmallVector<ArrayAttr> reassociationMaps;
     SmallVector<Type> newInputOutputTypes;
     bool doCanonicalization = false;
-    for (OpOperand *opOperand : genericOp.getInputAndOutputOperands()) {
-      auto replacementInfo = replaceUnitExtents(genericOp, opOperand, context);
+    for (OpOperand &opOperand : genericOp->getOpOperands()) {
+      auto replacementInfo = replaceUnitExtents(genericOp, &opOperand, context);
       if (replacementInfo) {
         reassociationMaps.push_back(replacementInfo->reassociation);
         newIndexingMaps.push_back(replacementInfo->indexMap);
         newInputOutputTypes.push_back(replacementInfo->type);
         doCanonicalization |=
-            replacementInfo->type != opOperand->get().getType();
+            replacementInfo->type != opOperand.get().getType();
       } else {
         // If replaceUnitExtents cannot handle this case, maintain the same
         // type, indexing map, and create a set of mappings representing an
         // identity matrix.
-        newInputOutputTypes.push_back(opOperand->get().getType());
-        newIndexingMaps.push_back(genericOp.getMatchingIndexingMap(opOperand));
-        int64_t origRank = genericOp.getRank(opOperand);
+        newInputOutputTypes.push_back(opOperand.get().getType());
+        newIndexingMaps.push_back(genericOp.getMatchingIndexingMap(&opOperand));
+        int64_t origRank = genericOp.getRank(&opOperand);
         auto maps = llvm::to_vector<8>(llvm::map_range(
             llvm::seq<int64_t>(0, origRank), [&](int64_t dim) -> Attribute {
               return AffineMapAttr::get(
@@ -435,7 +435,8 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
     SmallVector<Type, 4> resultTypes;
     resultTypes.reserve(genericOp.getNumResults());
     for (unsigned i : llvm::seq<unsigned>(0, genericOp.getNumResults()))
-      resultTypes.push_back(newInputOutputTypes[i + genericOp.getNumInputs()]);
+      resultTypes.push_back(
+          newInputOutputTypes[i + genericOp.getNumDpsInputs()]);
     GenericOp replacementOp = rewriter.create<GenericOp>(
         loc, resultTypes, newInputs, newOutputs, newIndexingMaps,
         genericOp.getIteratorTypesArray());
@@ -447,7 +448,7 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
     // the original shape.
     SmallVector<Value, 4> resultReplacements;
     for (const auto &result : llvm::enumerate(replacementOp.getResults())) {
-      unsigned index = result.index() + replacementOp.getNumInputs();
+      unsigned index = result.index() + replacementOp.getNumDpsInputs();
       auto origResultType = genericOp.getResult(result.index()).getType();
 
       auto newResult = maybeExpand(result.value(), origResultType,

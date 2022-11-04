@@ -265,14 +265,14 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
   int Exp = 0;
 
   // For the case that the value is larger than 10.0
-  while (AbsVal >= 10.0) {
+  while (AbsVal >= T{10.0}) {
     ++Exp;
-    AbsVal /= 10.0;
+    AbsVal /= T{10.0};
   }
   // For the case that the value is less than 1.0
-  while (AbsVal > 0.0 && AbsVal < 1.0) {
+  while (AbsVal > T{0.0} && AbsVal < T{1.0}) {
     --Exp;
-    AbsVal *= 10.0;
+    AbsVal *= T{10.0};
   }
 
   auto IntegralPart = static_cast<int>(AbsVal);
@@ -292,7 +292,7 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
     FractionLength = MAX_FLOATING_POINT_DIGITS - 5;
 
   for (unsigned I = 0; I < FractionLength; ++I) {
-    FractionPart *= 10.0;
+    FractionPart *= T{10.0};
     FractionDigits[I] = static_cast<int>(FractionPart);
     FractionPart -= static_cast<int>(FractionPart);
   }
@@ -739,7 +739,7 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT __SYCL_SPECIAL_CLASS stream {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.

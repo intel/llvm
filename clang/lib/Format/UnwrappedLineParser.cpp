@@ -920,6 +920,9 @@ FormatToken *UnwrappedLineParser::parseBlock(
     return IfLBrace;
   }
 
+  const bool IsFunctionRBrace =
+      FormatTok->is(tok::r_brace) && Tok->is(TT_FunctionLBrace);
+
   auto RemoveBraces = [=]() mutable {
     if (!SimpleBlock)
       return false;
@@ -959,6 +962,17 @@ FormatToken *UnwrappedLineParser::parseBlock(
 
   // Munch the closing brace.
   nextToken(/*LevelDifference=*/-AddLevels);
+
+  // When this is a function block and there is an unnecessary semicolon
+  // afterwards then mark it as optional (so the RemoveSemi pass can get rid of
+  // it later).
+  if (Style.RemoveSemicolon && IsFunctionRBrace) {
+    while (FormatTok->is(tok::semi)) {
+      FormatTok->Optional = true;
+      nextToken();
+    }
+  }
+
   HandleVerilogBlockLabel();
 
   if (MacroBlock && FormatTok->is(tok::l_paren))
@@ -1104,6 +1118,9 @@ void UnwrappedLineParser::parsePPDirective() {
   case tok::pp_endif:
     parsePPEndIf();
     break;
+  case tok::pp_pragma:
+    parsePPPragma();
+    break;
   default:
     parsePPUnknown();
     break;
@@ -1198,9 +1215,12 @@ void UnwrappedLineParser::parsePPElse() {
   // If a potential include guard has an #else, it's not an include guard.
   if (IncludeGuard == IG_Defined && PPBranchLevel == 0)
     IncludeGuard = IG_Rejected;
+  // Don't crash when there is an #else without an #if.
+  assert(PPBranchLevel >= -1);
+  if (PPBranchLevel == -1)
+    conditionalCompilationStart(/*Unreachable=*/true);
   conditionalCompilationAlternative();
-  if (PPBranchLevel > -1)
-    --PPBranchLevel;
+  --PPBranchLevel;
   parsePPUnknown();
   ++PPBranchLevel;
 }
@@ -1264,6 +1284,11 @@ void UnwrappedLineParser::parsePPDefine() {
   // re-indentation if there was a structural error) within the macro
   // definition.
   parseFile();
+}
+
+void UnwrappedLineParser::parsePPPragma() {
+  Line->InPragmaDirective = true;
+  parsePPUnknown();
 }
 
 void UnwrappedLineParser::parsePPUnknown() {
