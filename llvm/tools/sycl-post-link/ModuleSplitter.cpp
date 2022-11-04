@@ -795,7 +795,30 @@ namespace {
     SmallSet<int, 4> Aspects;
     // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
     // double-grf and other properties
+
+    static KernelProperties getTombstone() {
+      KernelProperties Ret;
+      Ret.IsTombstoneKey = true;
+      return Ret;
+    }
+
+    static KernelProperties getEmpty() {
+      KernelProperties Ret;
+      Ret.IsEmpty = true;
+      return Ret;
+    }
+
+  private:
+    // For DenseMap:
+    bool IsTombstoneKey = false;
+    bool IsEmpty = false;
+
+  public:
     bool operator==(const KernelProperties &Other) const {
+      // Tombstone does not compare equal to any other item
+      if (IsTombstoneKey || Other.IsTombstoneKey)
+        return false;
+
       if (Aspects.size() != Other.Aspects.size())
         return false;
 
@@ -803,7 +826,7 @@ namespace {
                         [&](int Aspect) { return Aspects.contains(Aspect); }))
         return false;
 
-      return true;
+      return IsEmpty == Other.IsEmpty;
     }
 
     unsigned hash() const {
@@ -815,12 +838,11 @@ namespace {
 
   struct KernelPropertiesAsKeyInfo {
     static inline KernelProperties getEmptyKey() {
-      return KernelProperties{};
+      return KernelProperties::getEmpty();
     }
 
     static inline KernelProperties getTombstoneKey() {
-      // FIXME: is it correct?
-      return KernelProperties{};
+      return KernelProperties::getTombstone();
     }
 
     static unsigned getHashValue(const KernelProperties &Value) {
