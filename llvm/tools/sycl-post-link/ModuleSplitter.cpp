@@ -761,10 +761,85 @@ getDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
     return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
+namespace {
+  struct KernelProperties {
+    KernelProperties() = default;
+
+    KernelProperties(const Function *F) {
+      if (const MDNode *MDN = F->getMetadata("sycl_used_aspects")) {
+        auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
+                                                   unsigned OpNo) -> auto {
+          Constant *C =
+              cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
+          return C->getUniqueInteger().getSExtValue();
+        };
+
+        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+          Aspects.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
+        }
+
+      }
+    }
+
+    std::string getName() const {
+      if (Aspects.empty())
+        return "no-aspects";
+
+      std::string Ret = "aspects";
+      for (int A : Aspects) {
+        Ret += "-" + std::to_string(A);
+      }
+      return Ret;
+    }
+
+    SmallSet<int, 4> Aspects;
+    // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
+    // double-grf and other properties
+    bool operator==(const KernelProperties &Other) const {
+      if (Aspects.size() != Other.Aspects.size())
+        return false;
+
+      if (!llvm::all_of(Other.Aspects,
+                        [&](int Aspect) { return Aspects.contains(Aspect); }))
+        return false;
+
+      return true;
+    }
+
+    unsigned hash() const {
+      llvm::hash_code AspectsHash =
+          llvm::hash_combine_range(Aspects.begin(), Aspects.end());
+      return static_cast<unsigned>(llvm::hash_combine(AspectsHash));
+    }
+  };
+
+  struct KernelPropertiesAsKeyInfo {
+    static inline KernelProperties getEmptyKey() {
+      return KernelProperties{};
+    }
+
+    static inline KernelProperties getTombstoneKey() {
+      // FIXME: is it correct?
+      return KernelProperties{};
+    }
+
+    static unsigned getHashValue(const KernelProperties &Value) {
+      return Value.hash();
+    }
+
+    static bool isEqual(const KernelProperties &LHS,
+                        const KernelProperties &RHS) {
+      return LHS == RHS;
+    }
+  };
+}
+
 std::unique_ptr<ModuleSplitterBase>
 getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups;
-  std::map<std::string, EntryPointSet> AspectsToFunctions;
+
+  DenseMap<KernelProperties, EntryPointSet, KernelPropertiesAsKeyInfo>
+      PropertiesToFunctionsMap;
 
   Module &M = MD.getModule();
 
@@ -775,32 +850,16 @@ getPerAspectsSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
       continue;
     }
 
-    if (!F.hasMetadata("sycl_used_aspects")) {
-      AspectsToFunctions["no-aspects"].insert(&F);
-    } else {
-      auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                                 unsigned OpNo) -> APInt {
-        Constant *C =
-            cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-        return C->getUniqueInteger();
-      };
-      std::string Key = "aspects";
-      const MDNode *MDN = F.getMetadata("sycl_used_aspects");
-      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
-        auto Int = ExtractIntegerFromMDNodeOperand(MDN, I);
-        SmallVector<char, 2> Str;
-        Int.toStringUnsigned(Str);
-        Key += "-" + std::string(Str.data(), Str.size()); 
-      }
-      AspectsToFunctions[Key].insert(&F);
-    }
+    auto Key = KernelProperties(&F);
+    PropertiesToFunctionsMap[Key].insert(&F);
   }
 
-  if (!AspectsToFunctions.empty()) {
-    Groups.reserve(AspectsToFunctions.size());
-    for (auto &EPG : AspectsToFunctions) {
-      Groups.emplace_back(EntryPointGroup{
-          EPG.first, std::move(EPG.second), MD.getEntryPointGroup().Props});
+  if (!PropertiesToFunctionsMap.empty()) {
+    Groups.reserve(PropertiesToFunctionsMap.size());
+    for (auto &EPG : PropertiesToFunctionsMap) {
+      Groups.emplace_back(EntryPointGroup{EPG.first.getName(),
+                                          std::move(EPG.second),
+                                          MD.getEntryPointGroup().Props});
     }
   } else {
     // No entry points met, record this.
