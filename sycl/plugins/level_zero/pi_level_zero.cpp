@@ -661,8 +661,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 
 pi_result _pi_queue::setLastDiscardedEvent(pi_event Event) {
   try {
-    // We expect previous event to be in the cache.
-    assert(LastDiscardedEvent == nullptr);
     LastDiscardedEvent = new _pi_event(Event->ZeEvent, Event->ZeEventPool,
                                        Context, PI_COMMAND_TYPE_USER, true);
   } catch (const std::bad_alloc &) {
@@ -679,17 +677,17 @@ pi_result _pi_queue::setLastDiscardedEvent(pi_event Event) {
 
 pi_result
 _pi_queue::resetLastDiscardedEvent(pi_command_list_ptr_t CommandList) {
-  if (LastCommandEvent && LastCommandEvent->IsDiscarded &&
-      CommandList != CommandListMap.end()) {
+  if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
     ZE_CALL(zeCommandListAppendBarrier,
             (CommandList->first, nullptr, 1, &(LastCommandEvent->ZeEvent)));
     ZE_CALL(zeCommandListAppendEventReset,
             (CommandList->first, LastCommandEvent->ZeEvent));
 
-    // Remember last discarded event. Can't put it to the cache right now to
-    // avoid taking it as the next discarded event which will cause using same
-    // event two times in a row. We need to round robin between two events.
-    setLastDiscardedEvent(LastCommandEvent);
+    // Put previous discarded event to the cache.
+    if (LastDiscardedEvent)
+      PI_CALL(addEventToCache(LastDiscardedEvent));
+    // Update last discarded event. It will be put to the cache after submission of the next command.
+    PI_CALL(setLastDiscardedEvent(LastCommandEvent));
   }
   return PI_SUCCESS;
 }
@@ -714,13 +712,6 @@ inline static pi_result createEventAndAssociateQueue(
 
   // If event is discarded then try to get event from the queue cache.
   *Event = IsInternal ? Queue->getEventFromCache(ForceHostVisible) : nullptr;
-
-  if (IsInternal && Queue->LastDiscardedEvent) {
-    // We've possibly got discarded event above so it is time to reset the last
-    // disarded event (if any) and put it to the cache.
-    PI_CALL(Queue->addEventToCache(Queue->LastDiscardedEvent));
-    Queue->LastDiscardedEvent = nullptr;
-  }
 
   if (*Event == nullptr)
     PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
@@ -1661,8 +1652,9 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   if (!CommandList->second.EventList.empty() &&
       this->LastCommandEvent != CommandList->second.EventList.back()) {
     this->LastCommandEvent = CommandList->second.EventList.back();
-    if (this->LastCommandEvent->IsDiscarded)
+    if (this->LastCommandEvent->IsDiscarded) {
       PI_CALL(resetLastDiscardedEvent(CommandList));
+    }
   }
 
   this->LastCommandList = CommandList;
