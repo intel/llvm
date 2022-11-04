@@ -77,10 +77,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
            sycl::ext::oneapi::sub_group sg = spmd_item.get_sub_group();
            joint_matrix<bfloat16, TM, TK, use::a> sub_a(sg);
-           // For B, since current implementation does not support non-packed
-           // layout, users need to specify the updated VNNI sizes along with
-           // the packed_b layout. By default, the layout is row_major and size
-           // is (TK, TN).
            joint_matrix<bfloat16, TK, TN, use::b> sub_b(sg);
            joint_matrix<float, TM, TN, use::accumulator> sub_c(sg);
 

@@ -258,12 +258,12 @@ public:
              std::size_t i)
       : M(Mat), idx(i) {}
 
-  std::tuple<size_t, size_t> get_coord() {
+  std::tuple<uint32_t, uint32_t> get_coord() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_vec_t<int32_t, 2> coord =
+    __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
-    const int32_t row = coord[0];
-    const int32_t col = coord[1];
+    const uint32_t row = coord[0];
+    const uint32_t col = coord[1];
     return std::make_tuple(row, col);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
@@ -520,12 +520,12 @@ public:
              std::size_t i)
       : M(Mat), idx(i) {}
 
-  std::tuple<size_t, size_t> get_coord() {
+  std::tuple<uint32_t, uint32_t> get_coord() {
 #ifdef __SYCL_DEVICE_ONLY__
-    __ocl_vec_t<int32_t, 2> coord =
+    __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixWorkItemElemCoord(M.spvm, idx);
-    const int32_t row = coord[0];
-    const int32_t col = coord[1];
+    const uint32_t row = coord[0];
+    const uint32_t col = coord[1];
     return std::make_tuple(row, col);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
