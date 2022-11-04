@@ -52,62 +52,6 @@ Scheduler::GraphProcessor::collectEventsForRecToFinish(MemObjRecord *Record) {
     DepEvents.push_back(ReleaseCmd->getEvent());
   }
   return DepEvents;
-/* void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event, */
-/*                                              ReadLockT &GraphReadLock, */
-/*                                              std::vector<Command *> &ToCleanUp, */
-/*                                              bool LockTheLock) { */
-/*   Command *Cmd = getCommand(Event); */
-/*   // Command can be nullptr if user creates sycl::event explicitly or the */
-/*   // event has been waited on by another thread */
-/*   if (!Cmd) */
-/*     return; */
-
-/*   EnqueueResultT Res; */
-/*   bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, BLOCKING); */
-/*   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) */
-/*     // TODO: Reschedule commands. */
-/*     throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION); */
-
-/*   assert(Cmd->getEvent() == Event); */
-
-/*   GraphReadLock.unlock(); */
-/*   Event->waitInternal(); */
-
-/*   if (LockTheLock) */
-/*     GraphReadLock.lock(); */
-}
-
-/* bool Scheduler::GraphProcessor::enqueueCommand( */
-/*     Command *Cmd, EnqueueResultT &EnqueueResult, */
-/*     std::vector<Command *> &ToCleanUp, BlockingT Blocking) { */
-/*   // Repeat enqueue process until we finally enqueue the target command */
-/*   while (true) { */
-/*     EnqueueResultT Res; */
-/*     { */
-/*       ReadLockT Lock{MGraphLock}; */
-/*       if (GraphProcessor::enqueueCommandImpl(GraphProcessor::getCommand(Event), */
-/*                                              Res, ToCleanUp, Blocking)) */
-/*         break; */
-/*     } */
-
-/*     if (Blocking == NON_BLOCKING) */
-/*       break; */
-
-/*     if (EnqueueResultT::SyclEnqueueFailed == Res.MResult) */
-/*       // TODO: Reschedule commands. */
-/*       throw runtime_error("Enqueue process failed.", */
-/*                           PI_ERROR_INVALID_OPERATION); */
-
-/*     assert(EnqueueResultT::SyclEnqueueBlocked == Res.MResult); */
-/*     assert(!Res.MBlockingEvents.empty()); */
-
-/*     // Wait for state change of the commands blocking the target command from */
-/*     // being enqueued. The state may change to completed or ready to enqueue. */
-/*     // In both cases need to repeat enqueue. */
-/*     for (EventImplPtr &Event : Res.MBlockingEvents) */
-/*       Event->waitStateChange(); */
-/*   } */
-/* } */
 
 bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, EnqueueResultT &EnqueueResult,
