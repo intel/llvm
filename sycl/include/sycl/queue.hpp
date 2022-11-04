@@ -1068,11 +1068,11 @@ public:
   template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
             access::placeholder IsPlaceholder, typename DestT>
   event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
-             std::shared_ptr<DestT> Dest) {
+             std::shared_ptr<DestT> Dest _CODELOCPARAM(&CodeLoc)) {
     return submit([&](handler &CGH) {
       CGH.require(Src);
       CGH.copy(Src, Dest);
-    });
+    } _CODELOCFW(CodeLoc));
   }
 
   /// Copies data from a memory region pointed to by a shared_ptr to another
@@ -1084,11 +1084,12 @@ public:
   template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
             target DestTgt, access::placeholder IsPlaceholder>
   event copy(std::shared_ptr<SrcT> Src,
-             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest) {
+             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest
+                 _CODELOCPARAM(&CodeLoc)) {
     return submit([&](handler &CGH) {
       CGH.require(Dest);
       CGH.copy(Src, Dest);
-    });
+    } _CODELOCFW(CodeLoc));
   }
 
   /// Copies data from a memory region pointed to by a placeholder accessor to
@@ -1100,11 +1101,11 @@ public:
   template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
             access::placeholder IsPlaceholder, typename DestT>
   event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
-             DestT *Dest) {
+             DestT *Dest _CODELOCPARAM(&CodeLoc)) {
     return submit([&](handler &CGH) {
       CGH.require(Src);
       CGH.copy(Src, Dest);
-    });
+    } _CODELOCFW(CodeLoc));
   }
 
   /// Copies data from a memory region pointed to by a raw pointer to another
@@ -1116,11 +1117,12 @@ public:
   template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
             target DestTgt, access::placeholder IsPlaceholder>
   event copy(const SrcT *Src,
-             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest) {
+             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest
+                 _CODELOCPARAM(&CodeLoc)) {
     return submit([&](handler &CGH) {
       CGH.require(Dest);
       CGH.copy(Src, Dest);
-    });
+    } _CODELOCFW(CodeLoc));
   }
 
   /// Copies data from one memory region to another, both pointed by placeholder
@@ -1135,12 +1137,13 @@ public:
             access::placeholder IsDestPlaceholder>
   event
   copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsSrcPlaceholder> Src,
-       accessor<DestT, DestDims, DestMode, DestTgt, IsDestPlaceholder> Dest) {
+       accessor<DestT, DestDims, DestMode, DestTgt, IsDestPlaceholder> Dest
+           _CODELOCPARAM(&CodeLoc)) {
     return submit([&](handler &CGH) {
       CGH.require(Src);
       CGH.require(Dest);
       CGH.copy(Src, Dest);
-    });
+    } _CODELOCFW(CodeLoc));
   }
 
   /// Provides guarantees that the memory object accessed via Acc is updated
@@ -1150,11 +1153,12 @@ public:
   /// \return an event representing update_host operation.
   template <typename T, int Dims, access_mode Mode, target Tgt,
             access::placeholder IsPlaceholder>
-  event update_host(accessor<T, Dims, Mode, Tgt, IsPlaceholder> Acc) {
+  event update_host(
+      accessor<T, Dims, Mode, Tgt, IsPlaceholder> Acc _CODELOCPARAM(&CodeLoc)) {
     return submit([&](handler &CGH) {
       CGH.require(Acc);
       CGH.update_host(Acc);
-    });
+    } _CODELOCFW(CodeLoc));
   }
 
   /// Fills the specified memory with the specified data.
@@ -1165,11 +1169,12 @@ public:
   /// \return an event representing fill operation.
   template <typename T, int Dims, access_mode Mode, target Tgt,
             access::placeholder IsPlaceholder>
-  event fill(accessor<T, Dims, Mode, Tgt, IsPlaceholder> Dest, const T &Src) {
+  event fill(accessor<T, Dims, Mode, Tgt, IsPlaceholder> Dest,
+             const T &Src _CODELOCPARAM(&CodeLoc)) {
     return submit([&](handler &CGH) {
       CGH.require(Dest);
       CGH.fill<T>(Dest, Src);
-    });
+    } _CODELOCFW(CodeLoc));
   }
 
 // Clean KERNELFUNC macros.
