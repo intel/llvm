@@ -463,6 +463,8 @@ namespace clang {
     /// Specialized handler for misexpect warnings.
     /// Note that misexpect remarks are emitted through ORE
     void MisExpectDiagHandler(const llvm::DiagnosticInfoMisExpect &D);
+    void
+    AspectMismatchDiagHandler(const llvm::DiagnosticInfoAspectsMismatch &D);
   };
 
   void BackendConsumer::anchor() {}
@@ -858,6 +860,23 @@ void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
       << llvm::demangle(D.getFunctionName().str()) << D.getNote();
 }
 
+void BackendConsumer::AspectMismatchDiagHandler(
+    const DiagnosticInfoAspectsMismatch &D) {
+  SourceLocation LocCookie =
+      SourceLocation::getFromRawEncoding(D.getLocCookie());
+  assert(LocCookie.isValid() &&
+         "Invalid location for caller in aspect mismatch diagnostic");
+  Diags.Report(LocCookie, diag::warn_sycl_device_has_aspect_mismatch)
+      << llvm::demangle(D.getFunctionName().str()) << D.getAspect();
+  for (const std::pair<StringRef, unsigned> &CalleeInfo : D.getCallChain()) {
+    LocCookie = SourceLocation::getFromRawEncoding(CalleeInfo.second);
+    assert(LocCookie.isValid() &&
+           "Invalid location for callee in aspect mismatch diagnostic");
+    Diags.Report(LocCookie, diag::note_sycl_aspect_propagated_from_call)
+        << llvm::demangle(CalleeInfo.first.str());
+  }
+}
+
 void BackendConsumer::MisExpectDiagHandler(
     const llvm::DiagnosticInfoMisExpect &D) {
   StringRef Filename;
@@ -958,6 +977,9 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     return;
   case llvm::DK_MisExpect:
     MisExpectDiagHandler(cast<DiagnosticInfoMisExpect>(DI));
+    return;
+  case llvm::DK_AspectMismatch:
+    AspectMismatchDiagHandler(cast<DiagnosticInfoAspectsMismatch>(DI));
     return;
   default:
     // Plugin IDs are not bound to any value as they are set dynamically.

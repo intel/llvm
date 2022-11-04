@@ -86,6 +86,7 @@ enum DiagnosticKind {
   DK_SrcMgr,
   DK_DontCall,
   DK_MisExpect,
+  DK_AspectMismatch,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -1114,6 +1115,38 @@ public:
   void print(DiagnosticPrinter &DP) const override;
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_DontCall;
+  }
+};
+
+void diagnoseAspectsMismatch(const Function *F,
+                             const SmallVector<Function *, 8> &CallChain,
+                             StringRef Aspect);
+
+// Diagnostic information for SYCL aspects usage mismatch.
+class DiagnosticInfoAspectsMismatch : public DiagnosticInfo {
+  StringRef FunctionName;
+  unsigned LocCookie;
+  llvm::SmallVector<std::pair<StringRef, unsigned>, 8> CallChain;
+  StringRef Aspect;
+
+public:
+  DiagnosticInfoAspectsMismatch(
+      StringRef FunctionName, unsigned LocCookie,
+      const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain,
+      StringRef Aspect)
+      : DiagnosticInfo(DK_AspectMismatch, DiagnosticSeverity::DS_Warning),
+        FunctionName(FunctionName), LocCookie(LocCookie), CallChain(CallChain),
+        Aspect(Aspect) {}
+  StringRef getFunctionName() const { return FunctionName; }
+  unsigned getLocCookie() const { return LocCookie; }
+  const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &
+  getCallChain() const {
+    return CallChain;
+  }
+  StringRef getAspect() const { return Aspect; }
+  void print(DiagnosticPrinter &DP) const override;
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_AspectMismatch;
   }
 };
 
