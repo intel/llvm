@@ -70,12 +70,6 @@ int main() {
           joint_matrix<half, use::a, 16, 16, layout::col_major> sub_a(sg);
           joint_matrix<half, use::b, 16, 16, layout::col_major> sub_b(sg);
 
-          joint_matrix<half, matrix_use::a, 16, 16, matrix_layout::col_major>
-              sub_a;
-
-          joint_matrix<half, matrix_use::b, 16, 16, matrix_layout::col_major>
-              sub_b;
-
           // CHECK: tail call { <2 x half>, <2 x half>, <2 x half>, <2 x half> } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f16.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 16)
           // CHECK-OPAQUE: tail call { <2 x half>, <2 x half>, <2 x half>, <2 x half> } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f16.p0(ptr %call.ascast.i.i{{.*}}.i, i32 16)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), stride,
