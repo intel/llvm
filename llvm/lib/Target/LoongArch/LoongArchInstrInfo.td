@@ -919,7 +919,7 @@ def PseudoBR : Pseudo<(outs), (ins simm26_b:$imm26), [(br bb:$imm26)]>,
                PseudoInstExpansion<(B simm26_b:$imm26)>;
 
 let isBarrier = 1, isBranch = 1, isIndirectBranch = 1, isTerminator = 1 in
-def PseudoBRIND : Pseudo<(outs), (ins GPR:$rj, simm16_lsl2:$imm16), []>,
+def PseudoBRIND : Pseudo<(outs), (ins GPR:$rj, simm16_lsl2:$imm16)>,
                   PseudoInstExpansion<(JIRL R0, GPR:$rj, simm16_lsl2:$imm16)>;
 
 def : Pat<(brind GPR:$rj), (PseudoBRIND GPR:$rj, 0)>;
@@ -927,7 +927,7 @@ def : Pat<(brind (add GPR:$rj, simm16_lsl2:$imm16)),
           (PseudoBRIND GPR:$rj, simm16_lsl2:$imm16)>;
 
 let isCall = 1, Defs = [R1] in
-def PseudoCALL : Pseudo<(outs), (ins simm26_bl:$func), []> {
+def PseudoCALL : Pseudo<(outs), (ins simm26_bl:$func)> {
   let AsmString = "bl\t$func";
 }
 
@@ -944,22 +944,22 @@ def PseudoRET : Pseudo<(outs), (ins), [(loongarch_ret)]>,
                 PseudoInstExpansion<(JIRL R0, R1, 0)>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def PseudoLA_PCREL : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+def PseudoLA_PCREL : Pseudo<(outs GPR:$dst), (ins grlenimm:$src)>;
 
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
-def PseudoLA_GOT : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+def PseudoLA_GOT : Pseudo<(outs GPR:$dst), (ins grlenimm:$src)>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def PseudoLA_TLS_LE : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+def PseudoLA_TLS_LE : Pseudo<(outs GPR:$dst), (ins grlenimm:$src)>;
 
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
-def PseudoLA_TLS_IE : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+def PseudoLA_TLS_IE : Pseudo<(outs GPR:$dst), (ins grlenimm:$src)>;
 
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
-def PseudoLA_TLS_LD : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+def PseudoLA_TLS_LD : Pseudo<(outs GPR:$dst), (ins grlenimm:$src)>;
 
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
-def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins grlenimm:$src), []>;
+def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins grlenimm:$src)>;
 
 /// BSTRINS and BSTRPICK
 
@@ -1113,7 +1113,7 @@ defm : StPat<atomic_store_16, ST_H, GPR, GRLenVT>;
 defm : StPat<atomic_store_unordered_monotonic_32, ST_W, GPR, i32>,
              Requires<[IsLA32]>;
 
-def PseudoAtomicStoreW : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk), []>,
+def PseudoAtomicStoreW : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk)>,
                                  PseudoInstExpansion<(AMSWAP_DB_W R0,
                                                       GPR:$rk, GPR:$rj)>;
 
@@ -1121,7 +1121,7 @@ def : Pat<(atomic_store_release_seqcst_32 GPR:$rj, GPR:$rk),
           (PseudoAtomicStoreW GPR:$rj, GPR:$rk)>;
 
 let Predicates = [IsLA64] in {
-def PseudoAtomicStoreD : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk), []>,
+def PseudoAtomicStoreD : Pseudo<(outs GPR:$dst), (ins GPR:$rj, GPR:$rk)>,
                                  PseudoInstExpansion<(AMSWAP_DB_D R0,
                                                       GPR:$rk, GPR:$rj)>;
 
@@ -1137,7 +1137,7 @@ defm : StPat<atomic_store_unordered_monotonic_64, ST_D, GPR, i64>;
 
 class PseudoMaskedAM
     : Pseudo<(outs GPR:$res, GPR:$scratch),
-             (ins GPR:$addr, GPR:$incr, GPR:$mask, grlenimm:$ordering), []> {
+             (ins GPR:$addr, GPR:$incr, GPR:$mask, grlenimm:$ordering)> {
   let Constraints = "@earlyclobber $res,@earlyclobber $scratch";
   let mayLoad = 1;
   let mayStore = 1;
@@ -1150,7 +1150,7 @@ def PseudoMaskedAtomicLoadSub32 : PseudoMaskedAM;
 def PseudoMaskedAtomicLoadNand32 : PseudoMaskedAM;
 
 class PseudoAM : Pseudo<(outs GPR:$res, GPR:$scratch),
-                        (ins GPR:$addr, GPR:$incr), []> {
+                        (ins GPR:$addr, GPR:$incr)> {
   let Constraints = "@earlyclobber $res,@earlyclobber $scratch";
   let mayLoad = 1;
   let mayStore = 1;
@@ -1169,7 +1169,7 @@ def PseudoAtomicLoadXor32 : PseudoAM;
 
 class PseudoMaskedAMUMinUMax
     : Pseudo<(outs GPR:$res, GPR:$scratch1, GPR:$scratch2),
-             (ins GPR:$addr, GPR:$incr, GPR:$mask, grlenimm:$ordering), []> {
+             (ins GPR:$addr, GPR:$incr, GPR:$mask, grlenimm:$ordering)> {
   let Constraints = "@earlyclobber $res,@earlyclobber $scratch1,"
                     "@earlyclobber $scratch2";
   let mayLoad = 1;
@@ -1179,6 +1179,30 @@ class PseudoMaskedAMUMinUMax
 
 def PseudoMaskedAtomicLoadUMax32 : PseudoMaskedAMUMinUMax;
 def PseudoMaskedAtomicLoadUMin32 : PseudoMaskedAMUMinUMax;
+
+/// Compare and exchange
+
+class PseudoCmpXchg
+    : Pseudo<(outs GPR:$res, GPR:$scratch),
+             (ins GPR:$addr, GPR:$cmpval, GPR:$newval)> {
+  let Constraints = "@earlyclobber $res,@earlyclobber $scratch";
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 0;
+}
+
+def PseudoCmpXchg32 : PseudoCmpXchg;
+def PseudoCmpXchg64 : PseudoCmpXchg;
+
+def PseudoMaskedCmpXchg32
+    : Pseudo<(outs GPR:$res, GPR:$scratch),
+             (ins GPR:$addr, GPR:$cmpval, GPR:$newval, GPR:$mask,
+              grlenimm:$ordering)> {
+  let Constraints = "@earlyclobber $res,@earlyclobber $scratch";
+  let mayLoad = 1;
+  let mayStore = 1;
+  let hasSideEffects = 0;
+}
 
 class AtomicPat<Intrinsic intrin, Pseudo AMInst>
     : Pat<(intrin GPR:$addr, GPR:$incr, GPR:$mask, timm:$ordering),
@@ -1233,6 +1257,15 @@ def : AtomicPat<int_loongarch_masked_atomicrmw_umax_i64,
                 PseudoMaskedAtomicLoadUMax32>;
 def : AtomicPat<int_loongarch_masked_atomicrmw_umin_i64,
                 PseudoMaskedAtomicLoadUMin32>;
+
+def : Pat<(atomic_cmp_swap_64 GPR:$addr, GPR:$cmp, GPR:$new),
+          (PseudoCmpXchg64 GPR:$addr, GPR:$cmp, GPR:$new)>;
+def : Pat<(int_loongarch_masked_cmpxchg_i64
+            GPR:$addr, GPR:$cmpval, GPR:$newval, GPR:$mask, timm:$ordering),
+          (PseudoMaskedCmpXchg32
+            GPR:$addr, GPR:$cmpval, GPR:$newval, GPR:$mask, timm:$ordering)>;
+def : Pat<(atomic_cmp_swap_32 GPR:$addr, GPR:$cmp, GPR:$new),
+          (PseudoCmpXchg32 GPR:$addr, GPR:$cmp, GPR:$new)>;
 } // Predicates = [IsLA64]
 
 def : Pat<(atomic_load_nand_32 GPR:$rj, GPR:$rk),
