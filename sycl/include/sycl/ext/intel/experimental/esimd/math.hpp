@@ -1399,7 +1399,7 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
   __ESIMD_NS::simd<float, N> reminder =
       abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
 
-  abs_x.merge(0.0, reminder >= 0);
+  abs_x.merge(0.0f, reminder >= 0);
   __ESIMD_NS::simd<float, N> fmod = reminder + abs_x;
   __ESIMD_NS::simd<float, N> fmod_abs = __ESIMD_NS::abs(fmod);
 

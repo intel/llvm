@@ -2328,9 +2328,8 @@ void reduction_parallel_for(handler &CGH,
           CGH, KernelFunc, Range, Properties, Redu);
     }
   } else {
-    reduction_parallel_for_basic_impl<KernelName>(CGH, Queue, Range, Properties,
-                                                  Redu, KernelFunc);
-    return;
+    return reduction_parallel_for_basic_impl<KernelName>(
+        CGH, Queue, Range, Properties, Redu, KernelFunc);
   }
 }
 

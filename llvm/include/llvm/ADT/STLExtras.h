@@ -36,6 +36,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -208,6 +209,131 @@ constexpr auto addEnumValues(EnumTy1 LHS, EnumTy2 RHS) {
 //     Extra additions to <iterator>
 //===----------------------------------------------------------------------===//
 
+namespace callable_detail {
+
+/// Templated storage wrapper for a callable.
+///
+/// This class is consistently default constructible, copy / move
+/// constructible / assignable.
+///
+/// Supported callable types:
+///  - Function pointer
+///  - Function reference
+///  - Lambda
+///  - Function object
+template <typename T,
+          bool = std::is_function_v<std::remove_pointer_t<remove_cvref_t<T>>>>
+class Callable {
+  using value_type = std::remove_reference_t<T>;
+  using reference = value_type &;
+  using const_reference = value_type const &;
+
+  std::optional<value_type> Obj;
+
+  static_assert(!std::is_pointer_v<value_type>,
+                "Pointers to non-functions are not callable.");
+
+public:
+  Callable() = default;
+  Callable(T const &O) : Obj(std::in_place, O) {}
+
+  Callable(Callable const &Other) = default;
+  Callable(Callable &&Other) = default;
+
+  Callable &operator=(Callable const &Other) {
+    Obj = std::nullopt;
+    if (Other.Obj)
+      Obj.emplace(*Other.Obj);
+    return *this;
+  }
+
+  Callable &operator=(Callable &&Other) {
+    Obj = std::nullopt;
+    if (Other.Obj)
+      Obj.emplace(std::move(*Other.Obj));
+    return *this;
+  }
+
+  template <typename... Pn,
+            std::enable_if_t<std::is_invocable_v<T, Pn...>, int> = 0>
+  decltype(auto) operator()(Pn &&...Params) {
+    return (*Obj)(std::forward<Pn>(Params)...);
+  }
+
+  template <typename... Pn,
+            std::enable_if_t<std::is_invocable_v<T const, Pn...>, int> = 0>
+  decltype(auto) operator()(Pn &&...Params) const {
+    return (*Obj)(std::forward<Pn>(Params)...);
+  }
+
+  bool valid() const { return Obj != std::nullopt; }
+  bool reset() { return Obj = std::nullopt; }
+
+  operator reference() { return *Obj; }
+  operator const_reference() const { return *Obj; }
+};
+
+// Function specialization.  No need to waste extra space wrapping with a
+// std::optional.
+template <typename T> class Callable<T, true> {
+  static constexpr bool IsPtr = std::is_pointer_v<remove_cvref_t<T>>;
+
+  using StorageT = std::conditional_t<IsPtr, T, std::remove_reference_t<T> *>;
+  using CastT = std::conditional_t<IsPtr, T, T &>;
+
+private:
+  StorageT Func = nullptr;
+
+private:
+  template <typename In> static constexpr auto convertIn(In &&I) {
+    if constexpr (IsPtr) {
+      // Pointer... just echo it back.
+      return I;
+    } else {
+      // Must be a function reference.  Return its address.
+      return &I;
+    }
+  }
+
+public:
+  Callable() = default;
+
+  // Construct from a function pointer or reference.
+  //
+  // Disable this constructor for references to 'Callable' so we don't violate
+  // the rule of 0.
+  template < // clang-format off
+    typename FnPtrOrRef,
+    std::enable_if_t<
+      !std::is_same_v<remove_cvref_t<FnPtrOrRef>, Callable>, int
+    > = 0
+  > // clang-format on
+  Callable(FnPtrOrRef &&F) : Func(convertIn(F)) {}
+
+  template <typename... Pn,
+            std::enable_if_t<std::is_invocable_v<T, Pn...>, int> = 0>
+  decltype(auto) operator()(Pn &&...Params) const {
+    return Func(std::forward<Pn>(Params)...);
+  }
+
+  bool valid() const { return Func != nullptr; }
+  void reset() { Func = nullptr; }
+
+  operator T const &() const {
+    if constexpr (IsPtr) {
+      // T is a pointer... just echo it back.
+      return Func;
+    } else {
+      static_assert(std::is_reference_v<T>,
+                    "Expected a reference to a function.");
+      // T is a function reference... dereference the stored pointer.
+      return *Func;
+    }
+  }
+};
+
+} // namespace callable_detail
+
 namespace adl_detail {
 
 using std::begin;
@@ -291,6 +417,7 @@ class mapped_iterator
           typename std::iterator_traits<ItTy>::difference_type,
           std::remove_reference_t<ReferenceTy> *, ReferenceTy> {
 public:
+  mapped_iterator() = default;
   mapped_iterator(ItTy U, FuncTy F)
     : mapped_iterator::iterator_adaptor_base(std::move(U)), F(std::move(F)) {}
 
@@ -301,7 +428,7 @@ public:
   ReferenceTy operator*() const { return F(*this->I); }
 
 private:
-  FuncTy F;
+  callable_detail::Callable<FuncTy> F{};
 };
 
 // map_iterator - Provide a convenient way to create mapped_iterators, just like
@@ -1634,6 +1761,57 @@ auto remove_if(R &&Range, UnaryPredicate P) {
 template <typename R, typename OutputIt, typename UnaryPredicate>
 OutputIt copy_if(R &&Range, OutputIt Out, UnaryPredicate P) {
   return std::copy_if(adl_begin(Range), adl_end(Range), Out, P);
+}
+
+/// Return the single value in \p Range that satisfies
+/// \p P(<member of \p Range> *, AllowRepeats)->T * returning nullptr
+/// when no values or multiple values were found.
+/// When \p AllowRepeats is true, multiple values that compare equal
+/// are allowed.
+template <typename T, typename R, typename Predicate>
+T *find_singleton(R &&Range, Predicate P, bool AllowRepeats = false) {
+  T *RC = nullptr;
+  for (auto *A : Range) {
+    if (T *PRC = P(A, AllowRepeats)) {
+      if (RC) {
+        if (!AllowRepeats || PRC != RC)
+          return nullptr;
+      } else
+        RC = PRC;
+    }
+  }
+  return RC;
+}
+
+/// Return a pair consisting of the single value in \p Range that satisfies
+/// \p P(<member of \p Range> *, AllowRepeats)->std::pair<T*, bool> returning
+/// nullptr when no values or multiple values were found, and a bool indicating
+/// whether multiple values were found to cause the nullptr.
+/// When \p AllowRepeats is true, multiple values that compare equal are
+/// allowed.  The predicate \p P returns a pair<T *, bool> where T is the
+/// singleton while the bool indicates whether multiples have already been
+/// found.  It is expected that first will be nullptr when second is true.
+/// This allows using find_singleton_nested within the predicate \P.
+template <typename T, typename R, typename Predicate>
+std::pair<T *, bool> find_singleton_nested(R &&Range, Predicate P,
+                                           bool AllowRepeats = false) {
+  T *RC = nullptr;
+  for (auto *A : Range) {
+    std::pair<T *, bool> PRC = P(A, AllowRepeats);
+    if (PRC.second) {
+      assert(PRC.first == nullptr &&
+             "Inconsistent return values in find_singleton_nested.");
+      return PRC;
+    }
+    if (PRC.first) {
+      if (RC) {
+        if (!AllowRepeats || PRC.first != RC)
+          return {nullptr, true};
+      } else
+        RC = PRC.first;
+    }
+  }
+  return {RC, false};
 }
 
 template <typename R, typename OutputIt>

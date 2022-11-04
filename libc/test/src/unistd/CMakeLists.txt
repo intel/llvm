@@ -383,11 +383,11 @@ add_libc_unittest(
   SRCS
     syscall_test.cpp
   DEPENDS
-    libc.src.unistd.__llvm_libc_syscall
     libc.include.errno
     libc.include.unistd
     libc.include.fcntl
     libc.include.sys_syscall
+    libc.src.unistd.__llvm_libc_syscall
     libc.test.errno_setter_matcher
 )
 
@@ -401,4 +401,17 @@ add_libc_unittest(
   DEPENDS
     libc.include.unistd
     libc.src.unistd.sysconf
+)
+
+add_libc_unittest(
+  getopt_test
+  SUITE
+    libc_unistd_unittests
+  SRCS
+    getopt_test.cpp
+  DEPENDS
+    libc.src.unistd.getopt
+    libc.src.__support.CPP.array
+    libc.src.stdio.fopencookie
+    libc.src.stdio.fflush
 )
