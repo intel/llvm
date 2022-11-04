@@ -38,7 +38,7 @@ namespace mlirclang {
 
 llvm::Type *anonymize(llvm::Type *T);
 bool isRecursiveStruct(llvm::Type *T, llvm::Type *Meta,
-                       llvm::SmallPtrSetImpl<llvm::Type *> &seen);
+                       llvm::SmallPtrSetImpl<llvm::Type *> &Seen);
 
 mlir::Type getSYCLType(const clang::RecordType *RT,
                        mlirclang::CodeGen::CodeGenTypes &CGT);

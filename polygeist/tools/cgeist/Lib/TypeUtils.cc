@@ -24,17 +24,17 @@ namespace mlirclang {
 
 using namespace llvm;
 
-bool isRecursiveStruct(Type *T, Type *Meta, SmallPtrSetImpl<Type *> &seen) {
-  if (seen.count(T))
+bool isRecursiveStruct(Type *T, Type *Meta, SmallPtrSetImpl<Type *> &Seen) {
+  if (Seen.count(T))
     return false;
-  seen.insert(T);
+  Seen.insert(T);
   if (T->isVoidTy() || T->isFPOrFPVectorTy() || T->isIntOrIntVectorTy())
     return false;
   if (T == Meta) {
     return true;
   }
   for (Type *ST : T->subtypes()) {
-    if (isRecursiveStruct(ST, Meta, seen)) {
+    if (isRecursiveStruct(ST, Meta, Seen)) {
       return true;
     }
   }
@@ -50,8 +50,8 @@ Type *anonymize(Type *T) {
                           AT->getNumElements());
   if (auto *FT = dyn_cast<FunctionType>(T)) {
     SmallVector<Type *, 4> V;
-    for (auto *t : FT->params())
-      V.push_back(anonymize(t));
+    for (auto *T : FT->params())
+      V.push_back(anonymize(T));
     return FunctionType::get(anonymize(FT->getReturnType()), V, FT->isVarArg());
   }
   if (auto *ST = dyn_cast<StructType>(T)) {
@@ -59,12 +59,12 @@ Type *anonymize(Type *T) {
       return ST;
     SmallVector<Type *, 4> V;
 
-    for (auto *t : ST->elements()) {
+    for (auto *T : ST->elements()) {
       SmallPtrSet<Type *, 4> Seen;
-      if (isRecursiveStruct(t, ST, Seen))
-        V.push_back(t);
+      if (isRecursiveStruct(T, ST, Seen))
+        V.push_back(T);
       else
-        V.push_back(anonymize(t));
+        V.push_back(anonymize(T));
     }
     return StructType::get(ST->getContext(), V, ST->isPacked());
   }
