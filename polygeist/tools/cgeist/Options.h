@@ -13,6 +13,7 @@
 #ifndef CGEIST_OPTIONS_H_
 #define CGEIST_OPTIONS_H_
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/CommandLine.h"
 #include <string>
@@ -29,12 +30,11 @@ public:
   ///
   /// The element stored will be owned by this.
   template <typename... ArgTy> void emplace_back(ArgTy &&...Args) {
-    // Store as a string
-    std::string Buffer;
-    llvm::raw_string_ostream Stream(Buffer);
-    (Stream << ... << Args);
-    Storage.push_back(Stream.str());
-    push_back(Storage.back());
+    // Store as a SmallString
+    push_back(Storage
+                  .emplace_back(std::initializer_list<llvm::StringRef>{
+                      std::forward<ArgTy>(Args)...})
+                  .c_str());
   }
 
   /// Return the underling argument list.
@@ -45,7 +45,9 @@ public:
 
 private:
   /// Helper storage.
-  llvm::SmallVector<std::string> Storage;
+  ///
+  /// llvm::SmallString<0> is needed to enforce heap allocation.
+  llvm::SmallVector<llvm::SmallString<0>> Storage;
   /// List of arguments
   llvm::SmallVector<const char *> Args;
 };
