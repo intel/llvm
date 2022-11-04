@@ -60,13 +60,12 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
      auto accC = bufC.get_access<sycl::access::mode::read_write>(cgh);
      auto accA = bufA.get_access<sycl::access::mode::read_write>(cgh);
      auto accB = bufB.get_access<sycl::access::mode::read_write>(cgh);
-     auto res_local_row_acc =
-         res_local_row_buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto v = res_local_row_buf.get_access<sycl::access::mode::atomic>(cgh);
 
      cgh.parallel_for<class imatrix>(
          sycl::nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [accA, accB, accC, M, N, K,
-          res_local_row_acc](sycl::nd_item<2> spmd_item)
+          v](sycl::nd_item<2> spmd_item)
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -103,10 +102,20 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            }
            // Element wise operation
            auto tCData = sub_c.get_wi_data();
+           int32_t sum_local_rows[MATRIX_M] = {0};
 
            for (int i = 0; i < tCData.length(); ++i) {
              auto [row, col] = tCData[i].get_coord();
-             res_local_row_acc[row] += tCData[i];
+             sum_local_rows[row] += tCData[i];
+
+             sum_local_rows[row] = sycl::reduce_over_group(
+                 sg, sum_local_rows[row],
+                 sycl::plus<>());
+               // only Groups leader perform the global reduction
+                if (global_idy % SG_SZ == 0) {
+                  atomic_fetch_add(v[row],
+                                    sum_local_rows[row]);
+                }
            }
          }); // parallel for
    }).wait();
