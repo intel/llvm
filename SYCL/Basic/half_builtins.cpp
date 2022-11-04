@@ -165,6 +165,14 @@ template <int N> bool check(vec<float, N> a, vec<float, N> b) {
 
 int main() {
   queue q;
+
+  if (!q.get_device().has(sycl::aspect::fp16)) {
+    std::cout
+        << "Test was skipped because the selected device does not support fp16"
+        << std::endl;
+    return 0;
+  }
+
   float16 a, b, c, d;
   for (int i = 0; i < SZ_max; i++) {
     a[i] = i / (float)SZ_max;
