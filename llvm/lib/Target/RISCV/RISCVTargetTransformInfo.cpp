@@ -486,6 +486,18 @@ RISCVTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                     TTI::TargetCostKind CostKind) {
   auto *RetTy = ICA.getReturnType();
   switch (ICA.getID()) {
+  case Intrinsic::ceil:
+  case Intrinsic::floor:
+  case Intrinsic::trunc:
+  case Intrinsic::rint:
+  case Intrinsic::round:
+  case Intrinsic::roundeven: {
+    // These all use the same code.
+    auto LT = getTypeLegalizationCost(RetTy);
+    if (!LT.second.isVector() && TLI->isOperationCustom(ISD::FCEIL, LT.second))
+      return LT.first * 8;
+    break;
+  }
   case Intrinsic::umin:
   case Intrinsic::umax:
   case Intrinsic::smin:
@@ -510,6 +522,14 @@ RISCVTTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     unsigned Cost = 1; // vid
     auto LT = getTypeLegalizationCost(RetTy);
     return Cost + (LT.first - 1);
+  }
+  case Intrinsic::vp_rint: {
+    // RISC-V target uses at least 5 instructions to lower rounding intrinsics.
+    unsigned Cost = 5;
+    auto LT = getTypeLegalizationCost(RetTy);
+    if (TLI->isOperationCustom(ISD::VP_FRINT, LT.second))
+      return Cost * LT.first;
+    break;
   }
   }
 

@@ -1906,7 +1906,6 @@ bool CGOpenMPRuntime::emitDeclareTargetVarDefinition(const VarDecl *VD,
     Out.clear();
     auto CtorEntryInfo = EntryInfo;
     CtorEntryInfo.ParentName = Twine(Buffer, "_ctor").toStringRef(Out);
-    llvm::errs() << "Registering var ctor: " << Twine(Buffer, "_ctor") << "\n";
     OffloadEntriesInfoManager.registerTargetRegionEntryInfo(
         CtorEntryInfo, Ctor, ID,
         llvm::OffloadEntriesInfoManager::OMPTargetRegionEntryCtor,
@@ -2997,7 +2996,7 @@ void CGOpenMPRuntime::createOffloadEntriesAndInfoMetadata() {
   auto &&TargetRegionMetadataEmitter =
       [this, &C, MD, &OrderedEntries, &ParentFunctions, &GetMDInt,
        &GetMDString](
-          llvm::TargetRegionEntryInfo EntryInfo,
+          const llvm::TargetRegionEntryInfo &EntryInfo,
           const llvm::OffloadEntriesInfoManager::OffloadEntryInfoTargetRegion
               &E) {
         // Generate metadata for target regions. Each entry of this metadata

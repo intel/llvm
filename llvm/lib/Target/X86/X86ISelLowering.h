@@ -584,6 +584,13 @@ namespace llvm {
     VFCMULCSH,
     VFCMULCSH_RND,
 
+    VPDPBSUD,
+    VPDPBSUDS,
+    VPDPBUUD,
+    VPDPBUUDS,
+    VPDPBSSD,
+    VPDPBSSDS,
+
     // Compress and expand.
     COMPRESS,
     EXPAND,
@@ -792,6 +799,13 @@ namespace llvm {
     LBTS,
     LBTC,
     LBTR,
+
+    /// RAO arithmetic instructions.
+    /// OUTCHAIN = AADD(INCHAIN, PTR, RHS)
+    AADD,
+    AOR,
+    AXOR,
+    AAND,
 
     // Load, scalar_to_vector, and zero extend.
     VZEXT_LOAD,

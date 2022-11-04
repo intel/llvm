@@ -322,6 +322,26 @@
 // CMPCCXADD: "-target-feature" "+cmpccxadd"
 // NO-CMPCCXADD: "-target-feature" "-cmpccxadd"
 
+// RUN: %clang --target=i386 -march=i386 -mraoint %s -### 2>&1 | FileCheck -check-prefix=RAOINT %s
+// RUN: %clang --target=i386 -march=i386 -mno-raoint %s -### 2>&1 | FileCheck -check-prefix=NO-RAOINT %s
+// RAOINT: "-target-feature" "+raoint"
+// NO-RAOINT: "-target-feature" "-raoint"
+
+// RUN: %clang -target i386-linux-gnu -mavxifma %s -### -o %t.o 2>&1 | FileCheck -check-prefix=AVXIFMA %s
+// RUN: %clang -target i386-linux-gnu -mno-avxifma %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AVXIFMA %s
+// AVXIFMA: "-target-feature" "+avxifma"
+// NO-AVXIFMA: "-target-feature" "-avxifma"
+
+// RUN: %clang --target=i386 -mavxvnniint8 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=AVX-VNNIINT8 %s
+// RUN: %clang --target=i386 -mno-avxvnniint8 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AVX-VNNIINT8 %s
+// AVX-VNNIINT8: "-target-feature" "+avxvnniint8"
+// NO-AVX-VNNIINT8: "-target-feature" "-avxvnniint8"
+
+// RUN: %clang --target=i386 -mavxneconvert %s -### -o %t.o 2>&1 | FileCheck -check-prefix=AVXNECONVERT %s
+// RUN: %clang --target=i386 -mno-avxneconvert %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AVXNECONVERT %s
+// AVXNECONVERT: "-target-feature" "+avxneconvert"
+// NO-AVXNECONVERT: "-target-feature" "-avxneconvert"
+
 // RUN: %clang --target=i386 -march=i386 -mcrc32 %s -### 2>&1 | FileCheck -check-prefix=CRC32 %s
 // RUN: %clang --target=i386 -march=i386 -mno-crc32 %s -### 2>&1 | FileCheck -check-prefix=NO-CRC32 %s
 // CRC32: "-target-feature" "+crc32"

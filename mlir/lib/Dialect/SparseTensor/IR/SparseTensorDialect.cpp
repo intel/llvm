@@ -262,6 +262,24 @@ mlir::sparse_tensor::getSparseTensorEncoding(Type type) {
   return nullptr;
 }
 
+bool mlir::sparse_tensor::isUniqueCOOType(RankedTensorType tp) {
+  SparseTensorEncodingAttr enc = getSparseTensorEncoding(tp);
+
+  if (!enc)
+    return false;
+
+  if (!isCompressedDim(tp, 0))
+    return false;
+
+  for (uint64_t i = 1, e = tp.getRank(); i < e; ++i)
+    if (!isSingletonDim(tp, i))
+      return false;
+
+  // This works for rank == 1 (unique the only compressed) and rank > 1 (unique
+  // on the last singleton).
+  return isUniqueDim(tp, tp.getRank() - 1);
+}
+
 uint64_t mlir::sparse_tensor::toOrigDim(const SparseTensorEncodingAttr &enc,
                                         uint64_t d) {
   if (enc) {
@@ -535,6 +553,22 @@ LogicalResult InsertOp::verify() {
   RankedTensorType ttp = getTensor().getType().cast<RankedTensorType>();
   if (ttp.getRank() != static_cast<int64_t>(getIndices().size()))
     return emitOpError("incorrect number of indices");
+  return success();
+}
+
+void PushBackOp::build(OpBuilder &builder, OperationState &result,
+                       Type outBuffer, Value bufferSizes, Value inBuffer,
+                       Value value, APInt idx) {
+  build(builder, result, outBuffer, bufferSizes, inBuffer, value, idx, Value());
+}
+
+LogicalResult PushBackOp::verify() {
+  Value n = getN();
+  if (n) {
+    auto nValue = dyn_cast_or_null<arith::ConstantIndexOp>(n.getDefiningOp());
+    if (nValue && nValue.value() < 1)
+      return emitOpError("n must be not less than 1");
+  }
   return success();
 }
 
