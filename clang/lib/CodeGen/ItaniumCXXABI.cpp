@@ -3566,6 +3566,8 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   if (CGM.getItaniumVTableContext().isRelativeLayout())
     VTable = CGM.getModule().getNamedAlias(VTableName);
 
+  // To generate valid device code SPIR-V module with virtual functions these
+  // global pointers should have global address space, not private as by default
   auto VTableTy =
       CGM.getLangOpts().SYCLIsDevice &&
               CGM.getLangOpts().SYCLAllowVirtualFunctions &&
