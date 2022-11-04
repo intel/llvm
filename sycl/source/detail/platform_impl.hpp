@@ -188,6 +188,10 @@ public:
   static std::shared_ptr<platform_impl>
   getPlatformFromPiDevice(RT::PiDevice PiDevice, const plugin &Plugin);
 
+  // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
+  // ensure every device is a root one.
+  bool MAlwaysRootDevice = false;
+
 private:
   std::shared_ptr<device_impl> getDeviceImplHelper(RT::PiDevice PiDevice);
 

@@ -79,9 +79,9 @@ static pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
 
 static void setupCommonMockAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompile);
-  Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLink);
-  Mock.redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
+  Mock.redefineBefore<PiApiKind::piProgramCompile>(redefinedProgramCompile);
+  Mock.redefineBefore<PiApiKind::piProgramLink>(redefinedProgramLink);
+  Mock.redefineBefore<PiApiKind::piProgramBuild>(redefinedProgramBuild);
 }
 
 static sycl::unittest::PiImage generateDefaultImage() {

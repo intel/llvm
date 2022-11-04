@@ -394,9 +394,9 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
       MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
       MEnqueueStatus(MEvent->getEnqueueStatus()) {
-  MSubmittedQueue = MQueue;
   MWorkerQueue = MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  MEvent->setSubmittedQueue(MWorkerQueue);
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEvent->setStateIncomplete();
@@ -1697,8 +1697,8 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
-    MSubmittedQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+    MEvent->setSubmittedQueue(
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
     MEvent->setNeedsCleanupAfterWait(true);
   } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
              (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
