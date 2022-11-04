@@ -173,8 +173,12 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     // image, but other tests can create other images. Additional variable is
     // added to control count of piProgramRetain calls
     auto BundleImpl = getSyclObjImpl(Bundle);
-    int NumRetains = BundleImpl->size() * 2;
 
+    // Bundle should only contain a single image, specifically the one with
+    // MultipleDevsCacheTestKernel.
+    EXPECT_EQ(BundleImpl->size(), 1);
+
+    int NumRetains = BundleImpl->size() * 2;
     EXPECT_EQ(RetainCounter, NumRetains)
         << "Expect " << NumRetains << " piProgramRetain calls";
 
